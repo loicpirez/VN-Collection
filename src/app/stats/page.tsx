@@ -163,7 +163,22 @@ export default async function StatsPage() {
 
       {yearsBuckets.length > 0 && (
         <Card title={t.charts.byYear} icon={<BarChart3 className="h-5 w-5 text-accent" />}>
-          <VBarChart data={yearsBuckets.map((d) => ({ label: d.label, value: d.count }))} height={120} />
+          <VBarChart
+            data={yearsBuckets.map((d) => {
+              const range = d.label.split('-');
+              const yMin = range[0];
+              const yMax = range[1] ?? range[0];
+              return {
+                label: d.label,
+                value: d.count,
+                href: `/?yearMin=${yMin}&yearMax=${yMax}`,
+                tooltip: `${d.label}: ${d.count}`,
+              };
+            })}
+            height={140}
+            barClassName="bg-accent"
+          />
+          <p className="mt-2 text-[11px] text-muted">{t.charts.yearChartHint}</p>
         </Card>
       )}
 

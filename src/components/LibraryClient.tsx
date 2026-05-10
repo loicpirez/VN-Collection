@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, CheckSquare, FilterX, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Calendar, CheckSquare, FilterX, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
@@ -30,6 +30,8 @@ export function LibraryClient() {
   const seriesId = searchParams.get('series') ?? '';
   const urlTag = searchParams.get('tag') ?? '';
   const urlPlace = searchParams.get('place') ?? '';
+  const urlYearMin = searchParams.get('yearMin') ?? '';
+  const urlYearMax = searchParams.get('yearMax') ?? '';
   const urlQ = searchParams.get('q') ?? '';
   const sort = (SORT_KEYS as readonly string[]).includes(searchParams.get('sort') ?? '')
     ? (searchParams.get('sort') as SortKey)
@@ -128,6 +130,8 @@ export function LibraryClient() {
     if (seriesId) params.set('series', seriesId);
     if (urlTag) params.set('tag', urlTag);
     if (urlPlace) params.set('place', urlPlace);
+    if (urlYearMin) params.set('yearMin', urlYearMin);
+    if (urlYearMax) params.set('yearMax', urlYearMax);
     if (urlQ) params.set('q', urlQ);
     params.set('sort', sort);
     params.set('order', order);
@@ -146,7 +150,7 @@ export function LibraryClient() {
     return () => {
       alive = false;
     };
-  }, [status, producer, seriesId, urlTag, urlPlace, urlQ, sort, order, refreshKey, t.common.error]);
+  }, [status, producer, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlQ, sort, order, refreshKey, t.common.error]);
 
   function clearAll() {
     router.replace('/', { scroll: false });
@@ -158,7 +162,25 @@ export function LibraryClient() {
     [stats],
   );
   const totalH = Math.round(stats.playtime_minutes / 60);
-  const hasFilters = !!status || !!producer || !!seriesId || !!urlQ || !!urlTag || !!urlPlace;
+  const hasFilters =
+    !!status || !!producer || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlYearMin || !!urlYearMax;
+  const yearLabel = urlYearMin && urlYearMax
+    ? urlYearMin === urlYearMax
+      ? urlYearMin
+      : `${urlYearMin}–${urlYearMax}`
+    : urlYearMin
+      ? `≥ ${urlYearMin}`
+      : urlYearMax
+        ? `≤ ${urlYearMax}`
+        : '';
+
+  function clearYear() {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('yearMin');
+    sp.delete('yearMax');
+    const qs = sp.toString();
+    router.replace(qs ? `/?${qs}` : '/', { scroll: false });
+  }
 
   const groups = useMemo(() => groupItems(items, group, t), [items, group, t]);
 
@@ -237,6 +259,18 @@ export function LibraryClient() {
             >
               <Home className="h-3.5 w-3.5" />
               <span className="max-w-[180px] truncate">{urlPlace}</span>
+              <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />
+            </button>
+          )}
+          {yearLabel && (
+            <button
+              type="button"
+              onClick={clearYear}
+              className="chip chip-active inline-flex items-center gap-1.5"
+              title={t.library.filterByYear}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              <span>{yearLabel}</span>
               <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />
             </button>
           )}

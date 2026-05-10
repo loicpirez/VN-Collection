@@ -509,6 +509,8 @@ export interface ListOptions {
   series?: number;
   tag?: string;
   place?: string;
+  yearMin?: number;
+  yearMax?: number;
   sort?:
     | 'updated_at'
     | 'added_at'
@@ -528,6 +530,8 @@ export function listCollection({
   series,
   tag,
   place,
+  yearMin,
+  yearMax,
   sort = 'updated_at',
   order = 'desc',
 }: ListOptions = {}): CollectionItem[] {
@@ -568,6 +572,14 @@ export function listCollection({
       AND EXISTS (SELECT 1 FROM json_each(c.physical_location) WHERE value = ?)
     )`);
     params.push(place);
+  }
+  if (typeof yearMin === 'number') {
+    where.push("substr(v.released, 1, 4) >= ?");
+    params.push(String(yearMin));
+  }
+  if (typeof yearMax === 'number') {
+    where.push("substr(v.released, 1, 4) <= ?");
+    params.push(String(yearMax));
   }
   let join = '';
   if (series) {

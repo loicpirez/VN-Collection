@@ -71,6 +71,7 @@ export const dictionaries = {
       filterBySeries: 'Filtrer par série',
       filterByTag: 'Filtrer par tag',
       filterByPlace: 'Filtrer par emplacement physique',
+      filterByYear: "Filtrer par année de sortie",
       filterMine: 'Dans ma collection',
       filterMineHint: 'Limite la liste aux entrées présentes dans ta collection.',
       clearFilters: 'Réinitialiser',
@@ -469,6 +470,7 @@ export const dictionaries = {
       byLocation: 'Par pays',
       byEdition: "Par type d'édition",
       byYear: 'Par année de sortie',
+      yearChartHint: 'Clique sur une barre pour filtrer la bibliothèque sur cette période.',
     },
     dataMgmt: {
       title: 'Sauvegarde & migration',
@@ -571,6 +573,7 @@ export const dictionaries = {
       filterBySeries: 'Filter by series',
       filterByTag: 'Filter by tag',
       filterByPlace: 'Filter by physical location',
+      filterByYear: 'Filter by release year',
       filterMine: 'In my collection',
       filterMineHint: 'Limit results to entries that exist in your collection.',
       clearFilters: 'Reset',
@@ -969,6 +972,7 @@ export const dictionaries = {
       byLocation: 'By country',
       byEdition: 'By edition type',
       byYear: 'By release year',
+      yearChartHint: 'Click a bar to filter the library to that range.',
     },
     dataMgmt: {
       title: 'Backup & migration',
@@ -1071,6 +1075,7 @@ export const dictionaries = {
       filterBySeries: 'シリーズで絞り込み',
       filterByTag: 'タグで絞り込み',
       filterByPlace: '保管場所で絞り込み',
+      filterByYear: '発売年で絞り込み',
       filterMine: 'コレクションのみ',
       filterMineHint: 'コレクションに含まれる項目のみ表示します。',
       clearFilters: 'リセット',
@@ -1469,6 +1474,7 @@ export const dictionaries = {
       byLocation: '所在国別',
       byEdition: 'エディション別',
       byYear: '発売年別',
+      yearChartHint: 'バーをクリックでその期間に絞り込みます。',
     },
     dataMgmt: {
       title: 'バックアップと移行',

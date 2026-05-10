@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
   const tag = sp.get('tag') ?? '';
   const place = sp.get('place') ?? '';
   const seriesRaw = sp.get('series');
+  const yearMinRaw = sp.get('yearMin');
+  const yearMaxRaw = sp.get('yearMax');
   const sortRaw = sp.get('sort') ?? 'updated_at';
   const orderRaw = sp.get('order') ?? 'desc';
 
@@ -34,6 +36,9 @@ export async function GET(req: NextRequest) {
   const order: 'asc' | 'desc' = orderRaw === 'asc' ? 'asc' : 'desc';
   const series = seriesRaw ? Number(seriesRaw) : undefined;
 
+  const yearMin = yearMinRaw ? Number(yearMinRaw) : undefined;
+  const yearMax = yearMaxRaw ? Number(yearMaxRaw) : undefined;
+
   const items = listCollection({
     status: status as ListOptions['status'],
     q,
@@ -41,6 +46,8 @@ export async function GET(req: NextRequest) {
     series: series && Number.isFinite(series) ? series : undefined,
     tag: tag || undefined,
     place: place || undefined,
+    yearMin: yearMin && Number.isFinite(yearMin) ? yearMin : undefined,
+    yearMax: yearMax && Number.isFinite(yearMax) ? yearMax : undefined,
     sort,
     order,
   });

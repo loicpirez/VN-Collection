@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 interface Props {
   data: { label: string; value: number; href?: string; sublabel?: string }[];
   formatValue?: (v: number) => string;
@@ -36,49 +38,72 @@ export function HBarChart({ data, formatValue, maxWidthPct = 100, emptyMessage =
   );
 }
 
+export interface VBarPoint {
+  label: string;
+  value: number;
+  href?: string;
+  /** Tooltip shown on hover (defaults to "label : value"). */
+  tooltip?: string;
+}
+
 export function VBarChart({
   data,
-  height = 140,
+  height = 160,
   formatValue,
-  barClassName = 'fill-accent',
+  barClassName = 'bg-accent',
+  emptyMessage,
 }: {
-  data: { label: string; value: number }[];
+  data: VBarPoint[];
   height?: number;
   formatValue?: (v: number) => string;
+  /** Tailwind class applied to each bar div. */
   barClassName?: string;
+  emptyMessage?: string;
 }) {
-  if (data.length === 0) return null;
+  if (data.length === 0) {
+    return emptyMessage ? <p className="py-6 text-center text-xs text-muted">{emptyMessage}</p> : null;
+  }
   const max = Math.max(...data.map((d) => d.value), 1);
-  const w = 30;
-  const gap = 6;
-  const total = data.length * (w + gap) - gap;
   return (
-    <div className="overflow-x-auto">
-      <svg
-        width={total + 24}
-        height={height + 30}
-        viewBox={`0 0 ${total + 24} ${height + 30}`}
-        className="block"
-      >
-        {data.map((d, i) => {
-          const h = max > 0 ? (d.value / max) * height : 0;
-          const x = 12 + i * (w + gap);
-          const y = height - h + 4;
-          return (
-            <g key={`${d.label}-${i}`}>
-              <rect x={x} y={y} width={w} height={h} className={barClassName} rx={3} />
-              {d.value > 0 && (
-                <text x={x + w / 2} y={y - 4} textAnchor="middle" className="fill-white" fontSize="9">
-                  {formatValue ? formatValue(d.value) : d.value}
-                </text>
-              )}
-              <text x={x + w / 2} y={height + 18} textAnchor="middle" className="fill-muted" fontSize="9">
-                {d.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+    <div
+      className="grid items-end gap-1"
+      style={{
+        height: `${height + 28}px`,
+        gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))`,
+      }}
+    >
+      {data.map((d, i) => {
+        const h = max > 0 ? (d.value / max) * height : 0;
+        const formatted = formatValue ? formatValue(d.value) : d.value.toLocaleString();
+        const tooltip = d.tooltip ?? `${d.label} · ${formatted}`;
+        const inner = (
+          <div
+            className={`relative flex w-full flex-col items-center justify-end ${
+              d.href ? 'cursor-pointer' : ''
+            }`}
+            style={{ height: height + 28 }}
+            title={tooltip}
+          >
+            {d.value > 0 && (
+              <span className="mb-1 text-[10px] font-bold tabular-nums text-white">{formatted}</span>
+            )}
+            <div
+              className={`w-full rounded-t-sm transition-[height,opacity] duration-200 ${barClassName} ${
+                d.href ? 'opacity-90 hover:opacity-100' : ''
+              } ${d.value === 0 ? 'opacity-30' : ''}`}
+              style={{ height: `${h}px` }}
+            />
+            <span className="mt-1 truncate text-[10px] text-muted">{d.label}</span>
+          </div>
+        );
+        return d.href ? (
+          <Link key={`${d.label}-${i}`} href={d.href} className="block">
+            {inner}
+          </Link>
+        ) : (
+          <div key={`${d.label}-${i}`}>{inner}</div>
+        );
+      })}
     </div>
   );
 }
