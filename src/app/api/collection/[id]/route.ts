@@ -54,6 +54,23 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
     if (!isValidBoxType(body.box_type)) return { fields, error: 'invalid box_type' };
     fields.box_type = body.box_type;
   }
+  if ('download_url' in body) {
+    const v = body.download_url;
+    if (v == null) {
+      fields.download_url = null;
+    } else if (typeof v === 'string') {
+      const trimmed = v.trim();
+      if (!trimmed) {
+        fields.download_url = null;
+      } else if (trimmed.length > 2000) {
+        return { fields, error: 'download_url too long' };
+      } else {
+        fields.download_url = trimmed;
+      }
+    } else {
+      return { fields, error: 'download_url must be string or null' };
+    }
+  }
   if ('physical_location' in body) {
     const v = body.physical_location;
     if (v == null) {

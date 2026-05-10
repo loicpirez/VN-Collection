@@ -35,6 +35,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const [editionLabel, setEditionLabel] = useState<string>(vn.edition_label ?? '');
   const [physicalLocations, setPhysicalLocations] = useState<string[]>(vn.physical_location ?? []);
   const [boxType, setBoxType] = useState<BoxType>((vn.box_type as BoxType) ?? 'none');
+  const [downloadUrl, setDownloadUrl] = useState<string>(vn.download_url ?? '');
   const [knownPlaces, setKnownPlaces] = useState<string[]>([]);
 
   useEffect(() => {
@@ -98,6 +99,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         edition_label: editionLabel || null,
         physical_location: physicalLocations,
         box_type: boxType,
+        download_url: downloadUrl.trim() || null,
       }),
     );
   }
@@ -248,6 +250,18 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
             />
             <span className="text-[10px] text-muted/70">{t.form.physicalLocationHint}</span>
           </div>
+          <label className="flex flex-col gap-1 sm:col-span-2">
+            <span className="label">{t.form.downloadUrl}</span>
+            <input
+              className="input"
+              type="url"
+              placeholder={t.form.downloadUrlPlaceholder}
+              value={downloadUrl}
+              onChange={(e) => setDownloadUrl(e.target.value)}
+              maxLength={2000}
+            />
+            <span className="text-[10px] text-muted/70">{t.form.downloadUrlHint}</span>
+          </label>
         </div>
       </div>
 

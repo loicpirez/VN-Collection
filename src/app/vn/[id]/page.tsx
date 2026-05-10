@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Box, ExternalLink, Globe, Home, MapPin, Package, Star } from 'lucide-react';
+import { ArrowLeft, Box, Download, ExternalLink, Globe, Home, MapPin, Package, Star } from 'lucide-react';
 import { getCollectionItem, isInCollection, listSeries, upsertVn } from '@/lib/db';
 import { getVn } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
@@ -218,6 +218,17 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               <a href={`https://vndb.org/${vn.id}`} target="_blank" rel="noopener noreferrer" className="btn">
                 <ExternalLink className="h-4 w-4" /> {t.detail.viewOnVndb}
               </a>
+              {inCol && vn.download_url && (
+                <a
+                  href={vn.download_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-primary"
+                  title={vn.download_url}
+                >
+                  <Download className="h-4 w-4" /> {t.form.downloadOpen}
+                </a>
+              )}
               {inCol && <DownloadAssetsButton vnId={vn.id} />}
             </div>
           </div>

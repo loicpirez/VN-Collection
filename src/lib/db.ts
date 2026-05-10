@@ -140,6 +140,7 @@ function open(): Database.Database {
   ensureColumn(db, 'collection', 'edition_label', 'TEXT');
   ensureColumn(db, 'collection', 'physical_location', 'TEXT');
   ensureColumn(db, 'collection', 'box_type', "TEXT NOT NULL DEFAULT 'none'");
+  ensureColumn(db, 'collection', 'download_url', 'TEXT');
 
   // Legacy migration: physical_location used to be a free-form string.
   // Convert any non-JSON value into a JSON array (split on commas).
@@ -289,8 +290,8 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
     INSERT INTO collection (vn_id, status, user_rating, playtime_minutes,
                             started_date, finished_date, notes, favorite,
                             location, edition_type, edition_label, physical_location,
-                            box_type, added_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            box_type, download_url, added_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     vnId,
     fields.status ?? 'planning',
@@ -305,6 +306,7 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
     fields.edition_label ?? null,
     serializePlaces(fields.physical_location ?? null),
     fields.box_type ?? 'none',
+    fields.download_url ?? null,
     now,
     now,
   );
@@ -326,6 +328,7 @@ export function updateCollection(vnId: string, fields: CollectionPatch): void {
     edition_label: (v) => v,
     physical_location: (v) => serializePlaces(v),
     box_type: (v) => v,
+    download_url: (v) => v,
   };
   for (const key of Object.keys(map) as (keyof typeof map)[]) {
     if (key in fields) {
@@ -387,6 +390,7 @@ interface DbRow {
   edition_label?: string | null;
   physical_location?: string | null;
   box_type?: string;
+  download_url?: string | null;
   added_at?: number;
   updated_at?: number;
 }
@@ -432,6 +436,7 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     edition_label: row.edition_label ?? null,
     physical_location: parsePlaces(row.physical_location),
     box_type: (row.box_type as BoxType | undefined) ?? 'none',
+    download_url: row.download_url ?? null,
     added_at: row.added_at,
     updated_at: row.updated_at,
   };
@@ -515,7 +520,8 @@ export function listCollection({
     .prepare(`
       SELECT v.*, c.status, c.user_rating, c.playtime_minutes, c.started_date,
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
-             c.edition_label, c.physical_location, c.box_type, c.added_at, c.updated_at
+             c.edition_label, c.physical_location, c.box_type, c.download_url,
+             c.added_at, c.updated_at
       FROM collection c JOIN vn v ON v.id = c.vn_id
       ${join}
       ${whereSql}
@@ -534,7 +540,8 @@ export function getCollectionItem(vnId: string): CollectionItem | null {
     .prepare(`
       SELECT v.*, c.status, c.user_rating, c.playtime_minutes, c.started_date,
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
-             c.edition_label, c.physical_location, c.box_type, c.added_at, c.updated_at
+             c.edition_label, c.physical_location, c.box_type, c.download_url,
+             c.added_at, c.updated_at
       FROM vn v LEFT JOIN collection c ON c.vn_id = v.id
       WHERE v.id = ?
     `)

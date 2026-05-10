@@ -90,6 +90,8 @@ export interface CollectionFields {
   /** Free-form locations where the physical copy is stored (e.g. ["Salon shelf", "Box 3"]). */
   physical_location: string[];
   box_type: BoxType;
+  /** Personal download link (e.g. NAS share URL). */
+  download_url: string | null;
   added_at: number;
   updated_at: number;
 }
