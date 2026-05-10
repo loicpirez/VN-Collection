@@ -147,27 +147,27 @@ export function LibraryClient() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+      <div className="mb-4 flex flex-wrap gap-1.5 overflow-x-auto no-scrollbar">
+        <button
+          className={`chip whitespace-nowrap ${!status ? 'chip-active' : ''}`}
+          onClick={() => setParam('status', null)}
+        >
+          {t.library.all} <span className="ml-1 opacity-70">{stats.total}</span>
+        </button>
+        {STATUSES.map((s) => (
           <button
-            className={`chip whitespace-nowrap ${!status ? 'chip-active' : ''}`}
-            onClick={() => setParam('status', null)}
+            key={s}
+            className={`chip inline-flex items-center gap-1 whitespace-nowrap ${status === s ? 'chip-active' : ''}`}
+            onClick={() => setParam('status', status === s ? null : s)}
           >
-            {t.library.all} <span className="ml-1 opacity-70">{stats.total}</span>
+            <StatusIcon status={s} className="h-3.5 w-3.5" />
+            {t.status[s]}
+            <span className="ml-1 opacity-70">{counts[s] ?? 0}</span>
           </button>
-          {STATUSES.map((s) => (
-            <button
-              key={s}
-              className={`chip inline-flex items-center gap-1 whitespace-nowrap ${status === s ? 'chip-active' : ''}`}
-              onClick={() => setParam('status', status === s ? null : s)}
-            >
-              <StatusIcon status={s} className="h-3.5 w-3.5" />
-              {t.status[s]}
-              <span className="ml-1 opacity-70">{counts[s] ?? 0}</span>
-            </button>
-          ))}
-        </div>
+        ))}
+      </div>
 
+      <div className="mb-4">
         <div className="flex flex-wrap items-center gap-2">
           <input
             className="input w-auto min-w-[180px]"
@@ -231,7 +231,7 @@ export function LibraryClient() {
         </div>
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
         <label className="flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.sortLabel}</span>
           <select
