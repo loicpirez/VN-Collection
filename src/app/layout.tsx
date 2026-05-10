@@ -8,6 +8,7 @@ import { DisplaySettingsProvider } from '@/lib/settings/client';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { SettingsButton } from '@/components/SettingsButton';
 import { QuoteFooter } from '@/components/QuoteFooter';
+import { ToastProvider } from '@/components/ToastProvider';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -25,6 +26,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen bg-bg text-white">
         <I18nProvider locale={locale} dict={dict}>
           <DisplaySettingsProvider>
+            <ToastProvider>
             <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur">
               <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-6 py-3">
                 <Link href="/" className="flex items-center gap-2">
@@ -49,7 +51,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </div>
             </header>
             <main className="mx-auto max-w-7xl px-6 pb-16 pt-8">{children}</main>
-            <QuoteFooter />
+              <QuoteFooter />
+            </ToastProvider>
           </DisplaySettingsProvider>
         </I18nProvider>
       </body>

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Bookmark, Plus, Save, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useToast } from './ToastProvider';
 import { StatusIcon } from './StatusIcon';
 import { MarkdownNotes } from './MarkdownNotes';
 import { DateInput } from './DateInput';
@@ -19,6 +20,7 @@ interface Props {
 
 export function EditForm({ vn, inCollection, allSeries }: Props) {
   const t = useT();
+  const toast = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -66,12 +68,17 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           router.refresh();
           after?.();
         })
-        .catch((e: Error) => setError(e.message));
+        .catch((e: Error) => {
+          setError(e.message);
+          toast.error(e.message);
+        });
     });
   }
 
   function handleAdd() {
-    withTransition(() => call('POST', { status: 'planning' }));
+    withTransition(
+      () => call('POST', { status: 'planning' }).then(() => toast.success(t.toast.added)),
+    );
   }
 
   function handleSave() {
@@ -100,14 +107,14 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         physical_location: physicalLocations,
         box_type: boxType,
         download_url: downloadUrl.trim() || null,
-      }),
+      }).then(() => toast.success(t.toast.saved)),
     );
   }
 
   function handleRemove() {
     if (!confirm(t.form.removeConfirm)) return;
     withTransition(
-      () => call('DELETE'),
+      () => call('DELETE').then(() => toast.success(t.toast.removed)),
       () => router.push('/'),
     );
   }

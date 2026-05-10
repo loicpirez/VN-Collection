@@ -3,9 +3,11 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImageMinus, ImagePlus, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useToast } from './ToastProvider';
 
 export function BannerControls({ vnId, hasCustomBanner }: { vnId: string; hasCustomBanner: boolean }) {
   const t = useT();
+  const toast = useToast();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
@@ -23,9 +25,12 @@ export function BannerControls({ vnId, hasCustomBanner }: { vnId: string; hasCus
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || t.common.error);
       }
+      toast.success(t.toast.bannerSaved);
       startTransition(() => router.refresh());
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -37,6 +42,7 @@ export function BannerControls({ vnId, hasCustomBanner }: { vnId: string; hasCus
     try {
       const res = await fetch(`/api/collection/${vnId}/banner`, { method: 'DELETE' });
       if (!res.ok) throw new Error(t.common.error);
+      toast.success(t.toast.bannerReset);
       startTransition(() => router.refresh());
     } catch (e) {
       setError((e as Error).message);

@@ -4,6 +4,7 @@ import { Heart, Loader2, MapPin, Package, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { BOX_TYPES, EDITION_TYPES, LOCATIONS, STATUSES, type BoxType, type EditionType, type Location, type Status } from '@/lib/types';
 import { StatusIcon } from './StatusIcon';
+import { useToast } from './ToastProvider';
 
 interface Props {
   selectedIds: string[];
@@ -37,6 +38,7 @@ async function deleteOne(vnId: string): Promise<void> {
 
 export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
   const t = useT();
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [errors, setErrors] = useState<string[]>([]);
@@ -61,11 +63,13 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
     setBusy(false);
     setErrors(localErrors);
     if (localErrors.length === 0) {
+      toast.success(t.toast.bulkApplied.replace('{n}', String(selectedIds.length)));
       startTransition(() => {
         onApplied();
         onClear();
       });
     } else {
+      toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
       onApplied();
     }
   }
@@ -89,6 +93,11 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
     }
     setBusy(false);
     setErrors(localErrors);
+    if (localErrors.length === 0) {
+      toast.success(t.toast.bulkDeleted.replace('{n}', String(selectedIds.length)));
+    } else {
+      toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
+    }
     startTransition(() => {
       onApplied();
       onClear();

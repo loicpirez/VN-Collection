@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Crosshair, Loader2, RotateCcw, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useToast } from './ToastProvider';
 
 interface Props {
   vnId: string;
@@ -22,6 +23,7 @@ function clamp(n: number): number {
 
 export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollection }: Props) {
   const t = useT();
+  const toast = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
@@ -81,9 +83,12 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
       }
       setPosition(draftPosition);
       setEditing(false);
+      toast.success(t.toast.bannerSaved);
       startTransition(() => router.refresh());
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -102,9 +107,12 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
       setPosition(DEFAULT_POSITION);
       setDraftPosition(DEFAULT_POSITION);
       setEditing(false);
+      toast.success(t.toast.bannerReset);
       startTransition(() => router.refresh());
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
