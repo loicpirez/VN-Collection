@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, Search, SlidersHorizontal } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { useT } from '@/lib/i18n/client';
@@ -36,22 +37,30 @@ const DEFAULT_ADV: AdvParams = {
   hasAnime: false,
 };
 
-export function SearchClient() {
-  const t = useT();
-  const [q, setQ] = useState('');
-  const [results, setResults] = useState<VndbSearchHit[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [touched, setTouched] = useState(false);
-  const [advOpen, setAdvOpen] = useState(false);
-  const [adv, setAdv] = useState<AdvParams>(DEFAULT_ADV);
-  const inputRef = useRef<HTMLInputElement>(null);
+function readAdvFromUrl(sp: URLSearchParams): AdvParams {
+  const csv = (key: string) => sp.get(key)?.split(',').filter(Boolean) ?? [];
+  const num = (key: string) => {
+    const v = sp.get(key);
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    langs: csv('langs'),
+    platforms: csv('platforms'),
+    lengthMin: num('lengthMin'),
+    lengthMax: num('lengthMax'),
+    yearMin: sp.get('yearMin') ?? '',
+    yearMax: sp.get('yearMax') ?? '',
+    ratingMin: sp.get('ratingMin') ?? '',
+    hasScreenshot: sp.get('hasScreenshot') === '1',
+    hasReview: sp.get('hasReview') === '1',
+    hasAnime: sp.get('hasAnime') === '1',
+  };
+}
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const advActive =
+function isAdvActive(adv: AdvParams): boolean {
+  return (
     adv.langs.length > 0 ||
     adv.platforms.length > 0 ||
     adv.lengthMin !== null ||
@@ -61,7 +70,68 @@ export function SearchClient() {
     !!adv.ratingMin ||
     adv.hasScreenshot ||
     adv.hasReview ||
-    adv.hasAnime;
+    adv.hasAnime
+  );
+}
+
+export function SearchClient() {
+  const t = useT();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialAdv = useMemo(() => readAdvFromUrl(new URLSearchParams(searchParams.toString())), [searchParams]);
+  const initialQ = searchParams.get('q') ?? '';
+
+  const [q, setQ] = useState(initialQ);
+  const [results, setResults] = useState<VndbSearchHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState(!!initialQ || isAdvActive(initialAdv));
+  const [advOpen, setAdvOpen] = useState(isAdvActive(initialAdv));
+  const [adv, setAdv] = useState<AdvParams>(initialAdv);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!initialQ && !isAdvActive(initialAdv)) inputRef.current?.focus();
+  }, [initialQ, initialAdv]);
+
+  // Auto-run on first mount when arriving with advanced filters in the URL.
+  const advAutoRunRef = useRef(false);
+  useEffect(() => {
+    if (advAutoRunRef.current) return;
+    if (isAdvActive(initialAdv)) {
+      advAutoRunRef.current = true;
+      runAdvanced();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync state → URL (debounced for q, immediate for adv toggles).
+  const syncUrl = useCallback(
+    (nextQ: string, nextAdv: AdvParams) => {
+      const sp = new URLSearchParams();
+      if (nextQ.trim()) sp.set('q', nextQ.trim());
+      if (nextAdv.langs.length) sp.set('langs', nextAdv.langs.join(','));
+      if (nextAdv.platforms.length) sp.set('platforms', nextAdv.platforms.join(','));
+      if (nextAdv.lengthMin !== null) sp.set('lengthMin', String(nextAdv.lengthMin));
+      if (nextAdv.lengthMax !== null) sp.set('lengthMax', String(nextAdv.lengthMax));
+      if (nextAdv.yearMin) sp.set('yearMin', nextAdv.yearMin);
+      if (nextAdv.yearMax) sp.set('yearMax', nextAdv.yearMax);
+      if (nextAdv.ratingMin) sp.set('ratingMin', nextAdv.ratingMin);
+      if (nextAdv.hasScreenshot) sp.set('hasScreenshot', '1');
+      if (nextAdv.hasReview) sp.set('hasReview', '1');
+      if (nextAdv.hasAnime) sp.set('hasAnime', '1');
+      const qs = sp.toString();
+      router.replace(qs ? `/search?${qs}` : '/search', { scroll: false });
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    const handle = setTimeout(() => syncUrl(q, adv), 300);
+    return () => clearTimeout(handle);
+  }, [q, adv, syncUrl]);
+
+  const advActive = isAdvActive(adv);
 
   // Quick search
   useEffect(() => {
