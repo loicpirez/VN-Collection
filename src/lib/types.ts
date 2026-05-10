@@ -12,6 +12,9 @@ export const STATUS_ICONS: Record<Status, string> = {
 export const EDITION_TYPES = ['none', 'physical', 'digital', 'limited', 'standard', 'collector', 'download_code'] as const;
 export type EditionType = (typeof EDITION_TYPES)[number];
 
+export const BOX_TYPES = ['none', 'small', 'medium', 'large', 'tall', 'dvd_case', 'special_edition', 'other'] as const;
+export type BoxType = (typeof BOX_TYPES)[number];
+
 export const LOCATIONS = ['unknown', 'fr', 'jp', 'en', 'de', 'cn', 'kr', 'tw', 'us', 'other'] as const;
 export type Location = (typeof LOCATIONS)[number];
 
@@ -86,6 +89,7 @@ export interface CollectionFields {
   edition_label: string | null;
   /** Free-form locations where the physical copy is stored (e.g. ["Salon shelf", "Box 3"]). */
   physical_location: string[];
+  box_type: BoxType;
   added_at: number;
   updated_at: number;
 }

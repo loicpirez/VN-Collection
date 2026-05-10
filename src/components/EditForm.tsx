@@ -8,7 +8,7 @@ import { StatusIcon } from './StatusIcon';
 import { MarkdownNotes } from './MarkdownNotes';
 import { DateInput } from './DateInput';
 import { TagInput } from './TagInput';
-import { EDITION_TYPES, LOCATIONS, STATUSES, type EditionType, type Location, type Status } from '@/lib/types';
+import { BOX_TYPES, EDITION_TYPES, LOCATIONS, STATUSES, type BoxType, type EditionType, type Location, type Status } from '@/lib/types';
 import type { CollectionItem, SeriesRow } from '@/lib/types';
 
 interface Props {
@@ -34,6 +34,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const [editionType, setEditionType] = useState<EditionType>((vn.edition_type as EditionType) ?? 'none');
   const [editionLabel, setEditionLabel] = useState<string>(vn.edition_label ?? '');
   const [physicalLocations, setPhysicalLocations] = useState<string[]>(vn.physical_location ?? []);
+  const [boxType, setBoxType] = useState<BoxType>((vn.box_type as BoxType) ?? 'none');
   const [knownPlaces, setKnownPlaces] = useState<string[]>([]);
 
   useEffect(() => {
@@ -96,6 +97,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         edition_type: editionType,
         edition_label: editionLabel || null,
         physical_location: physicalLocations,
+        box_type: boxType,
       }),
     );
   }
@@ -213,6 +215,14 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
             <select className="input" value={editionType} onChange={(e) => setEditionType(e.target.value as EditionType)}>
               {EDITION_TYPES.map((e) => (
                 <option key={e} value={e}>{t.editions[e]}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="label">{t.form.boxType}</span>
+            <select className="input" value={boxType} onChange={(e) => setBoxType(e.target.value as BoxType)}>
+              {BOX_TYPES.map((b) => (
+                <option key={b} value={b}>{t.boxTypes[b]}</option>
               ))}
             </select>
           </label>

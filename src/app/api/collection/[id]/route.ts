@@ -3,6 +3,7 @@ import {
   addToCollection,
   getCollectionItem,
   isInCollection,
+  isValidBoxType,
   isValidEditionType,
   isValidLocation,
   isValidStatus,
@@ -49,6 +50,10 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
     fields.edition_type = body.edition_type;
   }
   if ('edition_label' in body) fields.edition_label = (body.edition_label as string | null) || null;
+  if ('box_type' in body) {
+    if (!isValidBoxType(body.box_type)) return { fields, error: 'invalid box_type' };
+    fields.box_type = body.box_type;
+  }
   if ('physical_location' in body) {
     const v = body.physical_location;
     if (v == null) {

@@ -149,6 +149,7 @@ export const dictionaries = {
       physicalLocation: 'Emplacement physique',
       physicalLocationPlaceholder: 'Étagère salon, bibliothèque chambre, cave boîte 3…',
       physicalLocationHint: 'Tape un emplacement puis Entrée. Clique sur un tag pour voir tous les VN à cet endroit.',
+      boxType: 'Type de boîte',
       inventoryTitle: 'Inventaire',
       errors: {
         ratingRange: 'La note doit être entre 10 et 100 (ou vide).',
@@ -175,6 +176,16 @@ export const dictionaries = {
       standard: 'Édition standard',
       collector: 'Collector',
       download_code: 'Code de téléchargement',
+    },
+    boxTypes: {
+      none: 'Non spécifié',
+      small: 'Petite',
+      medium: 'Moyenne',
+      large: 'Grande',
+      tall: 'Haute',
+      dvd_case: 'Boîtier DVD',
+      special_edition: 'Édition spéciale',
+      other: 'Autre',
     },
     cover: {
       title: 'Couverture personnalisée',
@@ -559,6 +570,7 @@ export const dictionaries = {
       physicalLocation: 'Where it is at home',
       physicalLocationPlaceholder: 'Living room shelf, bedroom case, attic box 3…',
       physicalLocationHint: 'Type a location and press Enter. Click any tag to see every VN stored there.',
+      boxType: 'Box type',
       inventoryTitle: 'Inventory',
       errors: {
         ratingRange: 'Rating must be between 10 and 100 (or empty).',
@@ -585,6 +597,16 @@ export const dictionaries = {
       standard: 'Standard Edition',
       collector: 'Collector',
       download_code: 'Download code',
+    },
+    boxTypes: {
+      none: 'Unspecified',
+      small: 'Small',
+      medium: 'Medium',
+      large: 'Large',
+      tall: 'Tall',
+      dvd_case: 'DVD case',
+      special_edition: 'Special edition',
+      other: 'Other',
     },
     cover: {
       title: 'Custom cover',
@@ -969,6 +991,7 @@ export const dictionaries = {
       physicalLocation: '保管場所',
       physicalLocationPlaceholder: '例：リビングの棚、寝室の本棚、押入れ箱 3…',
       physicalLocationHint: '入力して Enter で追加。タグをクリックするとその場所にある全 VN が表示されます。',
+      boxType: 'ケースサイズ',
       inventoryTitle: '所有情報',
       errors: {
         ratingRange: '評価は 10〜100 の範囲で入力してください。',
@@ -995,6 +1018,16 @@ export const dictionaries = {
       standard: '通常版',
       collector: 'コレクターズ',
       download_code: 'ダウンロードコード',
+    },
+    boxTypes: {
+      none: '未指定',
+      small: '小',
+      medium: '中',
+      large: '大',
+      tall: 'トールサイズ',
+      dvd_case: 'DVD ケース',
+      special_edition: '特装版',
+      other: 'その他',
     },
     cover: {
       title: 'カスタムカバー',

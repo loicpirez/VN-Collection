@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ExternalLink, Globe, Home, MapPin, Package, Star } from 'lucide-react';
+import { ArrowLeft, Box, ExternalLink, Globe, Home, MapPin, Package, Star } from 'lucide-react';
 import { getCollectionItem, isInCollection, listSeries, upsertVn } from '@/lib/db';
 import { getVn } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
@@ -16,7 +16,7 @@ import { MarkdownView } from '@/components/MarkdownNotes';
 import { CharactersSection } from '@/components/CharactersSection';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { QuotesSection } from '@/components/QuotesSection';
-import type { CollectionItem, EditionType, Location, Status } from '@/lib/types';
+import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 const CACHE_MS = 24 * 3600 * 1000;
@@ -68,6 +68,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
   const customBanner = !!vn.banner_image;
   const location = (vn.location as Location | undefined) ?? 'unknown';
   const editionType = (vn.edition_type as EditionType | undefined) ?? 'none';
+  const boxType = (vn.box_type as BoxType | undefined) ?? 'none';
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -170,6 +171,14 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1">
                     <Package className="h-3 w-3 text-accent" /> {t.editions[editionType]}
                     {vn.edition_label && <span className="text-muted">· {vn.edition_label}</span>}
+                  </span>
+                )}
+                {boxType !== 'none' && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1"
+                    title={t.form.boxType}
+                  >
+                    <Box className="h-3 w-3 text-accent" /> {t.boxTypes[boxType]}
                   </span>
                 )}
                 {(vn.physical_location ?? []).map((place) => (
