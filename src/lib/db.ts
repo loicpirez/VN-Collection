@@ -115,6 +115,15 @@ function open(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_series_vn_vn ON series_vn(vn_id);
 
+    CREATE TABLE IF NOT EXISTS owned_release (
+      vn_id      TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
+      release_id TEXT NOT NULL,
+      notes      TEXT,
+      added_at   INTEGER NOT NULL,
+      PRIMARY KEY (vn_id, release_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_owned_release_release ON owned_release(release_id);
+
     CREATE TABLE IF NOT EXISTS vndb_cache (
       cache_key     TEXT PRIMARY KEY,
       body          TEXT NOT NULL,
@@ -693,6 +702,40 @@ export function listCollectionTags(): CollectionTagAggregate[] {
       ORDER BY count DESC, name COLLATE NOCASE ASC
     `)
     .all() as CollectionTagAggregate[];
+}
+
+// Owned releases
+
+export interface OwnedReleaseRow {
+  vn_id: string;
+  release_id: string;
+  notes: string | null;
+  added_at: number;
+}
+
+export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {
+  return db
+    .prepare('SELECT * FROM owned_release WHERE vn_id = ? ORDER BY added_at DESC')
+    .all(vnId) as OwnedReleaseRow[];
+}
+
+export function getOwnedRelease(vnId: string, releaseId: string): OwnedReleaseRow | null {
+  return (db
+    .prepare('SELECT * FROM owned_release WHERE vn_id = ? AND release_id = ?')
+    .get(vnId, releaseId) as OwnedReleaseRow | undefined) ?? null;
+}
+
+export function markReleaseOwned(vnId: string, releaseId: string, notes: string | null = null): void {
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO owned_release (vn_id, release_id, notes, added_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(vn_id, release_id) DO UPDATE SET notes = excluded.notes
+  `).run(vnId, releaseId, notes, now);
+}
+
+export function unmarkReleaseOwned(vnId: string, releaseId: string): void {
+  db.prepare('DELETE FROM owned_release WHERE vn_id = ? AND release_id = ?').run(vnId, releaseId);
 }
 
 export function listKnownPlaces(): string[] {

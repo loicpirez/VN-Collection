@@ -1,11 +1,14 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   Boxes,
+  Check,
   ChevronDown,
   ChevronRight,
   ExternalLink,
   Globe,
+  Info,
   Languages,
   Mic2,
   Package,
@@ -27,12 +30,16 @@ function fmtRes(r: VndbRelease['resolution']): string | null {
   return `${r[0]}×${r[1]}`;
 }
 
-export function ReleasesSection({ vnId }: { vnId: string }) {
+interface OwnedEntry { release_id: string }
+
+export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; inCollection?: boolean }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [releases, setReleases] = useState<VndbRelease[] | null>(null);
+  const [owned, setOwned] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || releases !== null) return;
@@ -51,6 +58,46 @@ export function ReleasesSection({ vnId }: { vnId: string }) {
       alive = false;
     };
   }, [open, vnId, releases, t.common.error]);
+
+  const refreshOwned = useCallback(async () => {
+    if (!inCollection) return;
+    try {
+      const r = await fetch(`/api/collection/${vnId}/owned-releases`);
+      if (!r.ok) return;
+      const d = (await r.json()) as { owned: OwnedEntry[] };
+      setOwned(new Set(d.owned.map((o) => o.release_id)));
+    } catch {
+      // ignore
+    }
+  }, [vnId, inCollection]);
+
+  useEffect(() => {
+    if (open) refreshOwned();
+  }, [open, refreshOwned]);
+
+  async function toggleOwned(releaseId: string) {
+    if (!inCollection || pendingId) return;
+    const isOwned = owned.has(releaseId);
+    setPendingId(releaseId);
+    try {
+      const url = isOwned
+        ? `/api/collection/${vnId}/owned-releases?release_id=${encodeURIComponent(releaseId)}`
+        : `/api/collection/${vnId}/owned-releases`;
+      const init: RequestInit = isOwned
+        ? { method: 'DELETE' }
+        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ release_id: releaseId }) };
+      const r = await fetch(url, init);
+      if (!r.ok) throw new Error(t.common.error);
+      const next = new Set(owned);
+      if (isOwned) next.delete(releaseId);
+      else next.add(releaseId);
+      setOwned(next);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setPendingId(null);
+    }
+  }
 
   return (
     <details
@@ -85,25 +132,51 @@ export function ReleasesSection({ vnId }: { vnId: string }) {
               const dev = r.producers.filter((p) => p.developer).map((p) => p.name).join(', ');
               const pub = r.producers.filter((p) => p.publisher).map((p) => p.name).join(', ');
               const res = fmtRes(r.resolution);
+              const isOwned = owned.has(r.id);
               return (
-                <li key={r.id} className="rounded-lg border border-border bg-bg-elev/50 p-4">
+                <li
+                  key={r.id}
+                  className={`rounded-lg border p-4 transition-colors ${
+                    isOwned ? 'border-status-completed bg-status-completed/5' : 'border-border bg-bg-elev/50'
+                  }`}
+                >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h4 className="text-sm font-bold">
-                      <a
-                        href={`https://vndb.org/${r.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-accent"
-                      >
+                    <h4 className="flex flex-wrap items-baseline gap-2 text-sm font-bold">
+                      <Link href={`/release/${r.id}`} className="hover:text-accent">
                         {r.title}
-                      </a>
+                      </Link>
                       {rtype && (
-                        <span className="ml-2 rounded-md bg-bg px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-accent">
+                        <span className="rounded-md bg-bg px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-accent">
                           {t.releases.rtype[rtype]}
                         </span>
                       )}
+                      <Link
+                        href={`/release/${r.id}`}
+                        className="inline-flex items-center gap-0.5 rounded bg-bg px-1.5 py-0.5 text-[10px] font-normal text-muted hover:bg-accent hover:text-bg"
+                        title={t.releases.viewDetails}
+                      >
+                        <Info className="h-3 w-3" /> {t.releases.viewDetails}
+                      </Link>
                     </h4>
-                    {r.released && <span className="text-xs text-muted tabular-nums">{r.released}</span>}
+                    <div className="flex items-center gap-2">
+                      {r.released && <span className="text-xs text-muted tabular-nums">{r.released}</span>}
+                      {inCollection && (
+                        <button
+                          type="button"
+                          onClick={() => toggleOwned(r.id)}
+                          disabled={pendingId === r.id}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                            isOwned
+                              ? 'border-status-completed bg-status-completed/20 text-status-completed'
+                              : 'border-border bg-bg text-muted hover:border-accent hover:text-white'
+                          }`}
+                          title={isOwned ? t.releases.ownedYes : t.releases.markOwned}
+                        >
+                          {isOwned ? <Check className="h-3 w-3" /> : null}
+                          {isOwned ? t.releases.ownedYes : t.releases.markOwned}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {r.alttitle && r.alttitle !== r.title && (
                     <div className="mt-0.5 text-xs text-muted">{r.alttitle}</div>

@@ -258,7 +258,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
 
       <div className="mt-6 space-y-3">
         <CharactersSection vnId={vn.id} />
-        <ReleasesSection vnId={vn.id} />
+        <ReleasesSection vnId={vn.id} inCollection={inCol} />
         <QuotesSection vnId={vn.id} />
       </div>
 
