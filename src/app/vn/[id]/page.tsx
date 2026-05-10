@@ -19,6 +19,7 @@ import { QuotesSection } from '@/components/QuotesSection';
 import { RoutesSection } from '@/components/RoutesSection';
 import { LangList } from '@/components/LangFlag';
 import { RelationsSection } from '@/components/RelationsSection';
+import { RecordRecentView } from '@/components/RecordRecentView';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -75,6 +76,13 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="mx-auto max-w-6xl">
+      <RecordRecentView
+        id={vn.id}
+        title={vn.title}
+        poster={vn.image_thumb || vn.image_url}
+        localPoster={vn.local_image_thumb || vn.local_image}
+        sexual={vn.image_sexual}
+      />
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>

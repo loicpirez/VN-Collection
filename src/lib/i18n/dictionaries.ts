@@ -371,6 +371,10 @@ export const dictionaries = {
       screenshots: "Captures d'écran",
     },
     cardAdd: 'Ajouter',
+    recently: {
+      title: 'Récemment consultés',
+      clear: 'Effacer',
+    },
     dateInput: {
       empty: 'Choisir une date…',
       today: "Aujourd'hui",
@@ -882,6 +886,10 @@ export const dictionaries = {
       screenshots: 'Screenshots',
     },
     cardAdd: 'Add',
+    recently: {
+      title: 'Recently viewed',
+      clear: 'Clear',
+    },
     dateInput: {
       empty: 'Pick a date…',
       today: 'Today',
@@ -1393,6 +1401,10 @@ export const dictionaries = {
       screenshots: 'スクリーンショット',
     },
     cardAdd: '追加',
+    recently: {
+      title: '最近見た',
+      clear: 'クリア',
+    },
     dateInput: {
       empty: '日付を選択…',
       today: '今日',
