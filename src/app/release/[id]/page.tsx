@@ -4,6 +4,7 @@ import { ArrowLeft, Boxes, ExternalLink, Globe, Languages, Mic2, Package, Shield
 import { getRelease, type VndbRelease } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { LangFlag } from '@/components/LangFlag';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,8 +107,13 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                 <Languages className="mr-1 inline h-3 w-3" />
                 {t.detail.languages}
               </dt>
-              <dd className="font-semibold">
-                {release.languages.map((l) => `${l.lang}${l.mtl ? ` (${t.releases.mtl})` : ''}`).join(', ')}
+              <dd className="flex flex-wrap items-baseline gap-1.5 text-sm font-semibold">
+                {release.languages.map((l) => (
+                  <span key={l.lang} className="inline-flex items-baseline gap-1">
+                    <LangFlag lang={l.lang} withCode />
+                    {l.mtl && <span className="text-[10px] text-muted">({t.releases.mtl})</span>}
+                  </span>
+                ))}
               </dd>
             </div>
           )}

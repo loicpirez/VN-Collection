@@ -17,6 +17,7 @@ import { CharactersSection } from '@/components/CharactersSection';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { QuotesSection } from '@/components/QuotesSection';
 import { RoutesSection } from '@/components/RoutesSection';
+import { LangList } from '@/components/LangFlag';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -138,7 +139,9 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               {!!vn.languages?.length && (
                 <div className="col-span-2 sm:col-span-3">
                   <dt className="label">{t.detail.languages}</dt>
-                  <dd className="font-semibold">{vn.languages.slice(0, 8).join(', ')}</dd>
+                  <dd className="font-semibold">
+                    <LangList langs={vn.languages.slice(0, 12)} />
+                  </dd>
                 </div>
               )}
               {!!vn.platforms?.length && (

@@ -15,6 +15,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { LangFlag } from './LangFlag';
 import type { VndbRelease } from '@/lib/vndb-types';
 
 const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> = {
@@ -119,7 +120,6 @@ export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; 
         {releases && releases.length > 0 && (
           <ul className="space-y-3">
             {releases.map((r) => {
-              const langs = r.languages.map((l) => l.lang).join(', ');
               const platforms = r.platforms.join(', ');
               const flags: string[] = [];
               if (r.official) flags.push(t.releases.official);
@@ -182,9 +182,12 @@ export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; 
                     <div className="mt-0.5 text-xs text-muted">{r.alttitle}</div>
                   )}
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
-                    {langs && (
-                      <span className="inline-flex items-center gap-1">
-                        <Languages className="h-3 w-3" /> {langs}
+                    {r.languages.length > 0 && (
+                      <span className="inline-flex items-baseline gap-1">
+                        <Languages className="h-3 w-3" />
+                        {r.languages.map((l) => (
+                          <LangFlag key={l.lang} lang={l.lang} className="text-xs" />
+                        ))}
                       </span>
                     )}
                     {platforms && (
