@@ -328,6 +328,7 @@ export function SearchClient() {
           {results.map((r) => (
             <VnCard
               key={r.id}
+              enableAdd
               data={{
                 id: r.id,
                 title: r.title,

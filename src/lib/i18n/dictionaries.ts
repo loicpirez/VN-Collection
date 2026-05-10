@@ -353,6 +353,7 @@ export const dictionaries = {
       dig: 'Numérique',
       screenshots: "Captures d'écran",
     },
+    cardAdd: 'Ajouter',
     toast: {
       saved: 'Enregistré',
       added: 'Ajouté à la collection',
@@ -836,6 +837,7 @@ export const dictionaries = {
       dig: 'Digital',
       screenshots: 'Screenshots',
     },
+    cardAdd: 'Add',
     toast: {
       saved: 'Saved',
       added: 'Added to collection',
@@ -1319,6 +1321,7 @@ export const dictionaries = {
       dig: 'デジタル',
       screenshots: 'スクリーンショット',
     },
+    cardAdd: '追加',
     toast: {
       saved: '保存しました',
       added: 'コレクションに追加しました',

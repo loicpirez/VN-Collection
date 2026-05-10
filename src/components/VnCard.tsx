@@ -1,8 +1,11 @@
 'use client';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { Star, CheckCheck, Clock, Hourglass, Building2, Check } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Loader2, Plus } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
+import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import type { Status } from '@/lib/types';
 
@@ -29,6 +32,10 @@ interface VnCardProps {
   selectable?: boolean;
   selected?: boolean;
   onSelect?: () => void;
+  /** When true and the VN isn't in collection, render a hover "+ Add" button. */
+  enableAdd?: boolean;
+  /** Called after a successful add. Receives the VN id. */
+  onAdded?: (id: string) => void;
 }
 
 function fmtMinutes(m: number | null | undefined): string | null {
@@ -40,8 +47,41 @@ function fmtMinutes(m: number | null | undefined): string | null {
   return `${mn}m`;
 }
 
-export function VnCard({ data, selectable = false, selected = false, onSelect }: VnCardProps) {
+export function VnCard({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded }: VnCardProps) {
   const t = useT();
+  const toast = useToast();
+  const router = useRouter();
+  const [adding, setAdding] = useState(false);
+  const [addedLocal, setAddedLocal] = useState(false);
+  const [, startTransition] = useTransition();
+  const showAddButton = enableAdd && !selectable && !data.status && !data.inCollectionBadge && !addedLocal;
+  const showAddedBadge = enableAdd && !selectable && (data.inCollectionBadge || addedLocal);
+
+  async function handleAdd(e: React.MouseEvent | React.KeyboardEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (adding) return;
+    setAdding(true);
+    try {
+      const r = await fetch(`/api/collection/${data.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'planning' }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || t.common.error);
+      }
+      toast.success(t.toast.added);
+      setAddedLocal(true);
+      onAdded?.(data.id);
+      startTransition(() => router.refresh());
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setAdding(false);
+    }
+  }
   const ratingNum = data.user_rating ?? data.rating;
   const rating = ratingNum != null ? (ratingNum / 10).toFixed(1) : null;
   const year = data.released?.slice(0, 4);
@@ -81,11 +121,26 @@ export function VnCard({ data, selectable = false, selected = false, onSelect }:
           <StatusBadge status={data.status} />
         </div>
       )}
-      {!selectable && data.inCollectionBadge && (
+      {!selectable && (showAddedBadge) && (
         <span className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md bg-status-completed px-2 py-0.5 text-[11px] font-bold text-bg">
           <CheckCheck className="h-3 w-3" aria-hidden />
           {t.search.inCollection}
         </span>
+      )}
+      {!selectable && showAddButton && (
+        <button
+          type="button"
+          onClick={handleAdd}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') handleAdd(e);
+          }}
+          disabled={adding}
+          className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-accent/90 px-2 py-0.5 text-[11px] font-bold text-bg shadow-card opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100 group-focus-within:opacity-100 disabled:opacity-50"
+          title={t.form.add}
+        >
+          {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+          {t.cardAdd}
+        </button>
       )}
       <SafeImage
         src={data.poster}

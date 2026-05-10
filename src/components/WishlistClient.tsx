@@ -1,7 +1,6 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { CheckCheck, Heart, KeyRound, Loader2, Plus, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Heart, KeyRound, Loader2, Search } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { useT } from '@/lib/i18n/client';
 
@@ -28,15 +27,12 @@ interface WishlistItem {
 
 export function WishlistClient() {
   const t = useT();
-  const router = useRouter();
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [hideOwned, setHideOwned] = useState(false);
-  const [adding, setAdding] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
 
   useEffect(() => {
     let alive = true;
@@ -74,27 +70,6 @@ export function WishlistClient() {
       it.vn.developers.some((d) => d.name.toLowerCase().includes(lower))
     );
   });
-
-  async function addToCollection(vnId: string) {
-    setAdding(vnId);
-    setError(null);
-    try {
-      const r = await fetch(`/api/collection/${vnId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'planning' }),
-      });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
-      setItems((prev) =>
-        prev.map((it) => (it.vn.id === vnId ? { ...it, in_collection: true } : it)),
-      );
-      startTransition(() => router.refresh());
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setAdding(null);
-    }
-  }
 
   return (
     <div>
@@ -160,43 +135,26 @@ export function WishlistClient() {
 
           <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {filtered.map((it) => (
-              <div key={it.id} className="relative">
-                {it.in_collection ? (
-                  <span className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-status-completed px-2 py-0.5 text-[11px] font-bold text-bg shadow">
-                    <CheckCheck className="h-3 w-3" aria-hidden />
-                    {t.search.inCollection}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      addToCollection(it.vn.id);
-                    }}
-                    disabled={adding === it.vn.id}
-                    className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 text-[11px] font-bold text-bg shadow transition-opacity hover:bg-accent/90 disabled:opacity-50"
-                  >
-                    {adding === it.vn.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Plus className="h-3 w-3" />
-                    )}
-                    {t.wishlist.addToCollection}
-                  </button>
-                )}
-                <VnCard
-                  data={{
-                    id: it.vn.id,
-                    title: it.vn.title,
-                    poster: it.vn.image?.thumbnail || it.vn.image?.url || null,
-                    sexual: it.vn.image?.sexual ?? null,
-                    released: it.vn.released,
-                    rating: it.vn.rating,
-                    length_minutes: it.vn.length_minutes,
-                    developers: it.vn.developers,
-                  }}
-                />
-              </div>
+              <VnCard
+                key={it.id}
+                enableAdd
+                onAdded={(id) =>
+                  setItems((prev) =>
+                    prev.map((x) => (x.vn.id === id ? { ...x, in_collection: true } : x)),
+                  )
+                }
+                data={{
+                  id: it.vn.id,
+                  title: it.vn.title,
+                  poster: it.vn.image?.thumbnail || it.vn.image?.url || null,
+                  sexual: it.vn.image?.sexual ?? null,
+                  released: it.vn.released,
+                  rating: it.vn.rating,
+                  length_minutes: it.vn.length_minutes,
+                  developers: it.vn.developers,
+                  inCollectionBadge: it.in_collection,
+                }}
+              />
             ))}
           </div>
         </>
