@@ -371,6 +371,15 @@ export const dictionaries = {
       screenshots: "Captures d'écran",
     },
     cardAdd: 'Ajouter',
+    dateInput: {
+      empty: 'Choisir une date…',
+      today: "Aujourd'hui",
+      clear: 'Effacer',
+      prevMonth: 'Mois précédent',
+      nextMonth: 'Mois suivant',
+      prevYear: 'Année précédente',
+      nextYear: 'Année suivante',
+    },
     toast: {
       saved: 'Enregistré',
       added: 'Ajouté à la collection',
@@ -873,6 +882,15 @@ export const dictionaries = {
       screenshots: 'Screenshots',
     },
     cardAdd: 'Add',
+    dateInput: {
+      empty: 'Pick a date…',
+      today: 'Today',
+      clear: 'Clear',
+      prevMonth: 'Previous month',
+      nextMonth: 'Next month',
+      prevYear: 'Previous year',
+      nextYear: 'Next year',
+    },
     toast: {
       saved: 'Saved',
       added: 'Added to collection',
@@ -1375,6 +1393,15 @@ export const dictionaries = {
       screenshots: 'スクリーンショット',
     },
     cardAdd: '追加',
+    dateInput: {
+      empty: '日付を選択…',
+      today: '今日',
+      clear: 'クリア',
+      prevMonth: '前の月',
+      nextMonth: '次の月',
+      prevYear: '前の年',
+      nextYear: '次の年',
+    },
     toast: {
       saved: '保存しました',
       added: 'コレクションに追加しました',
