@@ -1,11 +1,13 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Bookmark, Plus, Save, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { StatusIcon } from './StatusIcon';
 import { MarkdownNotes } from './MarkdownNotes';
+import { DateInput } from './DateInput';
+import { TagInput } from './TagInput';
 import { EDITION_TYPES, LOCATIONS, STATUSES, type EditionType, type Location, type Status } from '@/lib/types';
 import type { CollectionItem, SeriesRow } from '@/lib/types';
 
@@ -31,7 +33,12 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const [location, setLocation] = useState<Location>((vn.location as Location) ?? 'unknown');
   const [editionType, setEditionType] = useState<EditionType>((vn.edition_type as EditionType) ?? 'none');
   const [editionLabel, setEditionLabel] = useState<string>(vn.edition_label ?? '');
-  const [physicalLocation, setPhysicalLocation] = useState<string>(vn.physical_location ?? '');
+  const [physicalLocations, setPhysicalLocations] = useState<string[]>(vn.physical_location ?? []);
+  const [knownPlaces, setKnownPlaces] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/places').then((r) => r.json()).then((d) => setKnownPlaces(d.places ?? [])).catch(() => {});
+  }, []);
 
   const [seriesPickerId, setSeriesPickerId] = useState<string>('');
   const myseries = vn.series ?? [];
@@ -88,7 +95,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         location,
         edition_type: editionType,
         edition_label: editionLabel || null,
-        physical_location: physicalLocation.trim() || null,
+        physical_location: physicalLocations,
       }),
     );
   }
@@ -180,12 +187,12 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
           <label className="flex flex-col gap-1">
             <span className="label">{t.form.startedDate}</span>
-            <input className="input" type="date" value={started} onChange={(e) => setStarted(e.target.value)} />
+            <DateInput value={started} onChange={setStarted} ariaLabel={t.form.startedDate} />
           </label>
 
           <label className="flex flex-col gap-1">
             <span className="label">{t.form.finishedDate}</span>
-            <input className="input" type="date" value={finished} onChange={(e) => setFinished(e.target.value)} />
+            <DateInput value={finished} onChange={setFinished} ariaLabel={t.form.finishedDate} />
           </label>
         </div>
       </div>
@@ -219,17 +226,18 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
               onChange={(e) => setEditionLabel(e.target.value)}
             />
           </label>
-          <label className="flex flex-col gap-1 sm:col-span-2">
+          <div className="flex flex-col gap-1 sm:col-span-2">
             <span className="label">{t.form.physicalLocation}</span>
-            <input
-              className="input"
-              type="text"
+            <TagInput
+              values={physicalLocations}
+              onChange={setPhysicalLocations}
               placeholder={t.form.physicalLocationPlaceholder}
-              value={physicalLocation}
-              onChange={(e) => setPhysicalLocation(e.target.value)}
+              suggestions={knownPlaces}
               maxLength={200}
+              maxValues={32}
             />
-          </label>
+            <span className="text-[10px] text-muted/70">{t.form.physicalLocationHint}</span>
+          </div>
         </div>
       </div>
 

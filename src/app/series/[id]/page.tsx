@@ -62,6 +62,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
                   length_minutes: it.length_minutes,
                   status: it.status as Status | undefined,
                   favorite: it.favorite,
+                  developers: it.developers,
                 }}
               />
             </div>

@@ -1,7 +1,7 @@
 import 'server-only';
 import { downloadToBucket, fileExists } from './files';
 import { getCollectionItem, setLocalImagePaths, setLocalScreenshots, setReleaseImages } from './db';
-import { getReleasesForVn } from './vndb';
+import { getCharactersForVn, getReleasesForVn } from './vndb';
 import type { ReleaseImage, Screenshot } from './types';
 
 interface EnsureResult {
@@ -65,6 +65,14 @@ export async function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult
 
   // Release / package images (pkgfront, pkgback, pkgcontent, pkgside, pkgmed, dig)
   const releaseImages = await fetchAndDownloadReleaseImages(vnId);
+
+  // Warm the character cache so the "in my collection only" trait filter has data.
+  // The fetch is cached for 7 days at the VNDB layer, so this is idempotent.
+  try {
+    await getCharactersForVn(vnId);
+  } catch {
+    // ignore — the trait aggregate gracefully handles missing data
+  }
 
   return { poster, posterThumb: thumb, screenshots: next, releaseImages };
 }

@@ -1,5 +1,5 @@
 import 'server-only';
-import { cachedFetch, invalidateKey, TTL } from './vndb-cache';
+import { cachedFetch, invalidateKey, readCachedJson, TTL } from './vndb-cache';
 import type { Screenshot, VndbSearchHit } from './types';
 
 export const VNDB_API = 'https://api.vndb.org/kana';
@@ -340,6 +340,21 @@ export async function getCharacter(id: string): Promise<VndbCharacter | null> {
   return r.results[0] ?? null;
 }
 
+/**
+ * Returns the characters of a VN if (and only if) we have already fetched them
+ * before. No network call is made — used for the "in my collection only" trait
+ * aggregate. The body MUST stay in sync with `getCharactersForVn`.
+ */
+export function readCachedCharactersForVn(vnId: string, max = 30): VndbCharacter[] {
+  const body = {
+    filters: ['vn', '=', ['id', '=', vnId]],
+    fields: CHARACTER_FIELDS,
+    results: Math.min(max, 100),
+  };
+  const cached = readCachedJson<VndbResponse<VndbCharacter>>('POST', 'POST /character', body);
+  return cached?.results ?? [];
+}
+
 export async function searchCharacters(query: string, { results = 30 } = {}): Promise<VndbCharacter[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
@@ -443,6 +458,28 @@ export interface VndbTrait {
   group_id: string | null;
   group_name: string | null;
   char_count: number;
+}
+
+export async function getTrait(id: string): Promise<VndbTrait | null> {
+  const r = await vndbPost<VndbResponse<VndbTrait>>('/trait', {
+    filters: ['id', '=', id],
+    fields: TRAIT_FIELDS,
+    results: 1,
+  }, TTL.trait);
+  return r.results[0] ?? null;
+}
+
+export async function getCharactersForTrait(
+  traitId: string,
+  { results = 60, includeSpoiler = false }: { results?: number; includeSpoiler?: boolean } = {},
+): Promise<VndbCharacter[]> {
+  const filter = includeSpoiler ? ['trait', '=', traitId] : ['trait', '=', [traitId, 0]];
+  const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
+    filters: filter,
+    fields: CHARACTER_FIELDS,
+    results: Math.min(results, 100),
+  }, TTL.characters);
+  return r.results;
 }
 
 export async function searchTraits(query: string, { results = 50 } = {}): Promise<VndbTrait[]> {

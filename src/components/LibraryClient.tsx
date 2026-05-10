@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, FilterX, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, FilterX, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
@@ -28,6 +28,7 @@ export function LibraryClient() {
   const producer = searchParams.get('producer') ?? '';
   const seriesId = searchParams.get('series') ?? '';
   const urlTag = searchParams.get('tag') ?? '';
+  const urlPlace = searchParams.get('place') ?? '';
   const urlQ = searchParams.get('q') ?? '';
   const sort = (SORT_KEYS as readonly string[]).includes(searchParams.get('sort') ?? '')
     ? (searchParams.get('sort') as SortKey)
@@ -109,6 +110,7 @@ export function LibraryClient() {
     if (producer) params.set('producer', producer);
     if (seriesId) params.set('series', seriesId);
     if (urlTag) params.set('tag', urlTag);
+    if (urlPlace) params.set('place', urlPlace);
     if (urlQ) params.set('q', urlQ);
     params.set('sort', sort);
     params.set('order', order);
@@ -127,7 +129,7 @@ export function LibraryClient() {
     return () => {
       alive = false;
     };
-  }, [status, producer, seriesId, urlTag, urlQ, sort, order, refreshKey, t.common.error]);
+  }, [status, producer, seriesId, urlTag, urlPlace, urlQ, sort, order, refreshKey, t.common.error]);
 
   function clearAll() {
     router.replace('/', { scroll: false });
@@ -139,7 +141,7 @@ export function LibraryClient() {
     [stats],
   );
   const totalH = Math.round(stats.playtime_minutes / 60);
-  const hasFilters = !!status || !!producer || !!seriesId || !!urlQ || !!urlTag;
+  const hasFilters = !!status || !!producer || !!seriesId || !!urlQ || !!urlTag || !!urlPlace;
 
   const groups = useMemo(() => groupItems(items, group, t), [items, group, t]);
 
@@ -206,6 +208,18 @@ export function LibraryClient() {
             >
               <TagsIcon className="h-3.5 w-3.5" />
               <span className="max-w-[180px] truncate">{tagName ?? urlTag}</span>
+              <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />
+            </button>
+          )}
+          {urlPlace && (
+            <button
+              type="button"
+              onClick={() => setParam('place', null)}
+              className="chip chip-active inline-flex items-center gap-1.5"
+              title={t.library.filterByPlace}
+            >
+              <Home className="h-3.5 w-3.5" />
+              <span className="max-w-[180px] truncate">{urlPlace}</span>
               <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />
             </button>
           )}
@@ -319,6 +333,7 @@ function Grid({ items }: { items: CollectionItem[] }) {
             length_minutes: it.length_minutes,
             status: it.status as Status | undefined,
             favorite: it.favorite,
+            developers: it.developers,
           }}
         />
       ))}

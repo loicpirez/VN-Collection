@@ -51,8 +51,16 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
   if ('edition_label' in body) fields.edition_label = (body.edition_label as string | null) || null;
   if ('physical_location' in body) {
     const v = body.physical_location;
-    if (v !== null && typeof v !== 'string') return { fields, error: 'physical_location must be string or null' };
-    fields.physical_location = v && v.trim() ? v.trim().slice(0, 200) : null;
+    if (v == null) {
+      fields.physical_location = [];
+    } else if (Array.isArray(v)) {
+      if (!v.every((x) => typeof x === 'string')) return { fields, error: 'physical_location entries must be strings' };
+      fields.physical_location = v.map((s) => (s as string).trim()).filter((s): s is string => s.length > 0).slice(0, 32);
+    } else if (typeof v === 'string') {
+      fields.physical_location = v.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 32);
+    } else {
+      return { fields, error: 'physical_location must be array or string' };
+    }
   }
   return { fields };
 }

@@ -117,13 +117,14 @@ export default async function CharacterPage({ params }: { params: Promise<{ id: 
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.characters.traits}</h3>
           <div className="flex flex-wrap gap-1.5">
             {visibleTraits.map((tr) => (
-              <span
+              <Link
                 key={tr.id}
-                className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-[11px] text-muted"
+                href={`/trait/${encodeURIComponent(tr.id)}`}
+                className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent"
               >
                 {tr.group_name && <span className="opacity-60">{tr.group_name} / </span>}
                 {tr.name}
-              </span>
+              </Link>
             ))}
           </div>
         </section>

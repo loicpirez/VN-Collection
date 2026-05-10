@@ -32,6 +32,7 @@ export function VnGrid({ items, emptyMessage }: Props) {
             length_minutes: it.length_minutes,
             status: it.status as Status | undefined,
             favorite: it.favorite,
+            developers: it.developers,
           }}
         />
       ))}

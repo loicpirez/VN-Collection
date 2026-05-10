@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   const q = sp.get('q') ?? '';
   const producer = sp.get('producer') ?? '';
   const tag = sp.get('tag') ?? '';
+  const place = sp.get('place') ?? '';
   const seriesRaw = sp.get('series');
   const sortRaw = sp.get('sort') ?? 'updated_at';
   const orderRaw = sp.get('order') ?? 'desc';
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
     producer: producer || undefined,
     series: series && Number.isFinite(series) ? series : undefined,
     tag: tag || undefined,
+    place: place || undefined,
     sort,
     order,
   });

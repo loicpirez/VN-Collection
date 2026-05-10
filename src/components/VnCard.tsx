@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Star, CheckCheck, Clock, Hourglass } from 'lucide-react';
+import { Star, CheckCheck, Clock, Hourglass, Building2 } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useT } from '@/lib/i18n/client';
@@ -21,6 +21,7 @@ export interface CardData {
   status?: Status;
   favorite?: boolean;
   inCollectionBadge?: boolean;
+  developers?: { id?: string; name: string }[];
 }
 
 function fmtMinutes(m: number | null | undefined): string | null {
@@ -101,6 +102,15 @@ export function VnCard({ data }: { data: CardData }) {
                 {vndbLength}
               </span>
             )}
+          </div>
+        )}
+        {data.developers && data.developers.length > 0 && (
+          <div
+            className="inline-flex items-center gap-1 text-[11px] text-muted"
+            title={data.developers.map((d) => d.name).join(', ')}
+          >
+            <Building2 className="h-3 w-3 shrink-0" aria-hidden />
+            <span className="line-clamp-1">{data.developers.map((d) => d.name).join(', ')}</span>
           </div>
         )}
       </div>

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Loader2, Search, Tags } from 'lucide-react';
+import { ArrowRight, Library, Loader2, Search, Tags } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import type { VndbTag } from '@/lib/vndb-types';
 
@@ -15,6 +15,7 @@ export function TagsBrowser() {
   const t = useT();
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<'' | 'cont' | 'ero' | 'tech'>('');
+  const [onlyMine, setOnlyMine] = useState(false);
   const [results, setResults] = useState<VndbTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,27 +27,40 @@ export function TagsBrowser() {
     const ctrl = new AbortController();
     const handle = setTimeout(async () => {
       try {
-        const params = new URLSearchParams();
-        if (q) params.set('q', q);
-        if (category) params.set('category', category);
-        params.set('results', '60');
-        const r = await fetch(`/api/tags?${params}`, { signal: ctrl.signal });
+        const url = onlyMine
+          ? '/api/collection/tags'
+          : (() => {
+              const p = new URLSearchParams();
+              if (q) p.set('q', q);
+              if (category) p.set('category', category);
+              p.set('results', '60');
+              return `/api/tags?${p}`;
+            })();
+        const r = await fetch(url, { signal: ctrl.signal });
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
         const d = await r.json();
-        if (alive) setResults(d.tags);
+        let list: VndbTag[] = d.tags;
+        if (onlyMine) {
+          if (q.trim()) {
+            const lower = q.trim().toLowerCase();
+            list = list.filter((tag) => tag.name.toLowerCase().includes(lower));
+          }
+          if (category) list = list.filter((tag) => tag.category === category);
+        }
+        if (alive) setResults(list);
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
         if (alive) setError((e as Error).message);
       } finally {
         if (alive) setLoading(false);
       }
-    }, 300);
+    }, onlyMine ? 0 : 300);
     return () => {
       alive = false;
       ctrl.abort();
       clearTimeout(handle);
     };
-  }, [q, category, t.common.error]);
+  }, [q, category, onlyMine, t.common.error]);
 
   return (
     <div>
@@ -78,6 +92,15 @@ export function TagsBrowser() {
             <option key={c.key} value={c.key}>{t.tags[c.tkey]}</option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => setOnlyMine((v) => !v)}
+          className={`btn ${onlyMine ? 'btn-primary' : ''}`}
+          title={t.library.filterMineHint}
+        >
+          <Library className="h-4 w-4" />
+          {t.library.filterMine}
+        </button>
       </div>
 
       {error && <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">{error}</div>}

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCollectionItem, setBanner } from '@/lib/db';
+import { getCollectionItem, setBanner, setBannerPosition } from '@/lib/db';
 import { saveUpload } from '@/lib/files';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+const POSITION_RE = /^-?\d+(?:\.\d+)?%\s+-?\d+(?:\.\d+)?%$/;
 
 /**
  * Set the banner from any source.
@@ -62,8 +64,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ item: getCollectionItem(id), banner: next });
 }
 
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  if (!getCollectionItem(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  const body = (await req.json().catch(() => ({}))) as { position?: string | null };
+  if (!('position' in body)) return NextResponse.json({ error: 'missing position' }, { status: 400 });
+  const value = body.position;
+  if (value !== null && (typeof value !== 'string' || !POSITION_RE.test(value))) {
+    return NextResponse.json({ error: 'position must be "X% Y%" or null' }, { status: 400 });
+  }
+  setBannerPosition(id, value ?? null);
+  return NextResponse.json({ item: getCollectionItem(id) });
+}
+
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   setBanner(id, null);
+  setBannerPosition(id, null);
   return NextResponse.json({ item: getCollectionItem(id) });
 }

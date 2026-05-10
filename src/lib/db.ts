@@ -132,16 +132,56 @@ function open(): Database.Database {
   ensureColumn(db, 'vn', 'custom_cover', 'TEXT');
   ensureColumn(db, 'vn', 'release_images', 'TEXT');
   ensureColumn(db, 'vn', 'banner_image', 'TEXT');
+  ensureColumn(db, 'vn', 'banner_position', 'TEXT');
   ensureColumn(db, 'collection', 'location', "TEXT NOT NULL DEFAULT 'unknown'");
   ensureColumn(db, 'collection', 'edition_type', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'collection', 'edition_label', 'TEXT');
   ensureColumn(db, 'collection', 'physical_location', 'TEXT');
+
+  // Legacy migration: physical_location used to be a free-form string.
+  // Convert any non-JSON value into a JSON array (split on commas).
+  const legacy = db
+    .prepare(`SELECT vn_id, physical_location FROM collection WHERE physical_location IS NOT NULL AND NOT json_valid(physical_location)`)
+    .all() as { vn_id: string; physical_location: string }[];
+  for (const r of legacy) {
+    const parts = r.physical_location.split(',').map((s) => s.trim()).filter(Boolean);
+    db.prepare(`UPDATE collection SET physical_location = ? WHERE vn_id = ?`).run(
+      parts.length ? JSON.stringify(parts) : null,
+      r.vn_id,
+    );
+  }
 
   global.__vndb_db = db;
   return db;
 }
 
 export const db = open();
+
+function parsePlaces(s: string | null | undefined): string[] {
+  if (!s) return [];
+  try {
+    const parsed = JSON.parse(s);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean).map(String);
+  } catch {
+    // legacy CSV
+  }
+  return s.split(',').map((p) => p.trim()).filter(Boolean);
+}
+
+function serializePlaces(value: unknown): string | null {
+  if (value == null) return null;
+  const arr = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : [];
+  const cleaned = arr
+    .map((v) => (typeof v === 'string' ? v.trim() : ''))
+    .filter((v): v is string => v.length > 0)
+    .slice(0, 32)
+    .map((v) => v.slice(0, 200));
+  return cleaned.length ? JSON.stringify(cleaned) : null;
+}
 
 export interface RawVnPayload {
   id: string;
@@ -221,6 +261,10 @@ export function setBanner(vnId: string, value: string | null): void {
   db.prepare('UPDATE vn SET banner_image = ? WHERE id = ?').run(value, vnId);
 }
 
+export function setBannerPosition(vnId: string, value: string | null): void {
+  db.prepare('UPDATE vn SET banner_position = ? WHERE id = ?').run(value, vnId);
+}
+
 export function setLocalScreenshots(vnId: string, shots: Screenshot[]): void {
   db.prepare('UPDATE vn SET screenshots = ? WHERE id = ?').run(JSON.stringify(shots), vnId);
 }
@@ -256,7 +300,7 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
     fields.location ?? 'unknown',
     fields.edition_type ?? 'none',
     fields.edition_label ?? null,
-    fields.physical_location ?? null,
+    serializePlaces(fields.physical_location ?? null),
     now,
     now,
   );
@@ -276,7 +320,7 @@ export function updateCollection(vnId: string, fields: CollectionPatch): void {
     location: (v) => v,
     edition_type: (v) => v,
     edition_label: (v) => v,
-    physical_location: (v) => v,
+    physical_location: (v) => serializePlaces(v),
   };
   for (const key of Object.keys(map) as (keyof typeof map)[]) {
     if (key in fields) {
@@ -324,6 +368,7 @@ interface DbRow {
   local_image_thumb: string | null;
   custom_cover: string | null;
   banner_image: string | null;
+  banner_position: string | null;
   fetched_at: number;
   status?: string;
   user_rating?: number | null;
@@ -367,6 +412,7 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     local_image_thumb: row.local_image_thumb,
     custom_cover: row.custom_cover,
     banner_image: row.banner_image,
+    banner_position: row.banner_position,
     fetched_at: row.fetched_at,
     status: row.status as Status | undefined,
     user_rating: row.user_rating ?? null,
@@ -378,7 +424,7 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     location: (row.location as Location | undefined) ?? 'unknown',
     edition_type: (row.edition_type as EditionType | undefined) ?? 'none',
     edition_label: row.edition_label ?? null,
-    physical_location: row.physical_location ?? null,
+    physical_location: parsePlaces(row.physical_location),
     added_at: row.added_at,
     updated_at: row.updated_at,
   };
@@ -390,6 +436,7 @@ export interface ListOptions {
   producer?: string;
   series?: number;
   tag?: string;
+  place?: string;
   sort?:
     | 'updated_at'
     | 'added_at'
@@ -408,6 +455,7 @@ export function listCollection({
   producer,
   series,
   tag,
+  place,
   sort = 'updated_at',
   order = 'desc',
 }: ListOptions = {}): CollectionItem[] {
@@ -441,6 +489,13 @@ export function listCollection({
   if (tag) {
     where.push("EXISTS (SELECT 1 FROM json_each(v.tags) WHERE json_extract(value, '$.id') = ?)");
     params.push(tag);
+  }
+  if (place) {
+    where.push(`(
+      json_valid(c.physical_location)
+      AND EXISTS (SELECT 1 FROM json_each(c.physical_location) WHERE value = ?)
+    )`);
+    params.push(place);
   }
   let join = '';
   if (series) {
@@ -597,6 +652,41 @@ export function isValidLocation(v: unknown): v is Location {
 
 export function isValidEditionType(v: unknown): v is EditionType {
   return typeof v === 'string' && (EDITION_TYPES as readonly string[]).includes(v);
+}
+
+export interface CollectionTagAggregate {
+  id: string;
+  name: string;
+  category: string | null;
+  count: number;
+}
+
+export function listCollectionTags(): CollectionTagAggregate[] {
+  return db
+    .prepare(`
+      SELECT
+        json_extract(je.value, '$.id') AS id,
+        json_extract(je.value, '$.name') AS name,
+        json_extract(je.value, '$.category') AS category,
+        COUNT(*) AS count
+      FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
+      WHERE COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
+      GROUP BY id
+      ORDER BY count DESC, name COLLATE NOCASE ASC
+    `)
+    .all() as CollectionTagAggregate[];
+}
+
+export function listKnownPlaces(): string[] {
+  const rows = db
+    .prepare(`
+      SELECT DISTINCT value AS place
+      FROM collection c, json_each(c.physical_location)
+      WHERE json_valid(c.physical_location)
+      ORDER BY value COLLATE NOCASE ASC
+    `)
+    .all() as { place: string }[];
+  return rows.map((r) => r.place);
 }
 
 // Producer

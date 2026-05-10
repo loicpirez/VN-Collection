@@ -160,3 +160,18 @@ export function invalidateByPath(pathPrefix: string): number {
 export function invalidateKey(method: string, path: string, body?: unknown): void {
   deleteCacheKey(buildKey(method.toUpperCase(), path, body));
 }
+
+/**
+ * Read a cache entry directly without making any network request.
+ * Returns null if the cache_key has never been populated.
+ */
+export function readCachedJson<T>(method: string, pathTag: string, body?: unknown): T | null {
+  const key = buildKey(method.toUpperCase(), pathTag, body);
+  const row = getCacheRow(key);
+  if (!row) return null;
+  try {
+    return JSON.parse(row.body) as T;
+  } catch {
+    return null;
+  }
+}

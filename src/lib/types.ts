@@ -69,6 +69,7 @@ export interface VnRow {
   local_image_thumb: string | null;
   custom_cover: string | null;
   banner_image: string | null;
+  banner_position: string | null;
   fetched_at: number;
 }
 
@@ -83,7 +84,8 @@ export interface CollectionFields {
   location: Location;
   edition_type: EditionType;
   edition_label: string | null;
-  physical_location: string | null;
+  /** Free-form locations where the physical copy is stored (e.g. ["Salon shelf", "Box 3"]). */
+  physical_location: string[];
   added_at: number;
   updated_at: number;
 }

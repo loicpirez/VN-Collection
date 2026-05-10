@@ -1,12 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Loader2, Search, Sparkles } from 'lucide-react';
+import Link from 'next/link';
+import { Library, Loader2, Search, Sparkles } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import type { VndbTrait } from '@/lib/vndb-types';
 
 export function TraitsBrowser() {
   const t = useT();
   const [q, setQ] = useState('');
+  const [onlyMine, setOnlyMine] = useState(false);
   const [results, setResults] = useState<VndbTrait[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,26 +20,35 @@ export function TraitsBrowser() {
     const ctrl = new AbortController();
     const handle = setTimeout(async () => {
       try {
-        const params = new URLSearchParams();
-        if (q) params.set('q', q);
-        params.set('results', '60');
-        const r = await fetch(`/api/traits?${params}`, { signal: ctrl.signal });
+        const url = onlyMine
+          ? '/api/collection/traits'
+          : `/api/traits?${new URLSearchParams({ q, results: '60' })}`;
+        const r = await fetch(url, { signal: ctrl.signal });
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
         const d = await r.json();
-        if (alive) setResults(d.traits);
+        let list: VndbTrait[] = d.traits;
+        if (onlyMine && q.trim()) {
+          const lower = q.trim().toLowerCase();
+          list = list.filter((tr) =>
+            tr.name.toLowerCase().includes(lower) ||
+            (tr.group_name?.toLowerCase().includes(lower) ?? false) ||
+            tr.aliases.some((a) => a.toLowerCase().includes(lower)),
+          );
+        }
+        if (alive) setResults(list);
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
         if (alive) setError((e as Error).message);
       } finally {
         if (alive) setLoading(false);
       }
-    }, 300);
+    }, onlyMine ? 0 : 300);
     return () => {
       alive = false;
       ctrl.abort();
       clearTimeout(handle);
     };
-  }, [q, t.common.error]);
+  }, [q, onlyMine, t.common.error]);
 
   return (
     <div>
@@ -49,14 +60,25 @@ export function TraitsBrowser() {
         </div>
       </header>
 
-      <div className="mb-6 relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
-        <input
-          className="input pl-9"
-          placeholder={t.traits.searchPlaceholder}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+      <div className="mb-6 flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+          <input
+            className="input pl-9"
+            placeholder={t.traits.searchPlaceholder}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setOnlyMine((v) => !v)}
+          className={`btn ${onlyMine ? 'btn-primary' : ''}`}
+          title={t.library.filterMineHint}
+        >
+          <Library className="h-4 w-4" />
+          {t.library.filterMine}
+        </button>
       </div>
 
       {error && <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">{error}</div>}
@@ -68,12 +90,13 @@ export function TraitsBrowser() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {results.map((tr) => (
-            <article
+            <Link
               key={tr.id}
-              className="rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
+              href={`/trait/${encodeURIComponent(tr.id)}`}
+              className="group block rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
             >
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-sm font-bold">
+                <h3 className="text-sm font-bold transition-colors group-hover:text-accent">
                   {tr.group_name && <span className="text-muted">{tr.group_name} / </span>}
                   {tr.name}
                 </h3>
@@ -89,7 +112,7 @@ export function TraitsBrowser() {
               <div className="mt-2 text-[11px] text-muted tabular-nums">
                 {tr.char_count.toLocaleString()} {t.traits.charCount}
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       )}

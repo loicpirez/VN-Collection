@@ -336,6 +336,7 @@ export function SearchClient() {
                 rating: r.rating,
                 length_minutes: r.length_minutes,
                 inCollectionBadge: r.in_collection,
+                developers: r.developers,
               }}
             />
           ))}

@@ -10,6 +10,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { MediaGallery } from '@/components/MediaGallery';
 import { CoverUploader } from '@/components/CoverUploader';
 import { BannerControls } from '@/components/BannerControls';
+import { HeroBanner } from '@/components/HeroBanner';
 import { DownloadAssetsButton } from '@/components/DownloadAssetsButton';
 import { MarkdownView } from '@/components/MarkdownNotes';
 import { CharactersSection } from '@/components/CharactersSection';
@@ -75,21 +76,13 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
       </Link>
 
       <div className="relative overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card">
-        {/* Hero backdrop (Steam-like) — uses custom banner if set, else the cover */}
-        <div className="relative h-64 w-full overflow-hidden">
-          {bannerSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={bannerSrc}
-              alt=""
-              aria-hidden
-              className={`h-full w-full object-cover ${customBanner ? '' : 'scale-110 blur-xl opacity-50'}`}
-            />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-b from-bg-elev to-bg-card" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/70 to-transparent" />
-        </div>
+        <HeroBanner
+          vnId={vn.id}
+          src={bannerSrc}
+          customBanner={customBanner}
+          initialPosition={vn.banner_position}
+          inCollection={inCol}
+        />
 
         <div className="relative -mt-44 grid grid-cols-1 gap-8 px-6 pb-6 md:grid-cols-[260px_1fr] md:px-8 md:pb-8">
           <div className="z-10 mx-auto w-full max-w-[260px] md:mx-0">
@@ -179,11 +172,16 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                     {vn.edition_label && <span className="text-muted">· {vn.edition_label}</span>}
                   </span>
                 )}
-                {vn.physical_location && (
-                  <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1" title={t.form.physicalLocation}>
-                    <Home className="h-3 w-3 text-accent" /> {vn.physical_location}
-                  </span>
-                )}
+                {(vn.physical_location ?? []).map((place) => (
+                  <Link
+                    key={place}
+                    href={`/?place=${encodeURIComponent(place)}`}
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 transition-colors hover:border-accent hover:text-accent"
+                    title={t.form.physicalLocation}
+                  >
+                    <Home className="h-3 w-3 text-accent" /> {place}
+                  </Link>
+                ))}
                 {(vn.series ?? []).map((s) => (
                   <Link key={s.id} href={`/series/${s.id}`} className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 hover:border-accent">
                     {s.name}

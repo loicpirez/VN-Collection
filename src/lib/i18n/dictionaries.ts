@@ -58,6 +58,9 @@ export const dictionaries = {
       filterByProducer: 'Filtrer par éditeur',
       filterBySeries: 'Filtrer par série',
       filterByTag: 'Filtrer par tag',
+      filterByPlace: 'Filtrer par emplacement physique',
+      filterMine: 'Dans ma collection',
+      filterMineHint: 'Limite la liste aux entrées présentes dans ta collection.',
       clearFilters: 'Réinitialiser',
       stats: {
         vnCount: 'VN',
@@ -143,7 +146,8 @@ export const dictionaries = {
       editionLabel: 'Détails édition',
       editionLabelPlaceholder: 'Ex: Limited Edition, Premium Box…',
       physicalLocation: 'Emplacement physique',
-      physicalLocationPlaceholder: 'Ex: Étagère salon, bibliothèque chambre, cave boîte 3…',
+      physicalLocationPlaceholder: 'Étagère salon, bibliothèque chambre, cave boîte 3…',
+      physicalLocationHint: 'Tape un emplacement puis Entrée. Clique sur un tag pour voir tous les VN à cet endroit.',
       inventoryTitle: 'Inventaire',
       errors: {
         ratingRange: 'La note doit être entre 10 et 100 (ou vide).',
@@ -320,6 +324,9 @@ export const dictionaries = {
       title: 'Bannière personnalisée',
       hint: "Choisis n'importe quelle image (cover, capture, packaging…) comme bannière, ou importe la tienne.",
       uploadCta: 'Importer une image',
+      adjust: 'Cadrer',
+      editHint: 'Glisse ou clique pour choisir le centre de la bannière',
+      resetPosition: 'Recentrer',
     },
     tags: {
       pageTitle: 'Tags VNDB',
@@ -334,9 +341,10 @@ export const dictionaries = {
     },
     traits: {
       pageTitle: 'Traits de personnage',
-      pageSubtitle: 'Caractéristiques utilisées pour décrire les personnages.',
+      pageSubtitle: 'Caractéristiques utilisées pour décrire les personnages. Clique pour voir les persos qui ont ce trait.',
       searchPlaceholder: 'Chercher un trait…',
       charCount: 'personnages',
+      charactersWith: 'Personnages avec ce trait',
     },
     stats: {
       pageTitle: 'Statistiques',
@@ -453,6 +461,9 @@ export const dictionaries = {
       filterByProducer: 'Filter by publisher',
       filterBySeries: 'Filter by series',
       filterByTag: 'Filter by tag',
+      filterByPlace: 'Filter by physical location',
+      filterMine: 'In my collection',
+      filterMineHint: 'Limit results to entries that exist in your collection.',
       clearFilters: 'Reset',
       stats: {
         vnCount: 'VN',
@@ -538,7 +549,8 @@ export const dictionaries = {
       editionLabel: 'Edition details',
       editionLabelPlaceholder: 'e.g. Limited Edition, Premium Box…',
       physicalLocation: 'Where it is at home',
-      physicalLocationPlaceholder: 'e.g. Living room shelf, bedroom case, attic box 3…',
+      physicalLocationPlaceholder: 'Living room shelf, bedroom case, attic box 3…',
+      physicalLocationHint: 'Type a location and press Enter. Click any tag to see every VN stored there.',
       inventoryTitle: 'Inventory',
       errors: {
         ratingRange: 'Rating must be between 10 and 100 (or empty).',
@@ -715,6 +727,9 @@ export const dictionaries = {
       title: 'Custom banner',
       hint: 'Pick any image (cover, screenshot, packaging…) as the banner, or upload your own.',
       uploadCta: 'Upload image',
+      adjust: 'Adjust framing',
+      editHint: 'Drag or click to pick the focal point',
+      resetPosition: 'Recenter',
     },
     tags: {
       pageTitle: 'VNDB Tags',
@@ -729,9 +744,10 @@ export const dictionaries = {
     },
     traits: {
       pageTitle: 'Character traits',
-      pageSubtitle: 'Characteristics used to describe characters.',
+      pageSubtitle: 'Characteristics used to describe characters. Click to see characters with this trait.',
       searchPlaceholder: 'Search a trait…',
       charCount: 'characters',
+      charactersWith: 'Characters with this trait',
     },
     stats: {
       pageTitle: 'Stats',
@@ -848,6 +864,9 @@ export const dictionaries = {
       filterByProducer: 'メーカーで絞り込み',
       filterBySeries: 'シリーズで絞り込み',
       filterByTag: 'タグで絞り込み',
+      filterByPlace: '保管場所で絞り込み',
+      filterMine: 'コレクションのみ',
+      filterMineHint: 'コレクションに含まれる項目のみ表示します。',
       clearFilters: 'リセット',
       stats: {
         vnCount: '本',
@@ -934,6 +953,7 @@ export const dictionaries = {
       editionLabelPlaceholder: '例：限定版、プレミアムボックス…',
       physicalLocation: '保管場所',
       physicalLocationPlaceholder: '例：リビングの棚、寝室の本棚、押入れ箱 3…',
+      physicalLocationHint: '入力して Enter で追加。タグをクリックするとその場所にある全 VN が表示されます。',
       inventoryTitle: '所有情報',
       errors: {
         ratingRange: '評価は 10〜100 の範囲で入力してください。',
@@ -1110,6 +1130,9 @@ export const dictionaries = {
       title: 'カスタムバナー',
       hint: '任意の画像（カバー、スクリーンショット、パッケージ…）をバナーに設定するか、独自にアップロード。',
       uploadCta: '画像をアップロード',
+      adjust: '位置調整',
+      editHint: 'ドラッグまたはクリックでフォーカス位置を指定',
+      resetPosition: '中央に戻す',
     },
     tags: {
       pageTitle: 'VNDB タグ',
@@ -1124,9 +1147,10 @@ export const dictionaries = {
     },
     traits: {
       pageTitle: 'キャラ特徴',
-      pageSubtitle: 'キャラクターを表す特徴。',
+      pageSubtitle: 'キャラクターを表す特徴。クリックでこの特徴を持つキャラを表示。',
       searchPlaceholder: '特徴を検索…',
       charCount: 'キャラ',
+      charactersWith: 'この特徴を持つキャラ',
     },
     stats: {
       pageTitle: '統計',

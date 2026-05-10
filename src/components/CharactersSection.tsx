@@ -102,9 +102,14 @@ export function CharactersSection({ vnId }: { vnId: string }) {
                           .filter((tr) => tr.spoiler === 0 && !tr.sexual)
                           .slice(0, 5)
                           .map((tr) => (
-                            <span key={tr.id} className="rounded bg-bg px-1.5 py-0.5 text-[10px] text-muted">
+                            <Link
+                              key={tr.id}
+                              href={`/trait/${encodeURIComponent(tr.id)}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded bg-bg px-1.5 py-0.5 text-[10px] text-muted transition-colors hover:bg-accent hover:text-bg"
+                            >
                               {tr.name}
-                            </span>
+                            </Link>
                           ))}
                       </div>
                     )}
