@@ -155,3 +155,15 @@ export interface SeriesLite {
 export interface SeriesWithVns extends SeriesRow {
   vns: { id: string; title: string; image_thumb: string | null; local_image_thumb: string | null; status: Status | null; order_index: number }[];
 }
+
+export interface RouteRow {
+  id: number;
+  vn_id: string;
+  name: string;
+  completed: boolean;
+  completed_date: string | null;
+  order_index: number;
+  notes: string | null;
+  created_at: number;
+  updated_at: number;
+}

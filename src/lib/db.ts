@@ -15,6 +15,7 @@ import {
   type ProducerRow,
   type ProducerStat,
   type ReleaseImage,
+  type RouteRow,
   type Screenshot,
   type SeriesLite,
   type SeriesRow,
@@ -123,6 +124,19 @@ function open(): Database.Database {
       PRIMARY KEY (vn_id, release_id)
     );
     CREATE INDEX IF NOT EXISTS idx_owned_release_release ON owned_release(release_id);
+
+    CREATE TABLE IF NOT EXISTS vn_route (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      vn_id          TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
+      name           TEXT NOT NULL,
+      completed      INTEGER NOT NULL DEFAULT 0,
+      completed_date TEXT,
+      order_index    INTEGER NOT NULL DEFAULT 0,
+      notes          TEXT,
+      created_at     INTEGER NOT NULL,
+      updated_at     INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_route_vn ON vn_route(vn_id, order_index);
 
     CREATE TABLE IF NOT EXISTS vndb_cache (
       cache_key     TEXT PRIMARY KEY,
@@ -702,6 +716,122 @@ export function listCollectionTags(): CollectionTagAggregate[] {
       ORDER BY count DESC, name COLLATE NOCASE ASC
     `)
     .all() as CollectionTagAggregate[];
+}
+
+// Routes per VN
+
+interface RouteDbRow {
+  id: number;
+  vn_id: string;
+  name: string;
+  completed: number;
+  completed_date: string | null;
+  order_index: number;
+  notes: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+function rowToRoute(r: RouteDbRow): RouteRow {
+  return {
+    id: r.id,
+    vn_id: r.vn_id,
+    name: r.name,
+    completed: !!r.completed,
+    completed_date: r.completed_date,
+    order_index: r.order_index,
+    notes: r.notes,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
+}
+
+export function listRoutesForVn(vnId: string): RouteRow[] {
+  const rows = db
+    .prepare('SELECT * FROM vn_route WHERE vn_id = ? ORDER BY order_index ASC, created_at ASC')
+    .all(vnId) as RouteDbRow[];
+  return rows.map(rowToRoute);
+}
+
+export function getRoute(routeId: number): RouteRow | null {
+  const row = db.prepare('SELECT * FROM vn_route WHERE id = ?').get(routeId) as RouteDbRow | undefined;
+  return row ? rowToRoute(row) : null;
+}
+
+export function createRoute(vnId: string, name: string, orderIndex?: number): RouteRow {
+  const now = Date.now();
+  const ord =
+    orderIndex ??
+    (((db.prepare('SELECT COALESCE(MAX(order_index), -1) + 1 AS n FROM vn_route WHERE vn_id = ?').get(vnId) as { n: number }).n));
+  const info = db
+    .prepare(`
+      INSERT INTO vn_route (vn_id, name, order_index, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    .run(vnId, name, ord, now, now);
+  return getRoute(Number(info.lastInsertRowid))!;
+}
+
+export interface RoutePatch {
+  name?: string;
+  completed?: boolean;
+  completed_date?: string | null;
+  order_index?: number;
+  notes?: string | null;
+}
+
+export function updateRoute(routeId: number, fields: RoutePatch): RouteRow | null {
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  if (fields.name !== undefined) {
+    sets.push('name = ?');
+    params.push(fields.name);
+  }
+  if (fields.completed !== undefined) {
+    sets.push('completed = ?');
+    params.push(fields.completed ? 1 : 0);
+    // Auto-stamp completed_date when toggled to true with no explicit date.
+    if (fields.completed && fields.completed_date === undefined) {
+      sets.push('completed_date = COALESCE(completed_date, ?)');
+      params.push(new Date().toISOString().slice(0, 10));
+    }
+    if (!fields.completed && fields.completed_date === undefined) {
+      sets.push('completed_date = NULL');
+    }
+  }
+  if (fields.completed_date !== undefined) {
+    sets.push('completed_date = ?');
+    params.push(fields.completed_date);
+  }
+  if (fields.order_index !== undefined) {
+    sets.push('order_index = ?');
+    params.push(fields.order_index);
+  }
+  if (fields.notes !== undefined) {
+    sets.push('notes = ?');
+    params.push(fields.notes);
+  }
+  if (sets.length === 0) return getRoute(routeId);
+  sets.push('updated_at = ?');
+  params.push(Date.now());
+  params.push(routeId);
+  db.prepare(`UPDATE vn_route SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+  return getRoute(routeId);
+}
+
+export function deleteRoute(routeId: number): void {
+  db.prepare('DELETE FROM vn_route WHERE id = ?').run(routeId);
+}
+
+export function reorderRoutes(vnId: string, orderedIds: number[]): void {
+  const now = Date.now();
+  const stmt = db.prepare('UPDATE vn_route SET order_index = ?, updated_at = ? WHERE id = ? AND vn_id = ?');
+  const trx = db.transaction(() => {
+    orderedIds.forEach((id, index) => {
+      stmt.run(index, now, id, vnId);
+    });
+  });
+  trx();
 }
 
 // Owned releases

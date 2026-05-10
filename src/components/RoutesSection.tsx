@@ -1,0 +1,293 @@
+'use client';
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowDown, ArrowUp, Check, GitBranch, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useT } from '@/lib/i18n/client';
+import type { RouteRow } from '@/lib/types';
+
+interface Props {
+  vnId: string;
+  inCollection: boolean;
+}
+
+export function RoutesSection({ vnId, inCollection }: Props) {
+  const t = useT();
+  const router = useRouter();
+  const [routes, setRoutes] = useState<RouteRow[]>([]);
+  const [draft, setDraft] = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+
+  const reload = useCallback(async () => {
+    if (!inCollection) return;
+    try {
+      const r = await fetch(`/api/collection/${vnId}/routes`);
+      if (!r.ok) return;
+      const d = (await r.json()) as { routes: RouteRow[] };
+      setRoutes(d.routes);
+    } catch {
+      // ignore
+    }
+  }, [vnId, inCollection]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  if (!inCollection) return null;
+
+  async function add(e?: React.FormEvent) {
+    e?.preventDefault();
+    const name = draft.trim();
+    if (!name) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/collection/${vnId}/routes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      const d = (await r.json()) as { routes: RouteRow[] };
+      setRoutes(d.routes);
+      setDraft('');
+      startTransition(() => router.refresh());
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function patch(id: number, fields: Partial<RouteRow>) {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/route/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      await reload();
+      startTransition(() => router.refresh());
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: number) {
+    if (!confirm(t.routes.removeConfirm)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/route/${id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error(t.common.error);
+      await reload();
+      startTransition(() => router.refresh());
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function move(id: number, direction: -1 | 1) {
+    const idx = routes.findIndex((r) => r.id === id);
+    const target = idx + direction;
+    if (idx === -1 || target < 0 || target >= routes.length) return;
+    const next = [...routes];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setRoutes(next);
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/collection/${vnId}/routes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: next.map((x) => x.id) }),
+      });
+      if (!r.ok) throw new Error(t.common.error);
+      await reload();
+    } catch (err) {
+      setError((err as Error).message);
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startEdit(r: RouteRow) {
+    setEditingId(r.id);
+    setEditingName(r.name);
+  }
+
+  async function saveEdit() {
+    if (editingId == null) return;
+    const next = editingName.trim();
+    if (!next) {
+      setEditingId(null);
+      return;
+    }
+    await patch(editingId, { name: next });
+    setEditingId(null);
+  }
+
+  const completed = routes.filter((r) => r.completed).length;
+  const total = routes.length;
+  const pct = total > 0 ? (completed / total) * 100 : 0;
+
+  return (
+    <section className="rounded-xl border border-border bg-bg-card p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+          <GitBranch className="h-4 w-4 text-accent" /> {t.routes.section}
+          {total > 0 && (
+            <span className="text-[11px] font-normal text-muted">
+              · {completed}/{total} {t.routes.completedCount}
+            </span>
+          )}
+        </h3>
+        {total > 0 && (
+          <div className="hidden h-1 w-32 overflow-hidden rounded-full bg-bg-elev sm:block">
+            <div
+              className="h-full bg-status-completed transition-[width] duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        )}
+      </div>
+
+      {error && <p className="mb-3 text-xs text-status-dropped">{error}</p>}
+
+      {routes.length === 0 && <p className="mb-3 text-xs text-muted">{t.routes.empty}</p>}
+
+      {routes.length > 0 && (
+        <ul className="mb-4 space-y-2">
+          {routes.map((r, i) => (
+            <li
+              key={r.id}
+              className={`group flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${
+                r.completed ? 'border-status-completed/50 bg-status-completed/5' : 'border-border bg-bg-elev/30'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => patch(r.id, { completed: !r.completed })}
+                disabled={busy}
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                  r.completed
+                    ? 'border-status-completed bg-status-completed text-bg'
+                    : 'border-border hover:border-accent'
+                }`}
+                title={r.completed ? t.routes.markIncomplete : t.routes.markComplete}
+              >
+                {r.completed && <Check className="h-3 w-3" />}
+              </button>
+
+              {editingId === r.id ? (
+                <input
+                  className="input flex-1"
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveEdit();
+                    else if (e.key === 'Escape') setEditingId(null);
+                  }}
+                  onBlur={saveEdit}
+                  autoFocus
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => startEdit(r)}
+                  className={`flex-1 truncate text-left text-sm transition-colors ${
+                    r.completed ? 'line-through decoration-status-completed/60 text-muted' : 'text-white hover:text-accent'
+                  }`}
+                  title={r.name}
+                >
+                  {r.name}
+                </button>
+              )}
+
+              {r.completed_date && (
+                <span className="hidden text-[10px] text-muted tabular-nums sm:inline">
+                  {r.completed_date}
+                </span>
+              )}
+
+              <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => move(r.id, -1)}
+                  disabled={busy || i === 0}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
+                  aria-label={t.routes.moveUp}
+                >
+                  <ArrowUp className="h-3 w-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(r.id, 1)}
+                  disabled={busy || i === routes.length - 1}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
+                  aria-label={t.routes.moveDown}
+                >
+                  <ArrowDown className="h-3 w-3" />
+                </button>
+                {editingId === r.id ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(null)}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
+                    aria-label={t.common.cancel}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => startEdit(r)}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
+                    aria-label={t.common.edit}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => remove(r.id)}
+                  disabled={busy}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
+                  aria-label={t.common.delete}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form onSubmit={add} className="flex gap-2">
+        <input
+          className="input flex-1"
+          placeholder={t.routes.addPlaceholder}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          maxLength={200}
+        />
+        <button type="submit" className="btn btn-primary" disabled={!draft.trim() || busy}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          {t.routes.add}
+        </button>
+      </form>
+    </section>
+  );
+}

@@ -16,6 +16,7 @@ import { MarkdownView } from '@/components/MarkdownNotes';
 import { CharactersSection } from '@/components/CharactersSection';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { QuotesSection } from '@/components/QuotesSection';
+import { RoutesSection } from '@/components/RoutesSection';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -253,6 +254,12 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         <div className="mt-6 rounded-xl border border-border bg-bg-card p-6">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.form.personalNotes}</h3>
           <MarkdownView source={vn.notes} />
+        </div>
+      )}
+
+      {inCol && (
+        <div className="mt-6">
+          <RoutesSection vnId={vn.id} inCollection={inCol} />
         </div>
       )}
 
