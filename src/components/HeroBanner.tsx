@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Crosshair, Loader2, RotateCcw, X } from 'lucide-react';
+import { Check, Crosshair, EyeOff, Loader2, RotateCcw, ShieldAlert, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { useToast } from './ToastProvider';
 
 interface Props {
@@ -12,6 +13,8 @@ interface Props {
   customBanner: boolean;
   initialPosition: string | null;
   inCollection: boolean;
+  /** Sexual content flag of the underlying image, for blur-R18 handling. */
+  sexual?: number | null;
 }
 
 const DEFAULT_POSITION = '50% 50%';
@@ -21,10 +24,14 @@ function clamp(n: number): number {
   return Math.max(0, Math.min(100, n));
 }
 
-export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollection }: Props) {
+export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollection, sexual }: Props) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
+  const { settings } = useDisplaySettings();
+  const [r18Reveal, setR18Reveal] = useState(false);
+  const explicit = isExplicit(sexual ?? null, settings.nsfwThreshold);
+  const shouldBlurR18 = explicit && settings.blurR18 && !r18Reveal;
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -123,6 +130,17 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   const xPct = parseFloat(xRaw);
   const yPct = parseFloat(yRaw);
 
+  if (settings.hideImages && !editing) {
+    return (
+      <div className="relative flex h-32 w-full items-center justify-center bg-bg-elev/40">
+        <span className="inline-flex items-center gap-2 text-xs text-muted">
+          <EyeOff className="h-4 w-4" aria-hidden /> {t.settings.hiddenImage}
+        </span>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/70 to-transparent" />
+      </div>
+    );
+  }
+
   return (
     <div
       ref={ref}
@@ -142,12 +160,33 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
           aria-hidden
           draggable={false}
           className={`pointer-events-none h-full w-full select-none object-cover transition-[object-position,filter,opacity,transform] duration-200 ${
-            editing ? '' : !customBanner ? 'scale-110 blur-xl opacity-50' : ''
+            editing
+              ? ''
+              : shouldBlurR18
+                ? 'scale-110 blur-2xl opacity-70'
+                : !customBanner
+                  ? 'scale-110 blur-xl opacity-50'
+                  : ''
           }`}
           style={{ objectPosition: activePos }}
         />
       ) : (
         <div className="pointer-events-none h-full w-full bg-gradient-to-b from-bg-elev to-bg-card" />
+      )}
+
+      {shouldBlurR18 && !editing && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setR18Reveal(true);
+          }}
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 bg-black/40 text-white backdrop-blur-sm hover:bg-black/30"
+        >
+          <ShieldAlert className="h-5 w-5 text-accent" aria-hidden />
+          <span className="text-xs font-bold uppercase tracking-wider">{t.settings.r18Blurred}</span>
+          <span className="text-[10px] opacity-80">{t.settings.clickToReveal}</span>
+        </button>
       )}
 
       <div

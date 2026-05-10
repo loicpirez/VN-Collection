@@ -26,6 +26,21 @@ const VN_DETAIL_FIELDS = [
   'developers{id,name,original,lang,type}',
   'tags{id,name,category,rating,spoiler}',
   'screenshots{url,thumbnail,sexual,violence,dims}',
+  'relations.id',
+  'relations.title',
+  'relations.alttitle',
+  'relations.released',
+  'relations.rating',
+  'relations.votecount',
+  'relations.length_minutes',
+  'relations.languages',
+  'relations.platforms',
+  'relations.developers{id,name}',
+  'relations.image.url',
+  'relations.image.thumbnail',
+  'relations.image.sexual',
+  'relations.relation',
+  'relations.relation_official',
 ].join(', ');
 
 const VN_SEARCH_FIELDS = [
@@ -243,6 +258,16 @@ export interface VndbVn {
   developers: { id: string; name: string; original?: string | null; lang?: string | null; type?: string | null }[];
   tags: { id: string; name: string; rating: number; spoiler: number; category: string }[];
   screenshots: Screenshot[];
+  relations?: VndbRelationEntry[];
+}
+
+export interface VndbRelationEntry {
+  id: string;
+  title: string;
+  released: string | null;
+  image: { url: string; thumbnail?: string; sexual?: number } | null;
+  relation: string;
+  relation_official: boolean;
 }
 
 export async function getVn(id: string): Promise<VndbVn | null> {

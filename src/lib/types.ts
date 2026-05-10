@@ -73,7 +73,26 @@ export interface VnRow {
   custom_cover: string | null;
   banner_image: string | null;
   banner_position: string | null;
+  relations: VnRelation[];
   fetched_at: number;
+}
+
+export interface VnRelation {
+  id: string;
+  title: string;
+  alttitle: string | null;
+  released: string | null;
+  rating: number | null;
+  votecount: number | null;
+  length_minutes: number | null;
+  languages: string[];
+  platforms: string[];
+  developers: { id?: string; name: string }[];
+  image_url: string | null;
+  image_thumb: string | null;
+  image_sexual: number | null;
+  relation: string;
+  relation_official: boolean;
 }
 
 export interface CollectionFields {

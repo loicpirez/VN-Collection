@@ -18,6 +18,7 @@ import { ReleasesSection } from '@/components/ReleasesSection';
 import { QuotesSection } from '@/components/QuotesSection';
 import { RoutesSection } from '@/components/RoutesSection';
 import { LangList } from '@/components/LangFlag';
+import { RelationsSection } from '@/components/RelationsSection';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -85,6 +86,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           customBanner={customBanner}
           initialPosition={vn.banner_position}
           inCollection={inCol}
+          sexual={vn.image_sexual}
         />
 
         <div className="relative -mt-44 grid grid-cols-1 gap-8 px-6 pb-6 md:grid-cols-[260px_1fr] md:px-8 md:pb-8">
@@ -267,6 +269,11 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
       )}
 
       <div className="mt-6 space-y-3">
+        {vn.relations && vn.relations.length > 0 && (
+          <RelationsSection
+            relations={vn.relations.map((r) => ({ ...r, in_collection: isInCollection(r.id) }))}
+          />
+        )}
         <CharactersSection vnId={vn.id} />
         <ReleasesSection vnId={vn.id} inCollection={inCol} />
         <QuotesSection vnId={vn.id} />

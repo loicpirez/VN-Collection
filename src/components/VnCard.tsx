@@ -36,6 +36,8 @@ interface VnCardProps {
   enableAdd?: boolean;
   /** Called after a successful add. Receives the VN id. */
   onAdded?: (id: string) => void;
+  /** Optional badge rendered on the poster (e.g. relation type). */
+  badge?: { label: string; tone?: 'accent' | 'muted' };
 }
 
 function fmtMinutes(m: number | null | undefined): string | null {
@@ -47,7 +49,7 @@ function fmtMinutes(m: number | null | undefined): string | null {
   return `${mn}m`;
 }
 
-export function VnCard({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded }: VnCardProps) {
+export function VnCard({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded, badge }: VnCardProps) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -125,6 +127,17 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
         <span className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md bg-status-completed px-2 py-0.5 text-[11px] font-bold text-bg">
           <CheckCheck className="h-3 w-3" aria-hidden />
           {t.search.inCollection}
+        </span>
+      )}
+      {badge && (
+        <span
+          className={`absolute bottom-[calc(33%+0.5rem)] left-2 z-10 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-card ${
+            badge.tone === 'muted'
+              ? 'bg-bg-card/90 text-muted backdrop-blur'
+              : 'bg-accent text-bg'
+          }`}
+        >
+          {badge.label}
         </span>
       )}
       {!selectable && showAddButton && (
