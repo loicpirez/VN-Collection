@@ -1,0 +1,180 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { getCharacter, type VndbCharacter } from '@/lib/vndb';
+import { getDict } from '@/lib/i18n/server';
+import { SafeImage } from '@/components/SafeImage';
+
+export const dynamic = 'force-dynamic';
+
+const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
+
+function fmtBirthday(b: [number, number] | null): string | null {
+  if (!b) return null;
+  const [m, d] = b;
+  if (!m) return null;
+  if (!d) return new Date(0, m - 1).toLocaleString('default', { month: 'long' });
+  return `${d}/${String(m).padStart(2, '0')}`;
+}
+
+function sexLabel(s: [string | null, string | null] | null): string | null {
+  if (!s) return null;
+  const map: Record<string, string> = { m: '♂', f: '♀', b: '♂♀', n: '∅' };
+  return map[s[0] ?? ''] ?? s[0] ?? null;
+}
+
+function stripBb(s: string | null | undefined): string {
+  if (!s) return '';
+  return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
+}
+
+export default async function CharacterPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!/^c\d+$/i.test(id)) notFound();
+  const t = await getDict();
+  let char: VndbCharacter | null = null;
+  try {
+    char = await getCharacter(id);
+  } catch {
+    char = null;
+  }
+  if (!char) notFound();
+
+  const meta: { label: string; value: string }[] = [];
+  if (char.age != null) meta.push({ label: t.characters.age, value: `${char.age}` });
+  if (char.height != null) meta.push({ label: t.characters.height, value: `${char.height} cm` });
+  if (char.weight != null) meta.push({ label: t.characters.weight, value: `${char.weight} kg` });
+  if (char.bust != null) meta.push({ label: t.characters.bust, value: `${char.bust} cm` });
+  if (char.waist != null) meta.push({ label: t.characters.waist, value: `${char.waist} cm` });
+  if (char.hips != null) meta.push({ label: t.characters.hips, value: `${char.hips} cm` });
+  if (char.cup) meta.push({ label: t.characters.cup, value: char.cup });
+  if (char.blood_type) meta.push({ label: t.characters.bloodType, value: char.blood_type.toUpperCase() });
+  const bday = fmtBirthday(char.birthday);
+  if (bday) meta.push({ label: t.characters.birthday, value: bday });
+  const sex = sexLabel(char.sex);
+  if (sex) meta.push({ label: t.characters.sex, value: sex });
+
+  const sortedVns = [...char.vns].sort(
+    (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9),
+  );
+  const visibleTraits = char.traits.filter((tr) => tr.spoiler === 0 && !tr.sexual);
+
+  return (
+    <div className="mx-auto max-w-5xl">
+      <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+      </Link>
+
+      <div className="grid gap-8 rounded-2xl border border-border bg-bg-card p-6 md:grid-cols-[200px_1fr]">
+        <SafeImage
+          src={char.image?.url ?? null}
+          sexual={char.image?.sexual ?? null}
+          alt={char.name}
+          className="aspect-[2/3] w-full rounded-xl"
+        />
+        <div>
+          <h1 className="text-2xl font-bold">{char.name}</h1>
+          {char.original && char.original !== char.name && (
+            <div className="mt-1 text-muted">{char.original}</div>
+          )}
+          {char.aliases.length > 0 && (
+            <div className="mt-1 text-xs text-muted">{char.aliases.slice(0, 6).join(' · ')}</div>
+          )}
+
+          {meta.length > 0 && (
+            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+              {meta.map((m) => (
+                <div key={m.label}>
+                  <dt className="text-[11px] uppercase tracking-wider text-muted">{m.label}</dt>
+                  <dd className="font-semibold">{m.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          <div className="mt-4">
+            <a
+              href={`https://vndb.org/${char.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn"
+            >
+              <ExternalLink className="h-4 w-4" /> VNDB ↗
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {char.description && (
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">{stripBb(char.description)}</p>
+        </section>
+      )}
+
+      {visibleTraits.length > 0 && (
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.characters.traits}</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {visibleTraits.map((tr) => (
+              <span
+                key={tr.id}
+                className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-[11px] text-muted"
+              >
+                {tr.group_name && <span className="opacity-60">{tr.group_name} / </span>}
+                {tr.name}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {sortedVns.length > 0 && (
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
+            {t.characters.appearsIn} · {sortedVns.length}
+          </h3>
+          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+            {sortedVns.map((v) => {
+              const year = v.released?.slice(0, 4);
+              const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
+              const role = t.characters.roles[v.role as keyof typeof t.characters.roles] ?? v.role;
+              return (
+                <li key={`${v.id}-${v.role}`}>
+                  <Link
+                    href={`/vn/${v.id}`}
+                    className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
+                  >
+                    <SafeImage
+                      src={v.image?.thumbnail || v.image?.url || null}
+                      sexual={v.image?.sexual ?? null}
+                      alt={v.title ?? v.id}
+                      className="h-24 w-16 shrink-0 rounded"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-1">
+                        <span className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                          {v.title ?? v.id}
+                        </span>
+                        <span className="shrink-0 rounded bg-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
+                          {role}
+                        </span>
+                      </div>
+                      {v.alttitle && v.alttitle !== v.title && (
+                        <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">{v.alttitle}</div>
+                      )}
+                      <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
+                        {ratingDisplay && <span className="text-accent">★ {ratingDisplay}</span>}
+                        {year && <span>{year}</span>}
+                      </div>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
