@@ -49,7 +49,9 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     if (!editing) return;
     e.preventDefault();
     draggingRef.current = true;
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    // Capture on the container so subsequent move events keep coming here
+    // even if the pointer leaves the element.
+    ref.current?.setPointerCapture(e.pointerId);
     const p = fromEvent(e);
     if (p) setDraftPosition(p);
   }
@@ -61,7 +63,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   function onPointerUp(e: React.PointerEvent) {
     if (!editing) return;
     draggingRef.current = false;
-    (e.target as Element).releasePointerCapture?.(e.pointerId);
+    ref.current?.releasePointerCapture?.(e.pointerId);
   }
 
   async function save() {
@@ -132,15 +134,19 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
           aria-hidden
           draggable={false}
           className={`pointer-events-none h-full w-full select-none object-cover transition-[object-position,filter,opacity,transform] duration-200 ${
-            customBanner ? '' : 'scale-110 blur-xl opacity-50'
-          } ${editing ? 'opacity-100 scale-100 blur-0' : ''}`}
+            editing ? '' : !customBanner ? 'scale-110 blur-xl opacity-50' : ''
+          }`}
           style={{ objectPosition: activePos }}
         />
       ) : (
-        <div className="h-full w-full bg-gradient-to-b from-bg-elev to-bg-card" />
+        <div className="pointer-events-none h-full w-full bg-gradient-to-b from-bg-elev to-bg-card" />
       )}
 
-      <div className="absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/70 to-transparent" />
+      <div
+        className={`pointer-events-none absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/70 to-transparent ${
+          editing ? 'opacity-30' : ''
+        }`}
+      />
 
       {editing && Number.isFinite(xPct) && Number.isFinite(yPct) && (
         <>
@@ -160,7 +166,13 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
       )}
 
       {inCollection && customBanner && (
-        <div className="absolute right-3 top-3 z-10 flex flex-wrap items-center gap-1.5">
+        <div
+          className="absolute right-3 top-3 z-10 flex flex-wrap items-center gap-1.5"
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerMove={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
           {!editing ? (
             <button
               type="button"
@@ -216,7 +228,9 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
       )}
 
       {editing && (
-        <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-md bg-bg-card/90 px-3 py-1 text-[11px] text-white shadow-card backdrop-blur">
+        <div
+          className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-bg-card/90 px-3 py-1 text-[11px] text-white shadow-card backdrop-blur"
+        >
           {t.banner.editHint}
         </div>
       )}
