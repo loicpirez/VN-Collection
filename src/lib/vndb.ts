@@ -639,3 +639,86 @@ export async function lookupUsers(qs: string[]): Promise<Record<string, VndbUser
   params.set('fields', 'lengthvotes,lengthvotes_sum');
   return vndbGet<Record<string, VndbUserInfo | null>>(`/user?${params}`, TTL.user);
 }
+
+// User list (ulist) — used for wishlist (label id 5) and similar reads.
+
+export interface VndbUlistEntry {
+  id: string;
+  added: number;
+  voted: number | null;
+  vote: number | null;
+  started: string | null;
+  finished: string | null;
+  notes: string | null;
+  labels: { id: number; label: string }[];
+  vn: {
+    id: string;
+    title: string;
+    alttitle: string | null;
+    released: string | null;
+    rating: number | null;
+    votecount: number | null;
+    length_minutes: number | null;
+    languages: string[];
+    platforms: string[];
+    image: { url: string; thumbnail: string; sexual?: number } | null;
+    developers: { id: string; name: string }[];
+  };
+}
+
+const ULIST_FIELDS = [
+  'id',
+  'added',
+  'voted',
+  'vote',
+  'started',
+  'finished',
+  'notes',
+  'labels{id,label}',
+  'vn.title',
+  'vn.alttitle',
+  'vn.released',
+  'vn.rating',
+  'vn.votecount',
+  'vn.length_minutes',
+  'vn.languages',
+  'vn.platforms',
+  'vn.image.url',
+  'vn.image.thumbnail',
+  'vn.image.sexual',
+  'vn.developers{id,name}',
+].join(', ');
+
+export async function fetchUlistByLabel(
+  userId: string,
+  labelId: number,
+  { results = 100, page = 1 }: { results?: number; page?: number } = {},
+): Promise<VndbResponse<VndbUlistEntry>> {
+  return vndbPost<VndbResponse<VndbUlistEntry>>(
+    '/ulist',
+    {
+      user: userId,
+      filters: ['label', '=', labelId],
+      fields: ULIST_FIELDS,
+      sort: 'added',
+      reverse: true,
+      results,
+      page,
+    },
+    TTL.user,
+  );
+}
+
+export async function fetchAuthenticatedWishlist(): Promise<VndbUlistEntry[] | { needsAuth: true }> {
+  const auth = await getAuthInfo();
+  if (!auth) return { needsAuth: true };
+  // Label 5 is the predefined "Wishlist" label on VNDB.
+  // Paginate through all results so a large wishlist is fully returned.
+  const out: VndbUlistEntry[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const r = await fetchUlistByLabel(auth.id, 5, { results: 100, page });
+    out.push(...r.results);
+    if (!r.more) break;
+  }
+  return out;
+}

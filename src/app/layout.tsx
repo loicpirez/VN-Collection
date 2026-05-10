@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { BarChart3, Bookmark, Database, Library, Search, Sparkles, Tags, Trophy } from 'lucide-react';
+import { BarChart3, Bookmark, Database, Heart, Library, Search, Sparkles, Tags, Trophy } from 'lucide-react';
 import './globals.css';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
@@ -33,6 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </Link>
                 <nav className="flex flex-wrap gap-1">
                   <NavLink href="/" icon={<Library className="h-4 w-4" />}>{dict.nav.library}</NavLink>
+                  <NavLink href="/wishlist" icon={<Heart className="h-4 w-4" />}>{dict.nav.wishlist}</NavLink>
                   <NavLink href="/search" icon={<Search className="h-4 w-4" />}>{dict.nav.search}</NavLink>
                   <NavLink href="/producers" icon={<Trophy className="h-4 w-4" />}>{dict.nav.producers}</NavLink>
                   <NavLink href="/series" icon={<Bookmark className="h-4 w-4" />}>{dict.nav.series}</NavLink>

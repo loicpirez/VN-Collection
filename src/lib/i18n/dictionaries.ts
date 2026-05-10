@@ -10,6 +10,7 @@ export const dictionaries = {
     },
     nav: {
       library: 'Bibliothèque',
+      wishlist: 'Wishlist',
       search: 'Rechercher',
       producers: 'Éditeurs',
       series: 'Séries',
@@ -18,6 +19,16 @@ export const dictionaries = {
       stats: 'Stats',
       data: 'Données',
       languageLabel: 'Langue',
+    },
+    wishlist: {
+      pageTitle: 'Wishlist VNDB',
+      pageSubtitle: 'Les VN marqués « Wishlist » sur ton compte VNDB.',
+      empty: 'Ta wishlist VNDB est vide.',
+      needsAuthTitle: 'Token VNDB requis',
+      needsAuthHint: "Crée un token sur ton profil VNDB et place-le dans VNDB_TOKEN du fichier .env.local. Tokens →",
+      searchPlaceholder: 'Filtrer la wishlist…',
+      hideOwned: 'Masquer ceux déjà en collection',
+      addToCollection: 'Ajouter',
     },
     common: {
       loading: 'Chargement…',
@@ -455,6 +466,7 @@ export const dictionaries = {
     },
     nav: {
       library: 'Library',
+      wishlist: 'Wishlist',
       search: 'Search',
       producers: 'Publishers',
       series: 'Series',
@@ -463,6 +475,16 @@ export const dictionaries = {
       stats: 'Stats',
       data: 'Data',
       languageLabel: 'Language',
+    },
+    wishlist: {
+      pageTitle: 'VNDB Wishlist',
+      pageSubtitle: 'VNs flagged "Wishlist" on your VNDB account.',
+      empty: 'Your VNDB wishlist is empty.',
+      needsAuthTitle: 'VNDB token required',
+      needsAuthHint: 'Generate a token on your VNDB profile and put it in VNDB_TOKEN of .env.local. Tokens →',
+      searchPlaceholder: 'Filter wishlist…',
+      hideOwned: 'Hide already in collection',
+      addToCollection: 'Add',
     },
     common: {
       loading: 'Loading…',
@@ -900,6 +922,7 @@ export const dictionaries = {
     },
     nav: {
       library: 'ライブラリ',
+      wishlist: 'ウィッシュ',
       search: '検索',
       producers: 'メーカー',
       series: 'シリーズ',
@@ -908,6 +931,16 @@ export const dictionaries = {
       stats: '統計',
       data: 'データ',
       languageLabel: '言語',
+    },
+    wishlist: {
+      pageTitle: 'VNDB ウィッシュリスト',
+      pageSubtitle: 'VNDB アカウントで「Wishlist」になっている VN。',
+      empty: 'VNDB ウィッシュリストは空です。',
+      needsAuthTitle: 'VNDB トークンが必要',
+      needsAuthHint: 'VNDB プロフィールでトークンを生成し、.env.local の VNDB_TOKEN に設定してください。Tokens →',
+      searchPlaceholder: 'ウィッシュリストを絞り込み…',
+      hideOwned: '所有済みを隠す',
+      addToCollection: '追加',
     },
     common: {
       loading: '読み込み中…',
