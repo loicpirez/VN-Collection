@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { BarChart3, Bookmark, Library, Search, Sparkles, Tags, Trophy } from 'lucide-react';
+import { BarChart3, Bookmark, Database, Library, Search, Sparkles, Tags, Trophy } from 'lucide-react';
 import './globals.css';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
@@ -39,6 +39,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <NavLink href="/tags" icon={<Tags className="h-4 w-4" />}>{dict.nav.tags}</NavLink>
                   <NavLink href="/traits" icon={<Sparkles className="h-4 w-4" />}>{dict.nav.traits}</NavLink>
                   <NavLink href="/stats" icon={<BarChart3 className="h-4 w-4" />}>{dict.nav.stats}</NavLink>
+                  <NavLink href="/data" icon={<Database className="h-4 w-4" />}>{dict.nav.data}</NavLink>
                 </nav>
                 <div className="ml-auto flex items-center gap-2">
                   <SettingsButton />
