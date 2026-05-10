@@ -2,10 +2,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, FilterX, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, CheckSquare, FilterX, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
+import { BulkActionBar } from './BulkActionBar';
 import { useT } from '@/lib/i18n/client';
 import { STATUSES, type Status } from '@/lib/types';
 import type { CollectionItem, ProducerStat, SeriesRow, Stats } from '@/lib/types';
@@ -79,6 +80,22 @@ export function LibraryClient() {
   const [error, setError] = useState<string | null>(null);
   const [tagName, setTagName] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+    setSelectMode(false);
+  }
 
   useEffect(() => {
     fetch('/api/producers').then((r) => r.json()).then((d) => setProducers(d.producers ?? [])).catch(() => {});
@@ -273,6 +290,19 @@ export function LibraryClient() {
             <span><b className="text-white">{stats.total}</b> {t.library.stats.vnCount}</span>
             <span><b className="text-white">{totalH}h</b> {t.library.stats.playedHours}</span>
           </div>
+          {stats.total > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (selectMode) clearSelection();
+                else setSelectMode(true);
+              }}
+              className={`btn ${selectMode ? 'btn-primary' : ''}`}
+              title={t.bulkEdit.toggleSelectMode}
+            >
+              <CheckSquare className="h-4 w-4" /> {selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
+            </button>
+          )}
           {stats.total > 0 && <BulkDownloadButton onItemDone={() => setRefreshKey((k) => k + 1)} />}
         </div>
       </div>
@@ -294,7 +324,12 @@ export function LibraryClient() {
           </Link>
         </div>
       ) : group === 'none' ? (
-        <Grid items={items} />
+        <Grid
+          items={items}
+          selectMode={selectMode}
+          selected={selected}
+          onToggle={toggleSelected}
+        />
       ) : (
         <div className="space-y-10">
           {groups.map((g) => (
@@ -304,21 +339,47 @@ export function LibraryClient() {
                 {g.label}
                 <span className="text-xs font-normal text-muted">{g.items.length}</span>
               </h2>
-              <Grid items={g.items} />
+              <Grid
+                items={g.items}
+                selectMode={selectMode}
+                selected={selected}
+                onToggle={toggleSelected}
+              />
             </section>
           ))}
         </div>
+      )}
+
+      {selectMode && selected.size > 0 && (
+        <BulkActionBar
+          selectedIds={Array.from(selected)}
+          onClear={clearSelection}
+          onApplied={() => setRefreshKey((k) => k + 1)}
+        />
       )}
     </div>
   );
 }
 
-function Grid({ items }: { items: CollectionItem[] }) {
+function Grid({
+  items,
+  selectMode = false,
+  selected = new Set<string>(),
+  onToggle,
+}: {
+  items: CollectionItem[];
+  selectMode?: boolean;
+  selected?: Set<string>;
+  onToggle?: (id: string) => void;
+}) {
   return (
     <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       {items.map((it) => (
         <VnCard
           key={it.id}
+          selectable={selectMode}
+          selected={selected.has(it.id)}
+          onSelect={() => onToggle?.(it.id)}
           data={{
             id: it.id,
             title: it.title,

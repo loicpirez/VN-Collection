@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Star, CheckCheck, Clock, Hourglass, Building2 } from 'lucide-react';
+import { Star, CheckCheck, Clock, Hourglass, Building2, Check } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useT } from '@/lib/i18n/client';
@@ -24,6 +24,13 @@ export interface CardData {
   developers?: { id?: string; name: string }[];
 }
 
+interface VnCardProps {
+  data: CardData;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
+}
+
 function fmtMinutes(m: number | null | undefined): string | null {
   if (m == null || m <= 0) return null;
   const h = Math.floor(m / 60);
@@ -33,7 +40,7 @@ function fmtMinutes(m: number | null | undefined): string | null {
   return `${mn}m`;
 }
 
-export function VnCard({ data }: { data: CardData }) {
+export function VnCard({ data, selectable = false, selected = false, onSelect }: VnCardProps) {
   const t = useT();
   const ratingNum = data.user_rating ?? data.rating;
   const rating = ratingNum != null ? (ratingNum / 10).toFixed(1) : null;
@@ -43,23 +50,38 @@ export function VnCard({ data }: { data: CardData }) {
 
   const localSrc = data.customCover || data.localPoster || null;
 
-  return (
-    <Link
-      href={`/vn/${data.id}`}
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-1 hover:border-accent hover:shadow-card"
-    >
+  const className = `group relative flex flex-col overflow-hidden rounded-xl border bg-bg-card transition-all ${
+    selectable
+      ? `cursor-pointer ${selected ? 'border-accent ring-2 ring-accent shadow-card' : 'border-border hover:border-accent'}`
+      : 'border-border hover:-translate-y-1 hover:border-accent hover:shadow-card'
+  }`;
+
+  const inner = (
+    <>
+      {selectable && (
+        <span
+          className={`absolute left-2 top-2 z-20 flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
+            selected ? 'border-accent bg-accent text-bg' : 'border-white/60 bg-bg-card/80 text-transparent'
+          }`}
+          aria-hidden
+        >
+          <Check className="h-3 w-3" />
+        </span>
+      )}
       {data.favorite && (
         <Star
           aria-label="favorite"
-          className="absolute left-2 top-2 z-10 h-5 w-5 fill-accent text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+          className={`absolute z-10 h-5 w-5 fill-accent text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)] ${
+            selectable ? 'right-2 top-2' : 'left-2 top-2'
+          }`}
         />
       )}
-      {data.status && (
+      {!selectable && data.status && (
         <div className="absolute right-2 top-2 z-10">
           <StatusBadge status={data.status} />
         </div>
       )}
-      {data.inCollectionBadge && (
+      {!selectable && data.inCollectionBadge && (
         <span className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md bg-status-completed px-2 py-0.5 text-[11px] font-bold text-bg">
           <CheckCheck className="h-3 w-3" aria-hidden />
           {t.search.inCollection}
@@ -76,7 +98,10 @@ export function VnCard({ data }: { data: CardData }) {
         <div className="line-clamp-2 text-sm font-semibold leading-tight">{data.title}</div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
           {rating && (
-            <span className="inline-flex items-center gap-0.5 text-accent" title={data.user_rating != null ? t.detail.myRatingLabel : t.detail.lengthVndb}>
+            <span
+              className="inline-flex items-center gap-0.5 text-accent"
+              title={data.user_rating != null ? t.detail.myRatingLabel : t.detail.lengthVndb}
+            >
               <Star className="h-3 w-3 fill-accent" aria-hidden /> {rating}
             </span>
           )}
@@ -114,6 +139,31 @@ export function VnCard({ data }: { data: CardData }) {
           </div>
         )}
       </div>
+    </>
+  );
+
+  if (selectable) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onSelect}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelect?.();
+          }
+        }}
+        className={className}
+      >
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={`/vn/${data.id}`} className={className}>
+      {inner}
     </Link>
   );
 }
