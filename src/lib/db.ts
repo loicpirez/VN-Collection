@@ -204,6 +204,10 @@ function open(): Database.Database {
   ensureColumn(db, 'collection', 'box_type', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'collection', 'download_url', 'TEXT');
   ensureColumn(db, 'collection', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
+  // 0 means "unset" — when the user uses the custom sort, all 0s fall to the
+  // bottom and the manually-ordered VNs float to the top. Set when the user
+  // drags an item; reset to 0 on collection removal.
+  ensureColumn(db, 'collection', 'custom_order', 'INTEGER NOT NULL DEFAULT 0');
 
   ensureColumn(db, 'owned_release', 'location', "TEXT NOT NULL DEFAULT 'unknown'");
   ensureColumn(db, 'owned_release', 'physical_location', 'TEXT');
@@ -830,6 +834,26 @@ export function isInCollection(vnId: string): boolean {
   return !!db.prepare('SELECT 1 FROM collection WHERE vn_id = ?').get(vnId);
 }
 
+/**
+ * Bulk-update `collection.custom_order` so the supplied ids appear in order.
+ * Index 0 gets order 1, index 1 gets order 2, etc. — 0 is reserved for "unset".
+ * Ids not in the array are left alone (so reordering visible page A doesn't
+ * wipe page B). Runs in a single transaction so a partial failure rolls back.
+ */
+export function setCollectionCustomOrder(ids: string[]): void {
+  if (ids.length === 0) return;
+  const update = db.prepare('UPDATE collection SET custom_order = ? WHERE vn_id = ?');
+  const tx = db.transaction((list: string[]) => {
+    list.forEach((id, idx) => update.run(idx + 1, id));
+  });
+  tx(ids);
+}
+
+/** Drop custom_order for every collection row (back to natural sort). */
+export function resetCollectionCustomOrder(): void {
+  db.prepare('UPDATE collection SET custom_order = 0').run();
+}
+
 export function listInCollectionVnIds(): string[] {
   const rows = db.prepare('SELECT vn_id FROM collection').all() as { vn_id: string }[];
   return rows.map((r) => r.vn_id);
@@ -950,7 +974,8 @@ export interface ListOptions {
     | 'released'
     | 'producer'
     | 'egs_rating'
-    | 'combined_rating';
+    | 'combined_rating'
+    | 'custom';
   order?: 'asc' | 'desc';
 }
 
@@ -985,6 +1010,9 @@ export function listCollection({
       'WHEN v.rating IS NULL THEN e.median ' +
       'WHEN e.median IS NULL THEN v.rating ' +
       'ELSE (v.rating + e.median) / 2.0 END',
+    // Manual drag order. 0 = unset (the user never dragged this one); we push
+    // those to the bottom regardless of asc/desc so dragged items always lead.
+    custom: 'CASE WHEN c.custom_order = 0 THEN 1 ELSE 0 END, c.custom_order',
   };
   const needsEgsJoin = sort === 'egs_rating' || sort === 'combined_rating';
   const sortCol = sortMap[sort] ?? 'c.updated_at';

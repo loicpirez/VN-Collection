@@ -14,6 +14,7 @@ const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [
   'producer',
   'egs_rating',
   'combined_rating',
+  'custom',
 ];
 
 export async function GET(req: NextRequest) {

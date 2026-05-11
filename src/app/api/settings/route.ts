@@ -7,6 +7,21 @@ export const runtime = 'nodejs';
 const SAFE_KEYS = new Set([
   'vndb_token',
   'random_quote_source',
+  'default_sort',
+]);
+
+const VALID_SORTS = new Set([
+  'updated_at',
+  'added_at',
+  'title',
+  'rating',
+  'user_rating',
+  'playtime',
+  'released',
+  'producer',
+  'egs_rating',
+  'combined_rating',
+  'custom',
 ]);
 
 function maskToken(value: string | null): { hasToken: boolean; preview: string | null; envFallback: boolean } {
@@ -21,6 +36,7 @@ export async function GET() {
   return NextResponse.json({
     vndb_token: maskToken(tokenRow),
     random_quote_source: getAppSetting('random_quote_source') ?? 'all',
+    default_sort: getAppSetting('default_sort') ?? 'updated_at',
   });
 }
 
@@ -52,6 +68,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'random_quote_source must be all|mine' }, { status: 400 });
     }
     setAppSetting('random_quote_source', v);
+  }
+  if ('default_sort' in body) {
+    const v = body.default_sort;
+    if (typeof v !== 'string' || !VALID_SORTS.has(v)) {
+      return NextResponse.json({ error: `default_sort must be one of: ${[...VALID_SORTS].join(', ')}` }, { status: 400 });
+    }
+    setAppSetting('default_sort', v);
   }
   return NextResponse.json({ ok: true });
 }

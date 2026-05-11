@@ -22,7 +22,8 @@ type SortKey =
   | 'released'
   | 'producer'
   | 'egs_rating'
-  | 'combined_rating';
+  | 'combined_rating'
+  | 'custom';
 const SORT_KEYS: SortKey[] = [
   'updated_at',
   'added_at',
@@ -34,6 +35,7 @@ const SORT_KEYS: SortKey[] = [
   'producer',
   'egs_rating',
   'combined_rating',
+  'custom',
 ];
 
 type GroupKey = 'none' | 'tag' | 'producer' | 'status' | 'series';
@@ -56,9 +58,28 @@ export function LibraryClient() {
   const urlYearMax = searchParams.get('yearMax') ?? '';
   const urlDumped = searchParams.get('dumped') ?? '';
   const urlQ = searchParams.get('q') ?? '';
-  const sort = (SORT_KEYS as readonly string[]).includes(searchParams.get('sort') ?? '')
-    ? (searchParams.get('sort') as SortKey)
-    : 'updated_at';
+  // The default sort is configurable in Settings; we load it once and use it
+  // as the fallback when the URL has no `sort` param.
+  const [defaultSort, setDefaultSort] = useState<SortKey>('updated_at');
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/settings', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { default_sort?: string } | null) => {
+        if (!alive || !d) return;
+        if ((SORT_KEYS as readonly string[]).includes(d.default_sort ?? '')) {
+          setDefaultSort(d.default_sort as SortKey);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const urlSort = searchParams.get('sort');
+  const sort: SortKey = urlSort && (SORT_KEYS as readonly string[]).includes(urlSort)
+    ? (urlSort as SortKey)
+    : defaultSort;
   const order: 'asc' | 'desc' = searchParams.get('order') === 'asc' ? 'asc' : 'desc';
   const group: GroupKey = (GROUP_KEYS as readonly string[]).includes(searchParams.get('group') ?? '')
     ? (searchParams.get('group') as GroupKey)
@@ -208,19 +229,22 @@ export function LibraryClient() {
   }
 
   // Hard-filter R18 entries when the user opts in. Done client-side so toggling
-  // takes effect instantly without re-querying. Combines three signals because
-  // VNDB cover ratings alone miss eroge with SFW covers:
-  //   1. cover image_sexual >= NSFW threshold (the original heuristic)
-  //   2. EGS okazu boolean (set on most actual eroge)
-  //   3. any VNDB tag with category === 'ero' (preserved from upsertVn going
-  //      forward — older rows fall back to signals 1+2 until refreshed).
+  // takes effect instantly without re-querying. Three independent signals,
+  // OR'd — VNDB cover ratings alone miss eroge with SFW covers:
+  //   1. cover `image_sexual` >= NSFW threshold (number; no false positive).
+  //   2. EGS `okazu` strict boolean (set on most actual eroge by EGS users).
+  //   3. any VNDB tag whose `category` field equals `"ero"`. `category` is a
+  //      strict enum on VNDB (only `cont` / `ero` / `tech`), NOT a free-form
+  //      name — so tag names like "Sexual Content", "no ero", etc. don't
+  //      get string-matched. We don't gate on `spoiler` here: a VN whose
+  //      only ero tags are spoiler-flagged is still adult content.
   const visibleItems = useMemo(
     () =>
       settings.hideSexual
         ? items.filter((it) => {
             if (isExplicit(it.image_sexual, settings.nsfwThreshold)) return false;
             if (it.egs?.okazu === true) return false;
-            if ((it.tags ?? []).some((tag) => tag.category === 'ero' && tag.spoiler === 0)) return false;
+            if ((it.tags ?? []).some((tag) => tag.category === 'ero')) return false;
             return true;
           })
         : items,
@@ -435,12 +459,47 @@ export function LibraryClient() {
               <span className="ml-1 block text-[10px] opacity-80">{t.settings.hideSexualRefreshHint}</span>
             </div>
           )}
+          {sort === 'custom' && group === 'none' && !selectMode && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-[11px] text-muted">
+              <span>{t.library.customSortHint}</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!confirm(t.library.customSortReset + ' ?')) return;
+                  try {
+                    await fetch('/api/collection/order', { method: 'DELETE' });
+                    setRefreshKey((k) => k + 1);
+                  } catch {
+                    // best-effort
+                  }
+                }}
+                className="rounded border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] hover:border-accent hover:text-accent"
+              >
+                {t.library.customSortReset}
+              </button>
+            </div>
+          )}
           {group === 'none' ? (
             <Grid
               items={visibleItems}
               selectMode={selectMode}
               selected={selected}
               onToggle={toggleSelected}
+              dragEnabled={sort === 'custom' && !selectMode}
+              onReorder={(orderedIds) => {
+                // Optimistic: reorder local state so the UI doesn't flicker.
+                const byId = new Map(items.map((it) => [it.id, it]));
+                const next = orderedIds.map((id) => byId.get(id)).filter((x): x is CollectionItem => !!x);
+                setItems(next);
+                fetch('/api/collection/order', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ids: orderedIds }),
+                }).catch(() => {
+                  // Best-effort — server-side reorder is non-fatal; the next fetch
+                  // will resync if it failed.
+                });
+              }}
             />
           ) : (
             <div className="space-y-10">
@@ -480,41 +539,108 @@ function Grid({
   selectMode = false,
   selected = new Set<string>(),
   onToggle,
+  dragEnabled = false,
+  onReorder,
 }: {
   items: CollectionItem[];
   selectMode?: boolean;
   selected?: Set<string>;
   onToggle?: (id: string) => void;
+  dragEnabled?: boolean;
+  onReorder?: (orderedIds: string[]) => void;
 }) {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  function handleDrop(targetId: string) {
+    if (!draggingId || draggingId === targetId) return;
+    const fromIdx = items.findIndex((it) => it.id === draggingId);
+    const toIdx = items.findIndex((it) => it.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const next = items.slice();
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    onReorder?.(next.map((it) => it.id));
+    setDraggingId(null);
+    setDragOverId(null);
+  }
+
   return (
     <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-      {items.map((it) => (
-        <VnCard
-          key={it.id}
-          selectable={selectMode}
-          selected={selected.has(it.id)}
-          onSelect={() => onToggle?.(it.id)}
-          data={{
-            id: it.id,
-            title: it.title,
-            alttitle: it.alttitle,
-            poster: it.image_thumb || it.image_url,
-            localPoster: it.local_image_thumb || it.local_image,
-            customCover: it.custom_cover,
-            sexual: it.image_sexual,
-            released: it.released,
-            egs_median: it.egs?.median ?? null,
-            egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
-            rating: it.rating,
-            user_rating: it.user_rating,
-            playtime_minutes: it.playtime_minutes,
-            length_minutes: it.length_minutes,
-            status: it.status as Status | undefined,
-            favorite: it.favorite,
-            developers: it.developers,
-          }}
-        />
-      ))}
+      {items.map((it) => {
+        const isDragOver = dragEnabled && dragOverId === it.id && draggingId !== it.id;
+        const isDragging = dragEnabled && draggingId === it.id;
+        return (
+          <div
+            key={it.id}
+            draggable={dragEnabled}
+            onDragStart={
+              dragEnabled
+                ? (e) => {
+                    setDraggingId(it.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', it.id);
+                  }
+                : undefined
+            }
+            onDragOver={
+              dragEnabled
+                ? (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragOverId !== it.id) setDragOverId(it.id);
+                  }
+                : undefined
+            }
+            onDragLeave={dragEnabled ? () => setDragOverId((cur) => (cur === it.id ? null : cur)) : undefined}
+            onDrop={
+              dragEnabled
+                ? (e) => {
+                    e.preventDefault();
+                    handleDrop(it.id);
+                  }
+                : undefined
+            }
+            onDragEnd={
+              dragEnabled
+                ? () => {
+                    setDraggingId(null);
+                    setDragOverId(null);
+                  }
+                : undefined
+            }
+            className={`transition-transform ${
+              isDragging ? 'opacity-40 scale-95' : ''
+            } ${isDragOver ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg rounded-xl' : ''}`}
+          >
+            <VnCard
+              selectable={selectMode}
+              selected={selected.has(it.id)}
+              onSelect={() => onToggle?.(it.id)}
+              data={{
+                id: it.id,
+                title: it.title,
+                alttitle: it.alttitle,
+                poster: it.image_thumb || it.image_url,
+                localPoster: it.local_image_thumb || it.local_image,
+                customCover: it.custom_cover,
+                sexual: it.image_sexual,
+                released: it.released,
+                egs_median: it.egs?.median ?? null,
+                egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
+                rating: it.rating,
+                user_rating: it.user_rating,
+                playtime_minutes: it.playtime_minutes,
+                length_minutes: it.length_minutes,
+                status: it.status as Status | undefined,
+                favorite: it.favorite,
+                developers: it.developers,
+                isFanDisc: (it.relations ?? []).some((r) => r.relation === 'orig'),
+              }}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

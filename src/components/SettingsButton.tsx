@@ -6,9 +6,37 @@ import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
+type SortKey =
+  | 'updated_at'
+  | 'added_at'
+  | 'title'
+  | 'rating'
+  | 'user_rating'
+  | 'playtime'
+  | 'released'
+  | 'producer'
+  | 'egs_rating'
+  | 'combined_rating'
+  | 'custom';
+
+const SORT_KEYS: SortKey[] = [
+  'updated_at',
+  'added_at',
+  'title',
+  'rating',
+  'user_rating',
+  'playtime',
+  'released',
+  'producer',
+  'egs_rating',
+  'combined_rating',
+  'custom',
+];
+
 interface ServerSettings {
   vndb_token: { hasToken: boolean; preview: string | null; envFallback: boolean };
   random_quote_source: 'all' | 'mine';
+  default_sort: SortKey;
 }
 
 export function SettingsButton() {
@@ -38,7 +66,9 @@ export function SettingsButton() {
     }
   }, [open, loadServer]);
 
-  async function saveServer(patch: Partial<{ vndb_token: string | null; random_quote_source: 'all' | 'mine' }>) {
+  async function saveServer(
+    patch: Partial<{ vndb_token: string | null; random_quote_source: 'all' | 'mine'; default_sort: SortKey }>,
+  ) {
     try {
       const r = await fetch('/api/settings', {
         method: 'PATCH',
@@ -224,6 +254,22 @@ export function SettingsButton() {
                       );
                     })}
                   </div>
+                </div>
+
+                <div className="mt-6 border-t border-border pt-5">
+                  <h3 className="mb-1 text-sm font-bold">{t.settings.defaultSortTitle}</h3>
+                  <p className="mb-3 text-[11px] text-muted">{t.settings.defaultSortDesc}</p>
+                  <select
+                    className="input w-full"
+                    value={server?.default_sort ?? 'updated_at'}
+                    onChange={(e) => saveServer({ default_sort: e.target.value as SortKey })}
+                  >
+                    {SORT_KEYS.map((k) => (
+                      <option key={k} value={k}>
+                        {t.library.sort[k]}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="mt-6 flex justify-between">

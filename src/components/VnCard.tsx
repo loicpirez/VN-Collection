@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Loader2, Plus, Sparkles } from 'lucide-react';
+import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, Plus, Sparkles } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
@@ -31,6 +31,11 @@ export interface CardData {
   egs_median?: number | null;
   /** ErogameScape median user playtime in minutes, when available. */
   egs_playtime_minutes?: number | null;
+  /**
+   * True when the VN has a `relation === 'orig'` entry — VNDB's way of saying
+   * "X is my original game", which only ever appears on fan discs.
+   */
+  isFanDisc?: boolean;
 }
 
 interface VnCardProps {
@@ -147,6 +152,15 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
           }`}
         >
           {badge.label}
+        </span>
+      )}
+      {data.isFanDisc && (
+        <span
+          className="absolute bottom-[calc(33%+0.5rem)] right-2 z-10 inline-flex items-center gap-1 rounded-md bg-accent-blue/85 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bg shadow-card backdrop-blur"
+          title={t.library.fanDiscHint}
+        >
+          <Disc3 className="h-3 w-3" aria-hidden />
+          {t.library.fanDisc}
         </span>
       )}
       {!selectable && showAddButton && (
