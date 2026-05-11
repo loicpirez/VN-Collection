@@ -7,11 +7,13 @@ import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
+import { useResolvedTitle } from './TitleLine';
 import type { Status } from '@/lib/types';
 
 export interface CardData {
   id: string;
   title: string;
+  alttitle?: string | null;
   poster: string | null;
   localPoster?: string | null;
   customCover?: string | null;
@@ -89,6 +91,7 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
   const year = data.released?.slice(0, 4);
   const myPlaytime = fmtMinutes(data.playtime_minutes);
   const vndbLength = fmtMinutes(data.length_minutes);
+  const titlePair = useResolvedTitle(data.title, data.alttitle ?? null);
 
   const localSrc = data.customCover || data.localPoster || null;
 
@@ -163,7 +166,9 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
         className="aspect-[2/3] w-full"
       />
       <div className="flex flex-1 flex-col gap-1 p-3">
-        <div className="line-clamp-2 text-sm font-semibold leading-tight">{data.title}</div>
+        <div className="line-clamp-2 text-sm font-semibold leading-tight" title={titlePair.sub ?? titlePair.main}>
+          {titlePair.main}
+        </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
           {rating && (
             <span

@@ -6,6 +6,12 @@ export interface DisplaySettings {
   blurR18: boolean;
   nsfwThreshold: number;
   preferLocalImages: boolean;
+  /**
+   * When true, swap the main title with the alternative title:
+   * shows the original (e.g. 日本語) as the headline and the romaji/translation as the subtitle.
+   * VNDB returns romaji as `title` by default; this flips the display.
+   */
+  preferNativeTitle: boolean;
 }
 
 const DEFAULTS: DisplaySettings = {
@@ -13,9 +19,30 @@ const DEFAULTS: DisplaySettings = {
   blurR18: true,
   nsfwThreshold: 1.5,
   preferLocalImages: true,
+  preferNativeTitle: false,
 };
 
 const STORAGE_KEY = 'vn_display_settings_v1';
+
+export interface TitlePair {
+  main: string;
+  sub: string | null;
+}
+
+/**
+ * Resolve the title pair given user preference. If both fields exist and the user
+ * prefers the native (original) title, swap them. Otherwise return as-is.
+ */
+export function resolveTitles(
+  title: string,
+  alttitle: string | null | undefined,
+  preferNative: boolean,
+): TitlePair {
+  if (!preferNative || !alttitle || alttitle === title) {
+    return { main: title, sub: alttitle && alttitle !== title ? alttitle : null };
+  }
+  return { main: alttitle, sub: title };
+}
 
 interface Ctx {
   settings: DisplaySettings;

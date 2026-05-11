@@ -1,15 +1,31 @@
 'use client';
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Upload } from 'lucide-react';
+import { Database as DbIcon, Loader2, Upload } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
-interface Summary {
+interface JsonSummary {
   vns_upserted: number;
   collection_upserted: number;
   series_created: number;
   series_links: number;
   errors: string[];
+}
+
+interface DbRestoreSummary {
+  tables: { name: string; rows_replaced: number }[];
+  skipped: { name: string; reason: string }[];
+}
+
+type Summary =
+  | { kind: 'json'; data: JsonSummary }
+  | { kind: 'db'; data: DbRestoreSummary };
+
+const SQLITE_MAGIC = 'SQLite format 3\0';
+
+async function detectKind(file: File): Promise<'json' | 'db'> {
+  const head = await file.slice(0, SQLITE_MAGIC.length).text();
+  return head === SQLITE_MAGIC ? 'db' : 'json';
 }
 
 export function ImportPanel() {
@@ -27,15 +43,24 @@ export function ImportPanel() {
     setError(null);
     setSummary(null);
     try {
+      const kind = await detectKind(file);
+      if (kind === 'db' && !confirm(t.dataMgmt.restoreConfirm)) {
+        return;
+      }
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch('/api/collection/import', { method: 'POST', body: fd });
+      const url = kind === 'db' ? '/api/backup/restore' : '/api/collection/import';
+      const res = await fetch(url, { method: 'POST', body: fd });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || t.dataMgmt.importError);
       }
-      const data = (await res.json()) as { ok: boolean; summary: Summary };
-      setSummary(data.summary);
+      const data = await res.json();
+      if (kind === 'db') {
+        setSummary({ kind: 'db', data: data.summary as DbRestoreSummary });
+      } else {
+        setSummary({ kind: 'json', data: data.summary as JsonSummary });
+      }
       startTransition(() => router.refresh());
     } catch (e) {
       setError((e as Error).message);
@@ -64,7 +89,7 @@ export function ImportPanel() {
       <input
         ref={inputRef}
         type="file"
-        accept="application/json,.json"
+        accept="application/json,application/octet-stream,.json,.db,.sqlite,.sqlite3"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -87,21 +112,48 @@ export function ImportPanel() {
         >
           {t.dataMgmt.importJson}
         </button>
+        <p className="text-[10px] text-muted/70">{t.dataMgmt.importHintTypes}</p>
       </div>
-      {summary && (
+      {summary && summary.kind === 'json' && (
         <div className="mt-3 rounded-lg border border-border bg-bg-card p-3 text-left text-xs">
           <p className="font-bold text-status-completed">✓ {t.dataMgmt.importDone}</p>
           <ul className="mt-2 grid grid-cols-2 gap-1 text-muted">
-            <li>VN: <b className="text-white">{summary.vns_upserted}</b></li>
-            <li>Collection: <b className="text-white">{summary.collection_upserted}</b></li>
-            <li>Series: <b className="text-white">{summary.series_created}</b></li>
-            <li>Series-VN: <b className="text-white">{summary.series_links}</b></li>
+            <li>VN: <b className="text-white">{summary.data.vns_upserted}</b></li>
+            <li>Collection: <b className="text-white">{summary.data.collection_upserted}</b></li>
+            <li>Series: <b className="text-white">{summary.data.series_created}</b></li>
+            <li>Series-VN: <b className="text-white">{summary.data.series_links}</b></li>
           </ul>
-          {summary.errors.length > 0 && (
+          {summary.data.errors.length > 0 && (
             <details className="mt-2">
-              <summary className="cursor-pointer text-status-dropped">{summary.errors.length} errors</summary>
+              <summary className="cursor-pointer text-status-dropped">{summary.data.errors.length} errors</summary>
               <ul className="mt-1 max-h-32 overflow-y-auto text-[10px]">
-                {summary.errors.map((e, i) => <li key={i}>{e}</li>)}
+                {summary.data.errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+      {summary && summary.kind === 'db' && (
+        <div className="mt-3 rounded-lg border border-border bg-bg-card p-3 text-left text-xs">
+          <p className="inline-flex items-center gap-1.5 font-bold text-status-completed">
+            <DbIcon className="h-3.5 w-3.5" /> {t.dataMgmt.restoreDone}
+          </p>
+          <ul className="mt-2 grid grid-cols-2 gap-1 text-muted">
+            {summary.data.tables.map((row) => (
+              <li key={row.name}>
+                {row.name}: <b className="text-white">{row.rows_replaced.toLocaleString()}</b>
+              </li>
+            ))}
+          </ul>
+          {summary.data.skipped.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-muted">
+                {summary.data.skipped.length} {t.dataMgmt.restoreSkipped}
+              </summary>
+              <ul className="mt-1 max-h-32 overflow-y-auto text-[10px]">
+                {summary.data.skipped.map((s) => (
+                  <li key={s.name}>{s.name} — {s.reason}</li>
+                ))}
               </ul>
             </details>
           )}

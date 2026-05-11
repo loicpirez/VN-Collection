@@ -78,6 +78,19 @@ export interface VndbReleaseLanguage {
   main: boolean;
 }
 
+export interface VndbReleaseImage {
+  id: string;
+  url: string;
+  thumbnail?: string;
+  dims?: [number, number];
+  sexual?: number;
+  violence?: number;
+  type: 'pkgfront' | 'pkgback' | 'pkgcontent' | 'pkgside' | 'pkgmed' | 'dig';
+  languages?: string[] | null;
+  photo?: boolean;
+  vn?: string | null;
+}
+
 export interface VndbRelease {
   id: string;
   title: string;
@@ -101,6 +114,7 @@ export interface VndbRelease {
   producers: { id: string; name: string; developer: boolean; publisher: boolean }[];
   extlinks: { url: string; label: string; name: string; id?: string | number }[];
   vns: { id: string; rtype: 'trial' | 'partial' | 'complete' }[];
+  images: VndbReleaseImage[];
 }
 
 export interface VndbQuote {

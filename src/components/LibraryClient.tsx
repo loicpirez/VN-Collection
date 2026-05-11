@@ -444,6 +444,7 @@ function Grid({
           data={{
             id: it.id,
             title: it.title,
+            alttitle: it.alttitle,
             poster: it.image_thumb || it.image_url,
             localPoster: it.local_image_thumb || it.local_image,
             customCover: it.custom_cover,

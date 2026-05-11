@@ -97,6 +97,12 @@ export function SettingsButton() {
                     value={settings.preferLocalImages}
                     onChange={(v) => set('preferLocalImages', v)}
                   />
+                  <Toggle
+                    label={t.settings.preferNativeTitle}
+                    description={t.settings.preferNativeTitleDesc}
+                    value={settings.preferNativeTitle}
+                    onChange={(v) => set('preferNativeTitle', v)}
+                  />
                 </div>
 
                 <div className="mt-6 flex justify-between">

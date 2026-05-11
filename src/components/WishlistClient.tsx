@@ -172,6 +172,7 @@ export function WishlistClient() {
                 data={{
                   id: it.vn.id,
                   title: it.vn.title,
+                  alttitle: it.vn.alttitle,
                   poster: it.vn.image?.thumbnail || it.vn.image?.url || null,
                   sexual: it.vn.image?.sexual ?? null,
                   released: it.vn.released,

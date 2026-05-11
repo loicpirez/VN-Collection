@@ -174,6 +174,16 @@ function open(): Database.Database {
   ensureColumn(db, 'collection', 'download_url', 'TEXT');
   ensureColumn(db, 'collection', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
 
+  ensureColumn(db, 'owned_release', 'location', "TEXT NOT NULL DEFAULT 'unknown'");
+  ensureColumn(db, 'owned_release', 'physical_location', 'TEXT');
+  ensureColumn(db, 'owned_release', 'box_type', "TEXT NOT NULL DEFAULT 'none'");
+  ensureColumn(db, 'owned_release', 'edition_label', 'TEXT');
+  ensureColumn(db, 'owned_release', 'condition', 'TEXT');
+  ensureColumn(db, 'owned_release', 'price_paid', 'REAL');
+  ensureColumn(db, 'owned_release', 'currency', 'TEXT');
+  ensureColumn(db, 'owned_release', 'acquired_date', 'TEXT');
+  ensureColumn(db, 'owned_release', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
+
   // Legacy migration: physical_location used to be a free-form string.
   // Convert any non-JSON value into a JSON array (split on commas).
   const legacy = db
@@ -947,28 +957,143 @@ export interface OwnedReleaseRow {
   vn_id: string;
   release_id: string;
   notes: string | null;
+  location: string;
+  physical_location: string[];
+  box_type: string;
+  edition_label: string | null;
+  condition: string | null;
+  price_paid: number | null;
+  currency: string | null;
+  acquired_date: string | null;
+  dumped: boolean;
   added_at: number;
 }
 
+interface OwnedReleaseDbRow {
+  vn_id: string;
+  release_id: string;
+  notes: string | null;
+  location: string | null;
+  physical_location: string | null;
+  box_type: string | null;
+  edition_label: string | null;
+  condition: string | null;
+  price_paid: number | null;
+  currency: string | null;
+  acquired_date: string | null;
+  dumped: number | null;
+  added_at: number;
+}
+
+function mapOwnedReleaseRow(r: OwnedReleaseDbRow): OwnedReleaseRow {
+  return {
+    vn_id: r.vn_id,
+    release_id: r.release_id,
+    notes: r.notes,
+    location: r.location ?? 'unknown',
+    physical_location: parsePlaces(r.physical_location),
+    box_type: r.box_type ?? 'none',
+    edition_label: r.edition_label,
+    condition: r.condition,
+    price_paid: r.price_paid,
+    currency: r.currency,
+    acquired_date: r.acquired_date,
+    dumped: !!r.dumped,
+    added_at: r.added_at,
+  };
+}
+
 export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {
-  return db
+  const rows = db
     .prepare('SELECT * FROM owned_release WHERE vn_id = ? ORDER BY added_at DESC')
-    .all(vnId) as OwnedReleaseRow[];
+    .all(vnId) as OwnedReleaseDbRow[];
+  return rows.map(mapOwnedReleaseRow);
 }
 
 export function getOwnedRelease(vnId: string, releaseId: string): OwnedReleaseRow | null {
-  return (db
+  const row = db
     .prepare('SELECT * FROM owned_release WHERE vn_id = ? AND release_id = ?')
-    .get(vnId, releaseId) as OwnedReleaseRow | undefined) ?? null;
+    .get(vnId, releaseId) as OwnedReleaseDbRow | undefined;
+  return row ? mapOwnedReleaseRow(row) : null;
 }
 
-export function markReleaseOwned(vnId: string, releaseId: string, notes: string | null = null): void {
+export interface OwnedReleasePatch {
+  notes?: string | null;
+  location?: string;
+  physical_location?: string[] | string | null;
+  box_type?: string;
+  edition_label?: string | null;
+  condition?: string | null;
+  price_paid?: number | null;
+  currency?: string | null;
+  acquired_date?: string | null;
+  dumped?: boolean;
+}
+
+export function markReleaseOwned(
+  vnId: string,
+  releaseId: string,
+  patch: OwnedReleasePatch = {},
+): void {
   const now = Date.now();
+  const exists = db
+    .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
+    .get(vnId, releaseId);
+  if (exists) {
+    updateOwnedRelease(vnId, releaseId, patch);
+    return;
+  }
   db.prepare(`
-    INSERT INTO owned_release (vn_id, release_id, notes, added_at)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(vn_id, release_id) DO UPDATE SET notes = excluded.notes
-  `).run(vnId, releaseId, notes, now);
+    INSERT INTO owned_release (
+      vn_id, release_id, notes, location, physical_location, box_type,
+      edition_label, condition, price_paid, currency, acquired_date, dumped, added_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    vnId,
+    releaseId,
+    patch.notes ?? null,
+    patch.location ?? 'unknown',
+    serializePlaces(patch.physical_location ?? null),
+    patch.box_type ?? 'none',
+    patch.edition_label ?? null,
+    patch.condition ?? null,
+    patch.price_paid ?? null,
+    patch.currency ?? null,
+    patch.acquired_date ?? null,
+    patch.dumped ? 1 : 0,
+    now,
+  );
+}
+
+export function updateOwnedRelease(
+  vnId: string,
+  releaseId: string,
+  patch: OwnedReleasePatch,
+): void {
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  const map: Record<string, (v: unknown) => unknown> = {
+    notes: (v) => v,
+    location: (v) => v,
+    physical_location: (v) => serializePlaces(v),
+    box_type: (v) => v,
+    edition_label: (v) => v,
+    condition: (v) => v,
+    price_paid: (v) => v,
+    currency: (v) => v,
+    acquired_date: (v) => v,
+    dumped: (v) => (v ? 1 : 0),
+  };
+  for (const key of Object.keys(map) as (keyof typeof map)[]) {
+    if (key in patch) {
+      sets.push(`${key} = ?`);
+      params.push(map[key]((patch as Record<string, unknown>)[key]));
+    }
+  }
+  if (sets.length === 0) return;
+  params.push(vnId, releaseId);
+  db.prepare(`UPDATE owned_release SET ${sets.join(', ')} WHERE vn_id = ? AND release_id = ?`).run(...params);
 }
 
 export function unmarkReleaseOwned(vnId: string, releaseId: string): void {
@@ -1368,6 +1493,86 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
 /** Returns the absolute filesystem path of the SQLite DB. Used for backup. */
 export function getDbPath(): string {
   return DB_PATH;
+}
+
+export interface SqliteRestoreSummary {
+  tables: { name: string; rows_replaced: number }[];
+  skipped: { name: string; reason: string }[];
+}
+
+/**
+ * Replace the live DB with the contents of a SQLite file uploaded by the user.
+ *
+ * Strategy: write the upload to a temp file, `ATTACH` it as `src`, then for
+ * every table in the live DB copy its rows over (intersected by column name
+ * so older/newer backups still load). Done inside a single transaction so a
+ * malformed source leaves the live DB untouched.
+ */
+export async function restoreFromSqliteFile(buffer: Buffer): Promise<SqliteRestoreSummary> {
+  const { writeFile, unlink, mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+
+  const dir = await mkdtemp(join(tmpdir(), 'vndb-restore-'));
+  const tmpPath = join(dir, 'restore.db');
+  await writeFile(tmpPath, buffer);
+
+  const probe = new Database(tmpPath, { readonly: true });
+  try {
+    probe.pragma('integrity_check');
+  } catch (e) {
+    probe.close();
+    await unlink(tmpPath).catch(() => undefined);
+    throw new Error(`uploaded file is not a valid SQLite DB: ${(e as Error).message}`);
+  }
+  const srcTables = (probe.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+  ).all() as { name: string }[]).map((r) => r.name);
+  const srcColsByTable = new Map<string, string[]>();
+  for (const t of srcTables) {
+    const cols = (probe.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[]).map((c) => c.name);
+    srcColsByTable.set(t, cols);
+  }
+  probe.close();
+
+  const targetTables = (db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+  ).all() as { name: string }[]).map((r) => r.name);
+
+  const summary: SqliteRestoreSummary = { tables: [], skipped: [] };
+  db.exec(`ATTACH DATABASE '${tmpPath.replace(/'/g, "''")}' AS src`);
+  const previousForeignKeys = db.pragma('foreign_keys', { simple: true }) as 0 | 1;
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.exec('BEGIN');
+    for (const table of targetTables) {
+      if (!srcColsByTable.has(table)) {
+        summary.skipped.push({ name: table, reason: 'missing in backup' });
+        continue;
+      }
+      const targetCols = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
+      const shared = targetCols.filter((c) => srcColsByTable.get(table)!.includes(c));
+      if (shared.length === 0) {
+        summary.skipped.push({ name: table, reason: 'no shared columns' });
+        continue;
+      }
+      db.exec(`DELETE FROM main.${table}`);
+      const colList = shared.map((c) => `"${c}"`).join(', ');
+      const rows = (db
+        .prepare(`INSERT INTO main.${table} (${colList}) SELECT ${colList} FROM src.${table}`)
+        .run()).changes;
+      summary.tables.push({ name: table, rows_replaced: rows });
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  } finally {
+    db.exec('DETACH DATABASE src');
+    db.pragma(`foreign_keys = ${previousForeignKeys ? 'ON' : 'OFF'}`);
+    await unlink(tmpPath).catch(() => undefined);
+  }
+  return summary;
 }
 
 export interface CacheStat {

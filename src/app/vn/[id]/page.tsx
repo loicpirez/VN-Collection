@@ -15,11 +15,13 @@ import { DownloadAssetsButton } from '@/components/DownloadAssetsButton';
 import { MarkdownView } from '@/components/MarkdownNotes';
 import { CharactersSection } from '@/components/CharactersSection';
 import { ReleasesSection } from '@/components/ReleasesSection';
+import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
 import { QuotesSection } from '@/components/QuotesSection';
 import { RoutesSection } from '@/components/RoutesSection';
 import { LangList } from '@/components/LangFlag';
 import { RelationsSection } from '@/components/RelationsSection';
 import { RecordRecentView } from '@/components/RecordRecentView';
+import { TitleLine } from '@/components/TitleLine';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -141,8 +143,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           <div className="z-10 flex flex-col gap-3 pt-32 md:pt-44">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h1 className="text-2xl font-bold leading-tight md:text-3xl">{vn.title}</h1>
-                {vn.alttitle && <div className="mt-1 text-muted">{vn.alttitle}</div>}
+                <TitleLine title={vn.title} alttitle={vn.alttitle} />
               </div>
               {status && <StatusBadge status={status} />}
             </div>
@@ -313,6 +314,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           />
         )}
         <CharactersSection vnId={vn.id} />
+        {inCol && <OwnedEditionsSection vnId={vn.id} />}
         <ReleasesSection vnId={vn.id} inCollection={inCol} />
         <QuotesSection vnId={vn.id} />
       </div>
