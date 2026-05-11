@@ -195,6 +195,18 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               <div className="min-w-0">
                 <MatchBadges egsOnly={vn.id.startsWith('egs_')} egs={egsRow} t={t} />
                 <TitleLine title={vn.title} alttitle={vn.alttitle} />
+                {(vn.aliases ?? []).length > 0 && (
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11px] text-muted">
+                    <span className="font-bold uppercase tracking-wider">
+                      {t.detail.aliases}
+                    </span>
+                    {(vn.aliases ?? []).slice(0, 6).map((a) => (
+                      <span key={a} className="opacity-90">
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               {status && <StatusBadge status={status} />}
             </div>
@@ -313,6 +325,18 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               <a href={`https://vndb.org/${vn.id}`} target="_blank" rel="noopener noreferrer" className="btn">
                 <ExternalLink className="h-4 w-4" /> {t.detail.viewOnVndb}
               </a>
+              {(vn.extlinks ?? []).slice(0, 8).map((l) => (
+                <a
+                  key={l.url}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 text-xs text-muted hover:border-accent hover:text-accent"
+                  title={l.label}
+                >
+                  <ExternalLink className="h-3 w-3" /> {l.label}
+                </a>
+              ))}
               {inCol && vn.download_url && (
                 <a
                   href={vn.download_url}

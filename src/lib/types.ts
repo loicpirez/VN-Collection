@@ -74,6 +74,8 @@ export interface VnRow {
   banner_image: string | null;
   banner_position: string | null;
   relations: VnRelation[];
+  aliases: string[];
+  extlinks: { url: string; label: string; name: string }[];
   fetched_at: number;
 }
 
@@ -124,9 +126,12 @@ export interface EgsLite {
   count: number | null;
   playtime_median_minutes: number | null;
   source: 'extlink' | 'search' | 'manual' | null;
-  /** EGS's "is NSFW" boolean — a stronger signal than VNDB's image_sexual since
-   * many eroge have SFW covers. Used by the hide-sexual filter. */
+  /** EGS's "okazu" boolean — flagged for pure-ero / nukige-style content. */
   okazu: boolean | null;
+  /** EGS's "erogame" boolean — true for any game with erotic content (even
+   * story-heavy eroge like Comic Party whose cover is SFW). Broader than okazu;
+   * the hide-sexual filter uses this as the strongest single signal. */
+  erogame: boolean | null;
 }
 
 export type CollectionItem = VnRow &

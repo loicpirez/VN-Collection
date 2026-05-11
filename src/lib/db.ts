@@ -197,6 +197,8 @@ function open(): Database.Database {
   ensureColumn(db, 'vn', 'banner_image', 'TEXT');
   ensureColumn(db, 'vn', 'banner_position', 'TEXT');
   ensureColumn(db, 'vn', 'relations', 'TEXT');
+  ensureColumn(db, 'vn', 'aliases', 'TEXT'); // JSON array of strings
+  ensureColumn(db, 'vn', 'extlinks', 'TEXT'); // JSON [{url,label,name}]
   ensureColumn(db, 'collection', 'location', "TEXT NOT NULL DEFAULT 'unknown'");
   ensureColumn(db, 'collection', 'edition_type', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'collection', 'edition_label', 'TEXT');
@@ -341,6 +343,7 @@ export interface RawVnPayload {
   id: string;
   title: string;
   alttitle?: string | null;
+  aliases?: string[];
   released?: string | null;
   olang?: string | null;
   languages?: string[];
@@ -351,6 +354,7 @@ export interface RawVnPayload {
   votecount?: number | null;
   description?: string | null;
   image?: { url?: string; thumbnail?: string; sexual?: number; violence?: number; dims?: [number, number] } | null;
+  extlinks?: { url: string; label: string; name: string }[];
   developers?: { id: string; name: string }[];
   tags?: { id: string; name: string; rating: number; spoiler: number; category?: 'cont' | 'ero' | 'tech' | null }[];
   screenshots?: Screenshot[];
@@ -375,10 +379,10 @@ export function upsertVn(vn: RawVnPayload): void {
   db.prepare(`
     INSERT INTO vn (id, title, alttitle, image_url, image_thumb, image_sexual, image_violence,
                     released, olang, languages, platforms, length_minutes, length, rating, votecount,
-                    description, developers, tags, screenshots, relations, raw, fetched_at)
+                    description, developers, tags, screenshots, relations, aliases, extlinks, raw, fetched_at)
     VALUES (@id, @title, @alttitle, @image_url, @image_thumb, @image_sexual, @image_violence,
             @released, @olang, @languages, @platforms, @length_minutes, @length, @rating, @votecount,
-            @description, @developers, @tags, @screenshots, @relations, @raw, @fetched_at)
+            @description, @developers, @tags, @screenshots, @relations, @aliases, @extlinks, @raw, @fetched_at)
     ON CONFLICT(id) DO UPDATE SET
       title=excluded.title, alttitle=excluded.alttitle, image_url=excluded.image_url,
       image_thumb=excluded.image_thumb, image_sexual=excluded.image_sexual, image_violence=excluded.image_violence,
@@ -388,11 +392,14 @@ export function upsertVn(vn: RawVnPayload): void {
       rating=excluded.rating, votecount=excluded.votecount,
       description=excluded.description, developers=excluded.developers,
       tags=excluded.tags, screenshots=excluded.screenshots, relations=excluded.relations,
+      aliases=excluded.aliases, extlinks=excluded.extlinks,
       raw=excluded.raw, fetched_at=excluded.fetched_at
   `).run({
     id: vn.id,
     title: vn.title,
     alttitle: vn.alttitle ?? null,
+    aliases: JSON.stringify(vn.aliases ?? []),
+    extlinks: JSON.stringify(vn.extlinks ?? []),
     image_url: vn.image?.url ?? null,
     image_thumb: vn.image?.thumbnail ?? null,
     image_sexual: vn.image?.sexual ?? null,
@@ -940,6 +947,8 @@ interface DbRow {
   banner_image: string | null;
   banner_position: string | null;
   relations: string | null;
+  aliases: string | null;
+  extlinks: string | null;
   fetched_at: number;
   status?: string;
   user_rating?: number | null;
@@ -988,6 +997,8 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     banner_image: row.banner_image,
     banner_position: row.banner_position,
     relations: row.relations ? JSON.parse(row.relations) : [],
+    aliases: row.aliases ? JSON.parse(row.aliases) : [],
+    extlinks: row.extlinks ? JSON.parse(row.extlinks) : [],
     fetched_at: row.fetched_at,
     status: row.status as Status | undefined,
     user_rating: row.user_rating ?? null,
@@ -1144,6 +1155,7 @@ export function listCollection({
           playtime_median_minutes: egs.playtime_median_minutes,
           source: egs.source,
           okazu: egs.okazu == null ? null : !!egs.okazu,
+          erogame: egs.erogame == null ? null : !!egs.erogame,
         }
       : null;
   }
@@ -1174,6 +1186,7 @@ export function getCollectionItem(vnId: string): CollectionItem | null {
           playtime_median_minutes: egs.playtime_median_minutes,
           source: egs.source,
           okazu: egs.okazu == null ? null : !!egs.okazu,
+          erogame: egs.erogame == null ? null : !!egs.erogame,
         }
       : null;
   }

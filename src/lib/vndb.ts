@@ -7,6 +7,7 @@ export const VNDB_API = 'https://api.vndb.org/kana';
 const VN_DETAIL_FIELDS = [
   'title',
   'alttitle',
+  'aliases',
   'olang',
   'released',
   'languages',
@@ -23,6 +24,7 @@ const VN_DETAIL_FIELDS = [
   'image.dims',
   'image.sexual',
   'image.violence',
+  'extlinks{url,label,name}',
   'developers{id,name,original,lang,type}',
   'tags{id,name,category,rating,spoiler}',
   'screenshots{url,thumbnail,sexual,violence,dims}',
@@ -263,6 +265,7 @@ export interface VndbVn {
   id: string;
   title: string;
   alttitle: string | null;
+  aliases?: string[];
   olang: string | null;
   released: string | null;
   languages: string[];
@@ -273,6 +276,7 @@ export interface VndbVn {
   votecount: number | null;
   description: string | null;
   image: { url: string; thumbnail: string; dims: [number, number]; sexual?: number; violence?: number } | null;
+  extlinks?: { url: string; label: string; name: string }[];
   developers: { id: string; name: string; original?: string | null; lang?: string | null; type?: string | null }[];
   tags: { id: string; name: string; rating: number; spoiler: number; category: 'cont' | 'ero' | 'tech' }[];
   screenshots: Screenshot[];

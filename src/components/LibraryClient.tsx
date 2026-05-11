@@ -252,17 +252,22 @@ export function LibraryClient() {
   }
 
   // Hard-filter R18 entries when the user opts in. Done client-side so toggling
-  // takes effect instantly without re-querying. Three independent signals,
-  // OR'd — VNDB cover ratings alone miss eroge with SFW covers:
-  //   1. cover `image_sexual` >= NSFW threshold (number; no false positive).
-  //   2. EGS `okazu` strict boolean (set on most actual eroge by EGS users).
-  //   3. any VNDB tag whose `category` field equals `"ero"`. `category` is a
+  // takes effect instantly without re-querying. Four independent signals
+  // OR'd — covers SFW eroge like Comic Party where the cover and Nukige tag
+  // are both clean but the game ships 18+ releases:
+  //   1. cover `image_sexual` >= NSFW threshold (numeric, no false positive).
+  //   2. EGS `erogame` strict boolean — flags ANY game with erotic content
+  //      including story-heavy ones with SFW covers. Strongest single signal.
+  //   3. EGS `okazu` — pure-ero / nukige. Narrower than erogame; kept for
+  //      backwards compat with old rows that have okazu but not erogame.
+  //   4. any VNDB tag whose `category` field equals `"ero"`. `category` is a
   //      strict enum on VNDB (only `cont` / `ero` / `tech`), NOT a free-form
   //      name — so tag names like "Sexual Content", "no ero", etc. don't
   //      get string-matched. We don't gate on `spoiler` here: a VN whose
   //      only ero tags are spoiler-flagged is still adult content.
   function isAdult(it: CollectionItem): boolean {
     if (isExplicit(it.image_sexual, settings.nsfwThreshold)) return true;
+    if (it.egs?.erogame === true) return true;
     if (it.egs?.okazu === true) return true;
     if ((it.tags ?? []).some((tag) => tag.category === 'ero')) return true;
     return false;
