@@ -22,6 +22,7 @@ import { LangList } from '@/components/LangFlag';
 import { RelationsSection } from '@/components/RelationsSection';
 import { RecordRecentView } from '@/components/RecordRecentView';
 import { TitleLine } from '@/components/TitleLine';
+import { EgsPanel } from '@/components/EgsPanel';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -313,6 +314,13 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
             relations={vn.relations.map((r) => ({ ...r, in_collection: isInCollection(r.id) }))}
           />
         )}
+        <EgsPanel
+          vnId={vn.id}
+          vndbRating={vn.rating ?? null}
+          vndbVoteCount={vn.votecount ?? null}
+          vndbLengthMinutes={vn.length_minutes ?? null}
+          myPlaytimeMinutes={vn.playtime_minutes ?? 0}
+        />
         <CharactersSection vnId={vn.id} />
         {inCol && <OwnedEditionsSection vnId={vn.id} />}
         <ReleasesSection vnId={vn.id} inCollection={inCol} />
