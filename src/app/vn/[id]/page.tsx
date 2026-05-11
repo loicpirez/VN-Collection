@@ -355,7 +355,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        {(vn.description || egsRow?.description) && (
+        {(vn.description || egsRow) && (
           <div className="border-t border-border px-6 py-6 md:px-8">
             <FieldCompare
               vnId={vn.id}
@@ -364,6 +364,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               vndb={vn.description ?? null}
               egs={egsRow?.description ?? null}
               label={t.detail.synopsis}
+              egsLinked={!!egsRow}
             />
           </div>
         )}

@@ -481,6 +481,9 @@ export const dictionaries = {
       useEgs: 'Garder EGS',
       useAuto: 'Auto (VNDB d\'abord)',
       setDefault: 'Par défaut',
+      emptySide: 'Cette source n\'a pas de valeur pour ce champ',
+      noEgsValue: 'Pas de donnée EGS pour ce champ.',
+      noVndbValue: 'Pas de donnée VNDB pour ce champ.',
     },
     vndbStatus: {
       section: 'Statut VNDB',
@@ -1222,6 +1225,9 @@ export const dictionaries = {
       useEgs: 'Use EGS',
       useAuto: 'Auto (VNDB first)',
       setDefault: 'Set as default',
+      emptySide: 'This source has no value for this field',
+      noEgsValue: 'No EGS value for this field.',
+      noVndbValue: 'No VNDB value for this field.',
     },
     vndbStatus: {
       section: 'VNDB status',
@@ -1963,6 +1969,9 @@ export const dictionaries = {
       useEgs: 'EGS を採用',
       useAuto: '自動（VNDB 優先）',
       setDefault: '既定にする',
+      emptySide: 'このソースにはこの項目の値がありません',
+      noEgsValue: 'この項目の EGS データはありません。',
+      noVndbValue: 'この項目の VNDB データはありません。',
     },
     vndbStatus: {
       section: 'VNDB ステータス',

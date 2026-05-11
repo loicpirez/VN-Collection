@@ -17,6 +17,12 @@ interface Props {
   label: string;
   /** When true, render compact one-column layout (no compare button) even if EGS data exists. */
   forceCollapsed?: boolean;
+  /**
+   * Force the tabs to appear even if one side is empty. Used when the VN is
+   * matched to both VNDB and EGS so the user can always see which side is
+   * blank rather than have the toggle silently disappear.
+   */
+  egsLinked?: boolean;
 }
 
 /** Strip VNDB BBCode + EGS HTML noise. Same shape both sides so the comparison is fair. */
@@ -42,6 +48,7 @@ export function FieldCompare({
   egs,
   label,
   forceCollapsed = false,
+  egsLinked = false,
 }: Props) {
   const t = useT();
   const toast = useToast();
@@ -53,7 +60,7 @@ export function FieldCompare({
   const resolved = resolveField(vndb, egs, optimistic);
   const vndbHas = !!vndb && vndb.trim().length > 0;
   const egsHas = !!egs && egs.trim().length > 0;
-  const canCompare = !forceCollapsed && vndbHas && egsHas;
+  const canCompare = !forceCollapsed && (vndbHas || egsHas) && (egsHas || egsLinked);
 
   async function persist(next: SourceChoice) {
     if (pending) return;
@@ -108,28 +115,28 @@ export function FieldCompare({
                   role="tab"
                   aria-selected={activeTab === 'vndb'}
                   onClick={() => setActiveTab('vndb')}
-                  disabled={!vndbHas}
                   className={`rounded px-2 py-0.5 ${
                     activeTab === 'vndb'
                       ? 'bg-accent text-bg font-bold'
-                      : 'text-muted hover:text-white disabled:cursor-not-allowed disabled:opacity-40'
+                      : 'text-muted hover:text-white'
                   }`}
+                  title={!vndbHas ? t.compare.emptySide : undefined}
                 >
-                  VNDB
+                  VNDB{!vndbHas && <span className="ml-0.5 opacity-60">·∅</span>}
                 </button>
                 <button
                   type="button"
                   role="tab"
                   aria-selected={activeTab === 'egs'}
                   onClick={() => setActiveTab('egs')}
-                  disabled={!egsHas}
                   className={`rounded px-2 py-0.5 ${
                     activeTab === 'egs'
                       ? 'bg-accent text-bg font-bold'
-                      : 'text-muted hover:text-white disabled:cursor-not-allowed disabled:opacity-40'
+                      : 'text-muted hover:text-white'
                   }`}
+                  title={!egsHas ? t.compare.emptySide : undefined}
                 >
-                  EGS
+                  EGS{!egsHas && <span className="ml-0.5 opacity-60">·∅</span>}
                 </button>
               </div>
             )}
@@ -158,7 +165,13 @@ export function FieldCompare({
             )}
           </div>
         </div>
-        {shownText && <Body text={shownText} />}
+        {shownText ? (
+          <Body text={shownText} />
+        ) : (
+          <p className="text-xs italic text-muted/70">
+            {activeTab === 'egs' ? t.compare.noEgsValue : t.compare.noVndbValue}
+          </p>
+        )}
       </div>
     );
   }
