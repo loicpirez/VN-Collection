@@ -47,21 +47,40 @@ ingested, cached locally, and can be combined or compared per-field.
   voiced level, GTIN / catalog, all extlinks
 - Quote of the moment (footer, hover-reveal)
 - VNDB global stats + auth info on `/stats` and `/data`
+- **VNDB list status panel** on `/vn/[id]` — every label from your VNDB
+  profile (Wishlist / Playing / Finished / Stalled / Dropped / Blacklist
+  + custom labels) shown as a toggle. Clicking sends
+  `PATCH /ulist/{vid}` with `labels_set` / `labels_unset` so other
+  labels and your vote stay intact. "Remove from VNDB list" calls
+  `DELETE /ulist/{vid}`.
 - **Wishlist** — pulls your VNDB Wishlist (label 5), bulk select + delete
-  (PATCH `/ulist/{vid}` with `labels_unset:[5]` — other labels survive)
+  (same `labels_unset:[5]` mechanism, other labels survive)
 - **VNDB token settable from the Settings panel** (stored locally in the
   SQLite app_setting table); `VNDB_TOKEN` env var stays the fallback
 
 ### ErogameScape integration
+- Public SQL form at `sql_for_erogamer_form.php` — POSTs SQL, parses the
+  returned HTML table. No API key needed.
 - Auto-resolve via VNDB release extlinks (every release's `extlinks` is
   scanned for an ErogameScape URL). Falls back to a fuzzy name search
-  against the EGS `gamelist` when no extlink exists.
-- Pulls every available column: gamename, gamename_furigana, brand_id +
-  brand_name, model, sellday, median / average / dispersion / count,
-  description (prelude / shoukai_for_game / gamelist_introduction —
-  tried in order), okazu, erogame, and the entire row as `raw_json`.
-- Median user playtime computed locally from `user_review_for_game`.
-- Cover image mirrored locally so it survives EGS being down.
+  against `gamelist.gamename` **and** `gamelist.furigana` when no
+  extlink exists, so romaji / hiragana queries hit too.
+- **Every gamelist column** is ingested into the local `egs_game` row:
+  gamename, furigana, brand (joined to brandlist for the readable name),
+  model, sellday, median, average2, stdev, count2, max2, min2, median2,
+  okazu, erogame, banner_url, total_play_time_median, time_before_understanding_fun_median,
+  genre, axis_of_soft_or_hard, hanbaisuu, dmm / dlsite_id / gyutto_id,
+  erogetrailers, twitter, tourokubi, … plus the whole row as `raw_json`
+  so we never need to re-query for fields we forgot.
+- Median user playtime computed locally from `userreview.play_time`.
+- Top user long-comment surfaced as the EGS "description" (EGS has no
+  structured synopsis column).
+- "EGS — extra info" panel on `/vn/[id]` surfaces the rest: EroGameTrailers
+  link, demo download, DMM / DLsite / Gyutto store links, brand Twitter,
+  genre tag, soft↔hard axis, score range (min – max · median²), POV
+  breakdown (A / B / C distribution), sales rank, time-before-fun.
+- Cover image mirrored locally (banner_url first, then EGS's image
+  redirector) so it survives EGS being down.
 - **Manual link picker** — when auto-resolve fails or picks the wrong
   game, "Search EGS" opens a candidate picker and links the chosen
   one (persisted with `source: 'manual'`).

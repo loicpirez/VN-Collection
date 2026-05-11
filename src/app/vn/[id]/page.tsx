@@ -32,6 +32,8 @@ import { RelationsSection } from '@/components/RelationsSection';
 import { RecordRecentView } from '@/components/RecordRecentView';
 import { TitleLine } from '@/components/TitleLine';
 import { EgsPanel } from '@/components/EgsPanel';
+import { EgsRichDetails } from '@/components/EgsRichDetails';
+import { VndbStatusPanel } from '@/components/VndbStatusPanel';
 import { SourceTag } from '@/components/SourceTag';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { FieldCompare } from '@/components/FieldCompare';
@@ -395,6 +397,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
             relations={vn.relations.map((r) => ({ ...r, in_collection: isInCollection(r.id) }))}
           />
         )}
+        {!vn.id.startsWith('egs:') && <VndbStatusPanel vnId={vn.id} />}
         <EgsPanel
           vnId={vn.id}
           vndbRating={vn.rating ?? null}
@@ -403,6 +406,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           myPlaytimeMinutes={vn.playtime_minutes ?? 0}
           searchSeed={vn.alttitle?.trim() || vn.title}
         />
+        <EgsRichDetails vnId={vn.id} />
         <CharactersSection vnId={vn.id} />
         {inCol && <OwnedEditionsSection vnId={vn.id} />}
         <ReleasesSection vnId={vn.id} inCollection={inCol} />

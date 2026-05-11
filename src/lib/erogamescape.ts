@@ -21,9 +21,13 @@ import { getReleasesForVn } from './vndb';
  */
 
 const EGS_BASE = 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki';
-const SQL_ENDPOINT = `${EGS_BASE}/sql_for_erogamer.php`;
+// EGS's SQL form is at `sql_for_erogamer_form.php` (the bare `sql_for_erogamer.php`
+// is a 404). The form requires POST; GET just re-renders the input HTML.
+// Response is always an HTML table — there's no CSV / JSON output, the
+// `format` query param is silently ignored. We parse the <tr>/<td> structure.
+const SQL_ENDPOINT = `${EGS_BASE}/sql_for_erogamer_form.php`;
 const CACHE_TTL_MS = 24 * 3600 * 1000;
-const FETCH_TIMEOUT_MS = 10000;
+const FETCH_TIMEOUT_MS = 15000;
 
 export interface EgsGame {
   id: number;
@@ -83,64 +87,86 @@ function writeCache(key: string, value: unknown, ttlMs = CACHE_TTL_MS): void {
   `).run(key, JSON.stringify(value), now, now + ttlMs);
 }
 
-async function fetchCsv(sql: string): Promise<string[][]> {
-  const params = new URLSearchParams({ sql, format: 'csv' });
+async function fetchTable(sql: string): Promise<string[][]> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(`${SQL_ENDPOINT}?${params}`, {
+    res = await fetch(SQL_ENDPOINT, {
+      method: 'POST',
       signal: ctrl.signal,
-      headers: { 'User-Agent': 'vndb-collection/1.0 (personal use)' },
+      headers: {
+        'User-Agent': 'vndb-collection/1.0 (personal use)',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ sql }).toString(),
     });
   } finally {
     clearTimeout(timer);
   }
   if (!res.ok) throw new Error(`EGS HTTP ${res.status}`);
-  const text = await res.text();
-  return parseCsv(text);
+  const html = await res.text();
+  return parseHtmlTable(html);
+}
+
+const TABLE_RE = /<table\b[^>]*class="[^"]*\bsql_for_erogamer\b[^"]*"[^>]*>([\s\S]*?)<\/table>/i;
+const TABLE_FALLBACK_RE = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
+const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+const CELL_RE = /<(th|td)\b[^>]*>([\s\S]*?)<\/(?:th|td)>/gi;
+
+/**
+ * Decode the small set of HTML entities EGS actually emits — full DOM parsing
+ * would pull in cheerio (~200KB). The page is generated server-side from a
+ * fixed template, so this short list covers every case we've seen.
+ */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&amp;/g, '&'); // last so we don't double-decode entities containing &amp;
 }
 
 /**
- * Minimal RFC 4180 CSV parser — handles quoted fields with embedded commas/newlines
- * and "" escaping. EGS uses standard CSV, so this is enough.
+ * Find the result <table> and return rows as a 2-D string array. The first
+ * row holds column names (decoded from <th>). NULL cells are emitted as "".
  */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let cur: string[] = [];
-  let field = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"' && text[i + 1] === '"') {
-        field += '"';
-        i++;
-      } else if (c === '"') {
-        inQuotes = false;
-      } else {
-        field += c;
-      }
-    } else if (c === '"') {
-      inQuotes = true;
-    } else if (c === ',') {
-      cur.push(field);
-      field = '';
-    } else if (c === '\n' || c === '\r') {
-      if (field !== '' || cur.length > 0) {
-        cur.push(field);
-        rows.push(cur);
-        cur = [];
-        field = '';
-      }
-      if (c === '\r' && text[i + 1] === '\n') i++;
-    } else {
-      field += c;
+function parseHtmlTable(html: string): string[][] {
+  // EGS's "no results" path skips the result table entirely. Detect it explicitly.
+  if (/該当するデータはありません/.test(html) || /結果がありません/.test(html)) return [];
+
+  let body = '';
+  const named = html.match(TABLE_RE);
+  if (named) {
+    body = named[1];
+  } else {
+    // No class — pick the last <table>, which is consistently the result block.
+    let last: RegExpExecArray | null = null;
+    TABLE_FALLBACK_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = TABLE_FALLBACK_RE.exec(html)) !== null) {
+      last = m;
     }
+    if (!last) return [];
+    body = last[1];
   }
-  if (field !== '' || cur.length > 0) {
-    cur.push(field);
-    rows.push(cur);
+
+  const rows: string[][] = [];
+  ROW_RE.lastIndex = 0;
+  let rm: RegExpExecArray | null;
+  while ((rm = ROW_RE.exec(body)) !== null) {
+    const cells: string[] = [];
+    CELL_RE.lastIndex = 0;
+    let cm: RegExpExecArray | null;
+    while ((cm = CELL_RE.exec(rm[1])) !== null) {
+      // Strip nested anchors / spans, then decode entities.
+      const inner = cm[2].replace(/<[^>]+>/g, '').trim();
+      cells.push(decodeEntities(inner));
+    }
+    if (cells.length > 0) rows.push(cells);
   }
   return rows;
 }
@@ -189,7 +215,7 @@ function toBool(v: string | undefined): boolean | null {
 async function fetchOne(sql: string): Promise<Record<string, string | null> | null> {
   let rows: string[][];
   try {
-    rows = await fetchCsv(sql);
+    rows = await fetchTable(sql);
   } catch {
     return null;
   }
@@ -204,17 +230,46 @@ async function fetchOne(sql: string): Promise<Record<string, string | null> | nu
   return out;
 }
 
+/**
+ * Real gamelist columns (verified against the live DB, May 2026):
+ *   id, gamename, furigana, sellday, brandname (FK → brandlist.id),
+ *   median, stdev, count2, average2, median2, max2, min2,
+ *   model, erogame, okazu, banner_url, total_play_time_median,
+ *   time_before_understanding_fun_median, genre, shoukai (URL — not a synopsis!),
+ *   gyutto_id, dmm, dlsite_id, dlsite_domain, twitter, erogetrailers, …
+ *
+ * Caveats:
+ *   - `count` doesn't exist; the vote count is `count2`.
+ *   - `gamelist.brandname` is a numeric FK to `brandlist.id`; join is mandatory
+ *     to get the readable brand name.
+ *   - `shoukai` is a URL (publisher's product page), not a synopsis.
+ *   - There is no structured synopsis column in EGS — the page text is
+ *     assembled from user comments. We surface a single top-scored user
+ *     long comment as the EGS "description" instead.
+ *   - Some columns return PostgreSQL `t` / `f` for booleans; toBool handles both.
+ */
 export async function fetchEgsGame(id: number): Promise<EgsGame | null> {
   const cacheK = cacheKey('game', String(id));
   const cached = readCache<EgsGame | null>(cacheK);
   if (cached !== null) return cached;
 
-  // Strategy: SELECT * gives every available column for forward-compatibility.
-  // We also LEFT JOIN brandlist via a separate query to keep this tolerant if
-  // the JOIN happens to fail on a particular EGS instance.
+  // `g.*` pulls every gamelist column (creater, comike, hanbaisuu, gyutto_id,
+  // dmm, dlsite_id, erogetrailers, genre, axis_of_soft_or_hard, max2, min2,
+  // total_pov_enrollment_of_{a,b,c}, time_before_understanding_fun_median, …)
+  // into `raw_json` so we never need to re-query for fields we forgot.
+  // Then alias the brandlist join's `brandname` so it doesn't collide with
+  // `gamelist.brandname` (which is actually the brand FK id).
+  const sql = `
+    SELECT g.*,
+           b.id AS brand_fk_id, b.brandname AS brand_name
+    FROM gamelist g
+    LEFT JOIN brandlist b ON g.brandname = b.id
+    WHERE g.id = ${id}
+    LIMIT 1
+  `;
   let row: Record<string, string | null> | null = null;
   try {
-    row = await fetchOne(`SELECT * FROM gamelist WHERE id = ${id} LIMIT 1`);
+    row = await fetchOne(sql);
   } catch {
     row = null;
   }
@@ -223,56 +278,35 @@ export async function fetchEgsGame(id: number): Promise<EgsGame | null> {
     return null;
   }
 
-  // Brand lookup (best-effort).
-  let brandName: string | null = null;
-  const brandIdRaw = row.brand ?? row.brand_id ?? null;
-  const brandId = brandIdRaw ? toNumber(brandIdRaw) : null;
-  if (brandId != null) {
-    try {
-      const bRow = await fetchOne(`SELECT brandname FROM brandlist WHERE id = ${brandId} LIMIT 1`);
-      brandName = bRow?.brandname ?? null;
-    } catch {
-      brandName = null;
-    }
-  }
+  // Banner / cover image: gamelist.banner_url when present, else fall back to the
+  // EGS image.php redirector (which 404s for games without an upload).
+  const image_url = row.banner_url && row.banner_url.startsWith('http')
+    ? row.banner_url
+    : buildImageUrl(id);
 
-  // Description / synopsis — EGS stores this in a few possible places; try in order.
-  let description: string | null = row.comment ?? row.prelude ?? row.outline ?? null;
-  if (!description) {
-    for (const sql of [
-      `SELECT shoukai FROM shoukai_for_game WHERE id = ${id} LIMIT 1`,
-      `SELECT introduction FROM gamelist_introduction WHERE id = ${id} LIMIT 1`,
-    ]) {
-      try {
-        const desc = await fetchOne(sql);
-        if (desc) {
-          description = desc.shoukai ?? desc.introduction ?? null;
-          if (description) break;
-        }
-      } catch {
-        // ignore — column/table absent on this EGS instance
-      }
-    }
-  }
-
+  // Description: pull the top-scored user long-comment so we have *something*
+  // to display next to VNDB's synopsis. Stays optional — if EGS has no
+  // long-form comment for this game, description stays null and VNDB wins.
+  const description = await fetchTopLongComment(id);
   const playMin = await fetchEgsPlaytimeMedian(id);
+
   const game: EgsGame = {
     id,
     gamename: (row.gamename ?? '').trim(),
-    gamename_furigana: row.furigana ?? row.gamename_furigana ?? null,
-    brand_id: brandId,
-    brand_name: brandName,
+    gamename_furigana: row.furigana ?? null,
+    brand_id: toNumber(row.brand_fk_id ?? undefined),
+    brand_name: row.brand_name ?? null,
     model: row.model ?? null,
     description,
-    image_url: buildImageUrl(id),
+    image_url,
     okazu: toBool(row.okazu ?? undefined),
     erogame: toBool(row.erogame ?? undefined),
     median: toNumber(row.median ?? undefined),
-    average: toNumber(row.average ?? undefined),
-    dispersion: toNumber(row.dispersion ?? undefined),
-    count: toNumber(row.count ?? undefined),
+    average: toNumber(row.average2 ?? undefined),
+    dispersion: toNumber(row.stdev ?? undefined),
+    count: toNumber(row.count2 ?? undefined),
     sellday: row.sellday ?? null,
-    playtime_median_minutes: playMin,
+    playtime_median_minutes: playMin ?? toNumber(row.total_play_time_median ?? undefined),
     url: `${EGS_BASE}/game.php?game=${id}`,
     raw: row,
   };
@@ -280,12 +314,36 @@ export async function fetchEgsGame(id: number): Promise<EgsGame | null> {
   return game;
 }
 
-async function fetchEgsPlaytimeMedian(id: number): Promise<number | null> {
-  // The user_review_for_game table holds per-user playtime in minutes; we take the median.
-  const sql = `SELECT play_time FROM user_review_for_game WHERE id = ${id} AND play_time IS NOT NULL ORDER BY play_time`;
+/**
+ * Top user long-comment for a game. EGS doesn't ship a structured synopsis;
+ * this is the best stand-in we have. Picks the highest-rated review's long
+ * comment so it reads like a curated blurb.
+ */
+async function fetchTopLongComment(id: number): Promise<string | null> {
+  const sql = `
+    SELECT long_comment FROM userreview
+    WHERE id = ${id} AND long_comment IS NOT NULL AND long_comment <> ''
+    ORDER BY point DESC LIMIT 1
+  `;
   let rows: string[][];
   try {
-    rows = await fetchCsv(sql);
+    rows = await fetchTable(sql);
+  } catch {
+    return null;
+  }
+  if (rows.length < 2) return null;
+  const value = rows[1][0]?.trim();
+  if (!value) return null;
+  // Long comments can be huge — keep a reasonable preview to avoid bloating the row.
+  return value.length > 4000 ? `${value.slice(0, 4000).trimEnd()}…` : value;
+}
+
+async function fetchEgsPlaytimeMedian(id: number): Promise<number | null> {
+  // userreview holds per-review play_time in minutes; take the median across non-null entries.
+  const sql = `SELECT play_time FROM userreview WHERE id = ${id} AND play_time IS NOT NULL ORDER BY play_time`;
+  let rows: string[][];
+  try {
+    rows = await fetchTable(sql);
   } catch {
     return null;
   }
@@ -464,11 +522,20 @@ export async function searchEgsByName(query: string): Promise<EgsGame | null> {
   const cacheK = cacheKey('search', trimmed.toLowerCase());
   const cached = readCache<EgsGame | null>(cacheK);
   if (cached !== null) return cached;
-  const escaped = trimmed.replace(/['%]/g, '');
-  const sql = `SELECT id FROM gamelist WHERE gamename ILIKE '%${escaped}%' ORDER BY count DESC NULLS LAST LIMIT 1`;
+  const escaped = trimmed.replace(/['%\\]/g, '');
+  // Search the native (gamename) and the kana reading (furigana) so romaji /
+  // hiragana queries still hit. count2 NULLs are pushed to the bottom by
+  // putting "count2 IS NULL" first in the ORDER BY (EGS' Postgres rejects
+  // explicit `NULLS LAST` on the SQL form).
+  const sql = `
+    SELECT id FROM gamelist
+    WHERE gamename ILIKE '%${escaped}%' OR furigana ILIKE '%${escaped}%'
+    ORDER BY (count2 IS NULL), count2 DESC
+    LIMIT 1
+  `;
   let rows: string[][];
   try {
-    rows = await fetchCsv(sql);
+    rows = await fetchTable(sql);
   } catch {
     return null;
   }
@@ -499,11 +566,16 @@ export async function searchEgsCandidates(query: string, limit = 20): Promise<Eg
   const cached = readCache<EgsCandidate[]>(cacheK);
   if (cached) return cached;
   const safeLimit = Math.min(50, Math.max(1, Math.floor(limit)));
-  const escaped = trimmed.replace(/['%]/g, '');
-  const sql = `SELECT id, gamename, median, count, sellday FROM gamelist WHERE gamename ILIKE '%${escaped}%' ORDER BY count DESC NULLS LAST LIMIT ${safeLimit}`;
+  const escaped = trimmed.replace(/['%\\]/g, '');
+  const sql = `
+    SELECT id, gamename, median, count2 AS count, sellday FROM gamelist
+    WHERE gamename ILIKE '%${escaped}%' OR furigana ILIKE '%${escaped}%'
+    ORDER BY (count2 IS NULL), count2 DESC
+    LIMIT ${safeLimit}
+  `;
   let rows: string[][];
   try {
-    rows = await fetchCsv(sql);
+    rows = await fetchTable(sql);
   } catch {
     return [];
   }

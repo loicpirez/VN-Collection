@@ -166,6 +166,7 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET/PATCH | `/api/collection/[id]/source-pref` | Per-VN / per-field source preference JSON |
 | GET/POST/DELETE | `/api/vn/[id]/erogamescape` | Resolve / link / unlink an EGS game for a VN |
 | GET | `/api/vn/[id]/erogamescape?refresh=1` | Force re-fetch of every EGS column |
+| GET/PATCH/DELETE | `/api/vn/[id]/vndb-status` | Read the user's VNDB ulist labels for a VN + toggle them via `labels_set` / `labels_unset` |
 | POST | `/api/egs/[id]/add` | EGS-only add → synthetic VN id `egs:<id>` + collection insert |
 | GET | `/api/egs/search?q=&limit=` | EGS candidate search (used by /search and the manual-link picker) |
 | GET | `/api/route/[routeId]` / PATCH / DELETE | Per-route management |
@@ -258,15 +259,33 @@ response (CSV) in the shared `vndb_cache` table.
 
 ### SQL conventions
 
-- `SELECT *` on `gamelist`, then a separate `brandlist` lookup. JOINs are
-  brittle across EGS forks — separate queries degrade more gracefully.
-- Description fallback chain: `gamelist.comment / prelude / outline`,
-  then `shoukai_for_game.shoukai`, then `gamelist_introduction.introduction`.
-  Whatever sticks first.
-- Median playtime is computed locally from `user_review_for_game.play_time`
-  (sorted, pick the middle).
-- Every fetched row is stored as `raw_json` so we can mine extra columns
-  later without re-querying EGS.
+- **Endpoint** is `sql_for_erogamer_form.php` (the bare `sql_for_erogamer.php`
+  is a 404), **POST only** (GET re-renders the input form), and the
+  response is **HTML**. The `format=csv` param is silently ignored;
+  we parse the last `<table>`. There is no `_csv` endpoint.
+- **Postgres on EGS rejects explicit `NULLS LAST`** on the public SQL
+  form. Use `ORDER BY (col IS NULL), col DESC` instead.
+- **Real column names** (don't trust documentation, verify against
+  `information_schema.columns`):
+  - `count2` (not `count`) for vote count
+  - `average2` for average, `stdev` for dispersion
+  - `furigana` (not `gamename_furigana`) for the kana reading
+  - `gamelist.brandname` is the brand FK id (numeric); JOIN
+    `brandlist b ON g.brandname = b.id` and alias `b.brandname AS brand_name`
+  - `gamelist.shoukai` is a URL (publisher's product page), not a synopsis
+  - `total_play_time_median` is in `gamelist`, but the per-user
+    `play_time` lives in `userreview` (no `user_review_for_game` table)
+- Description: there is no structured synopsis column. We fetch the
+  highest-`point` `userreview.long_comment` as a stand-in.
+- Median playtime: computed locally from `userreview.play_time` (sorted,
+  middle value), with `gamelist.total_play_time_median` as backup.
+- Cover image: `gamelist.banner_url` first, then the `image.php?game=N`
+  redirector as fallback.
+- Search both `gamename` and `furigana` so romaji / hiragana queries hit.
+- `SELECT g.*` on every game query so the full row lands in `raw_json`.
+  `EgsRichDetails` reads from `raw_json` to surface columns the panel
+  doesn't first-class (erogetrailers, dmm, dlsite_id, gyutto_id, genre,
+  axis_of_soft_or_hard, max2, min2, median2, hanbaisuu, POV A/B/C, …).
 
 ### Synthetic VN ids (`egs:<id>`)
 

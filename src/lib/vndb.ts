@@ -1,5 +1,5 @@
 import 'server-only';
-import { cachedFetch, invalidateKey, readCachedJson, TTL } from './vndb-cache';
+import { cachedFetch, invalidateByPath, invalidateKey, readCachedJson, TTL } from './vndb-cache';
 import type { Screenshot, VndbSearchHit } from './types';
 
 export const VNDB_API = 'https://api.vndb.org/kana';
@@ -802,6 +802,111 @@ export async function removeFromVndbWishlist(vnId: string): Promise<{ ok: true }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
+  }
+  return { ok: true };
+}
+
+export interface VndbUlistLabel {
+  id: number;
+  label: string;
+  private: boolean;
+  count?: number;
+}
+
+/**
+ * Lists every ulist label for the authenticated user (predefined + custom).
+ * Cached at the VNDB cache layer so the labels modal opens instantly.
+ */
+export async function fetchUlistLabels(): Promise<VndbUlistLabel[] | { needsAuth: true }> {
+  const token = readVndbToken();
+  if (!token) return { needsAuth: true };
+  const r = await vndbGet<{ labels: VndbUlistLabel[] }>('/ulist_labels?fields=count', TTL.user);
+  return r.labels;
+}
+
+/** Single ulist entry for one VN — useful to show current labels / vote on /vn/[id]. */
+export interface VndbUlistEntryDetail {
+  id: string;
+  added: number;
+  voted: number | null;
+  lastmod: number;
+  vote: number | null;
+  started: string | null;
+  finished: string | null;
+  notes: string | null;
+  labels: { id: number; label: string }[];
+}
+
+export async function fetchUlistEntry(vnId: string): Promise<VndbUlistEntryDetail | null | { needsAuth: true }> {
+  const auth = await getAuthInfo();
+  if (!auth) return { needsAuth: true };
+  if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
+  const r = await vndbPost<{ results: VndbUlistEntryDetail[] }>(
+    '/ulist',
+    {
+      user: auth.id,
+      filters: ['id', '=', vnId.toLowerCase()],
+      fields: 'id, added, voted, lastmod, vote, started, finished, notes, labels{id,label}',
+      results: 1,
+    },
+    // 5-minute TTL — list state changes when the user mutates it elsewhere.
+    5 * 60 * 1000,
+  );
+  return r.results[0] ?? null;
+}
+
+export interface UlistPatch {
+  vote?: number | null;
+  notes?: string | null;
+  started?: string | null;
+  finished?: string | null;
+  labels_set?: number[];
+  labels_unset?: number[];
+}
+
+/**
+ * Mutate the user's VNDB list entry for a VN. Auto-creates the entry on first
+ * call (VNDB's PATCH /ulist always upserts). Use `labels_set` / `labels_unset`
+ * instead of `labels` to avoid clobbering labels the user added on the site.
+ */
+export async function patchUlistEntry(vnId: string, patch: UlistPatch): Promise<{ ok: true } | { needsAuth: true }> {
+  const token = readVndbToken();
+  if (!token) return { needsAuth: true };
+  if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
+  const res = await fetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
+  }
+  // Invalidate our small ulist cache so subsequent reads reflect the new state.
+  try {
+    invalidateByPath('POST /ulist');
+  } catch {
+    // ignore — invalidator failures are non-fatal
+  }
+  return { ok: true };
+}
+
+export async function deleteUlistEntry(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
+  const token = readVndbToken();
+  if (!token) return { needsAuth: true };
+  if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
+  const res = await fetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`VNDB DELETE /ulist/${vnId} -> ${res.status}: ${text}`);
+  }
+  try {
+    invalidateByPath('POST /ulist');
+  } catch {
+    // ignore
   }
   return { ok: true };
 }
