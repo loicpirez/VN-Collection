@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CloudDownload, Loader2, X } from 'lucide-react';
+import { CloudDownload, Loader2, RefreshCw, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 interface Failure {
@@ -24,8 +24,12 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
   const [finished, setFinished] = useState(false);
   const [aborted, setAborted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [activeMode, setActiveMode] = useState<'missing' | 'full'>('missing');
 
-  async function start() {
+  async function start(full: boolean) {
+    setActiveMode(full ? 'full' : 'missing');
+    setPickerOpen(false);
     setRunning(true);
     setFinished(false);
     setAborted(false);
@@ -55,7 +59,8 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
         const it = items[i];
         setCurrentTitle(it.title);
         try {
-          const res = await fetch(`/api/collection/${it.id}/assets?refresh=true`, { method: 'POST' });
+          const url = `/api/collection/${it.id}/assets${full ? '?refresh=true' : ''}`;
+          const res = await fetch(url, { method: 'POST' });
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             local.push({ id: it.id, message: err.error || `HTTP ${res.status}` });
@@ -93,23 +98,51 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
 
   return (
     <>
-      <button
-        type="button"
-        className="btn"
-        onClick={start}
-        disabled={running}
-        title={t.bulk.tooltip}
-      >
-        {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
-        {running ? `${done}/${total}` : t.bulk.cta}
-      </button>
+      <div className="relative inline-block">
+        <button
+          type="button"
+          className="btn"
+          onClick={() => setPickerOpen((v) => !v)}
+          disabled={running}
+          title={t.bulk.tooltip}
+        >
+          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
+          {running ? `${done}/${total}` : t.bulk.cta}
+        </button>
+        {pickerOpen && !running && (
+          <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card">
+            <button
+              type="button"
+              onClick={() => start(false)}
+              className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
+            >
+              <span className="inline-flex items-center gap-1 font-bold">
+                <CloudDownload className="h-3.5 w-3.5 text-accent" />
+                {t.bulk.missing}
+              </span>
+              <span className="text-[10px] text-muted">{t.bulk.missingHint}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => start(true)}
+              className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
+            >
+              <span className="inline-flex items-center gap-1 font-bold">
+                <RefreshCw className="h-3.5 w-3.5 text-accent" />
+                {t.bulk.full}
+              </span>
+              <span className="text-[10px] text-muted">{t.bulk.fullHint}</span>
+            </button>
+          </div>
+        )}
+      </div>
 
       {(running || finished || aborted || error) && (
         <div className="fixed bottom-12 left-1/2 z-30 w-[min(92vw,420px)] -translate-x-1/2 rounded-xl border border-border bg-bg-card p-4 shadow-card">
           <div className="mb-2 flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="text-xs font-bold uppercase tracking-widest text-muted">
-                {running ? t.bulk.runningTitle : aborted ? t.bulk.abortedTitle : finished ? t.bulk.doneTitle : t.common.error}
+                {running ? `${t.bulk.runningTitle} · ${activeMode === 'full' ? t.bulk.full : t.bulk.missing}` : aborted ? t.bulk.abortedTitle : finished ? t.bulk.doneTitle : t.common.error}
               </div>
               {currentTitle && running && (
                 <div className="mt-1 truncate text-xs text-white/80">{currentTitle}</div>
