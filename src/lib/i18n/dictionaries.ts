@@ -106,6 +106,9 @@ export const dictionaries = {
     },
     search: {
       placeholder: 'Rechercher un Visual Novel sur VNDB (titre, ou ID v17…)',
+      egsPlaceholder: 'Rechercher sur ErogameScape (titre japonais ou romaji)…',
+      egsSourceHint: 'Pour les jeux absents de VNDB. Ajoute via EGS uniquement (entrée VN synthétique).',
+      addEgsOnly: 'Ajouter via EGS',
       heroTitle: 'Recherche VNDB',
       heroSubtitle: 'Tape un titre ou un identifiant (v17, v11…) pour commencer.',
       noResults: 'Aucun résultat',
@@ -709,6 +712,9 @@ export const dictionaries = {
     },
     search: {
       placeholder: 'Search a Visual Novel on VNDB (title, or ID v17…)',
+      egsPlaceholder: 'Search ErogameScape (Japanese or romaji title)…',
+      egsSourceHint: 'For games missing from VNDB. Adds via EGS only (synthetic VN entry).',
+      addEgsOnly: 'Add via EGS',
       heroTitle: 'VNDB Search',
       heroSubtitle: 'Type a title or an identifier (v17, v11…) to start.',
       noResults: 'No result',
@@ -1312,6 +1318,9 @@ export const dictionaries = {
     },
     search: {
       placeholder: 'VNDB を検索（タイトルまたは ID v17…）',
+      egsPlaceholder: 'ErogameScape を検索（日本語またはローマ字）…',
+      egsSourceHint: 'VNDB にない作品向け。EGS のみで（合成 VN エントリとして）追加します。',
+      addEgsOnly: 'EGS から追加',
       heroTitle: 'VNDB 検索',
       heroSubtitle: 'タイトルまたは ID（v17、v11…）を入力してください。',
       noResults: '結果がありません',

@@ -1,10 +1,21 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronDown, ChevronUp, Search, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronUp, Database, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import { VnCard } from './VnCard';
+import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import type { VndbSearchHit } from '@/lib/types';
+
+type SearchSource = 'vndb' | 'egs';
+
+interface EgsCandidate {
+  id: number;
+  gamename: string;
+  median: number | null;
+  count: number | null;
+  sellday: string | null;
+}
 
 const COMMON_LANGS = ['en', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'fr', 'de', 'es', 'it', 'ru'];
 const COMMON_PLATFORMS = ['win', 'lin', 'mac', 'ios', 'and', 'web', 'swi', 'ps4', 'ps5', 'psv', 'psp', 'xb1', 'xbs', 'n3d'];
@@ -76,18 +87,25 @@ function isAdvActive(adv: AdvParams): boolean {
 
 export function SearchClient() {
   const t = useT();
+  const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialAdv = useMemo(() => readAdvFromUrl(new URLSearchParams(searchParams.toString())), [searchParams]);
   const initialQ = searchParams.get('q') ?? '';
+  const initialSource: SearchSource = searchParams.get('src') === 'egs' ? 'egs' : 'vndb';
 
+  const [source, setSource] = useState<SearchSource>(initialSource);
   const [q, setQ] = useState(initialQ);
   const [results, setResults] = useState<VndbSearchHit[]>([]);
+  const [egsResults, setEgsResults] = useState<EgsCandidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(!!initialQ || isAdvActive(initialAdv));
   const [advOpen, setAdvOpen] = useState(isAdvActive(initialAdv));
   const [adv, setAdv] = useState<AdvParams>(initialAdv);
+  const [addingEgsId, setAddingEgsId] = useState<number | null>(null);
+  const [addedEgsIds, setAddedEgsIds] = useState<Set<number>>(new Set());
+  const [, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -107,9 +125,10 @@ export function SearchClient() {
 
   // Sync state → URL (debounced for q, immediate for adv toggles).
   const syncUrl = useCallback(
-    (nextQ: string, nextAdv: AdvParams) => {
+    (nextQ: string, nextAdv: AdvParams, nextSource: SearchSource) => {
       const sp = new URLSearchParams();
       if (nextQ.trim()) sp.set('q', nextQ.trim());
+      if (nextSource === 'egs') sp.set('src', 'egs');
       if (nextAdv.langs.length) sp.set('langs', nextAdv.langs.join(','));
       if (nextAdv.platforms.length) sp.set('platforms', nextAdv.platforms.join(','));
       if (nextAdv.lengthMin !== null) sp.set('lengthMin', String(nextAdv.lengthMin));
@@ -127,14 +146,15 @@ export function SearchClient() {
   );
 
   useEffect(() => {
-    const handle = setTimeout(() => syncUrl(q, adv), 300);
+    const handle = setTimeout(() => syncUrl(q, adv, source), 300);
     return () => clearTimeout(handle);
-  }, [q, adv, syncUrl]);
+  }, [q, adv, source, syncUrl]);
 
   const advActive = isAdvActive(adv);
 
-  // Quick search
+  // Quick search — VNDB
   useEffect(() => {
+    if (source !== 'vndb') return;
     if (advActive) return; // advanced is driven by an explicit submit
     if (!q.trim()) {
       setResults([]);
@@ -166,7 +186,67 @@ export function SearchClient() {
       ctrl.abort();
       clearTimeout(handle);
     };
-  }, [q, advActive, t.search.errorPrefix]);
+  }, [q, source, advActive, t.search.errorPrefix]);
+
+  // Quick search — EGS-side (no VNDB extlink needed; works for games missing from VNDB).
+  useEffect(() => {
+    if (source !== 'egs') return;
+    if (!q.trim()) {
+      setEgsResults([]);
+      setError(null);
+      return;
+    }
+    setTouched(true);
+    setLoading(true);
+    setError(null);
+    const ctrl = new AbortController();
+    const handle = setTimeout(async () => {
+      try {
+        const r = await fetch(
+          `/api/egs/search?q=${encodeURIComponent(q.trim())}&limit=40`,
+          { signal: ctrl.signal },
+        );
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.error || t.search.errorPrefix);
+        }
+        const data = (await r.json()) as { candidates: EgsCandidate[] };
+        setEgsResults(data.candidates);
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+        setError((e as Error).message);
+        setEgsResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 350);
+    return () => {
+      ctrl.abort();
+      clearTimeout(handle);
+    };
+  }, [q, source, t.search.errorPrefix]);
+
+  async function addEgs(c: EgsCandidate) {
+    setAddingEgsId(c.id);
+    try {
+      const r = await fetch(`/api/egs/${c.id}/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'planning' }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      const d = (await r.json()) as { vn_id: string };
+      setAddedEgsIds((prev) => new Set(prev).add(c.id));
+      toast.success(t.toast.added);
+      startTransition(() => router.refresh());
+      // Push the user to the new entry's page so they can polish the inventory.
+      router.push(`/vn/${d.vn_id}`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setAddingEgsId(null);
+    }
+  }
 
   async function runAdvanced() {
     setTouched(true);
@@ -208,44 +288,73 @@ export function SearchClient() {
 
   return (
     <div>
+      <div className="mb-2 inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]">
+        <button
+          type="button"
+          onClick={() => setSource('vndb')}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
+            source === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+          }`}
+        >
+          <Database className="h-3 w-3" aria-hidden />
+          VNDB
+        </button>
+        <button
+          type="button"
+          onClick={() => setSource('egs')}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
+            source === 'egs' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+          }`}
+          title={t.search.egsSourceHint}
+        >
+          <Sparkles className="h-3 w-3" aria-hidden />
+          ErogameScape
+        </button>
+      </div>
       <div className="relative mb-3">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+        {source === 'egs' ? (
+          <Sparkles className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-accent" aria-hidden />
+        ) : (
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+        )}
         <input
           ref={inputRef}
           className="input pl-9"
-          placeholder={t.search.placeholder}
+          placeholder={source === 'egs' ? t.search.egsPlaceholder : t.search.placeholder}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && advActive) runAdvanced();
+            if (e.key === 'Enter' && source === 'vndb' && advActive) runAdvanced();
           }}
         />
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className={`btn ${advOpen || advActive ? 'btn-primary' : ''}`}
-          onClick={() => setAdvOpen((v) => !v)}
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          {t.search.advanced}
-          {advActive && <span className="rounded-full bg-bg/30 px-1.5 text-[10px]">●</span>}
-          {advOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        </button>
-        {advActive && (
-          <button type="button" className="btn" onClick={() => setAdv(DEFAULT_ADV)}>
-            {t.search.resetAdvanced}
+      {source === 'vndb' && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className={`btn ${advOpen || advActive ? 'btn-primary' : ''}`}
+            onClick={() => setAdvOpen((v) => !v)}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {t.search.advanced}
+            {advActive && <span className="rounded-full bg-bg/30 px-1.5 text-[10px]">●</span>}
+            {advOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
-        )}
-        {advActive && (
-          <button type="button" className="btn btn-primary" onClick={runAdvanced}>
-            {t.search.runAdvanced}
-          </button>
-        )}
-      </div>
+          {advActive && (
+            <button type="button" className="btn" onClick={() => setAdv(DEFAULT_ADV)}>
+              {t.search.resetAdvanced}
+            </button>
+          )}
+          {advActive && (
+            <button type="button" className="btn btn-primary" onClick={runAdvanced}>
+              {t.search.runAdvanced}
+            </button>
+          )}
+        </div>
+      )}
 
-      {advOpen && (
+      {advOpen && source === 'vndb' && (
         <div className="mb-6 rounded-xl border border-border bg-bg-card p-4 text-xs">
           <div className="grid gap-4 md:grid-cols-2">
             <div>
@@ -386,11 +495,50 @@ export function SearchClient() {
 
       {loading ? (
         <div className="py-20 text-center text-muted">{t.search.searching}</div>
-      ) : !touched && !results.length ? (
+      ) : !touched && !results.length && !egsResults.length ? (
         <div className="py-20 text-center">
           <h2 className="mb-2 text-xl font-bold">{t.search.heroTitle}</h2>
           <p className="text-muted">{t.search.heroSubtitle}</p>
         </div>
+      ) : source === 'egs' ? (
+        egsResults.length === 0 ? (
+          <div className="py-20 text-center text-muted">{t.search.noResults}</div>
+        ) : (
+          <ul className="divide-y divide-border rounded-xl border border-border bg-bg-card">
+            {egsResults.map((c) => {
+              const isAdding = addingEgsId === c.id;
+              const isAdded = addedEgsIds.has(c.id);
+              return (
+                <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="line-clamp-2 text-sm font-semibold">{c.gamename}</div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted">
+                      <span>EGS #{c.id}</span>
+                      {c.sellday && <span>{c.sellday}</span>}
+                      {c.median != null && (
+                        <span className="inline-flex items-center gap-0.5 text-accent">
+                          <Star className="h-2.5 w-2.5 fill-accent" /> {c.median}
+                        </span>
+                      )}
+                      {c.count != null && (
+                        <span>{c.count.toLocaleString()} {t.egs.votes}</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => addEgs(c)}
+                    disabled={isAdding || isAdded}
+                    className={`btn shrink-0 ${isAdded ? '' : 'btn-primary'}`}
+                  >
+                    {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                    {isAdded ? t.search.inCollection : t.search.addEgsOnly}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )
       ) : results.length === 0 ? (
         <div className="py-20 text-center text-muted">{t.search.noResults}</div>
       ) : (

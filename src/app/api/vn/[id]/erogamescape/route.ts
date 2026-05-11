@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!/^v\d+$/i.test(id)) {
+  if (!/^(v\d+|egs:\d+)$/i.test(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   const sp = req.nextUrl.searchParams;
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!/^v\d+$/i.test(id)) {
+  if (!/^(v\d+|egs:\d+)$/i.test(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   const body = (await req.json().catch(() => ({}))) as { egs_id?: number };
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!/^v\d+$/i.test(id)) {
+  if (!/^(v\d+|egs:\d+)$/i.test(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   clearEgsCache(id);

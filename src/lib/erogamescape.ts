@@ -404,17 +404,23 @@ export async function resolveEgsForVn(
   }
 
   let egsId: number | null = null;
-  try {
-    const releases = await getReleasesForVn(vnId);
-    for (const r of releases) {
-      const candidate = findEgsIdInExtlinks(r.extlinks ?? []);
-      if (candidate != null) {
-        egsId = candidate;
-        break;
+  // Synthetic EGS-only VNs encode the EGS id in their vn_id (`egs:1234`) — short-circuit.
+  if (vnId.startsWith('egs:')) {
+    const parsed = Number(vnId.slice('egs:'.length));
+    if (Number.isInteger(parsed) && parsed > 0) egsId = parsed;
+  } else {
+    try {
+      const releases = await getReleasesForVn(vnId);
+      for (const r of releases) {
+        const candidate = findEgsIdInExtlinks(r.extlinks ?? []);
+        if (candidate != null) {
+          egsId = candidate;
+          break;
+        }
       }
+    } catch {
+      // releases unavailable — leave egsId null and try name search below
     }
-  } catch {
-    // releases unavailable — leave egsId null and try name search below
   }
 
   let game: EgsGame | null = null;

@@ -348,6 +348,7 @@ export interface VndbCharacterVn {
 }
 
 export async function getCharactersForVn(vnId: string, max = 30): Promise<VndbCharacter[]> {
+  if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
     filters: ['vn', '=', ['id', '=', vnId]],
     fields: CHARACTER_FIELDS,
@@ -569,6 +570,7 @@ export interface VndbReleaseImage {
 }
 
 export async function getReleasesForVn(vnId: string, max = 50): Promise<VndbRelease[]> {
+  if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbResponse<VndbRelease>>('/release', {
     filters: ['vn', '=', ['id', '=', vnId]],
     fields: RELEASE_FIELDS,
@@ -606,6 +608,7 @@ export async function getRandomQuote(): Promise<VndbQuote | null> {
 }
 
 export async function getQuotesForVn(vnId: string, { results = 20 } = {}): Promise<VndbQuote[]> {
+  if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbResponse<VndbQuote>>('/quote', {
     filters: ['vn', '=', ['id', '=', vnId]],
     fields: QUOTE_FIELDS,
