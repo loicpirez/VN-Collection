@@ -1,48 +1,33 @@
 'use client';
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Check, GitCompareArrows, Loader2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { resolveField, type SourceChoice } from '@/lib/source-resolve';
 
-type Field = 'description' | 'brand' | 'image';
+interface Developer {
+  id: string;
+  name: string;
+}
 
 interface Props {
   vnId: string;
-  field: Field;
   current: SourceChoice;
-  vndb: string | null | undefined;
-  egs: string | null | undefined;
+  vndbDevs: Developer[];
+  egsBrand: string | null;
   label: string;
-  /** When true, render compact one-column layout (no compare button) even if EGS data exists. */
-  forceCollapsed?: boolean;
-}
-
-/** Strip VNDB BBCode + EGS HTML noise. Same shape both sides so the comparison is fair. */
-function clean(text: string): string {
-  return text.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
 }
 
 /**
- * Text-only field renderer (description, etc.). Resolves a single value via the
- * user's source preference + VNDB-first auto-fallback, with a "Compare" toggle
- * that expands into a side-by-side view with per-column "Use this" actions.
- *
- * The renderer is plain `<p>` whitespace-pre-wrap. For brand/dev chips use
- * BrandCompare; for cover images use CoverCompare — both deal with non-string
- * payloads and would otherwise need a function prop (which can't cross the
- * server/client boundary).
+ * Brand / developer field with a side-by-side compare view. VNDB renders one
+ * <Link> chip per developer (routes to /producer/[id]); EGS renders a single
+ * plain chip with the brand name. Separated from FieldCompare because the
+ * VNDB column is structured data (not a string), and function props can't
+ * cross the server/client boundary in Next.js App Router.
  */
-export function FieldCompare({
-  vnId,
-  field,
-  current,
-  vndb,
-  egs,
-  label,
-  forceCollapsed = false,
-}: Props) {
+export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -50,10 +35,14 @@ export function FieldCompare({
   const [compareOpen, setCompareOpen] = useState(false);
   const [optimistic, setOptimistic] = useState<SourceChoice>(current);
 
-  const resolved = resolveField(vndb, egs, optimistic);
-  const vndbHas = !!vndb && vndb.trim().length > 0;
-  const egsHas = !!egs && egs.trim().length > 0;
-  const canCompare = !forceCollapsed && vndbHas && egsHas;
+  const vndbHas = vndbDevs.length > 0;
+  const egsHas = !!egsBrand && egsBrand.trim().length > 0;
+  const canCompare = vndbHas && egsHas;
+  const resolved = resolveField(
+    vndbHas ? 'vndb' : null,
+    egsHas ? 'egs' : null,
+    optimistic,
+  );
 
   async function persist(next: SourceChoice) {
     if (pending) return;
@@ -62,7 +51,7 @@ export function FieldCompare({
       const r = await fetch(`/api/collection/${vnId}/source-pref`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: next }),
+        body: JSON.stringify({ brand: next }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
       toast.success(t.toast.saved);
@@ -97,7 +86,13 @@ export function FieldCompare({
             </button>
           )}
         </div>
-        {resolved.value && <Body text={resolved.value} />}
+        {resolved.used === 'egs' && egsBrand ? (
+          <span className="inline-block rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs">
+            {egsBrand}
+          </span>
+        ) : (
+          <DevChips devs={vndbDevs} />
+        )}
       </div>
     );
   }
@@ -117,26 +112,32 @@ export function FieldCompare({
         </button>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        <ColumnCard
+        <Column
           tone="vndb"
           label="VNDB"
           active={optimistic === 'vndb' || (optimistic === 'auto' && resolved.used === 'vndb')}
           empty={!vndbHas}
           onUse={() => persist('vndb')}
           pending={pending && optimistic === 'vndb'}
-          text={vndb ?? null}
           useLabel={t.compare.useVndb}
-        />
-        <ColumnCard
+        >
+          <DevChips devs={vndbDevs} />
+        </Column>
+        <Column
           tone="egs"
           label="ErogameScape"
           active={optimistic === 'egs' || (optimistic === 'auto' && resolved.used === 'egs')}
           empty={!egsHas}
           onUse={() => persist('egs')}
           pending={pending && optimistic === 'egs'}
-          text={egs ?? null}
           useLabel={t.compare.useEgs}
-        />
+        >
+          {egsBrand && (
+            <span className="inline-block rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs">
+              {egsBrand}
+            </span>
+          )}
+        </Column>
       </div>
       <div className="mt-2 text-right">
         <button
@@ -144,7 +145,9 @@ export function FieldCompare({
           onClick={() => persist('auto')}
           disabled={pending}
           className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] ${
-            optimistic === 'auto' ? 'bg-accent text-bg font-bold' : 'border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+            optimistic === 'auto'
+              ? 'bg-accent text-bg font-bold'
+              : 'border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
           }`}
         >
           {pending && optimistic === 'auto' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
@@ -155,19 +158,34 @@ export function FieldCompare({
   );
 }
 
-function Body({ text }: { text: string }) {
-  return <p className="whitespace-pre-wrap leading-relaxed text-white/85">{clean(text)}</p>;
+function DevChips({ devs }: { devs: Developer[] }) {
+  if (devs.length === 0) {
+    return <p className="text-[11px] italic text-muted/70">—</p>;
+  }
+  return (
+    <div className="flex flex-wrap gap-2 font-semibold">
+      {devs.map((d) => (
+        <Link
+          key={d.id}
+          href={`/producer/${d.id}`}
+          className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent"
+        >
+          {d.name}
+        </Link>
+      ))}
+    </div>
+  );
 }
 
-function ColumnCard({
+function Column({
   tone,
   label,
   active,
   empty,
   onUse,
   pending,
-  text,
   useLabel,
+  children,
 }: {
   tone: 'vndb' | 'egs';
   label: string;
@@ -175,8 +193,8 @@ function ColumnCard({
   empty: boolean;
   onUse: () => void;
   pending: boolean;
-  text: string | null;
   useLabel: string;
+  children: React.ReactNode;
 }) {
   return (
     <div
@@ -205,7 +223,7 @@ function ColumnCard({
           </button>
         )}
       </div>
-      {empty ? <p className="text-[11px] italic text-muted/70">—</p> : text && <Body text={text} />}
+      {empty ? <p className="text-[11px] italic text-muted/70">—</p> : children}
     </div>
   );
 }

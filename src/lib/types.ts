@@ -65,7 +65,7 @@ export interface VnRow {
   votecount: number | null;
   description: string | null;
   developers: { id: string; name: string }[];
-  tags: { id: string; name: string; rating: number; spoiler: number }[];
+  tags: { id: string; name: string; rating: number; spoiler: number; category?: 'cont' | 'ero' | 'tech' | null }[];
   screenshots: Screenshot[];
   release_images: ReleaseImage[];
   local_image: string | null;
@@ -124,6 +124,9 @@ export interface EgsLite {
   count: number | null;
   playtime_median_minutes: number | null;
   source: 'extlink' | 'search' | 'manual' | null;
+  /** EGS's "is NSFW" boolean — a stronger signal than VNDB's image_sexual since
+   * many eroge have SFW covers. Used by the hide-sexual filter. */
+  okazu: boolean | null;
 }
 
 export type CollectionItem = VnRow &

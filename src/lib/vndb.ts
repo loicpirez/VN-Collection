@@ -274,7 +274,7 @@ export interface VndbVn {
   description: string | null;
   image: { url: string; thumbnail: string; dims: [number, number]; sexual?: number; violence?: number } | null;
   developers: { id: string; name: string; original?: string | null; lang?: string | null; type?: string | null }[];
-  tags: { id: string; name: string; rating: number; spoiler: number; category: string }[];
+  tags: { id: string; name: string; rating: number; spoiler: number; category: 'cont' | 'ero' | 'tech' }[];
   screenshots: Screenshot[];
   relations?: VndbRelationEntry[];
 }

@@ -7,6 +7,7 @@ import {
   setEgsLocalImage,
   setLocalImagePaths,
   setLocalScreenshots,
+  setQuotesForVn,
   setReleaseImages,
   upsertCharacterImage,
 } from './db';
@@ -86,7 +87,8 @@ export async function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult
     // ignore — character payload may be unavailable
   }
   try {
-    await getQuotesForVn(vnId);
+    const quotes = await getQuotesForVn(vnId);
+    setQuotesForVn(vnId, quotes);
   } catch {
     // ignore — quotes may be unavailable
   }

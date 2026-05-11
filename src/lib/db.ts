@@ -155,6 +155,17 @@ function open(): Database.Database {
       fetched_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS vn_quote (
+      quote_id        TEXT PRIMARY KEY,
+      vn_id           TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
+      quote           TEXT NOT NULL,
+      score           INTEGER NOT NULL DEFAULT 0,
+      character_id    TEXT,
+      character_name  TEXT,
+      fetched_at      INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_quote_vn ON vn_quote(vn_id);
+
     CREATE TABLE IF NOT EXISTS app_setting (
       key   TEXT PRIMARY KEY,
       value TEXT
@@ -284,7 +295,7 @@ export interface RawVnPayload {
   description?: string | null;
   image?: { url?: string; thumbnail?: string; sexual?: number; violence?: number; dims?: [number, number] } | null;
   developers?: { id: string; name: string }[];
-  tags?: { id: string; name: string; rating: number; spoiler: number }[];
+  tags?: { id: string; name: string; rating: number; spoiler: number; category?: 'cont' | 'ero' | 'tech' | null }[];
   screenshots?: Screenshot[];
   relations?: {
     id: string;
@@ -342,7 +353,7 @@ export function upsertVn(vn: RawVnPayload): void {
     tags: JSON.stringify(
       (vn.tags ?? [])
         .slice(0, 25)
-        .map((t) => ({ id: t.id, name: t.name, rating: t.rating, spoiler: t.spoiler })),
+        .map((t) => ({ id: t.id, name: t.name, rating: t.rating, spoiler: t.spoiler, category: t.category ?? null })),
     ),
     screenshots: JSON.stringify(vn.screenshots ?? []),
     relations: JSON.stringify(
@@ -679,6 +690,59 @@ export function setSourcePref(vnId: string, prefs: SourcePrefMap): void {
   db.prepare('UPDATE collection SET source_pref = ? WHERE vn_id = ?').run(payload, vnId);
 }
 
+export interface LocalQuote {
+  quote_id: string;
+  vn_id: string;
+  vn_title: string;
+  quote: string;
+  score: number;
+  character_id: string | null;
+  character_name: string | null;
+}
+
+/**
+ * Persist (replace) the quotes we already fetched from VNDB for one VN.
+ * Called inside `ensureLocalImagesForVn` so the local data set grows as the
+ * user adds VNs, then the random-quote footer can serve from local without
+ * touching VNDB again when `random_quote_source = 'mine'`.
+ */
+export function setQuotesForVn(
+  vnId: string,
+  quotes: { id: string; quote: string; score: number; character: { id: string; name: string } | null }[],
+): void {
+  const now = Date.now();
+  const tx = db.transaction((rows: typeof quotes) => {
+    db.prepare('DELETE FROM vn_quote WHERE vn_id = ?').run(vnId);
+    const insert = db.prepare(`
+      INSERT INTO vn_quote (quote_id, vn_id, quote, score, character_id, character_name, fetched_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const q of rows) {
+      insert.run(q.id, vnId, q.quote, q.score, q.character?.id ?? null, q.character?.name ?? null, now);
+    }
+  });
+  tx(quotes);
+}
+
+/**
+ * Pick a random quote from the user's own collection. Pure SQL — no VNDB call.
+ * Returns `null` when no quotes are cached yet (collection has zero quote-bearing VNs).
+ */
+export function getRandomLocalQuote(): LocalQuote | null {
+  const row = db
+    .prepare(`
+      SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
+             q.character_id, q.character_name
+      FROM vn_quote q
+      JOIN collection c ON c.vn_id = q.vn_id
+      JOIN vn v ON v.id = q.vn_id
+      ORDER BY RANDOM()
+      LIMIT 1
+    `)
+    .get() as LocalQuote | undefined;
+  return row ?? null;
+}
+
 export function upsertCharacterImage(charId: string, url: string | null, localPath: string | null): void {
   db.prepare(`
     INSERT INTO character_image (char_id, url, local_path, fetched_at)
@@ -997,6 +1061,7 @@ export function listCollection({
           count: egs.count,
           playtime_median_minutes: egs.playtime_median_minutes,
           source: egs.source,
+          okazu: egs.okazu == null ? null : !!egs.okazu,
         }
       : null;
   }
@@ -1026,6 +1091,7 @@ export function getCollectionItem(vnId: string): CollectionItem | null {
           count: egs.count,
           playtime_median_minutes: egs.playtime_median_minutes,
           source: egs.source,
+          okazu: egs.okazu == null ? null : !!egs.okazu,
         }
       : null;
   }

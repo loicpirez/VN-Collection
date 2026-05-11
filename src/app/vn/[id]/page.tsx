@@ -38,6 +38,7 @@ import { VndbStatusPanel } from '@/components/VndbStatusPanel';
 import { SourceTag } from '@/components/SourceTag';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { FieldCompare } from '@/components/FieldCompare';
+import { BrandCompare } from '@/components/BrandCompare';
 import { CoverCompare } from '@/components/CoverCompare';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
@@ -51,11 +52,6 @@ function fmtMinutes(m: number | null | undefined): string {
   if (h && mn) return `${h}h ${mn}m`;
   if (h) return `${h}h`;
   return `${mn}m`;
-}
-
-function cleanDesc(s: string | null | undefined): string {
-  if (!s) return '';
-  return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
 }
 
 async function loadVn(id: string): Promise<{ vn: CollectionItem | null; error: string | null }> {
@@ -136,13 +132,6 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
     sourcePref.image ?? 'auto',
   );
   const heroPoster = heroResolved.used === 'egs' ? egsPoster : vndbPoster;
-  const descResolved = resolveField(vn.description, egsRow?.description, sourcePref.description ?? 'auto');
-  const vndbDevs = (vn.developers ?? []).map((d) => d.name).filter(Boolean);
-  const brandResolved = resolveField(
-    vndbDevs.length > 0 ? vndbDevs.join(', ') : null,
-    egsRow?.brand_name,
-    sourcePref.brand ?? 'auto',
-  );
   // Banner override: any local path or URL the user picked. Fallback to the cover.
   const bannerSource = vn.banner_image || vn.local_image || vn.image_url;
   const bannerIsUrl = bannerSource ? /^https?:\/\//i.test(bannerSource) : false;
@@ -249,34 +238,14 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <dd className="font-semibold">{vn.platforms.slice(0, 10).join(', ')}</dd>
                 </div>
               )}
-              {(brandResolved.value || vn.developers?.length) && (
+              {(vn.developers?.length || egsRow?.brand_name) && (
                 <div className="col-span-2 sm:col-span-3">
-                  <FieldCompare
+                  <BrandCompare
                     vnId={vn.id}
-                    field="brand"
                     current={sourcePref.brand ?? 'auto'}
-                    vndb={vndbDevs.length > 0 ? vndbDevs.join(', ') : null}
-                    egs={egsRow?.brand_name ?? null}
+                    vndbDevs={(vn.developers ?? []).map((d) => ({ id: d.id ?? '', name: d.name }))}
+                    egsBrand={egsRow?.brand_name ?? null}
                     label={t.detail.developers}
-                    renderValue={(value) => (
-                      <div className="flex flex-wrap gap-2 font-semibold">
-                        {value === (egsRow?.brand_name ?? null) && egsRow?.brand_name ? (
-                          <span className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs">
-                            {value}
-                          </span>
-                        ) : (
-                          vn.developers?.map((d) => (
-                            <Link
-                              key={d.id}
-                              href={`/producer/${d.id}`}
-                              className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent"
-                            >
-                              {d.name}
-                            </Link>
-                          ))
-                        )}
-                      </div>
-                    )}
                   />
                 </div>
               )}
@@ -365,9 +334,6 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               vndb={vn.description ?? null}
               egs={egsRow?.description ?? null}
               label={t.detail.synopsis}
-              renderValue={(value) => (
-                <p className="whitespace-pre-wrap leading-relaxed text-white/85">{cleanDesc(value)}</p>
-              )}
             />
           </div>
         )}

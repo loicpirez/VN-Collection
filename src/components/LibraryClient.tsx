@@ -208,11 +208,21 @@ export function LibraryClient() {
   }
 
   // Hard-filter R18 entries when the user opts in. Done client-side so toggling
-  // takes effect instantly without re-querying.
+  // takes effect instantly without re-querying. Combines three signals because
+  // VNDB cover ratings alone miss eroge with SFW covers:
+  //   1. cover image_sexual >= NSFW threshold (the original heuristic)
+  //   2. EGS okazu boolean (set on most actual eroge)
+  //   3. any VNDB tag with category === 'ero' (preserved from upsertVn going
+  //      forward — older rows fall back to signals 1+2 until refreshed).
   const visibleItems = useMemo(
     () =>
       settings.hideSexual
-        ? items.filter((it) => !isExplicit(it.image_sexual, settings.nsfwThreshold))
+        ? items.filter((it) => {
+            if (isExplicit(it.image_sexual, settings.nsfwThreshold)) return false;
+            if (it.egs?.okazu === true) return false;
+            if ((it.tags ?? []).some((tag) => tag.category === 'ero' && tag.spoiler === 0)) return false;
+            return true;
+          })
         : items,
     [items, settings.hideSexual, settings.nsfwThreshold],
   );
@@ -419,9 +429,10 @@ export function LibraryClient() {
         </div>
       ) : (
         <>
-          {hiddenBySexualCount > 0 && (
+          {settings.hideSexual && (
             <div className="mb-4 rounded-md border border-border bg-bg-elev/30 px-3 py-2 text-[11px] text-muted">
               {t.settings.hideSexualNote.replace('{count}', String(hiddenBySexualCount))}
+              <span className="ml-1 block text-[10px] opacity-80">{t.settings.hideSexualRefreshHint}</span>
             </div>
           )}
           {group === 'none' ? (
