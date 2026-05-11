@@ -185,6 +185,37 @@ function open(): Database.Database {
       fetched_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_egs_game_median ON egs_game(median);
+
+    CREATE TABLE IF NOT EXISTS vn_staff_credit (
+      vn_id    TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
+      sid      TEXT NOT NULL,
+      aid      INTEGER,
+      eid      INTEGER,
+      role     TEXT NOT NULL,
+      note     TEXT,
+      name     TEXT NOT NULL,
+      original TEXT,
+      lang     TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_staff_credit_sid ON vn_staff_credit(sid);
+    CREATE INDEX IF NOT EXISTS idx_vn_staff_credit_vn  ON vn_staff_credit(vn_id);
+
+    CREATE TABLE IF NOT EXISTS vn_va_credit (
+      vn_id       TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
+      sid         TEXT NOT NULL,
+      aid         INTEGER,
+      c_id        TEXT NOT NULL,
+      c_name      TEXT NOT NULL,
+      c_original  TEXT,
+      c_image_url TEXT,
+      va_name     TEXT NOT NULL,
+      va_original TEXT,
+      va_lang     TEXT,
+      note        TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_va_credit_sid ON vn_va_credit(sid);
+    CREATE INDEX IF NOT EXISTS idx_vn_va_credit_cid ON vn_va_credit(c_id);
+    CREATE INDEX IF NOT EXISTS idx_vn_va_credit_vn  ON vn_va_credit(vn_id);
   `);
 
   ensureColumn(db, 'vn', 'screenshots', 'TEXT');
@@ -199,6 +230,12 @@ function open(): Database.Database {
   ensureColumn(db, 'vn', 'relations', 'TEXT');
   ensureColumn(db, 'vn', 'aliases', 'TEXT'); // JSON array of strings
   ensureColumn(db, 'vn', 'extlinks', 'TEXT'); // JSON [{url,label,name}]
+  ensureColumn(db, 'vn', 'length_votes', 'INTEGER');
+  ensureColumn(db, 'vn', 'average', 'REAL'); // raw vote average (vs Bayesian `rating`)
+  ensureColumn(db, 'vn', 'has_anime', 'INTEGER'); // boolean 0/1/NULL
+  ensureColumn(db, 'vn', 'editions', 'TEXT'); // JSON [{eid,lang,name,official}]
+  ensureColumn(db, 'vn', 'staff', 'TEXT'); // JSON [{eid,role,note,id,aid,name,original,lang}]
+  ensureColumn(db, 'vn', 'va', 'TEXT'); // JSON [{note,character,staff}]
   ensureColumn(db, 'collection', 'location', "TEXT NOT NULL DEFAULT 'unknown'");
   ensureColumn(db, 'collection', 'edition_type', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'collection', 'edition_label', 'TEXT');
@@ -307,6 +344,56 @@ function open(): Database.Database {
     })();
   }
 
+  // Backfill vn_staff_credit / vn_va_credit from each row's JSON staff/va
+  // payloads. One-shot migration, gated by an app_setting marker.
+  const creditsBackfilled = (db
+    .prepare(`SELECT value FROM app_setting WHERE key = 'staff_va_credits_v1'`)
+    .get() as { value: string | null } | undefined)?.value;
+  if (creditsBackfilled !== '1') {
+    const rows = db.prepare(`SELECT id, staff, va FROM vn WHERE staff IS NOT NULL OR va IS NOT NULL`).all() as { id: string; staff: string | null; va: string | null }[];
+    const delStaff = db.prepare('DELETE FROM vn_staff_credit WHERE vn_id = ?');
+    const delVa = db.prepare('DELETE FROM vn_va_credit WHERE vn_id = ?');
+    const insStaff = db.prepare(`
+      INSERT INTO vn_staff_credit (vn_id, sid, aid, eid, role, note, name, original, lang)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insVa = db.prepare(`
+      INSERT INTO vn_va_credit (vn_id, sid, aid, c_id, c_name, c_original, c_image_url, va_name, va_original, va_lang, note)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    db.transaction(() => {
+      for (const r of rows) {
+        delStaff.run(r.id);
+        delVa.run(r.id);
+        let staff: StaffEntry[] = [];
+        let va: VaEntry[] = [];
+        try { staff = r.staff ? (JSON.parse(r.staff) as StaffEntry[]) : []; } catch { staff = []; }
+        try { va = r.va ? (JSON.parse(r.va) as VaEntry[]) : []; } catch { va = []; }
+        for (const s of staff) {
+          if (!s?.id || !s.name) continue;
+          insStaff.run(r.id, s.id, s.aid ?? null, s.eid ?? null, s.role ?? '', s.note ?? null, s.name, s.original ?? null, s.lang ?? null);
+        }
+        for (const v of va) {
+          if (!v?.staff?.id || !v.character?.id || !v.character.name || !v.staff.name) continue;
+          insVa.run(
+            r.id,
+            v.staff.id,
+            v.staff.aid ?? null,
+            v.character.id,
+            v.character.name,
+            v.character.original ?? null,
+            v.character.image?.url ?? null,
+            v.staff.name,
+            v.staff.original ?? null,
+            v.staff.lang ?? null,
+            v.note ?? null,
+          );
+        }
+      }
+      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('staff_va_credits_v1', '1')`).run();
+    })();
+  }
+
   global.__vndb_db = db;
   return db;
 }
@@ -350,11 +437,17 @@ export interface RawVnPayload {
   platforms?: string[];
   length_minutes?: number | null;
   length?: number | null;
+  length_votes?: number | null;
   rating?: number | null;
   votecount?: number | null;
+  average?: number | null;
   description?: string | null;
   image?: { url?: string; thumbnail?: string; sexual?: number; violence?: number; dims?: [number, number] } | null;
   extlinks?: { url: string; label: string; name: string }[];
+  has_anime?: boolean | null;
+  editions?: { eid: number; lang: string | null; name: string; official: boolean }[];
+  staff?: unknown[]; // forwarded verbatim — typed in vndb.ts
+  va?: unknown[];
   developers?: { id: string; name: string }[];
   tags?: { id: string; name: string; rating: number; spoiler: number; category?: 'cont' | 'ero' | 'tech' | null }[];
   screenshots?: Screenshot[];
@@ -375,24 +468,55 @@ export interface RawVnPayload {
   }[];
 }
 
-export function upsertVn(vn: RawVnPayload): void {
+interface StaffEntry {
+  eid?: number | null;
+  role?: string;
+  note?: string | null;
+  id?: string;
+  aid?: number;
+  name?: string;
+  original?: string | null;
+  lang?: string | null;
+}
+
+interface VaEntry {
+  note?: string | null;
+  character?: {
+    id?: string;
+    name?: string;
+    original?: string | null;
+    image?: { url?: string } | null;
+  } | null;
+  staff?: {
+    id?: string;
+    aid?: number;
+    name?: string;
+    original?: string | null;
+    lang?: string | null;
+  } | null;
+}
+
+const upsertVnTx = db.transaction((vn: RawVnPayload) => {
   db.prepare(`
     INSERT INTO vn (id, title, alttitle, image_url, image_thumb, image_sexual, image_violence,
-                    released, olang, languages, platforms, length_minutes, length, rating, votecount,
-                    description, developers, tags, screenshots, relations, aliases, extlinks, raw, fetched_at)
+                    released, olang, languages, platforms, length_minutes, length, length_votes, rating, votecount, average,
+                    description, developers, tags, screenshots, relations, aliases, extlinks,
+                    has_anime, editions, staff, va, raw, fetched_at)
     VALUES (@id, @title, @alttitle, @image_url, @image_thumb, @image_sexual, @image_violence,
-            @released, @olang, @languages, @platforms, @length_minutes, @length, @rating, @votecount,
-            @description, @developers, @tags, @screenshots, @relations, @aliases, @extlinks, @raw, @fetched_at)
+            @released, @olang, @languages, @platforms, @length_minutes, @length, @length_votes, @rating, @votecount, @average,
+            @description, @developers, @tags, @screenshots, @relations, @aliases, @extlinks,
+            @has_anime, @editions, @staff, @va, @raw, @fetched_at)
     ON CONFLICT(id) DO UPDATE SET
       title=excluded.title, alttitle=excluded.alttitle, image_url=excluded.image_url,
       image_thumb=excluded.image_thumb, image_sexual=excluded.image_sexual, image_violence=excluded.image_violence,
       released=excluded.released, olang=excluded.olang,
       languages=excluded.languages, platforms=excluded.platforms,
-      length_minutes=excluded.length_minutes, length=excluded.length,
-      rating=excluded.rating, votecount=excluded.votecount,
+      length_minutes=excluded.length_minutes, length=excluded.length, length_votes=excluded.length_votes,
+      rating=excluded.rating, votecount=excluded.votecount, average=excluded.average,
       description=excluded.description, developers=excluded.developers,
       tags=excluded.tags, screenshots=excluded.screenshots, relations=excluded.relations,
       aliases=excluded.aliases, extlinks=excluded.extlinks,
+      has_anime=excluded.has_anime, editions=excluded.editions, staff=excluded.staff, va=excluded.va,
       raw=excluded.raw, fetched_at=excluded.fetched_at
   `).run({
     id: vn.id,
@@ -400,6 +524,10 @@ export function upsertVn(vn: RawVnPayload): void {
     alttitle: vn.alttitle ?? null,
     aliases: JSON.stringify(vn.aliases ?? []),
     extlinks: JSON.stringify(vn.extlinks ?? []),
+    has_anime: vn.has_anime == null ? null : vn.has_anime ? 1 : 0,
+    editions: JSON.stringify(vn.editions ?? []),
+    staff: JSON.stringify(vn.staff ?? []),
+    va: JSON.stringify(vn.va ?? []),
     image_url: vn.image?.url ?? null,
     image_thumb: vn.image?.thumbnail ?? null,
     image_sexual: vn.image?.sexual ?? null,
@@ -410,8 +538,10 @@ export function upsertVn(vn: RawVnPayload): void {
     platforms: JSON.stringify(vn.platforms ?? []),
     length_minutes: vn.length_minutes ?? null,
     length: vn.length ?? null,
+    length_votes: vn.length_votes ?? null,
     rating: vn.rating ?? null,
     votecount: vn.votecount ?? null,
+    average: vn.average ?? null,
     description: vn.description ?? null,
     developers: JSON.stringify((vn.developers ?? []).map((d) => ({ id: d.id, name: d.name }))),
     tags: JSON.stringify(
@@ -442,6 +572,208 @@ export function upsertVn(vn: RawVnPayload): void {
     raw: JSON.stringify(vn),
     fetched_at: Date.now(),
   });
+  rebuildStaffVaCredits(vn.id, (vn.staff as StaffEntry[] | undefined) ?? [], (vn.va as VaEntry[] | undefined) ?? []);
+});
+
+export function upsertVn(vn: RawVnPayload): void {
+  upsertVnTx(vn);
+}
+
+function rebuildStaffVaCredits(vnId: string, staff: StaffEntry[], va: VaEntry[]): void {
+  db.prepare('DELETE FROM vn_staff_credit WHERE vn_id = ?').run(vnId);
+  db.prepare('DELETE FROM vn_va_credit WHERE vn_id = ?').run(vnId);
+  const insStaff = db.prepare(`
+    INSERT INTO vn_staff_credit (vn_id, sid, aid, eid, role, note, name, original, lang)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const s of staff) {
+    if (!s?.id || !s.name) continue;
+    insStaff.run(vnId, s.id, s.aid ?? null, s.eid ?? null, s.role ?? '', s.note ?? null, s.name, s.original ?? null, s.lang ?? null);
+  }
+  const insVa = db.prepare(`
+    INSERT INTO vn_va_credit (vn_id, sid, aid, c_id, c_name, c_original, c_image_url, va_name, va_original, va_lang, note)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const v of va) {
+    if (!v?.staff?.id || !v.character?.id || !v.character.name || !v.staff.name) continue;
+    insVa.run(
+      vnId,
+      v.staff.id,
+      v.staff.aid ?? null,
+      v.character.id,
+      v.character.name,
+      v.character.original ?? null,
+      v.character.image?.url ?? null,
+      v.staff.name,
+      v.staff.original ?? null,
+      v.staff.lang ?? null,
+      v.note ?? null,
+    );
+  }
+}
+
+export interface StaffProfile {
+  sid: string;
+  name: string;
+  original: string | null;
+  lang: string | null;
+}
+
+interface VnSummary {
+  id: string;
+  title: string;
+  alttitle: string | null;
+  image_url: string | null;
+  image_thumb: string | null;
+  image_sexual: number | null;
+  local_image: string | null;
+  local_image_thumb: string | null;
+  released: string | null;
+  rating: number | null;
+  in_collection: boolean;
+}
+
+export interface StaffWorkCredit {
+  vn: VnSummary;
+  roles: { role: string; eid: number | null; note: string | null; credited_as: string }[];
+}
+
+export interface StaffVaCredit {
+  vn: VnSummary;
+  characters: { id: string; name: string; original: string | null; image_url: string | null; credited_as: string; note: string | null }[];
+}
+
+export function getStaffProfileFromCredits(sid: string): StaffProfile | null {
+  const staff = db
+    .prepare(`SELECT name, original, lang FROM vn_staff_credit WHERE sid = ? LIMIT 1`)
+    .get(sid) as { name: string; original: string | null; lang: string | null } | undefined;
+  if (staff) return { sid, name: staff.name, original: staff.original, lang: staff.lang };
+  const va = db
+    .prepare(`SELECT va_name AS name, va_original AS original, va_lang AS lang FROM vn_va_credit WHERE sid = ? LIMIT 1`)
+    .get(sid) as { name: string; original: string | null; lang: string | null } | undefined;
+  if (va) return { sid, name: va.name, original: va.original, lang: va.lang };
+  return null;
+}
+
+export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly?: boolean } = {}): StaffWorkCredit[] {
+  const where = opts.inCollectionOnly ? `AND c.vn_id IS NOT NULL` : '';
+  const rows = db.prepare(`
+    SELECT
+      v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual,
+      v.local_image, v.local_image_thumb, v.released, v.rating,
+      sc.role, sc.eid, sc.note, sc.name AS credited_as,
+      CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_collection
+    FROM vn_staff_credit sc
+    JOIN vn v ON v.id = sc.vn_id
+    LEFT JOIN collection c ON c.vn_id = sc.vn_id
+    WHERE sc.sid = ? ${where}
+    ORDER BY v.released DESC NULLS LAST, v.title
+  `).all(sid) as Array<{
+    id: string; title: string; alttitle: string | null;
+    image_url: string | null; image_thumb: string | null; image_sexual: number | null;
+    local_image: string | null; local_image_thumb: string | null;
+    released: string | null; rating: number | null;
+    role: string; eid: number | null; note: string | null; credited_as: string;
+    in_collection: number;
+  }>;
+  const map = new Map<string, StaffWorkCredit>();
+  for (const r of rows) {
+    let entry = map.get(r.id);
+    if (!entry) {
+      entry = {
+        vn: {
+          id: r.id, title: r.title, alttitle: r.alttitle,
+          image_url: r.image_url, image_thumb: r.image_thumb, image_sexual: r.image_sexual,
+          local_image: r.local_image, local_image_thumb: r.local_image_thumb,
+          released: r.released, rating: r.rating, in_collection: !!r.in_collection,
+        },
+        roles: [],
+      };
+      map.set(r.id, entry);
+    }
+    entry.roles.push({ role: r.role, eid: r.eid, note: r.note, credited_as: r.credited_as });
+  }
+  return Array.from(map.values());
+}
+
+export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boolean } = {}): StaffVaCredit[] {
+  const where = opts.inCollectionOnly ? `AND c.vn_id IS NOT NULL` : '';
+  const rows = db.prepare(`
+    SELECT
+      v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual,
+      v.local_image, v.local_image_thumb, v.released, v.rating,
+      va.c_id, va.c_name, va.c_original, va.c_image_url, va.va_name AS credited_as, va.note,
+      CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_collection
+    FROM vn_va_credit va
+    JOIN vn v ON v.id = va.vn_id
+    LEFT JOIN collection c ON c.vn_id = va.vn_id
+    WHERE va.sid = ? ${where}
+    ORDER BY v.released DESC NULLS LAST, v.title, va.c_name
+  `).all(sid) as Array<{
+    id: string; title: string; alttitle: string | null;
+    image_url: string | null; image_thumb: string | null; image_sexual: number | null;
+    local_image: string | null; local_image_thumb: string | null;
+    released: string | null; rating: number | null;
+    c_id: string; c_name: string; c_original: string | null; c_image_url: string | null;
+    credited_as: string; note: string | null;
+    in_collection: number;
+  }>;
+  const map = new Map<string, StaffVaCredit>();
+  for (const r of rows) {
+    let entry = map.get(r.id);
+    if (!entry) {
+      entry = {
+        vn: {
+          id: r.id, title: r.title, alttitle: r.alttitle,
+          image_url: r.image_url, image_thumb: r.image_thumb, image_sexual: r.image_sexual,
+          local_image: r.local_image, local_image_thumb: r.local_image_thumb,
+          released: r.released, rating: r.rating, in_collection: !!r.in_collection,
+        },
+        characters: [],
+      };
+      map.set(r.id, entry);
+    }
+    entry.characters.push({
+      id: r.c_id, name: r.c_name, original: r.c_original, image_url: r.c_image_url,
+      credited_as: r.credited_as, note: r.note,
+    });
+  }
+  return Array.from(map.values());
+}
+
+export interface CharacterVoiceCredit {
+  sid: string;
+  va_name: string;
+  va_original: string | null;
+  va_lang: string | null;
+  vns: { id: string; title: string; released: string | null; in_collection: boolean }[];
+}
+
+export function getVasForCharacter(charId: string): CharacterVoiceCredit[] {
+  const rows = db.prepare(`
+    SELECT va.sid, va.va_name, va.va_original, va.va_lang,
+           v.id, v.title, v.released,
+           CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_collection
+    FROM vn_va_credit va
+    JOIN vn v ON v.id = va.vn_id
+    LEFT JOIN collection c ON c.vn_id = va.vn_id
+    WHERE va.c_id = ?
+    ORDER BY v.released DESC NULLS LAST, v.title
+  `).all(charId) as Array<{
+    sid: string; va_name: string; va_original: string | null; va_lang: string | null;
+    id: string; title: string; released: string | null;
+    in_collection: number;
+  }>;
+  const map = new Map<string, CharacterVoiceCredit>();
+  for (const r of rows) {
+    let entry = map.get(r.sid);
+    if (!entry) {
+      entry = { sid: r.sid, va_name: r.va_name, va_original: r.va_original, va_lang: r.va_lang, vns: [] };
+      map.set(r.sid, entry);
+    }
+    entry.vns.push({ id: r.id, title: r.title, released: r.released, in_collection: !!r.in_collection });
+  }
+  return Array.from(map.values());
 }
 
 export function setLocalImagePaths(vnId: string, full: string | null, thumb: string | null): void {
@@ -949,6 +1281,12 @@ interface DbRow {
   relations: string | null;
   aliases: string | null;
   extlinks: string | null;
+  length_votes: number | null;
+  average: number | null;
+  has_anime: number | null;
+  editions: string | null;
+  staff: string | null;
+  va: string | null;
   fetched_at: number;
   status?: string;
   user_rating?: number | null;
@@ -999,6 +1337,12 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     relations: row.relations ? JSON.parse(row.relations) : [],
     aliases: row.aliases ? JSON.parse(row.aliases) : [],
     extlinks: row.extlinks ? JSON.parse(row.extlinks) : [],
+    length_votes: row.length_votes ?? null,
+    average: row.average ?? null,
+    has_anime: row.has_anime == null ? null : !!row.has_anime,
+    editions: row.editions ? JSON.parse(row.editions) : [],
+    staff: row.staff ? JSON.parse(row.staff) : [],
+    va: row.va ? JSON.parse(row.va) : [],
     fetched_at: row.fetched_at,
     status: row.status as Status | undefined,
     user_rating: row.user_rating ?? null,

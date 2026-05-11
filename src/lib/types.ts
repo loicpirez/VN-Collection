@@ -76,6 +76,25 @@ export interface VnRow {
   relations: VnRelation[];
   aliases: string[];
   extlinks: { url: string; label: string; name: string }[];
+  length_votes: number | null;
+  average: number | null;
+  has_anime: boolean | null;
+  editions: { eid: number; lang: string | null; name: string; official: boolean }[];
+  staff: {
+    eid: number | null;
+    role: string;
+    note: string | null;
+    id: string;
+    aid: number;
+    name: string;
+    original: string | null;
+    lang: string | null;
+  }[];
+  va: {
+    note: string | null;
+    character: { id: string; name: string; original: string | null; image?: { url: string } | null };
+    staff: { id: string; aid: number; name: string; original: string | null; lang: string | null };
+  }[];
   fetched_at: number;
 }
 

@@ -28,6 +28,9 @@ const VN_DETAIL_FIELDS = [
   'developers{id,name,original,lang,type}',
   'tags{id,name,category,rating,spoiler}',
   'screenshots{url,thumbnail,sexual,violence,dims}',
+  'editions{eid,lang,name,official}',
+  'staff{eid,role,note,id,aid,name,original,lang}',
+  'va{note,character{id,name,original,image.url}, staff{id,aid,name,original,lang}}',
   'relations.id',
   'relations.title',
   'relations.alttitle',
@@ -272,11 +275,30 @@ export interface VndbVn {
   platforms: string[];
   length: number | null;
   length_minutes: number | null;
+  length_votes?: number | null;
   rating: number | null;
   votecount: number | null;
+  average?: number | null;
   description: string | null;
   image: { url: string; thumbnail: string; dims: [number, number]; sexual?: number; violence?: number } | null;
   extlinks?: { url: string; label: string; name: string }[];
+  has_anime?: boolean | null;
+  editions?: { eid: number; lang: string | null; name: string; official: boolean }[];
+  staff?: {
+    eid: number | null;
+    role: string;
+    note: string | null;
+    id: string;
+    aid: number;
+    name: string;
+    original: string | null;
+    lang: string | null;
+  }[];
+  va?: {
+    note: string | null;
+    character: { id: string; name: string; original: string | null; image?: { url: string } | null };
+    staff: { id: string; aid: number; name: string; original: string | null; lang: string | null };
+  }[];
   developers: { id: string; name: string; original?: string | null; lang?: string | null; type?: string | null }[];
   tags: { id: string; name: string; rating: number; spoiler: number; category: 'cont' | 'ero' | 'tech' }[];
   screenshots: Screenshot[];
