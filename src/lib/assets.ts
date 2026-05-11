@@ -3,6 +3,8 @@ import { downloadToBucket, fileExists } from './files';
 import {
   getCharacterImages,
   getCollectionItem,
+  getEgsForVn,
+  setEgsLocalImage,
   setLocalImagePaths,
   setLocalScreenshots,
   setReleaseImages,
@@ -94,6 +96,21 @@ export async function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult
     await resolveEgsForVn(vnId, { force: false, allowSearch: true });
   } catch {
     // ignore — EGS may be down or game unknown
+  }
+
+  // Mirror the EGS cover locally so it survives offline / EGS being down.
+  try {
+    const egs = getEgsForVn(vnId);
+    if (egs?.egs_id && egs.image_url && (!egs.local_image || !(await fileExists(egs.local_image)))) {
+      try {
+        const path = await downloadToBucket(egs.image_url, 'vnImage', `${vnId}-egs-cover`);
+        setEgsLocalImage(vnId, path);
+      } catch {
+        // EGS doesn't always have a cover — silently skip
+      }
+    }
+  } catch {
+    // ignore — defensive
   }
 
   return { poster, posterThumb: thumb, screenshots: next, releaseImages };

@@ -1,8 +1,17 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Box, Download, ExternalLink, Globe, Home, MapPin, Package, Star } from 'lucide-react';
-import { getCollectionItem, isInCollection, listSeries, upsertVn } from '@/lib/db';
+import {
+  getCollectionItem,
+  getEgsForVn,
+  getSourcePref,
+  isEgsOnly,
+  isInCollection,
+  listSeries,
+  upsertVn,
+} from '@/lib/db';
 import { getVn } from '@/lib/vndb';
+import { resolveField } from '@/lib/source-resolve';
 import { getDict } from '@/lib/i18n/server';
 import { EditForm } from '@/components/EditForm';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -23,6 +32,8 @@ import { RelationsSection } from '@/components/RelationsSection';
 import { RecordRecentView } from '@/components/RecordRecentView';
 import { TitleLine } from '@/components/TitleLine';
 import { EgsPanel } from '@/components/EgsPanel';
+import { SourceTag } from '@/components/SourceTag';
+import { SourceSwitcher } from '@/components/SourceSwitcher';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -44,6 +55,10 @@ function cleanDesc(s: string | null | undefined): string {
 
 async function loadVn(id: string): Promise<{ vn: CollectionItem | null; error: string | null }> {
   const cached = getCollectionItem(id);
+  // EGS-only synthetic VNs aren't on VNDB — always serve from cache.
+  if (isEgsOnly(id)) {
+    return { vn: cached, error: null };
+  }
   if (cached && Date.now() - cached.fetched_at < CACHE_MS) return { vn: cached, error: null };
   try {
     const fresh = await getVn(id);
@@ -62,7 +77,7 @@ async function loadVn(id: string): Promise<{ vn: CollectionItem | null; error: s
 
 export default async function VnDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!/^v\d+$/i.test(id)) notFound();
+  if (!/^(v\d+|egs:\d+)$/i.test(id)) notFound();
   const t = await getDict();
   const { vn, error } = await loadVn(id);
   if (!vn) {
@@ -96,8 +111,33 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
   const status = (vn.status as Status | undefined) ?? null;
   const ratingNum = vn.rating != null ? (vn.rating / 10).toFixed(1) : '—';
   const visibleTags = (vn.tags ?? []).filter((tag) => tag.spoiler === 0).slice(0, 16);
-  const heroImage = vn.custom_cover || vn.local_image || vn.image_url;
-  const heroLocal = vn.custom_cover || vn.local_image;
+  // Per-field source preference (VNDB or EGS) — pulled per-VN, defaults to VNDB.
+  const egsRow = getEgsForVn(vn.id);
+  const sourcePref = getSourcePref(vn.id);
+  // Build the two candidate poster sets ({ remote, local }) then let resolveField pick.
+  const vndbPoster = {
+    remote: vn.image_url ?? null,
+    local: vn.custom_cover || vn.local_image || null,
+  };
+  const egsPoster = {
+    remote: egsRow?.image_url ?? null,
+    local: egsRow?.local_image ?? null,
+  };
+  const vndbPosterHas = !!(vndbPoster.remote || vndbPoster.local);
+  const egsPosterHas = !!(egsPoster.remote || egsPoster.local);
+  const heroResolved = resolveField(
+    vndbPosterHas ? 'vndb' : null,
+    egsPosterHas ? 'egs' : null,
+    sourcePref.image ?? 'auto',
+  );
+  const heroPoster = heroResolved.used === 'egs' ? egsPoster : vndbPoster;
+  const descResolved = resolveField(vn.description, egsRow?.description, sourcePref.description ?? 'auto');
+  const vndbDevs = (vn.developers ?? []).map((d) => d.name).filter(Boolean);
+  const brandResolved = resolveField(
+    vndbDevs.length > 0 ? vndbDevs.join(', ') : null,
+    egsRow?.brand_name,
+    sourcePref.brand ?? 'auto',
+  );
   // Banner override: any local path or URL the user picked. Fallback to the cover.
   const bannerSource = vn.banner_image || vn.local_image || vn.image_url;
   const bannerIsUrl = bannerSource ? /^https?:\/\//i.test(bannerSource) : false;
@@ -131,14 +171,29 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         />
 
         <div className="relative -mt-44 grid grid-cols-1 gap-8 px-6 pb-6 md:grid-cols-[260px_1fr] md:px-8 md:pb-8">
-          <div className="z-10 mx-auto w-full max-w-[260px] md:mx-0">
+          <div className="z-10 mx-auto w-full max-w-[260px] md:mx-0 space-y-2">
             <SafeImage
-              src={heroImage}
-              localSrc={heroLocal}
+              src={heroPoster.remote}
+              localSrc={heroPoster.local}
               alt={vn.title}
               sexual={vn.image_sexual ?? null}
               className="aspect-[2/3] w-full rounded-xl shadow-card"
             />
+            {inCol && egsPosterHas && (
+              <div className="flex items-center justify-between gap-2 text-[10px]">
+                <span className="inline-flex items-center gap-1 text-muted">
+                  {t.detail.cover}
+                  <SourceTag used={heroResolved.used} fellBack={heroResolved.fellBack} />
+                </span>
+                <SourceSwitcher
+                  vnId={vn.id}
+                  field="image"
+                  current={sourcePref.image ?? 'auto'}
+                  vndbAvailable={vndbPosterHas}
+                  egsAvailable={egsPosterHas}
+                />
+              </div>
+            )}
           </div>
 
           <div className="z-10 flex flex-col gap-3 pt-32 md:pt-44">
@@ -192,15 +247,35 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <dd className="font-semibold">{vn.platforms.slice(0, 10).join(', ')}</dd>
                 </div>
               )}
-              {!!vn.developers?.length && (
+              {(brandResolved.value || vn.developers?.length) && (
                 <div className="col-span-2 sm:col-span-3">
-                  <dt className="label">{t.detail.developers}</dt>
+                  <dt className="label inline-flex items-center">
+                    {t.detail.developers}
+                    <SourceTag used={brandResolved.used} fellBack={brandResolved.fellBack} />
+                    {inCol && egsRow?.brand_name && (
+                      <span className="ml-2">
+                        <SourceSwitcher
+                          vnId={vn.id}
+                          field="brand"
+                          current={sourcePref.brand ?? 'auto'}
+                          vndbAvailable={vndbDevs.length > 0}
+                          egsAvailable={!!egsRow.brand_name}
+                        />
+                      </span>
+                    )}
+                  </dt>
                   <dd className="flex flex-wrap gap-2 font-semibold">
-                    {vn.developers.map((d) => (
-                      <Link key={d.id} href={`/producer/${d.id}`} className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent">
-                        {d.name}
-                      </Link>
-                    ))}
+                    {brandResolved.used === 'egs' && egsRow?.brand_name ? (
+                      <span className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs">
+                        {egsRow.brand_name}
+                      </span>
+                    ) : (
+                      vn.developers?.map((d) => (
+                        <Link key={d.id} href={`/producer/${d.id}`} className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent">
+                          {d.name}
+                        </Link>
+                      ))
+                    )}
                   </dd>
                 </div>
               )}
@@ -280,10 +355,24 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        {vn.description && (
+        {descResolved.value && (
           <div className="border-t border-border px-6 py-6 md:px-8">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
-            <p className="whitespace-pre-wrap leading-relaxed text-white/85">{cleanDesc(vn.description)}</p>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-muted">
+                {t.detail.synopsis}
+                <SourceTag used={descResolved.used} fellBack={descResolved.fellBack} />
+              </h3>
+              {inCol && (
+                <SourceSwitcher
+                  vnId={vn.id}
+                  field="description"
+                  current={sourcePref.description ?? 'auto'}
+                  vndbAvailable={!!vn.description}
+                  egsAvailable={!!egsRow?.description}
+                />
+              )}
+            </div>
+            <p className="whitespace-pre-wrap leading-relaxed text-white/85">{cleanDesc(descResolved.value)}</p>
           </div>
         )}
 

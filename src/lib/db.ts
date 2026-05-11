@@ -199,6 +199,26 @@ function open(): Database.Database {
   ensureColumn(db, 'owned_release', 'acquired_date', 'TEXT');
   ensureColumn(db, 'owned_release', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
 
+  // Richer EGS payload — added incrementally, all nullable so old rows are fine.
+  ensureColumn(db, 'egs_game', 'gamename_furigana', 'TEXT');
+  ensureColumn(db, 'egs_game', 'brand_id', 'INTEGER');
+  ensureColumn(db, 'egs_game', 'brand_name', 'TEXT');
+  ensureColumn(db, 'egs_game', 'model', 'TEXT');
+  ensureColumn(db, 'egs_game', 'description', 'TEXT');
+  ensureColumn(db, 'egs_game', 'image_url', 'TEXT');
+  ensureColumn(db, 'egs_game', 'local_image', 'TEXT');
+  ensureColumn(db, 'egs_game', 'okazu', 'INTEGER');
+  ensureColumn(db, 'egs_game', 'erogame', 'INTEGER');
+  ensureColumn(db, 'egs_game', 'raw_json', 'TEXT');
+
+  // Per-VN preference for which side wins for each field. Stored as JSON,
+  // e.g. {"description":"egs","image":"vndb"}. Missing keys = 'auto' (fallback).
+  ensureColumn(db, 'collection', 'source_pref', 'TEXT');
+
+  // Mark VNs that came from EGS (no VNDB id available) so we can skip
+  // VNDB-only operations gracefully.
+  ensureColumn(db, 'vn', 'egs_only', 'INTEGER NOT NULL DEFAULT 0');
+
   // Legacy migration: physical_location used to be a free-form string.
   // Convert any non-JSON value into a JSON array (split on commas).
   const legacy = db
@@ -396,6 +416,16 @@ export interface EgsRow {
   vn_id: string;
   egs_id: number | null;
   gamename: string | null;
+  gamename_furigana: string | null;
+  brand_id: number | null;
+  brand_name: string | null;
+  model: string | null;
+  description: string | null;
+  image_url: string | null;
+  local_image: string | null;
+  okazu: number | null;
+  erogame: number | null;
+  raw_json: string | null;
   median: number | null;
   average: number | null;
   dispersion: number | null;
@@ -424,13 +454,28 @@ export function getEgsForVns(vnIds: string[]): Map<string, EgsRow> {
   return out;
 }
 
-export function upsertEgsForVn(row: Omit<EgsRow, 'fetched_at'>): void {
+export function upsertEgsForVn(row: Omit<EgsRow, 'fetched_at' | 'local_image'> & { local_image?: string | null }): void {
   db.prepare(`
-    INSERT INTO egs_game (vn_id, egs_id, gamename, median, average, dispersion, count, sellday, playtime_median_minutes, source, fetched_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO egs_game (
+      vn_id, egs_id, gamename, gamename_furigana, brand_id, brand_name, model,
+      description, image_url, local_image, okazu, erogame, raw_json,
+      median, average, dispersion, count, sellday, playtime_median_minutes,
+      source, fetched_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(vn_id) DO UPDATE SET
       egs_id = excluded.egs_id,
       gamename = excluded.gamename,
+      gamename_furigana = excluded.gamename_furigana,
+      brand_id = excluded.brand_id,
+      brand_name = excluded.brand_name,
+      model = excluded.model,
+      description = excluded.description,
+      image_url = excluded.image_url,
+      local_image = COALESCE(excluded.local_image, egs_game.local_image),
+      okazu = excluded.okazu,
+      erogame = excluded.erogame,
+      raw_json = excluded.raw_json,
       median = excluded.median,
       average = excluded.average,
       dispersion = excluded.dispersion,
@@ -443,6 +488,16 @@ export function upsertEgsForVn(row: Omit<EgsRow, 'fetched_at'>): void {
     row.vn_id,
     row.egs_id,
     row.gamename,
+    row.gamename_furigana ?? null,
+    row.brand_id ?? null,
+    row.brand_name ?? null,
+    row.model ?? null,
+    row.description ?? null,
+    row.image_url ?? null,
+    row.local_image ?? null,
+    row.okazu ?? null,
+    row.erogame ?? null,
+    row.raw_json ?? null,
     row.median,
     row.average,
     row.dispersion,
@@ -454,8 +509,91 @@ export function upsertEgsForVn(row: Omit<EgsRow, 'fetched_at'>): void {
   );
 }
 
+export function setEgsLocalImage(vnId: string, localPath: string | null): void {
+  db.prepare('UPDATE egs_game SET local_image = ? WHERE vn_id = ?').run(localPath, vnId);
+}
+
 export function clearEgsForVn(vnId: string): void {
   db.prepare('DELETE FROM egs_game WHERE vn_id = ?').run(vnId);
+}
+
+export type SourceChoice = 'auto' | 'vndb' | 'egs';
+export type SourceField = 'title' | 'description' | 'image' | 'brand' | 'rating' | 'playtime';
+
+export type SourcePrefMap = Partial<Record<SourceField, SourceChoice>>;
+
+export function getSourcePref(vnId: string): SourcePrefMap {
+  const row = db
+    .prepare('SELECT source_pref FROM collection WHERE vn_id = ?')
+    .get(vnId) as { source_pref: string | null } | undefined;
+  if (!row?.source_pref) return {};
+  try {
+    const parsed = JSON.parse(row.source_pref) as unknown;
+    if (parsed && typeof parsed === 'object') return parsed as SourcePrefMap;
+  } catch {
+    // ignore — malformed JSON, treat as empty
+  }
+  return {};
+}
+
+/** Stamp a VN row with the `egs_only` flag (used for EGS-sourced synthetic entries). */
+export function markVnEgsOnly(vnId: string, egsOnly: boolean): void {
+  db.prepare('UPDATE vn SET egs_only = ? WHERE id = ?').run(egsOnly ? 1 : 0, vnId);
+}
+
+export function isEgsOnly(vnId: string): boolean {
+  const row = db.prepare('SELECT egs_only FROM vn WHERE id = ?').get(vnId) as { egs_only: number } | undefined;
+  return !!row?.egs_only;
+}
+
+/**
+ * Insert a minimal synthetic VN row driven by an EGS payload (no VNDB id available).
+ * Used by the "search from EGS" flow when a game isn't on VNDB.
+ * The synthetic id format is `egs:<numeric-id>`.
+ */
+export function upsertEgsOnlyVn(args: {
+  vnId: string;
+  title: string;
+  alttitle: string | null;
+  released: string | null;
+  description: string | null;
+  imageUrl: string | null;
+}): void {
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO vn (id, title, alttitle, image_url, image_thumb, image_sexual, image_violence,
+                    released, olang, languages, platforms, length_minutes, length, rating, votecount,
+                    description, developers, tags, screenshots, relations, raw, fetched_at, egs_only)
+    VALUES (?, ?, ?, ?, NULL, NULL, NULL,
+            ?, NULL, '[]', '[]', NULL, NULL, NULL, NULL,
+            ?, '[]', '[]', '[]', '[]', '{}', ?, 1)
+    ON CONFLICT(id) DO UPDATE SET
+      title = excluded.title,
+      alttitle = excluded.alttitle,
+      image_url = COALESCE(excluded.image_url, vn.image_url),
+      released = COALESCE(excluded.released, vn.released),
+      description = COALESCE(excluded.description, vn.description),
+      fetched_at = excluded.fetched_at,
+      egs_only = 1
+  `).run(
+    args.vnId,
+    args.title,
+    args.alttitle,
+    args.imageUrl,
+    args.released,
+    args.description,
+    now,
+  );
+}
+
+export function setSourcePref(vnId: string, prefs: SourcePrefMap): void {
+  // Drop "auto" keys to keep the JSON tidy — "auto" is the implicit default.
+  const cleaned: SourcePrefMap = {};
+  for (const [k, v] of Object.entries(prefs)) {
+    if (v && v !== 'auto') cleaned[k as SourceField] = v;
+  }
+  const payload = Object.keys(cleaned).length === 0 ? null : JSON.stringify(cleaned);
+  db.prepare('UPDATE collection SET source_pref = ? WHERE vn_id = ?').run(payload, vnId);
 }
 
 export function upsertCharacterImage(charId: string, url: string | null, localPath: string | null): void {

@@ -136,6 +136,7 @@ export const dictionaries = {
       platforms: 'Plateformes',
       studio: 'Studio',
       synopsis: 'Synopsis',
+      cover: 'Couverture',
       viewOnVndb: 'Voir sur VNDB ↗',
       openOnVndb: 'Ouvrir sur VNDB',
       notFoundTitle: 'VN introuvable',
@@ -386,6 +387,12 @@ export const dictionaries = {
       screenshots: "Captures d'écran",
     },
     cardAdd: 'Ajouter',
+    sourcePref: {
+      auto: 'Auto',
+      vndb: 'VNDB',
+      egs: 'EGS',
+      hint: 'Choisir la source d\'affichage pour ce champ (auto = VNDB en priorité, EGS en secours).',
+    },
     egs: {
       section: 'ErogameScape',
       openOnEgs: 'Voir sur EGS',
@@ -732,6 +739,7 @@ export const dictionaries = {
       platforms: 'Platforms',
       studio: 'Studio',
       synopsis: 'Synopsis',
+      cover: 'Cover',
       viewOnVndb: 'View on VNDB ↗',
       openOnVndb: 'Open on VNDB',
       notFoundTitle: 'VN not found',
@@ -982,6 +990,12 @@ export const dictionaries = {
       screenshots: 'Screenshots',
     },
     cardAdd: 'Add',
+    sourcePref: {
+      auto: 'Auto',
+      vndb: 'VNDB',
+      egs: 'EGS',
+      hint: 'Pick which source to display for this field (auto = VNDB first, EGS as fallback).',
+    },
     egs: {
       section: 'ErogameScape',
       openOnEgs: 'View on EGS',
@@ -1328,6 +1342,7 @@ export const dictionaries = {
       platforms: 'プラットフォーム',
       studio: 'スタジオ',
       synopsis: 'あらすじ',
+      cover: 'カバー',
       viewOnVndb: 'VNDB で見る ↗',
       openOnVndb: 'VNDB で開く',
       notFoundTitle: 'VN が見つかりません',
@@ -1578,6 +1593,12 @@ export const dictionaries = {
       screenshots: 'スクリーンショット',
     },
     cardAdd: '追加',
+    sourcePref: {
+      auto: '自動',
+      vndb: 'VNDB',
+      egs: 'EGS',
+      hint: 'このフィールドの表示ソースを選択（自動 = VNDB 優先・EGS で補完）。',
+    },
     egs: {
       section: 'ErogameScape',
       openOnEgs: 'EGS で見る',
