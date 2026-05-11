@@ -94,7 +94,6 @@ export function SortableGrid({ items, onReorder }: Props) {
 function SortableCard({ item, isDragGhost }: { item: CollectionItem; isDragGhost: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
-    // Slightly longer animation than the default — feels more like iOS app jiggle reordering.
     transition: { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
   });
   const style = {
@@ -104,17 +103,8 @@ function SortableCard({ item, isDragGhost }: { item: CollectionItem; isDragGhost
   return (
     <div
       ref={setNodeRef}
-      style={{
-        ...style,
-        // Per-card animation delay so the jiggle is out of phase — same trick
-        // iOS uses. The hash is stable so the staggering looks deterministic.
-        ['--wig-delay' as never]: `${(item.id.length * 37) % 800}ms`,
-      }}
-      className={`group/sortable relative ${
-        isDragging
-          ? 'opacity-30 saturate-50'
-          : 'animate-wiggle origin-center [animation-delay:var(--wig-delay)]'
-      }`}
+      style={style}
+      className={`group/sortable relative ${isDragging ? 'opacity-30 saturate-50' : ''}`}
     >
       <button
         type="button"

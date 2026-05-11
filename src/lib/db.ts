@@ -252,6 +252,36 @@ function open(): Database.Database {
     );
   }
 
+  // Legacy migration: EGS-only synthetic ids used `egs:NNN` (colon). The
+  // colon breaks Next.js' dynamic-route matcher — a request for /vn/egs:894
+  // arrives at the server as `params.id = 'egs%3A894'`, which fails the
+  // /^egs_\d+$/ check and triggers a 404. Convert every reference to use an
+  // underscore. Runs once and is idempotent.
+  const legacyEgs = db
+    .prepare(`SELECT id FROM vn WHERE id LIKE 'egs:%'`)
+    .all() as { id: string }[];
+  if (legacyEgs.length > 0) {
+    const fix = db.transaction(() => {
+      for (const { id } of legacyEgs) {
+        const fixed = `egs_${id.slice(4)}`;
+        db.prepare('UPDATE vn SET id = ? WHERE id = ?').run(fixed, id);
+        // FKs aren't ON UPDATE CASCADE in the legacy schema, so update each side.
+        db.prepare('UPDATE collection SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE egs_game SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE vn_quote SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE owned_release SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE vn_route SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE series_vn SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+      }
+    });
+    db.pragma('foreign_keys = OFF');
+    try {
+      fix();
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
+  }
+
   global.__vndb_db = db;
   return db;
 }
@@ -647,7 +677,8 @@ export function isEgsOnly(vnId: string): boolean {
 /**
  * Insert a minimal synthetic VN row driven by an EGS payload (no VNDB id available).
  * Used by the "search from EGS" flow when a game isn't on VNDB.
- * The synthetic id format is `egs:<numeric-id>`.
+ * The synthetic id format is `egs_<numeric-id>` (underscore, not colon —
+ * a literal colon breaks Next.js dynamic-route matching).
  */
 export function upsertEgsOnlyVn(args: {
   vnId: string;

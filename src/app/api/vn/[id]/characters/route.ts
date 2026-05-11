@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!/^(v\d+|egs:\d+)$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  if (!/^(v\d+|egs_\d+)$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {
     const characters = await getCharactersForVn(id);
     const localPaths = getCharacterImages(characters.map((c) => c.id));

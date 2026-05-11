@@ -464,9 +464,9 @@ export async function resolveEgsForVn(
   }
 
   let egsId: number | null = null;
-  // Synthetic EGS-only VNs encode the EGS id in their vn_id (`egs:1234`) — short-circuit.
-  if (vnId.startsWith('egs:')) {
-    const parsed = Number(vnId.slice('egs:'.length));
+  // Synthetic EGS-only VNs encode the EGS id in their vn_id (`egs_1234`) — short-circuit.
+  if (vnId.startsWith('egs_')) {
+    const parsed = Number(vnId.slice('egs_'.length));
     if (Number.isInteger(parsed) && parsed > 0) egsId = parsed;
   } else {
     try {

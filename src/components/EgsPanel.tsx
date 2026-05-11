@@ -36,6 +36,13 @@ interface Props {
   myPlaytimeMinutes: number;
   /** Title to seed the manual search dialog with. */
   searchSeed?: string | null;
+  /**
+   * Server-rendered initial EGS payload, so the first paint already shows the
+   * data without a client fetch. Avoids "no match" flashing while the API
+   * round-trips, and works even if /api/vn/[id]/erogamescape is briefly slow.
+   */
+  initialGame?: EgsGame | null;
+  initialSource?: Source;
 }
 
 function fmtMinutes(m: number | null | undefined): string | null {
@@ -61,12 +68,17 @@ export function EgsPanel({
   vndbLengthMinutes,
   myPlaytimeMinutes,
   searchSeed,
+  initialGame = null,
+  initialSource = null,
 }: Props) {
   const t = useT();
   const toast = useToast();
-  const [loading, setLoading] = useState(true);
-  const [game, setGame] = useState<EgsGame | null>(null);
-  const [source, setSource] = useState<Source>(null);
+  // Hydrate from the server payload so first paint already shows the match.
+  // We skip the fetch-on-mount when initialGame is provided (the server just
+  // looked it up in the DB — a client round-trip would only re-confirm).
+  const [loading, setLoading] = useState(initialGame === null && initialSource === null);
+  const [game, setGame] = useState<EgsGame | null>(initialGame);
+  const [source, setSource] = useState<Source>(initialSource);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -89,9 +101,11 @@ export function EgsPanel({
   );
 
   useEffect(() => {
+    // Only auto-fetch when the server didn't pre-hydrate us.
+    if (initialGame !== null || initialSource !== null) return;
     setLoading(true);
     load().finally(() => setLoading(false));
-  }, [load]);
+  }, [load, initialGame, initialSource]);
 
   async function onRefresh() {
     setRefreshing(true);

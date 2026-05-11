@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!getCollectionItem(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
 
   const refresh = req.nextUrl.searchParams.get('refresh') === 'true';
-  const isEgsOnly = id.startsWith('egs:');
+  const isEgsOnly = id.startsWith('egs_');
 
   try {
     if (refresh && !isEgsOnly) {

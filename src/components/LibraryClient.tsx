@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Calendar, CheckSquare, FilterX, HardDriveDownload, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Calendar, CheckSquare, ChevronDown, Filter, FilterX, HardDriveDownload, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
@@ -229,6 +229,27 @@ export function LibraryClient() {
     router.replace(qs ? `/?${qs}` : '/', { scroll: false });
   }
 
+  // URL-driven checkbox filters. Each value is `'1'` (only-matching),
+  // `'0'` (only-NOT-matching), or absent (no filter). Names map to keys of
+  // `boolFilter` below. URL-persisted so they survive navigation.
+  const urlOnlyEgsOnly = searchParams.get('only_egs_only');
+  const urlMatchVndb = searchParams.get('match_vndb');
+  const urlMatchEgs = searchParams.get('match_egs');
+  const urlFanDisc = searchParams.get('fan_disc');
+  const urlHasNotes = searchParams.get('has_notes');
+  const urlHasCustomCover = searchParams.get('has_custom_cover');
+  const urlHasBanner = searchParams.get('has_banner');
+  const urlHasOwned = searchParams.get('has_owned');
+  const urlIsFavorite = searchParams.get('is_favorite');
+  const urlHasReleased = searchParams.get('has_released');
+  const urlIsNsfw = searchParams.get('is_nsfw');
+
+  function ternaryMatches(want: string | null, actual: boolean): boolean {
+    if (want === '1') return actual === true;
+    if (want === '0') return actual === false;
+    return true;
+  }
+
   // Hard-filter R18 entries when the user opts in. Done client-side so toggling
   // takes effect instantly without re-querying. Three independent signals,
   // OR'd — VNDB cover ratings alone miss eroge with SFW covers:
@@ -239,17 +260,50 @@ export function LibraryClient() {
   //      name — so tag names like "Sexual Content", "no ero", etc. don't
   //      get string-matched. We don't gate on `spoiler` here: a VN whose
   //      only ero tags are spoiler-flagged is still adult content.
+  function isAdult(it: CollectionItem): boolean {
+    if (isExplicit(it.image_sexual, settings.nsfwThreshold)) return true;
+    if (it.egs?.okazu === true) return true;
+    if ((it.tags ?? []).some((tag) => tag.category === 'ero')) return true;
+    return false;
+  }
+
   const visibleItems = useMemo(
     () =>
-      settings.hideSexual
-        ? items.filter((it) => {
-            if (isExplicit(it.image_sexual, settings.nsfwThreshold)) return false;
-            if (it.egs?.okazu === true) return false;
-            if ((it.tags ?? []).some((tag) => tag.category === 'ero')) return false;
-            return true;
-          })
-        : items,
-    [items, settings.hideSexual, settings.nsfwThreshold],
+      items.filter((it) => {
+        if (settings.hideSexual && isAdult(it)) return false;
+        if (!ternaryMatches(urlOnlyEgsOnly, it.id.startsWith('egs_'))) return false;
+        if (!ternaryMatches(urlMatchVndb, !it.id.startsWith('egs_'))) return false;
+        if (!ternaryMatches(urlMatchEgs, !!it.egs?.egs_id)) return false;
+        if (!ternaryMatches(urlFanDisc, (it.relations ?? []).some((r) => r.relation === 'orig'))) return false;
+        if (!ternaryMatches(urlHasNotes, !!(it.notes && it.notes.trim().length > 0))) return false;
+        if (!ternaryMatches(urlHasCustomCover, !!it.custom_cover)) return false;
+        if (!ternaryMatches(urlHasBanner, !!it.banner_image)) return false;
+        if (!ternaryMatches(urlIsFavorite, !!it.favorite)) return false;
+        if (!ternaryMatches(urlHasReleased, !!it.released)) return false;
+        if (!ternaryMatches(urlIsNsfw, isAdult(it))) return false;
+        // has_owned currently can't be filtered without joining owned_release;
+        // expose the checkbox but skip until we plumb the count through listCollection.
+        if (urlHasOwned === '1' || urlHasOwned === '0') {
+          // No data on the client yet — fall through (no-op). Future work.
+        }
+        return true;
+      }),
+    [
+      items,
+      settings.hideSexual,
+      settings.nsfwThreshold,
+      urlOnlyEgsOnly,
+      urlMatchVndb,
+      urlMatchEgs,
+      urlFanDisc,
+      urlHasNotes,
+      urlHasCustomCover,
+      urlHasBanner,
+      urlHasOwned,
+      urlIsFavorite,
+      urlHasReleased,
+      urlIsNsfw,
+    ],
   );
   const hiddenBySexualCount = items.length - visibleItems.length;
   const groups = useMemo(() => groupItems(visibleItems, group, t), [visibleItems, group, t]);
@@ -375,6 +429,44 @@ export function LibraryClient() {
             </button>
           )}
         </div>
+
+        <MoreFilters
+          values={{
+            match_vndb: urlMatchVndb,
+            match_egs: urlMatchEgs,
+            only_egs_only: urlOnlyEgsOnly,
+            fan_disc: urlFanDisc,
+            has_notes: urlHasNotes,
+            has_custom_cover: urlHasCustomCover,
+            has_banner: urlHasBanner,
+            is_favorite: urlIsFavorite,
+            has_released: urlHasReleased,
+            is_nsfw: urlIsNsfw,
+          }}
+          onCycle={(key) => {
+            const cur = searchParams.get(key);
+            const next = cur === '1' ? '0' : cur === '0' ? null : '1';
+            setParam(key, next);
+          }}
+          onReset={() => {
+            const keys = [
+              'match_vndb',
+              'match_egs',
+              'only_egs_only',
+              'fan_disc',
+              'has_notes',
+              'has_custom_cover',
+              'has_banner',
+              'is_favorite',
+              'has_released',
+              'is_nsfw',
+            ];
+            replaceParams((sp) => {
+              for (const k of keys) sp.delete(k);
+            });
+          }}
+          t={t}
+        />
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
@@ -537,6 +629,115 @@ export function LibraryClient() {
           onClear={clearSelection}
           onApplied={() => setRefreshKey((k) => k + 1)}
         />
+      )}
+    </div>
+  );
+}
+
+type FilterKey =
+  | 'match_vndb'
+  | 'match_egs'
+  | 'only_egs_only'
+  | 'fan_disc'
+  | 'has_notes'
+  | 'has_custom_cover'
+  | 'has_banner'
+  | 'is_favorite'
+  | 'has_released'
+  | 'is_nsfw';
+
+/**
+ * Collapsible panel of tri-state filter checkboxes (off / only-yes / only-no).
+ * Click cycles the value; each filter persists in the URL so the state
+ * survives navigation. Filters read from URL params on render in LibraryClient.
+ */
+function MoreFilters({
+  values,
+  onCycle,
+  onReset,
+  t,
+}: {
+  values: Record<FilterKey, string | null>;
+  onCycle: (key: FilterKey) => void;
+  onReset: () => void;
+  t: ReturnType<typeof useT>;
+}) {
+  const [open, setOpen] = useState(false);
+  const FILTERS: { key: FilterKey; label: string }[] = [
+    { key: 'match_vndb', label: t.library.moreFilters.matchVndb },
+    { key: 'match_egs', label: t.library.moreFilters.matchEgs },
+    { key: 'only_egs_only', label: t.library.moreFilters.onlyEgsOnly },
+    { key: 'fan_disc', label: t.library.moreFilters.fanDisc },
+    { key: 'is_favorite', label: t.library.moreFilters.isFavorite },
+    { key: 'has_notes', label: t.library.moreFilters.hasNotes },
+    { key: 'has_custom_cover', label: t.library.moreFilters.hasCustomCover },
+    { key: 'has_banner', label: t.library.moreFilters.hasBanner },
+    { key: 'has_released', label: t.library.moreFilters.hasReleased },
+    { key: 'is_nsfw', label: t.library.moreFilters.isNsfw },
+  ];
+  const activeCount = FILTERS.filter((f) => values[f.key] === '1' || values[f.key] === '0').length;
+
+  return (
+    <div className="mt-3 rounded-lg border border-border bg-bg-card/40">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-3 py-2 text-xs uppercase tracking-wider text-muted hover:text-white"
+      >
+        <span className="inline-flex items-center gap-2">
+          <Filter className="h-3 w-3" aria-hidden />
+          {t.library.moreFilters.title}
+          {activeCount > 0 && (
+            <span className="rounded-full bg-accent/20 px-1.5 text-[10px] font-bold text-accent">
+              {activeCount}
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <div className="border-t border-border px-3 py-3">
+          <p className="mb-2 text-[10px] text-muted/80">{t.library.moreFilters.hint}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {FILTERS.map(({ key, label }) => {
+              const v = values[key];
+              const active = v === '1' || v === '0';
+              const tone = v === '1' ? 'yes' : v === '0' ? 'no' : 'off';
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onCycle(key)}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+                    tone === 'yes'
+                      ? 'border-status-completed bg-status-completed/15 text-status-completed'
+                      : tone === 'no'
+                        ? 'border-status-dropped bg-status-dropped/15 text-status-dropped'
+                        : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+                  }`}
+                  title={t.library.moreFilters.cycleHint}
+                >
+                  <span className="font-bold tabular-nums">
+                    {tone === 'yes' ? '✓' : tone === 'no' ? '✗' : '○'}
+                  </span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {activeCount > 0 && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="mt-3 text-[10px] text-muted hover:text-status-dropped"
+            >
+              {t.library.moreFilters.resetAll}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

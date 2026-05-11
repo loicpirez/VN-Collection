@@ -730,6 +730,9 @@ export interface VndbUlistEntry {
 }
 
 const ULIST_FIELDS = [
+  // Top-level `id` IS the VN id (per VNDB docs: "Visual novel ID."). It is
+  // always selected and the only place the id appears — VNDB silently
+  // ignores `vn.id` in the fields list and won't echo it back.
   'id',
   'added',
   'voted',

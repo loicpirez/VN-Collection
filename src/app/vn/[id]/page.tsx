@@ -77,8 +77,12 @@ async function loadVn(id: string): Promise<{ vn: CollectionItem | null; error: s
 }
 
 export default async function VnDetail({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  if (!/^(v\d+|egs:\d+)$/i.test(id)) notFound();
+  const { id: rawId } = await params;
+  // Next gives us URL-encoded dynamic params (e.g. `egs%3A894`); decode once
+  // so the rest of the page doesn't care. Legacy `egs:NNNN` form is still
+  // accepted here — the startup migration converts them to `egs_NNNN`.
+  const id = decodeURIComponent(rawId).replace(/^egs:/, 'egs_');
+  if (!/^(v\d+|egs_\d+)$/i.test(id)) notFound();
   const t = await getDict();
   const { vn, error } = await loadVn(id);
   if (!vn) {
@@ -189,7 +193,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           <div className="z-10 flex flex-col gap-3 pt-32 md:pt-44">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <MatchBadges egsOnly={vn.id.startsWith('egs:')} egs={egsRow} t={t} />
+                <MatchBadges egsOnly={vn.id.startsWith('egs_')} egs={egsRow} t={t} />
                 <TitleLine title={vn.title} alttitle={vn.alttitle} />
               </div>
               {status && <StatusBadge status={status} />}
@@ -365,7 +369,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
             relations={vn.relations.map((r) => ({ ...r, in_collection: isInCollection(r.id) }))}
           />
         )}
-        {!vn.id.startsWith('egs:') && <VndbStatusPanel vnId={vn.id} />}
+        {!vn.id.startsWith('egs_') && <VndbStatusPanel vnId={vn.id} />}
         <EgsPanel
           vnId={vn.id}
           vndbRating={vn.rating ?? null}
@@ -373,6 +377,22 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           vndbLengthMinutes={vn.length_minutes ?? null}
           myPlaytimeMinutes={vn.playtime_minutes ?? 0}
           searchSeed={vn.alttitle?.trim() || vn.title}
+          initialGame={
+            egsRow?.egs_id
+              ? {
+                  id: egsRow.egs_id,
+                  gamename: egsRow.gamename ?? '',
+                  median: egsRow.median,
+                  average: egsRow.average,
+                  dispersion: egsRow.dispersion,
+                  count: egsRow.count,
+                  sellday: egsRow.sellday,
+                  playtime_median_minutes: egsRow.playtime_median_minutes,
+                  url: `https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${egsRow.egs_id}`,
+                }
+              : null
+          }
+          initialSource={egsRow?.source ?? null}
         />
         <EgsRichDetails vnId={vn.id} />
         <CharactersSection vnId={vn.id} />

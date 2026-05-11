@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 export async function PATCH(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { ids?: unknown };
   const ids = Array.isArray(body.ids)
-    ? body.ids.filter((id): id is string => typeof id === 'string' && /^(v\d+|egs:\d+)$/i.test(id))
+    ? body.ids.filter((id): id is string => typeof id === 'string' && /^(v\d+|egs_\d+)$/i.test(id))
     : null;
   if (!ids || ids.length === 0) {
     return NextResponse.json({ error: 'ids must be a non-empty array of VN ids' }, { status: 400 });

@@ -22,7 +22,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!game) {
     return NextResponse.json({ error: 'EGS game not found' }, { status: 404 });
   }
-  const vnId = `egs:${egsId}`;
+  // URL-safe synthetic id. We used to use `egs:NNN` but a literal colon in the
+  // path breaks Next.js' dynamic-route matcher (`params.id` arrives as
+  // `egs%3A894`, which fails our /^egs_\d+$/ check). Underscore avoids the
+  // dance entirely. Existing rows are migrated at DB startup.
+  const vnId = `egs_${egsId}`;
   upsertEgsOnlyVn({
     vnId,
     title: game.gamename || `EGS #${egsId}`,
