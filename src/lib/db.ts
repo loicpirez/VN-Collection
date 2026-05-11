@@ -155,6 +155,11 @@ function open(): Database.Database {
       fetched_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS app_setting (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS egs_game (
       vn_id      TEXT PRIMARY KEY REFERENCES vn(id) ON DELETE CASCADE,
       egs_id     INTEGER,
@@ -534,6 +539,23 @@ export function getSourcePref(vnId: string): SourcePrefMap {
     // ignore — malformed JSON, treat as empty
   }
   return {};
+}
+
+/** Read a free-form app setting (used for the user-settable VNDB token, etc.). */
+export function getAppSetting(key: string): string | null {
+  const row = db.prepare('SELECT value FROM app_setting WHERE key = ?').get(key) as { value: string | null } | undefined;
+  return row?.value ?? null;
+}
+
+export function setAppSetting(key: string, value: string | null): void {
+  if (value == null || value.length === 0) {
+    db.prepare('DELETE FROM app_setting WHERE key = ?').run(key);
+    return;
+  }
+  db.prepare(`
+    INSERT INTO app_setting (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(key, value);
 }
 
 /** Stamp a VN row with the `egs_only` flag (used for EGS-sourced synthetic entries). */

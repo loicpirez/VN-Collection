@@ -8,6 +8,7 @@ import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
 import { BulkActionBar } from './BulkActionBar';
 import { useT } from '@/lib/i18n/client';
+import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
 import type { CollectionItem, ProducerStat, SeriesRow, Stats } from '@/lib/types';
 
@@ -96,6 +97,7 @@ export function LibraryClient() {
     return () => clearTimeout(handle);
   }, [qInput, urlQ, setParam]);
 
+  const { settings } = useDisplaySettings();
   const [items, setItems] = useState<CollectionItem[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, byStatus: [], playtime_minutes: 0 });
   const [producers, setProducers] = useState<ProducerStat[]>([]);
@@ -205,7 +207,17 @@ export function LibraryClient() {
     router.replace(qs ? `/?${qs}` : '/', { scroll: false });
   }
 
-  const groups = useMemo(() => groupItems(items, group, t), [items, group, t]);
+  // Hard-filter R18 entries when the user opts in. Done client-side so toggling
+  // takes effect instantly without re-querying.
+  const visibleItems = useMemo(
+    () =>
+      settings.hideSexual
+        ? items.filter((it) => !isExplicit(it.image_sexual, settings.nsfwThreshold))
+        : items,
+    [items, settings.hideSexual, settings.nsfwThreshold],
+  );
+  const hiddenBySexualCount = items.length - visibleItems.length;
+  const groups = useMemo(() => groupItems(visibleItems, group, t), [visibleItems, group, t]);
 
   return (
     <div>
@@ -405,31 +417,40 @@ export function LibraryClient() {
             <Search className="h-4 w-4" /> {t.library.empty.cta}
           </Link>
         </div>
-      ) : group === 'none' ? (
-        <Grid
-          items={items}
-          selectMode={selectMode}
-          selected={selected}
-          onToggle={toggleSelected}
-        />
       ) : (
-        <div className="space-y-10">
-          {groups.map((g) => (
-            <section key={g.key}>
-              <h2 className="mb-3 flex items-center gap-2 text-base font-bold">
-                {group === 'tag' && <TagsIcon className="h-4 w-4 text-accent" aria-hidden />}
-                {g.label}
-                <span className="text-xs font-normal text-muted">{g.items.length}</span>
-              </h2>
-              <Grid
-                items={g.items}
-                selectMode={selectMode}
-                selected={selected}
-                onToggle={toggleSelected}
-              />
-            </section>
-          ))}
-        </div>
+        <>
+          {hiddenBySexualCount > 0 && (
+            <div className="mb-4 rounded-md border border-border bg-bg-elev/30 px-3 py-2 text-[11px] text-muted">
+              {t.settings.hideSexualNote.replace('{count}', String(hiddenBySexualCount))}
+            </div>
+          )}
+          {group === 'none' ? (
+            <Grid
+              items={visibleItems}
+              selectMode={selectMode}
+              selected={selected}
+              onToggle={toggleSelected}
+            />
+          ) : (
+            <div className="space-y-10">
+              {groups.map((g) => (
+                <section key={g.key}>
+                  <h2 className="mb-3 flex items-center gap-2 text-base font-bold">
+                    {group === 'tag' && <TagsIcon className="h-4 w-4 text-accent" aria-hidden />}
+                    {g.label}
+                    <span className="text-xs font-normal text-muted">{g.items.length}</span>
+                  </h2>
+                  <Grid
+                    items={g.items}
+                    selectMode={selectMode}
+                    selected={selected}
+                    onToggle={toggleSelected}
+                  />
+                </section>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {selectMode && selected.size > 0 && (

@@ -12,6 +12,11 @@ export interface DisplaySettings {
    * VNDB returns romaji as `title` by default; this flips the display.
    */
   preferNativeTitle: boolean;
+  /**
+   * Hard-hide cards / list rows whose image is flagged as sexual past the NSFW
+   * threshold. Stronger than `blurR18` — those entries don't render at all.
+   */
+  hideSexual: boolean;
 }
 
 const DEFAULTS: DisplaySettings = {
@@ -20,6 +25,7 @@ const DEFAULTS: DisplaySettings = {
   nsfwThreshold: 1.5,
   preferLocalImages: true,
   preferNativeTitle: false,
+  hideSexual: false,
 };
 
 const STORAGE_KEY = 'vn_display_settings_v1';

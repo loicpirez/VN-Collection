@@ -1,15 +1,64 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Settings2, X } from 'lucide-react';
+import { KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
+import { useToast } from './ToastProvider';
+
+interface ServerSettings {
+  vndb_token: { hasToken: boolean; preview: string | null; envFallback: boolean };
+  random_quote_source: 'all' | 'mine';
+}
 
 export function SettingsButton() {
   const t = useT();
+  const toast = useToast();
   const { settings, set, reset } = useDisplaySettings();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [server, setServer] = useState<ServerSettings | null>(null);
+  const [tokenInput, setTokenInput] = useState('');
+  const [savingToken, setSavingToken] = useState(false);
+
+  const loadServer = useCallback(async () => {
+    try {
+      const r = await fetch('/api/settings', { cache: 'no-store' });
+      if (!r.ok) return;
+      setServer((await r.json()) as ServerSettings);
+    } catch {
+      // ignore — modal still works for client-side prefs
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      loadServer();
+      setTokenInput('');
+    }
+  }, [open, loadServer]);
+
+  async function saveServer(patch: Partial<{ vndb_token: string | null; random_quote_source: 'all' | 'mine' }>) {
+    try {
+      const r = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      toast.success(t.toast.saved);
+      await loadServer();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function onSaveToken() {
+    setSavingToken(true);
+    await saveServer({ vndb_token: tokenInput.trim() || null });
+    setSavingToken(false);
+    setTokenInput('');
+  }
 
   useEffect(() => {
     setMounted(true);
@@ -103,6 +152,78 @@ export function SettingsButton() {
                     value={settings.preferNativeTitle}
                     onChange={(v) => set('preferNativeTitle', v)}
                   />
+                  <Toggle
+                    label={t.settings.hideSexual}
+                    description={t.settings.hideSexualDesc}
+                    value={settings.hideSexual}
+                    onChange={(v) => set('hideSexual', v)}
+                  />
+                </div>
+
+                <div className="mt-6 border-t border-border pt-5">
+                  <h3 className="mb-1 inline-flex items-center gap-2 text-sm font-bold">
+                    <KeyRound className="h-4 w-4 text-accent" aria-hidden />
+                    {t.settings.vndbTokenTitle}
+                  </h3>
+                  <p className="mb-3 text-[11px] text-muted">{t.settings.vndbTokenDesc}</p>
+                  {server?.vndb_token.hasToken && server.vndb_token.preview && (
+                    <p className="mb-2 text-[11px] text-muted">
+                      {t.settings.vndbTokenCurrent}: <span className="font-mono text-accent">{server.vndb_token.preview}</span>
+                    </p>
+                  )}
+                  {server?.vndb_token.hasToken && !server.vndb_token.preview && server.vndb_token.envFallback && (
+                    <p className="mb-2 text-[11px] text-muted">{t.settings.vndbTokenEnv}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      className="input flex-1"
+                      placeholder="vndb-..."
+                      value={tokenInput}
+                      onChange={(e) => setTokenInput(e.target.value)}
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={onSaveToken}
+                      disabled={savingToken || !tokenInput.trim()}
+                    >
+                      {savingToken ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {t.common.save}
+                    </button>
+                  </div>
+                  {server?.vndb_token.hasToken && (
+                    <button
+                      type="button"
+                      className="mt-2 text-[11px] text-muted hover:text-status-dropped"
+                      onClick={() => saveServer({ vndb_token: null })}
+                    >
+                      {t.settings.vndbTokenClear}
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-6 border-t border-border pt-5">
+                  <h3 className="mb-1 text-sm font-bold">{t.settings.randomQuoteTitle}</h3>
+                  <p className="mb-3 text-[11px] text-muted">{t.settings.randomQuoteDesc}</p>
+                  <div className="inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]">
+                    {(['all', 'mine'] as const).map((opt) => {
+                      const active = server?.random_quote_source === opt || (!server && opt === 'all');
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => saveServer({ random_quote_source: opt })}
+                          className={`rounded px-2 py-1 transition-colors ${
+                            active ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+                          }`}
+                        >
+                          {opt === 'all' ? t.settings.randomQuoteAll : t.settings.randomQuoteMine}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="mt-6 flex justify-between">

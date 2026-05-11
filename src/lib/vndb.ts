@@ -125,8 +125,26 @@ const RELEASE_FIELDS = [
 
 const QUOTE_FIELDS = ['quote', 'score', 'vn{id,title}', 'character{id,name,original}'].join(', ');
 
+/**
+ * VNDB token resolver: prefers the DB-stored value (set via UI) and falls back
+ * to the env var. Allows users running the app locally to add their token
+ * without editing `.env.local`.
+ */
+function readVndbToken(): string | null {
+  try {
+    // Require lazily so importing `vndb.ts` from non-Node contexts (build) doesn't fault.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getAppSetting } = require('./db') as typeof import('./db');
+    const stored = getAppSetting('vndb_token');
+    if (stored && stored.trim()) return stored.trim();
+  } catch {
+    // DB unavailable in this context — fall through to env.
+  }
+  return process.env.VNDB_TOKEN ?? null;
+}
+
 function authHeaders(): Record<string, string> {
-  const token = process.env.VNDB_TOKEN;
+  const token = readVndbToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Token ${token}`;
   return headers;
@@ -607,6 +625,23 @@ export async function getRandomQuote(): Promise<VndbQuote | null> {
   return r.results[0] ?? null;
 }
 
+/**
+ * Pull a random quote drawn from a specific set of VN ids (the user's collection).
+ * VNDB's quote endpoint supports `random: 1` with arbitrary filters, but the JSON
+ * shape capping `or` clauses at ~50 predicates means we batch.
+ */
+export async function getRandomQuoteForVns(vnIds: string[]): Promise<VndbQuote | null> {
+  const filtered = vnIds.filter((id) => /^v\d+$/i.test(id));
+  if (filtered.length === 0) return null;
+  // Random-pick one VN and ask EGS-style: VNDB rejects huge `or` blocks otherwise.
+  const pick = filtered[Math.floor(Math.random() * filtered.length)];
+  const r = await vndbPost<VndbResponse<VndbQuote>>('/quote', {
+    filters: ['and', ['random', '=', 1], ['vn', '=', ['id', '=', pick]]],
+    fields: QUOTE_FIELDS,
+  }, TTL.quotesRandom);
+  return r.results[0] ?? null;
+}
+
 export async function getQuotesForVn(vnId: string, { results = 20 } = {}): Promise<VndbQuote[]> {
   if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbResponse<VndbQuote>>('/quote', {
@@ -641,7 +676,7 @@ export interface VndbAuthInfo {
 }
 
 export async function getAuthInfo(): Promise<VndbAuthInfo | null> {
-  const token = process.env.VNDB_TOKEN;
+  const token = readVndbToken();
   if (!token) return null;
   try {
     return await vndbGet<VndbAuthInfo>('/authinfo', TTL.authInfo);
