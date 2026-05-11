@@ -12,8 +12,10 @@
 Owner runs it locally on `localhost:3000`. No login, no cloud, no telemetry.
 
 **What it does**: mirrors metadata + images from [VNDB Kana API v2](https://api.vndb.org/kana)
+**and** [ErogameScape's public SQL form](https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/)
 into a local SQLite, lets the owner annotate every VN (status, playtime, notes,
-edition, physical location, banner …), groups them in series, and surfaces stats.
+edition inventory, banner …), groups them in series / routes, and surfaces stats.
+VNDB and EGS coexist per-field via a source-resolve helper (auto / VNDB / EGS).
 
 **Non-goals**: multi-user, public sharing, mobile-first, accessibility-first.
 We optimise for the desktop power-user use case (large screens, mouse, French/English/Japanese).
@@ -93,10 +95,12 @@ vndb-collection/
 │       ├── vndb.ts                     # VNDB API client (server-only)
 │       ├── vndb-cache.ts               # cachedFetch with TTL + ETag + dedupe
 │       ├── vndb-types.ts               # types shared with client (no 'server-only')
+│       ├── erogamescape.ts             # EGS SQL form client (server-only) + resolveEgsForVn
+│       ├── source-resolve.ts           # resolveField helper (VNDB-first auto-fallback)
 │       ├── types.ts                    # Domain types
 │       ├── files.ts                    # storage bucket helpers (download, save, read)
-│       ├── assets.ts                   # ensureLocalImagesForVn (covers + sc + release art)
-│       ├── settings/client.tsx         # DisplaySettingsProvider (localStorage)
+│       ├── assets.ts                   # ensureLocalImagesForVn (covers + sc + release art + char + EGS)
+│       ├── settings/client.tsx         # DisplaySettingsProvider (localStorage) + resolveTitles
 │       └── i18n/
 │           ├── dictionaries.ts         # FR / EN / JA, type-safe via Widen<>
 │           ├── server.ts               # getLocale() + getDict() (cookie-based)
@@ -155,6 +159,17 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET | `/api/vndb/quote/random` | Random quote (TTL = 0, never cached) |
 | GET | `/api/vndb/cache` | Cache stats |
 | DELETE | `/api/vndb/cache` (`?mode=expired|prefix&prefix=…`) | Invalidate cache |
+| GET/PATCH | `/api/settings` | Read / update app settings (`vndb_token`, `random_quote_source`) |
+| GET | `/api/wishlist` | Authenticated wishlist (ulist label 5) + in_collection + EGS hint |
+| DELETE | `/api/wishlist/[id]` | Remove a VN from VNDB wishlist (PATCH labels_unset=[5]) |
+| GET/POST/PATCH/DELETE | `/api/collection/[id]/owned-releases` | Per-edition inventory (location, edition_label, condition, price, dumped…) |
+| GET/PATCH | `/api/collection/[id]/source-pref` | Per-VN / per-field source preference JSON |
+| GET/POST/DELETE | `/api/vn/[id]/erogamescape` | Resolve / link / unlink an EGS game for a VN |
+| GET | `/api/vn/[id]/erogamescape?refresh=1` | Force re-fetch of every EGS column |
+| POST | `/api/egs/[id]/add` | EGS-only add → synthetic VN id `egs:<id>` + collection insert |
+| GET | `/api/egs/search?q=&limit=` | EGS candidate search (used by /search and the manual-link picker) |
+| GET | `/api/route/[routeId]` / PATCH / DELETE | Per-route management |
+| GET/POST/PATCH | `/api/collection/[id]/routes` | Per-VN routes (autocomplete from cast) |
 
 ---
 
@@ -177,7 +192,34 @@ vn               PK id           — VNDB id (v123)
 collection       PK vn_id (FK→vn)
                   status, user_rating, playtime_minutes, started_date, finished_date,
                   notes, favorite, location, edition_type, edition_label,
-                  physical_location, added_at, updated_at
+                  physical_location, box_type, download_url, dumped,
+                  source_pref (JSON: {description:'egs', image:'vndb', …}),
+                  added_at, updated_at
+
+owned_release    PK (vn_id, release_id)
+                  notes, location, physical_location (JSON), box_type, edition_label,
+                  condition, price_paid, currency, acquired_date, dumped, added_at
+
+vn_route         PK id (auto)
+                  vn_id, name, completed, completed_date, order_index, notes,
+                  created_at, updated_at
+
+character_image  PK char_id           — local mirror of EGS character covers
+                  url, local_path, fetched_at
+
+egs_game         PK vn_id (FK→vn)
+                  egs_id, gamename, gamename_furigana, brand_id, brand_name,
+                  model, description, image_url, local_image, okazu, erogame,
+                  raw_json (full gamelist row), median, average, dispersion,
+                  count, sellday, playtime_median_minutes,
+                  source ('extlink' | 'search' | 'manual' | NULL when no match),
+                  fetched_at
+
+app_setting      PK key
+                  value                — used for vndb_token, random_quote_source
+
+vn (additions)   egs_only INT — synthetic entries from /api/egs/[id]/add use
+                  id format `egs:<numeric>` and skip VNDB-only operations
 
 producer         PK id           — VNDB producer id (p123)
                   name, original, lang, type, description, aliases (JSON),
@@ -192,6 +234,79 @@ vndb_cache       PK cache_key
                   body, etag, last_modified, fetched_at, expires_at
                   cache_key format: "{METHOD path}|{METHOD}|{sha1(body)[:16]}"
 ```
+
+---
+
+## ErogameScape integration (lib/erogamescape.ts)
+
+EGS exposes a **public SQL form** at
+`erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/sql_for_erogamer.php`.
+No API key, no auth — we just send a polite `User-Agent` and cache every
+response (CSV) in the shared `vndb_cache` table.
+
+### Resolution path
+
+1. `resolveEgsForVn(vnId)` short-circuits for `egs:<id>` synthetic VNs
+   (the encoded number IS the EGS id).
+2. Otherwise it pulls the VN's releases via VNDB, scans each release's
+   `extlinks` array for `ErogameScape` → that's `source: 'extlink'`.
+3. If no extlink, name-search EGS using the VN's alttitle (Japanese) then
+   title → `source: 'search'`.
+4. The user can override via the manual picker → `source: 'manual'`.
+5. The full result (including a `null` "no match") is persisted in
+   `egs_game` so cards / library / stats can read it without re-hitting EGS.
+
+### SQL conventions
+
+- `SELECT *` on `gamelist`, then a separate `brandlist` lookup. JOINs are
+  brittle across EGS forks — separate queries degrade more gracefully.
+- Description fallback chain: `gamelist.comment / prelude / outline`,
+  then `shoukai_for_game.shoukai`, then `gamelist_introduction.introduction`.
+  Whatever sticks first.
+- Median playtime is computed locally from `user_review_for_game.play_time`
+  (sorted, pick the middle).
+- Every fetched row is stored as `raw_json` so we can mine extra columns
+  later without re-querying EGS.
+
+### Synthetic VN ids (`egs:<id>`)
+
+- Used by `/api/egs/[id]/add` when a game isn't on VNDB.
+- `markVnEgsOnly()` flips `vn.egs_only = 1`; `isEgsOnly()` checks it.
+- VNDB helpers (`getCharactersForVn`, `getReleasesForVn`, `getQuotesForVn`)
+  early-return `[]` for any id not starting with `v` so server pages
+  render cleanly for EGS-only entries.
+- `loadVn()` on `/vn/[id]` skips the VNDB refresh for `isEgsOnly(id)` VNs.
+
+### Per-field source preference
+
+- Stored in `collection.source_pref` as JSON: `{ description: 'egs', image: 'auto' }`.
+- Resolver: `resolveField(vndb, egs, pref)` (lib/source-resolve.ts).
+  - Explicit pref (`vndb` | `egs`) wins when that side has content.
+  - Falls back to the other side if the preferred is empty.
+  - `auto` (default) = VNDB first with EGS fallback.
+- UI: `<FieldCompare>` (text) + `<CoverCompare>` (image) provide a
+  "Compare" toggle that expands into a side-by-side view with per-column
+  "Use this" actions.
+
+### Footguns
+
+- **EGS schema isn't 100% standardised** — some columns may be missing
+  on certain mirrors. Always `?? null` and verify with the raw row.
+- **CSV parser** is RFC 4180 compliant for the cases EGS produces; if a
+  row has embedded newlines inside a quoted cell, the existing parser
+  handles it — don't simplify to `text.split('\n')`.
+- **Random quote with random=1 + filters**: VNDB allows it but limits
+  the predicate count. `getRandomQuoteForVns()` picks one random VN
+  client-side and queries for one quote on that single VN.
+
+---
+
+## VNDB token resolution
+
+`readVndbToken()` in `lib/vndb.ts` checks the DB (`app_setting.vndb_token`)
+first, then `process.env.VNDB_TOKEN`. The Settings panel can set / clear
+the DB value at runtime; a Node-side `require('./db')` is used inside the
+helper so importing `vndb.ts` from edge / build contexts doesn't break.
 
 ---
 
