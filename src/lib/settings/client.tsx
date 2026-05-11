@@ -1,6 +1,9 @@
 'use client';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+const COOKIE_NAME = 'vn_display_settings_v1';
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
+
 export interface DisplaySettings {
   hideImages: boolean;
   blurR18: boolean;
@@ -58,8 +61,20 @@ interface Ctx {
 
 const SettingsContext = createContext<Ctx | null>(null);
 
-export function DisplaySettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<DisplaySettings>(DEFAULTS);
+export function DisplaySettingsProvider({
+  children,
+  initial,
+}: {
+  children: ReactNode;
+  /**
+   * Server-supplied seed read from the `vn_display_settings_v1` cookie.
+   * Lets the server render images already hidden / blurred when the user
+   * has those opted in — no flash of unhidden content before localStorage
+   * loads on the client.
+   */
+  initial?: Partial<DisplaySettings>;
+}) {
+  const [settings, setSettings] = useState<DisplaySettings>({ ...DEFAULTS, ...(initial ?? {}) });
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -79,6 +94,10 @@ export function DisplaySettingsProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      // Mirror to a cookie so the server can pre-hydrate on next navigation
+      // and avoid the "image flashes before hiding" issue.
+      const value = encodeURIComponent(JSON.stringify(settings));
+      document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
     } catch {
       // ignore
     }

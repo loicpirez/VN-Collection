@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Calendar, CheckSquare, ChevronDown, Filter, FilterX, HardDriveDownload, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Calendar, CheckSquare, ChevronDown, Filter, FilterX, GripVertical, HardDriveDownload, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
@@ -243,6 +243,7 @@ export function LibraryClient() {
   const urlIsFavorite = searchParams.get('is_favorite');
   const urlHasReleased = searchParams.get('has_released');
   const urlIsNsfw = searchParams.get('is_nsfw');
+  const urlIsNukige = searchParams.get('is_nukige');
 
   function ternaryMatches(want: string | null, actual: boolean): boolean {
     if (want === '1') return actual === true;
@@ -281,6 +282,16 @@ export function LibraryClient() {
         if (!ternaryMatches(urlIsFavorite, !!it.favorite)) return false;
         if (!ternaryMatches(urlHasReleased, !!it.released)) return false;
         if (!ternaryMatches(urlIsNsfw, isAdult(it))) return false;
+        // Nukige: a VN tagged "Nukige" on VNDB or rated hard on EGS's
+        // soft↔hard axis (≥ 4 out of 5). Tag name match is case-insensitive
+        // because VNDB capitalises it but locales vary.
+        if (!ternaryMatches(
+          urlIsNukige,
+          (it.tags ?? []).some((tag) => tag.name?.toLowerCase() === 'nukige') ||
+            (typeof it.egs?.median === 'number' &&
+              typeof (it.egs as unknown as { axis?: number }).axis === 'number' &&
+              ((it.egs as unknown as { axis?: number }).axis ?? 0) >= 4),
+        )) return false;
         // has_owned currently can't be filtered without joining owned_release;
         // expose the checkbox but skip until we plumb the count through listCollection.
         if (urlHasOwned === '1' || urlHasOwned === '0') {
@@ -303,6 +314,7 @@ export function LibraryClient() {
       urlIsFavorite,
       urlHasReleased,
       urlIsNsfw,
+      urlIsNukige,
     ],
   );
   const hiddenBySexualCount = items.length - visibleItems.length;
@@ -442,6 +454,7 @@ export function LibraryClient() {
             is_favorite: urlIsFavorite,
             has_released: urlHasReleased,
             is_nsfw: urlIsNsfw,
+            is_nukige: urlIsNukige,
           }}
           onCycle={(key) => {
             const cur = searchParams.get(key);
@@ -460,6 +473,7 @@ export function LibraryClient() {
               'is_favorite',
               'has_released',
               'is_nsfw',
+              'is_nukige',
             ];
             replaceParams((sp) => {
               for (const k of keys) sp.delete(k);
@@ -490,6 +504,18 @@ export function LibraryClient() {
           title={order === 'asc' ? t.library.sortAsc : t.library.sortDesc}
         >
           {order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+        </button>
+        {/* Quick toggle into / out of drag-reorder mode. Sets sort=custom which
+            unlocks the SortableGrid; clicking again drops back to the prior
+            sort (preserved via the default-sort setting). */}
+        <button
+          type="button"
+          className={`btn inline-flex items-center gap-1 ${sort === 'custom' ? 'btn-primary' : ''}`}
+          onClick={() => setParam('sort', sort === 'custom' ? null : 'custom')}
+          title={t.library.customSortHint}
+        >
+          <GripVertical className="h-4 w-4" />
+          {sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
         </button>
         <label className="flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupBy}</span>
@@ -644,7 +670,8 @@ type FilterKey =
   | 'has_banner'
   | 'is_favorite'
   | 'has_released'
-  | 'is_nsfw';
+  | 'is_nsfw'
+  | 'is_nukige';
 
 /**
  * Collapsible panel of tri-state filter checkboxes (off / only-yes / only-no).
@@ -674,6 +701,7 @@ function MoreFilters({
     { key: 'has_banner', label: t.library.moreFilters.hasBanner },
     { key: 'has_released', label: t.library.moreFilters.hasReleased },
     { key: 'is_nsfw', label: t.library.moreFilters.isNsfw },
+    { key: 'is_nukige', label: t.library.moreFilters.isNukige },
   ];
   const activeCount = FILTERS.filter((f) => values[f.key] === '1' || values[f.key] === '0').length;
 

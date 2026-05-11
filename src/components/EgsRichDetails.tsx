@@ -74,7 +74,10 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
   const min2 = n(raw.min2);
   const median2 = n(raw.median2);
   const sales = n(raw.hanbaisuu);
-  const fun = n(raw.time_before_understanding_fun_median);
+  // EGS stores all playtime fields in HOURS — convert to minutes so the
+  // fmtMin helper (which assumes minutes) renders e.g. "2h" instead of "2m".
+  const funHours = n(raw.time_before_understanding_fun_median);
+  const fun = funHours != null ? Math.round(funHours * 60) : null;
   const povA = n(raw.total_pov_enrollment_of_a);
   const povB = n(raw.total_pov_enrollment_of_b);
   const povC = n(raw.total_pov_enrollment_of_c);

@@ -308,12 +308,26 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
     dispersion: toNumber(row.stdev ?? undefined),
     count: toNumber(row.count2 ?? undefined),
     sellday: row.sellday ?? null,
-    playtime_median_minutes: playMin ?? toNumber(row.total_play_time_median ?? undefined),
+    playtime_median_minutes: playMin ?? egsHoursToMinutes(row.total_play_time_median ?? undefined),
     url: `${EGS_BASE}/game.php?game=${id}`,
     raw: row,
   };
   writeCache(cacheK, game);
   return game;
+}
+
+/**
+ * EGS stores all playtime values in HOURS, not minutes. This bit me — the
+ * column name doesn't disclose the unit and the values look fine as minutes
+ * for short games. Verified empirically:
+ *   - v55797 Gals Fiction: VNDB length_minutes=750 (12h30m), EGS=11 → 11h ≈ 12h ✓
+ *   - v4327 KaRaKaN: EGS=2 → 2h (plausible for a short fan disc)
+ * Multiply at fetch so the rest of the codebase keeps thinking in minutes.
+ */
+function egsHoursToMinutes(v: string | null | undefined): number | null {
+  const n = toNumber(v ?? undefined);
+  if (n == null) return null;
+  return Math.round(n * 60);
 }
 
 /**
@@ -341,8 +355,10 @@ async function fetchTopLongComment(id: number): Promise<string | null> {
 }
 
 async function fetchEgsPlaytimeMedian(id: number): Promise<number | null> {
-  // userreview holds per-review play_time in minutes; take the median across non-null entries.
-  const sql = `SELECT play_time FROM userreview WHERE id = ${id} AND play_time IS NOT NULL ORDER BY play_time`;
+  // userreview's column is `total_play_time` (in HOURS), not `play_time` —
+  // the latter doesn't exist on EGS. We compute the median across non-null
+  // entries client-side and convert to minutes for our internal storage.
+  const sql = `SELECT total_play_time FROM userreview WHERE id = ${id} AND total_play_time IS NOT NULL AND total_play_time > 0 ORDER BY total_play_time`;
   let rows: string[][];
   try {
     rows = await fetchTable(sql);
@@ -356,7 +372,8 @@ async function fetchEgsPlaytimeMedian(id: number): Promise<number | null> {
     .filter((n): n is number => n != null && n > 0);
   if (values.length === 0) return null;
   const mid = Math.floor(values.length / 2);
-  return values.length % 2 ? values[mid] : Math.round((values[mid - 1] + values[mid]) / 2);
+  const medianHours = values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
+  return Math.round(medianHours * 60);
 }
 
 const ROW_TTL_MS = 7 * 24 * 3600 * 1000;

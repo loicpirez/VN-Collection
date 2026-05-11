@@ -92,6 +92,7 @@ export const dictionaries = {
         hasBanner: 'Bannière personnalisée',
         hasReleased: 'Avec date de sortie',
         isNsfw: 'Contenu R18',
+        isNukige: 'Nukige (pur ero)',
         resetAll: 'Réinitialiser tous les filtres avancés',
       },
       filterByProducer: 'Filtrer par éditeur',
@@ -131,6 +132,8 @@ export const dictionaries = {
       },
       customSortHint: 'Glisse une carte sur une autre pour réordonner. L\'ordre est enregistré automatiquement.',
       customSortReset: 'Réinitialiser l\'ordre',
+      customSortEnter: 'Réordonner',
+      customSortExit: 'Terminer',
     },
     search: {
       placeholder: 'Rechercher un Visual Novel sur VNDB (titre, ou ID v17…)',
@@ -448,6 +451,7 @@ export const dictionaries = {
       useVndb: 'Garder VNDB',
       useEgs: 'Garder EGS',
       useAuto: 'Auto (VNDB d\'abord)',
+      setDefault: 'Par défaut',
     },
     vndbStatus: {
       section: 'Statut VNDB',
@@ -796,6 +800,7 @@ export const dictionaries = {
         hasBanner: 'Custom banner',
         hasReleased: 'Has release date',
         isNsfw: 'R18 content',
+        isNukige: 'Nukige (pure ero)',
         resetAll: 'Reset all advanced filters',
       },
       filterByProducer: 'Filter by publisher',
@@ -835,6 +840,8 @@ export const dictionaries = {
       },
       customSortHint: 'Drag a card onto another to reorder. The new order is saved automatically.',
       customSortReset: 'Reset order',
+      customSortEnter: 'Reorder',
+      customSortExit: 'Done',
     },
     search: {
       placeholder: 'Search a Visual Novel on VNDB (title, or ID v17…)',
@@ -1152,6 +1159,7 @@ export const dictionaries = {
       useVndb: 'Use VNDB',
       useEgs: 'Use EGS',
       useAuto: 'Auto (VNDB first)',
+      setDefault: 'Set as default',
     },
     vndbStatus: {
       section: 'VNDB status',
@@ -1500,6 +1508,7 @@ export const dictionaries = {
         hasBanner: 'バナー差し替え済',
         hasReleased: '発売日あり',
         isNsfw: 'R18 コンテンツ',
+        isNukige: '抜きゲー（純エロ）',
         resetAll: '詳細フィルターをリセット',
       },
       filterByProducer: 'メーカーで絞り込み',
@@ -1539,6 +1548,8 @@ export const dictionaries = {
       },
       customSortHint: 'カードをドラッグして並べ替え。順序は自動的に保存されます。',
       customSortReset: '順序をリセット',
+      customSortEnter: '並べ替え',
+      customSortExit: '完了',
     },
     search: {
       placeholder: 'VNDB を検索（タイトルまたは ID v17…）',
@@ -1856,6 +1867,7 @@ export const dictionaries = {
       useVndb: 'VNDB を採用',
       useEgs: 'EGS を採用',
       useAuto: '自動（VNDB 優先）',
+      setDefault: '既定にする',
     },
     vndbStatus: {
       section: 'VNDB ステータス',

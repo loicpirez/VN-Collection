@@ -282,6 +282,29 @@ function open(): Database.Database {
     }
   }
 
+  // Legacy migration: `egs_game.playtime_median_minutes` used to store the
+  // raw value from EGS (which is in HOURS, not minutes). Fix by ×60. Marker
+  // stored in app_setting so this runs at most once.
+  //
+  // Defensive cap: only multiply rows where the existing value is at most
+  // ~50 000 (any real EGS median is < 1 000 hours, so a value bigger than
+  // that has already been migrated and must NOT be multiplied again — even
+  // if the marker check above somehow misses).
+  const migrated = (db
+    .prepare(`SELECT value FROM app_setting WHERE key = 'egs_playtime_hours_to_minutes_v1'`)
+    .get() as { value: string | null } | undefined)?.value;
+  if (migrated !== '1') {
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE egs_game
+        SET playtime_median_minutes = playtime_median_minutes * 60
+        WHERE playtime_median_minutes IS NOT NULL
+          AND playtime_median_minutes <= 50000
+      `).run();
+      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_playtime_hours_to_minutes_v1', '1')`).run();
+    })();
+  }
+
   global.__vndb_db = db;
   return db;
 }

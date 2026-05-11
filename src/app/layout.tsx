@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { BarChart3, Bookmark, Database, Heart, Library, Search, Sparkles, Tags, Trophy } from 'lucide-react';
 import './globals.css';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
-import { DisplaySettingsProvider } from '@/lib/settings/client';
+import { DisplaySettingsProvider, type DisplaySettings } from '@/lib/settings/client';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { SettingsButton } from '@/components/SettingsButton';
 import { QuoteFooter } from '@/components/QuoteFooter';
@@ -18,14 +19,35 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+/**
+ * Read the display-settings cookie set by the client provider. Lets us
+ * server-render images already hidden / blurred when the user opted in —
+ * fixes the "image flashes before hiding" gap between SSR and hydration.
+ * Returns `undefined` (the provider uses its DEFAULTS) when the cookie is
+ * absent or unparseable.
+ */
+async function readInitialDisplaySettings(): Promise<Partial<DisplaySettings> | undefined> {
+  const store = await cookies();
+  const raw = store.get('vn_display_settings_v1')?.value;
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(raw)) as Partial<DisplaySettings>;
+    if (parsed && typeof parsed === 'object') return parsed;
+  } catch {
+    // ignore — malformed cookie
+  }
+  return undefined;
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   const dict = await getDict();
+  const initialSettings = await readInitialDisplaySettings();
   return (
     <html lang={locale}>
       <body className="min-h-screen bg-bg text-white">
         <I18nProvider locale={locale} dict={dict}>
-          <DisplaySettingsProvider>
+          <DisplaySettingsProvider initial={initialSettings}>
             <ToastProvider>
             <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur">
               <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-6 py-3">

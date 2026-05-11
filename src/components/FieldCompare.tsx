@@ -1,7 +1,7 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, GitCompareArrows, Loader2 } from 'lucide-react';
+import { Check, GitCompareArrows, Loader2, PinIcon } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { resolveField, type SourceChoice } from '@/lib/source-resolve';
@@ -73,31 +73,92 @@ export function FieldCompare({
     }
   }
 
+  // Display tab — purely visual; flipping it doesn't touch source_pref unless
+  // the user explicitly clicks "Use as default".
+  const [activeTab, setActiveTab] = useState<'vndb' | 'egs'>(resolved.used === 'egs' ? 'egs' : 'vndb');
+  useEffect(() => {
+    setActiveTab(resolved.used === 'egs' ? 'egs' : 'vndb');
+    // resolved.used is recomputed each render, but `optimistic` is the actual
+    // pref signal — re-sync when the pref changes.
+  }, [resolved.used]);
+
   if (!compareOpen) {
+    const shownText = activeTab === 'egs' ? (egs ?? '') : (vndb ?? '');
+    const isPinned = optimistic === activeTab || (optimistic === 'auto' && resolved.used === activeTab);
     return (
       <div>
-        <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <span className="text-[11px] uppercase tracking-wider text-muted">
             {label}
-            {resolved.used && resolved.used !== (optimistic === 'egs' ? 'egs' : 'vndb') && (
+            {resolved.used && resolved.used !== activeTab && (
               <span className="ml-2 rounded bg-bg-elev/60 px-1.5 py-0.5 align-middle text-[9px] normal-case tracking-normal text-muted">
                 ↪ {resolved.used.toUpperCase()}
               </span>
             )}
           </span>
-          {canCompare && (
-            <button
-              type="button"
-              onClick={() => setCompareOpen(true)}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
-              title={t.compare.compareTitle}
-            >
-              <GitCompareArrows className="h-3 w-3" aria-hidden />
-              {t.compare.compareBtn}
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {canCompare && (
+              <div
+                role="tablist"
+                aria-label={label}
+                className="inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[10px]"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'vndb'}
+                  onClick={() => setActiveTab('vndb')}
+                  disabled={!vndbHas}
+                  className={`rounded px-2 py-0.5 ${
+                    activeTab === 'vndb'
+                      ? 'bg-accent text-bg font-bold'
+                      : 'text-muted hover:text-white disabled:cursor-not-allowed disabled:opacity-40'
+                  }`}
+                >
+                  VNDB
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'egs'}
+                  onClick={() => setActiveTab('egs')}
+                  disabled={!egsHas}
+                  className={`rounded px-2 py-0.5 ${
+                    activeTab === 'egs'
+                      ? 'bg-accent text-bg font-bold'
+                      : 'text-muted hover:text-white disabled:cursor-not-allowed disabled:opacity-40'
+                  }`}
+                >
+                  EGS
+                </button>
+              </div>
+            )}
+            {canCompare && !isPinned && (
+              <button
+                type="button"
+                onClick={() => persist(activeTab)}
+                disabled={pending}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                title={t.compare.setDefault}
+              >
+                {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <PinIcon className="h-3 w-3" aria-hidden />}
+                {t.compare.setDefault}
+              </button>
+            )}
+            {canCompare && (
+              <button
+                type="button"
+                onClick={() => setCompareOpen(true)}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+                title={t.compare.compareTitle}
+              >
+                <GitCompareArrows className="h-3 w-3" aria-hidden />
+                {t.compare.compareBtn}
+              </button>
+            )}
+          </div>
         </div>
-        {resolved.value && <Body text={resolved.value} />}
+        {shownText && <Body text={shownText} />}
       </div>
     );
   }
