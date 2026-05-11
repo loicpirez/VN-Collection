@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Mic2 } from 'lucide-react';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
+import { getVasForCharacter } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 
@@ -58,6 +59,7 @@ export default async function CharacterPage({ params }: { params: Promise<{ id: 
     (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9),
   );
   const visibleTraits = char.traits.filter((tr) => tr.spoiler === 0 && !tr.sexual);
+  const vas = getVasForCharacter(id);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -127,6 +129,37 @@ export default async function CharacterPage({ params }: { params: Promise<{ id: 
               </Link>
             ))}
           </div>
+        </section>
+      )}
+
+      {vas.length > 0 && (
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+          <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+            <Mic2 className="h-4 w-4 text-accent" /> {t.characters.alsoVoicedBy}
+          </h3>
+          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+            {vas.map((va) => (
+              <li key={va.sid}>
+                <Link
+                  href={`/staff/${va.sid}`}
+                  className="block rounded-lg border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent"
+                >
+                  <div className="font-bold">{va.va_name}</div>
+                  {va.va_original && va.va_original !== va.va_name && (
+                    <div className="text-[10px] text-muted">{va.va_original}</div>
+                  )}
+                  <div className="mt-1 text-[11px] text-muted">
+                    {va.vns.length} {t.staff.vnCount}
+                    {va.vns.some((v) => v.in_collection) && (
+                      <span className="ml-1 rounded bg-accent/15 px-1 text-[9px] font-bold uppercase tracking-wider text-accent">
+                        ★
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

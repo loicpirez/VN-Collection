@@ -23,6 +23,8 @@ import { HeroBanner } from '@/components/HeroBanner';
 import { DownloadAssetsButton } from '@/components/DownloadAssetsButton';
 import { MarkdownView } from '@/components/MarkdownNotes';
 import { CharactersSection } from '@/components/CharactersSection';
+import { CastSection } from '@/components/CastSection';
+import { StaffSection } from '@/components/StaffSection';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
 import { QuotesSection } from '@/components/QuotesSection';
@@ -420,6 +422,8 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         />
         <EgsRichDetails vnId={vn.id} />
         <CharactersSection vnId={vn.id} />
+        {(vn.va ?? []).length > 0 && <CastSection va={vn.va ?? []} />}
+        {(vn.staff ?? []).length > 0 && <StaffSection staff={vn.staff ?? []} />}
         {inCol && <OwnedEditionsSection vnId={vn.id} />}
         <ReleasesSection vnId={vn.id} inCollection={inCol} />
         <QuotesSection vnId={vn.id} />
