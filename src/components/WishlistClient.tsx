@@ -1,7 +1,8 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Heart, KeyRound, Loader2, RefreshCw, Search } from 'lucide-react';
+import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { VnCard } from './VnCard';
+import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 
 interface WishlistItem {
@@ -28,6 +29,7 @@ interface WishlistItem {
 
 export function WishlistClient() {
   const t = useT();
+  const toast = useToast();
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,6 +37,9 @@ export function WishlistClient() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [hideOwned, setHideOwned] = useState(true);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -71,6 +76,43 @@ export function WishlistClient() {
     await load();
     setRefreshing(false);
   }, [load]);
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+    setSelectMode(false);
+  }
+
+  async function deleteSelected() {
+    if (selected.size === 0) return;
+    const list = Array.from(selected);
+    if (!confirm(t.wishlist.deleteConfirm.replace('{count}', String(list.length)))) return;
+    setDeleting(true);
+    let removed = 0;
+    let failed = 0;
+    for (const id of list) {
+      try {
+        const r = await fetch(`/api/wishlist/${id}`, { method: 'DELETE' });
+        if (r.ok) removed++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+    setItems((prev) => prev.filter((it) => !selected.has(it.vn.id)));
+    clearSelection();
+    setDeleting(false);
+    if (failed > 0) toast.error(t.wishlist.deleteFailed.replace('{count}', String(failed)));
+    if (removed > 0) toast.success(t.wishlist.deleteDone.replace('{count}', String(removed)));
+  }
 
   const ownedCount = items.filter((it) => it.in_collection).length;
   const filtered = items.filter((it) => {
@@ -151,6 +193,19 @@ export function WishlistClient() {
               <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
               {t.wishlist.refresh}
             </button>
+            <button
+              type="button"
+              onClick={() => (selectMode ? clearSelection() : setSelectMode(true))}
+              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
+                selectMode
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border bg-bg-elev/50 text-muted hover:border-accent hover:text-accent'
+              }`}
+              title={t.wishlist.selectMode}
+            >
+              <CheckSquare className="h-3 w-3" aria-hidden />
+              {selectMode ? t.wishlist.exitSelect : t.wishlist.selectMode}
+            </button>
             <span className="ml-auto text-xs text-muted">
               {t.wishlist.ownedSummary
                 .replace('{owned}', String(ownedCount))
@@ -165,6 +220,9 @@ export function WishlistClient() {
               <VnCard
                 key={it.id}
                 enableAdd
+                selectable={selectMode}
+                selected={selected.has(it.vn.id)}
+                onSelect={() => toggleSelected(it.vn.id)}
                 onAdded={(id) =>
                   setItems((prev) =>
                     prev.map((x) => (x.vn.id === id ? { ...x, in_collection: true } : x)),
@@ -187,6 +245,30 @@ export function WishlistClient() {
               />
             ))}
           </div>
+
+          {selectMode && selected.size > 0 && (
+            <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-border bg-bg-card px-4 py-2 shadow-card">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-muted">{t.wishlist.selectedCount.replace('{count}', String(selected.size))}</span>
+                <button
+                  type="button"
+                  onClick={deleteSelected}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1 rounded-md bg-status-dropped px-3 py-1 text-xs font-bold text-bg disabled:opacity-50"
+                >
+                  {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                  {t.wishlist.deleteSelected}
+                </button>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  className="text-xs text-muted hover:text-white"
+                >
+                  {t.common.cancel}
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -2,9 +2,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Boxes, ExternalLink, Globe, Languages, Mic2, Package, Shield } from 'lucide-react';
 import { getRelease, type VndbRelease } from '@/lib/vndb';
+import { getOwnedRelease, isInCollection } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { LangFlag } from '@/components/LangFlag';
+import { ReleaseOwnedToggle } from '@/components/ReleaseOwnedToggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +62,15 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
   const pub = release.producers.filter((p) => p.publisher);
   const firstVnId = release.vns[0]?.id;
   const res = fmtRes(release.resolution);
+
+  // Owned-inventory shortcut: if any of the VNs linked to this release is in
+  // the user's collection, surface a quick toggle/edit panel here.
+  const ownedContexts = release.vns
+    .filter((v) => isInCollection(v.id))
+    .map((v) => ({
+      vnId: v.id,
+      owned: getOwnedRelease(v.id, release.id),
+    }));
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -260,6 +271,24 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
         <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
           {error}
         </div>
+      )}
+
+      {ownedContexts.length > 0 && (
+        <section className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
+            {t.releases.inventoryShortcut}
+          </h2>
+          <div className="space-y-2">
+            {ownedContexts.map((ctx) => (
+              <ReleaseOwnedToggle
+                key={ctx.vnId}
+                vnId={ctx.vnId}
+                releaseId={release!.id}
+                initialOwned={!!ctx.owned}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       <section className="rounded-2xl border border-border bg-bg-card p-6">

@@ -541,6 +541,67 @@ export function getSourcePref(vnId: string): SourcePrefMap {
   return {};
 }
 
+export interface DbStatus {
+  db_path: string;
+  rows: { table: string; count: number }[];
+  egs_matched: number;
+  egs_unmatched: number;
+  cache_total: number;
+  cache_fresh: number;
+  cache_stale: number;
+  vndb_token: 'db' | 'env' | 'none';
+}
+
+/** Snapshot of local DB state for the /data status panel. */
+export function getDbStatus(): DbStatus {
+  const tables = [
+    'vn',
+    'collection',
+    'producer',
+    'series',
+    'series_vn',
+    'owned_release',
+    'vn_route',
+    'character_image',
+    'egs_game',
+    'vndb_cache',
+    'app_setting',
+  ];
+  const rows = tables.map((table) => ({
+    table,
+    count: (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n,
+  }));
+  const egsCounts = db
+    .prepare(`
+      SELECT
+        SUM(CASE WHEN egs_id IS NOT NULL THEN 1 ELSE 0 END) AS matched,
+        SUM(CASE WHEN egs_id IS NULL THEN 1 ELSE 0 END) AS unmatched
+      FROM egs_game
+    `)
+    .get() as { matched: number | null; unmatched: number | null };
+  const cacheCounts = db
+    .prepare(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN expires_at >= ? THEN 1 ELSE 0 END) AS fresh,
+        SUM(CASE WHEN expires_at < ? THEN 1 ELSE 0 END) AS stale
+      FROM vndb_cache
+    `)
+    .get(Date.now(), Date.now()) as { total: number; fresh: number | null; stale: number | null };
+  const dbToken = (db.prepare('SELECT value FROM app_setting WHERE key = ?').get('vndb_token') as { value: string | null } | undefined)?.value;
+  const tokenSource: 'db' | 'env' | 'none' = dbToken ? 'db' : process.env.VNDB_TOKEN ? 'env' : 'none';
+  return {
+    db_path: DB_PATH,
+    rows,
+    egs_matched: egsCounts.matched ?? 0,
+    egs_unmatched: egsCounts.unmatched ?? 0,
+    cache_total: cacheCounts.total ?? 0,
+    cache_fresh: cacheCounts.fresh ?? 0,
+    cache_stale: cacheCounts.stale ?? 0,
+    vndb_token: tokenSource,
+  };
+}
+
 /** Read a free-form app setting (used for the user-settable VNDB token, etc.). */
 export function getAppSetting(key: string): string | null {
   const row = db.prepare('SELECT value FROM app_setting WHERE key = ?').get(key) as { value: string | null } | undefined;

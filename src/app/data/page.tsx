@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { Database, Download, FileJson, FileUp, HardDrive } from 'lucide-react';
+import { Activity, Database, Download, FileJson, FileUp, HardDrive, KeyRound, Sparkles } from 'lucide-react';
+import { getDbStatus } from '@/lib/db';
+import { getAuthInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { ImportPanel } from '@/components/ImportPanel';
 
@@ -7,6 +9,14 @@ export const dynamic = 'force-dynamic';
 
 export default async function DataPage() {
   const t = await getDict();
+  const status = getDbStatus();
+  let auth: { id: string; username: string; permissions: string[] } | null = null;
+  let authError: string | null = null;
+  try {
+    auth = await getAuthInfo();
+  } catch (e) {
+    authError = (e as Error).message;
+  }
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <header className="flex items-center gap-3">
@@ -16,6 +26,63 @@ export default async function DataPage() {
           <p className="text-sm text-muted">{t.dataMgmt.subtitle}</p>
         </div>
       </header>
+
+      <section className="rounded-2xl border border-border bg-bg-card p-6">
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
+          <Activity className="h-5 w-5 text-accent" /> {t.dataMgmt.statusTitle}
+        </h2>
+        <p className="mb-4 text-xs text-muted">{t.dataMgmt.statusHint}</p>
+
+        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+          <StatCard label={t.dataMgmt.statusDbPath} value={status.db_path} mono />
+          <StatCard
+            label={t.dataMgmt.statusVndbAuth}
+            value={
+              auth
+                ? `${auth.username}`
+                : status.vndb_token === 'none'
+                  ? t.dataMgmt.statusVndbNone
+                  : t.dataMgmt.statusVndbInvalid
+            }
+            tone={auth ? 'good' : status.vndb_token === 'none' ? 'muted' : 'warn'}
+            sub={
+              auth
+                ? `${t.dataMgmt.statusVndbSource}: ${status.vndb_token === 'db' ? 'DB' : 'env'}`
+                : authError ?? undefined
+            }
+          />
+          <StatCard
+            label={
+              <span className="inline-flex items-center gap-1">
+                <Sparkles className="h-3 w-3 text-accent" /> {t.dataMgmt.statusEgs}
+              </span>
+            }
+            value={`${status.egs_matched} / ${status.egs_matched + status.egs_unmatched}`}
+            sub={t.dataMgmt.statusEgsHint}
+          />
+          <StatCard
+            label={t.dataMgmt.statusCache}
+            value={`${status.cache_fresh} ${t.dataMgmt.statusCacheFresh} · ${status.cache_stale} ${t.dataMgmt.statusCacheStale}`}
+            sub={`${status.cache_total} ${t.dataMgmt.statusCacheTotal}`}
+          />
+        </div>
+
+        <details className="rounded-lg border border-border bg-bg-elev/30 px-3 py-2 text-xs">
+          <summary className="cursor-pointer text-muted">
+            <KeyRound className="mr-1 inline h-3 w-3" /> {t.dataMgmt.statusRows}
+          </summary>
+          <table className="mt-2 w-full">
+            <tbody>
+              {status.rows.map((r) => (
+                <tr key={r.table} className="border-t border-border/40">
+                  <td className="py-1 font-mono text-muted">{r.table}</td>
+                  <td className="py-1 text-right font-bold tabular-nums">{r.count.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-6">
         <h2 className="mb-2 text-base font-bold">{t.dataMgmt.exportSectionTitle}</h2>
@@ -47,6 +114,36 @@ export default async function DataPage() {
           → <Link href="/" className="text-accent hover:underline">{t.dataMgmt.bulkLinkHint}</Link>
         </p>
       </section>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  sub,
+  tone,
+  mono,
+}: {
+  label: React.ReactNode;
+  value: string;
+  sub?: string;
+  tone?: 'good' | 'warn' | 'muted';
+  mono?: boolean;
+}) {
+  const valueColor =
+    tone === 'good'
+      ? 'text-status-completed'
+      : tone === 'warn'
+        ? 'text-status-dropped'
+        : tone === 'muted'
+          ? 'text-muted'
+          : 'text-white';
+  return (
+    <div className="rounded-lg border border-border bg-bg-elev/40 p-3">
+      <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
+      <div className={`mt-0.5 break-all text-sm font-bold ${valueColor} ${mono ? 'font-mono' : ''}`}>{value}</div>
+      {sub && <div className="mt-0.5 text-[10px] text-muted/80">{sub}</div>}
     </div>
   );
 }

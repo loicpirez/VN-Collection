@@ -785,3 +785,23 @@ export async function fetchAuthenticatedWishlist(): Promise<VndbUlistEntry[] | {
   }
   return out;
 }
+
+/**
+ * Remove a VN from the user's VNDB wishlist (label 5). Uses PATCH+labels_unset
+ * so any other labels the user attached to that VN survive.
+ */
+export async function removeFromVndbWishlist(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
+  const token = readVndbToken();
+  if (!token) return { needsAuth: true };
+  if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
+  const res = await fetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ labels_unset: [5] }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
+  }
+  return { ok: true };
+}
