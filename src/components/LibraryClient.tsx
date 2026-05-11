@@ -7,6 +7,7 @@ import { VnCard } from './VnCard';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
 import { BulkActionBar } from './BulkActionBar';
+import { SortableGrid } from './SortableGrid';
 import { useT } from '@/lib/i18n/client';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
@@ -480,27 +481,34 @@ export function LibraryClient() {
             </div>
           )}
           {group === 'none' ? (
-            <Grid
-              items={visibleItems}
-              selectMode={selectMode}
-              selected={selected}
-              onToggle={toggleSelected}
-              dragEnabled={sort === 'custom' && !selectMode}
-              onReorder={(orderedIds) => {
-                // Optimistic: reorder local state so the UI doesn't flicker.
-                const byId = new Map(items.map((it) => [it.id, it]));
-                const next = orderedIds.map((id) => byId.get(id)).filter((x): x is CollectionItem => !!x);
-                setItems(next);
-                fetch('/api/collection/order', {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ ids: orderedIds }),
-                }).catch(() => {
-                  // Best-effort — server-side reorder is non-fatal; the next fetch
-                  // will resync if it failed.
-                });
-              }}
-            />
+            sort === 'custom' && !selectMode ? (
+              <SortableGrid
+                items={visibleItems}
+                onReorder={(orderedIds) => {
+                  // Optimistic local reorder so the grid doesn't snap back while
+                  // the server roundtrip is in flight.
+                  const byId = new Map(items.map((it) => [it.id, it]));
+                  const next = orderedIds
+                    .map((id) => byId.get(id))
+                    .filter((x): x is CollectionItem => !!x);
+                  setItems(next);
+                  fetch('/api/collection/order', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: orderedIds }),
+                  }).catch(() => {
+                    // Best-effort — the next refresh will resync if it failed.
+                  });
+                }}
+              />
+            ) : (
+              <Grid
+                items={visibleItems}
+                selectMode={selectMode}
+                selected={selected}
+                onToggle={toggleSelected}
+              />
+            )
           ) : (
             <div className="space-y-10">
               {groups.map((g) => (
@@ -539,108 +547,42 @@ function Grid({
   selectMode = false,
   selected = new Set<string>(),
   onToggle,
-  dragEnabled = false,
-  onReorder,
 }: {
   items: CollectionItem[];
   selectMode?: boolean;
   selected?: Set<string>;
   onToggle?: (id: string) => void;
-  dragEnabled?: boolean;
-  onReorder?: (orderedIds: string[]) => void;
 }) {
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
-
-  function handleDrop(targetId: string) {
-    if (!draggingId || draggingId === targetId) return;
-    const fromIdx = items.findIndex((it) => it.id === draggingId);
-    const toIdx = items.findIndex((it) => it.id === targetId);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const next = items.slice();
-    const [moved] = next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, moved);
-    onReorder?.(next.map((it) => it.id));
-    setDraggingId(null);
-    setDragOverId(null);
-  }
-
   return (
     <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-      {items.map((it) => {
-        const isDragOver = dragEnabled && dragOverId === it.id && draggingId !== it.id;
-        const isDragging = dragEnabled && draggingId === it.id;
-        return (
-          <div
-            key={it.id}
-            draggable={dragEnabled}
-            onDragStart={
-              dragEnabled
-                ? (e) => {
-                    setDraggingId(it.id);
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', it.id);
-                  }
-                : undefined
-            }
-            onDragOver={
-              dragEnabled
-                ? (e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    if (dragOverId !== it.id) setDragOverId(it.id);
-                  }
-                : undefined
-            }
-            onDragLeave={dragEnabled ? () => setDragOverId((cur) => (cur === it.id ? null : cur)) : undefined}
-            onDrop={
-              dragEnabled
-                ? (e) => {
-                    e.preventDefault();
-                    handleDrop(it.id);
-                  }
-                : undefined
-            }
-            onDragEnd={
-              dragEnabled
-                ? () => {
-                    setDraggingId(null);
-                    setDragOverId(null);
-                  }
-                : undefined
-            }
-            className={`transition-transform ${
-              isDragging ? 'opacity-40 scale-95' : ''
-            } ${isDragOver ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg rounded-xl' : ''}`}
-          >
-            <VnCard
-              selectable={selectMode}
-              selected={selected.has(it.id)}
-              onSelect={() => onToggle?.(it.id)}
-              data={{
-                id: it.id,
-                title: it.title,
-                alttitle: it.alttitle,
-                poster: it.image_thumb || it.image_url,
-                localPoster: it.local_image_thumb || it.local_image,
-                customCover: it.custom_cover,
-                sexual: it.image_sexual,
-                released: it.released,
-                egs_median: it.egs?.median ?? null,
-                egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
-                rating: it.rating,
-                user_rating: it.user_rating,
-                playtime_minutes: it.playtime_minutes,
-                length_minutes: it.length_minutes,
-                status: it.status as Status | undefined,
-                favorite: it.favorite,
-                developers: it.developers,
-                isFanDisc: (it.relations ?? []).some((r) => r.relation === 'orig'),
-              }}
-            />
-          </div>
-        );
-      })}
+      {items.map((it) => (
+        <VnCard
+          key={it.id}
+          selectable={selectMode}
+          selected={selected.has(it.id)}
+          onSelect={() => onToggle?.(it.id)}
+          data={{
+            id: it.id,
+            title: it.title,
+            alttitle: it.alttitle,
+            poster: it.image_thumb || it.image_url,
+            localPoster: it.local_image_thumb || it.local_image,
+            customCover: it.custom_cover,
+            sexual: it.image_sexual,
+            released: it.released,
+            egs_median: it.egs?.median ?? null,
+            egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
+            rating: it.rating,
+            user_rating: it.user_rating,
+            playtime_minutes: it.playtime_minutes,
+            length_minutes: it.length_minutes,
+            status: it.status as Status | undefined,
+            favorite: it.favorite,
+            developers: it.developers,
+            isFanDisc: (it.relations ?? []).some((r) => r.relation === 'orig'),
+          }}
+        />
+      ))}
     </div>
   );
 }

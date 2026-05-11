@@ -32,6 +32,18 @@ const config: Config = {
       boxShadow: {
         card: '0 8px 30px rgba(0,0,0,.5)',
       },
+      keyframes: {
+        wiggle: {
+          // Subtle iPhone-style reorder jiggle — applied to every card while
+          // custom-sort is active. A small per-card animation-delay
+          // (set inline via --wig-delay) keeps them out of sync.
+          '0%, 100%': { transform: 'rotate(-0.6deg)' },
+          '50%': { transform: 'rotate(0.6deg)' },
+        },
+      },
+      animation: {
+        wiggle: 'wiggle 1.6s ease-in-out infinite',
+      },
     },
   },
   plugins: [],
