@@ -435,6 +435,13 @@ export const dictionaries = {
       predefHint: 'Label VNDB pré-défini (Playing, Finished, etc.).',
       customHint: 'Label personnalisé de ton profil VNDB.',
     },
+    matchBadges: {
+      viaExtlink: 'lien VNDB',
+      viaSearch: 'recherche',
+      viaManual: 'lié à la main',
+      noEgsMatch: 'pas de correspondance',
+      egsOnlyEntry: 'entrée EGS uniquement',
+    },
     egsRich: {
       title: 'EGS — infos complémentaires',
       demo: 'Démo',
@@ -1108,6 +1115,13 @@ export const dictionaries = {
       predefHint: 'Predefined VNDB label (Playing, Finished, etc.).',
       customHint: 'Custom label from your VNDB profile.',
     },
+    matchBadges: {
+      viaExtlink: 'via VNDB link',
+      viaSearch: 'fuzzy match',
+      viaManual: 'manually linked',
+      noEgsMatch: 'no match',
+      egsOnlyEntry: 'EGS-only entry',
+    },
     egsRich: {
       title: 'EGS — extra info',
       demo: 'Demo',
@@ -1780,6 +1794,13 @@ export const dictionaries = {
       currentVote: 'VNDB に保存された得点',
       predefHint: 'VNDB の定義済みラベル（Playing、Finished など）。',
       customHint: 'VNDB プロフィールのカスタムラベル。',
+    },
+    matchBadges: {
+      viaExtlink: 'VNDB リンク経由',
+      viaSearch: '名前一致',
+      viaManual: '手動リンク',
+      noEgsMatch: '未一致',
+      egsOnlyEntry: 'EGS 専用エントリ',
     },
     egsRich: {
       title: 'EGS — 追加情報',

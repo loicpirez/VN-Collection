@@ -248,10 +248,12 @@ async function fetchOne(sql: string): Promise<Record<string, string | null> | nu
  *     long comment as the EGS "description" instead.
  *   - Some columns return PostgreSQL `t` / `f` for booleans; toBool handles both.
  */
-export async function fetchEgsGame(id: number): Promise<EgsGame | null> {
+export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): Promise<EgsGame | null> {
   const cacheK = cacheKey('game', String(id));
-  const cached = readCache<EgsGame | null>(cacheK);
-  if (cached !== null) return cached;
+  if (!opts.force) {
+    const cached = readCache<EgsGame | null>(cacheK);
+    if (cached !== null) return cached;
+  }
 
   // `g.*` pulls every gamelist column (creater, comike, hanbaisuu, gyutto_id,
   // dmm, dlsite_id, erogetrailers, genre, axis_of_soft_or_hard, max2, min2,
@@ -484,14 +486,17 @@ export async function resolveEgsForVn(
   let game: EgsGame | null = null;
   let source: 'extlink' | 'search' | null = null;
   if (egsId != null) {
-    game = await fetchEgsGame(egsId);
+    // Bypass the per-EGS-id cache too when force is set, so users can re-pull
+    // data after EGS publishes updates (median changed, new playtime entries,
+    // newly added trailer URL, etc.).
+    game = await fetchEgsGame(egsId, { force });
     if (game) source = 'extlink';
   }
   if (!game && allowSearch) {
     const item = getCollectionItem(vnId);
     const probe = item?.alttitle?.trim() || item?.title?.trim();
     if (probe) {
-      game = await searchEgsByName(probe);
+      game = await searchEgsByName(probe, { force });
       if (game) source = 'search';
     }
   }
@@ -516,12 +521,14 @@ export function clearEgsCache(vnId: string): void {
 }
 
 /** Best-effort name search when no VNDB extlink is available. Returns the top hit. */
-export async function searchEgsByName(query: string): Promise<EgsGame | null> {
+export async function searchEgsByName(query: string, opts: { force?: boolean } = {}): Promise<EgsGame | null> {
   const trimmed = query.trim();
   if (!trimmed) return null;
   const cacheK = cacheKey('search', trimmed.toLowerCase());
-  const cached = readCache<EgsGame | null>(cacheK);
-  if (cached !== null) return cached;
+  if (!opts.force) {
+    const cached = readCache<EgsGame | null>(cacheK);
+    if (cached !== null) return cached;
+  }
   const escaped = trimmed.replace(/['%\\]/g, '');
   // Search the native (gamename) and the kana reading (furigana) so romaji /
   // hiragana queries still hit. count2 NULLs are pushed to the bottom by
@@ -545,7 +552,7 @@ export async function searchEgsByName(query: string): Promise<EgsGame | null> {
   }
   const id = toNumber(rows[1][0]);
   if (id == null) return null;
-  const game = await fetchEgsGame(id);
+  const game = await fetchEgsGame(id, { force: opts.force });
   writeCache(cacheK, game, 12 * 3600 * 1000);
   return game;
 }

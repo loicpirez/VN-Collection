@@ -33,6 +33,7 @@ import { RecordRecentView } from '@/components/RecordRecentView';
 import { TitleLine } from '@/components/TitleLine';
 import { EgsPanel } from '@/components/EgsPanel';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
+import { MatchBadges } from '@/components/MatchBadges';
 import { VndbStatusPanel } from '@/components/VndbStatusPanel';
 import { SourceTag } from '@/components/SourceTag';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
@@ -199,6 +200,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           <div className="z-10 flex flex-col gap-3 pt-32 md:pt-44">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
+                <MatchBadges egsOnly={vn.id.startsWith('egs:')} egs={egsRow} t={t} />
                 <TitleLine title={vn.title} alttitle={vn.alttitle} />
               </div>
               {status && <StatusBadge status={status} />}
