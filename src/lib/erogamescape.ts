@@ -331,15 +331,24 @@ function egsHoursToMinutes(v: string | null | undefined): number | null {
 }
 
 /**
- * Top user long-comment for a game. EGS doesn't ship a structured synopsis;
- * this is the best stand-in we have. Picks the highest-rated review's long
- * comment so it reads like a curated blurb.
+ * Top user short-comment for a game. EGS doesn't expose a structured synopsis,
+ * so we surface the highest-scored user `hitokoto` (one-liner) as the EGS
+ * "description" stand-in. Picks the top scorer's text so it reads like a
+ * curated blurb rather than a random opinion.
+ *
+ * Schema notes (verified against the live DB):
+ *   - userreview.game is the FK to gamelist.id — `id` is the userreview PK,
+ *     filtering on it returns at most one (wrong) row.
+ *   - text column is `hitokoto` ("a few words"), not `long_comment`.
+ *   - score column is `tokuten`, not `point`.
+ *   - `memo` and `outline` exist but are almost always NULL in practice;
+ *     `hitokoto` is what's surfaced on the public game page.
  */
-async function fetchTopLongComment(id: number): Promise<string | null> {
+async function fetchTopLongComment(gameId: number): Promise<string | null> {
   const sql = `
-    SELECT long_comment FROM userreview
-    WHERE id = ${id} AND long_comment IS NOT NULL AND long_comment <> ''
-    ORDER BY point DESC LIMIT 1
+    SELECT hitokoto FROM userreview
+    WHERE game = ${gameId} AND hitokoto IS NOT NULL AND hitokoto <> ''
+    ORDER BY tokuten DESC NULLS LAST LIMIT 1
   `;
   let rows: string[][];
   try {
@@ -350,15 +359,14 @@ async function fetchTopLongComment(id: number): Promise<string | null> {
   if (rows.length < 2) return null;
   const value = rows[1][0]?.trim();
   if (!value) return null;
-  // Long comments can be huge — keep a reasonable preview to avoid bloating the row.
   return value.length > 4000 ? `${value.slice(0, 4000).trimEnd()}…` : value;
 }
 
-async function fetchEgsPlaytimeMedian(id: number): Promise<number | null> {
-  // userreview's column is `total_play_time` (in HOURS), not `play_time` —
-  // the latter doesn't exist on EGS. We compute the median across non-null
-  // entries client-side and convert to minutes for our internal storage.
-  const sql = `SELECT total_play_time FROM userreview WHERE id = ${id} AND total_play_time IS NOT NULL AND total_play_time > 0 ORDER BY total_play_time`;
+async function fetchEgsPlaytimeMedian(gameId: number): Promise<number | null> {
+  // userreview.total_play_time is in HOURS. We compute the median across
+  // non-null entries client-side then convert to minutes for our internal
+  // storage. Filter by `game` (FK) — `id` is the userreview PK.
+  const sql = `SELECT total_play_time FROM userreview WHERE game = ${gameId} AND total_play_time IS NOT NULL AND total_play_time > 0 ORDER BY total_play_time`;
   let rows: string[][];
   try {
     rows = await fetchTable(sql);
