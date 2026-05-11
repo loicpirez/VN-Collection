@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Loader2, Plus } from 'lucide-react';
+import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Loader2, Plus, Sparkles } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
@@ -27,6 +27,10 @@ export interface CardData {
   favorite?: boolean;
   inCollectionBadge?: boolean;
   developers?: { id?: string; name: string }[];
+  /** ErogameScape median rating on a 0-100 scale, when available. */
+  egs_median?: number | null;
+  /** ErogameScape median user playtime in minutes, when available. */
+  egs_playtime_minutes?: number | null;
 }
 
 interface VnCardProps {
@@ -91,6 +95,8 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
   const year = data.released?.slice(0, 4);
   const myPlaytime = fmtMinutes(data.playtime_minutes);
   const vndbLength = fmtMinutes(data.length_minutes);
+  const egsPlaytime = fmtMinutes(data.egs_playtime_minutes);
+  const egsScore = data.egs_median != null ? Math.round(data.egs_median) : null;
   const titlePair = useResolvedTitle(data.title, data.alttitle ?? null);
 
   const localSrc = data.customCover || data.localPoster || null;
@@ -178,9 +184,17 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
               <Star className="h-3 w-3 fill-accent" aria-hidden /> {rating}
             </span>
           )}
+          {egsScore != null && (
+            <span
+              className="inline-flex items-center gap-0.5 text-accent/80"
+              title={`${t.egs.section} · ${t.egs.median}: ${egsScore}/100`}
+            >
+              <Sparkles className="h-3 w-3" aria-hidden /> {egsScore}
+            </span>
+          )}
           {year && <span>{year}</span>}
         </div>
-        {(myPlaytime || vndbLength) && (
+        {(myPlaytime || vndbLength || egsPlaytime) && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
             {myPlaytime && (
               <span
@@ -198,6 +212,15 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
               >
                 <Hourglass className="h-3 w-3" aria-hidden />
                 {vndbLength}
+              </span>
+            )}
+            {egsPlaytime && (
+              <span
+                className={`inline-flex items-center gap-1 ${myPlaytime ? 'text-muted/70' : 'text-muted'}`}
+                title={`${t.egs.section} · ${t.egs.playtimeMedian}`}
+              >
+                <Sparkles className="h-3 w-3" aria-hidden />
+                {egsPlaytime}
               </span>
             )}
           </div>

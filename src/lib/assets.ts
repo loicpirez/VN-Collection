@@ -9,6 +9,7 @@ import {
   upsertCharacterImage,
 } from './db';
 import { getCharactersForVn, getQuotesForVn, getReleasesForVn } from './vndb';
+import { resolveEgsForVn } from './erogamescape';
 import type { ReleaseImage, Screenshot } from './types';
 import type { VndbCharacter } from './vndb';
 
@@ -86,6 +87,13 @@ export async function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult
     await getQuotesForVn(vnId);
   } catch {
     // ignore — quotes may be unavailable
+  }
+
+  // Resolve & persist ErogameScape match (VNDB extlink first, then fuzzy name search).
+  try {
+    await resolveEgsForVn(vnId, { force: false, allowSearch: true });
+  } catch {
+    // ignore — EGS may be down or game unknown
   }
 
   return { poster, posterThumb: thumb, screenshots: next, releaseImages };

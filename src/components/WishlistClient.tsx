@@ -23,6 +23,7 @@ interface WishlistItem {
     developers: { id: string; name: string }[];
   };
   in_collection: boolean;
+  egs: { median: number | null; playtime_median_minutes: number | null } | null;
 }
 
 export function WishlistClient() {
@@ -180,6 +181,8 @@ export function WishlistClient() {
                   length_minutes: it.vn.length_minutes,
                   developers: it.vn.developers,
                   inCollectionBadge: it.in_collection,
+                  egs_median: it.egs?.median ?? null,
+                  egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
                 }}
               />
             ))}

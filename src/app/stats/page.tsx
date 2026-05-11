@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BarChart3, Database, Globe, KeyRound, Languages, MapPin, Package, Star, Tags as TagsIcon, User as UserIcon } from 'lucide-react';
+import { BarChart3, Database, Globe, KeyRound, Languages, MapPin, Package, Sparkles, Star, Tags as TagsIcon, User as UserIcon } from 'lucide-react';
 import { db, getAggregateStats, getStats } from '@/lib/db';
 import { getAuthInfo, getGlobalStats, type VndbStatsGlobal } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
@@ -99,6 +99,31 @@ export default async function StatsPage() {
           </div>
         )}
       </section>
+
+      {agg.egs.matched + agg.egs.unmatched > 0 && (
+        <section className="rounded-2xl border border-border bg-bg-card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-accent" aria-hidden />
+            <h2 className="text-lg font-bold">{t.stats.egsTitle}</h2>
+          </div>
+          <p className="mb-4 text-xs text-muted">{t.stats.egsSubtitle}</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label={t.stats.egsMatched} value={`${agg.egs.matched} / ${agg.egs.matched + agg.egs.unmatched}`} />
+            <Stat
+              label={t.stats.egsAvgMedian}
+              value={agg.egs.avg_median != null ? `${agg.egs.avg_median.toFixed(1)} / 100` : '—'}
+            />
+            <Stat
+              label={t.stats.egsSumPlaytime}
+              value={`${Math.round(agg.egs.sum_playtime_minutes / 60)}h`}
+            />
+            <Stat
+              label={t.stats.egsTotalPlaytime}
+              value={`${Math.round((my.playtime_minutes + agg.egs.sum_playtime_minutes) / 60)}h`}
+            />
+          </div>
+        </section>
+      )}
 
       {finishedSeries.some((d) => d.value > 0) && (
         <Card title={t.charts.finishedByMonth} icon={<BarChart3 className="h-5 w-5 text-accent" />}>

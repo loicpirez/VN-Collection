@@ -320,6 +320,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           vndbVoteCount={vn.votecount ?? null}
           vndbLengthMinutes={vn.length_minutes ?? null}
           myPlaytimeMinutes={vn.playtime_minutes ?? 0}
+          searchSeed={vn.alttitle?.trim() || vn.title}
         />
         <CharactersSection vnId={vn.id} />
         {inCol && <OwnedEditionsSection vnId={vn.id} />}

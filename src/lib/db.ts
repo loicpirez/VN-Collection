@@ -154,6 +154,21 @@ function open(): Database.Database {
       local_path TEXT,
       fetched_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS egs_game (
+      vn_id      TEXT PRIMARY KEY REFERENCES vn(id) ON DELETE CASCADE,
+      egs_id     INTEGER,
+      gamename   TEXT,
+      median     REAL,
+      average    REAL,
+      dispersion REAL,
+      count      INTEGER,
+      sellday    TEXT,
+      playtime_median_minutes INTEGER,
+      source     TEXT,
+      fetched_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_egs_game_median ON egs_game(median);
   `);
 
   ensureColumn(db, 'vn', 'screenshots', 'TEXT');
@@ -377,6 +392,72 @@ export function getCharacterImages(charIds: string[]): Map<string, CharacterImag
   return out;
 }
 
+export interface EgsRow {
+  vn_id: string;
+  egs_id: number | null;
+  gamename: string | null;
+  median: number | null;
+  average: number | null;
+  dispersion: number | null;
+  count: number | null;
+  sellday: string | null;
+  playtime_median_minutes: number | null;
+  source: 'extlink' | 'search' | 'manual' | null;
+  fetched_at: number;
+}
+
+export function getEgsForVn(vnId: string): EgsRow | null {
+  const row = db
+    .prepare('SELECT * FROM egs_game WHERE vn_id = ?')
+    .get(vnId) as EgsRow | undefined;
+  return row ?? null;
+}
+
+export function getEgsForVns(vnIds: string[]): Map<string, EgsRow> {
+  const out = new Map<string, EgsRow>();
+  if (vnIds.length === 0) return out;
+  const placeholders = vnIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT * FROM egs_game WHERE vn_id IN (${placeholders})`)
+    .all(...vnIds) as EgsRow[];
+  for (const r of rows) out.set(r.vn_id, r);
+  return out;
+}
+
+export function upsertEgsForVn(row: Omit<EgsRow, 'fetched_at'>): void {
+  db.prepare(`
+    INSERT INTO egs_game (vn_id, egs_id, gamename, median, average, dispersion, count, sellday, playtime_median_minutes, source, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(vn_id) DO UPDATE SET
+      egs_id = excluded.egs_id,
+      gamename = excluded.gamename,
+      median = excluded.median,
+      average = excluded.average,
+      dispersion = excluded.dispersion,
+      count = excluded.count,
+      sellday = excluded.sellday,
+      playtime_median_minutes = excluded.playtime_median_minutes,
+      source = excluded.source,
+      fetched_at = excluded.fetched_at
+  `).run(
+    row.vn_id,
+    row.egs_id,
+    row.gamename,
+    row.median,
+    row.average,
+    row.dispersion,
+    row.count,
+    row.sellday,
+    row.playtime_median_minutes,
+    row.source,
+    Date.now(),
+  );
+}
+
+export function clearEgsForVn(vnId: string): void {
+  db.prepare('DELETE FROM egs_game WHERE vn_id = ?').run(vnId);
+}
+
 export function upsertCharacterImage(charId: string, url: string | null, localPath: string | null): void {
   db.prepare(`
     INSERT INTO character_image (char_id, url, local_path, fetched_at)
@@ -582,7 +663,9 @@ export interface ListOptions {
     | 'user_rating'
     | 'playtime'
     | 'released'
-    | 'producer';
+    | 'producer'
+    | 'egs_rating'
+    | 'combined_rating';
   order?: 'asc' | 'desc';
 }
 
@@ -609,7 +692,16 @@ export function listCollection({
     playtime: 'COALESCE(NULLIF(c.playtime_minutes, 0), v.length_minutes)',
     released: 'v.released',
     producer: "json_extract(v.developers, '$[0].name')",
+    egs_rating: 'e.median',
+    // Combined: VNDB rating (0-100) and EGS median (0-100), averaged.
+    // When only one exists, fall back to it; nulls last regardless.
+    combined_rating:
+      'CASE WHEN v.rating IS NULL AND e.median IS NULL THEN NULL ' +
+      'WHEN v.rating IS NULL THEN e.median ' +
+      'WHEN e.median IS NULL THEN v.rating ' +
+      'ELSE (v.rating + e.median) / 2.0 END',
   };
+  const needsEgsJoin = sort === 'egs_rating' || sort === 'combined_rating';
   const sortCol = sortMap[sort] ?? 'c.updated_at';
   const dir = order === 'asc' ? 'ASC' : 'DESC';
   const where: string[] = [];
@@ -655,6 +747,9 @@ export function listCollection({
     where.push('sv.series_id = ?');
     params.push(series);
   }
+  if (needsEgsJoin) {
+    join += 'LEFT JOIN egs_game e ON e.vn_id = v.id ';
+  }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const rows = db
     .prepare(`
@@ -669,8 +764,20 @@ export function listCollection({
     `)
     .all(...params) as DbRow[];
   const items = rows.map((r) => rowToItem(r)!).filter(Boolean);
+  const egsMap = getEgsForVns(items.map((i) => i.id));
   for (const item of items) {
     item.series = listSeriesForVn(item.id);
+    const egs = egsMap.get(item.id);
+    item.egs = egs
+      ? {
+          egs_id: egs.egs_id,
+          median: egs.median,
+          average: egs.average,
+          count: egs.count,
+          playtime_median_minutes: egs.playtime_median_minutes,
+          source: egs.source,
+        }
+      : null;
   }
   return items;
 }
@@ -687,7 +794,20 @@ export function getCollectionItem(vnId: string): CollectionItem | null {
     `)
     .get(vnId) as DbRow | undefined;
   const item = rowToItem(row);
-  if (item) item.series = listSeriesForVn(item.id);
+  if (item) {
+    item.series = listSeriesForVn(item.id);
+    const egs = getEgsForVn(item.id);
+    item.egs = egs
+      ? {
+          egs_id: egs.egs_id,
+          median: egs.median,
+          average: egs.average,
+          count: egs.count,
+          playtime_median_minutes: egs.playtime_median_minutes,
+          source: egs.source,
+        }
+      : null;
+  }
   return item;
 }
 
@@ -709,6 +829,12 @@ export interface AggregateStats {
   byEdition: { edition: string; count: number }[];
   topTags: { id: string; name: string; count: number }[];
   byYear: { year: string; count: number }[];
+  egs: {
+    matched: number;
+    unmatched: number;
+    avg_median: number | null;
+    sum_playtime_minutes: number;
+  };
 }
 
 export function getAggregateStats(): AggregateStats {
@@ -784,6 +910,18 @@ export function getAggregateStats(): AggregateStats {
     `)
     .all() as { year: string; count: number }[];
 
+  const egsAgg = db
+    .prepare(`
+      SELECT
+        COUNT(CASE WHEN e.egs_id IS NOT NULL THEN 1 END) AS matched,
+        COUNT(CASE WHEN e.vn_id IS NULL OR e.egs_id IS NULL THEN 1 END) AS unmatched,
+        AVG(CASE WHEN e.median IS NOT NULL THEN e.median END) AS avg_median,
+        COALESCE(SUM(CASE WHEN e.playtime_median_minutes IS NOT NULL THEN e.playtime_median_minutes END), 0) AS sum_playtime
+      FROM collection c
+      LEFT JOIN egs_game e ON e.vn_id = c.vn_id
+    `)
+    .get() as { matched: number; unmatched: number; avg_median: number | null; sum_playtime: number };
+
   return {
     ratingDistribution,
     finishedByMonth,
@@ -793,6 +931,12 @@ export function getAggregateStats(): AggregateStats {
     byEdition,
     topTags: topTags.map((t) => ({ id: t.tag_id, name: t.tag_name, count: t.count })),
     byYear,
+    egs: {
+      matched: egsAgg.matched ?? 0,
+      unmatched: egsAgg.unmatched ?? 0,
+      avg_median: egsAgg.avg_median != null ? Math.round(egsAgg.avg_median * 10) / 10 : null,
+      sum_playtime_minutes: egsAgg.sum_playtime ?? 0,
+    },
   };
 }
 

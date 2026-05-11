@@ -1,5 +1,13 @@
 import 'server-only';
-import { db } from './db';
+import {
+  clearEgsForVn,
+  db,
+  getCollectionItem,
+  getEgsForVn,
+  upsertEgsForVn,
+  type EgsRow,
+} from './db';
+import { getReleasesForVn } from './vndb';
 
 /**
  * Erogamescape (EGS) integration. EGS exposes a public SQL form that returns CSV;
@@ -211,6 +219,114 @@ async function fetchEgsPlaytimeMedian(id: number): Promise<number | null> {
   return values.length % 2 ? values[mid] : Math.round((values[mid - 1] + values[mid]) / 2);
 }
 
+const ROW_TTL_MS = 7 * 24 * 3600 * 1000;
+
+function rowToGame(row: EgsRow): EgsGame | null {
+  if (row.egs_id == null) return null;
+  return {
+    id: row.egs_id,
+    gamename: row.gamename ?? '',
+    median: row.median,
+    average: row.average,
+    dispersion: row.dispersion,
+    count: row.count,
+    sellday: row.sellday,
+    playtime_median_minutes: row.playtime_median_minutes,
+    url: `${EGS_BASE}/game.php?game=${row.egs_id}`,
+  };
+}
+
+export interface ResolveResult {
+  game: EgsGame | null;
+  source: 'extlink' | 'search' | null;
+}
+
+/**
+ * Resolve the EGS game for a VN: returns the cached row if recent, otherwise
+ * scans VNDB release extlinks (preferred) or falls back to a name search.
+ * Persists the result in `egs_game` (including a `null` for "no match") so
+ * cards/library/stats can read it without re-hitting EGS.
+ */
+export async function resolveEgsForVn(
+  vnId: string,
+  opts: { force?: boolean; allowSearch?: boolean } = {},
+): Promise<ResolveResult> {
+  const { force = false, allowSearch = true } = opts;
+  const cached = getEgsForVn(vnId);
+  if (cached && !force && Date.now() - cached.fetched_at < ROW_TTL_MS) {
+    return { game: rowToGame(cached), source: cached.source === 'manual' ? 'extlink' : cached.source };
+  }
+
+  let egsId: number | null = null;
+  try {
+    const releases = await getReleasesForVn(vnId);
+    for (const r of releases) {
+      const candidate = findEgsIdInExtlinks(r.extlinks ?? []);
+      if (candidate != null) {
+        egsId = candidate;
+        break;
+      }
+    }
+  } catch {
+    // releases unavailable — leave egsId null and try name search below
+  }
+
+  let game: EgsGame | null = null;
+  let source: 'extlink' | 'search' | null = null;
+  if (egsId != null) {
+    game = await fetchEgsGame(egsId);
+    if (game) source = 'extlink';
+  }
+  if (!game && allowSearch) {
+    const item = getCollectionItem(vnId);
+    const probe = item?.alttitle?.trim() || item?.title?.trim();
+    if (probe) {
+      game = await searchEgsByName(probe);
+      if (game) source = 'search';
+    }
+  }
+
+  if (game) {
+    upsertEgsForVn({
+      vn_id: vnId,
+      egs_id: game.id,
+      gamename: game.gamename,
+      median: game.median,
+      average: game.average,
+      dispersion: game.dispersion,
+      count: game.count,
+      sellday: game.sellday,
+      playtime_median_minutes: game.playtime_median_minutes,
+      source,
+    });
+  } else {
+    // Store a negative result so we don't retry every page view.
+    upsertEgsForVn({
+      vn_id: vnId,
+      egs_id: null,
+      gamename: null,
+      median: null,
+      average: null,
+      dispersion: null,
+      count: null,
+      sellday: null,
+      playtime_median_minutes: null,
+      source: null,
+    });
+  }
+  return { game, source };
+}
+
+export function readCachedEgsForVn(vnId: string): EgsGame | null {
+  const row = getEgsForVn(vnId);
+  if (!row) return null;
+  return rowToGame(row);
+}
+
+export function clearEgsCache(vnId: string): void {
+  clearEgsForVn(vnId);
+}
+
 /** Best-effort name search when no VNDB extlink is available. Returns the top hit. */
 export async function searchEgsByName(query: string): Promise<EgsGame | null> {
   const trimmed = query.trim();
@@ -234,5 +350,71 @@ export async function searchEgsByName(query: string): Promise<EgsGame | null> {
   if (id == null) return null;
   const game = await fetchEgsGame(id);
   writeCache(cacheK, game, 12 * 3600 * 1000);
+  return game;
+}
+
+export interface EgsCandidate {
+  id: number;
+  gamename: string;
+  median: number | null;
+  count: number | null;
+  sellday: string | null;
+}
+
+/** Returns up to `limit` candidates matching the query (for the manual-link picker). */
+export async function searchEgsCandidates(query: string, limit = 20): Promise<EgsCandidate[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const cacheK = cacheKey('candidates', `${limit}:${trimmed.toLowerCase()}`);
+  const cached = readCache<EgsCandidate[]>(cacheK);
+  if (cached) return cached;
+  const safeLimit = Math.min(50, Math.max(1, Math.floor(limit)));
+  const escaped = trimmed.replace(/['%]/g, '');
+  const sql = `SELECT id, gamename, median, count, sellday FROM gamelist WHERE gamename ILIKE '%${escaped}%' ORDER BY count DESC NULLS LAST LIMIT ${safeLimit}`;
+  let rows: string[][];
+  try {
+    rows = await fetchCsv(sql);
+  } catch {
+    return [];
+  }
+  if (rows.length < 2) {
+    writeCache(cacheK, [], 6 * 3600 * 1000);
+    return [];
+  }
+  const header = rows[0].map((h) => h.trim());
+  const colIdx = (n: string): number => header.indexOf(n);
+  const out: EgsCandidate[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const id = toNumber(r[colIdx('id')]);
+    if (id == null) continue;
+    out.push({
+      id,
+      gamename: r[colIdx('gamename')] ?? '',
+      median: toNumber(r[colIdx('median')]),
+      count: toNumber(r[colIdx('count')]),
+      sellday: r[colIdx('sellday')] ?? null,
+    });
+  }
+  writeCache(cacheK, out, 12 * 3600 * 1000);
+  return out;
+}
+
+/** Manually link a VN to a specific EGS game (overrides any previous match). */
+export async function linkEgsToVn(vnId: string, egsId: number): Promise<EgsGame | null> {
+  const game = await fetchEgsGame(egsId);
+  if (!game) return null;
+  upsertEgsForVn({
+    vn_id: vnId,
+    egs_id: game.id,
+    gamename: game.gamename,
+    median: game.median,
+    average: game.average,
+    dispersion: game.dispersion,
+    count: game.count,
+    sellday: game.sellday,
+    playtime_median_minutes: game.playtime_median_minutes,
+    source: 'manual',
+  });
   return game;
 }

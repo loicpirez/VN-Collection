@@ -117,7 +117,20 @@ export interface CollectionFields {
   updated_at: number;
 }
 
-export type CollectionItem = VnRow & Partial<CollectionFields> & { series?: SeriesLite[] };
+export interface EgsLite {
+  egs_id: number | null;
+  median: number | null;
+  average: number | null;
+  count: number | null;
+  playtime_median_minutes: number | null;
+  source: 'extlink' | 'search' | 'manual' | null;
+}
+
+export type CollectionItem = VnRow &
+  Partial<CollectionFields> & {
+    series?: SeriesLite[];
+    egs?: EgsLite | null;
+  };
 
 export interface VndbSearchHit {
   id: string;

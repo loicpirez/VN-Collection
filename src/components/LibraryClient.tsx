@@ -11,8 +11,29 @@ import { useT } from '@/lib/i18n/client';
 import { STATUSES, type Status } from '@/lib/types';
 import type { CollectionItem, ProducerStat, SeriesRow, Stats } from '@/lib/types';
 
-type SortKey = 'updated_at' | 'added_at' | 'title' | 'rating' | 'user_rating' | 'playtime' | 'released' | 'producer';
-const SORT_KEYS: SortKey[] = ['updated_at', 'added_at', 'title', 'rating', 'user_rating', 'playtime', 'released', 'producer'];
+type SortKey =
+  | 'updated_at'
+  | 'added_at'
+  | 'title'
+  | 'rating'
+  | 'user_rating'
+  | 'playtime'
+  | 'released'
+  | 'producer'
+  | 'egs_rating'
+  | 'combined_rating';
+const SORT_KEYS: SortKey[] = [
+  'updated_at',
+  'added_at',
+  'title',
+  'rating',
+  'user_rating',
+  'playtime',
+  'released',
+  'producer',
+  'egs_rating',
+  'combined_rating',
+];
 
 type GroupKey = 'none' | 'tag' | 'producer' | 'status' | 'series';
 const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'tag', 'series'];
@@ -450,6 +471,8 @@ function Grid({
             customCover: it.custom_cover,
             sexual: it.image_sexual,
             released: it.released,
+            egs_median: it.egs?.median ?? null,
+            egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
             rating: it.rating,
             user_rating: it.user_rating,
             playtime_minutes: it.playtime_minutes,
