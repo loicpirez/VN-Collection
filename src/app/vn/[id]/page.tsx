@@ -34,6 +34,8 @@ import { TitleLine } from '@/components/TitleLine';
 import { EgsPanel } from '@/components/EgsPanel';
 import { SourceTag } from '@/components/SourceTag';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
+import { FieldCompare } from '@/components/FieldCompare';
+import { CoverCompare } from '@/components/CoverCompare';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -171,28 +173,24 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         />
 
         <div className="relative -mt-44 grid grid-cols-1 gap-8 px-6 pb-6 md:grid-cols-[260px_1fr] md:px-8 md:pb-8">
-          <div className="z-10 mx-auto w-full max-w-[260px] md:mx-0 space-y-2">
-            <SafeImage
-              src={heroPoster.remote}
-              localSrc={heroPoster.local}
-              alt={vn.title}
-              sexual={vn.image_sexual ?? null}
-              className="aspect-[2/3] w-full rounded-xl shadow-card"
-            />
-            {inCol && egsPosterHas && (
-              <div className="flex items-center justify-between gap-2 text-[10px]">
-                <span className="inline-flex items-center gap-1 text-muted">
-                  {t.detail.cover}
-                  <SourceTag used={heroResolved.used} fellBack={heroResolved.fellBack} />
-                </span>
-                <SourceSwitcher
-                  vnId={vn.id}
-                  field="image"
-                  current={sourcePref.image ?? 'auto'}
-                  vndbAvailable={vndbPosterHas}
-                  egsAvailable={egsPosterHas}
-                />
-              </div>
+          <div className="z-10 mx-auto w-full max-w-[260px] md:mx-0">
+            {inCol && egsPosterHas ? (
+              <CoverCompare
+                vnId={vn.id}
+                current={sourcePref.image ?? 'auto'}
+                vndb={vndbPoster}
+                egs={egsPoster}
+                sexual={vn.image_sexual ?? null}
+                alt={vn.title}
+              />
+            ) : (
+              <SafeImage
+                src={heroPoster.remote}
+                localSrc={heroPoster.local}
+                alt={vn.title}
+                sexual={vn.image_sexual ?? null}
+                className="aspect-[2/3] w-full rounded-xl shadow-card"
+              />
             )}
           </div>
 
@@ -249,34 +247,33 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               )}
               {(brandResolved.value || vn.developers?.length) && (
                 <div className="col-span-2 sm:col-span-3">
-                  <dt className="label inline-flex items-center">
-                    {t.detail.developers}
-                    <SourceTag used={brandResolved.used} fellBack={brandResolved.fellBack} />
-                    {inCol && egsRow?.brand_name && (
-                      <span className="ml-2">
-                        <SourceSwitcher
-                          vnId={vn.id}
-                          field="brand"
-                          current={sourcePref.brand ?? 'auto'}
-                          vndbAvailable={vndbDevs.length > 0}
-                          egsAvailable={!!egsRow.brand_name}
-                        />
-                      </span>
+                  <FieldCompare
+                    vnId={vn.id}
+                    field="brand"
+                    current={sourcePref.brand ?? 'auto'}
+                    vndb={vndbDevs.length > 0 ? vndbDevs.join(', ') : null}
+                    egs={egsRow?.brand_name ?? null}
+                    label={t.detail.developers}
+                    renderValue={(value) => (
+                      <div className="flex flex-wrap gap-2 font-semibold">
+                        {value === (egsRow?.brand_name ?? null) && egsRow?.brand_name ? (
+                          <span className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs">
+                            {value}
+                          </span>
+                        ) : (
+                          vn.developers?.map((d) => (
+                            <Link
+                              key={d.id}
+                              href={`/producer/${d.id}`}
+                              className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent"
+                            >
+                              {d.name}
+                            </Link>
+                          ))
+                        )}
+                      </div>
                     )}
-                  </dt>
-                  <dd className="flex flex-wrap gap-2 font-semibold">
-                    {brandResolved.used === 'egs' && egsRow?.brand_name ? (
-                      <span className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs">
-                        {egsRow.brand_name}
-                      </span>
-                    ) : (
-                      vn.developers?.map((d) => (
-                        <Link key={d.id} href={`/producer/${d.id}`} className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent">
-                          {d.name}
-                        </Link>
-                      ))
-                    )}
-                  </dd>
+                  />
                 </div>
               )}
             </dl>
@@ -355,24 +352,19 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        {descResolved.value && (
+        {(vn.description || egsRow?.description) && (
           <div className="border-t border-border px-6 py-6 md:px-8">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-muted">
-                {t.detail.synopsis}
-                <SourceTag used={descResolved.used} fellBack={descResolved.fellBack} />
-              </h3>
-              {inCol && (
-                <SourceSwitcher
-                  vnId={vn.id}
-                  field="description"
-                  current={sourcePref.description ?? 'auto'}
-                  vndbAvailable={!!vn.description}
-                  egsAvailable={!!egsRow?.description}
-                />
+            <FieldCompare
+              vnId={vn.id}
+              field="description"
+              current={sourcePref.description ?? 'auto'}
+              vndb={vn.description ?? null}
+              egs={egsRow?.description ?? null}
+              label={t.detail.synopsis}
+              renderValue={(value) => (
+                <p className="whitespace-pre-wrap leading-relaxed text-white/85">{cleanDesc(value)}</p>
               )}
-            </div>
-            <p className="whitespace-pre-wrap leading-relaxed text-white/85">{cleanDesc(descResolved.value)}</p>
+            />
           </div>
         )}
 

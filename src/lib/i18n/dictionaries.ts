@@ -396,6 +396,14 @@ export const dictionaries = {
       egs: 'EGS',
       hint: 'Choisir la source d\'affichage pour ce champ (auto = VNDB en priorité, EGS en secours).',
     },
+    compare: {
+      compareBtn: 'Comparer',
+      compareTitle: 'Voir VNDB et EGS côte à côte',
+      compareLabel: 'côte à côte',
+      useVndb: 'Garder VNDB',
+      useEgs: 'Garder EGS',
+      useAuto: 'Auto (VNDB d\'abord)',
+    },
     egs: {
       section: 'ErogameScape',
       openOnEgs: 'Voir sur EGS',
@@ -1002,6 +1010,14 @@ export const dictionaries = {
       egs: 'EGS',
       hint: 'Pick which source to display for this field (auto = VNDB first, EGS as fallback).',
     },
+    compare: {
+      compareBtn: 'Compare',
+      compareTitle: 'View VNDB and EGS side by side',
+      compareLabel: 'side by side',
+      useVndb: 'Use VNDB',
+      useEgs: 'Use EGS',
+      useAuto: 'Auto (VNDB first)',
+    },
     egs: {
       section: 'ErogameScape',
       openOnEgs: 'View on EGS',
@@ -1607,6 +1623,14 @@ export const dictionaries = {
       vndb: 'VNDB',
       egs: 'EGS',
       hint: 'このフィールドの表示ソースを選択（自動 = VNDB 優先・EGS で補完）。',
+    },
+    compare: {
+      compareBtn: '比較',
+      compareTitle: 'VNDB と EGS を並べて表示',
+      compareLabel: '並べて表示',
+      useVndb: 'VNDB を採用',
+      useEgs: 'EGS を採用',
+      useAuto: '自動（VNDB 優先）',
     },
     egs: {
       section: 'ErogameScape',
