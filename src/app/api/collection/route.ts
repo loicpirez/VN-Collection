@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
   const yearMaxRaw = sp.get('yearMax');
   const sortRaw = sp.get('sort') ?? 'updated_at';
   const orderRaw = sp.get('order') ?? 'desc';
+  const dumpedRaw = sp.get('dumped');
 
   if (status && !isValidStatus(status)) {
     return NextResponse.json({ error: 'invalid status' }, { status: 400 });
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
     place: place || undefined,
     yearMin: yearMin && Number.isFinite(yearMin) ? yearMin : undefined,
     yearMax: yearMax && Number.isFinite(yearMax) ? yearMax : undefined,
+    dumped: dumpedRaw === '1' ? true : dumpedRaw === '0' ? false : undefined,
     sort,
     order,
   });

@@ -1,8 +1,16 @@
 import 'server-only';
 import { downloadToBucket, fileExists } from './files';
-import { getCollectionItem, setLocalImagePaths, setLocalScreenshots, setReleaseImages } from './db';
-import { getCharactersForVn, getReleasesForVn } from './vndb';
+import {
+  getCharacterImages,
+  getCollectionItem,
+  setLocalImagePaths,
+  setLocalScreenshots,
+  setReleaseImages,
+  upsertCharacterImage,
+} from './db';
+import { getCharactersForVn, getQuotesForVn, getReleasesForVn } from './vndb';
 import type { ReleaseImage, Screenshot } from './types';
+import type { VndbCharacter } from './vndb';
 
 interface EnsureResult {
   poster: string | null;
@@ -66,15 +74,38 @@ export async function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult
   // Release / package images (pkgfront, pkgback, pkgcontent, pkgside, pkgmed, dig)
   const releaseImages = await fetchAndDownloadReleaseImages(vnId);
 
-  // Warm the character cache so the "in my collection only" trait filter has data.
-  // The fetch is cached for 7 days at the VNDB layer, so this is idempotent.
+  // Pre-fetch + locally cache character images, then warm quote cache.
+  let characters: VndbCharacter[] = [];
   try {
-    await getCharactersForVn(vnId);
+    characters = await getCharactersForVn(vnId);
+    await downloadCharacterImages(characters);
   } catch {
-    // ignore — the trait aggregate gracefully handles missing data
+    // ignore — character payload may be unavailable
+  }
+  try {
+    await getQuotesForVn(vnId);
+  } catch {
+    // ignore — quotes may be unavailable
   }
 
   return { poster, posterThumb: thumb, screenshots: next, releaseImages };
+}
+
+async function downloadCharacterImages(characters: VndbCharacter[]): Promise<void> {
+  if (characters.length === 0) return;
+  const ids = characters.map((c) => c.id);
+  const existing = getCharacterImages(ids);
+  for (const c of characters) {
+    if (!c.image?.url) continue;
+    const prev = existing.get(c.id);
+    if (prev?.local_path && prev.url === c.image.url && (await fileExists(prev.local_path))) continue;
+    try {
+      const local = await downloadToBucket(c.image.url, 'character', c.id);
+      upsertCharacterImage(c.id, c.image.url, local);
+    } catch {
+      // ignore — image may be unavailable
+    }
+  }
 }
 
 async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage[]> {

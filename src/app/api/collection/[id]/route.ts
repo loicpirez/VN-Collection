@@ -71,6 +71,9 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
       return { fields, error: 'download_url must be string or null' };
     }
   }
+  if ('dumped' in body) {
+    fields.dumped = !!body.dumped;
+  }
   if ('physical_location' in body) {
     const v = body.physical_location;
     if (v == null) {

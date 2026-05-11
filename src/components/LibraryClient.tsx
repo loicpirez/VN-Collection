@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Calendar, CheckSquare, FilterX, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Calendar, CheckSquare, FilterX, HardDriveDownload, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
@@ -32,6 +32,7 @@ export function LibraryClient() {
   const urlPlace = searchParams.get('place') ?? '';
   const urlYearMin = searchParams.get('yearMin') ?? '';
   const urlYearMax = searchParams.get('yearMax') ?? '';
+  const urlDumped = searchParams.get('dumped') ?? '';
   const urlQ = searchParams.get('q') ?? '';
   const sort = (SORT_KEYS as readonly string[]).includes(searchParams.get('sort') ?? '')
     ? (searchParams.get('sort') as SortKey)
@@ -132,6 +133,7 @@ export function LibraryClient() {
     if (urlPlace) params.set('place', urlPlace);
     if (urlYearMin) params.set('yearMin', urlYearMin);
     if (urlYearMax) params.set('yearMax', urlYearMax);
+    if (urlDumped === '1' || urlDumped === '0') params.set('dumped', urlDumped);
     if (urlQ) params.set('q', urlQ);
     params.set('sort', sort);
     params.set('order', order);
@@ -150,7 +152,7 @@ export function LibraryClient() {
     return () => {
       alive = false;
     };
-  }, [status, producer, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlQ, sort, order, refreshKey, t.common.error]);
+  }, [status, producer, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlDumped, urlQ, sort, order, refreshKey, t.common.error]);
 
   function clearAll() {
     router.replace('/', { scroll: false });
@@ -163,7 +165,7 @@ export function LibraryClient() {
   );
   const totalH = Math.round(stats.playtime_minutes / 60);
   const hasFilters =
-    !!status || !!producer || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlYearMin || !!urlYearMax;
+    !!status || !!producer || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlYearMin || !!urlYearMax || urlDumped === '1' || urlDumped === '0';
   const yearLabel = urlYearMin && urlYearMax
     ? urlYearMin === urlYearMax
       ? urlYearMin
@@ -274,6 +276,31 @@ export function LibraryClient() {
               <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              const next = urlDumped === '1' ? '0' : urlDumped === '0' ? null : '1';
+              setParam('dumped', next);
+            }}
+            className={`chip inline-flex items-center gap-1.5 whitespace-nowrap ${urlDumped ? 'chip-active' : ''}`}
+            title={
+              urlDumped === '1'
+                ? t.library.filterDumpedYes
+                : urlDumped === '0'
+                  ? t.library.filterDumpedNo
+                  : t.library.filterDumpedAll
+            }
+          >
+            <HardDriveDownload className="h-3.5 w-3.5" />
+            <span>
+              {urlDumped === '1'
+                ? t.library.filterDumpedYes
+                : urlDumped === '0'
+                  ? t.library.filterDumpedNo
+                  : t.library.filterDumped}
+            </span>
+            {urlDumped && <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />}
+          </button>
           {hasFilters && (
             <button className="btn" onClick={clearAll} aria-label={t.library.clearFilters}>
               <FilterX className="h-4 w-4" /> {t.library.clearFilters}

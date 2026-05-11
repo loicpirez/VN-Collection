@@ -111,6 +111,8 @@ export interface CollectionFields {
   box_type: BoxType;
   /** Personal download link (e.g. NAS share URL). */
   download_url: string | null;
+  /** True when the game has been dumped/extracted from physical media (for personal preservation). */
+  dumped: boolean;
   added_at: number;
   updated_at: number;
 }

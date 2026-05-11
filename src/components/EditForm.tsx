@@ -38,6 +38,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const [physicalLocations, setPhysicalLocations] = useState<string[]>(vn.physical_location ?? []);
   const [boxType, setBoxType] = useState<BoxType>((vn.box_type as BoxType) ?? 'none');
   const [downloadUrl, setDownloadUrl] = useState<string>(vn.download_url ?? '');
+  const [dumped, setDumped] = useState<boolean>(!!vn.dumped);
   const [knownPlaces, setKnownPlaces] = useState<string[]>([]);
 
   useEffect(() => {
@@ -107,6 +108,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         physical_location: physicalLocations,
         box_type: boxType,
         download_url: downloadUrl.trim() || null,
+        dumped,
       }).then(() => toast.success(t.toast.saved)),
     );
   }
@@ -268,6 +270,18 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
               maxLength={2000}
             />
             <span className="text-[10px] text-muted/70">{t.form.downloadUrlHint}</span>
+          </label>
+          <label className="flex items-start gap-2 sm:col-span-2">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-accent"
+              checked={dumped}
+              onChange={(e) => setDumped(e.target.checked)}
+            />
+            <div className="flex flex-col gap-0.5">
+              <span className="label">{t.form.dumped}</span>
+              <span className="text-[10px] text-muted/70">{t.form.dumpedHint}</span>
+            </div>
           </label>
         </div>
       </div>

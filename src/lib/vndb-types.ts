@@ -20,6 +20,7 @@ export interface VndbCharacter {
   gender: [string | null, string | null] | null;
   vns: VndbCharacterVn[];
   traits: { id: string; name: string; group_name: string; spoiler: number; sexual: boolean }[];
+  localImage?: string | null;
 }
 
 export interface VndbCharacterVn {

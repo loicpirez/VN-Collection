@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { Heart, KeyRound, Loader2, Search } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Heart, KeyRound, Loader2, RefreshCw, Search } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { useT } from '@/lib/i18n/client';
 
@@ -29,22 +29,19 @@ export function WishlistClient() {
   const t = useT();
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const [hideOwned, setHideOwned] = useState(false);
+  const [hideOwned, setHideOwned] = useState(true);
 
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    setError(null);
-    fetch('/api/wishlist', { cache: 'no-store' })
-      .then(async (r) => {
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const r = await fetch('/api/wishlist', { cache: 'no-store', signal });
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
-        return r.json();
-      })
-      .then((d: { needsAuth?: boolean; items: WishlistItem[] }) => {
-        if (!alive) return;
+        const d = (await r.json()) as { needsAuth?: boolean; items: WishlistItem[] };
+        if (signal?.aborted) return;
         if (d.needsAuth) {
           setNeedsAuth(true);
           setItems([]);
@@ -52,14 +49,29 @@ export function WishlistClient() {
           setNeedsAuth(false);
           setItems(d.items);
         }
-      })
-      .catch((e: Error) => alive && setError(e.message))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, [t.common.error]);
+        setError(null);
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+        setError((e as Error).message);
+      }
+    },
+    [t.common.error],
+  );
 
+  useEffect(() => {
+    const ac = new AbortController();
+    setLoading(true);
+    load(ac.signal).finally(() => setLoading(false));
+    return () => ac.abort();
+  }, [load]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
+
+  const ownedCount = items.filter((it) => it.in_collection).length;
   const filtered = items.filter((it) => {
     if (hideOwned && it.in_collection) return false;
     const lower = q.trim().toLowerCase();
@@ -128,7 +140,21 @@ export function WishlistClient() {
               />
               {t.wishlist.hideOwned}
             </label>
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/50 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+              title={t.wishlist.refresh}
+            >
+              <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+              {t.wishlist.refresh}
+            </button>
             <span className="ml-auto text-xs text-muted">
+              {t.wishlist.ownedSummary
+                .replace('{owned}', String(ownedCount))
+                .replace('{todo}', String(items.length - ownedCount))}
+              {' · '}
               {filtered.length} / {items.length}
             </span>
           </div>

@@ -147,6 +147,13 @@ function open(): Database.Database {
       expires_at    INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_vndb_cache_expires ON vndb_cache(expires_at);
+
+    CREATE TABLE IF NOT EXISTS character_image (
+      char_id    TEXT PRIMARY KEY,
+      url        TEXT,
+      local_path TEXT,
+      fetched_at INTEGER NOT NULL
+    );
   `);
 
   ensureColumn(db, 'vn', 'screenshots', 'TEXT');
@@ -165,6 +172,7 @@ function open(): Database.Database {
   ensureColumn(db, 'collection', 'physical_location', 'TEXT');
   ensureColumn(db, 'collection', 'box_type', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'collection', 'download_url', 'TEXT');
+  ensureColumn(db, 'collection', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
 
   // Legacy migration: physical_location used to be a free-form string.
   // Convert any non-JSON value into a JSON array (split on commas).
@@ -335,6 +343,41 @@ export function setReleaseImages(vnId: string, images: ReleaseImage[]): void {
   db.prepare('UPDATE vn SET release_images = ? WHERE id = ?').run(JSON.stringify(images), vnId);
 }
 
+export interface CharacterImageRecord {
+  url: string | null;
+  local_path: string | null;
+  fetched_at: number;
+}
+
+export function getCharacterImage(charId: string): CharacterImageRecord | null {
+  const row = db
+    .prepare('SELECT url, local_path, fetched_at FROM character_image WHERE char_id = ?')
+    .get(charId) as CharacterImageRecord | undefined;
+  return row ?? null;
+}
+
+export function getCharacterImages(charIds: string[]): Map<string, CharacterImageRecord> {
+  const out = new Map<string, CharacterImageRecord>();
+  if (charIds.length === 0) return out;
+  const placeholders = charIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT char_id, url, local_path, fetched_at FROM character_image WHERE char_id IN (${placeholders})`)
+    .all(...charIds) as (CharacterImageRecord & { char_id: string })[];
+  for (const r of rows) out.set(r.char_id, { url: r.url, local_path: r.local_path, fetched_at: r.fetched_at });
+  return out;
+}
+
+export function upsertCharacterImage(charId: string, url: string | null, localPath: string | null): void {
+  db.prepare(`
+    INSERT INTO character_image (char_id, url, local_path, fetched_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(char_id) DO UPDATE SET
+      url = excluded.url,
+      local_path = excluded.local_path,
+      fetched_at = excluded.fetched_at
+  `).run(charId, url, localPath, Date.now());
+}
+
 export type CollectionPatch = Partial<Omit<CollectionFields, 'added_at' | 'updated_at'>>;
 
 export function addToCollection(vnId: string, fields: CollectionPatch = {}): void {
@@ -348,8 +391,8 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
     INSERT INTO collection (vn_id, status, user_rating, playtime_minutes,
                             started_date, finished_date, notes, favorite,
                             location, edition_type, edition_label, physical_location,
-                            box_type, download_url, added_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            box_type, download_url, dumped, added_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     vnId,
     fields.status ?? 'planning',
@@ -365,6 +408,7 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
     serializePlaces(fields.physical_location ?? null),
     fields.box_type ?? 'none',
     fields.download_url ?? null,
+    fields.dumped ? 1 : 0,
     now,
     now,
   );
@@ -387,6 +431,7 @@ export function updateCollection(vnId: string, fields: CollectionPatch): void {
     physical_location: (v) => serializePlaces(v),
     box_type: (v) => v,
     download_url: (v) => v,
+    dumped: (v) => (v ? 1 : 0),
   };
   for (const key of Object.keys(map) as (keyof typeof map)[]) {
     if (key in fields) {
@@ -407,6 +452,11 @@ export function removeFromCollection(vnId: string): void {
 
 export function isInCollection(vnId: string): boolean {
   return !!db.prepare('SELECT 1 FROM collection WHERE vn_id = ?').get(vnId);
+}
+
+export function listInCollectionVnIds(): string[] {
+  const rows = db.prepare('SELECT vn_id FROM collection').all() as { vn_id: string }[];
+  return rows.map((r) => r.vn_id);
 }
 
 interface DbRow {
@@ -450,6 +500,7 @@ interface DbRow {
   physical_location?: string | null;
   box_type?: string;
   download_url?: string | null;
+  dumped?: number;
   added_at?: number;
   updated_at?: number;
 }
@@ -497,6 +548,7 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     physical_location: parsePlaces(row.physical_location),
     box_type: (row.box_type as BoxType | undefined) ?? 'none',
     download_url: row.download_url ?? null,
+    dumped: !!row.dumped,
     added_at: row.added_at,
     updated_at: row.updated_at,
   };
@@ -511,6 +563,7 @@ export interface ListOptions {
   place?: string;
   yearMin?: number;
   yearMax?: number;
+  dumped?: boolean;
   sort?:
     | 'updated_at'
     | 'added_at'
@@ -532,6 +585,7 @@ export function listCollection({
   place,
   yearMin,
   yearMax,
+  dumped,
   sort = 'updated_at',
   order = 'desc',
 }: ListOptions = {}): CollectionItem[] {
@@ -581,6 +635,10 @@ export function listCollection({
     where.push("substr(v.released, 1, 4) <= ?");
     params.push(String(yearMax));
   }
+  if (typeof dumped === 'boolean') {
+    where.push('c.dumped = ?');
+    params.push(dumped ? 1 : 0);
+  }
   let join = '';
   if (series) {
     join = 'JOIN series_vn sv ON sv.vn_id = v.id ';
@@ -593,7 +651,7 @@ export function listCollection({
       SELECT v.*, c.status, c.user_rating, c.playtime_minutes, c.started_date,
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
              c.edition_label, c.physical_location, c.box_type, c.download_url,
-             c.added_at, c.updated_at
+             c.dumped, c.added_at, c.updated_at
       FROM collection c JOIN vn v ON v.id = c.vn_id
       ${join}
       ${whereSql}
@@ -613,7 +671,7 @@ export function getCollectionItem(vnId: string): CollectionItem | null {
       SELECT v.*, c.status, c.user_rating, c.playtime_minutes, c.started_date,
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
              c.edition_label, c.physical_location, c.box_type, c.download_url,
-             c.added_at, c.updated_at
+             c.dumped, c.added_at, c.updated_at
       FROM vn v LEFT JOIN collection c ON c.vn_id = v.id
       WHERE v.id = ?
     `)

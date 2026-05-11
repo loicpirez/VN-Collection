@@ -1,14 +1,17 @@
 'use client';
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Check, GitBranch, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import type { RouteRow } from '@/lib/types';
+import type { VndbCharacter } from '@/lib/vndb-types';
 
 interface Props {
   vnId: string;
   inCollection: boolean;
 }
+
+const ROLE_PRIORITY: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
 
 export function RoutesSection({ vnId, inCollection }: Props) {
   const t = useT();
@@ -19,6 +22,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const [editingName, setEditingName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [characters, setCharacters] = useState<VndbCharacter[]>([]);
   const [, startTransition] = useTransition();
 
   const reload = useCallback(async () => {
@@ -36,6 +40,45 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (!inCollection) return;
+    let alive = true;
+    fetch(`/api/vn/${vnId}/characters`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { characters: VndbCharacter[] } | null) => {
+        if (alive && d) setCharacters(d.characters);
+      })
+      .catch(() => {
+        // ignore — autocomplete is optional
+      });
+    return () => {
+      alive = false;
+    };
+  }, [vnId, inCollection]);
+
+  const usedNames = useMemo(
+    () => new Set(routes.map((r) => r.name.trim().toLowerCase())),
+    [routes],
+  );
+
+  const suggestions = useMemo(() => {
+    const seen = new Set<string>();
+    const pickRole = (c: VndbCharacter): string => {
+      const v = c.vns.find((vv) => vv.id === vnId);
+      return v?.role ?? 'appears';
+    };
+    return [...characters]
+      .map((c) => ({ ...c, role: pickRole(c) }))
+      .filter((c) => c.role === 'main' || c.role === 'primary')
+      .sort((a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9))
+      .filter((c) => {
+        const k = c.name.trim().toLowerCase();
+        if (!k || seen.has(k)) return false;
+        seen.add(k);
+        return !usedNames.has(k);
+      });
+  }, [characters, usedNames, vnId]);
 
   if (!inCollection) return null;
 
@@ -281,13 +324,40 @@ export function RoutesSection({ vnId, inCollection }: Props) {
           placeholder={t.routes.addPlaceholder}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          list={`routes-${vnId}-suggest`}
           maxLength={200}
         />
+        <datalist id={`routes-${vnId}-suggest`}>
+          {suggestions.map((c) => (
+            <option key={c.id} value={c.name} label={c.original && c.original !== c.name ? c.original : undefined} />
+          ))}
+        </datalist>
         <button type="submit" className="btn btn-primary" disabled={!draft.trim() || busy}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           {t.routes.add}
         </button>
       </form>
+
+      {suggestions.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted">
+            {t.routes.suggestionsLabel}
+          </span>
+          {suggestions.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => {
+                setDraft(c.name);
+              }}
+              className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent"
+              title={c.original && c.original !== c.name ? `${c.name} · ${c.original}` : c.name}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

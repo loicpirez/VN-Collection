@@ -10,6 +10,7 @@ export const STORAGE_DIRS = {
   vnCover: 'cover',
   producerLogo: 'producer',
   seriesCover: 'series',
+  character: 'character',
 } as const;
 
 export type StorageBucket = keyof typeof STORAGE_DIRS;

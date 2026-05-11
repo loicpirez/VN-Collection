@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react';
 import { getCharactersForTrait, getTrait, type VndbCharacter, type VndbTrait } from '@/lib/vndb';
+import { getCharacterImages, listInCollectionVnIds } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 
@@ -12,8 +13,16 @@ function stripBb(s: string | null | undefined): string {
   return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
 }
 
-export default async function TraitPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TraitPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ mine?: string }>;
+}) {
   const { id } = await params;
+  const sp = await searchParams;
+  const mineOnly = sp.mine === '1';
   if (!/^i\d+$/i.test(id)) notFound();
   const t = await getDict();
   let trait: VndbTrait | null = null;
@@ -28,6 +37,14 @@ export default async function TraitPage({ params }: { params: Promise<{ id: stri
     error = (e as Error).message;
   }
   if (!trait) notFound();
+
+  const ownedVnIds = new Set(listInCollectionVnIds());
+  const allCount = characters.length;
+  const mineCount = characters.filter((c) => c.vns.some((v) => ownedVnIds.has(v.id))).length;
+  const visible = mineOnly
+    ? characters.filter((c) => c.vns.some((v) => ownedVnIds.has(v.id)))
+    : characters;
+  const localPaths = getCharacterImages(visible.map((c) => c.id));
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -76,23 +93,54 @@ export default async function TraitPage({ params }: { params: Promise<{ id: stri
       )}
 
       <section className="rounded-xl border border-border bg-bg-card p-6">
-        <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          {t.traits.charactersWith} · {characters.length}
-        </h2>
-        {characters.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted">{t.search.noResults}</p>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+            {t.traits.charactersWith} · {visible.length}
+            {mineOnly && (
+              <span className="text-[10px] font-normal opacity-70">
+                · {mineCount} / {allCount} {t.traits.mineCountSuffix}
+              </span>
+            )}
+          </h2>
+          <div className="inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]">
+            <Link
+              href={`/trait/${id}`}
+              className={`rounded px-2 py-1 transition-colors ${
+                !mineOnly ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+              }`}
+            >
+              {t.traits.all} · {allCount}
+            </Link>
+            <Link
+              href={`/trait/${id}?mine=1`}
+              className={`rounded px-2 py-1 transition-colors ${
+                mineOnly ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+              }`}
+            >
+              {t.traits.mine} · {mineCount}
+            </Link>
+          </div>
+        </div>
+        {visible.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted">
+            {mineOnly ? t.traits.mineEmpty : t.search.noResults}
+          </p>
         ) : (
           <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-            {characters.map((c) => {
-              const firstVn = c.vns[0];
+            {visible.map((c) => {
+              const owned = c.vns.find((v) => ownedVnIds.has(v.id));
+              const firstVn = owned ?? c.vns[0];
               return (
                 <li key={c.id}>
                   <Link
                     href={`/character/${c.id}`}
-                    className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
+                    className={`group flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors hover:border-accent ${
+                      owned ? 'border-accent/40' : 'border-border'
+                    }`}
                   >
                     <SafeImage
                       src={c.image?.url ?? null}
+                      localSrc={localPaths.get(c.id)?.local_path ?? null}
                       sexual={c.image?.sexual ?? null}
                       alt={c.name}
                       className="h-24 w-16 shrink-0 rounded"
@@ -107,6 +155,7 @@ export default async function TraitPage({ params }: { params: Promise<{ id: stri
                       {firstVn && (
                         <div className="mt-1 line-clamp-1 text-[10px] text-muted">
                           → {firstVn.title ?? firstVn.id}
+                          {owned && <span className="ml-1 text-accent">✓</span>}
                         </div>
                       )}
                     </div>

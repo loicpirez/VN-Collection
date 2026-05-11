@@ -79,6 +79,7 @@ export function CharactersSection({ vnId }: { vnId: string }) {
                 >
                   <SafeImage
                     src={c.image?.url ?? null}
+                    localSrc={c.localImage ?? null}
                     sexual={c.image?.sexual ?? null}
                     alt={c.name}
                     className="h-28 w-20 shrink-0 rounded-md"

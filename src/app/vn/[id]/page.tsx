@@ -39,16 +39,21 @@ function cleanDesc(s: string | null | undefined): string {
   return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
 }
 
-async function loadVn(id: string): Promise<CollectionItem | null> {
+async function loadVn(id: string): Promise<{ vn: CollectionItem | null; error: string | null }> {
   const cached = getCollectionItem(id);
-  if (cached && Date.now() - cached.fetched_at < CACHE_MS) return cached;
+  if (cached && Date.now() - cached.fetched_at < CACHE_MS) return { vn: cached, error: null };
   try {
     const fresh = await getVn(id);
-    if (!fresh) return cached;
+    if (!fresh) {
+      if (cached) return { vn: cached, error: null };
+      return { vn: null, error: `VNDB returned no result for ${id}` };
+    }
     upsertVn(fresh);
-    return getCollectionItem(id);
-  } catch {
-    return cached;
+    return { vn: getCollectionItem(id), error: null };
+  } catch (e) {
+    const msg = (e as Error).message || 'fetch failed';
+    if (cached) return { vn: cached, error: null };
+    return { vn: null, error: msg };
   }
 }
 
@@ -56,8 +61,33 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   if (!/^v\d+$/i.test(id)) notFound();
   const t = await getDict();
-  const vn = await loadVn(id);
-  if (!vn) notFound();
+  const { vn, error } = await loadVn(id);
+  if (!vn) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+          <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        </Link>
+        <div className="rounded-2xl border border-status-dropped/40 bg-status-dropped/5 p-6">
+          <h1 className="mb-2 text-xl font-bold text-status-dropped">{t.detail.notFoundTitle}</h1>
+          <p className="text-sm text-muted">{t.detail.notFoundBody.replace('{id}', id)}</p>
+          {error && (
+            <pre className="mt-3 overflow-x-auto rounded bg-bg-elev/60 p-2 text-[11px] text-status-dropped/80">{error}</pre>
+          )}
+          <p className="mt-4 text-xs text-muted">
+            <a
+              href={`https://vndb.org/${id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent hover:underline"
+            >
+              {t.detail.openOnVndb} →
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
   const inCol = isInCollection(id);
   const allSeries = listSeries();
   const status = (vn.status as Status | undefined) ?? null;
