@@ -40,7 +40,11 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
   async function joinExisting(seriesId: number) {
     setBusy(`join-${seriesId}`);
     try {
-      const r = await fetch(`/api/series/${seriesId}/vn/${vnId}`, { method: 'POST' });
+      const r = await fetch(`/api/series/${seriesId}/vn/${vnId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expand: true }),
+      });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
       toast.success(t.seriesAutoSuggest.added);
       startTransition(() => router.refresh());
@@ -62,7 +66,11 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
       const data = (await r.json()) as { series: { id: number } };
-      const link = await fetch(`/api/series/${data.series.id}/vn/${vnId}`, { method: 'POST' });
+      const link = await fetch(`/api/series/${data.series.id}/vn/${vnId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expand: true }),
+      });
       if (!link.ok) throw new Error((await link.json().catch(() => ({}))).error || t.common.error);
       toast.success(t.seriesAutoSuggest.created);
       startTransition(() => router.refresh());

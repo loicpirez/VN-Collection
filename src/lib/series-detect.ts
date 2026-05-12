@@ -18,6 +18,42 @@ interface VnRelationRow {
 
 const SERIES_RELATIONS = new Set(['seq', 'preq', 'set', 'fan', 'alt', 'orig']);
 
+/**
+ * BFS through VN relations starting from `seedVnId`, following only
+ * series-strength relations (`seq` / `preq` / `set` / `fan` / `alt` / `orig`).
+ * Returns every reachable VN we have a `vn` row for, in discovery order.
+ *
+ * VNDB stores relations per-VN one hop deep; "Ai Kiss 1" doesn't directly
+ * list "Ai Kiss 3", but "Ai Kiss 2" links both. Walking transitively
+ * surfaces the full chain so the series picker can offer the whole family.
+ *
+ * Excludes the seed itself from the returned list.
+ */
+export function walkSeriesRelations(seedVnId: string): { id: string; title: string; relation: string }[] {
+  const visited = new Set<string>([seedVnId]);
+  const out: { id: string; title: string; relation: string }[] = [];
+  const queue: string[] = [seedVnId];
+  const stmt = db.prepare('SELECT relations FROM vn WHERE id = ?');
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    const row = stmt.get(current) as { relations: string | null } | undefined;
+    if (!row?.relations) continue;
+    let rels: VnRelationRow[];
+    try {
+      rels = JSON.parse(row.relations) as VnRelationRow[];
+    } catch {
+      continue;
+    }
+    for (const rel of rels) {
+      if (!rel?.id || visited.has(rel.id) || !SERIES_RELATIONS.has(rel.relation)) continue;
+      visited.add(rel.id);
+      out.push({ id: rel.id, title: rel.title, relation: rel.relation });
+      queue.push(rel.id);
+    }
+  }
+  return out;
+}
+
 /** Strip trailing tokens like `2`, `II`, `: subtitle`, `~side~` to derive a series root. */
 function trimVolumeMarker(s: string): string {
   return s
@@ -54,17 +90,15 @@ function longestCommonPrefix(titles: string[]): string {
  *     title if no common prefix emerges.
  */
 export function detectSeriesForVn(vnId: string): SeriesSuggestion | null {
-  const seedRow = db.prepare(`SELECT title, relations FROM vn WHERE id = ?`).get(vnId) as
-    | { title: string; relations: string | null }
+  const seedRow = db.prepare(`SELECT title FROM vn WHERE id = ?`).get(vnId) as
+    | { title: string }
     | undefined;
   if (!seedRow) return null;
-  let relations: VnRelationRow[] = [];
-  try {
-    const parsed = seedRow.relations ? (JSON.parse(seedRow.relations) as VnRelationRow[]) : [];
-    relations = parsed.filter((r) => r && r.id && SERIES_RELATIONS.has(r.relation));
-  } catch {
-    return null;
-  }
+
+  // Walk the full relation graph transitively — a VN's `relations` field only
+  // names its direct neighbours, but a series often has 3+ entries where the
+  // outer ones don't reference each other. BFS unifies the chain.
+  const relations = walkSeriesRelations(vnId);
   if (relations.length === 0) return null;
 
   // Which related VNs does the user own?
