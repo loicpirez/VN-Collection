@@ -349,9 +349,20 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
             )}
 
             <div className="mt-3 flex flex-wrap gap-2">
-              <a href={`https://vndb.org/${vn.id}`} target="_blank" rel="noopener noreferrer" className="btn">
-                <ExternalLink className="h-4 w-4" /> {t.detail.viewOnVndb}
-              </a>
+              {vn.id.startsWith('egs_') && egsRow?.egs_id ? (
+                <a
+                  href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${egsRow.egs_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn"
+                >
+                  <ExternalLink className="h-4 w-4" /> {t.detail.viewOnEgs}
+                </a>
+              ) : (
+                <a href={`https://vndb.org/${vn.id}`} target="_blank" rel="noopener noreferrer" className="btn">
+                  <ExternalLink className="h-4 w-4" /> {t.detail.viewOnVndb}
+                </a>
+              )}
               {(vn.extlinks ?? []).slice(0, 8).map((l) => (
                 <a
                   key={l.url}

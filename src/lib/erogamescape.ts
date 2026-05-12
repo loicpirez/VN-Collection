@@ -230,10 +230,20 @@ export function findEgsIdInExtlinks(
   return null;
 }
 
+/**
+ * Cover URLs are resolved lazily by `/api/egs-cover/[id]`. The route probes
+ * each candidate source (EGS image.php, DMM CDN, Suruga-ya, DLsite, gyutto,
+ * banner_url) and redirects to the first one that actually responds with an
+ * image — guessing a single CDN here is wrong because the image can live on
+ * any of them, or none. Cover URLs stored in `egs_game.image_url` are kept
+ * compatible by always pointing at this resolver.
+ */
 function buildImageUrl(id: number): string {
-  // EGS exposes covers via a tiny PHP redirector. Some games have no image at all;
-  // SafeImage's `errored` fallback handles the 404 silently.
-  return `${EGS_BASE}/image.php?game=${id}`;
+  return `/api/egs-cover/${id}`;
+}
+
+function resolveEgsCoverUrl(_row: Record<string, string | null>, id: number): string {
+  return buildImageUrl(id);
 }
 
 function toBool(v: string | undefined): boolean | null {
@@ -309,11 +319,9 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
     return null;
   }
 
-  // Banner / cover image: gamelist.banner_url when present, else fall back to the
-  // EGS image.php redirector (which 404s for games without an upload).
-  const image_url = row.banner_url && row.banner_url.startsWith('http')
-    ? row.banner_url
-    : buildImageUrl(id);
+  // Banner / cover image: try banner_url → Suruga-ya shop image → image.php
+  // redirector (last resort, often 404s on older games).
+  const image_url = resolveEgsCoverUrl(row, id);
 
   // EGS has no structured synopsis. We used to surface a top user comment as a
   // stand-in but the result was misleading (single user opinion ≠ synopsis), so
@@ -401,7 +409,7 @@ function rowToGame(row: EgsRow): EgsGame | null {
     brand_name: row.brand_name ?? null,
     model: row.model ?? null,
     description: row.description ?? null,
-    image_url: row.image_url ?? `${EGS_BASE}/image.php?game=${row.egs_id}`,
+    image_url: `/api/egs-cover/${row.egs_id}`,
     okazu: row.okazu != null ? !!row.okazu : null,
     erogame: row.erogame != null ? !!row.erogame : null,
     median: row.median,
@@ -486,7 +494,8 @@ export async function resolveEgsForVn(
 
   let egsId: number | null = null;
   // Synthetic EGS-only VNs encode the EGS id in their vn_id (`egs_1234`) — short-circuit.
-  if (vnId.startsWith('egs_')) {
+  const synthetic = vnId.startsWith('egs_');
+  if (synthetic) {
     const parsed = Number(vnId.slice('egs_'.length));
     if (Number.isInteger(parsed) && parsed > 0) egsId = parsed;
   } else {
@@ -534,7 +543,10 @@ export async function resolveEgsForVn(
   }
 
   if (game && source) {
-    persistGame(vnId, game, source);
+    // Synthetic egs_* entries aren't matched via a VNDB extlink — the EGS id
+    // is the id itself. Persist as 'manual' so MatchBadges doesn't falsely
+    // attribute the match to VNDB.
+    persistGame(vnId, game, synthetic ? 'manual' : source);
     return { game, source };
   }
 

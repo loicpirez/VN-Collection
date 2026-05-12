@@ -389,6 +389,29 @@ function open(): Database.Database {
     })();
   }
 
+  // Migration: rewrite EGS cover URLs to point at the resolver endpoint
+  // (/api/egs-cover/{egs_id}) instead of hardcoded DMM / Suruga-ya / image.php
+  // URLs. The resolver picks the right source per game by reading og:image
+  // from the upstream product page. Idempotent — gated by an app_setting key.
+  const coversMigrated = (db
+    .prepare(`SELECT value FROM app_setting WHERE key = 'egs_cover_resolver_v1'`)
+    .get() as { value: string | null } | undefined)?.value;
+  if (coversMigrated !== '1') {
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE egs_game
+        SET image_url = '/api/egs-cover/' || egs_id
+        WHERE egs_id IS NOT NULL
+      `).run();
+      db.prepare(`
+        UPDATE vn
+        SET image_url = '/api/egs-cover/' || substr(id, 5)
+        WHERE id LIKE 'egs_%'
+      `).run();
+      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_cover_resolver_v1', '1')`).run();
+    })();
+  }
+
   // Backfill vn_staff_credit / vn_va_credit from each row's JSON staff/va
   // payloads. One-shot migration, gated by an app_setting marker.
   const creditsBackfilled = (db

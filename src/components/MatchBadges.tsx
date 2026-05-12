@@ -39,7 +39,7 @@ export function MatchBadges({ egsOnly, egs, t }: Props) {
         active={egsMatched}
         icon={<Sparkles className="h-3 w-3" aria-hidden />}
         label="ErogameScape"
-        sub={egsMatched ? egsSourceLabel : t.matchBadges.noEgsMatch}
+        sub={egsMatched ? (egsOnly ? null : egsSourceLabel) : t.matchBadges.noEgsMatch}
         tone="egs"
       />
     </div>

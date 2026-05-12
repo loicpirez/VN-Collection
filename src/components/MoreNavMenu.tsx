@@ -1,14 +1,13 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Award, Bookmark, ChevronDown, Quote, Sparkles, Tags, Trophy } from 'lucide-react';
+import { BarChart3, ChevronDown, Database, Wand2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 /**
- * Single "More" dropdown that consolidates the less-frequently-visited
- * nav entries. The top bar keeps Library / Wishlist / Search / For you /
- * Upcoming / Stats / Data; everything else moves in here so the bar
- * doesn't wrap on smaller screens.
+ * "More" dropdown holding the three less visit-frequent destinations
+ * (Data / For you / Stats) so the main nav stays focused on the day-to-day
+ * pages (Library, Wishlist, Search, Upcoming, Producers, …).
  */
 export function MoreNavMenu() {
   const t = useT();
@@ -45,17 +44,9 @@ export function MoreNavMenu() {
       </button>
       {open && (
         <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card">
-          <MoreLink href="/producers" icon={<Trophy className="h-4 w-4" />} label={t.nav.producers} onClick={() => setOpen(false)} />
-          <MoreLink href="/series" icon={<Bookmark className="h-4 w-4" />} label={t.nav.series} onClick={() => setOpen(false)} />
-          <MoreLink href="/tags" icon={<Tags className="h-4 w-4" />} label={t.nav.tags} onClick={() => setOpen(false)} />
-          <MoreLink href="/traits" icon={<Sparkles className="h-4 w-4" />} label={t.nav.traits} onClick={() => setOpen(false)} />
-          <MoreLink
-            href={`/year?y=${new Date().getFullYear()}`}
-            icon={<Award className="h-4 w-4" />}
-            label={t.nav.year}
-            onClick={() => setOpen(false)}
-          />
-          <MoreLink href="/quotes" icon={<Quote className="h-4 w-4" />} label={t.nav.quotes} onClick={() => setOpen(false)} />
+          <MoreLink href="/data" icon={<Database className="h-4 w-4" />} label={t.nav.data} onClick={() => setOpen(false)} />
+          <MoreLink href="/recommendations" icon={<Wand2 className="h-4 w-4" />} label={t.nav.recommend} onClick={() => setOpen(false)} />
+          <MoreLink href="/stats" icon={<BarChart3 className="h-4 w-4" />} label={t.nav.stats} onClick={() => setOpen(false)} />
         </div>
       )}
     </div>
