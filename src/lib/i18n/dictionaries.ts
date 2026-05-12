@@ -515,6 +515,15 @@ export const dictionaries = {
       notEnough: 'pas assez de VN terminés pour estimer ton rythme',
       notEnoughHint: 'Termine au moins 3 VN avec un temps de jeu pour activer la prédiction.',
     },
+    quickActions: {
+      title: 'Actions rapides',
+      statusLabel: 'Statut',
+      favorite: 'Ajouter aux favoris',
+      unfavorite: 'Retirer des favoris',
+      open: 'Ouvrir la fiche',
+      openProducer: "Voir l'éditeur",
+      filterSameProducer: 'Filtrer par cet éditeur',
+    },
     vndbStatus: {
       section: 'Statut VNDB',
       needsToken: 'Configure un token VNDB dans les paramètres pour gérer les labels (Wishlist, Playing, Finished…) depuis cette page.',
@@ -1301,6 +1310,15 @@ export const dictionaries = {
       notEnough: 'not enough completed VNs to estimate your pace',
       notEnoughHint: 'Finish at least 3 VNs with a playtime to unlock the prediction.',
     },
+    quickActions: {
+      title: 'Quick actions',
+      statusLabel: 'Status',
+      favorite: 'Mark as favourite',
+      unfavorite: 'Remove from favourites',
+      open: 'Open detail page',
+      openProducer: 'Open producer',
+      filterSameProducer: 'Filter by this producer',
+    },
     vndbStatus: {
       section: 'VNDB status',
       needsToken: 'Set a VNDB token in Settings to manage your list labels (Wishlist, Playing, Finished…) from this page.',
@@ -2086,6 +2104,15 @@ export const dictionaries = {
       tooltip: 'プレイ時間が記録された {n} 本の完了 VN から計算。',
       notEnough: 'ペース推定には完了 VN が足りません',
       notEnoughHint: 'プレイ時間付きで 3 本以上完了すると予測が有効になります。',
+    },
+    quickActions: {
+      title: 'クイック操作',
+      statusLabel: 'ステータス',
+      favorite: 'お気に入りに追加',
+      unfavorite: 'お気に入りから削除',
+      open: '詳細ページを開く',
+      openProducer: 'ブランドを開く',
+      filterSameProducer: 'このブランドで絞り込む',
     },
     vndbStatus: {
       section: 'VNDB ステータス',

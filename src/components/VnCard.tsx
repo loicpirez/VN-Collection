@@ -8,6 +8,7 @@ import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { useResolvedTitle } from './TitleLine';
+import { CardContextMenu } from './CardContextMenu';
 import type { Status } from '@/lib/types';
 
 export interface CardData {
@@ -67,6 +68,17 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
   const [adding, setAdding] = useState(false);
   const [addedLocal, setAddedLocal] = useState(false);
   const [, startTransition] = useTransition();
+  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+
+  // Right-click on a card opens the quick-actions menu when the VN is in the
+  // collection. Skip the menu in selectable mode (multi-select grid) and for
+  // unsaved search hits — there's nothing to mutate yet.
+  function onContextMenu(e: React.MouseEvent) {
+    if (selectable) return;
+    if (!data.status && !data.inCollectionBadge) return;
+    e.preventDefault();
+    setMenuAnchor({ x: e.clientX, y: e.clientY });
+  }
   const showAddButton = enableAdd && !selectable && !data.status && !data.inCollectionBadge && !addedLocal;
   const showAddedBadge = enableAdd && !selectable && (data.inCollectionBadge || addedLocal);
 
@@ -272,8 +284,20 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
   }
 
   return (
-    <Link href={`/vn/${data.id}`} className={className}>
-      {inner}
-    </Link>
+    <>
+      <Link href={`/vn/${data.id}`} className={className} onContextMenu={onContextMenu}>
+        {inner}
+      </Link>
+      {menuAnchor && (
+        <CardContextMenu
+          vnId={data.id}
+          status={data.status ?? null}
+          favorite={!!data.favorite}
+          developer={data.developers?.[0] ?? null}
+          anchor={menuAnchor}
+          onClose={() => setMenuAnchor(null)}
+        />
+      )}
+    </>
   );
 }
