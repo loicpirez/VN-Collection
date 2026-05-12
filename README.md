@@ -264,7 +264,12 @@ VNDB and ErogameScape entries coexist:
 ## Roadmap
 
 The next batch of features is documented in [PLAN.md](PLAN.md) with file
-paths, DB shape and rough sizing. Highlights:
+paths, DB shape and rough sizing. The catalogue of every shipped feature
+lives in [FEATURES.md](FEATURES.md) — start there if you're new to the
+codebase. First-time visitors also get an in-app guided tour
+(re-runnable from `/data → Tour`).
+
+Highlights:
 
 - **Random pick** — one-click "what should I play next" respecting filters.
 - **Tag co-occurrence** — given a VN, surface the tags that frequently

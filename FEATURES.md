@@ -5,11 +5,16 @@ does**, **where to find it**, and (where useful) the **DB shape / API
 surface**.
 
 Pair with:
-- [PLAN.md](PLAN.md) — implementation plan for the previous batch.
+- [TUTORIAL.md](TUTORIAL.md) — 5-minute walkthrough.
+- [PLAN.md](PLAN.md) — implementation plan for the first feature batch.
 - [CLAUDE.md](CLAUDE.md) — architecture / conventions.
 - [README.md](README.md) — user-facing overview.
 
 > Status legend: ✅ shipped · 🧪 scaffolded (works but minimal) · 🚧 planned.
+
+> Tip: the in-app guided tour auto-opens on first visit and walks you
+> through the eight most important surfaces. Re-runnable from
+> `/data → Tour`.
 
 ---
 

@@ -447,25 +447,32 @@ Next.js validation + page generation.
 
 ---
 
-## Active work — see PLAN.md
+## Feature catalogue — see FEATURES.md
 
-A batch of twelve features is in flight, tracked in `PLAN.md` at the repo
-root. Each one lands as its own commit; the urgent fixes (banner position
-edit, inline cover uploader when no cover exists) ship first and the
-remainder follow the rollout order documented there.
+Every shipped user-facing feature is documented in `FEATURES.md` at the
+repo root, with cross-links to the relevant files and DB tables. Start
+there if you're new.
 
-If you're an agent picking up mid-batch:
-- Check the existing commits since `06834d4` to see which features are done.
-- Re-read **PLAN.md** for the spec — file paths, DB shape, i18n keys.
-- New helpers added during the batch live in `src/lib/*.ts` (one file per
-  feature, not piled into `db.ts`). The conventions in this guide still
-  apply — `getDict()`, `SafeImage`, URL-state-over-`useState`, etc.
+`PLAN.md` is the spec for the first feature batch (now landed); future
+batches will not have PLAN docs — feature additions live directly in
+FEATURES.md instead.
 
-New DB tables introduced by the batch:
+If you're an agent picking up mid-feature:
+- Read **FEATURES.md** first.
+- New helpers live in `src/lib/*.ts` (one file per feature, not piled
+  into `db.ts`). The conventions in this guide still apply —
+  `getDict()`, `SafeImage`, URL-state-over-`useState`, etc.
+- All routes accept their dynamic params via the async `params` /
+  `searchParams` shape from Next.js 15 — `const { id } = await params`.
+
+New DB tables introduced by recent batches:
 
 | Table | Owner feature | Notes |
 | --- | --- | --- |
 | `vn_activity` | Reading log | One row per status / playtime / note change. Written inside the existing `updateCollection` transaction so the audit trail never drifts from the actual state. |
+| `saved_filter` | Saved filter combos | URL-param strings pinned by name; rendered as chips above the library filters. |
+| `reading_queue` | Reading queue | VNs the user wants to play next, distinct from the "Planning" status. Ordered manually. |
+| `reading_goal` | Yearly reading goal | One row per year. Progress ring against `countFinishedInYear`. |
 
 ## Not implemented (yet)
 
