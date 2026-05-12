@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { Award, BarChart3, Bookmark, CalendarRange, Database, Heart, Library, Quote, Search, Sparkles, Tags, Trophy, Wand2 } from 'lucide-react';
 import './globals.css';
+import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
+import { TutorialTour } from '@/components/TutorialTour';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
 import { DisplaySettingsProvider, type DisplaySettings } from '@/lib/settings/client';
@@ -78,6 +80,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </header>
             <main className="mx-auto max-w-7xl px-6 pb-16 pt-8">{children}</main>
               <QuoteFooter />
+              <KeyboardShortcuts />
+              <TutorialTour />
             </ToastProvider>
           </DisplaySettingsProvider>
         </I18nProvider>

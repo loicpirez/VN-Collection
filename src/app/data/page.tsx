@@ -6,6 +6,7 @@ import { getDict } from '@/lib/i18n/server';
 import { ImportPanel } from '@/components/ImportPanel';
 import { DataMaintenance } from '@/components/DataMaintenance';
 import { DropImport } from '@/components/DropImport';
+import { RunTourButton } from '@/components/RunTourButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -115,6 +116,12 @@ export default async function DataPage() {
       </section>
 
       <DataMaintenance />
+
+      <section className="rounded-2xl border border-border bg-bg-card p-6">
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.tour.runAgain}</h2>
+        <p className="mb-3 text-xs text-muted">{t.tour.hint}</p>
+        <RunTourButton />
+      </section>
 
       <DropImport />
 

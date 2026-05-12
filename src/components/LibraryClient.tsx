@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Calendar, CheckSquare, ChevronDown, Filter, FilterX, GripVertical, HardDriveDownload, Home, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Calendar, CheckSquare, ChevronDown, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
@@ -121,7 +121,7 @@ export function LibraryClient() {
     return () => clearTimeout(handle);
   }, [qInput, urlQ, setParam]);
 
-  const { settings } = useDisplaySettings();
+  const { settings, set } = useDisplaySettings();
   const [items, setItems] = useState<CollectionItem[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, byStatus: [], playtime_minutes: 0 });
   const [producers, setProducers] = useState<ProducerStat[]>([]);
@@ -541,6 +541,14 @@ export function LibraryClient() {
           </select>
         </label>
         <div className="ml-auto flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => set('denseLibrary', !settings.denseLibrary)}
+            className={`btn ${settings.denseLibrary ? 'btn-primary' : ''}`}
+            title={t.library.denseToggle}
+          >
+            <LayoutGrid className="h-4 w-4" /> {settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
+          </button>
           <div className="flex gap-6 text-sm text-muted">
             <span><b className="text-white">{stats.total}</b> {t.library.stats.vnCount}</span>
             <span><b className="text-white">{totalH}h</b> {t.library.stats.playedHours}</span>
@@ -636,6 +644,7 @@ export function LibraryClient() {
                 selectMode={selectMode}
                 selected={selected}
                 onToggle={toggleSelected}
+                dense={settings.denseLibrary}
               />
             )
           ) : (
@@ -652,6 +661,7 @@ export function LibraryClient() {
                     selectMode={selectMode}
                     selected={selected}
                     onToggle={toggleSelected}
+                    dense={settings.denseLibrary}
                   />
                 </section>
               ))}
@@ -787,14 +797,19 @@ function Grid({
   selectMode = false,
   selected = new Set<string>(),
   onToggle,
+  dense = false,
 }: {
   items: CollectionItem[];
   selectMode?: boolean;
   selected?: Set<string>;
   onToggle?: (id: string) => void;
+  dense?: boolean;
 }) {
+  const cls = dense
+    ? 'grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8'
+    : 'grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6';
   return (
-    <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+    <div className={cls}>
       {items.map((it) => (
         <VnCard
           key={it.id}

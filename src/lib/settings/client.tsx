@@ -20,6 +20,8 @@ export interface DisplaySettings {
    * threshold. Stronger than `blurR18` — those entries don't render at all.
    */
   hideSexual: boolean;
+  /** Library grid density: false = comfortable (default), true = dense. */
+  denseLibrary: boolean;
 }
 
 const DEFAULTS: DisplaySettings = {
@@ -29,6 +31,7 @@ const DEFAULTS: DisplaySettings = {
   preferLocalImages: true,
   preferNativeTitle: false,
   hideSexual: false,
+  denseLibrary: false,
 };
 
 const STORAGE_KEY = 'vn_display_settings_v1';
