@@ -30,6 +30,11 @@ export const dictionaries = {
       includeEro: 'Inclure tags érotiques',
       hideEro: 'Masquer tags érotiques',
     },
+    upcoming: {
+      title: 'Sorties à venir',
+      subtitle: 'Nouvelles sorties (≥ aujourd\'hui) des éditeurs déjà présents dans ta collection.',
+      empty: 'Aucune sortie à venir pour les éditeurs de ta collection.',
+    },
     wishlist: {
       pageTitle: 'Wishlist VNDB',
       pageSubtitle: 'Les VN marqués « Wishlist » sur ton compte VNDB.',
@@ -854,6 +859,11 @@ export const dictionaries = {
       includeEro: 'Include ero tags',
       hideEro: 'Hide ero tags',
     },
+    upcoming: {
+      title: 'Upcoming releases',
+      subtitle: 'Future releases (≥ today) from publishers already in your collection.',
+      empty: 'No upcoming releases for the publishers in your collection.',
+    },
     wishlist: {
       pageTitle: 'VNDB Wishlist',
       pageSubtitle: 'VNs flagged "Wishlist" on your VNDB account.',
@@ -1677,6 +1687,11 @@ export const dictionaries = {
       empty: '70/100 以上で何本か採点するとおすすめが有効になります。',
       includeEro: 'エロタグも含む',
       hideEro: 'エロタグを除外',
+    },
+    upcoming: {
+      title: '発売予定',
+      subtitle: 'コレクションのブランドの今後の発売予定（今日以降）。',
+      empty: 'コレクションのブランドからは今後の発売予定がありません。',
     },
     wishlist: {
       pageTitle: 'VNDB ウィッシュリスト',
