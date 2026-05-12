@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Activity, Database, Download, FileJson, FileUp, HardDrive, KeyRound, Sparkles } from 'lucide-react';
+import { Activity, CalendarRange, Database, Download, FileJson, FileSpreadsheet, FileUp, HardDrive, KeyRound, Sparkles } from 'lucide-react';
 import { getDbStatus } from '@/lib/db';
 import { getAuthInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
@@ -90,6 +90,12 @@ export default async function DataPage() {
         <div className="flex flex-wrap gap-2">
           <Link href="/api/collection/export" className="btn" download>
             <FileJson className="h-4 w-4" /> {t.dataMgmt.exportJson}
+          </Link>
+          <Link href="/api/export/csv" className="btn" download>
+            <FileSpreadsheet className="h-4 w-4" /> {t.dataMgmt.exportCsv}
+          </Link>
+          <Link href="/api/export/ics" className="btn" download>
+            <CalendarRange className="h-4 w-4" /> {t.dataMgmt.exportIcs}
           </Link>
           <Link href="/api/backup" className="btn" download>
             <HardDrive className="h-4 w-4" /> {t.dataMgmt.backupDb}
