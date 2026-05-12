@@ -16,8 +16,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ candidates });
   } catch (e) {
     if (e instanceof EgsUnreachable) {
+      const msg = {
+        network: 'ErogameScape ne répond pas (problème réseau). Réessaie dans quelques minutes.',
+        server: 'ErogameScape renvoie une erreur serveur. Réessaie dans quelques minutes.',
+        throttled: 'Trop de requêtes vers ErogameScape — attends une minute avant de relancer.',
+        blocked: 'ErogameScape refuse les requêtes (HTTP 403). Ton IP est peut-être bloquée.',
+      }[e.kind];
       return NextResponse.json(
-        { error: 'ErogameScape est injoignable pour le moment — réessaie dans quelques minutes.', candidates: [] },
+        { error: msg, kind: e.kind, status: e.status, candidates: [] },
         { status: 503 },
       );
     }

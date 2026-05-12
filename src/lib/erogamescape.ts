@@ -88,17 +88,27 @@ function writeCache(key: string, value: unknown, ttlMs = CACHE_TTL_MS): void {
 }
 
 /**
- * Thrown when EGS itself is unreachable — DNS failure, connection refused,
- * timeout, 5xx. Caught upstream so we don't overwrite previously-good matches
- * with a "no match" placeholder during a transient outage.
+ * Reason an EGS request couldn't complete. Distinguishing them lets the UI
+ * tell the user "site is down" vs "you've been throttled" vs "you're blocked".
  *
- * "Query ran but returned no rows" is NOT this — it's the normal empty-result
- * path and is allowed to persist a null match.
+ *   - "network": DNS failure, connection refused, aborted, timeout.
+ *   - "server":  5xx — EGS is up but returning an error.
+ *   - "throttled": 429 — rate-limited, back off and retry.
+ *   - "blocked": 403 — banned / forbidden, more durable than throttled.
+ *
+ * A successful query that returned 0 rows is NOT this — that's a real
+ * negative answer and is allowed to persist.
  */
+export type EgsUnreachableKind = 'network' | 'server' | 'throttled' | 'blocked';
+
 export class EgsUnreachable extends Error {
-  constructor(cause: unknown) {
-    super(`EGS unreachable: ${cause instanceof Error ? cause.message : String(cause)}`);
+  readonly kind: EgsUnreachableKind;
+  readonly status: number | null;
+  constructor(kind: EgsUnreachableKind, detail: string, status: number | null = null) {
+    super(`EGS ${kind}: ${detail}`);
     this.name = 'EgsUnreachable';
+    this.kind = kind;
+    this.status = status;
   }
 }
 
@@ -117,11 +127,14 @@ async function fetchTable(sql: string): Promise<string[][]> {
       body: new URLSearchParams({ sql }).toString(),
     });
   } catch (e) {
-    throw new EgsUnreachable(e);
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new EgsUnreachable('network', msg);
   } finally {
     clearTimeout(timer);
   }
-  if (res.status >= 500 || res.status === 0) throw new EgsUnreachable(`HTTP ${res.status}`);
+  if (res.status === 429) throw new EgsUnreachable('throttled', `HTTP ${res.status}`, res.status);
+  if (res.status === 403) throw new EgsUnreachable('blocked', `HTTP ${res.status}`, res.status);
+  if (res.status >= 500 || res.status === 0) throw new EgsUnreachable('server', `HTTP ${res.status}`, res.status);
   if (!res.ok) throw new Error(`EGS HTTP ${res.status}`);
   const html = await res.text();
   return parseHtmlTable(html);

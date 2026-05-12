@@ -632,6 +632,13 @@ export const dictionaries = {
       missingHint: 'Compare avec les données locales et ne télécharge que ce qui manque (rapide).',
       full: 'Re-télécharger tout',
       fullHint: 'Re-rapatrie VNDB + EGS + images pour chaque entrée (lent, utile pour rafraîchir).',
+      egsWarning: {
+        network: 'EGS injoignable (réseau)',
+        server: 'EGS répond en erreur (5xx)',
+        throttled: 'Quota EGS atteint — patiente',
+        blocked: 'EGS bloque ton IP (403)',
+        items: 'VN',
+      },
     },
     banner: {
       setAs: 'En tant que bannière',
@@ -1386,6 +1393,13 @@ export const dictionaries = {
       missingHint: 'Compares against the local store and only fetches what is missing (fast).',
       full: 'Full re-download',
       fullHint: 'Re-fetches VNDB + EGS + images for every entry (slow, useful to refresh stale data).',
+      egsWarning: {
+        network: 'EGS unreachable (network)',
+        server: 'EGS server error (5xx)',
+        throttled: 'EGS rate-limited — wait a bit',
+        blocked: 'EGS blocked your IP (403)',
+        items: 'VN',
+      },
     },
     banner: {
       setAs: 'Set as banner',
@@ -2140,6 +2154,13 @@ export const dictionaries = {
       missingHint: 'ローカルと比較して欠落しているデータだけ取得します（高速）。',
       full: '全件再取得',
       fullHint: 'VNDB と EGS の全データ・画像を再取得します（遅い、最新化したい時用）。',
+      egsWarning: {
+        network: 'EGS に接続できません（ネットワーク）',
+        server: 'EGS サーバーエラー（5xx）',
+        throttled: 'EGS のレート制限 — 少し待って再実行',
+        blocked: 'EGS から IP がブロックされています（403）',
+        items: '件',
+      },
     },
     banner: {
       setAs: 'バナーに設定',

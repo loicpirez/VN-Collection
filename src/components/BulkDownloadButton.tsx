@@ -9,6 +9,12 @@ interface Failure {
   message: string;
 }
 
+interface EgsWarning {
+  kind: 'network' | 'server' | 'throttled' | 'blocked';
+  count: number;
+  lastStatus: number | null;
+}
+
 interface Props {
   onItemDone?: () => void;
 }
@@ -21,6 +27,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
   const [total, setTotal] = useState(0);
   const [currentTitle, setCurrentTitle] = useState<string | null>(null);
   const [failures, setFailures] = useState<Failure[]>([]);
+  const [egsWarnings, setEgsWarnings] = useState<EgsWarning[]>([]);
   const [finished, setFinished] = useState(false);
   const [aborted, setAborted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +42,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
     setAborted(false);
     setError(null);
     setFailures([]);
+    setEgsWarnings([]);
     setDone(0);
     setTotal(0);
     setCurrentTitle(null);
@@ -51,6 +59,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
       setTotal(items.length);
 
       const local: Failure[] = [];
+      const egsAgg = new Map<EgsWarning['kind'], EgsWarning>();
       for (let i = 0; i < items.length; i++) {
         if (abort) {
           setAborted(true);
@@ -61,9 +70,27 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
         try {
           const url = `/api/collection/${it.id}/assets${full ? '?refresh=true' : ''}`;
           const res = await fetch(url, { method: 'POST' });
+          const body = (await res.json().catch(() => ({}))) as {
+            error?: string;
+            egs_warning?: { kind: EgsWarning['kind']; status: number | null } | null;
+          };
           if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            local.push({ id: it.id, message: err.error || `HTTP ${res.status}` });
+            local.push({ id: it.id, message: body.error || `HTTP ${res.status}` });
+          } else if (body.egs_warning) {
+            const k = body.egs_warning.kind;
+            const cur = egsAgg.get(k);
+            egsAgg.set(k, {
+              kind: k,
+              count: (cur?.count ?? 0) + 1,
+              lastStatus: body.egs_warning.status ?? cur?.lastStatus ?? null,
+            });
+            setEgsWarnings(Array.from(egsAgg.values()));
+            // Bail early on a hard block / throttle — hammering EGS only makes
+            // it worse. VNDB-side downloads already succeeded; we keep what we
+            // got and surface the warning so the user can retry later.
+            if (k === 'blocked' || k === 'throttled') {
+              abort = true;
+            }
           }
         } catch (e) {
           local.push({ id: it.id, message: (e as Error).message });
@@ -72,6 +99,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
         onItemDone?.();
       }
       setFailures(local);
+      setEgsWarnings(Array.from(egsAgg.values()));
       setFinished(true);
       router.refresh();
     } catch (e) {
@@ -181,6 +209,19 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
             />
           </div>
           {error && <p className="mt-2 text-xs text-status-dropped">{error}</p>}
+          {egsWarnings.length > 0 && (
+            <div className="mt-2 rounded-md border border-status-on_hold/30 bg-status-on_hold/10 p-2 text-[10px] text-status-on_hold">
+              {egsWarnings.map((w) => (
+                <div key={w.kind} className="flex items-baseline justify-between gap-2">
+                  <span className="font-bold uppercase tracking-wider">
+                    {t.bulk.egsWarning[w.kind]}
+                    {w.lastStatus != null && <span className="ml-1 opacity-70">{w.lastStatus}</span>}
+                  </span>
+                  <span>{w.count} {t.bulk.egsWarning.items}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {failures.length > 0 && !running && (
             <details className="mt-2">
               <summary className="cursor-pointer text-[11px] text-muted hover:text-white">

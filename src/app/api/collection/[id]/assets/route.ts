@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollectionItem, upsertVn } from '@/lib/db';
 import { ensureLocalImagesForVn } from '@/lib/assets';
-import { resolveEgsForVn } from '@/lib/erogamescape';
+import { EgsUnreachable, resolveEgsForVn } from '@/lib/erogamescape';
 import { refreshVn } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 600;
+
+interface EgsWarning {
+  kind: 'network' | 'server' | 'throttled' | 'blocked';
+  message: string;
+  status: number | null;
+}
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -14,6 +20,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const refresh = req.nextUrl.searchParams.get('refresh') === 'true';
   const isEgsOnly = id.startsWith('egs_');
+  let egsWarning: EgsWarning | null = null;
 
   try {
     if (refresh && !isEgsOnly) {
@@ -22,11 +29,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     // Force-refresh the EGS payload too — pulls every gamelist column, refreshes the
     // description / brand / median / playtime / image URL, and re-mirrors the cover
-    // locally inside ensureLocalImagesForVn.
+    // locally inside ensureLocalImagesForVn. EGS failures don't fail the whole
+    // request (VNDB-side assets still succeed), but we report what happened so the
+    // bulk UI can flag "N items couldn't reach EGS".
     try {
       await resolveEgsForVn(id, { force: refresh, allowSearch: true });
-    } catch {
-      // EGS down or no match — silently continue with VNDB-only assets
+    } catch (e) {
+      if (e instanceof EgsUnreachable) {
+        egsWarning = { kind: e.kind, message: e.message, status: e.status };
+      } else {
+        egsWarning = { kind: 'server', message: (e as Error).message, status: null };
+      }
     }
     const result = await ensureLocalImagesForVn(id);
     return NextResponse.json({
@@ -36,8 +49,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       screenshot_count: result.screenshots.length,
       release_image_count: result.releaseImages.length,
       item: getCollectionItem(id),
+      egs_warning: egsWarning,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    return NextResponse.json({ error: (err as Error).message, egs_warning: egsWarning }, { status: 502 });
   }
 }
