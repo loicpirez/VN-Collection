@@ -389,6 +389,9 @@ function open(): Database.Database {
     })();
   }
 
+  // Allow custom banner per series — added incrementally so existing rows are fine.
+  ensureColumn(db, 'series', 'banner_path', 'TEXT');
+
   // Migration: rewrite EGS cover URLs to point at the resolver endpoint
   // (/api/egs-cover/{egs_id}) instead of hardcoded DMM / Suruga-ya / image.php
   // URLs. The resolver picks the right source per game by reading og:image
@@ -2515,12 +2518,16 @@ export function createSeries(name: string, description: string | null = null): S
   return db.prepare('SELECT * FROM series WHERE id = ?').get(info.lastInsertRowid) as SeriesRow;
 }
 
-export function updateSeries(id: number, fields: { name?: string; description?: string | null; cover_path?: string | null }): SeriesRow | null {
+export function updateSeries(
+  id: number,
+  fields: { name?: string; description?: string | null; cover_path?: string | null; banner_path?: string | null },
+): SeriesRow | null {
   const sets: string[] = [];
   const params: unknown[] = [];
   if ('name' in fields && fields.name !== undefined) { sets.push('name = ?'); params.push(fields.name); }
   if ('description' in fields) { sets.push('description = ?'); params.push(fields.description ?? null); }
   if ('cover_path' in fields) { sets.push('cover_path = ?'); params.push(fields.cover_path ?? null); }
+  if ('banner_path' in fields) { sets.push('banner_path = ?'); params.push(fields.banner_path ?? null); }
   if (sets.length === 0) return db.prepare('SELECT * FROM series WHERE id = ?').get(id) as SeriesRow | null;
   sets.push('updated_at = ?');
   params.push(Date.now());

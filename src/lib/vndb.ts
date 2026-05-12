@@ -567,12 +567,17 @@ export async function fetchStaffVnList(sid: string): Promise<StaffVnCredit[]> {
 /**
  * Every VN where this staff has a voice credit, with the characters they
  * voiced on each. Same shape as fetchStaffVnList — light VN fields only.
+ *
+ * VNDB's `/vn` endpoint doesn't accept a top-level `va` filter (that field
+ * doesn't exist on VNs), so we nest through the `character` filter using
+ * the character-level `seiyuu` sub-filter. Reads as: "VNs where any
+ * character has seiyuu equal to this staff id".
  */
 export async function fetchVaVnList(sid: string): Promise<StaffVaCredit[]> {
   const out: StaffVaCredit[] = [];
   for (let page = 1; page <= 50; page++) {
     const r = await vndbPost<VndbResponse<VnRowForVa>>('/vn', {
-      filters: ['va', '=', ['id', '=', sid]],
+      filters: ['character', '=', ['seiyuu', '=', ['id', '=', sid]]],
       fields: 'title, alttitle, released, rating, image.url, image.thumbnail, va{note, staff{id}, character{id, name, original, image.url}}',
       sort: 'released',
       reverse: true,

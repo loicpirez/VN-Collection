@@ -21,7 +21,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { id } = await ctx.params;
   const n = parseId(id);
   if (n == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const body = (await req.json().catch(() => ({}))) as { name?: string; description?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    name?: string;
+    description?: string | null;
+    cover_path?: string | null;
+    banner_path?: string | null;
+  };
   if (body.name !== undefined && !body.name.trim()) {
     return NextResponse.json({ error: 'name cannot be empty' }, { status: 400 });
   }

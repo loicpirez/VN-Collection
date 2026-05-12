@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { Award, Bookmark, CalendarRange, Heart, Library, Quote, Search, Sparkles, Tags, Trophy } from 'lucide-react';
+import { Library } from 'lucide-react';
 import './globals.css';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { TutorialTour } from '@/components/TutorialTour';
-import { MoreNavMenu } from '@/components/MoreNavMenu';
+import { GroupedNav } from '@/components/MoreNavMenu';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
 import { DisplaySettingsProvider, type DisplaySettings } from '@/lib/settings/client';
@@ -58,19 +58,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <Library className="h-6 w-6 text-accent" aria-hidden />
                   <span className="text-base font-bold tracking-wide">{dict.app.title}</span>
                 </Link>
-                <nav className="flex flex-wrap gap-1">
-                  <NavLink href="/" icon={<Library className="h-4 w-4" />}>{dict.nav.library}</NavLink>
-                  <NavLink href="/wishlist" icon={<Heart className="h-4 w-4" />}>{dict.nav.wishlist}</NavLink>
-                  <NavLink href="/search" icon={<Search className="h-4 w-4" />}>{dict.nav.search}</NavLink>
-                  <NavLink href="/upcoming" icon={<CalendarRange className="h-4 w-4" />}>{dict.nav.upcoming}</NavLink>
-                  <NavLink href="/producers" icon={<Trophy className="h-4 w-4" />}>{dict.nav.producers}</NavLink>
-                  <NavLink href="/series" icon={<Bookmark className="h-4 w-4" />}>{dict.nav.series}</NavLink>
-                  <NavLink href="/tags" icon={<Tags className="h-4 w-4" />}>{dict.nav.tags}</NavLink>
-                  <NavLink href="/traits" icon={<Sparkles className="h-4 w-4" />}>{dict.nav.traits}</NavLink>
-                  <NavLink href={`/year?y=${new Date().getFullYear()}`} icon={<Award className="h-4 w-4" />}>{dict.nav.year}</NavLink>
-                  <NavLink href="/quotes" icon={<Quote className="h-4 w-4" />}>{dict.nav.quotes}</NavLink>
-                  <MoreNavMenu />
-                </nav>
+                <GroupedNav />
                 <div className="ml-auto flex items-center gap-2">
                   <SettingsButton />
                   <LanguageSwitcher />
@@ -89,14 +77,3 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   );
 }
 
-function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-bg-card hover:text-white"
-    >
-      {icon}
-      {children}
-    </Link>
-  );
-}

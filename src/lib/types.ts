@@ -210,6 +210,7 @@ export interface SeriesRow {
   name: string;
   description: string | null;
   cover_path: string | null;
+  banner_path: string | null;
   created_at: number;
   updated_at: number;
 }

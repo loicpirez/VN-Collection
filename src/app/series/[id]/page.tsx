@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Bookmark } from 'lucide-react';
 import { getSeries, listCollection } from '@/lib/db';
+import { publicUrlFor } from '@/lib/files';
 import { getDict } from '@/lib/i18n/server';
 import { VnCard } from '@/components/VnCard';
 import { SeriesAddVnForm } from '@/components/SeriesAddVnForm';
 import { SeriesRemoveVn } from '@/components/SeriesRemoveVn';
+import { SeriesMetaEditor } from '@/components/SeriesMetaEditor';
 import type { Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -25,16 +27,45 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
         <ArrowLeft className="h-4 w-4" /> {t.nav.series}
       </Link>
 
-      <header className="mb-6 flex items-start gap-4 rounded-2xl border border-border bg-bg-card p-6">
-        <Bookmark className="h-7 w-7 text-accent" aria-hidden />
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold">{series.name}</h1>
-          {series.description && <p className="mt-1 text-sm text-muted">{series.description}</p>}
-          <div className="mt-2 text-xs text-muted">
-            {items.length} {t.series.vnCount}
+      <header className="mb-6 overflow-hidden rounded-2xl border border-border bg-bg-card">
+        {series.banner_path && (
+          <div className="h-40 w-full overflow-hidden bg-bg-elev">
+            <img
+              src={publicUrlFor(series.banner_path) ?? ''}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          </div>
+        )}
+        <div className="flex items-start gap-4 p-6">
+          {series.cover_path ? (
+            <img
+              src={publicUrlFor(series.cover_path) ?? ''}
+              alt=""
+              className="h-32 w-24 shrink-0 rounded-lg object-cover"
+            />
+          ) : (
+            <Bookmark className="h-7 w-7 text-accent" aria-hidden />
+          )}
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold">{series.name}</h1>
+            {series.description && <p className="mt-1 whitespace-pre-line text-sm text-muted">{series.description}</p>}
+            <div className="mt-2 text-xs text-muted">
+              {items.length} {t.series.vnCount}
+            </div>
           </div>
         </div>
       </header>
+
+      <div className="mb-6">
+        <SeriesMetaEditor
+          seriesId={series.id}
+          initialName={series.name}
+          initialDescription={series.description}
+          initialCoverPath={series.cover_path}
+          initialBannerPath={series.banner_path}
+        />
+      </div>
 
       <div className="mb-6">
         <SeriesAddVnForm seriesId={series.id} />

@@ -1,9 +1,15 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
+
+type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc';
+type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'status';
+
+const SORT_KEYS: WishlistSort[] = ['added_desc', 'added_asc', 'title', 'rating_desc', 'released_desc', 'released_asc', 'length_desc'];
+const GROUP_KEYS: WishlistGroup[] = ['none', 'year', 'developer', 'language', 'status'];
 
 interface WishlistItem {
   id: string;
@@ -40,6 +46,9 @@ export function WishlistClient() {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [sort, setSort] = useState<WishlistSort>('added_desc');
+  const [group, setGroup] = useState<WishlistGroup>('none');
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -115,16 +124,73 @@ export function WishlistClient() {
   }
 
   const ownedCount = items.filter((it) => it.in_collection).length;
-  const filtered = items.filter((it) => {
-    if (hideOwned && it.in_collection) return false;
+
+  const filtered = useMemo(() => {
     const lower = q.trim().toLowerCase();
-    if (!lower) return true;
-    return (
-      it.vn.title.toLowerCase().includes(lower) ||
-      (it.vn.alttitle?.toLowerCase().includes(lower) ?? false) ||
-      it.vn.developers.some((d) => d.name.toLowerCase().includes(lower))
-    );
-  });
+    return items.filter((it) => {
+      if (hideOwned && it.in_collection) return false;
+      if (!lower) return true;
+      return (
+        it.vn.title.toLowerCase().includes(lower) ||
+        (it.vn.alttitle?.toLowerCase().includes(lower) ?? false) ||
+        it.vn.developers.some((d) => d.name.toLowerCase().includes(lower))
+      );
+    });
+  }, [items, q, hideOwned]);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      switch (sort) {
+        case 'added_desc': return (b.added ?? 0) - (a.added ?? 0);
+        case 'added_asc': return (a.added ?? 0) - (b.added ?? 0);
+        case 'title': return a.vn.title.localeCompare(b.vn.title);
+        case 'rating_desc': return (b.vn.rating ?? 0) - (a.vn.rating ?? 0);
+        case 'released_desc': return (b.vn.released ?? '').localeCompare(a.vn.released ?? '');
+        case 'released_asc': return (a.vn.released ?? '').localeCompare(b.vn.released ?? '');
+        case 'length_desc': return (b.vn.length_minutes ?? 0) - (a.vn.length_minutes ?? 0);
+      }
+    });
+    return arr;
+  }, [filtered, sort]);
+
+  const grouped = useMemo<{ key: string; items: WishlistItem[] }[]>(() => {
+    if (group === 'none') return [{ key: '', items: sorted }];
+    const buckets = new Map<string, WishlistItem[]>();
+    for (const it of sorted) {
+      let key: string;
+      switch (group) {
+        case 'year': key = it.vn.released?.slice(0, 4) || t.wishlist.groupUnknown; break;
+        case 'developer': key = it.vn.developers[0]?.name || t.wishlist.groupUnknown; break;
+        case 'language': key = it.vn.languages[0]?.toUpperCase() || t.wishlist.groupUnknown; break;
+        case 'status': key = it.in_collection ? t.wishlist.groupOwned : t.wishlist.groupTodo; break;
+        default: key = '';
+      }
+      const list = buckets.get(key);
+      if (list) list.push(it);
+      else buckets.set(key, [it]);
+    }
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => {
+        if (group === 'year') return b.localeCompare(a);
+        return a.localeCompare(b);
+      })
+      .map(([key, items]) => ({ key, items }));
+  }, [sorted, group, t.wishlist.groupUnknown, t.wishlist.groupOwned, t.wishlist.groupTodo]);
+
+  async function removeOne(id: string) {
+    setRemovingId(id);
+    try {
+      const r = await fetch(`/api/wishlist/${id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      setItems((prev) => prev.filter((x) => x.vn.id !== id));
+      toast.success(t.wishlist.removeOneDone);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRemovingId(null);
+    }
+  }
 
   return (
     <div>
@@ -175,6 +241,26 @@ export function WishlistClient() {
                 onChange={(e) => setQ(e.target.value)}
               />
             </div>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as WishlistSort)}
+              className="input h-8 py-0 text-xs"
+              title={t.wishlist.sortLabel}
+            >
+              {SORT_KEYS.map((k) => (
+                <option key={k} value={k}>{t.wishlist.sortLabel}: {t.wishlist.sortOptions[k]}</option>
+              ))}
+            </select>
+            <select
+              value={group}
+              onChange={(e) => setGroup(e.target.value as WishlistGroup)}
+              className="input h-8 py-0 text-xs"
+              title={t.wishlist.groupLabel}
+            >
+              {GROUP_KEYS.map((k) => (
+                <option key={k} value={k}>{t.wishlist.groupLabel}: {t.wishlist.groupOptions[k]}</option>
+              ))}
+            </select>
             <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted">
               <input
                 type="checkbox"
@@ -215,36 +301,50 @@ export function WishlistClient() {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {filtered.map((it) => (
-              <VnCard
-                key={it.id}
-                enableAdd
-                selectable={selectMode}
-                selected={selected.has(it.vn.id)}
-                onSelect={() => toggleSelected(it.vn.id)}
-                onAdded={(id) =>
-                  setItems((prev) =>
-                    prev.map((x) => (x.vn.id === id ? { ...x, in_collection: true } : x)),
-                  )
-                }
-                data={{
-                  id: it.vn.id,
-                  title: it.vn.title,
-                  alttitle: it.vn.alttitle,
-                  poster: it.vn.image?.thumbnail || it.vn.image?.url || null,
-                  sexual: it.vn.image?.sexual ?? null,
-                  released: it.vn.released,
-                  rating: it.vn.rating,
-                  length_minutes: it.vn.length_minutes,
-                  developers: it.vn.developers,
-                  inCollectionBadge: it.in_collection,
-                  egs_median: it.egs?.median ?? null,
-                  egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
-                }}
-              />
-            ))}
-          </div>
+          {grouped.map((g) => (
+            <section key={g.key || 'all'} className="mb-6">
+              {g.key && (
+                <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
+                  {g.key} <span className="ml-1 opacity-70">· {g.items.length}</span>
+                </h2>
+              )}
+              <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                {g.items.map((it) => (
+                  <VnCard
+                    key={it.id}
+                    enableAdd
+                    selectable={selectMode}
+                    selected={selected.has(it.vn.id)}
+                    onSelect={() => toggleSelected(it.vn.id)}
+                    onAdded={(id) =>
+                      setItems((prev) =>
+                        prev.map((x) => (x.vn.id === id ? { ...x, in_collection: true } : x)),
+                      )
+                    }
+                    onRemoveFromWishlist={
+                      it.in_collection && removingId !== it.vn.id
+                        ? () => removeOne(it.vn.id)
+                        : undefined
+                    }
+                    data={{
+                      id: it.vn.id,
+                      title: it.vn.title,
+                      alttitle: it.vn.alttitle,
+                      poster: it.vn.image?.thumbnail || it.vn.image?.url || null,
+                      sexual: it.vn.image?.sexual ?? null,
+                      released: it.vn.released,
+                      rating: it.vn.rating,
+                      length_minutes: it.vn.length_minutes,
+                      developers: it.vn.developers,
+                      inCollectionBadge: it.in_collection,
+                      egs_median: it.egs?.median ?? null,
+                      egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
+                    }}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
 
           {selectMode && selected.size > 0 && (
             <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-border bg-bg-card px-4 py-2 shadow-card">

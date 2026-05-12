@@ -11,7 +11,7 @@ import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
-import { readStaffFullCache } from '@/lib/staff-full';
+import { downloadFullStaffInfo, readStaffFullCache } from '@/lib/staff-full';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,9 +48,18 @@ export default async function StaffPage({
   const totalCol = listStaffProductionCredits(id, { inCollectionOnly: true }).length
     + listStaffVaCredits(id, { inCollectionOnly: true }).length;
 
-  // "Download all from VNDB" payload, if the user has ever triggered the pull
-  // for this staff. Surfaces the VNs/characters they don't own locally.
-  const fullCache = readStaffFullCache(id);
+  // "Download all from VNDB" payload — auto-fetched on first view (then cached
+  // 30 days). Surfaces every VN/character VNDB knows about this person, even
+  // ones the user doesn't own. Failures fall through silently; the user can
+  // retry with the explicit button.
+  let fullCache = readStaffFullCache(id);
+  if (!fullCache) {
+    try {
+      fullCache = await downloadFullStaffInfo(id);
+    } catch {
+      fullCache = null;
+    }
+  }
   const knownProdVnIds = new Set(production.map((c) => c.vn.id));
   const knownVaVnIds = new Set(voice.map((c) => c.vn.id));
   const extraProduction = (fullCache?.productionCredits ?? []).filter((c) => !knownProdVnIds.has(c.id));

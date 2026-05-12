@@ -102,3 +102,48 @@ export async function fetchUpcomingForCollection(): Promise<UpcomingRelease[]> {
 
   return Array.from(aggregate.values()).sort((a, b) => a.released.localeCompare(b.released));
 }
+
+/**
+ * Pull upcoming VNDB releases unrestricted by the user's collection. Useful
+ * for "what's coming up everywhere" panes. Limited to the next 12 months so
+ * the result stays bounded; ordered by release date ascending.
+ */
+export async function fetchAllUpcomingFromVndb(limit = 200): Promise<UpcomingRelease[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const yearAhead = new Date();
+  yearAhead.setUTCFullYear(yearAhead.getUTCFullYear() + 1);
+  const horizon = yearAhead.toISOString().slice(0, 10);
+
+  const aggregate = new Map<string, UpcomingRelease>();
+  const safe = Math.min(500, Math.max(50, Math.floor(limit)));
+  const pageSize = 100;
+  let page = 1;
+  while (aggregate.size < safe && page <= 5) {
+    const body = {
+      filters: ['and', ['released', '>=', today], ['released', '<=', horizon]],
+      fields: REL_FIELDS,
+      sort: 'released',
+      reverse: false,
+      results: pageSize,
+      page,
+    };
+    const r = await cachedFetch<{ results: UpcomingRelease[]; more: boolean }>(
+      `${VNDB_API}/release`,
+      {
+        __pathTag: 'POST /release:upcoming-all',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      { ttlMs: TTL.releases },
+    );
+    for (const rel of r.data.results) {
+      if (!aggregate.has(rel.id)) aggregate.set(rel.id, rel);
+      if (aggregate.size >= safe) break;
+    }
+    if (!r.data.more) break;
+    page += 1;
+  }
+
+  return Array.from(aggregate.values()).sort((a, b) => a.released.localeCompare(b.released));
+}

@@ -500,8 +500,12 @@ export function SearchClient() {
         <div className="py-20 text-center text-muted">{t.search.searching}</div>
       ) : !touched && !results.length && !egsResults.length ? (
         <div className="py-20 text-center">
-          <h2 className="mb-2 text-xl font-bold">{t.search.heroTitle}</h2>
-          <p className="text-muted">{t.search.heroSubtitle}</p>
+          <h2 className="mb-2 text-xl font-bold">
+            {source === 'egs' ? t.search.heroTitleEgs : t.search.heroTitle}
+          </h2>
+          <p className="text-muted">
+            {source === 'egs' ? t.search.heroSubtitleEgs : t.search.heroSubtitle}
+          </p>
         </div>
       ) : source === 'egs' ? (
         egsResults.length === 0 ? (

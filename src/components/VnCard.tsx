@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, Plus, Sparkles } from 'lucide-react';
+import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, HeartOff, Loader2, Plus, Sparkles } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
@@ -50,6 +50,8 @@ interface VnCardProps {
   onAdded?: (id: string) => void;
   /** Optional badge rendered on the poster (e.g. relation type). */
   badge?: { label: string; tone?: 'accent' | 'muted' };
+  /** When set, renders a hover-only "remove from wishlist" button. */
+  onRemoveFromWishlist?: () => void | Promise<void>;
 }
 
 function fmtMinutes(m: number | null | undefined): string | null {
@@ -61,7 +63,7 @@ function fmtMinutes(m: number | null | undefined): string | null {
   return `${mn}m`;
 }
 
-export function VnCard({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded, badge }: VnCardProps) {
+export function VnCard({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded, badge, onRemoveFromWishlist }: VnCardProps) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -154,6 +156,21 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
           <CheckCheck className="h-3 w-3" aria-hidden />
           {t.search.inCollection}
         </span>
+      )}
+      {!selectable && onRemoveFromWishlist && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void onRemoveFromWishlist();
+          }}
+          title={t.wishlist.removeOne}
+          aria-label={t.wishlist.removeOne}
+          className="absolute left-2 top-2 z-20 hidden h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped group-hover:inline-flex"
+        >
+          <HeartOff className="h-3.5 w-3.5" aria-hidden />
+        </button>
       )}
       {badge && (
         <span
