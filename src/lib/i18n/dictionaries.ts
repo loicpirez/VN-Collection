@@ -422,6 +422,13 @@ export const dictionaries = {
       role_producer: 'Production',
       role_staff: 'Autres',
       backToVn: 'Retour au VN',
+      timeline: {
+        title: 'Chronologie des crédits',
+        hint: 'Hauteur = nombre de crédits par année. Surbrillance = part dans ta collection.',
+        creditsSuffix: 'crédits',
+        ownedSuffix: 'dans ma collection',
+        unknownYear: 'crédits sans année connue',
+      },
     },
     releases: {
       section: 'Éditions / Sorties',
@@ -1201,6 +1208,13 @@ export const dictionaries = {
       role_producer: 'Producer',
       role_staff: 'Other',
       backToVn: 'Back to VN',
+      timeline: {
+        title: 'Credits timeline',
+        hint: 'Bar height = credits in that year. Highlighted segment = your collection.',
+        creditsSuffix: 'credits',
+        ownedSuffix: 'in my collection',
+        unknownYear: 'credits with no known year',
+      },
     },
     releases: {
       section: 'Releases / Editions',
@@ -1980,6 +1994,13 @@ export const dictionaries = {
       role_producer: 'プロデューサー',
       role_staff: 'その他',
       backToVn: 'VN に戻る',
+      timeline: {
+        title: 'クレジットの推移',
+        hint: '棒の高さ = その年のクレジット数。色付き部分 = コレクション内。',
+        creditsSuffix: 'クレジット',
+        ownedSuffix: 'コレクション内',
+        unknownYear: '発売年不明',
+      },
     },
     releases: {
       section: 'リリース・版',

@@ -8,6 +8,7 @@ import {
 } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { VaTimeline } from '@/components/VaTimeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,6 +106,12 @@ export default async function StaffPage({
           </Link>
         </div>
       </header>
+
+      {voice.length > 0 && (
+        <div className="mb-6">
+          <VaTimeline sid={id} />
+        </div>
+      )}
 
       {voice.length > 0 && (
         <section className="mb-6 rounded-xl border border-border bg-bg-card p-6">

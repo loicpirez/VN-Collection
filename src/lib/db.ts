@@ -744,6 +744,51 @@ export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boole
   return Array.from(map.values());
 }
 
+export interface VaYearBucket {
+  year: number;
+  total: number;
+  inCollection: number;
+  /** VN ids in that year so the cell can deep-link to specific entries. */
+  vnIds: string[];
+}
+
+/**
+ * Year-by-year breakdown of a VA's credits, joined with `collection` so the
+ * UI can highlight which years overlap with your library. Used by the
+ * heatmap rendered above the per-year credit list on /staff/[id].
+ *
+ * VNs without a released date are bucketed under year=0 and surfaced as
+ * "année inconnue" by the renderer.
+ */
+export function getVaTimeline(sid: string): VaYearBucket[] {
+  const rows = db
+    .prepare(`
+      SELECT
+        CAST(COALESCE(substr(v.released, 1, 4), '0') AS INTEGER) AS year,
+        v.id AS vn_id,
+        CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_col
+      FROM vn_va_credit va
+      JOIN vn v ON v.id = va.vn_id
+      LEFT JOIN collection c ON c.vn_id = va.vn_id
+      WHERE va.sid = ?
+      GROUP BY v.id
+    `)
+    .all(sid) as Array<{ year: number; vn_id: string; in_col: number }>;
+
+  const buckets = new Map<number, VaYearBucket>();
+  for (const r of rows) {
+    let entry = buckets.get(r.year);
+    if (!entry) {
+      entry = { year: r.year, total: 0, inCollection: 0, vnIds: [] };
+      buckets.set(r.year, entry);
+    }
+    entry.total += 1;
+    if (r.in_col) entry.inCollection += 1;
+    entry.vnIds.push(r.vn_id);
+  }
+  return Array.from(buckets.values()).sort((a, b) => a.year - b.year);
+}
+
 export interface CharacterVoiceCredit {
   sid: string;
   va_name: string;
