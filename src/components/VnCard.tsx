@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, HeartOff, Loader2, Plus, Sparkles } from 'lucide-react';
+import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, Plus, Sparkles, X } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
@@ -169,7 +169,7 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
           aria-label={t.wishlist.removeOne}
           className="absolute left-2 top-2 z-20 hidden h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped group-hover:inline-flex"
         >
-          <HeartOff className="h-3.5 w-3.5" aria-hidden />
+          <X className="h-4 w-4" aria-hidden />
         </button>
       )}
       {badge && (

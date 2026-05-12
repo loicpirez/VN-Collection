@@ -16,6 +16,16 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    const msg = (e as Error).message;
+    // VNDB's PATCH /ulist returns 401 when the token lacks the `listwrite`
+    // permission. Translate that into something actionable instead of the
+    // raw 'VNDB PATCH … -> 401: Unauthorized' string.
+    if (/401/.test(msg)) {
+      return NextResponse.json(
+        { error: 'VNDB token does not have listwrite permission. Regenerate it on vndb.org/u/tokens with listwrite enabled.' },
+        { status: 401 },
+      );
+    }
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

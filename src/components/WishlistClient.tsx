@@ -39,6 +39,10 @@ export function WishlistClient() {
   const toast = useToast();
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
+  // Gate the empty-state copy so it never renders before the first successful
+  // load. Initial-render flash of "Your wishlist is empty" was confusing the
+  // user; we now wait for at least one resolved fetch.
+  const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +81,11 @@ export function WishlistClient() {
   useEffect(() => {
     const ac = new AbortController();
     setLoading(true);
-    load(ac.signal).finally(() => setLoading(false));
+    load(ac.signal).finally(() => {
+      if (ac.signal.aborted) return;
+      setLoaded(true);
+      setLoading(false);
+    });
     return () => ac.abort();
   }, [load]);
 
@@ -219,7 +227,7 @@ export function WishlistClient() {
             </a>
           </p>
         </div>
-      ) : loading ? (
+      ) : loading || !loaded ? (
         <SkeletonCardGrid count={18} />
       ) : error ? (
         <div className="rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
