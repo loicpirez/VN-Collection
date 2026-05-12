@@ -522,20 +522,32 @@ export async function resolveEgsForVn(
 
   if (game && source) {
     persistGame(vnId, game, source);
-  } else if (unreachable) {
-    // EGS itself is offline — keep whatever match we already had so a
-    // transient outage during "Full re-download" doesn't wipe the user's
-    // accumulated EGS scores / playtime / brand. "manual" links map to
-    // "extlink" externally to keep the surfaced source narrow.
-    const fallbackSource: 'extlink' | 'search' | null = cached?.source === 'manual'
-      ? 'extlink'
-      : cached?.source ?? null;
-    return { game: cached ? rowToGame(cached) : null, source: fallbackSource };
-  } else {
-    // Lookup succeeded but EGS has no data for this VN — persist the negative
-    // so we don't retry on every page view.
-    persistNoMatch(vnId);
+    return { game, source };
   }
+
+  // From here on, the new lookup produced no game. Two reasons:
+  //   (a) EGS is unreachable — typed EgsUnreachable was caught above.
+  //   (b) The query ran cleanly but returned 0 rows.
+  // In *both* cases, if we already had a successful match cached, preserve it.
+  // Auto-unmatching is too destructive — the data took effort to gather (EGS
+  // playtime / scores) and the user can manually unlink if they really want.
+  if (cached?.egs_id != null) {
+    // "manual" maps to "extlink" externally so the surfaced source stays narrow.
+    const fallbackSource: 'extlink' | 'search' | null = cached.source === 'manual'
+      ? 'extlink'
+      : cached.source ?? null;
+    return { game: rowToGame(cached), source: fallbackSource };
+  }
+
+  if (unreachable) {
+    // Never matched + transient outage: report no match without persisting,
+    // so the next attempt (with EGS back) gets a fresh shot.
+    return { game: null, source: null };
+  }
+
+  // Lookup succeeded, never matched before, still no match — persist the
+  // negative so we don't retry on every page view.
+  persistNoMatch(vnId);
   return { game, source };
 }
 
