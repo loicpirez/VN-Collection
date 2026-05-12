@@ -9,6 +9,7 @@ import { BulkDownloadButton } from './BulkDownloadButton';
 import { BulkActionBar } from './BulkActionBar';
 import { SortableGrid } from './SortableGrid';
 import { RandomPickButton } from './RandomPickButton';
+import { SavedFilters } from './SavedFilters';
 import { useT } from '@/lib/i18n/client';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
@@ -328,6 +329,7 @@ export function LibraryClient() {
 
   return (
     <div>
+      <SavedFilters />
       <div className="mb-4 flex flex-wrap gap-1.5 overflow-x-auto no-scrollbar">
         <button
           className={`chip whitespace-nowrap ${!status ? 'chip-active' : ''}`}

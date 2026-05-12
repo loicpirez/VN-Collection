@@ -225,6 +225,26 @@ function open(): Database.Database {
       occurred_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_vn_activity_vn ON vn_activity(vn_id, occurred_at DESC);
+
+    CREATE TABLE IF NOT EXISTS saved_filter (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      name     TEXT NOT NULL,
+      params   TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS reading_queue (
+      vn_id    TEXT PRIMARY KEY REFERENCES vn(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL DEFAULT 0,
+      added_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS reading_goal (
+      year   INTEGER PRIMARY KEY,
+      target INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
 
   ensureColumn(db, 'vn', 'screenshots', 'TEXT');
@@ -2374,6 +2394,406 @@ export function addVnToSeries(seriesId: number, vnId: string, orderIndex = 0): v
 
 export function removeVnFromSeries(seriesId: number, vnId: string): void {
   db.prepare('DELETE FROM series_vn WHERE series_id = ? AND vn_id = ?').run(seriesId, vnId);
+}
+
+// Saved filters
+
+export interface SavedFilter {
+  id: number;
+  name: string;
+  params: string;
+  position: number;
+  created_at: number;
+}
+
+export function listSavedFilters(): SavedFilter[] {
+  return db
+    .prepare('SELECT * FROM saved_filter ORDER BY position ASC, id ASC')
+    .all() as SavedFilter[];
+}
+
+export function createSavedFilter(name: string, params: string): SavedFilter {
+  const now = Date.now();
+  const nextPos = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM saved_filter').get() as { p: number }).p;
+  const info = db
+    .prepare('INSERT INTO saved_filter (name, params, position, created_at) VALUES (?, ?, ?, ?)')
+    .run(name.trim().slice(0, 60), params.slice(0, 2000), nextPos, now);
+  return db.prepare('SELECT * FROM saved_filter WHERE id = ?').get(info.lastInsertRowid) as SavedFilter;
+}
+
+export function deleteSavedFilter(id: number): void {
+  db.prepare('DELETE FROM saved_filter WHERE id = ?').run(id);
+}
+
+export function reorderSavedFilters(ids: number[]): void {
+  const upd = db.prepare('UPDATE saved_filter SET position = ? WHERE id = ?');
+  db.transaction(() => {
+    ids.forEach((id, i) => upd.run(i + 1, id));
+  })();
+}
+
+// Reading queue
+
+export interface ReadingQueueEntry {
+  vn_id: string;
+  position: number;
+  added_at: number;
+}
+
+export function listReadingQueue(): ReadingQueueEntry[] {
+  return db
+    .prepare('SELECT * FROM reading_queue ORDER BY position ASC, added_at ASC')
+    .all() as ReadingQueueEntry[];
+}
+
+export function addToReadingQueue(vnId: string): ReadingQueueEntry {
+  const next = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM reading_queue').get() as { p: number }).p;
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO reading_queue (vn_id, position, added_at) VALUES (?, ?, ?)
+    ON CONFLICT(vn_id) DO NOTHING
+  `).run(vnId, next, now);
+  return db.prepare('SELECT * FROM reading_queue WHERE vn_id = ?').get(vnId) as ReadingQueueEntry;
+}
+
+export function removeFromReadingQueue(vnId: string): void {
+  db.prepare('DELETE FROM reading_queue WHERE vn_id = ?').run(vnId);
+}
+
+export function reorderReadingQueue(ids: string[]): void {
+  const upd = db.prepare('UPDATE reading_queue SET position = ? WHERE vn_id = ?');
+  db.transaction(() => {
+    ids.forEach((id, i) => upd.run(i + 1, id));
+  })();
+}
+
+// Reading goal — one row per calendar year.
+
+export interface ReadingGoal {
+  year: number;
+  target: number;
+  updated_at: number;
+}
+
+export function getReadingGoal(year: number): ReadingGoal | null {
+  return (db.prepare('SELECT * FROM reading_goal WHERE year = ?').get(year) as ReadingGoal | undefined) ?? null;
+}
+
+export function setReadingGoal(year: number, target: number): ReadingGoal {
+  const safeTarget = Math.max(0, Math.min(1000, Math.floor(target)));
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO reading_goal (year, target, updated_at) VALUES (?, ?, ?)
+    ON CONFLICT(year) DO UPDATE SET target = excluded.target, updated_at = excluded.updated_at
+  `).run(year, safeTarget, now);
+  return getReadingGoal(year)!;
+}
+
+export function countFinishedInYear(year: number): number {
+  return (db
+    .prepare(`SELECT COUNT(*) AS n FROM collection WHERE substr(finished_date, 1, 4) = ?`)
+    .get(String(year)) as { n: number }).n;
+}
+
+// Activity heatmap — counts per day across a year.
+
+export interface DailyCount {
+  /** YYYY-MM-DD */
+  day: string;
+  count: number;
+}
+
+export function activityHeatmap(year: number): DailyCount[] {
+  const start = new Date(`${year}-01-01T00:00:00Z`).getTime();
+  const end = new Date(`${year + 1}-01-01T00:00:00Z`).getTime();
+  return db
+    .prepare(`
+      SELECT strftime('%Y-%m-%d', occurred_at / 1000, 'unixepoch') AS day, COUNT(*) AS count
+      FROM vn_activity
+      WHERE occurred_at >= ? AND occurred_at < ?
+      GROUP BY day
+      ORDER BY day
+    `)
+    .all(start, end) as DailyCount[];
+}
+
+// Year-in-review aggregation.
+
+export interface YearReview {
+  year: number;
+  completed: number;
+  hours: number;
+  topTags: { id: string; name: string; count: number }[];
+  topGenres: { name: string; count: number }[];
+  avgUserRating: number | null;
+  best: { id: string; title: string; rating: number }[];
+}
+
+export function yearReview(year: number): YearReview {
+  const ys = String(year);
+  const completed = countFinishedInYear(year);
+  const playtime = (db
+    .prepare(`SELECT COALESCE(SUM(playtime_minutes), 0) AS m FROM collection WHERE substr(finished_date, 1, 4) = ?`)
+    .get(ys) as { m: number }).m;
+  const topTags = db
+    .prepare(`
+      SELECT json_extract(je.value, '$.id') AS id,
+             json_extract(je.value, '$.name') AS name,
+             COUNT(*) AS count
+      FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
+      WHERE substr(c.finished_date, 1, 4) = ?
+        AND COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
+        AND COALESCE(json_extract(je.value, '$.category'), 'cont') <> 'ero'
+      GROUP BY id
+      ORDER BY count DESC, name COLLATE NOCASE ASC
+      LIMIT 8
+    `)
+    .all(ys) as { id: string; name: string; count: number }[];
+  const ratingRow = db
+    .prepare(`SELECT AVG(user_rating) AS avg FROM collection WHERE substr(finished_date, 1, 4) = ? AND user_rating IS NOT NULL`)
+    .get(ys) as { avg: number | null };
+  const best = db
+    .prepare(`
+      SELECT v.id, v.title, c.user_rating AS rating
+      FROM collection c JOIN vn v ON v.id = c.vn_id
+      WHERE substr(c.finished_date, 1, 4) = ? AND c.user_rating IS NOT NULL
+      ORDER BY c.user_rating DESC, c.finished_date DESC
+      LIMIT 5
+    `)
+    .all(ys) as { id: string; title: string; rating: number }[];
+  return {
+    year,
+    completed,
+    hours: Math.round(playtime / 60),
+    topTags,
+    topGenres: topTags.slice(0, 5).map((t) => ({ name: t.name, count: t.count })),
+    avgUserRating: ratingRow.avg,
+    best,
+  };
+}
+
+// Tag completions per year — for the "genre evolution" stack on /stats.
+
+export interface YearTag {
+  year: number;
+  tag: string;
+  count: number;
+}
+
+export function tagsCompletedPerYear(limit = 6): YearTag[] {
+  const rows = db
+    .prepare(`
+      WITH tagged AS (
+        SELECT
+          CAST(substr(c.finished_date, 1, 4) AS INTEGER) AS year,
+          json_extract(je.value, '$.id') AS tag_id,
+          json_extract(je.value, '$.name') AS tag_name
+        FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
+        WHERE c.finished_date IS NOT NULL
+          AND COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
+          AND COALESCE(json_extract(je.value, '$.category'), 'cont') <> 'ero'
+      ),
+      counts AS (
+        SELECT year, tag_id, tag_name, COUNT(*) AS count FROM tagged
+        GROUP BY year, tag_id
+      ),
+      top_overall AS (
+        SELECT tag_id FROM tagged GROUP BY tag_id
+        ORDER BY COUNT(*) DESC LIMIT ?
+      )
+      SELECT counts.year AS year, counts.tag_name AS tag, counts.count AS count
+      FROM counts
+      WHERE counts.tag_id IN (SELECT tag_id FROM top_overall)
+      ORDER BY year ASC, count DESC
+    `)
+    .all(limit) as YearTag[];
+  return rows;
+}
+
+// "Best ROI" — completed VNs with the highest user_rating per hour played.
+
+export interface RoiRow {
+  id: string;
+  title: string;
+  user_rating: number;
+  playtime_minutes: number;
+  roi: number;
+}
+
+export function bestRoi(limit = 20): RoiRow[] {
+  return db
+    .prepare(`
+      SELECT v.id, v.title, c.user_rating, c.playtime_minutes,
+             (c.user_rating * 1.0 / NULLIF(c.playtime_minutes, 0)) AS roi
+      FROM collection c JOIN vn v ON v.id = c.vn_id
+      WHERE c.status = 'completed'
+        AND c.user_rating IS NOT NULL
+        AND c.playtime_minutes IS NOT NULL
+        AND c.playtime_minutes > 0
+      ORDER BY roi DESC
+      LIMIT ?
+    `)
+    .all(limit) as RoiRow[];
+}
+
+// Score histogram vs VNDB community curve (10-point bins, 10-100).
+
+export interface HistBucket {
+  bucket: number; // 10..100, step of 10
+  mine: number;
+  vndb: number; // rounded community Bayesian
+}
+
+export function ratingHistogram(): HistBucket[] {
+  const rows = db
+    .prepare(`
+      SELECT c.user_rating AS mine, v.rating AS vndb
+      FROM collection c JOIN vn v ON v.id = c.vn_id
+      WHERE c.user_rating IS NOT NULL
+    `)
+    .all() as { mine: number | null; vndb: number | null }[];
+  const buckets: HistBucket[] = [];
+  for (let b = 10; b <= 100; b += 10) buckets.push({ bucket: b, mine: 0, vndb: 0 });
+  for (const r of rows) {
+    if (r.mine != null) {
+      const m = Math.min(100, Math.max(10, Math.round(r.mine / 10) * 10));
+      const bucket = buckets.find((x) => x.bucket === m);
+      if (bucket) bucket.mine += 1;
+    }
+    if (r.vndb != null) {
+      const v = Math.min(100, Math.max(10, Math.round(r.vndb / 10) * 10));
+      const bucket = buckets.find((x) => x.bucket === v);
+      if (bucket) bucket.vndb += 1;
+    }
+  }
+  return buckets;
+}
+
+// Duplicate detection — group rows with overlapping normalised title prefixes.
+
+export interface DuplicateGroup {
+  prefix: string;
+  ids: string[];
+}
+
+function normalizeTitle(s: string): string {
+  return s.toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function findDuplicates(): DuplicateGroup[] {
+  const rows = db.prepare(`SELECT id, title FROM vn`).all() as { id: string; title: string }[];
+  const map = new Map<string, string[]>();
+  for (const r of rows) {
+    const norm = normalizeTitle(r.title);
+    if (norm.length < 4) continue;
+    const cur = map.get(norm) ?? [];
+    cur.push(r.id);
+    map.set(norm, cur);
+  }
+  return Array.from(map.entries())
+    .filter(([, ids]) => ids.length > 1)
+    .map(([prefix, ids]) => ({ prefix, ids }));
+}
+
+// Stale data — VNs whose VNDB fetch is older than thresholdMs (default 30d).
+
+export interface StaleVn {
+  id: string;
+  title: string;
+  fetched_at: number;
+  has_cover: boolean;
+  has_egs: boolean;
+}
+
+export function findStaleVns(thresholdMs = 30 * 86400 * 1000): StaleVn[] {
+  const cutoff = Date.now() - thresholdMs;
+  return db
+    .prepare(`
+      SELECT v.id, v.title, v.fetched_at,
+             CASE WHEN v.local_image IS NULL AND v.image_url IS NULL AND v.custom_cover IS NULL THEN 0 ELSE 1 END AS has_cover,
+             CASE WHEN e.egs_id IS NULL THEN 0 ELSE 1 END AS has_egs
+      FROM vn v
+      LEFT JOIN egs_game e ON e.vn_id = v.id
+      WHERE v.fetched_at < ? OR (v.local_image IS NULL AND v.image_url IS NULL AND v.custom_cover IS NULL)
+      ORDER BY v.fetched_at ASC
+      LIMIT 200
+    `)
+    .all(cutoff)
+    .map((r) => {
+      const row = r as { id: string; title: string; fetched_at: number; has_cover: number; has_egs: number };
+      return {
+        id: row.id,
+        title: row.title,
+        fetched_at: row.fetched_at,
+        has_cover: !!row.has_cover,
+        has_egs: !!row.has_egs,
+      };
+    });
+}
+
+// Full-text search across notes, custom_description and cached quotes.
+
+export interface SearchHit {
+  vn_id: string;
+  title: string;
+  source: 'notes' | 'custom_description' | 'quote';
+  snippet: string;
+}
+
+export function searchTextual(query: string, limit = 50): SearchHit[] {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+  const like = `%${trimmed.replace(/[%_]/g, '\\$&')}%`;
+  const out: SearchHit[] = [];
+
+  const notes = db
+    .prepare(`
+      SELECT c.vn_id, v.title, c.notes AS text
+      FROM collection c JOIN vn v ON v.id = c.vn_id
+      WHERE c.notes IS NOT NULL AND c.notes LIKE ? ESCAPE '\\'
+      LIMIT ?
+    `)
+    .all(like, limit) as { vn_id: string; title: string; text: string }[];
+  for (const n of notes) {
+    out.push({ vn_id: n.vn_id, title: n.title, source: 'notes', snippet: snippet(n.text, trimmed) });
+  }
+
+  const customs = db
+    .prepare(`
+      SELECT c.vn_id, v.title, c.custom_description AS text
+      FROM collection c JOIN vn v ON v.id = c.vn_id
+      WHERE c.custom_description IS NOT NULL AND c.custom_description LIKE ? ESCAPE '\\'
+      LIMIT ?
+    `)
+    .all(like, limit) as { vn_id: string; title: string; text: string }[];
+  for (const n of customs) {
+    out.push({ vn_id: n.vn_id, title: n.title, source: 'custom_description', snippet: snippet(n.text, trimmed) });
+  }
+
+  const quotes = db
+    .prepare(`
+      SELECT q.vn_id, v.title, q.quote AS text
+      FROM vn_quote q JOIN vn v ON v.id = q.vn_id
+      WHERE q.quote LIKE ? ESCAPE '\\'
+      LIMIT ?
+    `)
+    .all(like, limit) as { vn_id: string; title: string; text: string }[];
+  for (const n of quotes) {
+    out.push({ vn_id: n.vn_id, title: n.title, source: 'quote', snippet: snippet(n.text, trimmed) });
+  }
+
+  return out.slice(0, limit);
+}
+
+function snippet(text: string, query: string): string {
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx < 0) return text.slice(0, 160);
+  const start = Math.max(0, idx - 40);
+  const end = Math.min(text.length, idx + query.length + 80);
+  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
 }
 
 // VNDB cache helpers (used by vndb-cache.ts)

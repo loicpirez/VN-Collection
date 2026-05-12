@@ -547,6 +547,12 @@ export const dictionaries = {
       openProducer: "Voir l'éditeur",
       filterSameProducer: 'Filtrer par cet éditeur',
     },
+    savedFilters: {
+      saveCta: 'Enregistrer ce filtre',
+      saveCurrent: 'Mémoriser la combinaison de filtres actuelle',
+      namePlaceholder: 'Nom du filtre…',
+      emptyState: 'Aucun filtre actif — ajoute des filtres avant de mémoriser.',
+    },
     activity: {
       title: 'Journal',
       placeholder: 'Note libre — "session de 2h", "Sakura route finie", etc.',
@@ -1410,6 +1416,12 @@ export const dictionaries = {
       openProducer: 'Open producer',
       filterSameProducer: 'Filter by this producer',
     },
+    savedFilters: {
+      saveCta: 'Save this filter',
+      saveCurrent: 'Pin the current filter combo',
+      namePlaceholder: 'Filter name…',
+      emptyState: 'No active filters — add some before saving.',
+    },
     activity: {
       title: 'Activity log',
       placeholder: 'Free-form note — "2h session", "Sakura route done", …',
@@ -2272,6 +2284,12 @@ export const dictionaries = {
       open: '詳細ページを開く',
       openProducer: 'ブランドを開く',
       filterSameProducer: 'このブランドで絞り込む',
+    },
+    savedFilters: {
+      saveCta: 'このフィルタを保存',
+      saveCurrent: '現在のフィルタを保存',
+      namePlaceholder: 'フィルタ名…',
+      emptyState: 'アクティブなフィルタがありません — 先にフィルタを設定してください。',
     },
     activity: {
       title: 'アクティビティ',
