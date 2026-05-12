@@ -614,6 +614,23 @@ export const dictionaries = {
       subtitle: 'VN qui partagent des tags / staff / relations avec celui-ci.',
       moreLink: 'Plus comme ce VN',
     },
+    pomodoro: {
+      label: 'Session',
+      start: 'Démarrer',
+      pause: 'Pause',
+      resume: 'Reprendre',
+      reset: 'Annuler',
+      logTo: 'Ajouter au temps',
+      confirm: 'Ajouter {n} minutes au temps de jeu ?',
+    },
+    smartStatus: {
+      hint: 'Tu as joué autant que la moyenne VNDB. Marquer comme terminé ?',
+      markCompleted: 'Marquer terminé',
+    },
+    animeChip: {
+      label: 'Adaptation anime',
+      tooltip: 'Ce VN a une adaptation animée listée sur VNDB.',
+    },
     activity: {
       title: 'Journal',
       placeholder: 'Note libre — "session de 2h", "Sakura route finie", etc.',
@@ -1544,6 +1561,23 @@ export const dictionaries = {
       subtitle: 'VNs that share tags / staff / relations with this one.',
       moreLink: 'More like this',
     },
+    pomodoro: {
+      label: 'Session',
+      start: 'Start',
+      pause: 'Pause',
+      resume: 'Resume',
+      reset: 'Cancel',
+      logTo: 'Add to playtime',
+      confirm: 'Add {n} minutes to playtime?',
+    },
+    smartStatus: {
+      hint: 'You\'ve played as long as the VNDB average. Mark as completed?',
+      markCompleted: 'Mark completed',
+    },
+    animeChip: {
+      label: 'Anime adaptation',
+      tooltip: 'This VN has an anime adaptation listed on VNDB.',
+    },
     activity: {
       title: 'Activity log',
       placeholder: 'Free-form note — "2h session", "Sakura route done", …',
@@ -2473,6 +2507,23 @@ export const dictionaries = {
       title: '関連 VN',
       subtitle: 'タグ・スタッフ・関連性が近い VN。',
       moreLink: 'もっと見る',
+    },
+    pomodoro: {
+      label: 'セッション',
+      start: '開始',
+      pause: '一時停止',
+      resume: '再開',
+      reset: 'キャンセル',
+      logTo: 'プレイ時間に加算',
+      confirm: '{n} 分をプレイ時間に追加しますか？',
+    },
+    smartStatus: {
+      hint: 'VNDB の平均と同じだけプレイしました。完了にしますか？',
+      markCompleted: '完了にする',
+    },
+    animeChip: {
+      label: 'アニメ化',
+      tooltip: 'この VN は VNDB によるとアニメ化されています。',
     },
     activity: {
       title: 'アクティビティ',
