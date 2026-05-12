@@ -188,8 +188,13 @@ export default function SteamSyncPage() {
       </header>
 
       {suggestionsError && (
-        <div className="mb-4 rounded-xl border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm text-status-dropped">
-          {suggestionsError}
+        <div className="mb-4 rounded-xl border border-status-on_hold/40 bg-status-on_hold/10 p-4 text-sm">
+          <p className="font-semibold text-status-on_hold">{suggestionsError}</p>
+          {suggestionsError.toLowerCase().includes('steam not configured') && (
+            <p className="mt-2 text-xs text-muted">
+              {t.steam.howToConfigure} <Link href="/data" className="font-bold text-accent hover:underline">{t.nav.data}</Link> → ⚙
+            </p>
+          )}
         </div>
       )}
 

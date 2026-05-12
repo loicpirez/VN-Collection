@@ -745,6 +745,7 @@ export const dictionaries = {
       unlinked: 'Lien supprimé',
       unlinkConfirm: 'Supprimer ce lien VN ↔ Steam ?',
       moreUnlinked: 'autres jeux non affichés',
+      howToConfigure: 'Pour configurer Steam, va dans',
     },
     shelf: {
       title: 'Étagère',
@@ -1816,6 +1817,7 @@ export const dictionaries = {
       unlinked: 'Link removed',
       unlinkConfirm: 'Remove this VN ↔ Steam link?',
       moreUnlinked: 'more games not shown',
+      howToConfigure: 'To configure Steam, open',
     },
     shelf: {
       title: 'Shelf',
@@ -2887,6 +2889,7 @@ export const dictionaries = {
       unlinked: 'リンク削除',
       unlinkConfirm: 'この VN ↔ Steam リンクを削除しますか？',
       moreUnlinked: '件 表示外',
+      howToConfigure: 'Steam を設定するには',
     },
     shelf: {
       title: '本棚',
