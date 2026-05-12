@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 type Kind = 'status' | 'rating' | 'playtime' | 'favorite' | 'started' | 'finished' | 'note' | 'manual';
 
@@ -37,8 +37,10 @@ const ICONS: Record<Kind, typeof History> = {
   manual: FileText,
 };
 
-function fmtDate(ts: number, locale = 'fr-FR'): string {
-  return new Date(ts).toLocaleString(locale, {
+const LOCALE_BCP47: Record<string, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
+
+function fmtDate(ts: number, locale: string): string {
+  return new Date(ts).toLocaleString(LOCALE_BCP47[locale] ?? 'en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
@@ -86,6 +88,7 @@ interface Props {
  */
 export function ActivityTimeline({ vnId, initial }: Props) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
   const [entries, setEntries] = useState<Entry[]>(initial);
@@ -174,7 +177,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="whitespace-pre-wrap text-xs text-white/85">{summary(e, t)}</p>
                   <span className="flex items-center gap-2 text-[10px] text-muted">
-                    {fmtDate(e.occurred_at)}
+                    {fmtDate(e.occurred_at, locale)}
                     {e.kind === 'manual' && (
                       <button
                         type="button"

@@ -353,6 +353,7 @@ export function LibraryClient() {
       <div className="mb-4">
         <div className="flex flex-wrap items-center gap-2">
           <input
+            data-vn-search
             className="input w-auto min-w-[180px]"
             placeholder={t.library.filterPlaceholder}
             value={qInput}

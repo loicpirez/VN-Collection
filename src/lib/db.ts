@@ -1922,19 +1922,20 @@ export interface CollectionTagAggregate {
 }
 
 export function listCollectionTags(): CollectionTagAggregate[] {
-  return db
+  return (db
     .prepare(`
       SELECT
-        json_extract(je.value, '$.id') AS id,
-        json_extract(je.value, '$.name') AS name,
-        json_extract(je.value, '$.category') AS category,
-        COUNT(*) AS count
+        json_extract(je.value, '$.id') AS tag_id,
+        json_extract(je.value, '$.name') AS tag_name,
+        json_extract(je.value, '$.category') AS tag_category,
+        COUNT(*) AS tag_count
       FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
       WHERE COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
-      GROUP BY id
-      ORDER BY count DESC, name COLLATE NOCASE ASC
+      GROUP BY tag_id
+      ORDER BY tag_count DESC, tag_name COLLATE NOCASE ASC
     `)
-    .all() as CollectionTagAggregate[];
+    .all() as { tag_id: string; tag_name: string; tag_category: string | null; tag_count: number }[])
+    .map((r) => ({ id: r.tag_id, name: r.tag_name, category: r.tag_category, count: r.tag_count }));
 }
 
 export interface CoOccurringTag {
@@ -1956,7 +1957,7 @@ export interface CoOccurringTag {
  * own tags are excluded from the result so you see *adjacent* tags only.
  */
 export function getCoOccurringTags(vnId: string, limit = 24): CoOccurringTag[] {
-  return db
+  return (db
     .prepare(`
       WITH seedTags AS (
         SELECT json_extract(je.value, '$.id') AS tag_id
@@ -1965,10 +1966,10 @@ export function getCoOccurringTags(vnId: string, limit = 24): CoOccurringTag[] {
           AND COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
       )
       SELECT
-        json_extract(coj.value, '$.id') AS id,
-        json_extract(coj.value, '$.name') AS name,
-        json_extract(coj.value, '$.category') AS category,
-        COUNT(DISTINCT c.vn_id) AS shared
+        json_extract(coj.value, '$.id') AS tag_id,
+        json_extract(coj.value, '$.name') AS tag_name,
+        json_extract(coj.value, '$.category') AS tag_category,
+        COUNT(DISTINCT c.vn_id) AS shared_count
       FROM collection c
       JOIN vn v2 ON v2.id = c.vn_id
       JOIN json_each(v2.tags) coj
@@ -1979,11 +1980,12 @@ export function getCoOccurringTags(vnId: string, limit = 24): CoOccurringTag[] {
           SELECT 1 FROM json_each(v2.tags) inner_je
           WHERE json_extract(inner_je.value, '$.id') IN (SELECT tag_id FROM seedTags)
         )
-      GROUP BY id
-      ORDER BY shared DESC, name COLLATE NOCASE ASC
+      GROUP BY tag_id
+      ORDER BY shared_count DESC, tag_name COLLATE NOCASE ASC
       LIMIT ?
     `)
-    .all(vnId, vnId, limit) as CoOccurringTag[];
+    .all(vnId, vnId, limit) as { tag_id: string; tag_name: string; tag_category: string | null; shared_count: number }[])
+    .map((r) => ({ id: r.tag_id, name: r.tag_name, category: r.tag_category, shared: r.shared_count }));
 }
 
 // Routes per VN
@@ -2581,20 +2583,21 @@ export function yearReview(year: number): YearReview {
   const playtime = (db
     .prepare(`SELECT COALESCE(SUM(playtime_minutes), 0) AS m FROM collection WHERE substr(finished_date, 1, 4) = ?`)
     .get(ys) as { m: number }).m;
-  const topTags = db
+  const topTags = (db
     .prepare(`
-      SELECT json_extract(je.value, '$.id') AS id,
-             json_extract(je.value, '$.name') AS name,
-             COUNT(*) AS count
+      SELECT json_extract(je.value, '$.id') AS tag_id,
+             json_extract(je.value, '$.name') AS tag_name,
+             COUNT(*) AS tag_count
       FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
       WHERE substr(c.finished_date, 1, 4) = ?
         AND COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
         AND COALESCE(json_extract(je.value, '$.category'), 'cont') <> 'ero'
-      GROUP BY id
-      ORDER BY count DESC, name COLLATE NOCASE ASC
+      GROUP BY tag_id
+      ORDER BY tag_count DESC, tag_name COLLATE NOCASE ASC
       LIMIT 8
     `)
-    .all(ys) as { id: string; name: string; count: number }[];
+    .all(ys) as { tag_id: string; tag_name: string; tag_count: number }[])
+    .map((r) => ({ id: r.tag_id, name: r.tag_name, count: r.tag_count }));
   const ratingRow = db
     .prepare(`SELECT AVG(user_rating) AS avg FROM collection WHERE substr(finished_date, 1, 4) = ? AND user_rating IS NOT NULL`)
     .get(ys) as { avg: number | null };

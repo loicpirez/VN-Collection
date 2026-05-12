@@ -61,9 +61,10 @@ export function KeyboardShortcuts() {
       }
       if (e.key === '/') {
         e.preventDefault();
-        const candidate = document.querySelector<HTMLInputElement>('input[placeholder*="Filtrer"], input[placeholder*="Filter"], input[placeholder*="絞り込み"], input[role="search"]');
+        const candidate = document.querySelector<HTMLInputElement>('input[data-vn-search], input[role="search"]');
         if (candidate) {
           candidate.focus();
+          candidate.select();
         } else {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }

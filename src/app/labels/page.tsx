@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { ArrowLeft } from 'lucide-react';
 import { listCollection } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
@@ -32,6 +33,12 @@ export default async function LabelsPage({
   const { ids: idsRaw, status } = await searchParams;
   const filter = parseIds(idsRaw);
   const t = await getDict();
+  // Derive the host from the incoming request so QR codes resolve back to
+  // the same origin the user is browsing — works for any port or LAN IP.
+  const h = await headers();
+  const proto = h.get('x-forwarded-proto') ?? 'http';
+  const host = h.get('host') ?? 'localhost:3000';
+  const origin = `${proto}://${host}`;
   const all = listCollection({ sort: 'title' });
   const items = all.filter((it) => (filter == null || filter.has(it.id)) && (!status || it.status === status));
 
@@ -49,7 +56,7 @@ export default async function LabelsPage({
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 print:grid-cols-4 print:gap-1">
         {items.map((it) => {
-          const url = `http://localhost:3000/vn/${it.id}`;
+          const url = `${origin}/vn/${it.id}`;
           return (
             <div
               key={it.id}
