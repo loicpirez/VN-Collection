@@ -6,6 +6,8 @@ import { getDict } from '@/lib/i18n/server';
 import { CachePanel } from '@/components/CachePanel';
 import { HBarChart, VBarChart, DonutChart } from '@/components/charts/BarChart';
 import { ImportPanel } from '@/components/ImportPanel';
+import { ReadingGoalCard } from '@/components/ReadingGoalCard';
+import { StatsExtras } from '@/components/StatsExtras';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,6 +101,10 @@ export default async function StatsPage() {
           </div>
         )}
       </section>
+
+      <ReadingGoalCard year={new Date().getFullYear()} />
+
+      <StatsExtras />
 
       {agg.egs.matched + agg.egs.unmatched > 0 && (
         <section className="rounded-2xl border border-border bg-bg-card p-6">
