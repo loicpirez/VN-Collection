@@ -14,7 +14,8 @@ interface StaffEntry {
 }
 
 const ROLE_ORDER = ['scenario', 'chardesign', 'art', 'music', 'songs', 'director', 'producer', 'staff'] as const;
-const ROLE_KEY: Record<string, keyof Awaited<ReturnType<typeof getDict>>['staff']> = {
+type RoleI18nKey = 'role_scenario' | 'role_chardesign' | 'role_art' | 'role_music' | 'role_songs' | 'role_director' | 'role_producer' | 'role_staff';
+const ROLE_KEY: Record<string, RoleI18nKey> = {
   scenario: 'role_scenario',
   chardesign: 'role_chardesign',
   art: 'role_art',
