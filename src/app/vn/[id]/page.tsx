@@ -7,6 +7,7 @@ import {
   getSourcePref,
   isEgsOnly,
   isInCollection,
+  listActivityForVn,
   listSeries,
   upsertVn,
 } from '@/lib/db';
@@ -27,6 +28,7 @@ import { CastSection } from '@/components/CastSection';
 import { StaffSection } from '@/components/StaffSection';
 import { TagCoOccurrence } from '@/components/TagCoOccurrence';
 import { ReadingSpeedBadge } from '@/components/ReadingSpeedBadge';
+import { ActivityTimeline } from '@/components/ActivityTimeline';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
 import { QuotesSection } from '@/components/QuotesSection';
@@ -422,6 +424,12 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
       {inCol && (
         <div className="mt-6">
           <RoutesSection vnId={vn.id} inCollection={inCol} />
+        </div>
+      )}
+
+      {inCol && (
+        <div className="mt-6">
+          <ActivityTimeline vnId={vn.id} initial={listActivityForVn(vn.id, 50)} />
         </div>
       )}
 

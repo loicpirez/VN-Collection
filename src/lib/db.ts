@@ -216,6 +216,15 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_vn_va_credit_sid ON vn_va_credit(sid);
     CREATE INDEX IF NOT EXISTS idx_vn_va_credit_cid ON vn_va_credit(c_id);
     CREATE INDEX IF NOT EXISTS idx_vn_va_credit_vn  ON vn_va_credit(vn_id);
+
+    CREATE TABLE IF NOT EXISTS vn_activity (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      vn_id       TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
+      kind        TEXT NOT NULL,
+      payload     TEXT,
+      occurred_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_activity_vn ON vn_activity(vn_id, occurred_at DESC);
   `);
 
   ensureColumn(db, 'vn', 'screenshots', 'TEXT');
@@ -1241,7 +1250,7 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
   );
 }
 
-export function updateCollection(vnId: string, fields: CollectionPatch): void {
+const updateCollectionTx = db.transaction((vnId: string, fields: CollectionPatch) => {
   const sets: string[] = [];
   const params: unknown[] = [];
   const map: Record<string, (v: unknown) => unknown> = {
@@ -1260,6 +1269,17 @@ export function updateCollection(vnId: string, fields: CollectionPatch): void {
     download_url: (v) => v,
     dumped: (v) => (v ? 1 : 0),
   };
+
+  // Snapshot the columns we may diff against before the UPDATE so the activity
+  // payload can record "from -> to" without an extra round-trip per field.
+  const before = db.prepare(`
+    SELECT status, user_rating, playtime_minutes, favorite, started_date, finished_date
+    FROM collection WHERE vn_id = ?
+  `).get(vnId) as
+    | { status: string | null; user_rating: number | null; playtime_minutes: number | null;
+        favorite: number; started_date: string | null; finished_date: string | null }
+    | undefined;
+
   for (const key of Object.keys(map) as (keyof typeof map)[]) {
     if (key in fields) {
       sets.push(`${key} = ?`);
@@ -1267,10 +1287,100 @@ export function updateCollection(vnId: string, fields: CollectionPatch): void {
     }
   }
   if (sets.length === 0) return;
+  const now = Date.now();
   sets.push('updated_at = ?');
-  params.push(Date.now());
+  params.push(now);
   params.push(vnId);
   db.prepare(`UPDATE collection SET ${sets.join(', ')} WHERE vn_id = ?`).run(...params);
+
+  if (!before) return;
+  const insertActivity = db.prepare(`
+    INSERT INTO vn_activity (vn_id, kind, payload, occurred_at) VALUES (?, ?, ?, ?)
+  `);
+  const log = (kind: string, payload: Record<string, unknown>) => {
+    insertActivity.run(vnId, kind, JSON.stringify(payload), now);
+  };
+
+  if ('status' in fields && fields.status !== before.status) {
+    log('status', { from: before.status, to: fields.status ?? null });
+  }
+  if ('user_rating' in fields && fields.user_rating !== before.user_rating) {
+    log('rating', { from: before.user_rating, to: fields.user_rating ?? null });
+  }
+  if ('playtime_minutes' in fields && typeof fields.playtime_minutes === 'number') {
+    const delta = fields.playtime_minutes - (before.playtime_minutes ?? 0);
+    if (delta !== 0) log('playtime', { from: before.playtime_minutes ?? 0, to: fields.playtime_minutes, delta });
+  }
+  if ('favorite' in fields && !!fields.favorite !== !!before.favorite) {
+    log('favorite', { to: !!fields.favorite });
+  }
+  if ('started_date' in fields && fields.started_date !== before.started_date) {
+    log('started', { from: before.started_date, to: fields.started_date ?? null });
+  }
+  if ('finished_date' in fields && fields.finished_date !== before.finished_date) {
+    log('finished', { from: before.finished_date, to: fields.finished_date ?? null });
+  }
+  if ('notes' in fields) {
+    log('note', { length: typeof fields.notes === 'string' ? fields.notes.length : 0 });
+  }
+});
+
+export function updateCollection(vnId: string, fields: CollectionPatch): void {
+  updateCollectionTx(vnId, fields);
+}
+
+export interface ActivityEntry {
+  id: number;
+  vn_id: string;
+  kind: 'status' | 'rating' | 'playtime' | 'favorite' | 'started' | 'finished' | 'note' | 'manual';
+  payload: Record<string, unknown> | null;
+  occurred_at: number;
+}
+
+export function listActivityForVn(vnId: string, limit = 50): ActivityEntry[] {
+  const rows = db
+    .prepare(`
+      SELECT id, vn_id, kind, payload, occurred_at
+      FROM vn_activity WHERE vn_id = ?
+      ORDER BY occurred_at DESC, id DESC
+      LIMIT ?
+    `)
+    .all(vnId, limit) as Array<{ id: number; vn_id: string; kind: string; payload: string | null; occurred_at: number }>;
+  return rows.map((r) => ({
+    id: r.id,
+    vn_id: r.vn_id,
+    kind: r.kind as ActivityEntry['kind'],
+    payload: r.payload ? safeParseJson(r.payload) : null,
+    occurred_at: r.occurred_at,
+  }));
+}
+
+export function addManualActivity(vnId: string, text: string, occurredAt?: number): ActivityEntry {
+  const ts = occurredAt ?? Date.now();
+  const trimmed = text.trim().slice(0, 2000);
+  const info = db.prepare(`
+    INSERT INTO vn_activity (vn_id, kind, payload, occurred_at) VALUES (?, 'manual', ?, ?)
+  `).run(vnId, JSON.stringify({ text: trimmed }), ts);
+  return {
+    id: Number(info.lastInsertRowid),
+    vn_id: vnId,
+    kind: 'manual',
+    payload: { text: trimmed },
+    occurred_at: ts,
+  };
+}
+
+export function deleteActivity(id: number): void {
+  db.prepare('DELETE FROM vn_activity WHERE id = ?').run(id);
+}
+
+function safeParseJson(s: string): Record<string, unknown> | null {
+  try {
+    const v = JSON.parse(s);
+    return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function removeFromCollection(vnId: string): void {
