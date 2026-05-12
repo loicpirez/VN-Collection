@@ -476,6 +476,136 @@ export async function getStaff(id: string): Promise<VndbStaff | null> {
   return r.results[0] ?? null;
 }
 
+export interface StaffVnCredit {
+  /** VN id (`v123`). */
+  id: string;
+  title: string;
+  alttitle: string | null;
+  released: string | null;
+  rating: number | null;
+  image_url: string | null;
+  image_thumb: string | null;
+  /** Each role/note this staff has on the VN — VNDB returns one row per role. */
+  roles: { role: string; note: string | null }[];
+}
+
+export interface StaffVaCredit {
+  id: string;
+  title: string;
+  alttitle: string | null;
+  released: string | null;
+  rating: number | null;
+  image_url: string | null;
+  image_thumb: string | null;
+  characters: { id: string; name: string; original: string | null; image_url: string | null; note: string | null }[];
+}
+
+interface VnStaffEntry { id: string; role: string; note: string | null }
+interface VnImage { url: string; thumbnail: string | null }
+interface VnVaEntry {
+  staff: { id: string };
+  note: string | null;
+  character: { id: string; name: string; original: string | null; image: { url: string } | null };
+}
+interface VnRowForStaff {
+  id: string;
+  title: string;
+  alttitle: string | null;
+  released: string | null;
+  rating: number | null;
+  image: VnImage | null;
+  staff: VnStaffEntry[];
+}
+interface VnRowForVa {
+  id: string;
+  title: string;
+  alttitle: string | null;
+  released: string | null;
+  rating: number | null;
+  image: VnImage | null;
+  va: VnVaEntry[];
+}
+
+/**
+ * Every VN where this staff has a production credit. Paginated; stops when
+ * VNDB reports `more=false`. Lightweight VN fields only (title, image,
+ * release, rating) — we don't pull the full VN payload because the user
+ * asked explicitly not to download the sub-games, just to list them.
+ */
+export async function fetchStaffVnList(sid: string): Promise<StaffVnCredit[]> {
+  const out: StaffVnCredit[] = [];
+  for (let page = 1; page <= 50; page++) {
+    const r = await vndbPost<VndbResponse<VnRowForStaff>>('/vn', {
+      filters: ['staff', '=', ['id', '=', sid]],
+      fields: 'title, alttitle, released, rating, image.url, image.thumbnail, staff{id, role, note}',
+      sort: 'released',
+      reverse: true,
+      results: 100,
+      page,
+    }, TTL.staff);
+    for (const v of r.results) {
+      const roles = v.staff
+        .filter((s) => s.id === sid)
+        .map((s) => ({ role: s.role, note: s.note }));
+      if (roles.length === 0) continue;
+      out.push({
+        id: v.id,
+        title: v.title,
+        alttitle: v.alttitle,
+        released: v.released,
+        rating: v.rating,
+        image_url: v.image?.url ?? null,
+        image_thumb: v.image?.thumbnail ?? null,
+        roles,
+      });
+    }
+    if (!r.more) break;
+  }
+  return out;
+}
+
+/**
+ * Every VN where this staff has a voice credit, with the characters they
+ * voiced on each. Same shape as fetchStaffVnList — light VN fields only.
+ */
+export async function fetchVaVnList(sid: string): Promise<StaffVaCredit[]> {
+  const out: StaffVaCredit[] = [];
+  for (let page = 1; page <= 50; page++) {
+    const r = await vndbPost<VndbResponse<VnRowForVa>>('/vn', {
+      filters: ['va', '=', ['id', '=', sid]],
+      fields: 'title, alttitle, released, rating, image.url, image.thumbnail, va{note, staff{id}, character{id, name, original, image.url}}',
+      sort: 'released',
+      reverse: true,
+      results: 100,
+      page,
+    }, TTL.staff);
+    for (const v of r.results) {
+      const chars = v.va
+        .filter((entry) => entry.staff?.id === sid && entry.character)
+        .map((entry) => ({
+          id: entry.character.id,
+          name: entry.character.name,
+          original: entry.character.original,
+          image_url: entry.character.image?.url ?? null,
+          note: entry.note,
+        }));
+      if (chars.length === 0) continue;
+      out.push({
+        id: v.id,
+        title: v.title,
+        alttitle: v.alttitle,
+        released: v.released,
+        rating: v.rating,
+        image_url: v.image?.url ?? null,
+        image_thumb: v.image?.thumbnail ?? null,
+        characters: chars,
+      });
+    }
+    if (!r.more) break;
+  }
+  return out;
+}
+
 // Tag
 export interface VndbTag {
   id: string;

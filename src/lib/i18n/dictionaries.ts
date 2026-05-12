@@ -466,6 +466,10 @@ export const dictionaries = {
       role_producer: 'Production',
       role_staff: 'Autres',
       backToVn: 'Retour au VN',
+      downloadAction: 'Télécharger tout',
+      downloadDone: 'Crédits téléchargés depuis VNDB',
+      extraTitle: 'Autres crédits (hors collection)',
+      extraSubtitle: 'VN où cette personne apparaît sur VNDB mais qui ne sont pas dans votre collection. Cliquez pour ouvrir la fiche.',
       timeline: {
         title: 'Chronologie des crédits',
         hint: 'Hauteur = nombre de crédits par année. Surbrillance = part dans ta collection.',
@@ -1554,6 +1558,10 @@ export const dictionaries = {
       role_producer: 'Producer',
       role_staff: 'Other',
       backToVn: 'Back to VN',
+      downloadAction: 'Download all',
+      downloadDone: 'Credits downloaded from VNDB',
+      extraTitle: 'More credits (outside your collection)',
+      extraSubtitle: 'VNs where this person appears on VNDB but isn\'t in your collection yet. Click to open the page.',
       timeline: {
         title: 'Credits timeline',
         hint: 'Bar height = credits in that year. Highlighted segment = your collection.',
@@ -2642,6 +2650,10 @@ export const dictionaries = {
       role_producer: 'プロデューサー',
       role_staff: 'その他',
       backToVn: 'VN に戻る',
+      downloadAction: 'すべて取得',
+      downloadDone: 'VNDB からクレジットを取得しました',
+      extraTitle: 'その他のクレジット（コレクション外）',
+      extraSubtitle: 'VNDB に登録されているがコレクションには未追加の VN。クリックでページを開きます。',
       timeline: {
         title: 'クレジットの推移',
         hint: '棒の高さ = その年のクレジット数。色付き部分 = コレクション内。',
