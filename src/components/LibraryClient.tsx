@@ -8,6 +8,7 @@ import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
 import { BulkActionBar } from './BulkActionBar';
 import { SortableGrid } from './SortableGrid';
+import { RandomPickButton } from './RandomPickButton';
 import { useT } from '@/lib/i18n/client';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
@@ -554,6 +555,9 @@ export function LibraryClient() {
             >
               <CheckSquare className="h-4 w-4" /> {selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
             </button>
+          )}
+          {visibleItems.length > 0 && (
+            <RandomPickButton candidates={visibleItems.map((it) => ({ id: it.id, title: it.title }))} />
           )}
           {stats.total > 0 && <BulkDownloadButton onItemDone={() => setRefreshKey((k) => k + 1)} />}
         </div>

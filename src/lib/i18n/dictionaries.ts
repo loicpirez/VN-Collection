@@ -111,6 +111,12 @@ export const dictionaries = {
         vnCount: 'VN',
         playedHours: 'joué',
       },
+      randomPick: {
+        cta: 'Au hasard',
+        title: 'Choisir un VN au hasard parmi les résultats filtrés',
+        empty: 'Aucun VN dans les filtres actuels — élargis avant de tirer.',
+        picked: 'Tiré au hasard',
+      },
       empty: {
         title: 'Collection vide',
         description: 'Ajoute ton premier VN depuis la recherche.',
@@ -872,6 +878,12 @@ export const dictionaries = {
         vnCount: 'VN',
         playedHours: 'played',
       },
+      randomPick: {
+        cta: 'Random',
+        title: 'Pick a random VN from the filtered list',
+        empty: 'No VN matches the current filters — widen them first.',
+        picked: 'Random pick',
+      },
       empty: {
         title: 'Empty collection',
         description: 'Add your first VN from the search page.',
@@ -1632,6 +1644,12 @@ export const dictionaries = {
       stats: {
         vnCount: '本',
         playedHours: 'プレイ',
+      },
+      randomPick: {
+        cta: 'ランダム',
+        title: '絞り込み結果からランダムに 1 本選ぶ',
+        empty: '該当する VN がありません。フィルタを緩めてください。',
+        picked: 'ランダム抽選',
       },
       empty: {
         title: 'コレクションが空です',
