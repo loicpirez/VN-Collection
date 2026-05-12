@@ -59,6 +59,8 @@ export default function SteamSyncPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [picks, setPicks] = useState<Set<string>>(new Set());
 
+  const [showAllUnlinked, setShowAllUnlinked] = useState(false);
+
   // Unlinked Steam games (for the manual mapper)
   const [unlinkedLoading, setUnlinkedLoading] = useState(false);
   const [unlinked, setUnlinked] = useState<UnlinkedGame[]>([]);
@@ -317,7 +319,7 @@ export default function SteamSyncPage() {
           <p className="text-sm text-muted">{t.steam.empty}</p>
         ) : null}
         <ul className="space-y-2">
-          {unlinked.slice(0, 60).map((g) => {
+          {(showAllUnlinked ? unlinked : unlinked.slice(0, 60)).map((g) => {
             const query = assignQuery[g.appid] ?? '';
             const matches = assignMatches[g.appid] ?? [];
             return (
@@ -363,7 +365,15 @@ export default function SteamSyncPage() {
           })}
         </ul>
         {unlinked.length > 60 && (
-          <p className="mt-2 text-[11px] text-muted">+ {unlinked.length - 60} {t.steam.moreUnlinked}</p>
+          <button
+            type="button"
+            onClick={() => setShowAllUnlinked((v) => !v)}
+            className="mt-3 inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+          >
+            {showAllUnlinked
+              ? t.steam.showLess
+              : `${t.steam.showAll} (${unlinked.length - 60})`}
+          </button>
         )}
       </section>
     </div>

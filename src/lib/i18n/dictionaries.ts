@@ -632,6 +632,8 @@ export const dictionaries = {
       unwishConfirm: 'Retirer ce VN de la wishlist ? Le statut sera effacé.',
     },
     savedFilters: {
+      title: 'Filtres',
+      popoverEmpty: 'Aucun filtre enregistré.',
       saveCta: 'Enregistrer ce filtre',
       saveCurrent: 'Mémoriser la combinaison de filtres actuelle',
       namePlaceholder: 'Nom du filtre…',
@@ -814,6 +816,8 @@ export const dictionaries = {
       unlinked: 'Lien supprimé',
       unlinkConfirm: 'Supprimer ce lien VN ↔ Steam ?',
       moreUnlinked: 'autres jeux non affichés',
+      showAll: 'Tout afficher',
+      showLess: 'Réduire',
       howToConfigure: 'Pour configurer Steam, va dans',
     },
     shelf: {
@@ -1773,6 +1777,8 @@ export const dictionaries = {
       unwishConfirm: 'Remove from wishlist? The status will be cleared.',
     },
     savedFilters: {
+      title: 'Filters',
+      popoverEmpty: 'No saved filters yet.',
       saveCta: 'Save this filter',
       saveCurrent: 'Pin the current filter combo',
       namePlaceholder: 'Filter name…',
@@ -1955,6 +1961,8 @@ export const dictionaries = {
       unlinked: 'Link removed',
       unlinkConfirm: 'Remove this VN ↔ Steam link?',
       moreUnlinked: 'more games not shown',
+      showAll: 'Show all',
+      showLess: 'Show less',
       howToConfigure: 'To configure Steam, open',
     },
     shelf: {
@@ -2914,6 +2922,8 @@ export const dictionaries = {
       unwishConfirm: 'ウィッシュから削除しますか？ ステータスがクリアされます。',
     },
     savedFilters: {
+      title: 'フィルタ',
+      popoverEmpty: '保存済みのフィルタはまだありません。',
       saveCta: 'このフィルタを保存',
       saveCurrent: '現在のフィルタを保存',
       namePlaceholder: 'フィルタ名…',
@@ -3096,6 +3106,8 @@ export const dictionaries = {
       unlinked: 'リンク削除',
       unlinkConfirm: 'この VN ↔ Steam リンクを削除しますか？',
       moreUnlinked: '件 表示外',
+      showAll: 'すべて表示',
+      showLess: '折りたたむ',
       howToConfigure: 'Steam を設定するには',
     },
     shelf: {

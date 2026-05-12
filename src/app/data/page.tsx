@@ -7,6 +7,7 @@ import { ImportPanel } from '@/components/ImportPanel';
 import { DataMaintenance } from '@/components/DataMaintenance';
 import { DropImport } from '@/components/DropImport';
 import { RunTourButton } from '@/components/RunTourButton';
+import { SteamSettingsBlock } from '@/components/SteamSettingsBlock';
 
 export const dynamic = 'force-dynamic';
 
@@ -131,6 +132,7 @@ export default async function DataPage() {
         <Link href="/steam" className="btn">
           🎮 {t.steam.open}
         </Link>
+        <SteamSettingsBlock />
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-6">
