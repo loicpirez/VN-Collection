@@ -501,6 +501,13 @@ export const dictionaries = {
       hideSources: 'Masquer VNDB / EGS',
       clearConfirm: 'Effacer ton synopsis perso ? La fiche reviendra à VNDB / EGS.',
     },
+    readingSpeed: {
+      label: 'Vitesse',
+      you: 'Toi',
+      tooltip: 'Calculé sur {n} VN terminé(s) avec un temps de jeu enregistré.',
+      notEnough: 'pas assez de VN terminés pour estimer ton rythme',
+      notEnoughHint: 'Termine au moins 3 VN avec un temps de jeu pour activer la prédiction.',
+    },
     vndbStatus: {
       section: 'Statut VNDB',
       needsToken: 'Configure un token VNDB dans les paramètres pour gérer les labels (Wishlist, Playing, Finished…) depuis cette page.',
@@ -1273,6 +1280,13 @@ export const dictionaries = {
       hideSources: 'Hide VNDB / EGS',
       clearConfirm: 'Delete your custom synopsis? The page will revert to VNDB / EGS.',
     },
+    readingSpeed: {
+      label: 'Pace',
+      you: 'You',
+      tooltip: 'Computed from {n} completed VN(s) with recorded playtime.',
+      notEnough: 'not enough completed VNs to estimate your pace',
+      notEnoughHint: 'Finish at least 3 VNs with a playtime to unlock the prediction.',
+    },
     vndbStatus: {
       section: 'VNDB status',
       needsToken: 'Set a VNDB token in Settings to manage your list labels (Wishlist, Playing, Finished…) from this page.',
@@ -2044,6 +2058,13 @@ export const dictionaries = {
       showSources: 'VNDB / EGS を見る',
       hideSources: 'VNDB / EGS を隠す',
       clearConfirm: 'マイあらすじを削除して VNDB / EGS に戻しますか？',
+    },
+    readingSpeed: {
+      label: 'ペース',
+      you: 'あなた',
+      tooltip: 'プレイ時間が記録された {n} 本の完了 VN から計算。',
+      notEnough: 'ペース推定には完了 VN が足りません',
+      notEnoughHint: 'プレイ時間付きで 3 本以上完了すると予測が有効になります。',
     },
     vndbStatus: {
       section: 'VNDB ステータス',

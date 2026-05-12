@@ -26,6 +26,7 @@ import { CharactersSection } from '@/components/CharactersSection';
 import { CastSection } from '@/components/CastSection';
 import { StaffSection } from '@/components/StaffSection';
 import { TagCoOccurrence } from '@/components/TagCoOccurrence';
+import { ReadingSpeedBadge } from '@/components/ReadingSpeedBadge';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
 import { QuotesSection } from '@/components/QuotesSection';
@@ -243,9 +244,15 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <dd className="font-semibold">{vn.released}</dd>
                 </div>
               )}
-              <div>
+              <div className="col-span-2 sm:col-span-3">
                 <dt className="label">{t.detail.lengthVndb}</dt>
                 <dd className="font-semibold">{fmtMinutes(vn.length_minutes)}</dd>
+                {inCol && (
+                  <ReadingSpeedBadge
+                    vndbLength={vn.length_minutes ?? null}
+                    egsLength={egsRow?.playtime_median_minutes ?? null}
+                  />
+                )}
               </div>
               <div>
                 <dt className="label">{t.detail.myPlaytime}</dt>
