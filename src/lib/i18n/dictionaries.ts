@@ -35,6 +35,14 @@ export const dictionaries = {
       subtitle: 'Nouvelles sorties (≥ aujourd\'hui) des éditeurs déjà présents dans ta collection.',
       empty: 'Aucune sortie à venir pour les éditeurs de ta collection.',
     },
+    seriesAutoSuggest: {
+      title: 'Série détectée',
+      hint: 'Ce VN partage une relation (suite/préquelle/set) avec des VN de ta collection.',
+      joinExisting: 'Rejoindre',
+      createNew: 'Créer la série',
+      added: 'Ajouté à la série',
+      created: 'Nouvelle série créée',
+    },
     wishlist: {
       pageTitle: 'Wishlist VNDB',
       pageSubtitle: 'Les VN marqués « Wishlist » sur ton compte VNDB.',
@@ -864,6 +872,14 @@ export const dictionaries = {
       subtitle: 'Future releases (≥ today) from publishers already in your collection.',
       empty: 'No upcoming releases for the publishers in your collection.',
     },
+    seriesAutoSuggest: {
+      title: 'Series detected',
+      hint: 'This VN shares a relation (sequel / prequel / set) with VNs already in your collection.',
+      joinExisting: 'Join',
+      createNew: 'Create series',
+      added: 'Added to series',
+      created: 'New series created',
+    },
     wishlist: {
       pageTitle: 'VNDB Wishlist',
       pageSubtitle: 'VNs flagged "Wishlist" on your VNDB account.',
@@ -1692,6 +1708,14 @@ export const dictionaries = {
       title: '発売予定',
       subtitle: 'コレクションのブランドの今後の発売予定（今日以降）。',
       empty: 'コレクションのブランドからは今後の発売予定がありません。',
+    },
+    seriesAutoSuggest: {
+      title: 'シリーズ候補',
+      hint: 'コレクション内の VN と続編・前日譚・関連作の関係があります。',
+      joinExisting: '参加',
+      createNew: 'シリーズを作る',
+      added: 'シリーズに追加しました',
+      created: '新しいシリーズを作成しました',
     },
     wishlist: {
       pageTitle: 'VNDB ウィッシュリスト',

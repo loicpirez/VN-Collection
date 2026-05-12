@@ -29,6 +29,8 @@ import { StaffSection } from '@/components/StaffSection';
 import { TagCoOccurrence } from '@/components/TagCoOccurrence';
 import { ReadingSpeedBadge } from '@/components/ReadingSpeedBadge';
 import { ActivityTimeline } from '@/components/ActivityTimeline';
+import { SeriesAutoSuggest } from '@/components/SeriesAutoSuggest';
+import { detectSeriesForVn } from '@/lib/series-detect';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
 import { QuotesSection } from '@/components/QuotesSection';
@@ -418,6 +420,12 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         <div className="mt-6 rounded-xl border border-border bg-bg-card p-6">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.form.personalNotes}</h3>
           <MarkdownView source={vn.notes} />
+        </div>
+      )}
+
+      {inCol && (
+        <div className="mt-6">
+          <SeriesAutoSuggest vnId={vn.id} suggestion={detectSeriesForVn(vn.id)} />
         </div>
       )}
 
