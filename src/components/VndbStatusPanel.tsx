@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
+import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 
 interface Label {
@@ -53,7 +54,15 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     load().finally(() => setLoading(false));
   }, [load]);
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <section className="rounded-xl border border-border bg-bg-card p-5">
+        <SkeletonBlock className="mb-3 h-4 w-32" />
+        <SkeletonBlock className="mb-2 h-3 w-full" />
+        <SkeletonBlock className="h-3 w-3/4" />
+      </section>
+    );
+  }
   if (!state) return null;
   if (state.needsAuth) {
     return (

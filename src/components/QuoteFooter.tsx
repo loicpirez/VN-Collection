@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MessageSquareQuote, RefreshCcw, Loader2 } from 'lucide-react';
+import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import type { VndbQuote } from '@/lib/vndb-types';
 
@@ -83,7 +84,11 @@ export function QuoteFooter() {
           >
             {error && <p className="text-[11px] text-status-dropped">{error}</p>}
             {!error && !quote && loading && (
-              <p className="text-[11px] text-muted">{t.common.loading}</p>
+              <div className="space-y-1.5">
+                <SkeletonBlock className="h-3 w-5/6" />
+                <SkeletonBlock className="h-3 w-2/3" />
+                <SkeletonBlock className="ml-auto h-2.5 w-1/4" />
+              </div>
             )}
             {quote && (
               <blockquote className="border-l-2 border-accent pl-2 italic text-white/85">

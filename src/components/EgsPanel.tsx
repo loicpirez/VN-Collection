@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Clock, ExternalLink, Link2, Loader2, RefreshCw, Search, Sparkles, Star, Trash2, Users, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
+import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 
 interface EgsGame {
@@ -135,7 +136,16 @@ export function EgsPanel({
     setPickerOpen(false);
   }
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <section className="rounded-xl border border-border bg-bg-card p-5">
+        <SkeletonBlock className="mb-3 h-4 w-32" />
+        <SkeletonBlock className="mb-2 h-3 w-1/2" />
+        <SkeletonBlock className="mb-2 h-3 w-2/3" />
+        <SkeletonBlock className="h-3 w-1/3" />
+      </section>
+    );
+  }
 
   // ----- Empty / no-match branch — still surface the manual search affordance -----
   if (!game) {

@@ -1,9 +1,12 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, CalendarRange, ExternalLink, Flame, Globe, Library as LibraryIcon } from 'lucide-react';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRelease } from '@/lib/upcoming';
 import { fetchEgsAnticipated, type EgsAnticipated } from '@/lib/erogamescape';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { SkeletonCardGrid, SkeletonRows } from '@/components/Skeleton';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,21 +40,6 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Pro
   const { tab: rawTab } = await searchParams;
   const tab = parseTab(rawTab);
 
-  let error: string | null = null;
-  let collection: UpcomingRelease[] = [];
-  let anticipated: EgsAnticipated[] = [];
-  let all: UpcomingRelease[] = [];
-
-  // Only fetch the active tab to keep the page fast — switching tabs is a
-  // full page reload so the user can re-time the cost intentionally.
-  try {
-    if (tab === 'collection') collection = await fetchUpcomingForCollection();
-    else if (tab === 'anticipated') anticipated = await fetchEgsAnticipated(100);
-    else all = await fetchAllUpcomingFromVndb(200);
-  } catch (e) {
-    error = (e as Error).message;
-  }
-
   return (
     <div className="mx-auto max-w-5xl">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
@@ -76,19 +64,37 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Pro
         </nav>
       </header>
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm text-status-dropped">
-          {error}
-        </div>
-      )}
-
-      {tab === 'anticipated' ? (
-        <AnticipatedSection rows={anticipated} t={t} />
-      ) : (
-        <ReleasesSection rows={tab === 'all' ? all : collection} t={t} empty={tab === 'all' ? t.upcoming.emptyAll : t.upcoming.empty} />
-      )}
+      <Suspense key={tab} fallback={<UpcomingTabSkeleton tab={tab} />}>
+        <TabContent tab={tab} t={t} />
+      </Suspense>
     </div>
   );
+}
+
+async function TabContent({ tab, t }: { tab: Tab; t: Dictionary }) {
+  try {
+    if (tab === 'anticipated') {
+      const rows = await fetchEgsAnticipated(100);
+      return <AnticipatedSection rows={rows} t={t} />;
+    }
+    if (tab === 'all') {
+      const rows = await fetchAllUpcomingFromVndb(200);
+      return <ReleasesSection rows={rows} empty={t.upcoming.emptyAll} />;
+    }
+    const rows = await fetchUpcomingForCollection();
+    return <ReleasesSection rows={rows} empty={t.upcoming.empty} />;
+  } catch (e) {
+    return (
+      <div className="mb-4 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm text-status-dropped">
+        {(e as Error).message}
+      </div>
+    );
+  }
+}
+
+function UpcomingTabSkeleton({ tab }: { tab: Tab }) {
+  if (tab === 'anticipated') return <SkeletonCardGrid count={12} />;
+  return <SkeletonRows count={6} />;
 }
 
 function TabLink({
@@ -117,11 +123,9 @@ function TabLink({
 
 function ReleasesSection({
   rows,
-  t,
   empty,
 }: {
   rows: UpcomingRelease[];
-  t: Awaited<ReturnType<typeof getDict>>;
   empty: string;
 }) {
   if (rows.length === 0) {
@@ -197,7 +201,7 @@ function AnticipatedSection({
   t,
 }: {
   rows: EgsAnticipated[];
-  t: Awaited<ReturnType<typeof getDict>>;
+  t: Dictionary;
 }) {
   if (rows.length === 0) {
     return <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">{t.upcoming.emptyAnticipated}</p>;
