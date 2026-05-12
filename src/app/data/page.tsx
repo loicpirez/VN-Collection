@@ -118,6 +118,14 @@ export default async function DataPage() {
       <DataMaintenance />
 
       <section className="rounded-2xl border border-border bg-bg-card p-6">
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.labels.title}</h2>
+        <p className="mb-3 text-xs text-muted">{t.labels.hint}</p>
+        <Link href="/labels" className="btn">
+          🏷️ {t.labels.open}
+        </Link>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-bg-card p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.tour.runAgain}</h2>
         <p className="mb-3 text-xs text-muted">{t.tour.hint}</p>
         <RunTourButton />

@@ -695,6 +695,12 @@ export const dictionaries = {
         step_data_body: 'Imports, exports, maintenance, token VNDB. Tu peux relancer cette visite ici.',
       },
     },
+    labels: {
+      title: 'Étiquettes QR imprimables',
+      hint: 'Imprime cette page sur du papier autocollant — chaque QR pointe vers la fiche du VN.',
+      print: 'Imprimer',
+      open: 'Étiquettes QR',
+    },
     activity: {
       title: 'Journal',
       placeholder: 'Note libre — "session de 2h", "Sakura route finie", etc.',
@@ -1706,6 +1712,12 @@ export const dictionaries = {
         step_data_body: 'Imports, exports, maintenance, VNDB token. Restart the tour from here.',
       },
     },
+    labels: {
+      title: 'Printable QR labels',
+      hint: 'Print on sticker paper — each QR points to the VN detail page.',
+      print: 'Print',
+      open: 'QR labels',
+    },
     activity: {
       title: 'Activity log',
       placeholder: 'Free-form note — "2h session", "Sakura route done", …',
@@ -2716,6 +2728,12 @@ export const dictionaries = {
         step_data_title: 'データ',
         step_data_body: 'インポート・エクスポート・メンテナンス・VNDB トークン。ツアー再実行もここから。',
       },
+    },
+    labels: {
+      title: 'QR ラベル印刷',
+      hint: 'シール用紙に印刷 — 各 QR は VN 詳細ページへリンクします。',
+      print: '印刷',
+      open: 'QR ラベル',
     },
     activity: {
       title: 'アクティビティ',
