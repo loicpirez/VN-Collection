@@ -1,5 +1,7 @@
 import 'server-only';
 import type { Status } from './types';
+import { getCollectionItem, updateCollection } from './db';
+import { fetchUlistByLabel, getAuthInfo } from './vndb';
 
 /**
  * Two-way sync between local status and VNDB list labels.
@@ -71,3 +73,102 @@ export async function pushStatusToVndb(
   });
   return { ok: r.ok, status: r.status };
 }
+
+export interface PullResult {
+  ok: boolean;
+  needsAuth?: boolean;
+  scanned: number;
+  updated: number;
+  unchanged: number;
+  skippedNotInCollection: number;
+  message?: string;
+}
+
+/**
+ * Precedence when a VN carries multiple status labels on VNDB. "completed"
+ * wins over the in-progress states because the user has reached the terminal
+ * outcome of having played and finished the game; "dropped" / "on_hold" reflect
+ * abandonment so they outrank "playing" which itself outranks "planning".
+ */
+const STATUS_PRECEDENCE: Status[] = ['completed', 'dropped', 'on_hold', 'playing', 'planning'];
+
+function pickStatusFromLabels(labelIds: number[]): Status | null {
+  const localStatuses = labelIds
+    .map((id) => VNDB_LABELS_REVERSE[id])
+    .filter((s): s is Status => s != null);
+  if (localStatuses.length === 0) return null;
+  for (const s of STATUS_PRECEDENCE) {
+    if (localStatuses.includes(s)) return s;
+  }
+  return localStatuses[0];
+}
+
+/**
+ * Pull every status-bearing ulist entry from VNDB and align local statuses
+ * accordingly. Only updates VNs already in the local collection — VNDB has
+ * many more entries than the user actually owns locally and silently
+ * importing them would surprise the user. To bring something new in, the
+ * user clicks "Add" on /vn/[id] manually.
+ *
+ * Returns counts so the UI can show "updated N / X scanned".
+ */
+export async function pullStatusesFromVndb(): Promise<PullResult> {
+  const auth = await getAuthInfo();
+  if (!auth) {
+    return {
+      ok: false,
+      needsAuth: true,
+      scanned: 0,
+      updated: 0,
+      unchanged: 0,
+      skippedNotInCollection: 0,
+      message: 'no vndb token',
+    };
+  }
+
+  // Accumulate status per vn id across all label queries, then resolve via
+  // precedence at the end.
+  const labels: Record<string, number[]> = {};
+  for (const labelId of Object.values(VNDB_LABELS)) {
+    for (let page = 1; page <= 50; page++) {
+      const r = await fetchUlistByLabel(auth.id, labelId, { results: 100, page });
+      for (const entry of r.results) {
+        const ids = (labels[entry.id] ??= []);
+        for (const l of entry.labels) ids.push(l.id);
+      }
+      if (!r.more) break;
+    }
+  }
+
+  let updated = 0;
+  let unchanged = 0;
+  let skipped = 0;
+  const scanned = Object.keys(labels).length;
+  for (const [vnId, labelIds] of Object.entries(labels)) {
+    const target = pickStatusFromLabels(labelIds);
+    if (!target) {
+      skipped += 1;
+      continue;
+    }
+    const local = getCollectionItem(vnId);
+    if (!local) {
+      skipped += 1;
+      continue;
+    }
+    if (local.status === target) {
+      unchanged += 1;
+      continue;
+    }
+    updateCollection(vnId, { status: target });
+    updated += 1;
+  }
+
+  return {
+    ok: true,
+    scanned,
+    updated,
+    unchanged,
+    skippedNotInCollection: skipped,
+  };
+}
+

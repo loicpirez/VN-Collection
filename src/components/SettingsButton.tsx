@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
+import { Download, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
@@ -98,6 +98,29 @@ export function SettingsButton() {
     await saveServer({ vndb_token: tokenInput.trim() || null });
     setSavingToken(false);
     setTokenInput('');
+  }
+
+  const [pulling, setPulling] = useState(false);
+  async function onPullStatuses() {
+    setPulling(true);
+    try {
+      const r = await fetch('/api/vndb/pull-statuses', { method: 'POST' });
+      const data = (await r.json().catch(() => ({}))) as {
+        ok?: boolean;
+        updated?: number;
+        scanned?: number;
+        needsAuth?: boolean;
+        message?: string;
+      };
+      if (!r.ok || !data.ok) {
+        throw new Error(data.message ?? t.common.error);
+      }
+      toast.success(`${t.settings.vndbPullDone} (${data.updated ?? 0}/${data.scanned ?? 0})`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setPulling(false);
+    }
   }
 
   useEffect(() => {
@@ -256,6 +279,26 @@ export function SettingsButton() {
                         <span className="block text-[10px] text-muted">{t.settings.vndbWritebackDesc}</span>
                       </span>
                     </label>
+                  )}
+
+                  {server?.vndb_token.hasToken && (
+                    <div className="mt-3 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="font-bold">{t.settings.vndbPullTitle}</div>
+                          <div className="text-[10px] text-muted">{t.settings.vndbPullDesc}</div>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary shrink-0"
+                          onClick={onPullStatuses}
+                          disabled={pulling}
+                        >
+                          {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                          {t.settings.vndbPullAction}
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
 
