@@ -243,6 +243,9 @@ function open(): Database.Database {
   ensureColumn(db, 'collection', 'box_type', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'collection', 'download_url', 'TEXT');
   ensureColumn(db, 'collection', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
+  // User-authored synopsis — overrides VNDB / EGS when non-null. Persists
+  // VNDB BBCode / Markdown verbatim; the renderer strips formatting.
+  ensureColumn(db, 'collection', 'custom_description', 'TEXT');
   // 0 means "unset" — when the user uses the custom sort, all 0s fall to the
   // bottom and the manually-ordered VNs float to the top. Set when the user
   // drags an item; reset to 0 on collection removal.
@@ -1077,6 +1080,12 @@ export function upsertEgsOnlyVn(args: {
   );
 }
 
+export function setCustomDescription(vnId: string, text: string | null): void {
+  const cleaned = text == null ? null : text.trim();
+  const payload = cleaned ? cleaned.slice(0, 8000) : null;
+  db.prepare('UPDATE collection SET custom_description = ? WHERE vn_id = ?').run(payload, vnId);
+}
+
 export function setSourcePref(vnId: string, prefs: SourcePrefMap): void {
   // Drop "auto" keys to keep the JSON tidy — "auto" is the implicit default.
   const cleaned: SourcePrefMap = {};
@@ -1302,6 +1311,7 @@ interface DbRow {
   box_type?: string;
   download_url?: string | null;
   dumped?: number;
+  custom_description?: string | null;
   added_at?: number;
   updated_at?: number;
 }
@@ -1358,6 +1368,7 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     box_type: (row.box_type as BoxType | undefined) ?? 'none',
     download_url: row.download_url ?? null,
     dumped: !!row.dumped,
+    custom_description: row.custom_description ?? null,
     added_at: row.added_at,
     updated_at: row.updated_at,
   };
@@ -1478,7 +1489,7 @@ export function listCollection({
       SELECT v.*, c.status, c.user_rating, c.playtime_minutes, c.started_date,
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
              c.edition_label, c.physical_location, c.box_type, c.download_url,
-             c.dumped, c.added_at, c.updated_at
+             c.dumped, c.custom_description, c.added_at, c.updated_at
       FROM collection c JOIN vn v ON v.id = c.vn_id
       ${join}
       ${whereSql}
@@ -1512,7 +1523,7 @@ export function getCollectionItem(vnId: string): CollectionItem | null {
       SELECT v.*, c.status, c.user_rating, c.playtime_minutes, c.started_date,
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
              c.edition_label, c.physical_location, c.box_type, c.download_url,
-             c.dumped, c.added_at, c.updated_at
+             c.dumped, c.custom_description, c.added_at, c.updated_at
       FROM vn v LEFT JOIN collection c ON c.vn_id = v.id
       WHERE v.id = ?
     `)

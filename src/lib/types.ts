@@ -134,6 +134,12 @@ export interface CollectionFields {
   download_url: string | null;
   /** True when the game has been dumped/extracted from physical media (for personal preservation). */
   dumped: boolean;
+  /**
+   * User-authored synopsis. When non-empty, overrides VNDB / EGS descriptions
+   * — the synopsis section renders this verbatim and exposes a toggle to peek
+   * at the source descriptions.
+   */
+  custom_description: string | null;
   added_at: number;
   updated_at: number;
 }

@@ -40,6 +40,7 @@ import { VndbStatusPanel } from '@/components/VndbStatusPanel';
 import { SourceTag } from '@/components/SourceTag';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { FieldCompare } from '@/components/FieldCompare';
+import { CustomSynopsis } from '@/components/CustomSynopsis';
 import { BrandCompare } from '@/components/BrandCompare';
 import { CoverCompare } from '@/components/CoverCompare';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
@@ -355,17 +356,36 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        {(vn.description || egsRow) && (
+        {(vn.description || egsRow || (inCol && vn.custom_description)) && (
           <div className="border-t border-border px-6 py-6 md:px-8">
-            <FieldCompare
-              vnId={vn.id}
-              field="description"
-              current={sourcePref.description ?? 'auto'}
-              vndb={vn.description ?? null}
-              egs={egsRow?.description ?? null}
-              label={t.detail.synopsis}
-              egsLinked={!!egsRow}
-            />
+            {inCol ? (
+              <CustomSynopsis
+                vnId={vn.id}
+                label={t.detail.synopsis}
+                initial={vn.custom_description ?? null}
+                fallback={
+                  <FieldCompare
+                    vnId={vn.id}
+                    field="description"
+                    current={sourcePref.description ?? 'auto'}
+                    vndb={vn.description ?? null}
+                    egs={egsRow?.description ?? null}
+                    label={t.detail.synopsis}
+                    egsLinked={!!egsRow}
+                  />
+                }
+              />
+            ) : (
+              <FieldCompare
+                vnId={vn.id}
+                field="description"
+                current={sourcePref.description ?? 'auto'}
+                vndb={vn.description ?? null}
+                egs={egsRow?.description ?? null}
+                label={t.detail.synopsis}
+                egsLinked={!!egsRow}
+              />
+            )}
           </div>
         )}
 
