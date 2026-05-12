@@ -117,11 +117,20 @@ Sections from top to bottom:
 
 - `/recommendations` (`g r`) — tag-seeded picks weighted by your top
   ratings. Toggle whether to include ero tags.
-- `/upcoming` (`g u`) — future releases from publishers already in your
-  collection.
+- `/upcoming` (`g u`) — three tabs of "what's next":
+    1. **My collection** — future releases from publishers already in
+       your collection (default).
+    2. **EGS anticipated** — top games on ErogameScape ranked by user
+       purchase intent (`必ず購入 / 多分購入 / 様子見`), each cross-linked
+       to its VNDB entry when EGS records one.
+    3. **All VNDB** — every upcoming release VNDB tracks for the next
+       12 months.
+  Tab bodies stream in with a skeleton placeholder.
 - `/quotes` (`g q`) — every cached quote across your library with a
   free-text filter.
-- `/wishlist` (`g w`) — mirrors your VNDB wishlist labels.
+- `/wishlist` (`g w`) — mirrors your VNDB wishlist labels. Filter / sort
+  / group controls + a hover-only **remove** button on entries already
+  in your collection. Loading shows a skeleton card grid.
 
 ---
 
@@ -161,6 +170,9 @@ Tabbed-style sections:
 - `/staff/[id]` — production credits grouped by role + voice credits
   with character thumbs. **VA timeline heatmap** above the credit list
   charts credit count per year, with collection ownership highlighted.
+  On first visit the page auto-fetches the **full VNDB credit list** for
+  this person (cached 30 days) and adds a "More credits (outside your
+  collection)" section streamed in behind a skeleton.
 - `/character/[id]` — character info, trait list, VNs they appear in,
   and an "Also voiced by" panel cross-referencing other VAs of the
   same character.
@@ -188,7 +200,35 @@ Tabbed-style sections:
 
 ---
 
-## 11. Settings (`/data` top section)
+## 11. Series pages
+
+- `/series` lists every series you've created.
+- `/series/[id]` — every VN in the series + an inline editor for name,
+  description, cover, and banner. Uploads are 15 MB max; the page header
+  renders the banner as a hero strip plus the cover thumbnail.
+- "Series auto-detect" on a VN detail page walks the VNDB relation graph
+  transitively (`seq / preq / set / fan / alt / orig`), so volume 1 of a
+  3-volume series sees volumes 2 and 3 even when they don't directly link
+  each other. Joining or creating a series via that card adds every
+  transitively-related VN in your collection in one shot.
+
+---
+
+## 12. Navbar layout
+
+The top nav has three always-visible primary links plus three category
+dropdowns:
+
+- **Discover** — Upcoming, For you, Quotes
+- **Browse** — Producers, Series, Tags, Traits, Year, Labels
+- **Data & Stats** — Stats, Shelf, Steam, Data
+
+On phones / narrow windows the whole nav collapses into a single
+hamburger sheet.
+
+---
+
+## 13. Settings (`/data` top section)
 
 - **VNDB token** — pasted from
   [vndb.org/u/tokens](https://vndb.org/u/tokens). Required for the
@@ -202,7 +242,7 @@ Tabbed-style sections:
 
 ---
 
-## 12. Pop quiz — try these
+## 14. Pop quiz — try these
 
 - Find a random Japanese-only VN you marked "Planning": chip filter
   Planning + Lang JP, then 🎲.

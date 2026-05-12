@@ -57,6 +57,20 @@ Home-page widget surfacing "this VN released N years ago today" for
 entries in your collection — small enough to ignore, sticky enough to
 notice when something notable lines up.
 
+### Wishlist controls ✅
+`/wishlist` mirrors your VNDB "Wishlist" label and adds:
+  - **Filter** by free-text query (title / alt / developer).
+  - **Sort** by added date (newest/oldest), title, rating, release date,
+    or length.
+  - **Group** by year, developer, language, or "already in collection
+    vs. to acquire".
+  - **Hover-remove** on entries already in your collection — a small
+    `HeartOff` button appears on hover and deletes that entry from the
+    VNDB wishlist (other labels and your vote stay intact).
+  - **Multi-select** + bulk delete for sweeping the list.
+  - Loading shows a skeleton card grid; the "list is empty" copy only
+    appears post-resolve.
+
 ---
 
 ## Per-VN detail page
@@ -96,12 +110,28 @@ Character thumbnails linked to `/character/[id]`; VA name linked to
 
 ### Staff ✅
 Production credits grouped by role (scenario, art, music, …). Each name
-links to its staff page.
+links to its staff page. Visiting `/staff/[id]` for the first time
+auto-downloads the full VNDB credit list (every VN + character that
+person worked on, cached 30 days) and surfaces the ones outside your
+collection under a "More credits" section. The download streams in
+behind a `<Suspense>` skeleton — locally-known credits paint instantly.
 
 ### Series auto-detect ✅
 When the VN's VNDB relations include other in-collection entries, the
 detail page surfaces a card proposing "Join series X" or "Create series
-Y" with a name derived from the longest common prefix.
+Y" with a name derived from the longest common prefix. The graph is
+walked transitively (BFS over seq / preq / set / fan / alt / orig) so a
+3+ volume chain like "Ai Kiss 1 → 2 → 3" all surfaces from any entry
+point. Clicking "Join existing" or "Create new" joins every transitively-
+related VN in your collection in one shot.
+
+### Series metadata editor ✅
+`/series/[id]` carries an inline editor for the series name, free-form
+description, cover image, and banner image. Uploads stream through
+`POST /api/series/[id]/image` (multipart, 15 MB cap) and land in
+`data/storage/series/` with the relative path stored in
+`series.cover_path` / `series.banner_path`. The page header renders the
+banner as a hero strip plus the cover thumbnail.
 
 ### Routes ✅
 Per-VN ordered list of routes (e.g. "Saber → Rin → Sakura") with completion
@@ -140,8 +170,16 @@ highest-rated entries. Weighted by user_rating; tag matches scored and
 ranked. Toggle for including ero tags.
 
 ### Upcoming releases ✅
-`/upcoming` — future releases from producers already in your collection.
-Grouped by month, with patch / freeware / 18+ chips per entry.
+`/upcoming` — three tabs to choose your scope of "what's next":
+  - **My collection** (default): future releases from producers already in
+    your collection, grouped by month.
+  - **EGS anticipated**: top-100 games on ErogameScape ranked by user
+    purchase intent (`必ず購入 / 多分購入 / 様子見` counts), with cover
+    images and a VNDB cross-link per row when EGS records one.
+  - **All VNDB**: every upcoming release VNDB tracks in the next 12 months.
+
+Each tab body streams in via `<Suspense>` with a skeleton placeholder so
+the page header + tab strip paint immediately.
 
 ### Cross-VN quotes ✅
 `/quotes` — every quote across every VN you've fetched, with character +
@@ -252,6 +290,14 @@ Gated behind a `vndb_writeback` toggle in Settings — when unchecked,
 local changes stay local. Best-effort: a 4xx / 5xx from VNDB is logged
 but never rolls back the local state.
 
+### VNDB → local status pull ✅
+The reverse direction: Settings → "Pull statuses from VNDB" iterates
+every predefined label (planning/playing/completed/on_hold/dropped) on
+your VNDB ulist, picks the precedence-winning local Status per VN, and
+applies it via `updateCollection`. Only touches VNs already in the local
+collection — no silent imports. Returns a `{scanned, updated, unchanged,
+skippedNotInCollection}` summary.
+
 ### ErogameScape ✅
 SQL form scraping for scores, playtime medians, brand, genre, comments.
 Typed `EgsUnreachable` error (network / server / throttled / blocked)
@@ -302,10 +348,32 @@ Drop a `.json` or `.db` file anywhere on `/data` to trigger the import.
 | `?` | Open shortcut help |
 | `Escape` | Close menus / dialogs |
 
+### Grouped responsive navbar ✅
+The top nav has three always-visible primary links (Library / Wishlist /
+Search) plus three category dropdowns:
+  - **Discover** — Upcoming, For you, Quotes
+  - **Browse** — Producers, Series, Tags, Traits, Year, Labels
+  - **Data & Stats** — Stats, Shelf, Steam, Data
+
+On screens narrower than `md` the whole nav collapses into a single
+hamburger sheet that lists every destination grouped by category.
+
 ### Tutorial tour ✅
 First-time visitors get a guided pass over the most important surfaces
 (library, search, VN detail, settings, stats). Re-runnable from
 `/data → Tour`.
+
+### Skeleton loading states ✅
+Every async section renders a layout-matching skeleton while loading —
+card grids show placeholder covers, row lists show shaded blocks, panels
+show shimmer rectangles. Empty-state copy ("No results", "Nothing yet")
+only appears after the fetch resolves with zero items, so the UI never
+flashes "nothing here" when data is still in flight.
+
+Internals: `src/components/Skeleton.tsx` exports `SkeletonBlock`,
+`SkeletonCard`, `SkeletonCardGrid`, `SkeletonRows`, `SkeletonText`, and
+`SkeletonTable`. Server components with slow async fetches wrap them in
+`<Suspense>` (see `/upcoming` tabs and `/staff/[id]` extra credits).
 
 ---
 
