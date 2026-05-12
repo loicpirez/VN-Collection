@@ -667,6 +667,11 @@ export const dictionaries = {
       cat_tech: 'Technique',
       vnCount: 'VN',
       openInLibrary: 'Voir dans ma collection',
+      cooccurrence: {
+        title: 'Tags voisins dans ta collection',
+        hint: 'Tags fréquents sur les VN partageant au moins un tag avec celui-ci.',
+        sharedSuffix: 'VN en commun',
+      },
     },
     traits: {
       pageTitle: 'Traits de personnage',
@@ -1434,6 +1439,11 @@ export const dictionaries = {
       cat_tech: 'Technical',
       vnCount: 'VN',
       openInLibrary: 'View in my collection',
+      cooccurrence: {
+        title: 'Neighbouring tags in your collection',
+        hint: 'Tags that frequently appear on VNs sharing at least one tag with this one.',
+        sharedSuffix: 'VN in common',
+      },
     },
     traits: {
       pageTitle: 'Character traits',
@@ -2201,6 +2211,11 @@ export const dictionaries = {
       cat_tech: '技術',
       vnCount: 'VN',
       openInLibrary: 'コレクションで見る',
+      cooccurrence: {
+        title: 'コレクション内の関連タグ',
+        hint: 'この VN とタグを少なくとも 1 つ共有する他の VN によく出るタグ。',
+        sharedSuffix: '本で共通',
+      },
     },
     traits: {
       pageTitle: 'キャラ特徴',

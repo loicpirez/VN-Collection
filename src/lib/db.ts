@@ -1716,6 +1716,55 @@ export function listCollectionTags(): CollectionTagAggregate[] {
     .all() as CollectionTagAggregate[];
 }
 
+export interface CoOccurringTag {
+  id: string;
+  name: string;
+  category: string | null;
+  /** How many other VNs in the collection share this tag with the seed VN. */
+  shared: number;
+}
+
+/**
+ * For a given VN, surface the tags that frequently co-occur with this VN's
+ * own (non-spoiler, non-ero-by-default) tags across the rest of the
+ * collection. Bigger `shared` means the tag is part of a recurring cluster
+ * in your library.
+ *
+ * The query walks two `json_each` planes — `seedTags` from the seed VN and
+ * `coTags` from every other in-collection VN — then aggregates. The seed's
+ * own tags are excluded from the result so you see *adjacent* tags only.
+ */
+export function getCoOccurringTags(vnId: string, limit = 24): CoOccurringTag[] {
+  return db
+    .prepare(`
+      WITH seedTags AS (
+        SELECT json_extract(je.value, '$.id') AS tag_id
+        FROM vn v, json_each(v.tags) je
+        WHERE v.id = ?
+          AND COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
+      )
+      SELECT
+        json_extract(coj.value, '$.id') AS id,
+        json_extract(coj.value, '$.name') AS name,
+        json_extract(coj.value, '$.category') AS category,
+        COUNT(DISTINCT c.vn_id) AS shared
+      FROM collection c
+      JOIN vn v2 ON v2.id = c.vn_id
+      JOIN json_each(v2.tags) coj
+      WHERE c.vn_id <> ?
+        AND COALESCE(json_extract(coj.value, '$.spoiler'), 0) = 0
+        AND json_extract(coj.value, '$.id') NOT IN (SELECT tag_id FROM seedTags)
+        AND EXISTS (
+          SELECT 1 FROM json_each(v2.tags) inner_je
+          WHERE json_extract(inner_je.value, '$.id') IN (SELECT tag_id FROM seedTags)
+        )
+      GROUP BY id
+      ORDER BY shared DESC, name COLLATE NOCASE ASC
+      LIMIT ?
+    `)
+    .all(vnId, vnId, limit) as CoOccurringTag[];
+}
+
 // Routes per VN
 
 interface RouteDbRow {
