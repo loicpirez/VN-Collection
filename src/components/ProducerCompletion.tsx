@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { Check, Plus, Trophy } from 'lucide-react';
+import { Check, Trophy } from 'lucide-react';
 import { fetchProducerCompletion } from '@/lib/producer-completion';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from './SafeImage';
+import { AddMissingVnButton } from './AddMissingVnButton';
 
 /**
  * "You own X out of Y" panel for a single producer. Renders nothing while
@@ -47,10 +48,10 @@ export async function ProducerCompletion({ producerId }: { producerId: string })
           </p>
           <ul className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
             {missing.map((v) => (
-              <li key={v.vnId}>
+              <li key={v.vnId} className="relative">
                 <Link
                   href={`/vn/${v.vnId}`}
-                  className="group flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
+                  className="group flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 pr-10 transition-colors hover:border-accent"
                 >
                   <div className="h-16 w-11 shrink-0 overflow-hidden rounded">
                     <SafeImage
@@ -69,8 +70,10 @@ export async function ProducerCompletion({ producerId }: { producerId: string })
                       {v.rating != null && <span className="text-accent">★ {(v.rating / 10).toFixed(1)}</span>}
                     </p>
                   </div>
-                  <Plus className="h-3 w-3 self-start text-muted transition-colors group-hover:text-accent" />
                 </Link>
+                <div className="absolute right-2 top-2">
+                  <AddMissingVnButton vnId={v.vnId} />
+                </div>
               </li>
             ))}
           </ul>
