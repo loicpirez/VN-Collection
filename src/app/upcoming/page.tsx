@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { ArrowLeft, CalendarRange, ExternalLink } from 'lucide-react';
+import { ArrowLeft, CalendarRange, ExternalLink, Flame } from 'lucide-react';
 import { fetchUpcomingForCollection, type UpcomingRelease } from '@/lib/upcoming';
+import { fetchEgsAnticipated, type EgsAnticipated } from '@/lib/erogamescape';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 
@@ -35,6 +36,15 @@ export default async function UpcomingPage() {
   }
   const grouped = groupByMonth(releases);
 
+  // EGS anticipated games — separate fetch path that can fail independently
+  // (EGS may be rate-limited or down without affecting the VNDB section).
+  let anticipated: EgsAnticipated[] = [];
+  try {
+    anticipated = await fetchEgsAnticipated(100);
+  } catch {
+    // ignore — section just won't render
+  }
+
   return (
     <div className="mx-auto max-w-5xl">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
@@ -58,6 +68,74 @@ export default async function UpcomingPage() {
         <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">
           {t.upcoming.empty}
         </p>
+      )}
+
+      {anticipated.length > 0 && (
+        <section className="mb-8 rounded-xl border border-accent/40 bg-accent/5 p-5">
+          <header className="mb-3 flex items-baseline gap-3">
+            <h2 className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-accent">
+              <Flame className="h-4 w-4" /> {t.upcoming.anticipatedTitle}
+            </h2>
+            <span className="text-[11px] text-muted">{t.upcoming.anticipatedSubtitle}</span>
+          </header>
+          <ol className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+            {anticipated.map((a, i) => (
+              <li key={a.egs_id} className="flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-3 text-sm">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-bg-card text-xs font-bold text-muted">
+                  {i + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    {a.vndb_id ? (
+                      <Link href={`/vn/${a.vndb_id}`} className="line-clamp-1 font-bold hover:text-accent">
+                        {a.gamename}
+                      </Link>
+                    ) : (
+                      <span className="line-clamp-1 font-bold">{a.gamename}</span>
+                    )}
+                    <span className="rounded bg-bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-accent">
+                      {a.sellday}
+                    </span>
+                  </div>
+                  {a.brand_name && (
+                    <div className="text-[11px] text-muted">{a.brand_name}</div>
+                  )}
+                  <div className="mt-1 flex flex-wrap gap-2 text-[10px]">
+                    <span className="inline-flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 font-semibold text-accent">
+                      {t.upcoming.willBuy} {a.will_buy}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded bg-accent-blue/15 px-1.5 py-0.5 font-semibold text-accent-blue">
+                      {t.upcoming.probablyBuy} {a.probably_buy}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded bg-muted/15 px-1.5 py-0.5 font-semibold text-muted">
+                      {t.upcoming.watching} {a.watching}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex gap-2">
+                    <a
+                      href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${a.egs_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent"
+                    >
+                      <ExternalLink className="h-3 w-3" /> EGS
+                    </a>
+                    {a.vndb_id && (
+                      <a
+                        href={`https://vndb.org/${a.vndb_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent"
+                      >
+                        <ExternalLink className="h-3 w-3" /> VNDB
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
 
       {Array.from(grouped.entries()).map(([month, rels]) => (

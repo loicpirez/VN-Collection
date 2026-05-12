@@ -675,3 +675,79 @@ export async function linkEgsToVn(vnId: string, egsId: number): Promise<EgsGame 
   persistGame(vnId, game, 'manual');
   return game;
 }
+
+/** One row from EGS's anticipated-games list (期待されてるゲーム). */
+export interface EgsAnticipated {
+  egs_id: number;
+  gamename: string;
+  brand_name: string | null;
+  sellday: string;
+  /** Cross-link to VNDB if EGS records one (`v123`); empty otherwise. */
+  vndb_id: string | null;
+  will_buy: number;
+  probably_buy: number;
+  watching: number;
+}
+
+const ANTICIPATED_TTL_MS = 12 * 3600 * 1000;
+
+/**
+ * Upcoming games ranked by EGS users' pre-release purchase intent. EGS
+ * stores three labels on `userreview.before_purchase_will`:
+ *   - `0_必ず購入`  → "will definitely buy"
+ *   - `多分購入`    → "probably buy"
+ *   - `様子見`      → "wait and see"
+ * The "0_" prefix is a sort-order hack on the EGS side; treat it as the
+ * first bucket. We pull the top `limit` games by `will_buy` count among
+ * those releasing within the next year.
+ *
+ * Cached for 12h — counts move slowly and the SQL form is rate-limited.
+ */
+export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]> {
+  const safe = Math.min(200, Math.max(5, Math.floor(limit)));
+  const cacheK = cacheKey('anticipated', String(safe));
+  const cached = readCache<EgsAnticipated[]>(cacheK);
+  if (cached) return cached;
+
+  const sql = `SELECT g.id, g.gamename, g.sellday, b.brandname AS brand_name, g.vndb, `
+    + `SUM(CASE WHEN ur.before_purchase_will = '0_必ず購入' THEN 1 ELSE 0 END) AS will_buy, `
+    + `SUM(CASE WHEN ur.before_purchase_will = '多分購入' THEN 1 ELSE 0 END) AS probably, `
+    + `SUM(CASE WHEN ur.before_purchase_will = '様子見' THEN 1 ELSE 0 END) AS watching `
+    + `FROM gamelist g LEFT JOIN brandlist b ON g.brandname = b.id `
+    + `INNER JOIN userreview ur ON ur.game = g.id `
+    + `WHERE g.sellday > current_date AND g.sellday < current_date + 365 `
+    + `GROUP BY g.id, g.gamename, g.sellday, b.brandname, g.vndb `
+    + `ORDER BY will_buy DESC LIMIT ${safe}`;
+
+  let rows: string[][];
+  try {
+    rows = await fetchTable(sql);
+  } catch {
+    return [];
+  }
+  if (rows.length < 2) {
+    writeCache(cacheK, [], ANTICIPATED_TTL_MS);
+    return [];
+  }
+  const header = rows[0].map((h) => h.trim());
+  const idx = (name: string): number => header.indexOf(name);
+  const out: EgsAnticipated[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const id = toNumber(r[idx('id')]);
+    if (id == null) continue;
+    const vndb = r[idx('vndb')]?.trim() ?? '';
+    out.push({
+      egs_id: id,
+      gamename: r[idx('gamename')] ?? '',
+      brand_name: r[idx('brand_name')] || null,
+      sellday: r[idx('sellday')] ?? '',
+      vndb_id: /^v\d+$/.test(vndb) ? vndb : null,
+      will_buy: toNumber(r[idx('will_buy')]) ?? 0,
+      probably_buy: toNumber(r[idx('probably')]) ?? 0,
+      watching: toNumber(r[idx('watching')]) ?? 0,
+    });
+  }
+  writeCache(cacheK, out, ANTICIPATED_TTL_MS);
+  return out;
+}
