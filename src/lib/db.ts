@@ -2754,6 +2754,50 @@ export interface StaleVn {
   has_egs: boolean;
 }
 
+// Anniversary feed — VNs in the collection whose VNDB release date matches
+// today's calendar day, regardless of year. Anchors to whatever the server's
+// local date is; UI surfaces the year difference per row.
+
+export interface AnniversaryVn {
+  id: string;
+  title: string;
+  released: string;
+  image_thumb: string | null;
+  image_url: string | null;
+  local_image_thumb: string | null;
+  image_sexual: number | null;
+  years: number;
+}
+
+export function todaysAnniversaries(today: Date = new Date()): AnniversaryVn[] {
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const yyyy = today.getFullYear();
+  const monthDay = `-${mm}-${dd}`;
+  return db
+    .prepare(`
+      SELECT v.id, v.title, v.released, v.image_thumb, v.image_url, v.image_sexual,
+             v.local_image_thumb
+      FROM collection c JOIN vn v ON v.id = c.vn_id
+      WHERE v.released LIKE '%' || ?
+      ORDER BY v.released DESC
+    `)
+    .all(monthDay)
+    .map((r) => {
+      const row = r as {
+        id: string; title: string; released: string;
+        image_thumb: string | null; image_url: string | null;
+        image_sexual: number | null; local_image_thumb: string | null;
+      };
+      const releasedYear = Number(row.released.slice(0, 4));
+      return {
+        ...row,
+        years: Number.isFinite(releasedYear) ? yyyy - releasedYear : 0,
+      };
+    })
+    .filter((r) => r.years > 0);
+}
+
 export function findStaleVns(thresholdMs = 30 * 86400 * 1000): StaleVn[] {
   const cutoff = Date.now() - thresholdMs;
   return db

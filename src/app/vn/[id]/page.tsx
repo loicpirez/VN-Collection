@@ -477,6 +477,14 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         {(vn.va ?? []).length > 0 && <CastSection va={vn.va ?? []} />}
         {(vn.staff ?? []).length > 0 && <StaffSection staff={vn.staff ?? []} />}
         {inCol && <TagCoOccurrence vnId={vn.id} />}
+        {inCol && (
+          <Link
+            href={`/similar?vn=${vn.id}`}
+            className="self-start rounded-md border border-border bg-bg-card px-3 py-2 text-xs font-bold text-muted hover:border-accent hover:text-accent"
+          >
+            ✨ {t.similar.moreLink}
+          </Link>
+        )}
         {inCol && <OwnedEditionsSection vnId={vn.id} />}
         <ReleasesSection vnId={vn.id} inCollection={inCol} />
         <QuotesSection vnId={vn.id} />

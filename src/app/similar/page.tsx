@@ -1,0 +1,158 @@
+import Link from 'next/link';
+import { ArrowLeft, Sparkles, Star } from 'lucide-react';
+import { getCollectionItem } from '@/lib/db';
+import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
+import { getDict } from '@/lib/i18n/server';
+import { SafeImage } from '@/components/SafeImage';
+
+export const dynamic = 'force-dynamic';
+
+interface SimilarHit {
+  id: string;
+  title: string;
+  alttitle: string | null;
+  released: string | null;
+  rating: number | null;
+  votecount: number | null;
+  length_minutes: number | null;
+  image: { url: string; thumbnail: string; sexual?: number } | null;
+  developers: { name: string }[];
+  score: number;
+}
+
+export default async function SimilarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vn?: string }>;
+}) {
+  const { vn: seedId } = await searchParams;
+  const t = await getDict();
+  if (!seedId || !/^(v\d+|egs_\d+)$/i.test(seedId)) {
+    return (
+      <div className="mx-auto max-w-4xl">
+        <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+          <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        </Link>
+        <p className="rounded-xl border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm">
+          {t.common.error}
+        </p>
+      </div>
+    );
+  }
+  const seed = getCollectionItem(seedId);
+  if (!seed) {
+    return (
+      <div className="mx-auto max-w-4xl">
+        <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+          <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        </Link>
+        <p className="rounded-xl border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm">
+          {t.detail.notFoundTitle}
+        </p>
+      </div>
+    );
+  }
+
+  const seedTags = (seed.tags ?? [])
+    .filter((tg) => tg.spoiler === 0 && tg.category !== 'ero')
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+    .slice(0, 6);
+
+  const hits = new Map<string, SimilarHit>();
+  for (const tag of seedTags) {
+    try {
+      const results = await vndbAdvancedSearchRaw({
+        filters: ['and',
+          ['tag', '=', [tag.id, 1, 1.2]],
+          ['votecount', '>=', 30],
+          ['id', '!=', seed.id],
+        ],
+        sort: 'rating',
+        reverse: true,
+        results: 20,
+      });
+      for (const r of results) {
+        const cur = hits.get(r.id);
+        if (cur) cur.score += tag.rating ?? 1;
+        else hits.set(r.id, { ...r, score: tag.rating ?? 1 });
+      }
+    } catch {
+      // skip this tag — keep going
+    }
+  }
+  const results = Array.from(hits.values())
+    .sort((a, b) => b.score - a.score || (b.rating ?? 0) - (a.rating ?? 0))
+    .slice(0, 24);
+
+  return (
+    <div className="mx-auto max-w-6xl">
+      <Link href={`/vn/${seed.id}`} className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+        <ArrowLeft className="h-4 w-4" /> {seed.title}
+      </Link>
+
+      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+        <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
+          <Sparkles className="h-6 w-6 text-accent" /> {t.similar.title}: {seed.title}
+        </h1>
+        <p className="mt-1 text-sm text-muted">{t.similar.subtitle}</p>
+        {seedTags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+            {seedTags.map((tag) => (
+              <Link
+                key={tag.id}
+                href={`/?tag=${encodeURIComponent(tag.id)}`}
+                className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 hover:border-accent hover:text-accent"
+              >
+                {tag.name}
+              </Link>
+            ))}
+          </div>
+        )}
+      </header>
+
+      {results.length === 0 ? (
+        <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">
+          {t.recommend.empty}
+        </p>
+      ) : (
+        <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+          {results.map((r) => {
+            const year = r.released?.slice(0, 4);
+            const rating = r.rating != null ? (r.rating / 10).toFixed(1) : null;
+            return (
+              <li key={r.id}>
+                <Link
+                  href={`/vn/${r.id}`}
+                  className="group flex flex-col gap-2 rounded-xl border border-border bg-bg-card p-3 transition-colors hover:border-accent"
+                >
+                  <SafeImage
+                    src={r.image?.thumbnail || r.image?.url || null}
+                    sexual={r.image?.sexual ?? null}
+                    alt={r.title}
+                    className="aspect-[2/3] w-full rounded-lg"
+                  />
+                  <div className="min-w-0">
+                    <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent">
+                      {r.title}
+                    </h3>
+                    {r.developers[0]?.name && (
+                      <p className="line-clamp-1 text-[11px] text-muted">{r.developers[0].name}</p>
+                    )}
+                    <div className="mt-1 flex items-center gap-3 text-[10px] text-muted">
+                      {rating && (
+                        <span className="inline-flex items-center gap-0.5 text-accent">
+                          <Star className="h-3 w-3 fill-accent" /> {rating}
+                        </span>
+                      )}
+                      {year && <span>{year}</span>}
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}

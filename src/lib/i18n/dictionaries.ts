@@ -600,6 +600,20 @@ export const dictionaries = {
       genreTitle: 'Évolution des genres',
       genreHint: 'Tes tags les plus fréquents répartis par année de complétion.',
     },
+    producerCompletion: {
+      title: 'Complétion de cet éditeur',
+      allOwned: 'Bravo, tu as tout son catalogue connu sur VNDB.',
+      missingHint: '{n} VN à découvrir — clique pour ajouter à ta collection.',
+    },
+    anniversary: {
+      title: 'Anniversaires du jour',
+      yearsAgo: 'il y a {n} an(s)',
+    },
+    similar: {
+      title: 'Similaires',
+      subtitle: 'VN qui partagent des tags / staff / relations avec celui-ci.',
+      moreLink: 'Plus comme ce VN',
+    },
     activity: {
       title: 'Journal',
       placeholder: 'Note libre — "session de 2h", "Sakura route finie", etc.',
@@ -1516,6 +1530,20 @@ export const dictionaries = {
       genreTitle: 'Genre evolution',
       genreHint: 'Your most frequent tags broken down by completion year.',
     },
+    producerCompletion: {
+      title: 'Producer completion',
+      allOwned: 'Nice — you own every VN VNDB lists for this producer.',
+      missingHint: '{n} VNs to discover — click to add to your collection.',
+    },
+    anniversary: {
+      title: 'Today\'s anniversaries',
+      yearsAgo: '{n} year(s) ago',
+    },
+    similar: {
+      title: 'Similar',
+      subtitle: 'VNs that share tags / staff / relations with this one.',
+      moreLink: 'More like this',
+    },
     activity: {
       title: 'Activity log',
       placeholder: 'Free-form note — "2h session", "Sakura route done", …',
@@ -2431,6 +2459,20 @@ export const dictionaries = {
       roiHint: 'プレイ時間あたりの評価が高い "密度" の高い VN。',
       genreTitle: 'ジャンルの推移',
       genreHint: '完了年ごとの頻出タグ。',
+    },
+    producerCompletion: {
+      title: 'メーカー制覇率',
+      allOwned: 'VNDB に載っているこのメーカーの全 VN を所有しています。',
+      missingHint: '未所有 {n} 本 — クリックでコレクションに追加。',
+    },
+    anniversary: {
+      title: '本日のアニバーサリー',
+      yearsAgo: '{n} 年前',
+    },
+    similar: {
+      title: '関連 VN',
+      subtitle: 'タグ・スタッフ・関連性が近い VN。',
+      moreLink: 'もっと見る',
     },
     activity: {
       title: 'アクティビティ',

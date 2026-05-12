@@ -7,6 +7,7 @@ import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
 import { ProducerLogoUpload } from '@/components/ProducerLogoUpload';
 import { VnGrid } from '@/components/VnGrid';
+import { ProducerCompletion } from '@/components/ProducerCompletion';
 import type { ProducerRow } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -94,6 +95,8 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
           ))}
         </section>
       )}
+
+      <ProducerCompletion producerId={producer.id} />
 
       <VnGrid items={items} emptyMessage={t.library.empty.descriptionFiltered} />
     </div>
