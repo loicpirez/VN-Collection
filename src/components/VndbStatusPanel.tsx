@@ -1,5 +1,6 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { SkeletonBlock } from './Skeleton';
@@ -33,6 +34,8 @@ interface State {
 export function VndbStatusPanel({ vnId }: { vnId: string }) {
   const t = useT();
   const toast = useToast();
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [state, setState] = useState<State | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingLabel, setPendingLabel] = useState<number | null>(null);
@@ -93,6 +96,9 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
       toast.success(t.toast.saved);
       await load();
+      // Re-pull the server component so the rest of the VN page (status
+      // badge, smart-status hint, activity timeline) reflects the new label.
+      startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -108,6 +114,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
       toast.success(t.toast.removed);
       await load();
+      startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);
     } finally {

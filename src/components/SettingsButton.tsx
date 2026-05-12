@@ -1,5 +1,6 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { Download, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
@@ -45,6 +46,8 @@ interface ServerSettings {
 export function SettingsButton() {
   const t = useT();
   const toast = useToast();
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const { settings, set, reset } = useDisplaySettings();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -116,6 +119,9 @@ export function SettingsButton() {
         throw new Error(data.message ?? t.common.error);
       }
       toast.success(`${t.settings.vndbPullDone} (${data.updated ?? 0}/${data.scanned ?? 0})`);
+      // Updated statuses changed local DB state — reload the surrounding
+      // server component so card status badges reflect the new values.
+      startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
