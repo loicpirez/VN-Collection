@@ -400,6 +400,21 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 - Component classes (`.btn`, `.input`, `.label`, `.chip`, `.chip-active`) live in
   `globals.css` `@layer components`.
 
+### Loading states (skeletons everywhere — no exceptions)
+- **Rule**: every async section renders a skeleton placeholder while loading.
+  Never show "no results" / "empty" / "nothing yet" before the fetch has resolved.
+- Empty-state copy is **only** for the post-resolve case where the result really is empty.
+- Skeletons mirror the final layout (grid of cover placeholders for a card grid,
+  bar rows for a table, etc.) — not a generic spinner. Reach for the primitives in
+  `src/components/Skeleton.tsx`: `<SkeletonBlock />`, `<SkeletonCardGrid />`, `<SkeletonRows />`.
+- Server components with a slow secondary panel wrap that panel in
+  `<Suspense fallback={<SkeletonCardGrid />}>` so the rest of the page paints first.
+  Client components with an async `useEffect` fetch keep a `loading` boolean and render
+  the skeleton until it flips false.
+- When you add a new client-side fetch, the loading skeleton is part of the change —
+  not a follow-up. The user has flagged "Nothing available" / "No results" flashes
+  before data arrives as a recurring quality issue.
+
 ### Markdown
 - `MarkdownNotes` (editor) and `MarkdownView` (read-only) are exported from the
   same file. Always pass plain user input — we strip BBCode (VNDB-style)
