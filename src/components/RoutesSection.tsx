@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowDown, ArrowUp, Check, GitBranch, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, GitBranch, Loader2, Pencil, Plus, StickyNote, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import type { RouteRow } from '@/lib/types';
 import type { VndbCharacter } from '@/lib/vndb-types';
@@ -20,6 +20,8 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [notesOpen, setNotesOpen] = useState<number | null>(null);
+  const [notesDraft, setNotesDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [characters, setCharacters] = useState<VndbCharacter[]>([]);
@@ -216,10 +218,11 @@ export function RoutesSection({ vnId, inCollection }: Props) {
           {routes.map((r, i) => (
             <li
               key={r.id}
-              className={`group flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${
+              className={`group rounded-lg border transition-colors ${
                 r.completed ? 'border-status-completed/50 bg-status-completed/5' : 'border-border bg-bg-elev/30'
               }`}
             >
+              <div className="flex items-center gap-2 px-3 py-2">
               <button
                 type="button"
                 onClick={() => patch(r.id, { completed: !r.completed })}
@@ -305,6 +308,21 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                 )}
                 <button
                   type="button"
+                  onClick={() => {
+                    if (notesOpen === r.id) { setNotesOpen(null); return; }
+                    setNotesOpen(r.id);
+                    setNotesDraft(r.notes ?? '');
+                  }}
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded ${
+                    r.notes ? 'text-accent' : 'text-muted hover:text-white'
+                  }`}
+                  aria-label={t.routes.notesToggle}
+                  title={r.notes ? t.routes.notesEdit : t.routes.notesAdd}
+                >
+                  <StickyNote className="h-3 w-3" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => remove(r.id)}
                   disabled={busy}
                   className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
@@ -313,6 +331,47 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>
+              </div>
+              {notesOpen === r.id && (
+                <div className="border-t border-border bg-bg-elev/20 px-3 py-2">
+                  <textarea
+                    value={notesDraft}
+                    onChange={(e) => setNotesDraft(e.target.value)}
+                    rows={3}
+                    maxLength={2000}
+                    placeholder={t.routes.notesPlaceholder}
+                    className="w-full rounded-md border border-border bg-bg-card/60 p-2 text-xs leading-relaxed text-white/85 focus:border-accent focus:outline-none"
+                  />
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px]">
+                    <span className="text-muted">{notesDraft.length} / 2000</span>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setNotesOpen(null)}
+                        className="rounded-md border border-border px-2 py-0.5 text-muted hover:text-white"
+                      >
+                        {t.common.cancel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await patch(r.id, { notes: notesDraft.trim() || null });
+                          setNotesOpen(null);
+                        }}
+                        disabled={busy}
+                        className="rounded-md bg-accent px-2 py-0.5 font-bold text-bg disabled:opacity-50"
+                      >
+                        {t.common.save}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {notesOpen !== r.id && r.notes && (
+                <p className="border-t border-border bg-bg-elev/10 px-3 py-2 text-[11px] italic text-muted whitespace-pre-wrap">
+                  {r.notes}
+                </p>
+              )}
             </li>
           ))}
         </ul>

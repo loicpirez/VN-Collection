@@ -126,6 +126,22 @@ export default async function DataPage() {
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-6">
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.steam.title}</h2>
+        <p className="mb-3 text-xs text-muted">{t.steam.subtitle}</p>
+        <Link href="/steam" className="btn">
+          🎮 {t.steam.open}
+        </Link>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-bg-card p-6">
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.shelf.title}</h2>
+        <p className="mb-3 text-xs text-muted">{t.shelf.subtitle}</p>
+        <Link href="/shelf" className="btn">
+          📚 {t.shelf.open}
+        </Link>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-bg-card p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.tour.runAgain}</h2>
         <p className="mb-3 text-xs text-muted">{t.tour.hint}</p>
         <RunTourButton />

@@ -108,7 +108,11 @@ Per-VN ordered list of routes (e.g. "Saber → Rin → Sakura") with completion
 tracking and free-form notes.
 
 ### Per-route notes ✅
-Each route entry can carry its own notes + completion date.
+Each route entry has a sticky-note toggle that expands an inline textarea
+(up to 2000 chars). Notes render below the row as italic muted text when
+collapsed, and the row shows a filled accent icon when notes are present.
+Completion dates are stamped automatically the first time a route is
+marked complete.
 
 ### Smart status hint ✅
 Non-intrusive banner: "you've logged ≥ VNDB length — mark as completed?"
@@ -240,24 +244,32 @@ FR / EN / JA. Switch via the language pill in the top nav.
 Read access for VN / character / staff / producer / tag / trait / quote /
 release / ulist (wishlist). Token authentication for ulist.
 
-### VNDB list write-back 🧪
+### VNDB list write-back ✅
 Status changes locally also `PATCH /ulist/<id>` against VNDB when a
-token is set. Mapping local statuses → VNDB labels is documented in
-[`src/lib/vndb-sync.ts`](src/lib/vndb-sync.ts).
+token is set. Mapping (planning/playing/completed/on_hold/dropped →
+5/1/2/3/4) is documented in [`src/lib/vndb-sync.ts`](src/lib/vndb-sync.ts).
+Gated behind a `vndb_writeback` toggle in Settings — when unchecked,
+local changes stay local. Best-effort: a 4xx / 5xx from VNDB is logged
+but never rolls back the local state.
 
 ### ErogameScape ✅
 SQL form scraping for scores, playtime medians, brand, genre, comments.
 Typed `EgsUnreachable` error (network / server / throttled / blocked)
 propagates to the UI so transient outages don't wipe matched rows.
 
-### Steam playtime sync 🧪
-When a VN's release has a Steam extlink and the user provides a Steam
-API key, pull `playtime_forever` minutes and merge into the local
-`playtime_minutes` after a confirmation dialog.
+### Steam playtime sync ✅
+`/steam` pulls your Steam library via the Web API, scans every VN in
+your collection for a `steam` extlink, and surfaces the deltas as a
+confirmable checklist. Tick the rows you want to apply, hit "Apply"
+— the writes go through `updateCollection` so the activity log
+captures every playtime jump. Skips suggestions where Steam time is
+lower than the locally-logged value so we never reduce.
+Configure in Settings: Steam Web API key + 64-bit SteamID.
 
-### Anime adaptations 🧪
-Surfaces an "Anime adaptation" chip on the detail page when the VN has
-`has_anime` (queried lazily). Links out to AniDB / Anilist.
+### Anime adaptations ✅
+Surfaces an "Anime adaptation" chip next to the action buttons on
+`/vn/[id]` when VNDB's `has_anime` filter matches. Probed lazily on
+first render and cached.
 
 ---
 
@@ -308,17 +320,24 @@ on the home page.
 `owned_release` table — one row per physical copy with condition, price,
 currency, photos, dumped flag.
 
-### QR labels (print view) 🧪
+### QR labels (print view) ✅
 `/labels?ids=…` prints a sheet of QR codes that point back to the VN's
-detail page. Tape them to your boxes for instant lookup.
+detail page. Origin is derived from the incoming request headers so
+labels work whatever port / LAN IP you're browsing. Tape them to your
+boxes for instant lookup.
 
-### Shelf visualisation 🧪
-`/shelf` groups owned editions by `physical_location` and renders them
-as boxes-on-shelves. Hover for the cover + edition label.
+### Shelf visualisation ✅
+`/shelf` lists every owned edition grouped by its first
+`physical_location` tag (rows without a tag fall into "Unsorted").
+Each card shows the cover, edition label, box type, condition,
+dumped flag, and `price_paid`. The header sums totals per currency
+and per location.
 
-### Insurance / value tracking 🧪
-`owned_release` already carries `price_paid` and `currency`; the shelf
-view sums it per location and exposes a CSV export.
+### Insurance / value tracking ✅
+Same `/shelf` page — `owned_release.price_paid` + `currency` per row,
+running totals at the section heading + grand total in the page
+header. JSON / CSV export of the whole collection (including these
+fields) lives in `/data → Exports`.
 
 ---
 

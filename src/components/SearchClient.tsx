@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, Database, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import { VnCard } from './VnCard';
+import { TextualSearchPanel } from './TextualSearchPanel';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import type { VndbSearchHit } from '@/lib/types';
@@ -492,6 +493,8 @@ export function SearchClient() {
           {error}
         </div>
       )}
+
+      <TextualSearchPanel query={q} />
 
       {loading ? (
         <div className="py-20 text-center text-muted">{t.search.searching}</div>

@@ -37,6 +37,9 @@ interface ServerSettings {
   vndb_token: { hasToken: boolean; preview: string | null; envFallback: boolean };
   random_quote_source: 'all' | 'mine';
   default_sort: SortKey;
+  vndb_writeback?: boolean;
+  steam_api_key?: { hasKey: boolean; preview: string | null };
+  steam_id?: string;
 }
 
 export function SettingsButton() {
@@ -67,7 +70,14 @@ export function SettingsButton() {
   }, [open, loadServer]);
 
   async function saveServer(
-    patch: Partial<{ vndb_token: string | null; random_quote_source: 'all' | 'mine'; default_sort: SortKey }>,
+    patch: Partial<{
+      vndb_token: string | null;
+      random_quote_source: 'all' | 'mine';
+      default_sort: SortKey;
+      vndb_writeback: boolean;
+      steam_api_key: string | null;
+      steam_id: string | null;
+    }>,
   ) {
     try {
       const r = await fetch('/api/settings', {
@@ -232,6 +242,49 @@ export function SettingsButton() {
                       {t.settings.vndbTokenClear}
                     </button>
                   )}
+
+                  {server?.vndb_token.hasToken && (
+                    <label className="mt-4 flex items-start gap-2 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={!!server.vndb_writeback}
+                        onChange={(e) => saveServer({ vndb_writeback: e.target.checked })}
+                        className="mt-0.5 h-4 w-4 accent-accent"
+                      />
+                      <span>
+                        <span className="font-bold">{t.settings.vndbWriteback}</span>
+                        <span className="block text-[10px] text-muted">{t.settings.vndbWritebackDesc}</span>
+                      </span>
+                    </label>
+                  )}
+                </div>
+
+                <div className="mt-6 border-t border-border pt-5">
+                  <h3 className="mb-1 text-sm font-bold">{t.settings.steamTitle}</h3>
+                  <p className="mb-3 text-[11px] text-muted">{t.settings.steamDesc}</p>
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      defaultValue={server?.steam_api_key?.preview ?? ''}
+                      placeholder={server?.steam_api_key?.hasKey ? server.steam_api_key.preview ?? '' : t.settings.steamKeyPlaceholder}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        // Don't save if user didn't change it (placeholder is mask)
+                        if (v && !v.startsWith('…')) saveServer({ steam_api_key: v });
+                      }}
+                      className="input w-full"
+                    />
+                    <input
+                      type="text"
+                      defaultValue={server?.steam_id ?? ''}
+                      placeholder={t.settings.steamIdPlaceholder}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        if (v !== (server?.steam_id ?? '')) saveServer({ steam_id: v || null });
+                      }}
+                      className="input w-full"
+                    />
+                  </div>
                 </div>
 
                 <div className="mt-6 border-t border-border pt-5">

@@ -8,6 +8,9 @@ const SAFE_KEYS = new Set([
   'vndb_token',
   'random_quote_source',
   'default_sort',
+  'vndb_writeback',
+  'steam_api_key',
+  'steam_id',
 ]);
 
 const VALID_SORTS = new Set([
@@ -33,10 +36,14 @@ function maskToken(value: string | null): { hasToken: boolean; preview: string |
 
 export async function GET() {
   const tokenRow = getAppSetting('vndb_token');
+  const steamKey = getAppSetting('steam_api_key');
   return NextResponse.json({
     vndb_token: maskToken(tokenRow),
     random_quote_source: getAppSetting('random_quote_source') ?? 'all',
     default_sort: getAppSetting('default_sort') ?? 'updated_at',
+    vndb_writeback: getAppSetting('vndb_writeback') === '1',
+    steam_api_key: { hasKey: !!steamKey, preview: steamKey ? `…${steamKey.slice(-4)}` : null },
+    steam_id: getAppSetting('steam_id') ?? '',
   });
 }
 
@@ -75,6 +82,29 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: `default_sort must be one of: ${[...VALID_SORTS].join(', ')}` }, { status: 400 });
     }
     setAppSetting('default_sort', v);
+  }
+  if ('vndb_writeback' in body) {
+    setAppSetting('vndb_writeback', body.vndb_writeback ? '1' : null);
+  }
+  if ('steam_api_key' in body) {
+    const v = body.steam_api_key;
+    if (v == null || v === '') {
+      setAppSetting('steam_api_key', null);
+    } else if (typeof v === 'string' && v.trim().length > 0) {
+      setAppSetting('steam_api_key', v.trim().slice(0, 64));
+    } else {
+      return NextResponse.json({ error: 'steam_api_key must be a string' }, { status: 400 });
+    }
+  }
+  if ('steam_id' in body) {
+    const v = body.steam_id;
+    if (v == null || v === '') {
+      setAppSetting('steam_id', null);
+    } else if (typeof v === 'string' && /^\d{4,20}$/.test(v.trim())) {
+      setAppSetting('steam_id', v.trim());
+    } else {
+      return NextResponse.json({ error: 'steam_id must be a 64-bit numeric SteamID' }, { status: 400 });
+    }
   }
   return NextResponse.json({ ok: true });
 }

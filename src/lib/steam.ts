@@ -65,4 +65,54 @@ export interface SteamSuggestion {
   steam_name: string;
   current_minutes: number;
   steam_minutes: number;
+  delta: number;
+}
+
+import { db } from './db';
+
+/**
+ * Build the list of `vn ↔ steam appid` matches by scanning extlinks JSON
+ * on the vn table. VNDB extlink names for Steam are stable: `steam`.
+ *
+ * Returns one suggestion per matched VN with the Steam playtime, the
+ * current local playtime, and the delta the user would apply. Skips
+ * matches where steam < current (we never reduce — locally-logged time
+ * may include Steam-less sessions).
+ */
+export function computeSteamSuggestions(steamGames: SteamPlaytime[]): SteamSuggestion[] {
+  const byAppid = new Map(steamGames.map((g) => [g.appid, g]));
+  const rows = db
+    .prepare(`
+      SELECT v.id AS vn_id, v.title AS vn_title, v.extlinks AS extlinks,
+             c.playtime_minutes AS current
+      FROM collection c JOIN vn v ON v.id = c.vn_id
+      WHERE v.extlinks IS NOT NULL
+    `)
+    .all() as Array<{ vn_id: string; vn_title: string; extlinks: string | null; current: number | null }>;
+  const out: SteamSuggestion[] = [];
+  for (const r of rows) {
+    if (!r.extlinks) continue;
+    let parsed: { url: string; name: string }[];
+    try { parsed = JSON.parse(r.extlinks); } catch { continue; }
+    const steamLink = parsed.find((l) => l && l.name === 'steam');
+    if (!steamLink) continue;
+    const m = /\/app\/(\d+)/.exec(steamLink.url);
+    if (!m) continue;
+    const appid = Number(m[1]);
+    const game = byAppid.get(appid);
+    if (!game) continue;
+    const current = r.current ?? 0;
+    const delta = game.minutes - current;
+    if (delta <= 0) continue;
+    out.push({
+      vn_id: r.vn_id,
+      vn_title: r.vn_title,
+      steam_appid: appid,
+      steam_name: game.name,
+      current_minutes: current,
+      steam_minutes: game.minutes,
+      delta,
+    });
+  }
+  return out.sort((a, b) => b.delta - a.delta);
 }

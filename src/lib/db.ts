@@ -23,6 +23,7 @@ import {
   type Stats,
   type Status,
 } from './types';
+import { pushStatusToVndb } from './vndb-sync';
 
 const DB_PATH = resolve(process.cwd(), process.env.DB_PATH || './data/collection.db');
 mkdirSync(dirname(DB_PATH), { recursive: true });
@@ -1391,6 +1392,27 @@ const updateCollectionTx = db.transaction((vnId: string, fields: CollectionPatch
   }
 });
 
+/**
+ * Push a status change to VNDB if write-back is enabled.
+ *
+ * Decoupled from `updateCollection` so it can run *after* the transaction
+ * commits — VNDB latency or 5xx errors must never roll back the local
+ * state. Called from the PATCH /api/collection/[id] route handler.
+ */
+export async function maybePushStatusToVndb(vnId: string, status: Status | null | undefined): Promise<void> {
+  if (status === undefined) return;
+  if (!/^v\d+$/i.test(vnId)) return;
+  const enabled = getAppSetting('vndb_writeback') === '1';
+  if (!enabled) return;
+  const token = getAppSetting('vndb_token');
+  if (!token || !token.trim()) return;
+  try {
+    await pushStatusToVndb(vnId, status, token.trim());
+  } catch {
+    // never fail the request because the remote echo didn't go through.
+  }
+}
+
 export function updateCollection(vnId: string, fields: CollectionPatch): void {
   updateCollectionTx(vnId, fields);
 }
@@ -2154,6 +2176,50 @@ function mapOwnedReleaseRow(r: OwnedReleaseDbRow): OwnedReleaseRow {
     dumped: !!r.dumped,
     added_at: r.added_at,
   };
+}
+
+export interface ShelfEntry extends OwnedReleaseRow {
+  vn_title: string;
+  vn_image_thumb: string | null;
+  vn_image_url: string | null;
+  vn_local_image_thumb: string | null;
+  vn_image_sexual: number | null;
+}
+
+/**
+ * Every owned release in the collection joined with its VN's display data,
+ * with a single physical location string per entry. Rows without a
+ * `physical_location` entry fall into the "Unsorted" bucket so the
+ * caller can render them in their own group.
+ */
+export function listAllOwnedReleases(): ShelfEntry[] {
+  const rows = db
+    .prepare(`
+      SELECT o.*,
+             v.title AS vn_title,
+             v.image_thumb AS vn_image_thumb,
+             v.image_url AS vn_image_url,
+             v.local_image_thumb AS vn_local_image_thumb,
+             v.image_sexual AS vn_image_sexual
+      FROM owned_release o
+      JOIN vn v ON v.id = o.vn_id
+      ORDER BY v.title COLLATE NOCASE ASC
+    `)
+    .all() as Array<OwnedReleaseDbRow & {
+      vn_title: string;
+      vn_image_thumb: string | null;
+      vn_image_url: string | null;
+      vn_local_image_thumb: string | null;
+      vn_image_sexual: number | null;
+    }>;
+  return rows.map((r) => ({
+    ...mapOwnedReleaseRow(r),
+    vn_title: r.vn_title,
+    vn_image_thumb: r.vn_image_thumb,
+    vn_image_url: r.vn_image_url,
+    vn_local_image_thumb: r.vn_local_image_thumb,
+    vn_image_sexual: r.vn_image_sexual,
+  }));
 }
 
 export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {

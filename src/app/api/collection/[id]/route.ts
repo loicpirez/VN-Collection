@@ -7,6 +7,7 @@ import {
   isValidEditionType,
   isValidLocation,
   isValidStatus,
+  maybePushStatusToVndb,
   removeFromCollection,
   updateCollection,
   upsertVn,
@@ -113,6 +114,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { fields, error } = pickFields(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   addToCollection(id, fields);
+  await maybePushStatusToVndb(id, fields.status);
   // First-time add: download cover + screenshots + release/package images locally.
   // Failures are silently swallowed — the user can retry via the "Download all" button.
   if (!wasInCollection) {
@@ -132,6 +134,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { fields, error } = pickFields(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   updateCollection(id, fields);
+  // Best-effort write-back to VNDB. Awaiting it would tie the route's
+  // latency to api.vndb.org; we fire and forget but await so any auth
+  // error surfaces in the dev log (the helper itself never throws).
+  await maybePushStatusToVndb(id, fields.status);
   return NextResponse.json({ item: getCollectionItem(id) });
 }
 
