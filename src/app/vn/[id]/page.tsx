@@ -35,6 +35,7 @@ import { QueueButton } from '@/components/QueueButton';
 import { PomodoroTimer } from '@/components/PomodoroTimer';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { AnimeChip } from '@/components/AnimeChip';
+import { CoverQuickActions } from '@/components/CoverQuickActions';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
 import { QuotesSection } from '@/components/QuotesSection';
@@ -265,11 +266,6 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               <div>
                 <dt className="label">{t.detail.myPlaytime}</dt>
                 <dd className="font-semibold">{fmtMinutes(vn.playtime_minutes)}</dd>
-                {inCol && (
-                  <div className="mt-2">
-                    <PomodoroTimer vnId={vn.id} currentMinutes={vn.playtime_minutes ?? 0} />
-                  </div>
-                )}
               </div>
               {!!vn.languages?.length && (
                 <div className="col-span-2 sm:col-span-3">
@@ -379,6 +375,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <Download className="h-4 w-4" /> {t.form.downloadOpen}
                 </a>
               )}
+              <CoverQuickActions vnId={vn.id} inCollection={inCol} status={status} />
               {inCol && <DownloadAssetsButton vnId={vn.id} />}
               {inCol && <QueueButton vnId={vn.id} />}
               {inCol && <AnimeChip vnId={vn.id} />}
@@ -455,8 +452,9 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
       )}
 
       {inCol && (
-        <div className="mt-6">
+        <div className="mt-6 grid gap-4 md:grid-cols-[1fr_280px]">
           <ActivityTimeline vnId={vn.id} initial={listActivityForVn(vn.id, 50)} />
+          <PomodoroTimer vnId={vn.id} currentMinutes={vn.playtime_minutes ?? 0} />
         </div>
       )}
 

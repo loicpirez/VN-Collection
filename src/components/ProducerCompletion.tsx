@@ -46,7 +46,7 @@ export async function ProducerCompletion({ producerId }: { producerId: string })
             {t.producerCompletion.missingHint.replace('{n}', String(missing.length))}
           </p>
           <ul className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-            {missing.slice(0, 24).map((v) => (
+            {missing.map((v) => (
               <li key={v.vnId}>
                 <Link
                   href={`/vn/${v.vnId}`}

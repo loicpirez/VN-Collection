@@ -52,9 +52,16 @@ export default async function QuotesPage({
               </blockquote>
               <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2 text-[11px] text-muted">
                 <span>
-                  {it.character_name && (
+                  {it.character_name && it.character_id ? (
+                    <Link
+                      href={`/character/${it.character_id}`}
+                      className="font-semibold text-white/85 hover:text-accent"
+                    >
+                      {it.character_name}
+                    </Link>
+                  ) : it.character_name ? (
                     <span className="font-semibold text-white/85">{it.character_name}</span>
-                  )}
+                  ) : null}
                   {it.character_name && ' · '}
                   <Link href={`/vn/${it.vn_id}`} className="hover:text-accent">{it.vn_title}</Link>
                 </span>

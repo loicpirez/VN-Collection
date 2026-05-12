@@ -22,6 +22,7 @@ export const dictionaries = {
       year: 'Année',
       quotes: 'Citations',
       data: 'Données',
+      more: 'Plus',
       languageLabel: 'Langue',
     },
     recommend: {
@@ -562,6 +563,16 @@ export const dictionaries = {
       openProducer: "Voir l'éditeur",
       filterSameProducer: 'Filtrer par cet éditeur',
     },
+    coverActions: {
+      addToCollection: 'Ajouter à ma collection',
+      removeFromCollection: 'Retirer de ma collection',
+      removeConfirm: 'Retirer ce VN de ta collection ? Le suivi associé (notes, temps de jeu, etc.) sera perdu.',
+      removed: 'Retiré de la collection',
+      wishlist: 'Mettre en wishlist',
+      wishlisted: 'En wishlist',
+      unwish: 'Retirer de la wishlist',
+      unwishConfirm: 'Retirer ce VN de la wishlist ? Le statut sera effacé.',
+    },
     savedFilters: {
       saveCta: 'Enregistrer ce filtre',
       saveCurrent: 'Mémoriser la combinaison de filtres actuelle',
@@ -1094,6 +1105,7 @@ export const dictionaries = {
       year: 'Year',
       quotes: 'Quotes',
       data: 'Data',
+      more: 'More',
       languageLabel: 'Language',
     },
     recommend: {
@@ -1634,6 +1646,16 @@ export const dictionaries = {
       openProducer: 'Open producer',
       filterSameProducer: 'Filter by this producer',
     },
+    coverActions: {
+      addToCollection: 'Add to my collection',
+      removeFromCollection: 'Remove from my collection',
+      removeConfirm: 'Remove this VN from your collection? All tracking (notes, playtime, …) will be lost.',
+      removed: 'Removed from collection',
+      wishlist: 'Wishlist',
+      wishlisted: 'Wishlisted',
+      unwish: 'Remove from wishlist',
+      unwishConfirm: 'Remove from wishlist? The status will be cleared.',
+    },
     savedFilters: {
       saveCta: 'Save this filter',
       saveCurrent: 'Pin the current filter combo',
@@ -2166,6 +2188,7 @@ export const dictionaries = {
       year: '今年',
       quotes: '名言',
       data: 'データ',
+      more: 'もっと',
       languageLabel: '言語',
     },
     recommend: {
@@ -2705,6 +2728,16 @@ export const dictionaries = {
       open: '詳細ページを開く',
       openProducer: 'ブランドを開く',
       filterSameProducer: 'このブランドで絞り込む',
+    },
+    coverActions: {
+      addToCollection: 'コレクションに追加',
+      removeFromCollection: 'コレクションから削除',
+      removeConfirm: 'この VN をコレクションから削除しますか？ メモやプレイ時間も失われます。',
+      removed: 'コレクションから削除',
+      wishlist: 'ウィッシュに追加',
+      wishlisted: 'ウィッシュ済',
+      unwish: 'ウィッシュから削除',
+      unwishConfirm: 'ウィッシュから削除しますか？ ステータスがクリアされます。',
     },
     savedFilters: {
       saveCta: 'このフィルタを保存',

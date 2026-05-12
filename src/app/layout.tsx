@@ -5,6 +5,7 @@ import { Award, BarChart3, Bookmark, CalendarRange, Database, Heart, Library, Qu
 import './globals.css';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { TutorialTour } from '@/components/TutorialTour';
+import { MoreNavMenu } from '@/components/MoreNavMenu';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
 import { DisplaySettingsProvider, type DisplaySettings } from '@/lib/settings/client';
@@ -63,14 +64,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <NavLink href="/search" icon={<Search className="h-4 w-4" />}>{dict.nav.search}</NavLink>
                   <NavLink href="/recommendations" icon={<Wand2 className="h-4 w-4" />}>{dict.nav.recommend}</NavLink>
                   <NavLink href="/upcoming" icon={<CalendarRange className="h-4 w-4" />}>{dict.nav.upcoming}</NavLink>
-                  <NavLink href="/producers" icon={<Trophy className="h-4 w-4" />}>{dict.nav.producers}</NavLink>
-                  <NavLink href="/series" icon={<Bookmark className="h-4 w-4" />}>{dict.nav.series}</NavLink>
-                  <NavLink href="/tags" icon={<Tags className="h-4 w-4" />}>{dict.nav.tags}</NavLink>
-                  <NavLink href="/traits" icon={<Sparkles className="h-4 w-4" />}>{dict.nav.traits}</NavLink>
                   <NavLink href="/stats" icon={<BarChart3 className="h-4 w-4" />}>{dict.nav.stats}</NavLink>
-                  <NavLink href={`/year?y=${new Date().getFullYear()}`} icon={<Award className="h-4 w-4" />}>{dict.nav.year}</NavLink>
-                  <NavLink href="/quotes" icon={<Quote className="h-4 w-4" />}>{dict.nav.quotes}</NavLink>
                   <NavLink href="/data" icon={<Database className="h-4 w-4" />}>{dict.nav.data}</NavLink>
+                  <MoreNavMenu />
                 </nav>
                 <div className="ml-auto flex items-center gap-2">
                   <SettingsButton />

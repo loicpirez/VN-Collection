@@ -141,7 +141,7 @@ export function SettingsButton() {
                 if (e.target === e.currentTarget) setOpen(false);
               }}
             >
-              <div className="relative mt-12 w-full max-w-md rounded-2xl border border-border bg-bg-card p-6 shadow-card">
+              <div className="relative mt-12 w-full max-w-3xl rounded-2xl border border-border bg-bg-card p-6 shadow-card">
                 <button
                   type="button"
                   className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-bg-elev hover:text-white"
@@ -153,7 +153,7 @@ export function SettingsButton() {
                 <h2 className="mb-1 text-lg font-bold">{t.settings.title}</h2>
                 <p className="mb-5 text-xs text-muted">{t.settings.subtitle}</p>
 
-                <div className="flex flex-col gap-4">
+                <div className="grid gap-4 md:grid-cols-2">
                   <Toggle
                     label={t.settings.hideImages}
                     description={t.settings.hideImagesDesc}
