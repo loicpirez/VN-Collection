@@ -246,6 +246,18 @@ function open(): Database.Database {
       target INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS steam_link (
+      vn_id      TEXT PRIMARY KEY REFERENCES vn(id) ON DELETE CASCADE,
+      appid      INTEGER NOT NULL,
+      steam_name TEXT NOT NULL,
+      /** 'auto' = derived from VNDB release extlinks, 'manual' = user-set. */
+      source     TEXT NOT NULL DEFAULT 'manual',
+      last_synced_minutes INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_steam_link_appid ON steam_link(appid);
   `);
 
   ensureColumn(db, 'vn', 'screenshots', 'TEXT');
@@ -2601,6 +2613,72 @@ export function setReadingGoal(year: number, target: number): ReadingGoal {
     ON CONFLICT(year) DO UPDATE SET target = excluded.target, updated_at = excluded.updated_at
   `).run(year, safeTarget, now);
   return getReadingGoal(year)!;
+}
+
+// Steam links — manual + auto-detected mappings between Steam appid and
+// local VN id. `source = 'auto'` rows can be overwritten by a manual
+// re-link; manual rows are sticky and never get clobbered by a re-scan.
+
+export interface SteamLink {
+  vn_id: string;
+  appid: number;
+  steam_name: string;
+  source: 'auto' | 'manual';
+  last_synced_minutes: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export function listSteamLinks(): SteamLink[] {
+  return db
+    .prepare(`SELECT * FROM steam_link ORDER BY updated_at DESC`)
+    .all() as SteamLink[];
+}
+
+export function getSteamLinkForVn(vnId: string): SteamLink | null {
+  return (db
+    .prepare(`SELECT * FROM steam_link WHERE vn_id = ?`)
+    .get(vnId) as SteamLink | undefined) ?? null;
+}
+
+export function getSteamLinkByAppid(appid: number): SteamLink | null {
+  return (db
+    .prepare(`SELECT * FROM steam_link WHERE appid = ?`)
+    .get(appid) as SteamLink | undefined) ?? null;
+}
+
+export function setSteamLink(args: {
+  vnId: string;
+  appid: number;
+  steamName: string;
+  source: 'auto' | 'manual';
+}): SteamLink {
+  const now = Date.now();
+  // Don't overwrite a manual link with an auto one — the user explicitly
+  // chose the mapping. Allow manual to overwrite anything.
+  const existing = getSteamLinkForVn(args.vnId);
+  if (existing && existing.source === 'manual' && args.source === 'auto') {
+    return existing;
+  }
+  db.prepare(`
+    INSERT INTO steam_link (vn_id, appid, steam_name, source, last_synced_minutes, created_at, updated_at)
+    VALUES (?, ?, ?, ?, NULL, ?, ?)
+    ON CONFLICT(vn_id) DO UPDATE SET
+      appid = excluded.appid,
+      steam_name = excluded.steam_name,
+      source = excluded.source,
+      updated_at = excluded.updated_at
+  `).run(args.vnId, args.appid, args.steamName.slice(0, 200), args.source, now, now);
+  return getSteamLinkForVn(args.vnId)!;
+}
+
+export function deleteSteamLink(vnId: string): void {
+  db.prepare(`DELETE FROM steam_link WHERE vn_id = ?`).run(vnId);
+}
+
+export function markSteamSynced(vnId: string, minutes: number): void {
+  db.prepare(`UPDATE steam_link SET last_synced_minutes = ?, updated_at = ? WHERE vn_id = ?`)
+    .run(minutes, Date.now(), vnId);
 }
 
 export function countFinishedInYear(year: number): number {

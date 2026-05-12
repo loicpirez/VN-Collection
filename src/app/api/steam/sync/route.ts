@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { computeSteamSuggestions, fetchOwnedGames } from '@/lib/steam';
+import { computeSteamSuggestions, fetchOwnedGames, recordSync } from '@/lib/steam';
 import { updateCollection, isInCollection } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,8 @@ export const maxDuration = 120;
 export async function GET() {
   try {
     const games = await fetchOwnedGames();
-    return NextResponse.json({ ok: true, suggestions: computeSteamSuggestions(games) });
+    const suggestions = await computeSteamSuggestions(games);
+    return NextResponse.json({ ok: true, suggestions });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 400 });
   }
@@ -33,7 +34,9 @@ export async function POST(req: NextRequest) {
   for (const a of body.applies) {
     if (typeof a.vn_id !== 'string' || typeof a.playtime_minutes !== 'number') continue;
     if (!isInCollection(a.vn_id)) continue;
-    updateCollection(a.vn_id, { playtime_minutes: Math.max(0, Math.floor(a.playtime_minutes)) });
+    const minutes = Math.max(0, Math.floor(a.playtime_minutes));
+    updateCollection(a.vn_id, { playtime_minutes: minutes });
+    recordSync(a.vn_id, minutes);
     applied += 1;
   }
   return NextResponse.json({ applied });

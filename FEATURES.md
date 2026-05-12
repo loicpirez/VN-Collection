@@ -258,13 +258,26 @@ Typed `EgsUnreachable` error (network / server / throttled / blocked)
 propagates to the UI so transient outages don't wipe matched rows.
 
 ### Steam playtime sync ✅
-`/steam` pulls your Steam library via the Web API, scans every VN in
-your collection for a `steam` extlink, and surfaces the deltas as a
-confirmable checklist. Tick the rows you want to apply, hit "Apply"
-— the writes go through `updateCollection` so the activity log
-captures every playtime jump. Skips suggestions where Steam time is
-lower than the locally-logged value so we never reduce.
-Configure in Settings: Steam Web API key + 64-bit SteamID.
+`/steam` pulls your Steam library via the Web API. Three sections:
+
+  1. **Suggestions** — VN ↔ Steam pairs (auto + manual) where Steam
+     time > local time. Tick rows + "Apply" merges via
+     `updateCollection`, logging each jump in the activity table.
+  2. **Saved links** — every persisted VN ↔ Steam mapping (auto or
+     manual) with a per-row "unlink" button. Auto-detected links use
+     VNDB release-level extlinks (the VN-level aggregator excludes
+     Steam, so we batch-query `/release` with `extlink=steam` to
+     resolve them). Manual links are *sticky* — a subsequent
+     auto-scan won't overwrite them.
+  3. **Unmapped Steam games** — every Steam game with playtime > 0
+     that isn't linked yet. Type a title to fuzzy-search your
+     collection then click a VN to bind the appid. The mapping
+     persists to `steam_link(vn_id, appid, steam_name, source,
+     last_synced_minutes)`.
+
+Configure in Settings: Steam Web API key + 64-bit SteamID. The
+collection-title search is exposed as `GET /api/collection/find?q=`
+and is reusable elsewhere if needed.
 
 ### Anime adaptations ✅
 Surfaces an "Anime adaptation" chip next to the action buttons on
