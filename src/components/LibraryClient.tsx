@@ -330,8 +330,7 @@ export function LibraryClient() {
 
   return (
     <div>
-      <SavedFilters />
-      <div className="mb-4 flex flex-wrap gap-1.5 overflow-x-auto no-scrollbar">
+      <div className="mb-4 flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
         <button
           className={`chip whitespace-nowrap ${!status ? 'chip-active' : ''}`}
           onClick={() => setParam('status', null)}
@@ -349,6 +348,8 @@ export function LibraryClient() {
             <span className="ml-1 opacity-70">{counts[s] ?? 0}</span>
           </button>
         ))}
+        <span className="ml-auto" />
+        <SavedFilters />
       </div>
 
       <div className="mb-4">
