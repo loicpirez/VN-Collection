@@ -1,6 +1,7 @@
 'use client';
 import { useState, useTransition } from 'react';
-import { Heart, Loader2, MapPin, Package, Trash2, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { GitCompare, Heart, Loader2, MapPin, Package, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { BOX_TYPES, EDITION_TYPES, LOCATIONS, STATUSES, type BoxType, type EditionType, type Location, type Status } from '@/lib/types';
 import { StatusIcon } from './StatusIcon';
@@ -39,10 +40,12 @@ async function deleteOne(vnId: string): Promise<void> {
 export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
   const t = useT();
   const toast = useToast();
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [errors, setErrors] = useState<string[]>([]);
   const [, startTransition] = useTransition();
+  const canCompare = selectedIds.length >= 2 && selectedIds.length <= 4;
 
   async function applyField(field: BulkField) {
     if (selectedIds.length === 0) return;
@@ -164,6 +167,16 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
         >
           <Heart className="h-4 w-4" />
           ✕
+        </button>
+
+        <button
+          type="button"
+          className="btn"
+          onClick={() => router.push(`/compare?ids=${encodeURIComponent(selectedIds.join(','))}`)}
+          disabled={busy || !canCompare}
+          title={canCompare ? t.bulkEdit.compare : t.bulkEdit.compareHint}
+        >
+          <GitCompare className="h-4 w-4" /> {t.bulkEdit.compare}
         </button>
 
         <button
