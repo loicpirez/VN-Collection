@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { SkeletonRows } from './Skeleton';
 
 interface DupGroup {
   prefix: string;
@@ -75,10 +76,10 @@ export function DataMaintenance() {
       <p className="mb-4 text-xs text-muted">{t.maintenance.hint}</p>
 
       {loading ? (
-        <p className="text-xs text-muted">
-          <Loader2 className="mr-1 inline-block h-3 w-3 animate-spin" />
-          {t.common.loading}
-        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <SkeletonRows count={3} withThumb={false} />
+          <SkeletonRows count={3} withThumb={false} />
+        </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           <div>

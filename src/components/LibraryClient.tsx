@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowDown, ArrowUp, Calendar, CheckSquare, ChevronDown, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
+import { SkeletonCardGrid } from './Skeleton';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
 import { BulkActionBar } from './BulkActionBar';
@@ -581,7 +582,7 @@ export function LibraryClient() {
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-muted">{t.common.loading}</div>
+        <SkeletonCardGrid count={24} />
       ) : items.length === 0 ? (
         <div className="py-20 text-center">
           <h2 className="mb-2 text-xl font-bold">{t.library.empty.title}</h2>

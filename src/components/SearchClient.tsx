@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, Database, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import { VnCard } from './VnCard';
+import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
 import { TextualSearchPanel } from './TextualSearchPanel';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
@@ -497,7 +498,7 @@ export function SearchClient() {
       <TextualSearchPanel query={q} />
 
       {loading ? (
-        <div className="py-20 text-center text-muted">{t.search.searching}</div>
+        source === 'egs' ? <SkeletonRows count={6} /> : <SkeletonCardGrid count={18} />
       ) : !touched && !results.length && !egsResults.length ? (
         <div className="py-20 text-center">
           <h2 className="mb-2 text-xl font-bold">

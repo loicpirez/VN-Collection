@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, MessageSquareQuote } from 'lucide-react';
+import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import type { VndbQuote } from '@/lib/vndb-types';
 
@@ -43,9 +44,19 @@ export function QuotesSection({ vnId }: { vnId: string }) {
         {open ? <ChevronDown className="h-4 w-4 text-muted" /> : <ChevronRight className="h-4 w-4 text-muted" />}
       </summary>
       <div className="border-t border-border px-6 py-5">
-        {loading && <p className="text-sm text-muted">{t.common.loading}</p>}
+        {loading && (
+          <ul className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <li key={i} className="space-y-2 rounded-lg border-l-2 border-accent bg-bg-elev/50 px-4 py-3">
+                <SkeletonBlock className="h-3 w-full" />
+                <SkeletonBlock className="h-3 w-5/6" />
+                <SkeletonBlock className="ml-auto h-2.5 w-1/4" />
+              </li>
+            ))}
+          </ul>
+        )}
         {error && <p className="text-sm text-status-dropped">{error}</p>}
-        {quotes && quotes.length === 0 && <p className="text-sm text-muted">{t.quotes.empty}</p>}
+        {!loading && quotes && quotes.length === 0 && <p className="text-sm text-muted">{t.quotes.empty}</p>}
         {quotes && quotes.length > 0 && (
           <ul className="space-y-3">
             {quotes.map((q) => (

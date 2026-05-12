@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { SafeImage } from './SafeImage';
+import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import type { VndbCharacter } from '@/lib/vndb-types';
 
@@ -62,9 +63,9 @@ export function CharactersSection({ vnId }: { vnId: string }) {
         {open ? <ChevronDown className="h-4 w-4 text-muted" /> : <ChevronRight className="h-4 w-4 text-muted" />}
       </summary>
       <div className="border-t border-border px-6 py-5">
-        {loading && <p className="text-sm text-muted">{t.common.loading}</p>}
+        {loading && <CharactersSkeleton />}
         {error && <p className="text-sm text-status-dropped">{error}</p>}
-        {chars && chars.length === 0 && <p className="text-sm text-muted">{t.characters.empty}</p>}
+        {!loading && chars && chars.length === 0 && <p className="text-sm text-muted">{t.characters.empty}</p>}
         {sorted.length > 0 && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sorted.map((c) => {
@@ -122,5 +123,22 @@ export function CharactersSection({ vnId }: { vnId: string }) {
         )}
       </div>
     </details>
+  );
+}
+
+function CharactersSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex gap-3 rounded-lg border border-border bg-bg-elev/50 p-3">
+          <SkeletonBlock className="h-20 w-14 shrink-0" />
+          <div className="flex-1 space-y-2 pt-1">
+            <SkeletonBlock className="h-3 w-2/3" />
+            <SkeletonBlock className="h-2.5 w-1/3" />
+            <SkeletonBlock className="h-2.5 w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

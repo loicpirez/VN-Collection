@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { LangFlag } from './LangFlag';
+import { SkeletonRows } from './Skeleton';
 import type { VndbRelease } from '@/lib/vndb-types';
 
 const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> = {
@@ -114,9 +115,9 @@ export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; 
         {open ? <ChevronDown className="h-4 w-4 text-muted" /> : <ChevronRight className="h-4 w-4 text-muted" />}
       </summary>
       <div className="border-t border-border px-6 py-5">
-        {loading && <p className="text-sm text-muted">{t.common.loading}</p>}
+        {loading && <SkeletonRows count={4} withThumb={false} />}
         {error && <p className="text-sm text-status-dropped">{error}</p>}
-        {releases && releases.length === 0 && <p className="text-sm text-muted">{t.releases.empty}</p>}
+        {!loading && releases && releases.length === 0 && <p className="text-sm text-muted">{t.releases.empty}</p>}
         {releases && releases.length > 0 && (
           <ul className="space-y-3">
             {releases.map((r) => {

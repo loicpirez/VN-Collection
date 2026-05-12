@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Gamepad2, Link2, Loader2, Search, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from '@/components/ToastProvider';
+import { SkeletonRows } from '@/components/Skeleton';
 
 interface Suggestion {
   vn_id: string;
@@ -202,11 +203,12 @@ export default function SteamSyncPage() {
       <section className="mb-8 rounded-xl border border-border bg-bg-card p-5">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
           {t.steam.suggestionsTitle}
-          {suggestionsLoading && <Loader2 className="ml-1 inline-block h-3 w-3 animate-spin" />}
         </h2>
-        {!suggestionsLoading && suggestions.length === 0 && (
+        {suggestionsLoading ? (
+          <SkeletonRows count={5} withThumb={false} />
+        ) : suggestions.length === 0 ? (
           <p className="text-sm text-muted">{t.steam.noSuggestions}</p>
-        )}
+        ) : null}
         {suggestions.length > 0 && (
           <>
             <ul className="space-y-1.5">
@@ -307,12 +309,13 @@ export default function SteamSyncPage() {
       <section className="rounded-xl border border-border bg-bg-card p-5">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
           {t.steam.unlinkedTitle}
-          {unlinkedLoading && <Loader2 className="ml-1 inline-block h-3 w-3 animate-spin" />}
         </h2>
         <p className="mb-3 text-[11px] text-muted">{t.steam.unlinkedHint}</p>
-        {!unlinkedLoading && unlinked.length === 0 && (
+        {unlinkedLoading ? (
+          <SkeletonRows count={5} withThumb={false} />
+        ) : unlinked.length === 0 ? (
           <p className="text-sm text-muted">{t.steam.empty}</p>
-        )}
+        ) : null}
         <ul className="space-y-2">
           {unlinked.slice(0, 60).map((g) => {
             const query = assignQuery[g.appid] ?? '';

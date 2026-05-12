@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Library, Loader2, Search, Sparkles } from 'lucide-react';
+import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import type { VndbTrait } from '@/lib/vndb-types';
 
@@ -84,7 +85,7 @@ export function TraitsBrowser() {
       {error && <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">{error}</div>}
 
       {loading ? (
-        <div className="py-20 text-center text-muted"><Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin" />{t.common.loading}</div>
+        <SkeletonRows count={8} withThumb={false} />
       ) : results.length === 0 ? (
         <div className="py-12 text-center text-muted">{t.search.noResults}</div>
       ) : (

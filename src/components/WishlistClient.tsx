@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { VnCard } from './VnCard';
+import { SkeletonCardGrid } from './Skeleton';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 
@@ -219,10 +220,7 @@ export function WishlistClient() {
           </p>
         </div>
       ) : loading ? (
-        <div className="py-20 text-center text-muted">
-          <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin" />
-          {t.common.loading}
-        </div>
+        <SkeletonCardGrid count={18} />
       ) : error ? (
         <div className="rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
           {error}

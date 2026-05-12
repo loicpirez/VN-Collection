@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { LangFlag } from './LangFlag';
+import { SkeletonRows } from './Skeleton';
 import { DateInput } from './DateInput';
 import { TagInput } from './TagInput';
 import { useToast } from './ToastProvider';
@@ -154,7 +155,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
   if (loading) {
     return (
       <section className="rounded-xl border border-border bg-bg-card p-6">
-        <p className="text-sm text-muted">{t.common.loading}</p>
+        <SkeletonRows count={2} />
       </section>
     );
   }
