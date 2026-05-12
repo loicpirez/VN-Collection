@@ -183,13 +183,20 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                 alt={vn.title}
               />
             ) : (
-              <SafeImage
-                src={heroPoster.remote}
-                localSrc={heroPoster.local}
-                alt={vn.title}
-                sexual={vn.image_sexual ?? null}
-                className="aspect-[2/3] w-full rounded-xl shadow-card"
-              />
+              <div className="relative">
+                <SafeImage
+                  src={heroPoster.remote}
+                  localSrc={heroPoster.local}
+                  alt={vn.title}
+                  sexual={vn.image_sexual ?? null}
+                  className="aspect-[2/3] w-full rounded-xl shadow-card"
+                />
+                {inCol && !heroPoster.remote && !heroPoster.local && (
+                  <div className="absolute inset-x-2 bottom-2 z-10 flex justify-center">
+                    <CoverUploader vnId={vn.id} hasCustom={!!vn.custom_cover} variant="inline" />
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

@@ -212,7 +212,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         </>
       )}
 
-      {inCollection && customBanner && (
+      {inCollection && src && (
         <div
           className="absolute right-3 top-3 z-10 flex flex-wrap items-center gap-1.5"
           onPointerDown={(e) => e.stopPropagation()}

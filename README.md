@@ -261,6 +261,37 @@ VNDB and ErogameScape entries coexist:
 
 ---
 
+## Roadmap
+
+The next batch of features is documented in [PLAN.md](PLAN.md) with file
+paths, DB shape and rough sizing. Highlights:
+
+- **Random pick** — one-click "what should I play next" respecting filters.
+- **Tag co-occurrence** — given a VN, surface the tags that frequently
+  co-occur across your collection.
+- **Reading speed estimator** — derive your personal multiplier from
+  completed VNs and predict reading time vs VNDB / EGS.
+- **Voice-actor heatmap** — year-by-year timeline of a VA's credits with
+  "in my collection" highlights.
+- **Quick-actions on cards** — right-click menu to change status, mark
+  favourite, jump to producer.
+- **Export ICS / CSV / JSON** — portable snapshots of your library + a
+  calendar of started / finished dates.
+- **Reading log / activity timeline** — per-VN journal of status changes,
+  playtime updates, notes, manual entries.
+- **Recommendations from VNDB tags** — "you rated A, B, C high → here are
+  similar VNs you don't own".
+- **Calendar of upcoming releases** — surfaces sequels / new entries from
+  producers already in your collection.
+- **Series auto-detect** — propose series membership from VNDB `seq` / `preq`
+  relations when a VN is added.
+- **Comparison view** — pick 2–4 VNs and see them side-by-side with shared
+  staff, tag overlap, and "similar to all of these" suggestions.
+
+Each lands as its own commit; see [PLAN.md](PLAN.md) for the rollout order.
+
+---
+
 ## Contributing
 
 This is a personal project, but the architecture is generic enough to fork.

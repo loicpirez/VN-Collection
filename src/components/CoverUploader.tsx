@@ -5,7 +5,18 @@ import { ImageMinus, ImagePlus, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
-export function CoverUploader({ vnId, hasCustom }: { vnId: string; hasCustom: boolean }) {
+interface Props {
+  vnId: string;
+  hasCustom: boolean;
+  /**
+   * Render mode:
+   *   - "card"   (default) full card with title + hint, lives in the form pane.
+   *   - "inline" compact pill suitable for overlaying on an empty cover slot.
+   */
+  variant?: 'card' | 'inline';
+}
+
+export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -51,21 +62,44 @@ export function CoverUploader({ vnId, hasCustom }: { vnId: string; hasCustom: bo
     }
   }
 
+  const hiddenInput = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={(e) => {
+        const f = e.target.files?.[0];
+        if (f) upload(f);
+        e.target.value = '';
+      }}
+    />
+  );
+
+  if (variant === 'inline') {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        {hiddenInput}
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy || pending}
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+          title={t.cover.hint}
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+          {busy ? t.cover.uploading : t.cover.uploadCta}
+        </button>
+        {error && <p className="text-[10px] text-status-dropped">{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-border bg-bg-card p-4">
       <h3 className="mb-1 text-xs font-bold uppercase tracking-widest text-muted">{t.cover.title}</h3>
       <p className="mb-3 text-[11px] text-muted">{t.cover.hint}</p>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) upload(f);
-          e.target.value = '';
-        }}
-      />
+      {hiddenInput}
       <div className="flex flex-wrap gap-2">
         <button className="btn" onClick={() => inputRef.current?.click()} disabled={busy || pending}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}

@@ -447,6 +447,26 @@ Next.js validation + page generation.
 
 ---
 
+## Active work — see PLAN.md
+
+A batch of twelve features is in flight, tracked in `PLAN.md` at the repo
+root. Each one lands as its own commit; the urgent fixes (banner position
+edit, inline cover uploader when no cover exists) ship first and the
+remainder follow the rollout order documented there.
+
+If you're an agent picking up mid-batch:
+- Check the existing commits since `06834d4` to see which features are done.
+- Re-read **PLAN.md** for the spec — file paths, DB shape, i18n keys.
+- New helpers added during the batch live in `src/lib/*.ts` (one file per
+  feature, not piled into `db.ts`). The conventions in this guide still
+  apply — `getDict()`, `SafeImage`, URL-state-over-`useState`, etc.
+
+New DB tables introduced by the batch:
+
+| Table | Owner feature | Notes |
+| --- | --- | --- |
+| `vn_activity` | Reading log | One row per status / playtime / note change. Written inside the existing `updateCollection` transaction so the audit trail never drifts from the actual state. |
+
 ## Not implemented (yet)
 
 - VNDB List Management (POST/PATCH /ulist, /rlist) — read-only is enough for now
