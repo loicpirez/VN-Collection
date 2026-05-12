@@ -87,6 +87,21 @@ function writeCache(key: string, value: unknown, ttlMs = CACHE_TTL_MS): void {
   `).run(key, JSON.stringify(value), now, now + ttlMs);
 }
 
+/**
+ * Thrown when EGS itself is unreachable — DNS failure, connection refused,
+ * timeout, 5xx. Caught upstream so we don't overwrite previously-good matches
+ * with a "no match" placeholder during a transient outage.
+ *
+ * "Query ran but returned no rows" is NOT this — it's the normal empty-result
+ * path and is allowed to persist a null match.
+ */
+export class EgsUnreachable extends Error {
+  constructor(cause: unknown) {
+    super(`EGS unreachable: ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = 'EgsUnreachable';
+  }
+}
+
 async function fetchTable(sql: string): Promise<string[][]> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
@@ -101,9 +116,12 @@ async function fetchTable(sql: string): Promise<string[][]> {
       },
       body: new URLSearchParams({ sql }).toString(),
     });
+  } catch (e) {
+    throw new EgsUnreachable(e);
   } finally {
     clearTimeout(timer);
   }
+  if (res.status >= 500 || res.status === 0) throw new EgsUnreachable(`HTTP ${res.status}`);
   if (!res.ok) throw new Error(`EGS HTTP ${res.status}`);
   const html = await res.text();
   return parseHtmlTable(html);
@@ -269,12 +287,10 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
     WHERE g.id = ${id}
     LIMIT 1
   `;
-  let row: Record<string, string | null> | null = null;
-  try {
-    row = await fetchOne(sql);
-  } catch {
-    row = null;
-  }
+  // fetchOne re-throws EgsUnreachable so the caller can preserve a
+  // previously-good match instead of overwriting with a "no match" placeholder.
+  // A successful query that returns 0 rows is the only path that returns null.
+  const row = await fetchOne(sql);
   if (!row) {
     writeCache(cacheK, null, 6 * 3600 * 1000);
     return null;
@@ -286,10 +302,9 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
     ? row.banner_url
     : buildImageUrl(id);
 
-  // Description: pull the top-scored user long-comment so we have *something*
-  // to display next to VNDB's synopsis. Stays optional — if EGS has no
-  // long-form comment for this game, description stays null and VNDB wins.
-  const description = await fetchTopLongComment(id);
+  // EGS has no structured synopsis. We used to surface a top user comment as a
+  // stand-in but the result was misleading (single user opinion ≠ synopsis), so
+  // it's been dropped. EGS-side data is just scores, brand, genre, playtime.
   const playMin = await fetchEgsPlaytimeMedian(id);
 
   const game: EgsGame = {
@@ -299,7 +314,7 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
     brand_id: toNumber(row.brand_fk_id ?? undefined),
     brand_name: row.brand_name ?? null,
     model: row.model ?? null,
-    description,
+    description: null,
     image_url,
     okazu: toBool(row.okazu ?? undefined),
     erogame: toBool(row.erogame ?? undefined),
@@ -328,38 +343,6 @@ function egsHoursToMinutes(v: string | null | undefined): number | null {
   const n = toNumber(v ?? undefined);
   if (n == null) return null;
   return Math.round(n * 60);
-}
-
-/**
- * Top user short-comment for a game. EGS doesn't expose a structured synopsis,
- * so we surface the highest-scored user `hitokoto` (one-liner) as the EGS
- * "description" stand-in. Picks the top scorer's text so it reads like a
- * curated blurb rather than a random opinion.
- *
- * Schema notes (verified against the live DB):
- *   - userreview.game is the FK to gamelist.id — `id` is the userreview PK,
- *     filtering on it returns at most one (wrong) row.
- *   - text column is `hitokoto` ("a few words"), not `long_comment`.
- *   - score column is `tokuten`, not `point`.
- *   - `memo` and `outline` exist but are almost always NULL in practice;
- *     `hitokoto` is what's surfaced on the public game page.
- */
-async function fetchTopLongComment(gameId: number): Promise<string | null> {
-  const sql = `
-    SELECT hitokoto FROM userreview
-    WHERE game = ${gameId} AND hitokoto IS NOT NULL AND hitokoto <> ''
-    ORDER BY tokuten DESC NULLS LAST LIMIT 1
-  `;
-  let rows: string[][];
-  try {
-    rows = await fetchTable(sql);
-  } catch {
-    return null;
-  }
-  if (rows.length < 2) return null;
-  const value = rows[1][0]?.trim();
-  if (!value) return null;
-  return value.length > 4000 ? `${value.slice(0, 4000).trimEnd()}…` : value;
 }
 
 async function fetchEgsPlaytimeMedian(gameId: number): Promise<number | null> {
@@ -510,26 +493,47 @@ export async function resolveEgsForVn(
 
   let game: EgsGame | null = null;
   let source: 'extlink' | 'search' | null = null;
+  let unreachable = false;
   if (egsId != null) {
-    // Bypass the per-EGS-id cache too when force is set, so users can re-pull
-    // data after EGS publishes updates (median changed, new playtime entries,
-    // newly added trailer URL, etc.).
-    game = await fetchEgsGame(egsId, { force });
-    if (game) source = 'extlink';
+    try {
+      // Bypass the per-EGS-id cache too when force is set, so users can re-pull
+      // data after EGS publishes updates (median changed, new playtime entries,
+      // newly added trailer URL, etc.).
+      game = await fetchEgsGame(egsId, { force });
+      if (game) source = 'extlink';
+    } catch (e) {
+      if (e instanceof EgsUnreachable) unreachable = true;
+      else throw e;
+    }
   }
-  if (!game && allowSearch) {
+  if (!game && !unreachable && allowSearch) {
     const item = getCollectionItem(vnId);
     const probe = item?.alttitle?.trim() || item?.title?.trim();
     if (probe) {
-      game = await searchEgsByName(probe, { force });
-      if (game) source = 'search';
+      try {
+        game = await searchEgsByName(probe, { force });
+        if (game) source = 'search';
+      } catch (e) {
+        if (e instanceof EgsUnreachable) unreachable = true;
+        else throw e;
+      }
     }
   }
 
   if (game && source) {
     persistGame(vnId, game, source);
+  } else if (unreachable) {
+    // EGS itself is offline — keep whatever match we already had so a
+    // transient outage during "Full re-download" doesn't wipe the user's
+    // accumulated EGS scores / playtime / brand. "manual" links map to
+    // "extlink" externally to keep the surfaced source narrow.
+    const fallbackSource: 'extlink' | 'search' | null = cached?.source === 'manual'
+      ? 'extlink'
+      : cached?.source ?? null;
+    return { game: cached ? rowToGame(cached) : null, source: fallbackSource };
   } else {
-    // Store a negative result so we don't retry every page view.
+    // Lookup succeeded but EGS has no data for this VN — persist the negative
+    // so we don't retry on every page view.
     persistNoMatch(vnId);
   }
   return { game, source };
@@ -565,12 +569,8 @@ export async function searchEgsByName(query: string, opts: { force?: boolean } =
     ORDER BY (count2 IS NULL), count2 DESC
     LIMIT 1
   `;
-  let rows: string[][];
-  try {
-    rows = await fetchTable(sql);
-  } catch {
-    return null;
-  }
+  // Re-throw EgsUnreachable so resolveEgsForVn can preserve a prior match.
+  const rows = await fetchTable(sql);
   if (rows.length < 2) {
     writeCache(cacheK, null, 6 * 3600 * 1000);
     return null;
@@ -605,12 +605,9 @@ export async function searchEgsCandidates(query: string, limit = 20): Promise<Eg
     ORDER BY (count2 IS NULL), count2 DESC
     LIMIT ${safeLimit}
   `;
-  let rows: string[][];
-  try {
-    rows = await fetchTable(sql);
-  } catch {
-    return [];
-  }
+  // Let EgsUnreachable propagate to the route handler so the user sees a real
+  // error instead of an empty list (which masquerades as "no results").
+  const rows = await fetchTable(sql);
   if (rows.length < 2) {
     writeCache(cacheK, [], 6 * 3600 * 1000);
     return [];

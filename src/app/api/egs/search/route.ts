@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchEgsCandidates } from '@/lib/erogamescape';
+import { EgsUnreachable, searchEgsCandidates } from '@/lib/erogamescape';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -15,6 +15,12 @@ export async function GET(req: NextRequest) {
     const candidates = await searchEgsCandidates(q, limit);
     return NextResponse.json({ candidates });
   } catch (e) {
+    if (e instanceof EgsUnreachable) {
+      return NextResponse.json(
+        { error: 'ErogameScape est injoignable pour le moment — réessaie dans quelques minutes.', candidates: [] },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }
 }
