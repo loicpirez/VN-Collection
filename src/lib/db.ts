@@ -1208,6 +1208,52 @@ export function setQuotesForVn(
  * Pick a random quote from the user's own collection. Pure SQL — no VNDB call.
  * Returns `null` when no quotes are cached yet (collection has zero quote-bearing VNs).
  */
+export interface QuoteWithVn {
+  quote_id: string;
+  vn_id: string;
+  vn_title: string;
+  quote: string;
+  score: number;
+  character_id: string | null;
+  character_name: string | null;
+}
+
+/**
+ * Cross-VN quotes feed — every quote we've cached for VNs in the user's
+ * collection, ordered by score then VN title. `q` is an optional case-
+ * insensitive substring filter applied to the quote text or character
+ * name.
+ */
+export function listAllQuotes(q?: string, limit = 200): QuoteWithVn[] {
+  const trimmed = q?.trim() ?? '';
+  if (!trimmed) {
+    return db
+      .prepare(`
+        SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
+               q.character_id, q.character_name
+        FROM vn_quote q
+        JOIN collection c ON c.vn_id = q.vn_id
+        JOIN vn v ON v.id = q.vn_id
+        ORDER BY q.score DESC, v.title COLLATE NOCASE ASC
+        LIMIT ?
+      `)
+      .all(limit) as QuoteWithVn[];
+  }
+  const like = `%${trimmed.replace(/[%_]/g, '\\$&')}%`;
+  return db
+    .prepare(`
+      SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
+             q.character_id, q.character_name
+      FROM vn_quote q
+      JOIN collection c ON c.vn_id = q.vn_id
+      JOIN vn v ON v.id = q.vn_id
+      WHERE q.quote LIKE ? ESCAPE '\\' OR q.character_name LIKE ? ESCAPE '\\'
+      ORDER BY q.score DESC, v.title COLLATE NOCASE ASC
+      LIMIT ?
+    `)
+    .all(like, like, limit) as QuoteWithVn[];
+}
+
 export function getRandomLocalQuote(): LocalQuote | null {
   const row = db
     .prepare(`
