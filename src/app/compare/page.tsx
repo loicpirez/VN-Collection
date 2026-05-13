@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { ArrowLeft, GitCompare, Star } from 'lucide-react';
-import { getCollectionItem } from '@/lib/db';
+import { ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-react';
+import { db, getCollectionItem } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { LangList } from '@/components/LangFlag';
@@ -33,6 +33,85 @@ function intersection<T>(sets: Set<T>[]): Set<T> {
   return out;
 }
 
+interface SharedVa {
+  sid: string;
+  va_name: string;
+  va_original: string | null;
+  characters: { vn_id: string; c_id: string; c_name: string }[];
+}
+
+/**
+ * Voice actors with credits on every VN in the input list. Each entry
+ * carries the character voiced per VN so the panel can show "X voiced Y
+ * in A and Z in B" — useful for spotting recasts or shared cast.
+ */
+function findSharedVas(vnIds: string[]): SharedVa[] {
+  if (vnIds.length < 2) return [];
+  const placeholders = vnIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(`
+      SELECT vn_id, sid, va_name, va_original, c_id, c_name
+      FROM vn_va_credit
+      WHERE vn_id IN (${placeholders})
+    `)
+    .all(...vnIds) as Array<{
+      vn_id: string;
+      sid: string;
+      va_name: string;
+      va_original: string | null;
+      c_id: string;
+      c_name: string;
+    }>;
+  const bySid = new Map<string, { vnIds: Set<string>; entry: SharedVa }>();
+  for (const r of rows) {
+    let bucket = bySid.get(r.sid);
+    if (!bucket) {
+      bucket = {
+        vnIds: new Set(),
+        entry: { sid: r.sid, va_name: r.va_name, va_original: r.va_original, characters: [] },
+      };
+      bySid.set(r.sid, bucket);
+    }
+    bucket.vnIds.add(r.vn_id);
+    bucket.entry.characters.push({ vn_id: r.vn_id, c_id: r.c_id, c_name: r.c_name });
+  }
+  return Array.from(bySid.values())
+    .filter((b) => b.vnIds.size === vnIds.length)
+    .map((b) => b.entry)
+    .sort((a, b) => b.characters.length - a.characters.length);
+}
+
+interface SharedCharacter {
+  c_id: string;
+  c_name: string;
+  per_vn: { vn_id: string; va_name: string }[];
+}
+
+/** Characters appearing in every VN (cross-VN appearances are rare — recurring side characters / mascots). */
+function findSharedCharacters(vnIds: string[]): SharedCharacter[] {
+  if (vnIds.length < 2) return [];
+  const placeholders = vnIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(`
+      SELECT vn_id, c_id, c_name, va_name FROM vn_va_credit
+      WHERE vn_id IN (${placeholders})
+    `)
+    .all(...vnIds) as Array<{ vn_id: string; c_id: string; c_name: string; va_name: string }>;
+  const byChar = new Map<string, { vnIds: Set<string>; entry: SharedCharacter }>();
+  for (const r of rows) {
+    let bucket = byChar.get(r.c_id);
+    if (!bucket) {
+      bucket = { vnIds: new Set(), entry: { c_id: r.c_id, c_name: r.c_name, per_vn: [] } };
+      byChar.set(r.c_id, bucket);
+    }
+    bucket.vnIds.add(r.vn_id);
+    bucket.entry.per_vn.push({ vn_id: r.vn_id, va_name: r.va_name });
+  }
+  return Array.from(byChar.values())
+    .filter((b) => b.vnIds.size === vnIds.length)
+    .map((b) => b.entry);
+}
+
 export default async function ComparePage({
   searchParams,
 }: {
@@ -58,6 +137,29 @@ export default async function ComparePage({
   const staffSets = items.map((it) => new Set((it.staff ?? []).map((s) => s.id)));
   const sharedStaffIds = intersection(staffSets);
 
+  // Map shared staff ids → display data (name + role for the first VN that has them).
+  const sharedStaff = items[0]?.staff?.filter((s) => sharedStaffIds.has(s.id)) ?? [];
+  const sharedTagsWithNames = items[0]?.tags?.filter((tg) => sharedTagIds.has(tg.id) && tg.spoiler === 0) ?? [];
+  const sharedVas = findSharedVas(items.map((it) => it.id));
+  const sharedCharacters = findSharedCharacters(items.map((it) => it.id));
+
+  // Similarity score — naive but useful: weighted overlap ratio across tags
+  // / staff / devs / langs / plats. Tags carry more signal than platforms,
+  // so they're weighted accordingly.
+  function ratio(shared: number, union: Set<string | number>[]): number {
+    const u = new Set<string | number>();
+    for (const s of union) for (const v of s) u.add(v);
+    return u.size === 0 ? 0 : shared / u.size;
+  }
+  const similarityScore = Math.round(
+    100 *
+      (0.4 * ratio(sharedTagIds.size, tagSets) +
+        0.25 * ratio(sharedStaffIds.size, staffSets) +
+        0.15 * ratio(sharedDevs.size, devSets) +
+        0.1 * ratio(sharedLangs.size, langSets) +
+        0.1 * ratio(sharedPlats.size, platSets)),
+  );
+
   return (
     <div className="mx-auto max-w-7xl">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
@@ -70,6 +172,90 @@ export default async function ComparePage({
         </h1>
         <p className="mt-1 text-sm text-muted">{t.compareView.subtitle}</p>
       </header>
+
+      {items.length >= 2 && (
+        <section className="mb-6 rounded-2xl border border-accent/40 bg-accent/5 p-6">
+          <header className="mb-4 flex items-baseline justify-between gap-2">
+            <h2 className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-accent">
+              <Heart className="h-4 w-4" /> {t.compareView.common.title}
+            </h2>
+            <span className="text-xs text-muted">
+              {t.compareView.common.similarity}: <span className="font-bold text-accent">{similarityScore}%</span>
+            </span>
+          </header>
+          <div className="grid gap-3 text-xs sm:grid-cols-2">
+            <SharedFacet
+              label={t.compareView.shared.languages}
+              values={Array.from(sharedLangs).map((l) => l.toUpperCase())}
+            />
+            <SharedFacet
+              label={t.compareView.shared.platforms}
+              values={Array.from(sharedPlats)}
+            />
+            <SharedFacet
+              label={t.compareView.shared.developers}
+              values={Array.from(sharedDevs)}
+            />
+            <SharedFacet
+              label={t.compareView.common.staff}
+              values={sharedStaff.slice(0, 12).map((s) => `${s.name} (${s.role || '—'})`)}
+              extra={sharedStaff.length > 12 ? sharedStaff.length - 12 : null}
+            />
+          </div>
+          {sharedTagsWithNames.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-1 text-[11px] uppercase tracking-wider text-muted">
+                {t.compareView.common.tags} · {sharedTagsWithNames.length}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {sharedTagsWithNames.map((tg) => (
+                  <Link
+                    key={tg.id}
+                    href={`/tag/${tg.id}`}
+                    className="rounded bg-accent/20 px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/30"
+                  >
+                    {tg.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+          {sharedVas.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted">
+                <Sparkles className="h-3 w-3" /> {t.compareView.common.vas} · {sharedVas.length}
+              </p>
+              <ul className="space-y-0.5 text-[11px]">
+                {sharedVas.slice(0, 10).map((va) => (
+                  <li key={va.sid}>
+                    <Link href={`/staff/${va.sid}`} className="font-bold hover:text-accent">{va.va_name}</Link>
+                    <span className="ml-2 text-muted">
+                      {va.characters.slice(0, items.length).map((c) => c.c_name).join(' · ')}
+                    </span>
+                  </li>
+                ))}
+                {sharedVas.length > 10 && (
+                  <li className="text-muted">+{sharedVas.length - 10}</li>
+                )}
+              </ul>
+            </div>
+          )}
+          {sharedCharacters.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted">
+                <Users className="h-3 w-3" /> {t.compareView.common.characters} · {sharedCharacters.length}
+              </p>
+              <ul className="space-y-0.5 text-[11px]">
+                {sharedCharacters.slice(0, 10).map((c) => (
+                  <li key={c.c_id}>
+                    <Link href={`/character/${c.c_id}`} className="font-bold hover:text-accent">{c.c_name}</Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
 
       {items.length < 2 ? (
         <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">
@@ -209,41 +395,6 @@ export default async function ComparePage({
         </div>
       )}
 
-      {items.length >= 2 && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-5">
-          <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
-            {t.compareView.shared.title}
-          </h2>
-          <div className="grid gap-3 text-sm md:grid-cols-4">
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-muted">{t.compareView.shared.languages}</p>
-              <p className="font-semibold">
-                {sharedLangs.size > 0
-                  ? Array.from(sharedLangs).map((l) => l.toUpperCase()).join(', ')
-                  : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-muted">{t.compareView.shared.platforms}</p>
-              <p className="font-semibold">
-                {sharedPlats.size > 0 ? Array.from(sharedPlats).join(', ') : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-muted">{t.compareView.shared.developers}</p>
-              <p className="font-semibold">
-                {sharedDevs.size > 0 ? Array.from(sharedDevs).join(', ') : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-muted">{t.compareView.shared.tags}</p>
-              <p className="font-semibold">
-                {sharedTagIds.size} {t.compareView.shared.tagsSuffix}
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
     </div>
   );
 }
@@ -252,6 +403,24 @@ function CellHead({ label }: { label: string }) {
   return (
     <div className="sticky left-0 bg-bg-elev/60 p-3 text-[10px] font-bold uppercase tracking-wider text-muted">
       {label}
+    </div>
+  );
+}
+
+function SharedFacet({ label, values, extra }: { label: string; values: string[]; extra?: number | null }) {
+  return (
+    <div>
+      <p className="mb-1 text-[10px] uppercase tracking-wider text-muted">{label}</p>
+      {values.length === 0 ? (
+        <p className="text-muted">—</p>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {values.map((v) => (
+            <span key={v} className="rounded bg-accent/20 px-1.5 py-0.5 font-bold text-accent">{v}</span>
+          ))}
+          {extra ? <span className="text-muted">+{extra}</span> : null}
+        </div>
+      )}
     </div>
   );
 }

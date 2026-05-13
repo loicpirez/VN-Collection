@@ -1037,6 +1037,14 @@ export const dictionaries = {
         tags: 'Tags partagés',
         tagsSuffix: 'tags',
       },
+      common: {
+        title: 'Ce qu\'ils ont en commun',
+        similarity: 'Score de similarité',
+        staff: 'Équipe partagée',
+        tags: 'Tags partagés',
+        vas: 'Seiyuu en commun',
+        characters: 'Personnages partagés',
+      },
     },
     bulk: {
       cta: 'Tout télécharger',
@@ -2225,6 +2233,14 @@ export const dictionaries = {
         tags: 'Shared tags',
         tagsSuffix: 'tags',
       },
+      common: {
+        title: 'What they have in common',
+        similarity: 'Similarity score',
+        staff: 'Shared staff',
+        tags: 'Shared tags',
+        vas: 'Shared voice actors',
+        characters: 'Shared characters',
+      },
     },
     bulk: {
       cta: 'Download all',
@@ -3412,6 +3428,14 @@ export const dictionaries = {
         developers: 'ブランド',
         tags: '共通タグ',
         tagsSuffix: 'タグ',
+      },
+      common: {
+        title: '共通点まとめ',
+        similarity: '類似度',
+        staff: '共通スタッフ',
+        tags: '共通タグ',
+        vas: '共通声優',
+        characters: '共通キャラクター',
       },
     },
     bulk: {
