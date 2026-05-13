@@ -412,19 +412,6 @@ export async function getCharacter(id: string): Promise<VndbCharacter | null> {
 }
 
 /**
- * Pre-warm wrapper kept for the character fan-out — re-exports the same
- * VndbCharacter shape returned by getCharacter(). VNDB doesn't expose a
- * `voiced{}` sub-field on `/character`'s `vns[]`, so the previous "extended
- * payload" idea isn't possible from a single query. Cross-VN "Also voiced
- * by" is built from local vn_va_credit rows instead.
- */
-export type VndbCharacterWithVoiced = VndbCharacter;
-
-export async function getCharacterWithVoiced(id: string): Promise<VndbCharacterWithVoiced | null> {
-  return getCharacter(id);
-}
-
-/**
  * Returns the characters of a VN if (and only if) we have already fetched them
  * before. No network call is made — used for the "in my collection only" trait
  * aggregate. The body MUST stay in sync with `getCharactersForVn`.

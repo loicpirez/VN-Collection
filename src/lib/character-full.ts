@@ -1,6 +1,6 @@
 import 'server-only';
 import { db } from './db';
-import { getCharacterWithVoiced, type VndbCharacterWithVoiced } from './vndb';
+import { getCharacter, type VndbCharacter } from './vndb';
 import { finishJob, recordError, startJob, tickJob } from './download-status';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
@@ -17,7 +17,7 @@ const TTL_MS = 30 * 24 * 3600 * 1000;
  */
 
 export interface CharacterFullPayload {
-  profile: VndbCharacterWithVoiced | null;
+  profile: VndbCharacter | null;
   fetched_at: number;
 }
 
@@ -51,12 +51,12 @@ function writeCharacterFullCache(cid: string, payload: CharacterFullPayload): vo
 }
 
 /**
- * Pull the character profile + voice-cast-per-appearance from VNDB and
- * cache locally. Single VNDB call — the extended `voiced{}` sub-field
- * keeps payload compact.
+ * Pull the character profile from VNDB and cache locally. Same payload
+ * shape as getCharacter() — the cache exists to pre-warm /character/[id]
+ * after a VN download so the page paints instantly on first visit.
  */
 export async function downloadFullCharacterInfo(cid: string): Promise<CharacterFullPayload> {
-  const profile = await getCharacterWithVoiced(cid);
+  const profile = await getCharacter(cid);
   const payload: CharacterFullPayload = {
     profile,
     fetched_at: Date.now(),
