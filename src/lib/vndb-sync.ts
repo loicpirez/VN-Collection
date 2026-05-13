@@ -74,6 +74,13 @@ export async function pushStatusToVndb(
   return { ok: r.ok, status: r.status };
 }
 
+export interface PullChange {
+  vn_id: string;
+  title: string;
+  from: Status | null;
+  to: Status;
+}
+
 export interface PullResult {
   ok: boolean;
   needsAuth?: boolean;
@@ -81,6 +88,10 @@ export interface PullResult {
   updated: number;
   unchanged: number;
   skippedNotInCollection: number;
+  /** Per-VN before/after for every row that actually changed. */
+  changes: PullChange[];
+  /** Sample of VN ids on VNDB that aren't in the local collection (capped at 20). */
+  unmatched: { vn_id: string; status: Status }[];
   message?: string;
 }
 
@@ -122,6 +133,8 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
       updated: 0,
       unchanged: 0,
       skippedNotInCollection: 0,
+      changes: [],
+      unmatched: [],
       message: 'no vndb token',
     };
   }
@@ -143,6 +156,8 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
   let updated = 0;
   let unchanged = 0;
   let skipped = 0;
+  const changes: PullChange[] = [];
+  const unmatched: { vn_id: string; status: Status }[] = [];
   const scanned = Object.keys(labels).length;
   for (const [vnId, labelIds] of Object.entries(labels)) {
     const target = pickStatusFromLabels(labelIds);
@@ -153,13 +168,16 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
     const local = getCollectionItem(vnId);
     if (!local) {
       skipped += 1;
+      if (unmatched.length < 20) unmatched.push({ vn_id: vnId, status: target });
       continue;
     }
     if (local.status === target) {
       unchanged += 1;
       continue;
     }
+    const prev: Status | null = (local.status as Status | null) ?? null;
     updateCollection(vnId, { status: target });
+    changes.push({ vn_id: vnId, title: local.title ?? vnId, from: prev, to: target });
     updated += 1;
   }
 
@@ -169,6 +187,8 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
     updated,
     unchanged,
     skippedNotInCollection: skipped,
+    changes,
+    unmatched,
   };
 }
 

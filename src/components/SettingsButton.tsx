@@ -108,14 +108,21 @@ export function SettingsButton() {
   }
 
   const [pulling, setPulling] = useState(false);
+  interface PullDiff {
+    scanned: number;
+    updated: number;
+    unchanged: number;
+    skippedNotInCollection: number;
+    changes: { vn_id: string; title: string; from: string | null; to: string }[];
+    unmatched: { vn_id: string; status: string }[];
+  }
+  const [pullDiff, setPullDiff] = useState<PullDiff | null>(null);
   async function onPullStatuses() {
     setPulling(true);
     try {
       const r = await fetch('/api/vndb/pull-statuses', { method: 'POST' });
-      const data = (await r.json().catch(() => ({}))) as {
+      const data = (await r.json().catch(() => ({}))) as PullDiff & {
         ok?: boolean;
-        updated?: number;
-        scanned?: number;
         needsAuth?: boolean;
         message?: string;
       };
@@ -123,6 +130,14 @@ export function SettingsButton() {
         throw new Error(data.message ?? t.common.error);
       }
       toast.success(`${t.settings.vndbPullDone} (${data.updated ?? 0}/${data.scanned ?? 0})`);
+      setPullDiff({
+        scanned: data.scanned,
+        updated: data.updated,
+        unchanged: data.unchanged,
+        skippedNotInCollection: data.skippedNotInCollection,
+        changes: data.changes ?? [],
+        unmatched: data.unmatched ?? [],
+      });
       // Updated statuses changed local DB state — reload the surrounding
       // server component so card status badges reflect the new values.
       startTransition(() => router.refresh());
@@ -308,6 +323,48 @@ export function SettingsButton() {
                           {t.settings.vndbPullAction}
                         </button>
                       </div>
+                      {pullDiff && (
+                        <div className="mt-3 space-y-2 border-t border-border pt-3">
+                          <div className="text-[10px] text-muted">
+                            {t.settings.vndbPullDiffSummary
+                              .replace('{updated}', String(pullDiff.updated))
+                              .replace('{unchanged}', String(pullDiff.unchanged))
+                              .replace('{skipped}', String(pullDiff.skippedNotInCollection))
+                              .replace('{scanned}', String(pullDiff.scanned))}
+                          </div>
+                          {pullDiff.changes.length > 0 && (
+                            <ul className="max-h-48 space-y-0.5 overflow-y-auto">
+                              {pullDiff.changes.map((c) => (
+                                <li key={c.vn_id} className="flex items-center justify-between gap-2">
+                                  <a href={`/vn/${c.vn_id}`} target="_blank" rel="noopener noreferrer" className="truncate hover:text-accent">
+                                    {c.title}
+                                  </a>
+                                  <span className="shrink-0 text-[10px] text-muted">
+                                    {c.from ?? '—'} → <span className="text-accent">{c.to}</span>
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {pullDiff.unmatched.length > 0 && (
+                            <details className="text-[10px] text-muted">
+                              <summary className="cursor-pointer">
+                                {t.settings.vndbPullUnmatched.replace('{count}', String(pullDiff.unmatched.length))}
+                              </summary>
+                              <ul className="mt-1 space-y-0.5 pl-3">
+                                {pullDiff.unmatched.map((u) => (
+                                  <li key={u.vn_id}>
+                                    <a href={`/vn/${u.vn_id}`} target="_blank" rel="noopener noreferrer" className="hover:text-accent">
+                                      {u.vn_id}
+                                    </a>
+                                    <span className="ml-1">· {u.status}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
