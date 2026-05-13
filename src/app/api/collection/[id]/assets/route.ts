@@ -4,6 +4,7 @@ import { ensureLocalImagesForVn } from '@/lib/assets';
 import { EgsUnreachable, resolveEgsForVn } from '@/lib/erogamescape';
 import { refreshVn } from '@/lib/vndb';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
+import { downloadFullCharForVn } from '@/lib/character-full';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     // implies the user wants a thorough refetch.
     if (!isEgsOnly) {
       void downloadFullStaffForVn(id).catch(() => {});
+      void downloadFullCharForVn(id).catch(() => {});
     }
     // Force-refresh the EGS payload too — pulls every gamelist column, refreshes the
     // description / brand / median / playtime / image URL, and re-mirrors the cover

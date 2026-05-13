@@ -411,6 +411,40 @@ export async function getCharacter(id: string): Promise<VndbCharacter | null> {
 }
 
 /**
+ * Character payload extended with seiyuu (voice actor) credits per VN
+ * appearance. Used by the "Download full character info" path so the
+ * /character/[id] page can render the full "Also voiced by" panel without
+ * having to scan every owned VN's vn_va_credit row.
+ */
+export interface VndbCharacterWithVoiced extends Omit<VndbCharacter, 'vns'> {
+  vns: Array<{
+    id: string;
+    role: string;
+    spoiler: number;
+    title: string;
+    alttitle: string | null;
+    released: string | null;
+    image: { url: string; thumbnail: string | null; sexual: number | null } | null;
+    rating: number | null;
+    voiced: Array<{ aid: number | null; id: string; name: string; original: string | null; note: string | null }>;
+  }>;
+}
+
+const CHARACTER_FIELDS_FULL = [
+  ...CHARACTER_FIELDS.split(',').map((s) => s.trim()).filter((s) => !s.startsWith('vns{')),
+  'vns{id,role,spoiler,title,alttitle,released,image.url,image.thumbnail,image.sexual,rating,voiced{aid,id,name,original,note}}',
+].join(', ');
+
+export async function getCharacterWithVoiced(id: string): Promise<VndbCharacterWithVoiced | null> {
+  const r = await vndbPost<VndbResponse<VndbCharacterWithVoiced>>('/character', {
+    filters: ['id', '=', id],
+    fields: CHARACTER_FIELDS_FULL,
+    results: 1,
+  }, TTL.characterById);
+  return r.results[0] ?? null;
+}
+
+/**
  * Returns the characters of a VN if (and only if) we have already fetched them
  * before. No network call is made — used for the "in my collection only" trait
  * aggregate. The body MUST stay in sync with `getCharactersForVn`.
