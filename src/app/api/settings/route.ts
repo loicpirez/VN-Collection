@@ -9,9 +9,13 @@ const SAFE_KEYS = new Set([
   'random_quote_source',
   'default_sort',
   'vndb_writeback',
+  'vndb_backup_url',
+  'vndb_backup_enabled',
   'steam_api_key',
   'steam_id',
 ]);
+
+const DEFAULT_VNDB_BACKUP_URL = 'https://api.yorhel.org/kana';
 
 const VALID_SORTS = new Set([
   'updated_at',
@@ -42,6 +46,8 @@ export async function GET() {
     random_quote_source: getAppSetting('random_quote_source') ?? 'all',
     default_sort: getAppSetting('default_sort') ?? 'updated_at',
     vndb_writeback: getAppSetting('vndb_writeback') === '1',
+    vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
+    vndb_backup_url: getAppSetting('vndb_backup_url') ?? DEFAULT_VNDB_BACKUP_URL,
     steam_api_key: { hasKey: !!steamKey, preview: steamKey ? `…${steamKey.slice(-4)}` : null },
     steam_id: getAppSetting('steam_id') ?? '',
   });
@@ -85,6 +91,24 @@ export async function PATCH(req: NextRequest) {
   }
   if ('vndb_writeback' in body) {
     setAppSetting('vndb_writeback', body.vndb_writeback ? '1' : null);
+  }
+  if ('vndb_backup_enabled' in body) {
+    setAppSetting('vndb_backup_enabled', body.vndb_backup_enabled ? '1' : null);
+  }
+  if ('vndb_backup_url' in body) {
+    const v = body.vndb_backup_url;
+    if (v == null || v === '') {
+      setAppSetting('vndb_backup_url', null);
+    } else if (typeof v === 'string') {
+      const trimmed = v.trim();
+      if (!/^https?:\/\//i.test(trimmed) || trimmed.length > 300) {
+        return NextResponse.json({ error: 'vndb_backup_url must be a http(s) URL' }, { status: 400 });
+      }
+      // Strip trailing slash so concatenating `${base}${path}` always yields a single `/`.
+      setAppSetting('vndb_backup_url', trimmed.replace(/\/+$/, ''));
+    } else {
+      return NextResponse.json({ error: 'vndb_backup_url must be a string' }, { status: 400 });
+    }
   }
   if ('steam_api_key' in body) {
     const v = body.steam_api_key;

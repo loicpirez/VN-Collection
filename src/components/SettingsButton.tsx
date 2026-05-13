@@ -39,6 +39,8 @@ interface ServerSettings {
   random_quote_source: 'all' | 'mine';
   default_sort: SortKey;
   vndb_writeback?: boolean;
+  vndb_backup_enabled?: boolean;
+  vndb_backup_url?: string;
   steam_api_key?: { hasKey: boolean; preview: string | null };
   steam_id?: string;
 }
@@ -78,6 +80,8 @@ export function SettingsButton() {
       random_quote_source: 'all' | 'mine';
       default_sort: SortKey;
       vndb_writeback: boolean;
+      vndb_backup_enabled: boolean;
+      vndb_backup_url: string | null;
       steam_api_key: string | null;
       steam_id: string | null;
     }>,
@@ -306,6 +310,31 @@ export function SettingsButton() {
                       </div>
                     </div>
                   )}
+
+                  <label className="mt-4 flex items-start gap-2 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={!!server?.vndb_backup_enabled}
+                      onChange={(e) => saveServer({ vndb_backup_enabled: e.target.checked })}
+                      className="mt-0.5 h-4 w-4 accent-accent"
+                    />
+                    <span className="flex-1">
+                      <span className="font-bold">{t.settings.vndbBackupTitle}</span>
+                      <span className="block text-[10px] text-muted">{t.settings.vndbBackupDesc}</span>
+                      <input
+                        type="text"
+                        defaultValue={server?.vndb_backup_url ?? ''}
+                        placeholder="https://api.yorhel.org/kana"
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v !== (server?.vndb_backup_url ?? '')) {
+                            saveServer({ vndb_backup_url: v || null });
+                          }
+                        }}
+                        className="input mt-2 w-full"
+                      />
+                    </span>
+                  </label>
                 </div>
 
                 <div className="mt-6 border-t border-border pt-5">

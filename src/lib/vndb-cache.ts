@@ -3,11 +3,37 @@ import { createHash } from 'node:crypto';
 import {
   deleteCacheByPathPrefix,
   deleteCacheKey,
+  getAppSetting,
   getCacheRow,
   putCacheRow,
   touchCacheRow,
   type CacheRow,
 } from './db';
+
+const DEFAULT_BACKUP = 'https://api.yorhel.org/kana';
+const PRIMARY = 'https://api.vndb.org/kana';
+
+/**
+ * Returns the configured backup base URL when fallback is enabled, else null.
+ * Only consulted from doFetch() — write helpers (PATCH/DELETE /ulist) never
+ * fall back because the mirror is read-only and would 404 / refuse writes.
+ */
+function backupBase(): string | null {
+  if (getAppSetting('vndb_backup_enabled') !== '1') return null;
+  return (getAppSetting('vndb_backup_url') ?? DEFAULT_BACKUP).replace(/\/+$/, '');
+}
+
+/**
+ * Build the mirror URL by swapping the primary base when present. Returns
+ * null if the request doesn't look like a primary VNDB call (so we don't
+ * blindly re-issue, say, an EGS or Steam fetch against yorhel.org).
+ */
+function mirrorUrl(url: string): string | null {
+  const base = backupBase();
+  if (!base) return null;
+  if (!url.startsWith(PRIMARY)) return null;
+  return base + url.slice(PRIMARY.length);
+}
 
 export const TTL = {
   vnDetail: 24 * 60 * 60 * 1000,
@@ -99,6 +125,33 @@ export async function cachedFetch<T>(
 }
 
 async function doFetch<T>(
+  url: string,
+  init: RequestInit,
+  key: string,
+  ttlMs: number,
+  cached?: CacheRow | null,
+): Promise<FetchResult<T>> {
+  // Auth-bearing calls must hit the primary — the mirror is read-only and
+  // does not have the user's token / list data.
+  const isAuthed = !!new Headers(init.headers).get('Authorization');
+  const mirror = isAuthed ? null : mirrorUrl(url);
+
+  try {
+    return await fetchOnce<T>(url, init, key, ttlMs, cached);
+  } catch (err) {
+    if (!mirror) throw err;
+    // Try the mirror exactly once. If it also fails we surface the original
+    // error so the user sees the real reason (and so cached fallback still
+    // works inside cachedFetch's outer catch).
+    try {
+      return await fetchOnce<T>(mirror, init, key, ttlMs, cached);
+    } catch {
+      throw err;
+    }
+  }
+}
+
+async function fetchOnce<T>(
   url: string,
   init: RequestInit,
   key: string,
