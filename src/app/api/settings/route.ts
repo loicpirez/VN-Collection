@@ -14,6 +14,7 @@ const SAFE_KEYS = new Set([
   'steam_api_key',
   'steam_id',
   'egs_username',
+  'vndb_fanout',
 ]);
 
 const DEFAULT_VNDB_BACKUP_URL = 'https://api.yorhel.org/kana';
@@ -52,6 +53,7 @@ export async function GET() {
     steam_api_key: { hasKey: !!steamKey, preview: steamKey ? `…${steamKey.slice(-4)}` : null },
     steam_id: getAppSetting('steam_id') ?? '',
     egs_username: getAppSetting('egs_username') ?? '',
+    vndb_fanout: getAppSetting('vndb_fanout') !== '0',
   });
 }
 
@@ -111,6 +113,9 @@ export async function PATCH(req: NextRequest) {
     } else {
       return NextResponse.json({ error: 'vndb_backup_url must be a string' }, { status: 400 });
     }
+  }
+  if ('vndb_fanout' in body) {
+    setAppSetting('vndb_fanout', body.vndb_fanout === false ? '0' : null);
   }
   if ('steam_api_key' in body) {
     const v = body.steam_api_key;

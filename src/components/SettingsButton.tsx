@@ -41,6 +41,7 @@ interface ServerSettings {
   vndb_writeback?: boolean;
   vndb_backup_enabled?: boolean;
   vndb_backup_url?: string;
+  vndb_fanout?: boolean;
   steam_api_key?: { hasKey: boolean; preview: string | null };
   steam_id?: string;
 }
@@ -82,6 +83,7 @@ export function SettingsButton() {
       vndb_writeback: boolean;
       vndb_backup_enabled: boolean;
       vndb_backup_url: string | null;
+      vndb_fanout: boolean;
       steam_api_key: string | null;
       steam_id: string | null;
     }>,
@@ -390,6 +392,19 @@ export function SettingsButton() {
                         }}
                         className="input mt-2 w-full"
                       />
+                    </span>
+                  </label>
+
+                  <label className="mt-3 flex items-start gap-2 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={server?.vndb_fanout !== false}
+                      onChange={(e) => saveServer({ vndb_fanout: e.target.checked })}
+                      className="mt-0.5 h-4 w-4 accent-accent"
+                    />
+                    <span>
+                      <span className="font-bold">{t.settings.vndbFanoutTitle}</span>
+                      <span className="block text-[10px] text-muted">{t.settings.vndbFanoutDesc}</span>
                     </span>
                   </label>
                 </div>

@@ -81,7 +81,9 @@ export function DownloadStatusBar() {
     k in t.downloadStatus.kinds ? t.downloadStatus.kinds[k as keyof typeof t.downloadStatus.kinds] : k;
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 max-w-sm">
+    // QuoteFooter sits at bottom-0 and expands to ~112px on hover. Park the
+    // indicator above that band so it never gets covered.
+    <div className="fixed bottom-32 right-4 z-40 max-w-sm">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

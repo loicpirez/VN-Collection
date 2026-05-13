@@ -1,7 +1,11 @@
 import 'server-only';
-import { db } from './db';
+import { db, getAppSetting } from './db';
 import { getCharacter, type VndbCharacter } from './vndb';
 import { finishJob, recordError, startJob, tickJob } from './download-status';
+
+function fanoutEnabled(): boolean {
+  return getAppSetting('vndb_fanout') !== '0';
+}
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 const KEY_PREFIX = 'char_full:';
@@ -74,6 +78,7 @@ export async function downloadFullCharacterInfo(cid: string): Promise<CharacterF
  * when the user actually opens their page).
  */
 export async function downloadFullCharForVn(vnId: string): Promise<{ scanned: number; downloaded: number }> {
+  if (!fanoutEnabled()) return { scanned: 0, downloaded: 0 };
   const rows = db
     .prepare(`SELECT DISTINCT c_id FROM vn_va_credit WHERE vn_id = ?`)
     .all(vnId) as { c_id: string }[];
@@ -88,23 +93,17 @@ export async function downloadFullCharForVn(vnId: string): Promise<{ scanned: nu
   if (stale.length === 0) return { scanned: cids.length, downloaded: 0 };
   const job = startJob('characters', `Characters for ${vnId}`, stale.length, vnId);
 
-  const queue = [...stale];
   let downloaded = 0;
-  const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
-    while (queue.length > 0) {
-      const cid = queue.shift();
-      if (!cid) return;
-      try {
-        await downloadFullCharacterInfo(cid);
-        downloaded += 1;
-      } catch (e) {
-        recordError(job.id, cid, (e as Error).message);
-      } finally {
-        tickJob(job.id);
-      }
+  for (const cid of stale) {
+    try {
+      await downloadFullCharacterInfo(cid);
+      downloaded += 1;
+    } catch (e) {
+      recordError(job.id, cid, (e as Error).message);
+    } finally {
+      tickJob(job.id);
     }
-  });
-  await Promise.all(workers);
+  }
   finishJob(job.id);
   return { scanned: cids.length, downloaded };
 }

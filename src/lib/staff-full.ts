@@ -1,9 +1,14 @@
 import 'server-only';
-import { db } from './db';
+import { db, getAppSetting } from './db';
 import { fetchStaffVnList, fetchVaVnList, getStaff, type StaffVnCredit, type StaffVaCredit, type VndbStaff } from './vndb';
 import { finishJob, recordError, startJob, tickJob } from './download-status';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
+
+/** Read the user's auto-fan-out toggle. Default ON; '0' means disabled. */
+function fanoutEnabled(): boolean {
+  return getAppSetting('vndb_fanout') !== '0';
+}
 
 /**
  * Local cache of the "Download all from VNDB" payload for a staff/VA. Stored
@@ -90,6 +95,7 @@ export async function downloadFullStaffInfo(sid: string): Promise<StaffFullPaylo
  * second pass over the same VN is cheap.
  */
 export async function downloadFullStaffForVn(vnId: string): Promise<{ scanned: number; downloaded: number }> {
+  if (!fanoutEnabled()) return { scanned: 0, downloaded: 0 };
   const rows = db
     .prepare(`
       SELECT sid FROM vn_staff_credit WHERE vn_id = ?
@@ -108,25 +114,20 @@ export async function downloadFullStaffForVn(vnId: string): Promise<{ scanned: n
   if (stale.length === 0) return { scanned: sids.length, downloaded: 0 };
   const job = startJob('staff', `Staff for ${vnId}`, stale.length, vnId);
 
-  const queue = [...stale];
   let downloaded = 0;
-  const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
-    while (queue.length > 0) {
-      const sid = queue.shift();
-      if (!sid) return;
-      try {
-        await downloadFullStaffInfo(sid);
-        downloaded += 1;
-      } catch (e) {
-        // Errors are recorded on the job so the user can see what failed in
-        // the live progress UI — never swallowed silently.
-        recordError(job.id, sid, (e as Error).message);
-      } finally {
-        tickJob(job.id);
-      }
+  // Strictly sequential — the global vndb-throttle already caps everything
+  // at 1 req/sec, so internal concurrency just bloats the in-flight queue
+  // without speeding anything up.
+  for (const sid of stale) {
+    try {
+      await downloadFullStaffInfo(sid);
+      downloaded += 1;
+    } catch (e) {
+      recordError(job.id, sid, (e as Error).message);
+    } finally {
+      tickJob(job.id);
     }
-  });
-  await Promise.all(workers);
+  }
   finishJob(job.id);
   return { scanned: sids.length, downloaded };
 }

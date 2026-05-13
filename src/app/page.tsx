@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { LibraryClient } from '@/components/LibraryClient';
 import { RecentlyViewedStrip } from '@/components/RecentlyViewedStrip';
-import { RecentActivityStrip } from '@/components/RecentActivityStrip';
 import { AnniversaryFeed } from '@/components/AnniversaryFeed';
 import { ReadingQueueStrip } from '@/components/ReadingQueueStrip';
 
@@ -12,7 +11,6 @@ export default function HomePage() {
     <Suspense>
       <RecentlyViewedStrip />
       <ReadingQueueStrip />
-      <RecentActivityStrip />
       <AnniversaryFeed />
       <LibraryClient />
     </Suspense>
