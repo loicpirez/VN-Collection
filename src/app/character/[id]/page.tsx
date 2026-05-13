@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ExternalLink, Mic2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Mic2, Users } from 'lucide-react';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
-import { getVasForCharacter } from '@/lib/db';
+import { findCharacterSiblings, getVasForCharacter } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 
@@ -63,6 +63,10 @@ export default async function CharacterPage({ params }: { params: Promise<{ id: 
   // user has fetched). VNDB doesn't expose per-VN voiced data on the
   // character endpoint, so we don't try to cross-reference unowned VNs.
   const vas = getVasForCharacter(id);
+  // Other VNDB character records with the SAME display name — covers the
+  // case where VNDB editors split a recurring character (e.g. Aikiss 1's
+  // Saegusa Hinata at c11994 vs Aikiss 3's at c89053).
+  const siblings = findCharacterSiblings(id);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -109,6 +113,34 @@ export default async function CharacterPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
       </div>
+
+      {siblings.length > 0 && (
+        <section className="mt-6 rounded-xl border border-accent/30 bg-accent/5 p-4">
+          <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
+            <Users className="h-4 w-4" /> {t.characters.sameName}
+          </h3>
+          <p className="mb-3 text-[11px] text-muted">{t.characters.sameNameHint}</p>
+          <ul className="space-y-1.5 text-xs">
+            {siblings.map((s) => (
+              <li key={s.c_id} className="flex flex-wrap items-baseline gap-2">
+                <Link href={`/character/${s.c_id}`} className="font-bold hover:text-accent">
+                  {s.c_name}
+                </Link>
+                <span className="font-mono text-[10px] text-muted">{s.c_id}</span>
+                <span className="text-muted">·</span>
+                <span className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+                  {s.vns.map((v, i) => (
+                    <span key={v.vn_id}>
+                      <Link href={`/vn/${v.vn_id}`} className="hover:text-accent">{v.vn_title}</Link>
+                      {i < s.vns.length - 1 && <span className="text-muted">,</span>}
+                    </span>
+                  ))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {char.description && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
