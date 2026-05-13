@@ -13,6 +13,7 @@ const SAFE_KEYS = new Set([
   'vndb_backup_enabled',
   'steam_api_key',
   'steam_id',
+  'egs_username',
 ]);
 
 const DEFAULT_VNDB_BACKUP_URL = 'https://api.yorhel.org/kana';
@@ -50,6 +51,7 @@ export async function GET() {
     vndb_backup_url: getAppSetting('vndb_backup_url') ?? DEFAULT_VNDB_BACKUP_URL,
     steam_api_key: { hasKey: !!steamKey, preview: steamKey ? `…${steamKey.slice(-4)}` : null },
     steam_id: getAppSetting('steam_id') ?? '',
+    egs_username: getAppSetting('egs_username') ?? '',
   });
 }
 
@@ -128,6 +130,20 @@ export async function PATCH(req: NextRequest) {
       setAppSetting('steam_id', v.trim());
     } else {
       return NextResponse.json({ error: 'steam_id must be a 64-bit numeric SteamID' }, { status: 400 });
+    }
+  }
+  if ('egs_username' in body) {
+    const v = body.egs_username;
+    if (v == null || v === '') {
+      setAppSetting('egs_username', null);
+    } else if (typeof v === 'string') {
+      const trimmed = v.trim();
+      if (trimmed.length > 64 || /[\s'"\\]/.test(trimmed)) {
+        return NextResponse.json({ error: 'invalid EGS username' }, { status: 400 });
+      }
+      setAppSetting('egs_username', trimmed);
+    } else {
+      return NextResponse.json({ error: 'egs_username must be a string' }, { status: 400 });
     }
   }
   return NextResponse.json({ ok: true });

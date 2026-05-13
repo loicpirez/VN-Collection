@@ -676,6 +676,73 @@ export async function linkEgsToVn(vnId: string, egsId: number): Promise<EgsGame 
   return game;
 }
 
+/** One userreview row pulled from EGS for the configured username. */
+export interface EgsUserReviewRow {
+  egs_id: number;
+  gamename: string;
+  /** User's score on the 0-100 scale, null if they haven't voted. */
+  tokuten: number | null;
+  /** EGS stores playtime in HOURS — multiply by 60 to align with our minutes. */
+  total_play_time_hours: number | null;
+  start_date: string | null;
+  finish_date: string | null;
+  timestamp: string | null;
+}
+
+/**
+ * Every userreview entry for the given EGS username. Used by the EGS sync
+ * flow to project the user's hours and scores into the local collection.
+ * EGS's `uid` column is the URL-safe username; the user supplies it
+ * verbatim. Cached for 30 min — short window because the user usually
+ * triggers sync immediately after logging new playtime on EGS.
+ */
+export async function fetchEgsUserReviews(username: string): Promise<EgsUserReviewRow[]> {
+  const trimmed = username.trim();
+  if (!trimmed) return [];
+  const cacheK = cacheKey('user-reviews', trimmed.toLowerCase());
+  const cached = readCache<EgsUserReviewRow[]>(cacheK);
+  if (cached) return cached;
+
+  const escaped = trimmed.replace(/['%\\]/g, '');
+  const sql = `SELECT ur.game AS egs_id, ur.tokuten, ur.total_play_time, `
+    + `to_char(ur.start_date,'YYYY-MM-DD') AS start_date, `
+    + `to_char(ur.finish_date,'YYYY-MM-DD') AS finish_date, `
+    + `to_char(ur.timestamp,'YYYY-MM-DD') AS timestamp, `
+    + `g.gamename FROM userreview ur `
+    + `LEFT JOIN gamelist g ON g.id = ur.game `
+    + `WHERE ur.uid = '${escaped}' ORDER BY ur.timestamp DESC LIMIT 1000`;
+
+  let rows: string[][];
+  try {
+    rows = await fetchTable(sql);
+  } catch {
+    return [];
+  }
+  if (rows.length < 2) {
+    writeCache(cacheK, [], 30 * 60 * 1000);
+    return [];
+  }
+  const header = rows[0].map((h) => h.trim());
+  const idx = (n: string): number => header.indexOf(n);
+  const out: EgsUserReviewRow[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const id = toNumber(r[idx('egs_id')]);
+    if (id == null) continue;
+    out.push({
+      egs_id: id,
+      gamename: r[idx('gamename')] ?? '',
+      tokuten: toNumber(r[idx('tokuten')]),
+      total_play_time_hours: toNumber(r[idx('total_play_time')]),
+      start_date: r[idx('start_date')] || null,
+      finish_date: r[idx('finish_date')] || null,
+      timestamp: r[idx('timestamp')] || null,
+    });
+  }
+  writeCache(cacheK, out, 30 * 60 * 1000);
+  return out;
+}
+
 /** One row from EGS's anticipated-games list (期待されてるゲーム). */
 export interface EgsAnticipated {
   egs_id: number;

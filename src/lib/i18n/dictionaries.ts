@@ -799,6 +799,15 @@ export const dictionaries = {
         quote: 'Citation',
       },
     },
+    egsSync: {
+      title: 'Synchronisation EGS',
+      subtitle: 'Importer ton temps de jeu et tes notes depuis ErogameScape. Utile pour les VN japonais qui n\'ont pas de pendant Steam.',
+      usernamePlaceholder: 'Nom d\'utilisateur EGS (uid)',
+      compute: 'Calculer',
+      applySelected: 'Appliquer ({count})',
+      appliedSummary: 'Mises à jour appliquées',
+      needsConfig: 'Renseigne ton nom d\'utilisateur EGS d\'abord, puis sauvegarde.',
+    },
     steam: {
       title: 'Synchronisation Steam',
       subtitle: 'Importer le temps de jeu Steam — auto-détection via VNDB + assignation manuelle pour le reste.',
@@ -1946,6 +1955,15 @@ export const dictionaries = {
         quote: 'Quote',
       },
     },
+    egsSync: {
+      title: 'EGS sync',
+      subtitle: 'Pull your playtime and scores from ErogameScape. Especially useful for JP-only games not on Steam.',
+      usernamePlaceholder: 'EGS username (uid)',
+      compute: 'Compute',
+      applySelected: 'Apply ({count})',
+      appliedSummary: 'Updates applied',
+      needsConfig: 'Set your EGS username first, then save.',
+    },
     steam: {
       title: 'Steam sync',
       subtitle: 'Import Steam playtime — auto-detect via VNDB + manual assignment for the rest.',
@@ -3092,6 +3110,15 @@ export const dictionaries = {
         custom_description: 'マイあらすじ',
         quote: '名言',
       },
+    },
+    egsSync: {
+      title: 'EGS 同期',
+      subtitle: 'ErogameScape からプレイ時間と得点を取得します。Steam にない日本語ゲームに特に便利。',
+      usernamePlaceholder: 'EGS ユーザー名 (uid)',
+      compute: '計算',
+      applySelected: '適用（{count}）',
+      appliedSummary: '更新を適用しました',
+      needsConfig: 'まず EGS のユーザー名を入力して保存してください。',
     },
     steam: {
       title: 'Steam 同期',

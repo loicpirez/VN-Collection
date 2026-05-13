@@ -8,6 +8,7 @@ import { DataMaintenance } from '@/components/DataMaintenance';
 import { DropImport } from '@/components/DropImport';
 import { RunTourButton } from '@/components/RunTourButton';
 import { SteamSettingsBlock } from '@/components/SteamSettingsBlock';
+import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,6 +134,12 @@ export default async function DataPage() {
           🎮 {t.steam.open}
         </Link>
         <SteamSettingsBlock />
+      </section>
+
+      <section className="rounded-2xl border border-border bg-bg-card p-6">
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.egsSync.title}</h2>
+        <p className="mb-3 text-xs text-muted">{t.egsSync.subtitle}</p>
+        <EgsSyncBlock />
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-6">
