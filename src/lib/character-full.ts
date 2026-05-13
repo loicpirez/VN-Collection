@@ -1,6 +1,7 @@
 import 'server-only';
 import { db } from './db';
 import { getCharacterWithVoiced, type VndbCharacterWithVoiced } from './vndb';
+import { finishJob, recordError, startJob, tickJob } from './download-status';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 const KEY_PREFIX = 'char_full:';
@@ -84,6 +85,9 @@ export async function downloadFullCharForVn(vnId: string): Promise<{ scanned: nu
     return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
   });
 
+  if (stale.length === 0) return { scanned: cids.length, downloaded: 0 };
+  const job = startJob('characters', `Characters for ${vnId}`, stale.length, vnId);
+
   const queue = [...stale];
   let downloaded = 0;
   const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
@@ -93,12 +97,14 @@ export async function downloadFullCharForVn(vnId: string): Promise<{ scanned: nu
       try {
         await downloadFullCharacterInfo(cid);
         downloaded += 1;
-      } catch {
-        // Individual character failures are silent — next VN download
-        // re-queues them.
+      } catch (e) {
+        recordError(job.id, cid, (e as Error).message);
+      } finally {
+        tickJob(job.id);
       }
     }
   });
   await Promise.all(workers);
+  finishJob(job.id);
   return { scanned: cids.length, downloaded };
 }

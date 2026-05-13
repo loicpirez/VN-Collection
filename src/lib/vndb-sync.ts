@@ -2,6 +2,8 @@ import 'server-only';
 import type { Status } from './types';
 import { getCollectionItem, updateCollection } from './db';
 import { fetchUlistByLabel, getAuthInfo } from './vndb';
+import { throttledFetch } from './vndb-throttle';
+import { finishJob, recordError, startJob, tickJob } from './download-status';
 
 /**
  * Two-way sync between local status and VNDB list labels.
@@ -59,14 +61,14 @@ export async function pushStatusToVndb(
 
   if (status == null) {
     // Status cleared — full delete from list.
-    const r = await fetch(`https://api.vndb.org/kana/ulist/${vnId}`, {
+    const r = await throttledFetch(`https://api.vndb.org/kana/ulist/${vnId}`, {
       method: 'DELETE',
       headers: { Authorization: `Token ${token}` },
     });
     return { ok: r.ok, status: r.status };
   }
 
-  const r = await fetch(`https://api.vndb.org/kana/ulist/${vnId}`, {
+  const r = await throttledFetch(`https://api.vndb.org/kana/ulist/${vnId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Token ${token}` },
     body: JSON.stringify({ labels_set: labelsSet, labels_unset: labelsUnset }),
@@ -139,18 +141,24 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
     };
   }
 
+  const job = startJob('vndb-pull', `Pulling statuses for ${auth.username ?? auth.id}`, Object.values(VNDB_LABELS).length);
   // Accumulate status per vn id across all label queries, then resolve via
   // precedence at the end.
   const labels: Record<string, number[]> = {};
   for (const labelId of Object.values(VNDB_LABELS)) {
-    for (let page = 1; page <= 50; page++) {
-      const r = await fetchUlistByLabel(auth.id, labelId, { results: 100, page });
-      for (const entry of r.results) {
-        const ids = (labels[entry.id] ??= []);
-        for (const l of entry.labels) ids.push(l.id);
+    try {
+      for (let page = 1; page <= 50; page++) {
+        const r = await fetchUlistByLabel(auth.id, labelId, { results: 100, page });
+        for (const entry of r.results) {
+          const ids = (labels[entry.id] ??= []);
+          for (const l of entry.labels) ids.push(l.id);
+        }
+        if (!r.more) break;
       }
-      if (!r.more) break;
+    } catch (e) {
+      recordError(job.id, `label-${labelId}`, (e as Error).message);
     }
+    tickJob(job.id);
   }
 
   let updated = 0;
@@ -181,6 +189,7 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
     updated += 1;
   }
 
+  finishJob(job.id);
   return {
     ok: true,
     scanned,

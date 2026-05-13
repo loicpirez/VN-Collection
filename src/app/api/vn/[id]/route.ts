@@ -20,11 +20,18 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     if (!vn) return NextResponse.json({ error: 'not found' }, { status: 404 });
     upsertVn(vn);
     // Fire-and-forget: pull the full profile + credit history for every
-    // staff member / VA this VN credits. Cached 30 days so this is mostly
-    // a no-op on subsequent VN fetches. Failures are swallowed.
-    void downloadFullStaffForVn(vn.id).catch(() => {});
-    void downloadFullCharForVn(vn.id).catch(() => {});
-    void downloadFullProducerForVn(vn.id).catch(() => {});
+    // staff member / VA / developer this VN credits. Each fan-out
+    // registers a tracked job (see lib/download-status.ts) so progress
+    // and errors surface in the UI instead of vanishing silently.
+    void downloadFullStaffForVn(vn.id).catch((e) => {
+      console.error(`[vn:${vn.id}] staff fan-out failed:`, (e as Error).message);
+    });
+    void downloadFullCharForVn(vn.id).catch((e) => {
+      console.error(`[vn:${vn.id}] character fan-out failed:`, (e as Error).message);
+    });
+    void downloadFullProducerForVn(vn.id).catch((e) => {
+      console.error(`[vn:${vn.id}] producer fan-out failed:`, (e as Error).message);
+    });
     const item = getCollectionItem(vn.id);
     return NextResponse.json({ vn: item, in_collection: !!item?.status });
   } catch (err) {

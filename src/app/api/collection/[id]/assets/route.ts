@@ -34,9 +34,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     // staff and character pages are fully populated. `refresh` already
     // implies the user wants a thorough refetch.
     if (!isEgsOnly) {
-      void downloadFullStaffForVn(id).catch(() => {});
-      void downloadFullCharForVn(id).catch(() => {});
-      void downloadFullProducerForVn(id).catch(() => {});
+      void downloadFullStaffForVn(id).catch((e) => {
+        console.error(`[assets:${id}] staff fan-out failed:`, (e as Error).message);
+      });
+      void downloadFullCharForVn(id).catch((e) => {
+        console.error(`[assets:${id}] character fan-out failed:`, (e as Error).message);
+      });
+      void downloadFullProducerForVn(id).catch((e) => {
+        console.error(`[assets:${id}] producer fan-out failed:`, (e as Error).message);
+      });
     }
     // Force-refresh the EGS payload too — pulls every gamelist column, refreshes the
     // description / brand / median / playtime / image URL, and re-mirrors the cover

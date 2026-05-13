@@ -2,8 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Mic2 } from 'lucide-react';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
-import { getVasForCharacter, isInCollection } from '@/lib/db';
-import { readCharacterFullCache } from '@/lib/character-full';
+import { getVasForCharacter } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 
@@ -60,35 +59,10 @@ export default async function CharacterPage({ params }: { params: Promise<{ id: 
     (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9),
   );
   const visibleTraits = char.traits.filter((tr) => tr.spoiler === 0 && !tr.sexual);
-
-  // "Also voiced by" — start from local credit table (only owned VNs) and
-  // merge in any VAs the character-full cache reports for VNs the user
-  // doesn't own. The merge is keyed by staff id; cache rows that aren't
-  // already in the local result are appended with `in_collection: false`.
+  // "Also voiced by" comes from local vn_va_credit (covers every VN the
+  // user has fetched). VNDB doesn't expose per-VN voiced data on the
+  // character endpoint, so we don't try to cross-reference unowned VNs.
   const vas = getVasForCharacter(id);
-  const cached = readCharacterFullCache(id);
-  if (cached?.profile?.vns) {
-    const byVa = new Map(vas.map((v) => [v.sid, v]));
-    for (const vn of cached.profile.vns) {
-      for (const voiced of vn.voiced ?? []) {
-        if (!voiced.id) continue;
-        let entry = byVa.get(voiced.id);
-        if (!entry) {
-          entry = { sid: voiced.id, va_name: voiced.name, va_original: voiced.original, va_lang: null, vns: [] };
-          byVa.set(voiced.id, entry);
-          vas.push(entry);
-        }
-        if (!entry.vns.some((v) => v.id === vn.id)) {
-          entry.vns.push({
-            id: vn.id,
-            title: vn.title,
-            released: vn.released,
-            in_collection: isInCollection(vn.id),
-          });
-        }
-      }
-    }
-  }
 
   return (
     <div className="mx-auto max-w-5xl">

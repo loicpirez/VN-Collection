@@ -9,6 +9,7 @@ import {
   touchCacheRow,
   type CacheRow,
 } from './db';
+import { throttledFetch } from './vndb-throttle';
 
 const DEFAULT_BACKUP = 'https://api.yorhel.org/kana';
 const PRIMARY = 'https://api.vndb.org/kana';
@@ -162,7 +163,7 @@ async function fetchOnce<T>(
   if (cached?.etag) headers.set('If-None-Match', cached.etag);
   if (cached?.last_modified) headers.set('If-Modified-Since', cached.last_modified);
 
-  const res = await fetch(url, { ...init, headers, cache: 'no-store' });
+  const res = await throttledFetch(url, { ...init, headers, cache: 'no-store' });
   const now = Date.now();
 
   if (res.status === 304 && cached) {

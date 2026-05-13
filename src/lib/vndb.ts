@@ -1,5 +1,6 @@
 import 'server-only';
 import { cachedFetch, invalidateByPath, invalidateKey, readCachedJson, TTL } from './vndb-cache';
+import { throttledFetch } from './vndb-throttle';
 import type { Screenshot, VndbSearchHit } from './types';
 
 export const VNDB_API = 'https://api.vndb.org/kana';
@@ -411,37 +412,16 @@ export async function getCharacter(id: string): Promise<VndbCharacter | null> {
 }
 
 /**
- * Character payload extended with seiyuu (voice actor) credits per VN
- * appearance. Used by the "Download full character info" path so the
- * /character/[id] page can render the full "Also voiced by" panel without
- * having to scan every owned VN's vn_va_credit row.
+ * Pre-warm wrapper kept for the character fan-out — re-exports the same
+ * VndbCharacter shape returned by getCharacter(). VNDB doesn't expose a
+ * `voiced{}` sub-field on `/character`'s `vns[]`, so the previous "extended
+ * payload" idea isn't possible from a single query. Cross-VN "Also voiced
+ * by" is built from local vn_va_credit rows instead.
  */
-export interface VndbCharacterWithVoiced extends Omit<VndbCharacter, 'vns'> {
-  vns: Array<{
-    id: string;
-    role: string;
-    spoiler: number;
-    title: string;
-    alttitle: string | null;
-    released: string | null;
-    image: { url: string; thumbnail: string | null; sexual: number | null } | null;
-    rating: number | null;
-    voiced: Array<{ aid: number | null; id: string; name: string; original: string | null; note: string | null }>;
-  }>;
-}
-
-const CHARACTER_FIELDS_FULL = [
-  ...CHARACTER_FIELDS.split(',').map((s) => s.trim()).filter((s) => !s.startsWith('vns{')),
-  'vns{id,role,spoiler,title,alttitle,released,image.url,image.thumbnail,image.sexual,rating,voiced{aid,id,name,original,note}}',
-].join(', ');
+export type VndbCharacterWithVoiced = VndbCharacter;
 
 export async function getCharacterWithVoiced(id: string): Promise<VndbCharacterWithVoiced | null> {
-  const r = await vndbPost<VndbResponse<VndbCharacterWithVoiced>>('/character', {
-    filters: ['id', '=', id],
-    fields: CHARACTER_FIELDS_FULL,
-    results: 1,
-  }, TTL.characterById);
-  return r.results[0] ?? null;
+  return getCharacter(id);
 }
 
 /**
@@ -992,7 +972,7 @@ export async function removeFromVndbWishlist(vnId: string): Promise<{ ok: true }
   const token = readVndbToken();
   if (!token) return { needsAuth: true };
   if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
-  const res = await fetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
+  const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'PATCH',
     headers: authHeaders(),
     body: JSON.stringify({ labels_unset: [5] }),
@@ -1071,7 +1051,7 @@ export async function patchUlistEntry(vnId: string, patch: UlistPatch): Promise<
   const token = readVndbToken();
   if (!token) return { needsAuth: true };
   if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
-  const res = await fetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
+  const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'PATCH',
     headers: authHeaders(),
     body: JSON.stringify(patch),
@@ -1093,7 +1073,7 @@ export async function deleteUlistEntry(vnId: string): Promise<{ ok: true } | { n
   const token = readVndbToken();
   if (!token) return { needsAuth: true };
   if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
-  const res = await fetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
+  const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'DELETE',
     headers: authHeaders(),
   });

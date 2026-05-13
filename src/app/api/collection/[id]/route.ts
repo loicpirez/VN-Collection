@@ -111,9 +111,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       upsertVn(vn);
       // Pull every staff + VA's full profile so the credit pages aren't
       // half-empty after adding this VN. Fire-and-forget; cached 30 days.
-      void downloadFullStaffForVn(vn.id).catch(() => {});
-      void downloadFullCharForVn(vn.id).catch(() => {});
-      void downloadFullProducerForVn(vn.id).catch(() => {});
+      void downloadFullStaffForVn(vn.id).catch((e) => {
+        console.error(`[collection:${vn.id}] staff fan-out failed:`, (e as Error).message);
+      });
+      void downloadFullCharForVn(vn.id).catch((e) => {
+        console.error(`[collection:${vn.id}] character fan-out failed:`, (e as Error).message);
+      });
+      void downloadFullProducerForVn(vn.id).catch((e) => {
+        console.error(`[collection:${vn.id}] producer fan-out failed:`, (e as Error).message);
+      });
     } catch (err) {
       return NextResponse.json({ error: (err as Error).message }, { status: 502 });
     }

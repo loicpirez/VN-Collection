@@ -1,6 +1,7 @@
 import 'server-only';
 import { db } from './db';
 import { fetchProducerCompletion } from './producer-completion';
+import { finishJob, recordError, startJob, tickJob } from './download-status';
 
 /**
  * When a VN is downloaded, fan out to every developer credited on it and
@@ -28,6 +29,9 @@ export async function downloadFullProducerForVn(vnId: string): Promise<{ scanned
     new Set(devs.map((d) => d.id).filter((id): id is string => !!id && /^p\d+$/i.test(id))),
   );
 
+  if (pids.length === 0) return { scanned: 0, downloaded: 0 };
+  const job = startJob('producers', `Developers for ${vnId}`, pids.length, vnId);
+
   const queue = [...pids];
   let downloaded = 0;
   const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
@@ -37,12 +41,14 @@ export async function downloadFullProducerForVn(vnId: string): Promise<{ scanned
       try {
         await fetchProducerCompletion(pid);
         downloaded += 1;
-      } catch {
-        // Skip individual failures — cachedFetch returns stale on next try
-        // and the next VN download re-queues the producer.
+      } catch (e) {
+        recordError(job.id, pid, (e as Error).message);
+      } finally {
+        tickJob(job.id);
       }
     }
   });
   await Promise.all(workers);
+  finishJob(job.id);
   return { scanned: pids.length, downloaded };
 }

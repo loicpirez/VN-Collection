@@ -6,6 +6,7 @@ import './globals.css';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { TutorialTour } from '@/components/TutorialTour';
 import { GroupedNav } from '@/components/MoreNavMenu';
+import { DownloadStatusBar } from '@/components/DownloadStatusBar';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
 import { DisplaySettingsProvider, type DisplaySettings } from '@/lib/settings/client';
@@ -69,6 +70,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <QuoteFooter />
               <KeyboardShortcuts />
               <TutorialTour />
+              <DownloadStatusBar />
             </ToastProvider>
           </DisplaySettingsProvider>
         </I18nProvider>

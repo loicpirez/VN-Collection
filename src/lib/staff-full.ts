@@ -1,6 +1,7 @@
 import 'server-only';
 import { db } from './db';
 import { fetchStaffVnList, fetchVaVnList, getStaff, type StaffVnCredit, type StaffVaCredit, type VndbStaff } from './vndb';
+import { finishJob, recordError, startJob, tickJob } from './download-status';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -104,6 +105,9 @@ export async function downloadFullStaffForVn(vnId: string): Promise<{ scanned: n
     return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
   });
 
+  if (stale.length === 0) return { scanned: sids.length, downloaded: 0 };
+  const job = startJob('staff', `Staff for ${vnId}`, stale.length, vnId);
+
   const queue = [...stale];
   let downloaded = 0;
   const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
@@ -113,12 +117,16 @@ export async function downloadFullStaffForVn(vnId: string): Promise<{ scanned: n
       try {
         await downloadFullStaffInfo(sid);
         downloaded += 1;
-      } catch {
-        // Skip individual failures — the user can retry from /staff/[id]
-        // (or the next VN download will queue the same sid again).
+      } catch (e) {
+        // Errors are recorded on the job so the user can see what failed in
+        // the live progress UI — never swallowed silently.
+        recordError(job.id, sid, (e as Error).message);
+      } finally {
+        tickJob(job.id);
       }
     }
   });
   await Promise.all(workers);
+  finishJob(job.id);
   return { scanned: sids.length, downloaded };
 }

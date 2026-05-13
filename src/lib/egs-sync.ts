@@ -1,6 +1,7 @@
 import 'server-only';
 import { db, getAppSetting, updateCollection, type CollectionPatch } from './db';
 import { fetchEgsUserReviews } from './erogamescape';
+import { finishJob, recordError, startJob, tickJob } from './download-status';
 
 /**
  * EGS → local sync. Symmetric to the Steam sync flow: pull the user's
@@ -109,10 +110,15 @@ export async function computeEgsSuggestions(): Promise<{
 export async function applyEgsSuggestions(picks: string[]): Promise<{ applied: number }> {
   const { suggestions } = await computeEgsSuggestions();
   const byVn = new Map(suggestions.map((s) => [s.vn_id, s]));
+  const job = startJob('egs-sync', `Applying ${picks.length} EGS update(s)`, picks.length);
   let applied = 0;
   for (const vnId of picks) {
     const s = byVn.get(vnId);
-    if (!s) continue;
+    if (!s) {
+      recordError(job.id, vnId, 'suggestion not found');
+      tickJob(job.id);
+      continue;
+    }
     const patch: CollectionPatch = {};
     if (s.egs_minutes != null && s.egs_minutes > s.local_minutes) {
       patch.playtime_minutes = s.egs_minutes;
@@ -122,9 +128,18 @@ export async function applyEgsSuggestions(picks: string[]): Promise<{ applied: n
     }
     if (s.egs_start_date) patch.started_date = s.egs_start_date;
     if (s.egs_finish_date) patch.finished_date = s.egs_finish_date;
-    if (Object.keys(patch).length === 0) continue;
-    updateCollection(vnId, patch);
-    applied += 1;
+    if (Object.keys(patch).length === 0) {
+      tickJob(job.id);
+      continue;
+    }
+    try {
+      updateCollection(vnId, patch);
+      applied += 1;
+    } catch (e) {
+      recordError(job.id, vnId, (e as Error).message);
+    }
+    tickJob(job.id);
   }
+  finishJob(job.id);
   return { applied };
 }

@@ -1,0 +1,196 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, Cloud, CloudDownload, X } from 'lucide-react';
+import { useT } from '@/lib/i18n/client';
+
+interface JobError {
+  item: string;
+  message: string;
+}
+
+interface Job {
+  id: string;
+  kind: 'staff' | 'characters' | 'producers' | 'vndb-pull' | 'egs-sync' | 'vn-fetch';
+  vn_id: string | null;
+  label: string;
+  total: number;
+  done: number;
+  errors: JobError[];
+  started_at: number;
+  finished_at: number | null;
+}
+
+interface Snapshot {
+  throttle: { active: number; queued: number };
+  jobs: Job[];
+}
+
+/**
+ * Sticky bottom-right indicator showing every in-flight VNDB fan-out job
+ * plus the rate-limiter's current state (active / queued requests).
+ * Polls /api/download-status every 1.5s while jobs are running, every
+ * 10s otherwise. The popover lists every recent job with progress bars
+ * and inlines any errors — so failures are visible to the user instead
+ * of swallowed silently.
+ *
+ * Hidden entirely when no jobs are tracked and nothing is in flight.
+ */
+export function DownloadStatusBar() {
+  const t = useT();
+  const [data, setData] = useState<Snapshot | null>(null);
+  const [open, setOpen] = useState(false);
+  const [dismissedFinished, setDismissedFinished] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      if (!alive) return;
+      try {
+        const r = await fetch('/api/download-status', { cache: 'no-store' });
+        if (r.ok) {
+          const next = (await r.json()) as Snapshot;
+          if (alive) setData(next);
+        }
+      } catch {
+        // Network blips are fine, retry on the next tick.
+      }
+      if (!alive) return;
+      const active = data?.jobs.some((j) => j.finished_at == null) ?? false;
+      const delay = active || (data?.throttle.active ?? 0) > 0 ? 1500 : 10_000;
+      timer = setTimeout(tick, delay);
+    };
+    tick();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [data]);
+
+  const live = data?.jobs.filter((j) => j.finished_at == null) ?? [];
+  const visibleFinished = (data?.jobs.filter((j) => j.finished_at != null && !dismissedFinished.has(j.id)) ?? []).slice(0, 6);
+  const totalErrors = (data?.jobs ?? []).reduce((acc, j) => acc + j.errors.length, 0);
+  const activeReq = data?.throttle.active ?? 0;
+  const queuedReq = data?.throttle.queued ?? 0;
+  const hasAnything = live.length > 0 || visibleFinished.length > 0 || activeReq > 0;
+
+  if (!hasAnything) return null;
+
+  const labelKind = (k: Job['kind']): string =>
+    k in t.downloadStatus.kinds ? t.downloadStatus.kinds[k as keyof typeof t.downloadStatus.kinds] : k;
+
+  return (
+    <div className="fixed bottom-4 right-4 z-40 max-w-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`group flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold shadow-card transition-colors ${
+          live.length > 0
+            ? 'border-accent bg-accent/15 text-accent'
+            : totalErrors > 0
+              ? 'border-status-dropped/50 bg-status-dropped/10 text-status-dropped'
+              : 'border-border bg-bg-card text-muted hover:text-white'
+        }`}
+        aria-expanded={open}
+      >
+        {live.length > 0 ? (
+          <CloudDownload className="h-3.5 w-3.5 animate-pulse" />
+        ) : totalErrors > 0 ? (
+          <AlertTriangle className="h-3.5 w-3.5" />
+        ) : (
+          <Cloud className="h-3.5 w-3.5" />
+        )}
+        {live.length > 0
+          ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
+          : totalErrors > 0
+            ? t.downloadStatus.errorCount.replace('{n}', String(totalErrors))
+            : t.downloadStatus.idle}
+        {(activeReq > 0 || queuedReq > 0) && (
+          <span className="text-[10px] font-normal opacity-80">
+            · {activeReq}/{queuedReq}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute bottom-full right-0 mb-2 w-96 max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card">
+          <header className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-muted">
+              {t.downloadStatus.title}
+            </span>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded text-muted hover:text-white"
+              aria-label="close"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </header>
+          <p className="mb-3 text-[10px] text-muted">
+            {t.downloadStatus.throttleStats.replace('{active}', String(activeReq)).replace('{queued}', String(queuedReq))}
+          </p>
+          {[...live, ...visibleFinished].length === 0 && (
+            <p className="text-xs text-muted">{t.downloadStatus.empty}</p>
+          )}
+          <ul className="space-y-2">
+            {[...live, ...visibleFinished].map((j) => {
+              const pct = j.total === 0 ? 0 : Math.round((j.done / j.total) * 100);
+              const finished = j.finished_at != null;
+              return (
+                <li key={j.id} className="rounded-md border border-border bg-bg-elev/30 p-2">
+                  <div className="flex items-baseline justify-between gap-2 text-[11px]">
+                    <span className="truncate font-semibold">{labelKind(j.kind)} · {j.label}</span>
+                    <span className="shrink-0 text-[10px] text-muted">
+                      {j.done}/{j.total}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-bg-elev">
+                    <div
+                      className={`h-full transition-[width] ${
+                        finished
+                          ? j.errors.length > 0
+                            ? 'bg-status-dropped'
+                            : 'bg-status-completed'
+                          : 'bg-accent'
+                      }`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  {j.errors.length > 0 && (
+                    <ul className="mt-1.5 space-y-0.5 text-[10px] text-status-dropped">
+                      {j.errors.slice(0, 3).map((e, i) => (
+                        <li key={`${j.id}-err-${i}`} className="truncate">
+                          <AlertTriangle className="mr-1 inline-block h-2.5 w-2.5" />
+                          <span className="font-bold">{e.item}</span>: {e.message}
+                        </li>
+                      ))}
+                      {j.errors.length > 3 && (
+                        <li className="opacity-70">+{j.errors.length - 3}</li>
+                      )}
+                    </ul>
+                  )}
+                  {finished && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDismissedFinished((prev) => {
+                          const next = new Set(prev);
+                          next.add(j.id);
+                          return next;
+                        })
+                      }
+                      className="mt-1 text-[10px] text-muted hover:text-white"
+                    >
+                      {t.downloadStatus.dismiss}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
