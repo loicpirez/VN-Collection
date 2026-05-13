@@ -17,8 +17,8 @@ function fanoutEnabled(): boolean {
  * Fire-and-forget from `upsertVn` paths. 4-way concurrency cap matches the
  * staff + character fan-outs.
  */
-export async function downloadFullProducerForVn(vnId: string): Promise<{ scanned: number; downloaded: number }> {
-  if (!fanoutEnabled()) return { scanned: 0, downloaded: 0 };
+export async function downloadFullProducerForVn(vnId: string, opts: { force?: boolean } = {}): Promise<{ scanned: number; downloaded: number }> {
+  if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
   const row = db
     .prepare('SELECT developers FROM vn WHERE id = ?')
     .get(vnId) as { developers: string | null } | undefined;

@@ -94,8 +94,8 @@ export async function downloadFullStaffInfo(sid: string): Promise<StaffFullPaylo
  * staff already cached within the 30-day TTL are skipped instantly so a
  * second pass over the same VN is cheap.
  */
-export async function downloadFullStaffForVn(vnId: string): Promise<{ scanned: number; downloaded: number }> {
-  if (!fanoutEnabled()) return { scanned: 0, downloaded: 0 };
+export async function downloadFullStaffForVn(vnId: string, opts: { force?: boolean } = {}): Promise<{ scanned: number; downloaded: number }> {
+  if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
   const rows = db
     .prepare(`
       SELECT sid FROM vn_staff_credit WHERE vn_id = ?

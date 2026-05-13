@@ -77,8 +77,8 @@ export async function downloadFullCharacterInfo(cid: string): Promise<CharacterF
  * stay polite with VNDB. Non-voiced characters fall through (lazy-loaded
  * when the user actually opens their page).
  */
-export async function downloadFullCharForVn(vnId: string): Promise<{ scanned: number; downloaded: number }> {
-  if (!fanoutEnabled()) return { scanned: 0, downloaded: 0 };
+export async function downloadFullCharForVn(vnId: string, opts: { force?: boolean } = {}): Promise<{ scanned: number; downloaded: number }> {
+  if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
   const rows = db
     .prepare(`SELECT DISTINCT c_id FROM vn_va_credit WHERE vn_id = ?`)
     .all(vnId) as { c_id: string }[];
