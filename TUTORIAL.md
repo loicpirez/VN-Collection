@@ -84,6 +84,9 @@ Sections from top to bottom:
 8. **Series auto-suggest** if VNDB relations match in-collection VNs.
 9. **Cast / Staff / Routes / Activity log** — each its own section.
 10. **Releases & owned editions** — track physical / digital copies.
+    Each edition records location, box type, condition, price paid,
+    currency, **acquired date**, and **purchase place** (the store
+    name, URL, or second-hand seller — full provenance per copy).
 11. **Quotes section** at the bottom for VNDB-cached quotes.
 
 ---
@@ -155,6 +158,12 @@ Tabbed-style sections:
   or `.db` (full replace).
 - **Maintenance** — duplicates detector + stale-data wizard with
   per-row Refresh.
+- **Recent activity** — last 10 actions across the whole collection.
+- **Steam / EGS sync** — paste credentials, pull playtime + scores
+  into local rows. Sync shows up as a tracked job in the download bar.
+- **Selective full download** — checkbox picker with Select all /
+  Select none / Invert. Pick which VNs to fan-out staff /
+  characters / developers for. Rate-limited by the global throttle.
 - **QR labels** — `/labels` prints sticker-sheet QRs that link to each
   VN's detail page.
 - **Tour** — `Run the tour again` if you closed it.
@@ -242,7 +251,28 @@ hamburger sheet.
 
 ---
 
-## 14. Pop quiz — try these
+## 14. Download status + rate limiting
+
+The right-side pill at top-1/3 of the viewport is the **download
+status indicator**. It's hidden when idle and lights up when the app
+is fetching from VNDB:
+
+- **Active downloads count + queued count** on the badge.
+- Click to expand: per-job progress bars (Staff, Characters,
+  Developers, VNDB pull, EGS sync) with the current `done/total`
+  and per-item error lines when something fails.
+- **429 countdown** — when VNDB asks us to slow down, a banner
+  appears above the pill: "VNDB returned 429, retrying in Ns",
+  ticking every second until the retry fires.
+
+The global throttle (`lib/vndb-throttle.ts`) caps everything at
+1 req/s and honors VNDB's `Retry-After` header per request. You can
+queue 200 VNs into the selective full download without spamming the
+server — they just drain through the queue at the throttled pace.
+
+---
+
+## 15. Pop quiz — try these
 
 - Find a random Japanese-only VN you marked "Planning": chip filter
   Planning + Lang JP, then 🎲.

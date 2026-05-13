@@ -154,7 +154,8 @@ Custom cover overrides both VNDB and EGS posters.
 
 ### Owned editions ✅
 Track every physical / digital copy: location, edition label, box type,
-condition, price paid, currency, acquired date, photos.
+condition, price paid, currency, acquired date, **purchase place**
+(store name / URL / second-hand seller — full provenance), photos.
 
 ### Pomodoro timer ✅
 25-minute timer with a one-click "log to playtime". Adds an activity
@@ -374,6 +375,37 @@ Internals: `src/components/Skeleton.tsx` exports `SkeletonBlock`,
 `SkeletonCard`, `SkeletonCardGrid`, `SkeletonRows`, `SkeletonText`, and
 `SkeletonTable`. Server components with slow async fetches wrap them in
 `<Suspense>` (see `/upcoming` tabs and `/staff/[id]` extra credits).
+
+### Auto-recursive download (fan-out) ✅
+When a VN is added or re-fetched, the app fans out in the background to
+pull the full profile for every staff member, character, and developer
+it credits (cached 30 days). So `/staff/[id]` / `/character/[id]` /
+`/producer/[id]` open instantly with full data instead of waiting on a
+fresh VNDB roundtrip.
+
+Toggle in Settings → "Auto-download staff / characters / developers"
+(default ON). When OFF, fan-out helpers exit early and VN downloads stay
+fast.
+
+### Selective full download ✅
+On `/data`, a checkbox picker lists every VN in your collection with
+**Select all** / **Select none** / **Invert** + a text filter. Tick the
+VNs you want full data for and click "Run (N)" to queue the fan-out
+for that subset only. Bypasses the auto-fan-out toggle since the user
+is explicitly opting in. Drains through the global VNDB throttle so
+large selections stay rate-limit-safe.
+
+### VNDB rate limiter + 429 countdown ✅
+`lib/vndb-throttle.ts` enforces 1 req/s globally + 60 s window for soft
+circuit breaking. On 429 the failing request honors `Retry-After`
+(capped at 60 s) and retries up to twice. Other callers stay on the
+normal 1 req/s pace unless 3+ 429s pile up in 60 s.
+
+The right-side `DownloadStatusBar` indicator shows a live countdown
+banner whenever VNDB has asked us to wait — "VNDB returned 429,
+retrying in 12s" — so you can see exactly when the next attempt will
+fire. Same indicator surfaces per-job progress bars and per-item
+errors (no more silent failures).
 
 ---
 

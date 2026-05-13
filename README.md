@@ -24,8 +24,8 @@ ingested, cached locally, and can be combined or compared per-field.
 - **Per-edition inventory** — every `owned_release` row tracks location,
   physical location (multi-tag), box type, edition label, condition
   (sealed / new / opened / used / damaged), price paid + currency,
-  acquired date, dumped state, and notes — independently of the VN-level
-  status
+  acquired date, **purchase place** (store / URL / second-hand vendor),
+  dumped state, and notes — independently of the VN-level status
 - **Routes** — heroine / branch tracker with autocomplete from the VN's
   main / primary cast, completion checkboxes, and reorderable list
 - **Markdown notes** (GFM, tables, code blocks) for personal reviews
@@ -57,6 +57,26 @@ ingested, cached locally, and can be combined or compared per-field.
   (same `labels_unset:[5]` mechanism, other labels survive)
 - **VNDB token settable from the Settings panel** (stored locally in the
   SQLite app_setting table); `VNDB_TOKEN` env var stays the fallback
+- **Global rate limiter** — every outbound request goes through
+  `lib/vndb-throttle.ts`: 1 concurrent, 1 second minimum gap (~1 req/s
+  ceiling). When VNDB returns 429, the calling request honors
+  `Retry-After` (capped at 60 s) and retries up to twice. If 3+ 429s
+  pile up in any 60 s window, a soft 10 s pause is added to every
+  acquire so we slow the herd without freezing the queue.
+- **Auto-recursive download (opt-out)** — when a VN is added or
+  re-fetched, the app fans out in the background to pull the full
+  profile for every staff member, character, and developer it credits
+  (cached 30 days). Disable via Settings → "Auto-download staff /
+  characters / developers" if you want strict on-demand API usage.
+- **Selective full download** — `/data` carries a checkbox picker
+  listing every VN in your collection with select-all / select-none /
+  invert helpers. Tick the ones you want and click "Run (N)" to
+  trigger the fan-out for that subset, bypassing the auto-fan-out
+  toggle. Rate-limited by the global throttle.
+- **Live download status** — pinned indicator on the right side of
+  the viewport. Click for per-job progress bars, error lines, and a
+  visible countdown when VNDB is throttling us back (429 +
+  Retry-After).
 
 ### ErogameScape integration
 - Public SQL form at `sql_for_erogamer_form.php` — POSTs SQL, parses the

@@ -370,6 +370,33 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 - ETag / If-Modified-Since are sent opportunistically when the server set them.
   VNDB does not currently emit these headers, but the code is ready when they do.
 
+### VNDB rate-limiting (lib/vndb-throttle.ts) — read before adding any new fetch
+- **Every outbound api.vndb.org request must go through `throttledFetch`**
+  (wired by `cachedFetch` for POSTs, and by the direct ulist helpers in `vndb.ts`).
+  Calling raw `fetch()` against VNDB bypasses the limiter and can trigger 429s
+  that affect every other in-flight request.
+- Defaults: 1 concurrent slot, 1 s minimum gap, 2 retries on 429.
+- On 429 the **failing caller** sleeps `Retry-After` (capped at 60 s) and retries.
+  Other callers are unaffected unless 3+ 429s pile up in 60 s — then `acquire()`
+  adds a 10 s soft pause for new requests.
+- Live counters via `getVndbThrottleStats()` — surfaced on `/api/download-status`
+  and the bottom-right `DownloadStatusBar` indicator.
+
+### Fan-out (auto-recursive download) — staff-full / character-full / producer-full
+- When a VN is downloaded (3 paths: `GET /api/vn/[id]`, `POST /api/collection/[id]`,
+  `POST /api/collection/[id]/assets`), we fire 3 fire-and-forget jobs:
+  `downloadFullStaffForVn`, `downloadFullCharForVn`, `downloadFullProducerForVn`.
+- Each fan-out reads the VN's local credit table, finds entries missing from
+  the 30-day cache, and queues sequential VNDB fetches (rate-limited by the
+  global throttle).
+- **Failures are never silenced**. Each job ticks through `lib/download-status.ts`
+  (start/tick/finish) and records per-item errors. Surfaced in the UI via
+  `DownloadStatusBar`.
+- Setting `vndb_fanout = '0'` in `app_setting` (toggle in Settings → "Auto-download
+  staff / characters / developers") makes each helper return `{ scanned: 0,
+  downloaded: 0 }` early. Pass `{ force: true }` to bypass when the user has
+  explicitly opted in (e.g. `/data` selective full download).
+
 ### Adding a new field to a VN entry
 1. Add the column with `ensureColumn(db, 'vn' or 'collection', 'name', 'TYPE …')` in `open()`.
 2. Add it to `DbRow` interface and `rowToItem()`.
