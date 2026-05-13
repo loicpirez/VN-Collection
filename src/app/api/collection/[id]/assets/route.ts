@@ -5,6 +5,7 @@ import { EgsUnreachable, resolveEgsForVn } from '@/lib/erogamescape';
 import { refreshVn } from '@/lib/vndb';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
+import { downloadFullProducerForVn } from '@/lib/producer-full';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!isEgsOnly) {
       void downloadFullStaffForVn(id).catch(() => {});
       void downloadFullCharForVn(id).catch(() => {});
+      void downloadFullProducerForVn(id).catch(() => {});
     }
     // Force-refresh the EGS payload too — pulls every gamelist column, refreshes the
     // description / brand / median / playtime / image URL, and re-mirrors the cover

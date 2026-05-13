@@ -3,6 +3,7 @@ import { getVn } from '@/lib/vndb';
 import { getCollectionItem, upsertVn } from '@/lib/db';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
+import { downloadFullProducerForVn } from '@/lib/producer-full';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     // a no-op on subsequent VN fetches. Failures are swallowed.
     void downloadFullStaffForVn(vn.id).catch(() => {});
     void downloadFullCharForVn(vn.id).catch(() => {});
+    void downloadFullProducerForVn(vn.id).catch(() => {});
     const item = getCollectionItem(vn.id);
     return NextResponse.json({ vn: item, in_collection: !!item?.status });
   } catch (err) {
