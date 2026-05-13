@@ -2,28 +2,25 @@ import 'server-only';
 
 /**
  * Global rate limiter + circuit breaker for every outbound request to
- * api.vndb.org. Sized to keep the burstiest user action — adding a VN
- * which triggers staff + character + producer fan-out — well under
- * VNDB's documented "be reasonable, a few per second" guidance.
+ * api.vndb.org.
  *
- * Concretely:
- *   - 1 concurrent request at a time, 1 second min gap = 1 req/s ceiling.
- *   - 429 → exponential backoff: 2s, 4s, 8s, 16s, 32s (max 5 retries),
- *     respecting Retry-After when present.
- *   - Circuit breaker: if 3+ 429s land in any 60-second window, every
- *     new request waits a full 60 seconds before even acquiring a slot.
- *     This is the "we are clearly being rate-limited" fallback so we
- *     stop hammering and let the server recover.
+ * Design:
+ *   - 1 concurrent request at a time, 1 s min gap = 1 req/s ceiling.
+ *   - 429 → the **failing caller** sleeps Retry-After (capped at 60 s) and
+ *     retries. Up to MAX_RETRY=2 attempts then surface the error.
+ *   - Soft circuit breaker: if 3+ 429s pile up in a 60 s window, _other_
+ *     callers' acquire() picks up a small extra wait (SOFT_PAUSE_MS = 10 s)
+ *     so we slow the herd without stopping it. Single 429 doesn't trip
+ *     the circuit — Retry-After applies to that one request only.
  */
 
 const MAX_CONCURRENT = 1;
 const MIN_GAP_MS = 1_000;
 const MAX_RETRY = 2;
-const CIRCUIT_THRESHOLD = 1;
-// On a single 429, pause everything for 30s so the rate-limit window
-// fully drains before we even probe again.
+const MAX_RETRY_AFTER_MS = 60_000;
+const CIRCUIT_THRESHOLD = 3;
 const CIRCUIT_WINDOW_MS = 60_000;
-const CIRCUIT_PAUSE_MS = 30_000;
+const SOFT_PAUSE_MS = 10_000;
 
 let activeCount = 0;
 let lastStart = 0;
@@ -31,6 +28,8 @@ const waiters: Array<() => void> = [];
 
 /** Timestamps of recent 429 responses. Newer entries first. */
 const recent429s: number[] = [];
+/** Wall-clock deadline returned by the latest 429's Retry-After, for UI. */
+let lastRetryAfterUntil = 0;
 
 function trim429Window(): void {
   const cutoff = Date.now() - CIRCUIT_WINDOW_MS;
@@ -47,8 +46,10 @@ function circuitOpen(): boolean {
 function acquire(): Promise<void> {
   return new Promise((resolve) => {
     const tryStart = () => {
+      // Soft pause when the circuit is open. Affects new acquirers only —
+      // the in-flight retry has already paid its Retry-After sleep.
       if (circuitOpen()) {
-        setTimeout(tryStart, CIRCUIT_PAUSE_MS);
+        setTimeout(tryStart, SOFT_PAUSE_MS);
         return;
       }
       const now = Date.now();
@@ -78,9 +79,11 @@ function release(): void {
   if (next) setTimeout(next, 0);
 }
 
-function note429(): void {
-  recent429s.unshift(Date.now());
+function note429(retryAfterMs: number): void {
+  const now = Date.now();
+  recent429s.unshift(now);
   trim429Window();
+  lastRetryAfterUntil = Math.max(lastRetryAfterUntil, now + retryAfterMs);
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -89,8 +92,10 @@ async function sleep(ms: number): Promise<void> {
 
 /**
  * Wrap a fetch through the global throttle. Same signature as `fetch()`.
- * 429 responses are retried with exponential backoff and contribute to
- * the circuit-breaker counter; everything else is passed through.
+ * On 429 the calling request sleeps for Retry-After (capped 60s) and
+ * retries up to MAX_RETRY times. Other callers are unaffected unless 3+
+ * 429s arrive inside a 60s window, in which case acquire() adds a short
+ * soft pause.
  */
 export async function throttledFetch(url: string, init?: RequestInit): Promise<Response> {
   let attempt = 0;
@@ -104,14 +109,11 @@ export async function throttledFetch(url: string, init?: RequestInit): Promise<R
       release();
     }
     if (res.status === 429) {
-      note429();
-      if (attempt > MAX_RETRY) return res;
-      // Sleep for 30s (or Retry-After if VNDB suggested longer). The
-      // circuit-breaker is now open via note429(), so other in-flight
-      // callers wait too. After the sleep we probe and resume.
       const retryAfterHeader = res.headers.get('retry-after');
       const headerMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : 0;
-      const waitMs = Math.max(headerMs, CIRCUIT_PAUSE_MS);
+      const waitMs = Math.min(MAX_RETRY_AFTER_MS, Math.max(2_000, headerMs));
+      note429(waitMs);
+      if (attempt > MAX_RETRY) return res;
       await sleep(waitMs);
       continue;
     }
@@ -138,12 +140,15 @@ export function getVndbThrottleStats(): {
   queued: number;
   recent429s: number;
   circuitOpen: boolean;
+  retryAfterMs: number;
 } {
   trim429Window();
+  const remaining = Math.max(0, lastRetryAfterUntil - Date.now());
   return {
     active: activeCount,
     queued: waiters.length,
     recent429s: recent429s.length,
     circuitOpen: circuitOpen(),
+    retryAfterMs: remaining,
   };
 }

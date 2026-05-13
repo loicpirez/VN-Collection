@@ -21,7 +21,14 @@ interface Job {
 }
 
 interface Snapshot {
-  throttle: { active: number; queued: number };
+  throttle: {
+    active: number;
+    queued: number;
+    recent429s?: number;
+    circuitOpen?: boolean;
+    /** Server-provided ms-until-resume from the most recent Retry-After. */
+    retryAfterMs?: number;
+  };
   jobs: Job[];
 }
 
@@ -73,7 +80,25 @@ export function DownloadStatusBar() {
   const totalErrors = (data?.jobs ?? []).reduce((acc, j) => acc + j.errors.length, 0);
   const activeReq = data?.throttle.active ?? 0;
   const queuedReq = data?.throttle.queued ?? 0;
-  const hasAnything = live.length > 0 || visibleFinished.length > 0 || activeReq > 0;
+  // Server reports how long the most recent Retry-After still has to run.
+  // We tick a local 500ms timer so the countdown is smooth without
+  // hitting /api/download-status every 500ms.
+  const serverRetryAfterMs = data?.throttle.retryAfterMs ?? 0;
+  const [localRetryMs, setLocalRetryMs] = useState(serverRetryAfterMs);
+  useEffect(() => {
+    setLocalRetryMs(serverRetryAfterMs);
+    if (serverRetryAfterMs <= 0) return;
+    const start = Date.now();
+    const tick = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const remaining = Math.max(0, serverRetryAfterMs - elapsed);
+      setLocalRetryMs(remaining);
+      if (remaining <= 0) clearInterval(tick);
+    }, 500);
+    return () => clearInterval(tick);
+  }, [serverRetryAfterMs]);
+  const retryingNow = localRetryMs > 0;
+  const hasAnything = live.length > 0 || visibleFinished.length > 0 || activeReq > 0 || retryingNow;
 
   if (!hasAnything) return null;
 
@@ -81,33 +106,51 @@ export function DownloadStatusBar() {
     k in t.downloadStatus.kinds ? t.downloadStatus.kinds[k as keyof typeof t.downloadStatus.kinds] : k;
 
   return (
-    // QuoteFooter sits at bottom-0 and expands to ~112px on hover. Park the
-    // indicator above that band so it never gets covered.
-    <div className="fixed bottom-32 right-4 z-40 max-w-sm">
+    // Pinned to the right side of the viewport at 1/3 from the top. Keeps
+    // it well clear of the QuoteFooter (which lives at bottom-0 and grows
+    // on hover) and within the user's natural eye-line when working.
+    <div className="fixed right-4 top-1/3 z-40 flex max-w-sm flex-col items-end gap-2">
+      {retryingNow && (
+        <div className="rounded-md border border-status-on_hold/60 bg-status-on_hold/10 px-3 py-2 text-[11px] text-status-on_hold shadow-card">
+          <div className="flex items-center gap-1.5 font-bold">
+            <AlertTriangle className="h-3 w-3" />
+            {t.downloadStatus.retrying}
+          </div>
+          <div className="text-[10px] opacity-90">
+            {t.downloadStatus.retryCountdown.replace('{s}', String(Math.ceil(localRetryMs / 1000)))}
+          </div>
+        </div>
+      )}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={`group flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold shadow-card transition-colors ${
-          live.length > 0
-            ? 'border-accent bg-accent/15 text-accent'
-            : totalErrors > 0
-              ? 'border-status-dropped/50 bg-status-dropped/10 text-status-dropped'
-              : 'border-border bg-bg-card text-muted hover:text-white'
+          retryingNow
+            ? 'border-status-on_hold/60 bg-status-on_hold/15 text-status-on_hold'
+            : live.length > 0
+              ? 'border-accent bg-accent/15 text-accent'
+              : totalErrors > 0
+                ? 'border-status-dropped/50 bg-status-dropped/10 text-status-dropped'
+                : 'border-border bg-bg-card text-muted hover:text-white'
         }`}
         aria-expanded={open}
       >
-        {live.length > 0 ? (
+        {retryingNow ? (
+          <AlertTriangle className="h-3.5 w-3.5" />
+        ) : live.length > 0 ? (
           <CloudDownload className="h-3.5 w-3.5 animate-pulse" />
         ) : totalErrors > 0 ? (
           <AlertTriangle className="h-3.5 w-3.5" />
         ) : (
           <Cloud className="h-3.5 w-3.5" />
         )}
-        {live.length > 0
-          ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
-          : totalErrors > 0
-            ? t.downloadStatus.errorCount.replace('{n}', String(totalErrors))
-            : t.downloadStatus.idle}
+        {retryingNow
+          ? t.downloadStatus.waitingShort.replace('{s}', String(Math.ceil(localRetryMs / 1000)))
+          : live.length > 0
+            ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
+            : totalErrors > 0
+              ? t.downloadStatus.errorCount.replace('{n}', String(totalErrors))
+              : t.downloadStatus.idle}
         {(activeReq > 0 || queuedReq > 0) && (
           <span className="text-[10px] font-normal opacity-80">
             · {activeReq}/{queuedReq}
@@ -115,7 +158,7 @@ export function DownloadStatusBar() {
         )}
       </button>
       {open && (
-        <div className="absolute bottom-full right-0 mb-2 w-96 max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card">
+        <div className="absolute right-0 top-full mt-2 w-96 max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card">
           <header className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[11px] font-bold uppercase tracking-widest text-muted">
               {t.downloadStatus.title}
