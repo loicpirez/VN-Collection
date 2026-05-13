@@ -3,6 +3,7 @@ import { getCollectionItem, upsertVn } from '@/lib/db';
 import { ensureLocalImagesForVn } from '@/lib/assets';
 import { EgsUnreachable, resolveEgsForVn } from '@/lib/erogamescape';
 import { refreshVn } from '@/lib/vndb';
+import { downloadFullStaffForVn } from '@/lib/staff-full';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,6 +27,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (refresh && !isEgsOnly) {
       const fresh = await refreshVn(id);
       if (fresh) upsertVn(fresh);
+    }
+    // Bulk "Download all" path — also re-pull staff/VA profiles so the
+    // staff and character pages are fully populated. `refresh` already
+    // implies the user wants a thorough refetch.
+    if (!isEgsOnly) {
+      void downloadFullStaffForVn(id).catch(() => {});
     }
     // Force-refresh the EGS payload too — pulls every gamelist column, refreshes the
     // description / brand / median / playtime / image URL, and re-mirrors the cover

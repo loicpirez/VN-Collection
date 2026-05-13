@@ -15,6 +15,7 @@ import {
 } from '@/lib/db';
 import { getVn } from '@/lib/vndb';
 import { ensureLocalImagesForVn } from '@/lib/assets';
+import { downloadFullStaffForVn } from '@/lib/staff-full';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -106,6 +107,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       const vn = await getVn(id);
       if (!vn) return NextResponse.json({ error: 'VN not found' }, { status: 404 });
       upsertVn(vn);
+      // Pull every staff + VA's full profile so the credit pages aren't
+      // half-empty after adding this VN. Fire-and-forget; cached 30 days.
+      void downloadFullStaffForVn(vn.id).catch(() => {});
     } catch (err) {
       return NextResponse.json({ error: (err as Error).message }, { status: 502 });
     }

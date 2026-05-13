@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVn } from '@/lib/vndb';
 import { getCollectionItem, upsertVn } from '@/lib/db';
+import { downloadFullStaffForVn } from '@/lib/staff-full';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const vn = await getVn(id);
     if (!vn) return NextResponse.json({ error: 'not found' }, { status: 404 });
     upsertVn(vn);
+    // Fire-and-forget: pull the full profile + credit history for every
+    // staff member / VA this VN credits. Cached 30 days so this is mostly
+    // a no-op on subsequent VN fetches. Failures are swallowed.
+    void downloadFullStaffForVn(vn.id).catch(() => {});
     const item = getCollectionItem(vn.id);
     return NextResponse.json({ vn: item, in_collection: !!item?.status });
   } catch (err) {
