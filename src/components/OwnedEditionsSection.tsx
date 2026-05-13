@@ -40,6 +40,7 @@ interface OwnedEdition {
   price_paid: number | null;
   currency: string | null;
   acquired_date: string | null;
+  purchase_place: string | null;
   dumped: boolean;
   added_at: number;
 }
@@ -330,6 +331,9 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
       {edition.acquired_date && (
         <Field icon={<CalendarDays className="h-3 w-3" />} label={t.inventory.acquired} value={edition.acquired_date} />
       )}
+      {edition.purchase_place && (
+        <Field icon={<MapPin className="h-3 w-3" />} label={t.inventory.purchasePlace} value={edition.purchase_place} />
+      )}
       {edition.dumped && (
         <Field icon={<HardDriveDownload className="h-3 w-3" />} label={t.form.dumped} value="✓" valueClassName="text-accent" />
       )}
@@ -400,6 +404,7 @@ function EditionEditor({
   const [pricePaid, setPricePaid] = useState<string>(edition.price_paid != null ? String(edition.price_paid) : '');
   const [currency, setCurrency] = useState<string>(edition.currency ?? '');
   const [acquired, setAcquired] = useState<string>(edition.acquired_date ?? '');
+  const [purchasePlace, setPurchasePlace] = useState<string>(edition.purchase_place ?? '');
   const [dumped, setDumped] = useState<boolean>(edition.dumped);
   const [places, setPlaces] = useState<string[]>(edition.physical_location);
   const [notes, setNotes] = useState<string>(edition.notes ?? '');
@@ -415,6 +420,7 @@ function EditionEditor({
       price_paid: price,
       currency: currency.trim() ? currency.trim().toUpperCase() : null,
       acquired_date: acquired || null,
+      purchase_place: purchasePlace.trim() || null,
       dumped,
       physical_location: places,
       notes: notes || null,
@@ -490,6 +496,17 @@ function EditionEditor({
       <label className="flex flex-col gap-1">
         <span className="label">{t.inventory.acquired}</span>
         <DateInput value={acquired} onChange={setAcquired} ariaLabel={t.inventory.acquired} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="label">{t.inventory.purchasePlace}</span>
+        <input
+          type="text"
+          className="input"
+          value={purchasePlace}
+          onChange={(e) => setPurchasePlace(e.target.value)}
+          placeholder={t.inventory.purchasePlacePlaceholder}
+          maxLength={200}
+        />
       </label>
       <label className="flex items-start gap-2">
         <input

@@ -50,6 +50,12 @@ function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; e
     else if (typeof v === 'string') patch.acquired_date = v;
     else return { patch, error: 'invalid acquired_date' };
   }
+  if ('purchase_place' in body) {
+    const v = body.purchase_place;
+    if (v === null || v === '') patch.purchase_place = null;
+    else if (typeof v === 'string' && v.trim().length > 0) patch.purchase_place = v.trim().slice(0, 200);
+    else return { patch, error: 'invalid purchase_place' };
+  }
   if ('dumped' in body) patch.dumped = !!body.dumped;
   if ('physical_location' in body) {
     const v = body.physical_location;

@@ -301,6 +301,9 @@ function open(): Database.Database {
   ensureColumn(db, 'owned_release', 'price_paid', 'REAL');
   ensureColumn(db, 'owned_release', 'currency', 'TEXT');
   ensureColumn(db, 'owned_release', 'acquired_date', 'TEXT');
+  // Where the edition was purchased (store name, URL, second-hand source).
+  // Free text — pairs with `acquired_date` for full provenance.
+  ensureColumn(db, 'owned_release', 'purchase_place', 'TEXT');
   ensureColumn(db, 'owned_release', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
 
   // Richer EGS payload — added incrementally, all nullable so old rows are fine.
@@ -863,6 +866,68 @@ export interface CharacterVoiceCredit {
   va_original: string | null;
   va_lang: string | null;
   vns: { id: string; title: string; released: string | null; in_collection: boolean }[];
+}
+
+export interface CharacterSibling {
+  c_id: string;
+  c_name: string;
+  c_original: string | null;
+  c_image_url: string | null;
+  vns: { vn_id: string; vn_title: string }[];
+}
+
+/**
+ * Other character records (different c_id) that share the same display name
+ * as `charId`. VNDB tracks recurring cast inconsistently — sometimes one
+ * character id is reused across every VN in a series, sometimes each VN
+ * gets its own id for the same person (e.g. "Saegusa Hinata" in Ai Kiss 1
+ * vs Ai Kiss 3 might be c11994 + c89053). This surfaces those sibling
+ * pages so the user can navigate between them.
+ *
+ * Pulls from vn_va_credit (covers every owned VN's voice cast). Filters to
+ * names with at least 2 characters and excludes the original c_id.
+ */
+export function findCharacterSiblings(charId: string): CharacterSibling[] {
+  const me = db
+    .prepare('SELECT c_name, c_original FROM vn_va_credit WHERE c_id = ? LIMIT 1')
+    .get(charId) as { c_name: string; c_original: string | null } | undefined;
+  if (!me || !me.c_name || me.c_name.length < 2) return [];
+
+  const rows = db
+    .prepare(`
+      SELECT va.c_id, va.c_name, va.c_original, va.c_image_url, va.vn_id, v.title AS vn_title
+      FROM vn_va_credit va
+      JOIN vn v ON v.id = va.vn_id
+      WHERE va.c_name = ? AND va.c_id != ?
+      ORDER BY v.released DESC NULLS LAST
+    `)
+    .all(me.c_name, charId) as Array<{
+      c_id: string;
+      c_name: string;
+      c_original: string | null;
+      c_image_url: string | null;
+      vn_id: string;
+      vn_title: string;
+    }>;
+
+  const byChar = new Map<string, CharacterSibling>();
+  for (const r of rows) {
+    let entry = byChar.get(r.c_id);
+    if (!entry) {
+      entry = {
+        c_id: r.c_id,
+        c_name: r.c_name,
+        c_original: r.c_original,
+        c_image_url: r.c_image_url,
+        vns: [],
+      };
+      byChar.set(r.c_id, entry);
+    }
+    if (!entry.vns.some((v) => v.vn_id === r.vn_id)) {
+      entry.vns.push({ vn_id: r.vn_id, vn_title: r.vn_title });
+    }
+  }
+  return Array.from(byChar.values());
 }
 
 export function getVasForCharacter(charId: string): CharacterVoiceCredit[] {
@@ -2315,6 +2380,8 @@ export interface OwnedReleasePatch {
   price_paid?: number | null;
   currency?: string | null;
   acquired_date?: string | null;
+  /** Free-form: shop name, URL, second-hand vendor, etc. */
+  purchase_place?: string | null;
   dumped?: boolean;
 }
 
@@ -2334,9 +2401,10 @@ export function markReleaseOwned(
   db.prepare(`
     INSERT INTO owned_release (
       vn_id, release_id, notes, location, physical_location, box_type,
-      edition_label, condition, price_paid, currency, acquired_date, dumped, added_at
+      edition_label, condition, price_paid, currency, acquired_date,
+      purchase_place, dumped, added_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     vnId,
     releaseId,
@@ -2349,6 +2417,7 @@ export function markReleaseOwned(
     patch.price_paid ?? null,
     patch.currency ?? null,
     patch.acquired_date ?? null,
+    patch.purchase_place ?? null,
     patch.dumped ? 1 : 0,
     now,
   );
@@ -2371,6 +2440,7 @@ export function updateOwnedRelease(
     price_paid: (v) => v,
     currency: (v) => v,
     acquired_date: (v) => v,
+    purchase_place: (v) => v,
     dumped: (v) => (v ? 1 : 0),
   };
   for (const key of Object.keys(map) as (keyof typeof map)[]) {
