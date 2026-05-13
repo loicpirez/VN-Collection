@@ -1481,6 +1481,37 @@ export function listActivityForVn(vnId: string, limit = 50): ActivityEntry[] {
   }));
 }
 
+export interface RecentActivityEntry extends ActivityEntry {
+  title: string;
+}
+
+/**
+ * Last N activity rows across every VN — feeds the dashboard "what have I
+ * been doing lately" tile. Joins on `vn.title` so the UI can render the VN
+ * name without a second lookup per row.
+ */
+export function listRecentActivity(limit = 10): RecentActivityEntry[] {
+  const rows = db
+    .prepare(`
+      SELECT a.id, a.vn_id, a.kind, a.payload, a.occurred_at, v.title
+      FROM vn_activity a
+      LEFT JOIN vn v ON v.id = a.vn_id
+      ORDER BY a.occurred_at DESC, a.id DESC
+      LIMIT ?
+    `)
+    .all(limit) as Array<{
+      id: number; vn_id: string; kind: string; payload: string | null; occurred_at: number; title: string | null;
+    }>;
+  return rows.map((r) => ({
+    id: r.id,
+    vn_id: r.vn_id,
+    kind: r.kind as ActivityEntry['kind'],
+    payload: r.payload ? safeParseJson(r.payload) : null,
+    occurred_at: r.occurred_at,
+    title: r.title ?? r.vn_id,
+  }));
+}
+
 export function addManualActivity(vnId: string, text: string, occurredAt?: number): ActivityEntry {
   const ts = occurredAt ?? Date.now();
   const trimmed = text.trim().slice(0, 2000);
