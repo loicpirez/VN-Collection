@@ -92,7 +92,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
                   id: it.id,
                   title: it.title,
                   poster: it.image_url || it.image_thumb,
-                  localPoster: it.local_image_thumb || it.local_image,
+                  localPoster: it.local_image || it.local_image_thumb,
                   customCover: it.custom_cover,
                   sexual: it.image_sexual,
                   released: it.released,

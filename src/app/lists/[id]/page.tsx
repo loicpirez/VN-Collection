@@ -127,7 +127,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
                       title: row.title,
                       alttitle: row.alttitle,
                       poster: row.image_url || row.image_thumb,
-                      localPoster: row.local_image_thumb || row.local_image,
+                      localPoster: row.local_image || row.local_image_thumb,
                       customCover: row.custom_cover,
                       sexual: row.image_sexual,
                       released: row.released,

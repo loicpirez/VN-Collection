@@ -26,6 +26,8 @@ interface Props {
   items: CollectionItem[];
   /** Called with the new id ordering after a successful drop. */
   onReorder: (orderedIds: string[]) => void;
+  /** Dense grid (matches the comfortable/dense toggle on the library). */
+  dense?: boolean;
 }
 
 /**
@@ -43,7 +45,7 @@ interface Props {
  * arrow keys to move, Space/Enter to drop) supported for free via
  * @dnd-kit's keyboard sensor.
  */
-export function SortableGrid({ items, onReorder }: Props) {
+export function SortableGrid({ items, onReorder, dense = false }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   // 6 px activation distance — small enough to feel responsive, large
   // enough that a click on the favorite / lists / context-menu overlays
@@ -80,7 +82,13 @@ export function SortableGrid({ items, onReorder }: Props) {
       onDragCancel={() => setActiveId(null)}
     >
       <SortableContext items={ids} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        <div
+          className={
+            dense
+              ? 'grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10'
+              : 'grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+          }
+        >
           {items.map((it) => (
             <SortableCard key={it.id} item={it} isDragGhost={false} />
           ))}
@@ -136,7 +144,7 @@ function CardInner({ item }: { item: CollectionItem }) {
         title: item.title,
         alttitle: item.alttitle,
         poster: item.image_url || item.image_thumb,
-        localPoster: item.local_image_thumb || item.local_image,
+        localPoster: item.local_image || item.local_image_thumb,
         customCover: item.custom_cover,
         sexual: item.image_sexual,
         released: item.released,

@@ -624,6 +624,7 @@ export function LibraryClient() {
             sort === 'custom' && !selectMode ? (
               <SortableGrid
                 items={visibleItems}
+                dense={settings.denseLibrary}
                 onReorder={(orderedIds) => {
                   // Optimistic local reorder so the grid doesn't snap back while
                   // the server roundtrip is in flight.
@@ -824,7 +825,7 @@ function Grid({
             title: it.title,
             alttitle: it.alttitle,
             poster: it.image_url || it.image_thumb,
-            localPoster: it.local_image_thumb || it.local_image,
+            localPoster: it.local_image || it.local_image_thumb,
             customCover: it.custom_cover,
             sexual: it.image_sexual,
             released: it.released,

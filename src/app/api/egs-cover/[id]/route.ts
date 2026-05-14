@@ -133,13 +133,16 @@ async function readRawWithFallback(egsId: number): Promise<RawRow> {
   }
 }
 
-function vndbCoverFor(vnId: string | null | undefined): string | null {
+function vndbCoverFor(vnId: string | null | undefined, origin: string): string | null {
   if (!vnId || !/^v\d+$/i.test(vnId)) return null;
   const row = db
     .prepare('SELECT image_url, local_image FROM vn WHERE id = ?')
     .get(vnId) as { image_url: string | null; local_image: string | null } | undefined;
   if (!row) return null;
-  if (row.local_image) return `/api/files/${row.local_image}`;
+  // NextResponse.redirect demands an absolute URL — pin the local-file
+  // path to the request's own origin so the resolver can be called from
+  // any deployment (localhost, LAN, prod).
+  if (row.local_image) return `${origin}/api/files/${row.local_image}`;
   return row.image_url ?? null;
 }
 
@@ -164,18 +167,23 @@ function shopUrl(raw: RawRow): string | null {
   return null;
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const egsId = Number(id);
   if (!Number.isInteger(egsId) || egsId <= 0) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
+  const origin = new URL(req.url).origin;
 
   const cacheKey = `egs:cover-resolved:${egsId}`;
   const cached = readCached(cacheKey);
   if (cached === null) return new NextResponse(null, { status: 404 });
   if (typeof cached === 'string' && cached.length > 0) {
-    return NextResponse.redirect(cached, 302);
+    // Older cache entries may have stored a relative `/api/files/...`
+    // path. Re-anchor those to the current origin so the redirect stays
+    // absolute even after a deployment switch.
+    const target = cached.startsWith('/') ? `${origin}${cached}` : cached;
+    return NextResponse.redirect(target, 302);
   }
 
   const raw = await readRawWithFallback(egsId);
@@ -188,7 +196,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   // 2) VNDB cover via linked vn_id.
-  const vndbUrl = vndbCoverFor(raw.vn_id);
+  const vndbUrl = vndbCoverFor(raw.vn_id, origin);
   if (vndbUrl) {
     writeCached(cacheKey, vndbUrl, CACHE_TTL_MS);
     return NextResponse.redirect(vndbUrl, 302);

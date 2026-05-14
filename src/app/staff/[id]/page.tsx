@@ -278,7 +278,7 @@ function VnCard({
       <Link href={`/vn/${vn.id}`} className="block h-24 w-16 shrink-0 overflow-hidden rounded">
         <SafeImage
           src={vn.image_url || vn.image_thumb}
-          localSrc={vn.local_image_thumb || vn.local_image}
+          localSrc={vn.local_image || vn.local_image_thumb}
           sexual={vn.image_sexual}
           alt={vn.title}
           className="h-full w-full"

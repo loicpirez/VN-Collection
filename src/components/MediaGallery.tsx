@@ -18,6 +18,8 @@ export interface MediaItem {
   caption?: string | null;
   /** narrow → screenshots are landscape, package is portrait/square */
   aspect?: 'portrait' | 'landscape' | 'square';
+  /** Native dimensions, when VNDB reports them. */
+  dims?: [number, number] | null;
 }
 
 const TYPE_KEYS = ['all', 'pkgfront', 'pkgback', 'pkgcontent', 'pkgside', 'pkgmed', 'dig', 'screenshots'] as const;
@@ -53,6 +55,7 @@ export function MediaGallery({
         sexual: s.sexual ?? null,
         alt: `Screenshot ${i + 1}`,
         aspect: 'landscape',
+        dims: s.dims ?? null,
       })),
     };
     for (const img of releaseImages) {
@@ -66,6 +69,7 @@ export function MediaGallery({
         alt: `${img.type} — ${img.release_title}`,
         caption: img.release_title,
         aspect: img.type === 'pkgmed' ? 'square' : 'portrait',
+        dims: img.dims ?? null,
       };
       out[img.type].push(item);
     }
@@ -162,6 +166,11 @@ export function MediaGallery({
                   <SetCoverButton vnId={vnId} value={bannerValue} />
                 </span>
               </div>
+              {item.dims && item.dims[0] > 0 && item.dims[1] > 0 && (
+                <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-mono text-white backdrop-blur-sm">
+                  {item.dims[0]}×{item.dims[1]}
+                </span>
+              )}
               {item.caption && (
                 <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-2 py-1 text-[10px] text-white transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                   {item.caption}
@@ -210,6 +219,11 @@ export function MediaGallery({
             />
             <div className="absolute -bottom-7 left-0 right-0 text-center text-xs text-muted">
               {active + 1} / {visible.length}
+              {visible[active].dims && visible[active].dims![0] > 0 && (
+                <span className="ml-2 font-mono opacity-80">
+                  {visible[active].dims![0]}×{visible[active].dims![1]}
+                </span>
+              )}
               {visible[active].caption && ` · ${visible[active].caption}`}
             </div>
           </div>

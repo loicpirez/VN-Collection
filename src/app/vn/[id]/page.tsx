@@ -39,6 +39,7 @@ import { SessionPanel } from '@/components/SessionPanel';
 import { FavoriteToggleButton } from '@/components/FavoriteToggleButton';
 import { ListsPickerButton } from '@/components/ListsPickerButton';
 import { CoverSourcePicker } from '@/components/CoverSourcePicker';
+import { BannerSourcePicker } from '@/components/BannerSourcePicker';
 import { VnListMemberships } from '@/components/VnListMemberships';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { AnimeChip } from '@/components/AnimeChip';
@@ -192,7 +193,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         id={vn.id}
         title={vn.title}
         poster={vn.image_url || vn.image_thumb}
-        localPoster={vn.local_image_thumb || vn.local_image}
+        localPoster={vn.local_image || vn.local_image_thumb}
         sexual={vn.image_sexual}
       />
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
@@ -466,6 +467,17 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   vndbImage={vn.image_url}
                   egsId={egsRow?.egs_id ?? null}
                   currentCustomCover={vn.custom_cover ?? null}
+                  screenshots={vn.screenshots ?? []}
+                  releaseImages={vn.release_images ?? []}
+                />
+              )}
+              {inCol && (
+                <BannerSourcePicker
+                  vnId={vn.id}
+                  currentBanner={vn.banner_image ?? null}
+                  coverRemote={vn.image_url}
+                  coverLocal={vn.local_image || vn.local_image_thumb}
+                  coverSexual={vn.image_sexual ?? null}
                   screenshots={vn.screenshots ?? []}
                   releaseImages={vn.release_images ?? []}
                 />
