@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { getProducer as getProducerLocal, listCollection, upsertProducer } from '@/lib/db';
@@ -7,8 +8,7 @@ import { getProducer as fetchProducer } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
 import { ProducerLogoUpload } from '@/components/ProducerLogoUpload';
-import { VnGrid } from '@/components/VnGrid';
-import { ProducerCompletion } from '@/components/ProducerCompletion';
+import { ProducerVnsSections } from '@/components/ProducerVnsSections';
 import { readScrapedProducerInfo } from '@/lib/scrape-producer-relations';
 import type { ProducerRow } from '@/lib/types';
 
@@ -51,12 +51,18 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
   // can navigate from instead of a hard 404.
   const itemsAsDev = listCollection({ producer: id, sort: 'updated_at' });
   const itemsAsPub = listCollection({ publisher: id, sort: 'updated_at' });
-  const items = itemsAsDev.length > 0 ? itemsAsDev : itemsAsPub;
+  // Union of in-collection VNs that credit this producer in either
+  // role. Used purely for the header "X VN" badge and the fallback
+  // when VNDB is unreachable — the dev/pub breakdown lives in the
+  // ProducerVnsSections panel below.
+  const ownedIds = new Set<string>();
+  for (const v of itemsAsDev) ownedIds.add(v.id);
+  for (const v of itemsAsPub) ownedIds.add(v.id);
   if (!producer) {
     const sample =
       itemsAsDev[0]?.developers?.find((d) => d.id === id) ??
       itemsAsPub[0]?.publishers?.find((p) => p.id === id);
-    if (!sample && items.length === 0) notFound();
+    if (!sample && ownedIds.size === 0) notFound();
     producer = {
       id,
       name: sample?.name ?? id,
@@ -97,7 +103,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
               </span>
             )}
             <span className="text-muted">
-              {items.length} {t.producers.vnCount}
+              {ownedIds.size} {t.producers.vnCount}
             </span>
           </div>
           {producer.aliases.length > 0 && (
@@ -148,12 +154,48 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
         ))}
       </section>
 
-      <ProducerCompletion producerId={producer.id} />
+      <Suspense fallback={<ProducerVnsSkeleton />}>
+        <ProducerVnsSections producerId={producer.id} />
+      </Suspense>
 
       <ProducerScrapedRelations pid={producer.id} t={t} />
-
-      <VnGrid items={items} emptyMessage={t.library.empty.descriptionFiltered} />
     </div>
+  );
+}
+
+function ProducerVnsSkeleton() {
+  return (
+    <section className="mb-8 space-y-6 animate-pulse">
+      <div className="h-6 w-64 rounded bg-bg-elev/60" />
+      <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
+        <div className="mb-4 h-4 w-40 rounded bg-bg-elev/60" />
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2">
+              <div className="h-16 w-11 shrink-0 rounded bg-bg-elev/60" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-3/4 rounded bg-bg-elev/60" />
+                <div className="h-2 w-1/2 rounded bg-bg-elev/60" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
+        <div className="mb-4 h-4 w-40 rounded bg-bg-elev/60" />
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2">
+              <div className="h-16 w-11 shrink-0 rounded bg-bg-elev/60" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-3/4 rounded bg-bg-elev/60" />
+                <div className="h-2 w-1/2 rounded bg-bg-elev/60" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
