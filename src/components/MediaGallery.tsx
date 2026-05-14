@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { SetBannerButton } from './SetBannerButton';
+import { SetCoverButton } from './SetCoverButton';
 import { useT } from '@/lib/i18n/client';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
@@ -153,9 +154,12 @@ export function MediaGallery({
                   fit={item.aspect === 'landscape' ? 'cover' : 'contain'}
                 />
               </button>
-              <div className="pointer-events-none absolute right-1.5 top-1.5 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+              <div className="pointer-events-none absolute right-1.5 top-1.5 flex flex-col items-end gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                 <span className="pointer-events-auto">
                   <SetBannerButton vnId={vnId} value={bannerValue} />
+                </span>
+                <span className="pointer-events-auto">
+                  <SetCoverButton vnId={vnId} value={bannerValue} />
                 </span>
               </div>
               {item.caption && (

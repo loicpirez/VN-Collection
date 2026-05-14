@@ -741,6 +741,8 @@ export const dictionaries = {
       unwish: 'Retirer de la wishlist',
       unwishConfirm: 'Retirer ce VN de la wishlist ? Le statut sera effacé.',
       unwishlisted: 'Retiré de la wishlist',
+      setAs: 'En tant que couverture',
+      set: 'Couverture définie',
     },
     savedFilters: {
       title: 'Filtres',
@@ -2047,6 +2049,8 @@ export const dictionaries = {
       unwishlisted: 'Removed from wishlist',
       unwish: 'Remove from wishlist',
       unwishConfirm: 'Remove from wishlist? The status will be cleared.',
+      setAs: 'Set as cover',
+      set: 'Cover set',
     },
     savedFilters: {
       title: 'Filters',
@@ -3353,6 +3357,8 @@ export const dictionaries = {
       unwishlisted: 'ウィッシュから削除しました',
       unwish: 'ウィッシュから削除',
       unwishConfirm: 'ウィッシュから削除しますか？ ステータスがクリアされます。',
+      setAs: 'カバーに設定',
+      set: 'カバー設定済',
     },
     savedFilters: {
       title: 'フィルタ',
