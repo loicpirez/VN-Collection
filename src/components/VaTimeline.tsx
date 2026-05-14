@@ -31,7 +31,7 @@ export async function VaTimeline({ sid }: { sid: string }) {
   const max = filled.reduce((acc, b) => Math.max(acc, b.total), 1);
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-6">
+    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
         <Activity className="h-4 w-4 text-accent" /> {t.staff.timeline.title}
       </h3>

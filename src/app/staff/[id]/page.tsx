@@ -82,7 +82,7 @@ export default async function StaffPage({
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
 
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">{profile?.name ?? id}</h1>
@@ -170,7 +170,7 @@ export default async function StaffPage({
       )}
 
       {voice.length > 0 && (
-        <section className="mb-6 rounded-xl border border-border bg-bg-card p-6">
+        <section className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Mic2 className="h-4 w-4 text-accent" /> {t.staff.voiceCredits}
             <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {voice.length}</span>
@@ -197,7 +197,7 @@ export default async function StaffPage({
       )}
 
       {groupedProduction.length > 0 && (
-        <section className="rounded-xl border border-border bg-bg-card p-6">
+        <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Users className="h-4 w-4 text-accent" /> {t.staff.productionCredits}
             <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {production.length}</span>
@@ -220,7 +220,7 @@ export default async function StaffPage({
       )}
 
       {production.length === 0 && voice.length === 0 && (
-        <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">
+        <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">
           {t.staff.empty}
         </p>
       )}

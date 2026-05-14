@@ -20,7 +20,7 @@ export default async function QuotesPage({
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
 
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
           <Quote className="h-6 w-6 text-accent" /> {t.quotesPage.title}
         </h1>
@@ -37,7 +37,7 @@ export default async function QuotesPage({
       </header>
 
       {items.length === 0 ? (
-        <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">
+        <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
           {t.quotesPage.empty}
         </p>
       ) : (

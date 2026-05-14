@@ -47,7 +47,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
         <ArrowLeft className="h-4 w-4" /> {t.producers.back}
       </Link>
 
-      <header className="mb-6 flex flex-col gap-4 rounded-2xl border border-border bg-bg-card p-6 sm:flex-row sm:items-start">
+      <header className="mb-6 flex flex-col gap-4 rounded-2xl border border-border bg-bg-card p-4 sm:flex-row sm:items-start sm:p-6">
         <ProducerLogo producer={producer} size={96} />
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">{producer.name}</h1>
@@ -89,7 +89,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
       </div>
 
       {producer.description && (
-        <section className="mb-8 rounded-xl border border-border bg-bg-card p-5">
+        <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">{stripBbCode(producer.description)}</p>
         </section>

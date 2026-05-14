@@ -166,7 +166,7 @@ export default async function ComparePage({
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
 
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
           <GitCompare className="h-6 w-6 text-accent" /> {t.compareView.title}
         </h1>
@@ -258,14 +258,17 @@ export default async function ComparePage({
       )}
 
       {items.length < 2 ? (
-        <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">
+        <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
           {t.compareView.notEnough}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border bg-bg-card">
           <div
-            className="grid gap-px bg-border"
-            style={{ gridTemplateColumns: `180px repeat(${items.length}, minmax(220px, 1fr))` }}
+            className="grid gap-px bg-border [grid-template-columns:var(--cmp-cols-sm)] sm:[grid-template-columns:var(--cmp-cols-md)]"
+            style={{
+              ['--cmp-cols-sm' as string]: `100px repeat(${items.length}, minmax(160px, 1fr))`,
+              ['--cmp-cols-md' as string]: `180px repeat(${items.length}, minmax(220px, 1fr))`,
+            } as React.CSSProperties}
           >
             <CellHead label={t.compareView.row.cover} />
             {items.map((it) => (

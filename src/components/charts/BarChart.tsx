@@ -19,7 +19,7 @@ export function HBarChart({ data, formatValue, maxWidthPct = 100, emptyMessage =
       {data.map((d) => {
         const pct = (d.value / max) * maxWidthPct;
         return (
-          <li key={d.label} className="grid grid-cols-[120px_1fr_auto] items-center gap-3 text-xs">
+          <li key={d.label} className="grid grid-cols-[88px_1fr_auto] items-center gap-2 text-xs sm:grid-cols-[120px_1fr_auto] sm:gap-3">
             <span className="truncate text-muted" title={d.label}>{d.label}</span>
             <div className="relative h-3 overflow-hidden rounded-full bg-bg-elev">
               <div

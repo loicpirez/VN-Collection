@@ -28,7 +28,7 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
   const localImages = getCharacterImages(charIds);
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-6">
+    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <h3 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
         <Mic2 className="h-4 w-4 text-accent" /> {t.staff.cast}
         <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {va.length}</span>

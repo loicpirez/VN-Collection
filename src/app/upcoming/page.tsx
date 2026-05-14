@@ -46,7 +46,7 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Pro
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
 
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
           <CalendarRange className="h-6 w-6 text-accent" /> {t.upcoming.title}
         </h1>
@@ -130,14 +130,14 @@ function ReleasesSection({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">{empty}</p>
+      <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">{empty}</p>
     );
   }
   const grouped = groupByMonth(rows);
   return (
     <>
       {Array.from(grouped.entries()).map(([month, rels]) => (
-        <section key={month} className="mb-6 rounded-xl border border-border bg-bg-card p-5">
+        <section key={month} className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {month} · <span className="opacity-70">{rels.length}</span>
           </h2>
@@ -204,7 +204,7 @@ function AnticipatedSection({
   t: Dictionary;
 }) {
   if (rows.length === 0) {
-    return <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">{t.upcoming.emptyAnticipated}</p>;
+    return <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">{t.upcoming.emptyAnticipated}</p>;
   }
   return (
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-5">

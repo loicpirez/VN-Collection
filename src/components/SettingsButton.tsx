@@ -183,7 +183,7 @@ export function SettingsButton() {
       {mounted && open
         ? createPortal(
             <div
-              className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/70 p-6 backdrop-blur-sm"
+              className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-6"
               role="dialog"
               aria-modal="true"
               aria-label={t.settings.title}
@@ -191,7 +191,7 @@ export function SettingsButton() {
                 if (e.target === e.currentTarget) setOpen(false);
               }}
             >
-              <div className="relative mt-12 w-full max-w-3xl rounded-2xl border border-border bg-bg-card p-6 shadow-card">
+              <div className="relative mt-6 w-full max-w-3xl rounded-2xl border border-border bg-bg-card p-4 shadow-card sm:mt-12 sm:p-6">
                 <button
                   type="button"
                   className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-bg-elev hover:text-white"

@@ -69,7 +69,7 @@ export function DataMaintenance() {
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6">
+    <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
       <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
         <AlertTriangle className="h-5 w-5 text-accent" /> {t.maintenance.title}
       </h2>

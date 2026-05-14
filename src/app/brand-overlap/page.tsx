@@ -27,7 +27,7 @@ export default async function BrandOverlapPage({
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
 
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
           <Users className="h-6 w-6 text-accent" /> {t.brandOverlap.title}
         </h1>
@@ -36,7 +36,7 @@ export default async function BrandOverlapPage({
       </header>
 
       {a && b ? <Result a={a} b={b} /> : (
-        <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">
+        <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
           {t.brandOverlap.pickHint}
         </p>
       )}
@@ -56,7 +56,7 @@ async function Result({ a, b }: { a: string; b: string }) {
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6">
+    <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
       <header className="mb-4 flex flex-wrap items-baseline gap-3 text-sm">
         <Link href={`/producer/${a}`} className="font-bold hover:text-accent">
           {result.a?.name ?? a}

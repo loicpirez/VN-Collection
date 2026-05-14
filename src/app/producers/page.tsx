@@ -30,15 +30,15 @@ export default async function ProducersPage() {
         </div>
       </header>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-bg-card">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-border bg-bg-card">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-bg-elev/60 text-left text-xs uppercase tracking-wider text-muted">
             <tr>
-              <th className="px-4 py-3 w-12">#</th>
-              <th className="px-4 py-3">{t.detail.developers}</th>
-              <th className="px-4 py-3 text-right">{t.producers.vnCount}</th>
-              <th className="hidden px-4 py-3 text-right md:table-cell">{t.producers.avgUserRating}</th>
-              <th className="hidden px-4 py-3 text-right md:table-cell">{t.producers.avgRating}</th>
+              <th className="w-12 px-3 py-3 sm:px-4">#</th>
+              <th className="px-3 py-3 sm:px-4">{t.detail.developers}</th>
+              <th className="px-3 py-3 text-right sm:px-4">{t.producers.vnCount}</th>
+              <th className="px-3 py-3 text-right sm:px-4">{t.producers.avgUserRating}</th>
+              <th className="px-3 py-3 text-right sm:px-4">{t.producers.avgRating}</th>
             </tr>
           </thead>
           <tbody>
@@ -47,7 +47,7 @@ export default async function ProducersPage() {
               const displayAvg = p.avg_rating != null ? (p.avg_rating / 10).toFixed(1) : '—';
               return (
                 <tr key={p.id} className="border-t border-border hover:bg-bg-elev/30">
-                  <td className="px-4 py-3 align-middle">
+                  <td className="px-3 py-3 align-middle sm:px-4">
                     {i === 0 ? (
                       <Crown className="h-5 w-5 text-accent" aria-hidden />
                     ) : (
@@ -56,7 +56,7 @@ export default async function ProducersPage() {
                       }`}>{i + 1}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 align-middle">
+                  <td className="px-3 py-3 align-middle sm:px-4">
                     <Link href={`/producer/${p.id}`} className="flex items-center gap-3 hover:text-accent">
                       <ProducerLogo producer={p} size={36} />
                       <div className="min-w-0">
@@ -67,9 +67,9 @@ export default async function ProducersPage() {
                       </div>
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-right align-middle font-bold tabular-nums">{p.vn_count}</td>
-                  <td className="hidden px-4 py-3 text-right align-middle text-accent tabular-nums md:table-cell">{displayUserAvg}</td>
-                  <td className="hidden px-4 py-3 text-right align-middle tabular-nums md:table-cell">{displayAvg}</td>
+                  <td className="px-3 py-3 text-right align-middle font-bold tabular-nums sm:px-4">{p.vn_count}</td>
+                  <td className="px-3 py-3 text-right align-middle text-accent tabular-nums sm:px-4">{displayUserAvg}</td>
+                  <td className="px-3 py-3 text-right align-middle tabular-nums sm:px-4">{displayAvg}</td>
                 </tr>
               );
             })}

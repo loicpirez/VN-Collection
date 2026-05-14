@@ -155,7 +155,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-border bg-bg-card p-6">
+      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <SkeletonRows count={2} />
       </section>
     );
@@ -163,7 +163,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
 
   return (
     <section className="rounded-xl border border-border bg-bg-card">
-      <header className="flex flex-wrap items-center justify-between gap-2 px-6 py-4">
+      <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6">
         <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <Package className="h-4 w-4 text-accent" /> {t.inventory.section}
           {owned.length > 0 && (
@@ -182,7 +182,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
       </header>
 
       {adderOpen && unownedReleases.length > 0 && (
-        <div className="border-t border-border bg-bg-elev/30 px-6 py-3">
+        <div className="border-t border-border bg-bg-elev/30 px-4 py-3 sm:px-6">
           <p className="mb-2 text-[11px] uppercase tracking-wider text-muted">
             {t.inventory.pickRelease}
           </p>
@@ -212,7 +212,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
       )}
 
       {owned.length === 0 ? (
-        <div className="border-t border-border px-6 py-6 text-center text-sm text-muted">
+        <div className="border-t border-border px-4 py-6 text-center text-sm text-muted sm:px-6">
           {t.inventory.empty}
         </div>
       ) : (
@@ -222,7 +222,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
             const cover = release?.images.find((img) => img.type === 'pkgfront') ?? release?.images[0] ?? null;
             const isEditing = editingId === edition.release_id;
             return (
-              <li key={edition.release_id} className="px-6 py-4">
+              <li key={edition.release_id} className="px-4 py-4 sm:px-6">
                 <div className="flex gap-4">
                   <div className="w-24 shrink-0">
                     <SafeImage

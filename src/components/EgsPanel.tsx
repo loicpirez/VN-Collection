@@ -138,7 +138,7 @@ export function EgsPanel({
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-border bg-bg-card p-5">
+      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
         <SkeletonBlock className="mb-3 h-4 w-32" />
         <SkeletonBlock className="mb-2 h-3 w-1/2" />
         <SkeletonBlock className="mb-2 h-3 w-2/3" />
@@ -151,7 +151,7 @@ export function EgsPanel({
   if (!game) {
     return (
       <>
-        <section className="rounded-xl border border-border bg-bg-card p-5">
+        <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
               <Sparkles className="h-4 w-4 text-accent" /> {t.egs.section}
@@ -202,7 +202,7 @@ export function EgsPanel({
 
   return (
     <>
-      <section className="rounded-xl border border-border bg-bg-card p-5">
+      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Sparkles className="h-4 w-4 text-accent" /> {t.egs.section}
@@ -426,14 +426,14 @@ function EgsPicker({
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/70 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-6"
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="mt-12 w-full max-w-xl rounded-2xl border border-border bg-bg-card p-6 shadow-card">
+      <div className="mt-6 w-full max-w-xl rounded-2xl border border-border bg-bg-card p-4 shadow-card sm:mt-12 sm:p-6">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="inline-flex items-center gap-2 text-lg font-bold">
             <Sparkles className="h-5 w-5 text-accent" aria-hidden />

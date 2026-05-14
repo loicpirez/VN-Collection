@@ -59,7 +59,7 @@ export function CachePanel() {
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6">
+    <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
       <div className="mb-3 flex items-center gap-2">
         <Database className="h-5 w-5 text-accent" aria-hidden />
         <h2 className="text-lg font-bold">{t.cache.title}</h2>

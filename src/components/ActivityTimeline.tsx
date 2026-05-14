@@ -137,7 +137,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
   }
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-6">
+    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
         <History className="h-4 w-4 text-accent" /> {t.activity.title}
       </h3>

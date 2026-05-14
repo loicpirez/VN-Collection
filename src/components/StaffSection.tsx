@@ -42,7 +42,7 @@ export async function StaffSection({ staff }: { staff: StaffEntry[] }) {
   if (groups.length === 0) return null;
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-6">
+    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <h3 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
         <Users className="h-4 w-4 text-accent" /> {t.staff.section}
       </h3>

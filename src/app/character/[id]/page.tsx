@@ -74,7 +74,7 @@ export default async function CharacterPage({ params }: { params: Promise<{ id: 
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
 
-      <div className="grid gap-8 rounded-2xl border border-border bg-bg-card p-6 md:grid-cols-[200px_1fr]">
+      <div className="grid gap-4 rounded-2xl border border-border bg-bg-card p-4 sm:gap-6 sm:p-6 md:grid-cols-[200px_1fr] md:gap-8">
         <SafeImage
           src={char.image?.url ?? null}
           sexual={char.image?.sexual ?? null}
@@ -143,14 +143,14 @@ export default async function CharacterPage({ params }: { params: Promise<{ id: 
       )}
 
       {char.description && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">{stripBb(char.description)}</p>
         </section>
       )}
 
       {visibleTraits.length > 0 && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.characters.traits}</h3>
           <div className="flex flex-wrap gap-1.5">
             {visibleTraits.map((tr) => (
@@ -168,7 +168,7 @@ export default async function CharacterPage({ params }: { params: Promise<{ id: 
       )}
 
       {vas.length > 0 && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Mic2 className="h-4 w-4 text-accent" /> {t.characters.alsoVoicedBy}
           </h3>
@@ -199,7 +199,7 @@ export default async function CharacterPage({ params }: { params: Promise<{ id: 
       )}
 
       {sortedVns.length > 0 && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {t.characters.appearsIn} · {sortedVns.length}
           </h3>

@@ -90,7 +90,7 @@ export default async function SimilarPage({
         <ArrowLeft className="h-4 w-4" /> {seed.title}
       </Link>
 
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
           <Sparkles className="h-6 w-6 text-accent" /> {t.similar.title}: {seed.title}
         </h1>
@@ -111,7 +111,7 @@ export default async function SimilarPage({
       </header>
 
       {results.length === 0 ? (
-        <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">
+        <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
           {t.recommend.empty}
         </p>
       ) : (

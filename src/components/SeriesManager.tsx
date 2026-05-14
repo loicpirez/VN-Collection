@@ -59,7 +59,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
         <h1 className="text-2xl font-bold">{t.series.pageTitle}</h1>
       </header>
 
-      <div className="mb-8 rounded-2xl border border-border bg-bg-card p-5">
+      <div className="mb-8 rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-[1fr_2fr_auto]">
           <input
             className="input"

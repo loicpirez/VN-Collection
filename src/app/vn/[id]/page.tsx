@@ -184,7 +184,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           sexual={vn.image_sexual}
         />
 
-        <div className="relative -mt-44 grid grid-cols-1 gap-8 px-6 pb-6 md:grid-cols-[260px_1fr] md:px-8 md:pb-8">
+        <div className="relative -mt-44 grid grid-cols-1 gap-4 px-3 pb-4 sm:gap-6 sm:px-6 sm:pb-6 md:grid-cols-[260px_1fr] md:gap-8 md:px-8 md:pb-8">
           <div className="z-10 mx-auto w-full max-w-[260px] md:mx-0">
             {inCol && egsPosterHas ? (
               <CoverCompare
@@ -213,7 +213,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
             )}
           </div>
 
-          <div className="z-10 flex flex-col gap-3 pt-32 md:pt-44">
+          <div className="z-10 flex flex-col gap-3 pt-6 md:pt-44">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <MatchBadges egsOnly={vn.id.startsWith('egs_')} egs={egsRow} t={t} />
@@ -248,7 +248,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               )}
             </div>
 
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm sm:gap-x-6 sm:grid-cols-3">
               {vn.released && (
                 <div>
                   <dt className="label">{t.detail.released}</dt>
@@ -409,7 +409,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         </div>
 
         {(vn.description || egsRow || (inCol && vn.custom_description)) && (
-          <div className="border-t border-border px-6 py-6 md:px-8">
+          <div className="border-t border-border px-3 py-4 sm:px-6 sm:py-6 md:px-8">
             {inCol ? (
               <CustomSynopsis
                 vnId={vn.id}
@@ -442,7 +442,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         )}
 
         {(vn.screenshots.length > 0 || vn.release_images.length > 0) && (
-          <div className="border-t border-border px-6 py-6 md:px-8">
+          <div className="border-t border-border px-3 py-4 sm:px-6 sm:py-6 md:px-8">
             <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.media.section}</h3>
             <MediaGallery vnId={vn.id} screenshots={vn.screenshots} releaseImages={vn.release_images} />
           </div>
@@ -450,7 +450,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
       </div>
 
       {inCol && vn.notes && (
-        <div className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+        <div className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.form.personalNotes}</h3>
           <MarkdownView source={vn.notes} />
         </div>

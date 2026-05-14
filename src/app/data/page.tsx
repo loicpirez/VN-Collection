@@ -36,7 +36,7 @@ export default async function DataPage() {
 
       <RecentActivityStrip />
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
           <Activity className="h-5 w-5 text-accent" /> {t.dataMgmt.statusTitle}
         </h2>
@@ -93,7 +93,7 @@ export default async function DataPage() {
         </details>
       </section>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 text-base font-bold">{t.dataMgmt.exportSectionTitle}</h2>
         <p className="mb-4 text-xs text-muted">{t.dataMgmt.exportSectionHint}</p>
         <div className="flex flex-wrap gap-2">
@@ -112,7 +112,7 @@ export default async function DataPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
           <FileUp className="h-5 w-5 text-accent" /> {t.dataMgmt.importSectionTitle}
         </h2>
@@ -123,7 +123,7 @@ export default async function DataPage() {
 
       <DataMaintenance />
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.labels.title}</h2>
         <p className="mb-3 text-xs text-muted">{t.labels.hint}</p>
         <Link href="/labels" className="btn">
@@ -131,7 +131,7 @@ export default async function DataPage() {
         </Link>
       </section>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.steam.title}</h2>
         <p className="mb-3 text-xs text-muted">{t.steam.subtitle}</p>
         <Link href="/steam" className="btn">
@@ -140,19 +140,19 @@ export default async function DataPage() {
         <SteamSettingsBlock />
       </section>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.egsSync.title}</h2>
         <p className="mb-3 text-xs text-muted">{t.egsSync.subtitle}</p>
         <EgsSyncBlock />
       </section>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.selectiveFullDownload.title}</h2>
         <p className="mb-3 text-xs text-muted">{t.selectiveFullDownload.subtitle}</p>
         <SelectiveFullDownload />
       </section>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.shelf.title}</h2>
         <p className="mb-3 text-xs text-muted">{t.shelf.subtitle}</p>
         <Link href="/shelf" className="btn">
@@ -160,7 +160,7 @@ export default async function DataPage() {
         </Link>
       </section>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.tour.runAgain}</h2>
         <p className="mb-3 text-xs text-muted">{t.tour.hint}</p>
         <RunTourButton />
@@ -168,7 +168,7 @@ export default async function DataPage() {
 
       <DropImport />
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
           <Download className="h-5 w-5 text-accent" /> {t.dataMgmt.assetsSectionTitle}
         </h2>

@@ -84,7 +84,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
         </Link>
       )}
 
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div className="min-w-0">
             <h1 className="flex flex-wrap items-baseline gap-2 text-2xl font-bold">
@@ -274,7 +274,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
       )}
 
       {ownedContexts.length > 0 && (
-        <section className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+        <section className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {t.releases.inventoryShortcut}
           </h2>
@@ -291,7 +291,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
         </section>
       )}
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.media.section}</h2>
         {release.images.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted">{t.releases.noVisuals}</p>

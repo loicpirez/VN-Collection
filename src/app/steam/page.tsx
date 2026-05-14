@@ -183,7 +183,7 @@ export default function SteamSyncPage() {
         <ArrowLeft className="h-4 w-4" /> {t.nav.data}
       </Link>
 
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
           <Gamepad2 className="h-6 w-6 text-accent" /> {t.steam.title}
         </h1>
@@ -202,7 +202,7 @@ export default function SteamSyncPage() {
       )}
 
       {/* Section 1: Suggestions (auto + manual) */}
-      <section className="mb-8 rounded-xl border border-border bg-bg-card p-5">
+      <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
           {t.steam.suggestionsTitle}
         </h2>
@@ -270,7 +270,7 @@ export default function SteamSyncPage() {
 
       {/* Section 2: Current links */}
       {links.length > 0 && (
-        <section className="mb-8 rounded-xl border border-border bg-bg-card p-5">
+        <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {t.steam.linksTitle} <span className="ml-1 text-[10px] font-normal">· {links.length}</span>
           </h2>
@@ -308,7 +308,7 @@ export default function SteamSyncPage() {
       )}
 
       {/* Section 3: Unlinked Steam games → manual assign */}
-      <section className="rounded-xl border border-border bg-bg-card p-5">
+      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
           {t.steam.unlinkedTitle}
         </h2>

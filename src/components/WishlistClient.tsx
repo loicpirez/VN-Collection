@@ -212,7 +212,7 @@ export function WishlistClient() {
       </header>
 
       {needsAuth ? (
-        <div className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">
+        <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
           <KeyRound className="mb-2 h-5 w-5 text-accent" aria-hidden />
           <p className="mb-2">{t.wishlist.needsAuthTitle}</p>
           <p className="text-xs">
@@ -353,8 +353,8 @@ export function WishlistClient() {
           ))}
 
           {selectMode && selected.size > 0 && (
-            <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-border bg-bg-card px-4 py-2 shadow-card">
-              <div className="flex items-center gap-3 text-sm">
+            <div className="fixed bottom-10 left-1/2 z-50 w-[min(96vw,32rem)] -translate-x-1/2 rounded-full border border-border bg-bg-card px-4 py-2 shadow-card sm:bottom-4">
+              <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
                 <span className="text-muted">{t.wishlist.selectedCount.replace('{count}', String(selected.size))}</span>
                 <button
                   type="button"

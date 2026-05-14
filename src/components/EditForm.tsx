@@ -140,7 +140,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   if (!inCollection) {
     return (
-      <div className="rounded-xl border border-border bg-bg-card p-6">
+      <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <p className="mb-4 text-muted">{t.form.notInCollection}</p>
         <button className="btn btn-primary" onClick={handleAdd} disabled={pending}>
           <Plus className="h-4 w-4" />
@@ -155,7 +155,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-border bg-bg-card p-6">
+      <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-muted">{t.form.myTracking}</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1">
@@ -210,7 +210,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-bg-card p-6">
+      <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-muted">{t.form.inventoryTitle}</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1">
@@ -286,12 +286,12 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-bg-card p-6">
+      <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-muted">{t.form.personalNotes}</h3>
         <MarkdownNotes value={notes} onChange={setNotes} />
       </div>
 
-      <div className="rounded-xl border border-border bg-bg-card p-6">
+      <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <Bookmark className="h-4 w-4" /> {t.detail.seriesSection}
         </h3>

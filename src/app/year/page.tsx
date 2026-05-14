@@ -32,7 +32,7 @@ export default async function YearPage({
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
 
-      <header className="mb-6 flex flex-wrap items-baseline justify-between gap-4 rounded-2xl border border-border bg-bg-card p-6">
+      <header className="mb-6 flex flex-wrap items-baseline justify-between gap-4 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div>
           <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
             <Award className="h-6 w-6 text-accent" /> {t.year.title.replace('{year}', String(year))}
@@ -75,7 +75,7 @@ export default async function YearPage({
       </div>
 
       {review.topTags.length > 0 && (
-        <section className="mb-6 rounded-xl border border-border bg-bg-card p-5">
+        <section className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.year.topTags}</h3>
           <div className="flex flex-wrap gap-1.5">
             {review.topTags.map((tag) => (
@@ -93,7 +93,7 @@ export default async function YearPage({
       )}
 
       {review.best.length > 0 && (
-        <section className="rounded-xl border border-border bg-bg-card p-5">
+        <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.year.best}</h3>
           <ol className="space-y-1.5 text-sm">
             {review.best.map((b, i) => (
@@ -114,7 +114,7 @@ export default async function YearPage({
 
 function Stat({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-border bg-bg-card p-5">
+    <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
       <div className="mb-1 inline-flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted">
         {icon}
         {label}

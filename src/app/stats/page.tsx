@@ -82,7 +82,7 @@ export default async function StatsPage() {
         <h1 className="text-2xl font-bold">{t.stats.pageTitle}</h1>
       </header>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="mb-4 flex items-center gap-2">
           <Star className="h-5 w-5 text-accent" aria-hidden />
           <h2 className="text-lg font-bold">{t.stats.myTitle}</h2>
@@ -107,7 +107,7 @@ export default async function StatsPage() {
       <StatsExtras />
 
       {agg.egs.matched + agg.egs.unmatched > 0 && (
-        <section className="rounded-2xl border border-border bg-bg-card p-6">
+        <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
           <div className="mb-4 flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-accent" aria-hidden />
             <h2 className="text-lg font-bold">{t.stats.egsTitle}</h2>
@@ -213,7 +213,7 @@ export default async function StatsPage() {
         </Card>
       )}
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="mb-4 flex items-center gap-2">
           <Database className="h-5 w-5 text-accent" aria-hidden />
           <h2 className="text-lg font-bold">{t.stats.vndbTitle}</h2>
@@ -221,7 +221,7 @@ export default async function StatsPage() {
         <p className="mb-4 text-xs text-muted">{t.stats.vndbSubtitle}</p>
         {globalError && <p className="mb-3 text-sm text-status-dropped">{globalError}</p>}
         {global && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-7">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
             <Stat label={t.stats.vn} value={global.vn} />
             <Stat label={t.stats.releases} value={global.releases} />
             <Stat label={t.stats.chars} value={global.chars} />
@@ -235,7 +235,7 @@ export default async function StatsPage() {
 
       <CachePanel />
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="mb-3 flex items-center gap-2">
           <KeyRound className="h-5 w-5 text-accent" aria-hidden />
           <h2 className="text-lg font-bold">{t.stats.authTitle}</h2>
@@ -263,7 +263,7 @@ export default async function StatsPage() {
         )}
       </section>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-3 text-lg font-bold">{t.dataMgmt.title}</h2>
         <p className="mb-4 text-xs text-muted">{t.dataMgmt.subtitle}</p>
         <div className="flex flex-wrap gap-2">
@@ -293,7 +293,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 
 function Card({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6">
+    <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
       <div className="mb-4 flex items-center gap-2">
         {icon}
         <h2 className="text-base font-bold">{title}</h2>

@@ -189,7 +189,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const pct = total > 0 ? (completed / total) * 100 : 0;
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-6">
+    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <GitBranch className="h-4 w-4 text-accent" /> {t.routes.section}

@@ -97,7 +97,7 @@ export function KeyboardShortcuts() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/70 backdrop-blur" onClick={() => setHelp(false)}>
       <div
-        className="w-[min(92vw,440px)] rounded-2xl border border-border bg-bg-card p-6 shadow-card"
+        className="w-[min(92vw,440px)] rounded-2xl border border-border bg-bg-card p-4 sm:p-6 shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-baseline justify-between gap-2">

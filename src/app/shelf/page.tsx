@@ -51,7 +51,7 @@ export default async function ShelfPage() {
         <ArrowLeft className="h-4 w-4" /> {t.nav.data}
       </Link>
 
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-6">
+      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
           <Library className="h-6 w-6 text-accent" /> {t.shelf.title}
         </h1>
@@ -67,7 +67,7 @@ export default async function ShelfPage() {
       </header>
 
       {items.length === 0 && (
-        <p className="rounded-xl border border-border bg-bg-card p-6 text-sm text-muted">
+        <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
           {t.shelf.empty}
         </p>
       )}
@@ -85,7 +85,7 @@ export default async function ShelfPage() {
           {} as Record<string, number>,
         );
         return (
-          <section key={key} className="mb-6 rounded-xl border border-border bg-bg-card p-5">
+          <section key={key} className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
             <h2 className="mb-3 flex items-baseline justify-between gap-2 text-xs font-bold uppercase tracking-widest text-muted">
               <span>{key === '__unsorted__' ? t.shelf.unsorted : key}</span>
               <span className="text-[11px] font-normal text-muted">

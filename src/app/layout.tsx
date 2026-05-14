@@ -54,7 +54,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <DisplaySettingsProvider initial={initialSettings}>
             <ToastProvider>
             <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur">
-              <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-6 py-3">
+              <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-3 py-3 sm:gap-4 sm:px-6">
                 <Link href="/" className="flex items-center gap-2">
                   <Library className="h-6 w-6 text-accent" aria-hidden />
                   <span className="text-base font-bold tracking-wide">{dict.app.title}</span>
@@ -66,7 +66,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </div>
               </div>
             </header>
-            <main className="mx-auto max-w-7xl px-6 pb-16 pt-8">{children}</main>
+            <main className="mx-auto max-w-7xl px-3 pb-16 pt-6 sm:px-6 sm:pt-8">{children}</main>
               <QuoteFooter />
               <KeyboardShortcuts />
               <TutorialTour />

@@ -38,7 +38,7 @@ export async function StaffExtraCredits({
   if (extraProduction.length === 0 && extraVoice.length === 0) return null;
 
   return (
-    <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+    <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <h2 className="mb-1 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
         <CloudDownload className="h-4 w-4 text-accent" /> {t.staff.extraTitle}
         <span className="text-[11px] font-normal lowercase tracking-normal text-muted">
@@ -101,7 +101,7 @@ export async function StaffExtraCredits({
  */
 export function StaffExtraCreditsSkeleton() {
   return (
-    <section className="mt-6 rounded-xl border border-border bg-bg-card p-6">
+    <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <div className="mb-3 h-3 w-48 animate-pulse rounded bg-bg-elev/60" />
       <div className="mb-4 h-2.5 w-72 animate-pulse rounded bg-bg-elev/60" />
       <SkeletonCardGrid count={8} />

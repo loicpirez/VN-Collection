@@ -41,7 +41,7 @@ export async function StatsExtras() {
 
   return (
     <>
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
+      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-3 inline-flex items-center gap-2 text-lg font-bold">
           <Star className="h-5 w-5 text-accent" /> {t.statsExtras.histogramTitle}
         </h2>
@@ -76,7 +76,7 @@ export async function StatsExtras() {
       </section>
 
       {roi.length >= 1 && (
-        <section className="rounded-2xl border border-border bg-bg-card p-6">
+        <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-3 inline-flex items-center gap-2 text-lg font-bold">
             <Award className="h-5 w-5 text-accent" /> {t.statsExtras.roiTitle}
           </h2>
@@ -101,7 +101,7 @@ export async function StatsExtras() {
       )}
 
       {years.length > 0 && (
-        <section className="rounded-2xl border border-border bg-bg-card p-6">
+        <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-3 inline-flex items-center gap-2 text-lg font-bold">
             <Layers className="h-5 w-5 text-accent" /> {t.statsExtras.genreTitle}
           </h2>

@@ -44,7 +44,7 @@ export async function ActivityHeatmap({ year }: { year: number }) {
   const active = days.filter((d) => d.count > 0).length;
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-5">
+    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h3 className="text-xs font-bold uppercase tracking-widest text-muted">
           {t.year.heatmap.title.replace('{year}', String(year))}

@@ -59,7 +59,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-border bg-bg-card p-5">
+      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
         <SkeletonBlock className="mb-3 h-4 w-32" />
         <SkeletonBlock className="mb-2 h-3 w-full" />
         <SkeletonBlock className="h-3 w-3/4" />
@@ -69,7 +69,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   if (!state) return null;
   if (state.needsAuth) {
     return (
-      <section className="rounded-xl border border-border bg-bg-card p-5">
+      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
         <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <KeyRound className="h-4 w-4 text-accent" /> {t.vndbStatus.section}
         </h3>
@@ -123,7 +123,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   }
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-5">
+    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <CheckCircle2 className="h-4 w-4 text-accent" /> {t.vndbStatus.section}

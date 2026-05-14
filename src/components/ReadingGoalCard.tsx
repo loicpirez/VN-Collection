@@ -67,7 +67,7 @@ export function ReadingGoalCard({ year }: Props) {
   const pct = target && target > 0 ? Math.min(100, Math.round((finished / target) * 100)) : 0;
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6">
+    <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h2 className="inline-flex items-center gap-2 text-lg font-bold">
           <Target className="h-5 w-5 text-accent" /> {t.readingGoal.label} {year}

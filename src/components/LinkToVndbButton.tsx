@@ -99,7 +99,7 @@ export function LinkToVndbButton({ vnId, seedQuery }: { vnId: string; seedQuery:
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur" onClick={() => setOpen(false)}>
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-[min(92vw,640px)] max-h-[80vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-5 shadow-card"
+            className="w-[min(92vw,640px)] max-h-[80vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
           >
             <header className="mb-3 flex items-baseline justify-between gap-3">
               <div>
