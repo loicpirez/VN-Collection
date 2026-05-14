@@ -28,13 +28,27 @@ export function ProducerRefreshButton({ producerId }: { producerId: string }) {
     setBusy(true);
     try {
       const r = await fetch(`/api/producer/${producerId}/refresh`, { method: 'POST' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
-      const j = (await r.json()) as { developers: number; publishers: number; owned: number };
+      const body = (await r.json().catch(() => ({}))) as {
+        error?: string;
+        developers?: number;
+        publishers?: number;
+        owned?: number;
+        upstreamFailed?: boolean;
+      };
+      if (!r.ok) {
+        throw new Error(body.error || t.common.error);
+      }
+      // Defensive check against the route ever changing shape — a
+      // schema drift used to print "undefined dev / undefined pub"
+      // in the toast.
+      const devs = typeof body.developers === 'number' ? body.developers : 0;
+      const pubs = typeof body.publishers === 'number' ? body.publishers : 0;
+      const owned = typeof body.owned === 'number' ? body.owned : 0;
       toast.success(
         t.producerVns.refreshDone
-          .replace('{devs}', String(j.developers))
-          .replace('{pubs}', String(j.publishers))
-          .replace('{owned}', String(j.owned)),
+          .replace('{devs}', String(devs))
+          .replace('{pubs}', String(pubs))
+          .replace('{owned}', String(owned)),
       );
       startTransition(() => router.refresh());
     } catch (err) {

@@ -137,12 +137,18 @@ async function downloadCharacterImages(characters: VndbCharacter[]): Promise<voi
 }
 
 async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage[]> {
-  let releases;
+  // Track release-fetch success/failure separately from "releases exist".
+  // We only want to overwrite the persisted `vn.publishers` column when
+  // the upstream call actually succeeded — a network failure used to
+  // wipe the previous publisher list to [] because the aggregation
+  // loop ran unconditionally with an empty array.
+  let releases: Awaited<ReturnType<typeof getReleasesForVn>> | null = null;
   try {
     releases = await getReleasesForVn(vnId);
   } catch {
-    return [];
+    releases = null;
   }
+  if (!releases) return [];
 
   const existing = getCollectionItem(vnId)?.release_images ?? [];
   const existingByKey = new Map(existing.map((img) => [`${img.release_id}:${img.id ?? img.url}`, img]));
@@ -152,7 +158,7 @@ async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage
   // with `developer / publisher / distributor` flags), so this loop is
   // the cheapest place to fold them into a per-VN `vn.publishers`
   // column — we're already walking the same releases for image
-  // mirroring.
+  // mirroring. Only runs when the release fetch returned (above guard).
   const publishers: { id: string; name: string }[] = [];
   const seenPub = new Set<string>();
   for (const release of releases) {

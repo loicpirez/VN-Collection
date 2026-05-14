@@ -33,6 +33,7 @@ export async function ProducerVnsSections({ producerId }: { producerId: string }
       totalUnique: 0,
       ownedUnique: 0,
       fromCache: false,
+      upstreamFailed: true,
     };
   }
 

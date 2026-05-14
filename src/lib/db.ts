@@ -631,7 +631,18 @@ const upsertVnTx = db.transaction((vn: RawVnPayload) => {
       languages=excluded.languages, platforms=excluded.platforms,
       length_minutes=excluded.length_minutes, length=excluded.length, length_votes=excluded.length_votes,
       rating=excluded.rating, votecount=excluded.votecount, average=excluded.average,
-      description=excluded.description, developers=excluded.developers,
+      description=excluded.description,
+      -- Preserve developers when the incoming payload is empty. VNDB
+      -- /vn occasionally returns the row with an empty developers list
+      -- (rate-limit short response, partial cache hit upstream); we
+      -- used to overwrite unconditionally and that wiped the local
+      -- studio list on every such refresh, which then made the
+      -- publisher chip leak everywhere we dedup by developer name.
+      developers=CASE
+        WHEN excluded.developers IS NULL OR excluded.developers IN ('[]', '')
+          THEN vn.developers
+          ELSE excluded.developers
+      END,
       tags=excluded.tags, screenshots=excluded.screenshots, relations=excluded.relations,
       aliases=excluded.aliases, extlinks=excluded.extlinks,
       has_anime=excluded.has_anime, editions=excluded.editions, staff=excluded.staff, va=excluded.va,

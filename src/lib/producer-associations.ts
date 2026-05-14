@@ -24,6 +24,13 @@ export interface ProducerAssociations {
   ownedUnique: number;
   /** Was the data served from a live VNDB call this run? false = cached. */
   fromCache: boolean;
+  /**
+   * `true` when neither the developer-credits paginated call nor the
+   * publisher-credits paginated call succeeded this run. Callers (the
+   * refresh route) can return 502 instead of pretending zero results
+   * is the truth.
+   */
+  upstreamFailed: boolean;
 }
 
 interface VndbVnSummary {
@@ -121,16 +128,27 @@ function summarize(v: VndbVnSummary): Omit<ProducerVnRef, 'owned'> {
  */
 export async function fetchProducerAssociations(producerId: string): Promise<ProducerAssociations> {
   if (!/^p\d+$/i.test(producerId)) {
-    return { name: null, developerVns: [], publisherVns: [], totalUnique: 0, ownedUnique: 0, fromCache: false };
+    return {
+      name: null,
+      developerVns: [],
+      publisherVns: [],
+      totalUnique: 0,
+      ownedUnique: 0,
+      fromCache: false,
+      upstreamFailed: false,
+    };
   }
 
   // 1) Developer credits — one page is usually enough (most producers
-  //    have < 100 developed VNs); paginate up to 3 just in case.
+  //    have < 100 developed VNs); paginate up to 3 just in case. The
+  //    pathTag includes the producer id so per-producer wipes don't
+  //    nuke every other producer's cached pages.
   let devs: VndbVnSummary[] = [];
+  let devsOk = false;
   try {
     devs = await paginatePost<VndbVnSummary>(
       '/vn',
-      'POST /vn:producer',
+      `POST /vn:producer:${producerId}`,
       {
         filters: ['developer', '=', ['id', '=', producerId]],
         fields: VN_FIELDS,
@@ -140,6 +158,7 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
       3,
       TTL.vnSearch,
     );
+    devsOk = true;
   } catch {
     devs = [];
   }
@@ -148,10 +167,11 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
   //    releases) which covers even the largest publishers. Each
   //    release may map to multiple VNs; dedupe by VN id.
   let releases: VndbReleaseRow[] = [];
+  let releasesOk = false;
   try {
     releases = await paginatePost<VndbReleaseRow>(
       '/release',
-      'POST /release:producer',
+      `POST /release:producer:${producerId}`,
       {
         filters: ['producer', '=', ['id', '=', producerId]],
         fields: RELEASE_FIELDS,
@@ -161,16 +181,22 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
       5,
       TTL.releases,
     );
+    releasesOk = true;
   } catch {
     releases = [];
   }
 
+  // Capture the producer name from BOTH role types. The previous
+  // implementation only harvested the name when `role.publisher` was
+  // true, which left developer-only producers (lots of doujin
+  // circles, indie devs) returning `name: null` and falling back to
+  // the bare id ("p17") in the header.
   const pubMap = new Map<string, Omit<ProducerVnRef, 'owned'>>();
-  let nameFromRelease: string | null = null;
+  let nameFromUpstream: string | null = null;
   for (const rel of releases) {
     const role = rel.producers?.find((p) => p.id === producerId);
     if (!role) continue;
-    if (role.name && !nameFromRelease) nameFromRelease = role.name;
+    if (role.name && !nameFromUpstream) nameFromUpstream = role.name;
     if (!role.publisher) continue;
     for (const v of rel.vns ?? []) {
       if (!v?.id || pubMap.has(v.id)) continue;
@@ -190,12 +216,13 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
   const publisherVns: ProducerVnRef[] = publisherOnly.map((v) => ({ ...v, owned: ownedSet.has(v.id) }));
 
   return {
-    name: nameFromRelease,
+    name: nameFromUpstream,
     developerVns,
     publisherVns,
     totalUnique: developerVns.length + publisherVns.length,
     ownedUnique: developerVns.filter((v) => v.owned).length + publisherVns.filter((v) => v.owned).length,
     fromCache: false,
+    upstreamFailed: !devsOk && !releasesOk,
   };
 }
 
@@ -213,16 +240,20 @@ function lookupOwned(ids: Set<string>): Set<string> {
  * Bust the VNDB cache rows powering `fetchProducerAssociations` so the
  * next call goes upstream. Used by the "Refresh" button on the producer
  * detail page.
+ *
+ * The pathTag carries the producer id (`POST /vn:producer:p17`,
+ * `POST /release:producer:p17`) so the wipe is scoped — other
+ * producers' cached pages survive. Earlier versions wiped every
+ * producer's cache on every refresh; that made every adjacent
+ * /producer page incur a multi-second blocking re-fetch on the next
+ * visit.
  */
 export function invalidateProducerAssociations(producerId: string): void {
-  // Cache keys for the two endpoints we paginate. The hash component
-  // depends on the body (filters + page), so we wipe by the path tag
-  // prefix to cover every page.
-  db.prepare("DELETE FROM vndb_cache WHERE cache_key LIKE 'POST /vn:producer|%'").run();
-  db.prepare("DELETE FROM vndb_cache WHERE cache_key LIKE 'POST /release:producer|%'").run();
-  // The `producerId` argument is intentionally unused — the per-page
-  // hash makes targeting a specific producer's rows messy. Wiping the
-  // entire path is cheap (rows for OTHER producers re-populate
-  // organically on their next visit).
-  void producerId;
+  if (!/^p\d+$/i.test(producerId)) return;
+  db.prepare("DELETE FROM vndb_cache WHERE cache_key LIKE ?").run(
+    `POST /vn:producer:${producerId}|%`,
+  );
+  db.prepare("DELETE FROM vndb_cache WHERE cache_key LIKE ?").run(
+    `POST /release:producer:${producerId}|%`,
+  );
 }

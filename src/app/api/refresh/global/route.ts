@@ -25,6 +25,15 @@ export async function POST() {
   // fetchEgsAnticipated() / fetchAllUpcomingFromVndb() would just hit
   // the in-DB cache and return the same fetched_at — the refresh
   // would feel like a no-op (which is what the user was seeing).
+  // Only bust the page-level caches this route actually repopulates
+  // below. Earlier versions also wiped `% /producer:%` and
+  // `% /release:%`, but the per-producer pagination caches
+  // (`POST /vn:producer:p17|...`, `POST /release:producer:p17|...`)
+  // are owned by `fetchProducerAssociations` and get their own
+  // per-page refresh button. Wiping them here meant every
+  // `/producer/[id]` tab incurred a multi-second blocking re-fetch
+  // on the next visit, which is what a "global refresh" should
+  // not do.
   const bust = db.prepare(
     "DELETE FROM vndb_cache WHERE " +
     "cache_key LIKE 'egs:cover-resolved:%' OR " +
@@ -33,9 +42,9 @@ export async function POST() {
     "cache_key LIKE '% /schema|%' OR " +
     "cache_key LIKE '% /authinfo|%' OR " +
     "cache_key LIKE '% /release|%' OR " +
-    "cache_key LIKE '% /release:%' OR " +
+    "cache_key LIKE '% /release:upcoming|%' OR " +
+    "cache_key LIKE '% /release:upcoming-all|%' OR " +
     "cache_key LIKE '% /producer|%' OR " +
-    "cache_key LIKE '% /producer:%' OR " +
     "cache_key LIKE '% /tag|%' OR " +
     "cache_key LIKE '% /trait|%'",
   );

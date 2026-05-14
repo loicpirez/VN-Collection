@@ -20,6 +20,16 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
   }
   invalidateProducerAssociations(id);
   const result = await fetchProducerAssociations(id);
+  // Distinguish "VNDB really has no credits for this producer" from
+  // "every upstream call we tried threw". Without this signal the
+  // refresh toast claimed success ("0 dev, 0 pub") during VNDB
+  // outages and the user mistook the empty result for the truth.
+  if (result.upstreamFailed) {
+    return NextResponse.json(
+      { ok: false, error: 'VNDB unavailable', upstreamFailed: true },
+      { status: 502 },
+    );
+  }
   return NextResponse.json({
     ok: true,
     developers: result.developerVns.length,
