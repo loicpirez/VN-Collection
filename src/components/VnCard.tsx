@@ -116,9 +116,21 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
   const ratingNum = data.user_rating ?? data.rating;
   const rating = ratingNum != null ? (ratingNum / 10).toFixed(1) : null;
   const year = data.released?.slice(0, 4);
-  const myPlaytime = fmtMinutes(data.playtime_minutes);
-  const vndbLength = fmtMinutes(data.length_minutes);
-  const egsPlaytime = fmtMinutes(data.egs_playtime_minutes);
+  const myPlaytimeMin = data.playtime_minutes ?? null;
+  const vndbLengthMin = data.length_minutes ?? null;
+  const egsPlaytimeMin = data.egs_playtime_minutes ?? null;
+  // "All playtime" = average of every populated source (matches the
+  // library's combined_playtime sort + the PlaytimeCompare component).
+  let allSum = 0;
+  let allCount = 0;
+  if (myPlaytimeMin && myPlaytimeMin > 0) { allSum += myPlaytimeMin; allCount++; }
+  if (vndbLengthMin && vndbLengthMin > 0) { allSum += vndbLengthMin; allCount++; }
+  if (egsPlaytimeMin && egsPlaytimeMin > 0) { allSum += egsPlaytimeMin; allCount++; }
+  const allPlaytimeMin = allCount > 0 ? Math.round(allSum / allCount) : null;
+  const myPlaytime = fmtMinutes(myPlaytimeMin);
+  const vndbLength = fmtMinutes(vndbLengthMin);
+  const egsPlaytime = fmtMinutes(egsPlaytimeMin);
+  const allPlaytime = fmtMinutes(allPlaytimeMin);
   const egsScore = data.egs_median != null ? Math.round(data.egs_median) : null;
   const titlePair = useResolvedTitle(data.title, data.alttitle ?? null);
 
@@ -249,35 +261,42 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
           )}
           {year && <span>{year}</span>}
         </div>
-        {(myPlaytime || vndbLength || egsPlaytime) && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
-            {myPlaytime && (
-              <span
-                className="inline-flex items-center gap-1 font-semibold text-status-playing"
-                title={t.detail.myPlaytime}
-              >
-                <Clock className="h-3 w-3" aria-hidden />
-                {myPlaytime}
+        {allPlaytime && (
+          <div className="text-[11px]">
+            <span
+              className="inline-flex items-center gap-1 font-semibold text-status-playing"
+              title={[
+                myPlaytime ? `${t.playtime.mine}: ${myPlaytime}` : null,
+                vndbLength ? `${t.playtime.vndb}: ${vndbLength}` : null,
+                egsPlaytime ? `${t.playtime.egs}: ${egsPlaytime}` : null,
+              ].filter(Boolean).join(' · ')}
+            >
+              <Clock className="h-3 w-3" aria-hidden />
+              {allPlaytime}
+              <span className="text-[9px] font-normal uppercase tracking-wider text-status-playing/70">
+                {t.playtime.combined}
               </span>
-            )}
-            {vndbLength && (
-              <span
-                className={`inline-flex items-center gap-1 ${myPlaytime ? 'text-muted/70' : 'text-muted'}`}
-                title={t.detail.lengthVndb}
-              >
-                <Hourglass className="h-3 w-3" aria-hidden />
-                {vndbLength}
-              </span>
-            )}
-            {egsPlaytime && (
-              <span
-                className={`inline-flex items-center gap-1 ${myPlaytime ? 'text-muted/70' : 'text-muted'}`}
-                title={`${t.egs.section} · ${t.egs.playtimeMedian}`}
-              >
-                <Sparkles className="h-3 w-3" aria-hidden />
-                {egsPlaytime}
-              </span>
-            )}
+            </span>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0 text-[10px] text-muted/80">
+              {myPlaytime && (
+                <span className="inline-flex items-center gap-0.5" title={t.playtime.mine}>
+                  <Clock className="h-2.5 w-2.5" aria-hidden />
+                  {myPlaytime}
+                </span>
+              )}
+              {vndbLength && (
+                <span className="inline-flex items-center gap-0.5" title={t.playtime.vndb}>
+                  <Hourglass className="h-2.5 w-2.5" aria-hidden />
+                  {vndbLength}
+                </span>
+              )}
+              {egsPlaytime && (
+                <span className="inline-flex items-center gap-0.5" title={t.playtime.egs}>
+                  <Sparkles className="h-2.5 w-2.5" aria-hidden />
+                  {egsPlaytime}
+                </span>
+              )}
+            </div>
           </div>
         )}
         {data.developers && data.developers.length > 0 && (

@@ -54,14 +54,16 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
   const vndbHas = vndb != null && vndb > 0;
   const egsHas = egs != null && egs > 0;
   const mineHas = mine != null && mine > 0;
-  const combinedHas = vndbHas || egsHas;
-  const combinedValue = vndbHas && egsHas
-    ? Math.round(((vndb as number) + (egs as number)) / 2)
-    : vndbHas
-      ? vndb
-      : egsHas
-        ? egs
-        : null;
+  // "Combined" is the average of every populated source — VNDB, EGS,
+  // and Mine. Matches the `combined_playtime` SQL on the library sort.
+  // Example: 95 / 90 / 93 → (95+90+93)/3 ≈ 92.67.
+  const combinedHas = vndbHas || egsHas || mineHas;
+  let combinedSum = 0;
+  let combinedCount = 0;
+  if (vndbHas) { combinedSum += vndb as number; combinedCount++; }
+  if (egsHas) { combinedSum += egs as number; combinedCount++; }
+  if (mineHas) { combinedSum += mine as number; combinedCount++; }
+  const combinedValue = combinedCount > 0 ? Math.round(combinedSum / combinedCount) : null;
 
   // Resolution priority: explicit pref > combined > vndb > egs > mine.
   function pickColumn(pref: SourceChoice): Tab {

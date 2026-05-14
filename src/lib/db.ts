@@ -1983,19 +1983,31 @@ export function listCollection({
     title: 'v.title',
     rating: 'v.rating',
     user_rating: 'c.user_rating',
-    // Effective playtime: user value if > 0, else fall back to VNDB length.
-    playtime: 'COALESCE(NULLIF(c.playtime_minutes, 0), v.length_minutes)',
-    // VNDB community length only, no fallback to user or EGS.
+    // User's own recorded playtime, nothing else. The `length_minutes`
+    // and `egs_playtime` sorts cover the community sides; `combined_playtime`
+    // is the rollup. No fallback so a "My playtime" sort really means mine.
+    playtime: 'NULLIF(c.playtime_minutes, 0)',
+    // VNDB community length only.
     length_minutes: 'v.length_minutes',
-    // EGS user-review median playtime only.
+    // EGS user-review median only.
     egs_playtime: 'e.playtime_median_minutes',
-    // Combined community playtime: VNDB length and EGS median averaged.
-    // Falls back to whichever side has a value; nulls last regardless.
+    // "All playtime": average of every populated source (VNDB length,
+    // EGS user-review median, user's own recorded time). Divide by the
+    // number of sources actually populated so a single-source value
+    // ranks at its own magnitude rather than getting watered down by
+    // missing data. NULL only when every source is empty/0 — those
+    // entries sort last.
+    //
+    // Example: VNDB=95, EGS=90, Mine=93 → (95+90+93)/3 = 92.67
+    //          VNDB=null, EGS=100         → 100/1 = 100
+    //          VNDB=71, EGS=24, Mine=0    → (71+24)/2 = 47.5
     combined_playtime:
-      'CASE WHEN v.length_minutes IS NULL AND e.playtime_median_minutes IS NULL THEN NULL ' +
-      'WHEN v.length_minutes IS NULL THEN e.playtime_median_minutes ' +
-      'WHEN e.playtime_median_minutes IS NULL THEN v.length_minutes ' +
-      'ELSE (v.length_minutes + e.playtime_median_minutes) / 2.0 END',
+      '(COALESCE(v.length_minutes, 0) + COALESCE(e.playtime_median_minutes, 0) + COALESCE(NULLIF(c.playtime_minutes, 0), 0)) ' +
+      ' / NULLIF(' +
+      '   (CASE WHEN v.length_minutes IS NULL OR v.length_minutes = 0 THEN 0 ELSE 1 END) + ' +
+      '   (CASE WHEN e.playtime_median_minutes IS NULL OR e.playtime_median_minutes = 0 THEN 0 ELSE 1 END) + ' +
+      '   (CASE WHEN c.playtime_minutes IS NULL OR c.playtime_minutes = 0 THEN 0 ELSE 1 END)' +
+      ' , 0)',
     released: 'v.released',
     producer: "json_extract(v.developers, '$[0].name')",
     egs_rating: 'e.median',
