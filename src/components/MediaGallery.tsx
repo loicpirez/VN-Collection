@@ -158,7 +158,7 @@ export function MediaGallery({
                   fit={item.aspect === 'landscape' ? 'cover' : 'contain'}
                 />
               </button>
-              <div className="pointer-events-none absolute right-1.5 top-1.5 flex flex-col items-end gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+              <div className="pointer-events-none absolute right-1.5 top-1.5 flex flex-col items-end gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                 <span className="pointer-events-auto">
                   <SetBannerButton vnId={vnId} value={bannerValue} />
                 </span>
@@ -172,7 +172,7 @@ export function MediaGallery({
                 </span>
               )}
               {item.caption && (
-                <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-2 py-1 text-[10px] text-white transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-2 py-1 text-[10px] text-white transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                   {item.caption}
                 </span>
               )}

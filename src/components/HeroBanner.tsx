@@ -217,7 +217,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
           className={`absolute right-3 top-3 z-10 flex flex-wrap items-center gap-1.5 transition-opacity ${
             editing
               ? 'opacity-100'
-              : 'sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 sm:hover:opacity-100'
+              : 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:hover:opacity-100'
           }`}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerMove={(e) => e.stopPropagation()}

@@ -1,8 +1,8 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, Package, Plus, Sparkles, X } from 'lucide-react';
+import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, MoreVertical, Package, Plus, Sparkles, X } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
@@ -84,15 +84,50 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
   const [addedLocal, setAddedLocal] = useState(false);
   const [, startTransition] = useTransition();
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  // Long-press timer for touch parity: right-click is a desktop-only
+  // gesture, so on phone/tablet the entire quick-actions surface is
+  // unreachable without an alternate trigger. We treat a 500 ms
+  // pointerdown as the touch equivalent of a context-menu event.
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
 
-  // Right-click on a card opens the quick-actions menu when the VN is in the
-  // collection. Skip the menu in selectable mode (multi-select grid) and for
-  // unsaved search hits — there's nothing to mutate yet.
+  function openMenuAt(x: number, y: number) {
+    if (selectable) return;
+    if (!data.status && !data.inCollectionBadge) return;
+    setMenuAnchor({ x, y });
+  }
+
   function onContextMenu(e: React.MouseEvent) {
     if (selectable) return;
     if (!data.status && !data.inCollectionBadge) return;
     e.preventDefault();
-    setMenuAnchor({ x: e.clientX, y: e.clientY });
+    openMenuAt(e.clientX, e.clientY);
+  }
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (e.pointerType !== 'touch') return;
+    longPressFired.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      openMenuAt(e.clientX, e.clientY);
+    }, 500);
+  }
+
+  function clearLongPress() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
+
+  // Swallow the click that follows a fired long-press — otherwise the
+  // outer <Link> navigates away the moment the menu opens.
+  function onClickCapture(e: React.MouseEvent) {
+    if (longPressFired.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      longPressFired.current = false;
+    }
   }
   const showAddButton = enableAdd && !selectable && !data.status && !data.inCollectionBadge && !addedLocal;
   const showAddedBadge = enableAdd && !selectable && (data.inCollectionBadge || addedLocal);
@@ -200,7 +235,7 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
           }}
           title={t.wishlist.removeOne}
           aria-label={t.wishlist.removeOne}
-          className="absolute left-2 top-11 z-30 inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+          className="absolute left-2 top-11 z-30 inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
         >
           <X className="h-4 w-4" aria-hidden />
         </button>
@@ -233,7 +268,7 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
             if (e.key === 'Enter' || e.key === ' ') handleAdd(e);
           }}
           disabled={adding}
-          className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-accent/90 px-2 py-0.5 text-[11px] font-bold text-bg shadow-card transition-opacity hover:bg-accent disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+          className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-accent/90 px-2 py-0.5 text-[11px] font-bold text-bg shadow-card transition-opacity hover:bg-accent disabled:opacity-50 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
           title={t.form.add}
         >
           {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
@@ -362,10 +397,39 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
     );
   }
 
+  // Touch-visible overflow button: same surface as the right-click
+  // menu, since touch devices can't trigger contextmenu. Hidden on
+  // sm+ where right-click is the expected gesture.
+  const showOverflow = (data.status || data.inCollectionBadge) && !selectable;
+
   return (
     <>
-      <Link href={`/vn/${data.id}`} className={className} onContextMenu={onContextMenu}>
+      <Link
+        href={`/vn/${data.id}`}
+        className={className}
+        onContextMenu={onContextMenu}
+        onPointerDown={onPointerDown}
+        onPointerUp={clearLongPress}
+        onPointerLeave={clearLongPress}
+        onPointerCancel={clearLongPress}
+        onClickCapture={onClickCapture}
+      >
         {inner}
+        {showOverflow && (
+          <button
+            type="button"
+            aria-label={t.quickActions.title}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+              openMenuAt(rect.right, rect.bottom);
+            }}
+            className="absolute bottom-2 right-2 z-30 inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur hover:text-white sm:hidden"
+          >
+            <MoreVertical className="h-4 w-4" aria-hidden />
+          </button>
+        )}
       </Link>
       {menuAnchor && (
         <CardContextMenu

@@ -106,7 +106,7 @@ export function FavoriteToggleButton({
       className={`absolute z-30 inline-flex h-7 w-7 items-center justify-center rounded-md shadow-card transition-opacity ${
         on
           ? 'bg-status-dropped/90 text-white hover:bg-status-dropped !opacity-100'
-          : 'bg-bg-card/85 text-muted backdrop-blur hover:text-status-dropped sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100'
+          : 'bg-bg-card/85 text-muted backdrop-blur hover:text-status-dropped md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
       } left-2 top-2`}
     >
       {busy ? (

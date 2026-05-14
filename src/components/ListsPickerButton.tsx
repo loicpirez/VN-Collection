@@ -144,7 +144,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
       : `absolute right-2 top-11 z-30 inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[10px] font-bold uppercase tracking-wider shadow-card backdrop-blur transition-opacity hover:bg-bg-card ${
           hasMembership
             ? 'bg-accent text-bg !opacity-100'
-            : 'bg-bg-card/85 text-white sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100'
+            : 'bg-bg-card/85 text-white md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
         }`;
 
   return (

@@ -35,7 +35,7 @@ export function ListRemoveVn({ listId, vnId }: { listId: number; vnId: string })
       disabled={busy}
       aria-label={t.lists.removeFromList}
       title={t.lists.removeFromList}
-      className="absolute right-2 top-2 z-30 inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+      className="absolute right-2 top-2 z-30 inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
     >
       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-4 w-4" />}
     </button>
