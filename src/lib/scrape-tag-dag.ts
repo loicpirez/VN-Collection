@@ -1,6 +1,9 @@
 import 'server-only';
 import { db } from './db';
 import { fetchVndbWebHtml, htmlToText } from './vndb-scrape';
+import { finishJob, recordError, startJob, tickJob } from './download-status';
+
+const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
 /**
  * The tag system on VNDB is a DAG: each tag can have multiple parents
@@ -104,14 +107,28 @@ export async function scrapeTagDagForVn(
   }
   const ids = Array.from(new Set(tags.map((t) => t.id).filter((s) => /^g\d+$/i.test(s))));
   if (ids.length === 0) return { scanned: 0, downloaded: 0 };
+
+  const now = Date.now();
+  const stale = opts.force
+    ? ids
+    : ids.filter((gid) => {
+        const cached = readScrapedTagDag(gid);
+        return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
+      });
+  if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };
+
+  const job = startJob('vn-fetch', `Tag graph for ${vnId}`, stale.length, vnId);
   let downloaded = 0;
-  for (const gid of ids) {
+  for (const gid of stale) {
     try {
       const r = await scrapeTagDag(gid, opts);
       if (r) downloaded++;
-    } catch {
-      // best-effort
+    } catch (e) {
+      recordError(job.id, gid, (e as Error).message);
+    } finally {
+      tickJob(job.id);
     }
   }
+  finishJob(job.id);
   return { scanned: ids.length, downloaded };
 }

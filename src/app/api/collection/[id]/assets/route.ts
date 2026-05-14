@@ -38,40 +38,45 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (fresh) upsertVn(fresh);
     }
     // Bulk "Download all" path — also re-pull staff/VA profiles so the
-    // staff and character pages are fully populated. `refresh` already
-    // implies the user wants a thorough refetch.
+    // staff and character pages are fully populated. When the caller
+    // passes `?refresh=true` we forward `force: true` to every fan-out
+    // so they bypass the 30-day per-entity freshness cache and actually
+    // re-download. Without this, a "Full re-download" pass would only
+    // show one fan-out kind running (the one without a stale check)
+    // because everything else short-circuits as "already cached".
     if (!isEgsOnly) {
-      void downloadFullStaffForVn(id).catch((e) => {
+      const fopts = { force: refresh };
+      void downloadFullStaffForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] staff fan-out failed:`, (e as Error).message);
       });
-      void downloadFullCharForVn(id).catch((e) => {
+      void downloadFullCharForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] character fan-out failed:`, (e as Error).message);
       });
-      void downloadFullProducerForVn(id).catch((e) => {
+      void downloadFullProducerForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] producer fan-out failed:`, (e as Error).message);
       });
-      void downloadFullReleasesForVn(id).catch((e) => {
+      void downloadFullReleasesForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] release fan-out failed:`, (e as Error).message);
       });
-      void downloadFullTagsForVn(id).catch((e) => {
+      void downloadFullTagsForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] tag fan-out failed:`, (e as Error).message);
       });
-      void downloadFullTraitsForVn(id).catch((e) => {
+      void downloadFullTraitsForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] trait fan-out failed:`, (e as Error).message);
       });
-      void downloadScreenshotReleasesForVn(id).catch((e) => {
+      void downloadScreenshotReleasesForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] screenshot-release fan-out failed:`, (e as Error).message);
       });
-      void downloadFullRelationsForVn(id).catch((e) => {
+      void downloadFullRelationsForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] relations fan-out failed:`, (e as Error).message);
       });
-      void scrapeProducersForVn(id).catch((e) => {
+      void scrapeProducersForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] producer-scrape fan-out failed:`, (e as Error).message);
       });
-      void scrapeTagDagForVn(id).catch((e) => {
+      void scrapeTagDagForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] tag-DAG scrape fan-out failed:`, (e as Error).message);
       });
-      void scrapeCharactersForVn(id).catch((e) => {
+      void scrapeCharactersForVn(id, fopts).catch((e) => {
         console.error(`[assets:${id}] character-scrape fan-out failed:`, (e as Error).message);
       });
     }

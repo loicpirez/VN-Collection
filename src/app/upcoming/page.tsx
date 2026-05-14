@@ -6,6 +6,7 @@ import { fetchEgsAnticipated, type EgsAnticipated } from '@/lib/erogamescape';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid, SkeletonRows } from '@/components/Skeleton';
+import { RefreshPageButton } from '@/components/RefreshPageButton';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
@@ -47,10 +48,15 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Pro
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-          <CalendarRange className="h-6 w-6 text-accent" /> {t.upcoming.title}
-        </h1>
-        <p className="mt-1 text-sm text-muted">{t.upcoming.subtitle}</p>
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
+              <CalendarRange className="h-6 w-6 text-accent" /> {t.upcoming.title}
+            </h1>
+            <p className="mt-1 text-sm text-muted">{t.upcoming.subtitle}</p>
+          </div>
+          <RefreshPageButton />
+        </div>
         <nav className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
           <TabLink href="/upcoming" active={tab === 'collection'} icon={<LibraryIcon className="h-3.5 w-3.5" />}>
             {t.upcoming.tabCollection}

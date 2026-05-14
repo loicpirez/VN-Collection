@@ -7,6 +7,7 @@ import { CachePanel } from '@/components/CachePanel';
 import { HBarChart, VBarChart, DonutChart } from '@/components/charts/BarChart';
 import { ImportPanel } from '@/components/ImportPanel';
 import { ReadingGoalCard } from '@/components/ReadingGoalCard';
+import { RefreshPageButton } from '@/components/RefreshPageButton';
 import { StatsExtras } from '@/components/StatsExtras';
 
 export const dynamic = 'force-dynamic';
@@ -77,9 +78,10 @@ export default async function StatsPage() {
 
   return (
     <div className="space-y-8">
-      <header className="flex items-center gap-3">
+      <header className="flex flex-wrap items-center gap-3">
         <BarChart3 className="h-7 w-7 text-accent" aria-hidden />
-        <h1 className="text-2xl font-bold">{t.stats.pageTitle}</h1>
+        <h1 className="flex-1 text-2xl font-bold">{t.stats.pageTitle}</h1>
+        <RefreshPageButton />
       </header>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">

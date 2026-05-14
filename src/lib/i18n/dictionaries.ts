@@ -316,6 +316,12 @@ export const dictionaries = {
       empty: 'Aucun autre VN dans la collection.',
       go: 'Comparer ({n})',
     },
+    refreshPage: {
+      cta: 'Rafraîchir',
+      title: 'Re-télécharger les données globales (EGS, VNDB, releases, …)',
+      done: 'Données globales rafraîchies.',
+      partial: 'Partiel : {done}/{total} OK.',
+    },
     detail: {
       ratingOf10: '/10',
       votes: 'votes',
@@ -1624,6 +1630,12 @@ export const dictionaries = {
       empty: 'No other VN in the collection.',
       go: 'Compare ({n})',
     },
+    refreshPage: {
+      cta: 'Refresh',
+      title: 'Re-download the global data this page depends on (EGS, VNDB, releases, …)',
+      done: 'Global data refreshed.',
+      partial: 'Partial: {done}/{total} OK.',
+    },
     detail: {
       ratingOf10: '/10',
       votes: 'votes',
@@ -2931,6 +2943,12 @@ export const dictionaries = {
       searchPlaceholder: 'タイトルで絞り込み…',
       empty: 'コレクションに他の VN がありません。',
       go: '比較 ({n})',
+    },
+    refreshPage: {
+      cta: '再取得',
+      title: 'このページに必要なグローバルデータを再取得（EGS・VNDB・リリースなど）',
+      done: 'グローバルデータを更新しました。',
+      partial: '一部成功: {done}/{total}',
     },
     detail: {
       ratingOf10: '/10',

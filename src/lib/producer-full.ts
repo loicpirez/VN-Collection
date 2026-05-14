@@ -3,8 +3,17 @@ import { db, getAppSetting } from './db';
 import { fetchProducerCompletion } from './producer-completion';
 import { finishJob, recordError, startJob, tickJob } from './download-status';
 
+const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
+
 function fanoutEnabled(): boolean {
   return getAppSetting('vndb_fanout') !== '0';
+}
+
+function lastFetchedProducer(pid: string): number {
+  const row = db
+    .prepare('SELECT fetched_at FROM producer WHERE id = ?')
+    .get(pid) as { fetched_at: number } | undefined;
+  return row?.fetched_at ?? 0;
 }
 
 /**
@@ -35,10 +44,16 @@ export async function downloadFullProducerForVn(vnId: string, opts: { force?: bo
   );
 
   if (pids.length === 0) return { scanned: 0, downloaded: 0 };
-  const job = startJob('producers', `Developers for ${vnId}`, pids.length, vnId);
+  const now = Date.now();
+  const stale = opts.force
+    ? pids
+    : pids.filter((pid) => now - lastFetchedProducer(pid) > CACHE_FRESH_MS);
+  if (stale.length === 0) return { scanned: pids.length, downloaded: 0 };
+
+  const job = startJob('producers', `Developers for ${vnId}`, stale.length, vnId);
 
   let downloaded = 0;
-  for (const pid of pids) {
+  for (const pid of stale) {
     try {
       await fetchProducerCompletion(pid);
       downloaded += 1;
@@ -49,5 +64,5 @@ export async function downloadFullProducerForVn(vnId: string, opts: { force?: bo
     }
   }
   finishJob(job.id);
-  return { scanned: pids.length, downloaded };
+  return { scanned: stale.length, downloaded };
 }

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Library, Loader2, Search, Tags } from 'lucide-react';
+import { RefreshPageButton } from './RefreshPageButton';
 import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import type { VndbTag } from '@/lib/vndb-types';
@@ -65,12 +66,13 @@ export function TagsBrowser() {
 
   return (
     <div>
-      <header className="mb-6 flex items-start gap-3">
+      <header className="mb-6 flex flex-wrap items-start gap-3">
         <Tags className="h-7 w-7 text-accent" aria-hidden />
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">{t.tags.pageTitle}</h1>
           <p className="text-sm text-muted">{t.tags.pageSubtitle}</p>
         </div>
+        <RefreshPageButton />
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">

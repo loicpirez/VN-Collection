@@ -105,6 +105,12 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
     setActiveMode(full ? 'full' : 'missing');
     setPickerOpen(false);
     setFailures([]);
+    // Kick a one-shot global refresh first — pulls EGS anticipated,
+    // VNDB stats / schema / authinfo, upcoming releases (collection +
+    // all-VNDB). These don't belong to any VN so they're not covered
+    // by the per-VN fan-out, and we want them fresh on a "Download
+    // all" pass. Fire-and-forget; failures show in the download panel.
+    void fetch('/api/refresh/global', { method: 'POST' }).catch(() => {});
     try {
       const r = await fetch('/api/collection?sort=title&order=asc', { cache: 'no-store' });
       if (!r.ok) throw new Error(t.common.error);

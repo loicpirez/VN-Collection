@@ -1,6 +1,9 @@
 import 'server-only';
 import { db } from './db';
 import { fetchVndbWebHtml, htmlToText } from './vndb-scrape';
+import { finishJob, recordError, startJob, tickJob } from './download-status';
+
+const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
 /**
  * Character "instances" (re-uses of the same character across multiple
@@ -137,14 +140,28 @@ export async function scrapeCharactersForVn(
     .all(vnId) as { c_id: string }[];
   const ids = rows.map((r) => r.c_id).filter((s) => /^c\d+$/i.test(s));
   if (ids.length === 0) return { scanned: 0, downloaded: 0 };
+
+  const now = Date.now();
+  const stale = opts.force
+    ? ids
+    : ids.filter((cid) => {
+        const cached = readScrapedCharacterInfo(cid);
+        return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
+      });
+  if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };
+
+  const job = startJob('vn-fetch', `Character instances for ${vnId}`, stale.length, vnId);
   let downloaded = 0;
-  for (const cid of ids) {
+  for (const cid of stale) {
     try {
       const r = await scrapeCharacterInfo(cid, opts);
       if (r) downloaded++;
-    } catch {
-      // best-effort
+    } catch (e) {
+      recordError(job.id, cid, (e as Error).message);
+    } finally {
+      tickJob(job.id);
     }
   }
+  finishJob(job.id);
   return { scanned: ids.length, downloaded };
 }

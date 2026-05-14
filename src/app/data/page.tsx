@@ -10,6 +10,7 @@ import { RunTourButton } from '@/components/RunTourButton';
 import { SteamSettingsBlock } from '@/components/SteamSettingsBlock';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { RecentActivityStrip } from '@/components/RecentActivityStrip';
+import { RefreshPageButton } from '@/components/RefreshPageButton';
 import { SelectiveFullDownload } from '@/components/SelectiveFullDownload';
 
 export const dynamic = 'force-dynamic';
@@ -26,12 +27,13 @@ export default async function DataPage() {
   }
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <header className="flex items-center gap-3">
+      <header className="flex flex-wrap items-center gap-3">
         <Database className="h-7 w-7 text-accent" aria-hidden />
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">{t.dataMgmt.title}</h1>
           <p className="text-sm text-muted">{t.dataMgmt.subtitle}</p>
         </div>
+        <RefreshPageButton />
       </header>
 
       <RecentActivityStrip />

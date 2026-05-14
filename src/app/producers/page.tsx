@@ -3,6 +3,7 @@ import { Building2, Crown, Trophy } from 'lucide-react';
 import { listProducerStats } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
+import { RefreshPageButton } from '@/components/RefreshPageButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +23,13 @@ export default async function ProducersPage() {
 
   return (
     <div>
-      <header className="mb-6 flex items-center gap-3">
+      <header className="mb-6 flex flex-wrap items-center gap-3">
         <Trophy className="h-7 w-7 text-accent" aria-hidden />
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">{t.producers.pageTitle}</h1>
           <p className="text-sm text-muted">{t.producers.ranking}</p>
         </div>
+        <RefreshPageButton />
       </header>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-bg-card">

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Library, Loader2, Search, Sparkles } from 'lucide-react';
+import { RefreshPageButton } from './RefreshPageButton';
 import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import type { VndbTrait } from '@/lib/vndb-types';
@@ -53,12 +54,13 @@ export function TraitsBrowser() {
 
   return (
     <div>
-      <header className="mb-6 flex items-start gap-3">
+      <header className="mb-6 flex flex-wrap items-start gap-3">
         <Sparkles className="h-7 w-7 text-accent" aria-hidden />
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">{t.traits.pageTitle}</h1>
           <p className="text-sm text-muted">{t.traits.pageSubtitle}</p>
         </div>
+        <RefreshPageButton />
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">

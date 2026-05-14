@@ -1,6 +1,9 @@
 import 'server-only';
 import { db } from './db';
 import { fetchVndbWebHtml, htmlToText } from './vndb-scrape';
+import { finishJob, recordError, startJob, tickJob } from './download-status';
+
+const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
 /**
  * Producer relations (parent brand / subsidiary / spawned / imprint /
@@ -111,14 +114,27 @@ export async function scrapeProducersForVn(
   const ids = Array.from(new Set(devs.map((d) => d.id).filter((s) => /^p\d+$/i.test(s))));
   if (ids.length === 0) return { scanned: 0, downloaded: 0 };
 
+  const now = Date.now();
+  const stale = opts.force
+    ? ids
+    : ids.filter((pid) => {
+        const cached = readScrapedProducerInfo(pid);
+        return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
+      });
+  if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };
+
+  const job = startJob('vn-fetch', `Producer relations for ${vnId}`, stale.length, vnId);
   let downloaded = 0;
-  for (const pid of ids) {
+  for (const pid of stale) {
     try {
       const r = await scrapeProducerRelations(pid, opts);
       if (r) downloaded++;
-    } catch {
-      // best-effort; skip
+    } catch (e) {
+      recordError(job.id, pid, (e as Error).message);
+    } finally {
+      tickJob(job.id);
     }
   }
+  finishJob(job.id);
   return { scanned: ids.length, downloaded };
 }
