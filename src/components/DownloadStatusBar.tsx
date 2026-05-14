@@ -106,10 +106,10 @@ export function DownloadStatusBar() {
     k in t.downloadStatus.kinds ? t.downloadStatus.kinds[k as keyof typeof t.downloadStatus.kinds] : k;
 
   return (
-    // Pinned to the right side of the viewport at 1/3 from the top. Keeps
-    // it well clear of the QuoteFooter (which lives at bottom-0 and grows
-    // on hover) and within the user's natural eye-line when working.
-    <div className="fixed right-4 top-1/3 z-40 flex max-w-sm flex-col items-end gap-2">
+    // Anchored bottom-right above the QuoteFooter (which lives at bottom-0
+    // and grows to ~112px on hover — `bottom-32` clears the expanded
+    // height). Popover opens upward so it stays inside the viewport.
+    <div className="fixed bottom-32 right-4 z-40 flex max-w-sm flex-col items-end gap-2">
       {retryingNow && (
         <div className="rounded-md border border-status-on_hold/60 bg-status-on_hold/10 px-3 py-2 text-[11px] text-status-on_hold shadow-card">
           <div className="flex items-center gap-1.5 font-bold">
@@ -158,7 +158,7 @@ export function DownloadStatusBar() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-96 max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card">
+        <div className="absolute bottom-full right-0 mb-2 w-96 max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card">
           <header className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[11px] font-bold uppercase tracking-widest text-muted">
               {t.downloadStatus.title}
