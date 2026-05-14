@@ -34,6 +34,8 @@ import { SeriesAutoSuggest } from '@/components/SeriesAutoSuggest';
 import { detectSeriesForVn } from '@/lib/series-detect';
 import { QueueButton } from '@/components/QueueButton';
 import { SessionPanel } from '@/components/SessionPanel';
+import { FavoriteToggleButton } from '@/components/FavoriteToggleButton';
+import { ListsPickerButton } from '@/components/ListsPickerButton';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { AnimeChip } from '@/components/AnimeChip';
 import { CoverQuickActions } from '@/components/CoverQuickActions';
@@ -433,6 +435,15 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               <CoverQuickActions vnId={vn.id} inCollection={inCol} status={status} />
               {inCol && <DownloadAssetsButton vnId={vn.id} />}
               {inCol && <QueueButton vnId={vn.id} />}
+              {inCol && (
+                <FavoriteToggleButton
+                  vnId={vn.id}
+                  initial={!!vn.favorite}
+                  inCollection
+                  variant="inline"
+                />
+              )}
+              <ListsPickerButton vnId={vn.id} variant="inline" />
               {inCol && <AnimeChip vnId={vn.id} />}
             </div>
             {inCol && (

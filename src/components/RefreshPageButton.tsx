@@ -3,6 +3,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { timeAgo } from '@/lib/time-ago';
 import { useToast } from './ToastProvider';
 
 /**
@@ -79,29 +80,11 @@ export function RefreshPageButton({
 
 function FreshnessChip({ lastUpdatedAt, now }: { lastUpdatedAt: number | null; now: number | null }) {
   const t = useT();
-  let label: string;
-  let stale = false;
-  if (lastUpdatedAt == null) {
-    label = t.refreshPage.lastUpdatedNever;
-    stale = true;
-  } else if (now == null) {
-    label = new Date(lastUpdatedAt).toLocaleString();
-  } else {
-    const diff = Math.max(0, now - lastUpdatedAt);
-    const m = Math.floor(diff / 60_000);
-    const h = Math.floor(diff / 3_600_000);
-    const d = Math.floor(diff / 86_400_000);
-    if (d >= 1) {
-      label = t.refreshPage.lastUpdatedDays.replace('{n}', String(d));
-      stale = d >= 7;
-    } else if (h >= 1) {
-      label = t.refreshPage.lastUpdatedHours.replace('{n}', String(h));
-    } else if (m >= 1) {
-      label = t.refreshPage.lastUpdatedMinutes.replace('{n}', String(m));
-    } else {
-      label = t.refreshPage.lastUpdatedJustNow;
-    }
-  }
+  const stale =
+    lastUpdatedAt == null || (now != null && now - lastUpdatedAt > 7 * 86_400_000);
+  const label = now == null && lastUpdatedAt != null
+    ? new Date(lastUpdatedAt).toLocaleString()
+    : timeAgo(lastUpdatedAt, t, now ?? Date.now());
   const absolute = lastUpdatedAt == null ? '' : new Date(lastUpdatedAt).toLocaleString();
   return (
     <span

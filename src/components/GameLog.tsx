@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
+import { timeAgo } from '@/lib/time-ago';
 import { useToast } from './ToastProvider';
 
 export interface GameLogEntry {
@@ -328,14 +329,7 @@ function fmtTime(ts: number, locale: string): string {
 
 function relative(ts: number, now: number | null, t: ReturnType<typeof useT>): string {
   if (now == null) return '';
-  const diff = Math.max(0, now - ts);
-  const m = Math.floor(diff / 60_000);
-  const h = Math.floor(diff / 3_600_000);
-  const d = Math.floor(diff / 86_400_000);
-  if (d >= 1) return t.refreshPage.lastUpdatedDays.replace('{n}', String(d));
-  if (h >= 1) return t.refreshPage.lastUpdatedHours.replace('{n}', String(h));
-  if (m >= 1) return t.refreshPage.lastUpdatedMinutes.replace('{n}', String(m));
-  return t.gameLog.now;
+  return timeAgo(ts, t, now);
 }
 
 function groupByDay(entries: GameLogEntry[], locale: string): { day: string; items: GameLogEntry[] }[] {

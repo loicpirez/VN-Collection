@@ -9,6 +9,8 @@ import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { useResolvedTitle } from './TitleLine';
 import { CardContextMenu } from './CardContextMenu';
+import { FavoriteToggleButton } from './FavoriteToggleButton';
+import { ListsPickerButton } from './ListsPickerButton';
 import type { Status } from '@/lib/types';
 
 export interface CardData {
@@ -37,6 +39,8 @@ export interface CardData {
    * "X is my original game", which only ever appears on fan discs.
    */
   isFanDisc?: boolean;
+  /** Pre-computed count of user-lists this VN belongs to, for the chip. */
+  listCount?: number | null;
 }
 
 interface VnCardProps {
@@ -138,13 +142,21 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
           <Check className="h-3 w-3" />
         </span>
       )}
-      {data.favorite && (
+      {selectable && data.favorite && (
         <Star
           aria-label="favorite"
-          className={`absolute z-10 h-5 w-5 fill-accent text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)] ${
-            selectable ? 'right-2 top-2' : 'left-2 top-2'
-          }`}
+          className="absolute right-2 top-2 z-10 h-5 w-5 fill-accent text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
         />
+      )}
+      {!selectable && (data.status || data.inCollectionBadge || data.favorite) && (
+        <FavoriteToggleButton
+          vnId={data.id}
+          initial={!!data.favorite}
+          inCollection={!!(data.status || data.inCollectionBadge)}
+        />
+      )}
+      {!selectable && (
+        <ListsPickerButton vnId={data.id} initialMemberCount={data.listCount ?? 0} />
       )}
       {!selectable && data.status && (
         <div className="absolute right-2 top-2 z-10">
@@ -167,7 +179,7 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
           }}
           title={t.wishlist.removeOne}
           aria-label={t.wishlist.removeOne}
-          className="absolute left-2 top-2 z-20 inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped sm:hidden sm:group-hover:inline-flex sm:group-focus-within:inline-flex"
+          className="absolute left-2 top-11 z-30 inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
         >
           <X className="h-4 w-4" aria-hidden />
         </button>

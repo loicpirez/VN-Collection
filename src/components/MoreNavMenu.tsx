@@ -12,6 +12,7 @@ import {
   Globe,
   Heart,
   Library,
+  ListChecks,
   type LucideIcon,
   Menu,
   Quote,
@@ -54,6 +55,7 @@ export function GroupedNav() {
   const primary: NavItem[] = [
     { href: '/', label: t.nav.library, icon: Library },
     { href: '/wishlist', label: t.nav.wishlist, icon: Heart },
+    { href: '/lists', label: t.nav.lists, icon: ListChecks },
     { href: '/search', label: t.nav.search, icon: SearchIcon },
   ];
 

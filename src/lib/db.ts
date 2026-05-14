@@ -238,6 +238,30 @@ function open(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_vn_game_log_vn ON vn_game_log(vn_id, logged_at DESC);
 
+    CREATE TABLE IF NOT EXISTS user_list (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT NOT NULL,
+      slug        TEXT NOT NULL UNIQUE,
+      description TEXT,
+      color       TEXT,
+      icon        TEXT,
+      pinned      INTEGER NOT NULL DEFAULT 0,
+      created_at  INTEGER NOT NULL,
+      updated_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_list_pinned ON user_list(pinned DESC, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS user_list_vn (
+      list_id     INTEGER NOT NULL REFERENCES user_list(id) ON DELETE CASCADE,
+      vn_id       TEXT NOT NULL,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      added_at    INTEGER NOT NULL,
+      note        TEXT,
+      PRIMARY KEY (list_id, vn_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_list_vn_vn   ON user_list_vn(vn_id);
+    CREATE INDEX IF NOT EXISTS idx_user_list_vn_list ON user_list_vn(list_id, order_index);
+
     CREATE TABLE IF NOT EXISTS saved_filter (
       id       INTEGER PRIMARY KEY AUTOINCREMENT,
       name     TEXT NOT NULL,
@@ -3659,4 +3683,226 @@ export function cacheStats(): CacheStat {
     newest: row.newest,
     by_path: byPath,
   };
+}
+
+// User Lists ────────────────────────────────────────────────────────
+//
+// Universal user-curated lists. A VN may be referenced before it lands
+// in the `collection` table (e.g. an anticipated entry the user wants
+// to track) so `user_list_vn.vn_id` deliberately has no FK to `vn(id)`.
+// Removal is handled at the list level instead of cascading.
+
+export interface UserList {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  color: string | null;
+  icon: string | null;
+  pinned: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface UserListWithCount extends UserList {
+  vn_count: number;
+}
+
+export interface UserListItem {
+  list_id: number;
+  vn_id: string;
+  order_index: number;
+  added_at: number;
+  note: string | null;
+}
+
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 64) || 'list';
+}
+
+function uniqueSlug(base: string): string {
+  const stmt = db.prepare('SELECT 1 FROM user_list WHERE slug = ?');
+  let candidate = base;
+  let n = 2;
+  while (stmt.get(candidate)) candidate = `${base}-${n++}`;
+  return candidate;
+}
+
+export function listUserLists(): UserListWithCount[] {
+  return db
+    .prepare(`
+      SELECT l.id, l.name, l.slug, l.description, l.color, l.icon, l.pinned,
+             l.created_at, l.updated_at,
+             (SELECT COUNT(*) FROM user_list_vn lv WHERE lv.list_id = l.id) AS vn_count
+      FROM user_list l
+      ORDER BY l.pinned DESC, l.updated_at DESC, l.id DESC
+    `)
+    .all() as UserListWithCount[];
+}
+
+export function getUserList(id: number): UserList | null {
+  return (db
+    .prepare('SELECT id, name, slug, description, color, icon, pinned, created_at, updated_at FROM user_list WHERE id = ?')
+    .get(id) as UserList | undefined) ?? null;
+}
+
+export function getUserListBySlug(slug: string): UserList | null {
+  return (db
+    .prepare('SELECT id, name, slug, description, color, icon, pinned, created_at, updated_at FROM user_list WHERE slug = ?')
+    .get(slug) as UserList | undefined) ?? null;
+}
+
+export function createUserList(input: {
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  icon?: string | null;
+}): UserList {
+  const name = input.name.trim().slice(0, 120);
+  if (!name) throw new Error('name required');
+  const slug = uniqueSlug(slugify(name));
+  const now = Date.now();
+  const info = db
+    .prepare(`
+      INSERT INTO user_list (name, slug, description, color, icon, pinned, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+    `)
+    .run(name, slug, input.description ?? null, input.color ?? null, input.icon ?? null, now, now);
+  return {
+    id: Number(info.lastInsertRowid),
+    name,
+    slug,
+    description: input.description ?? null,
+    color: input.color ?? null,
+    icon: input.icon ?? null,
+    pinned: 0,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+export function updateUserList(
+  id: number,
+  patch: {
+    name?: string;
+    description?: string | null;
+    color?: string | null;
+    icon?: string | null;
+    pinned?: boolean;
+  },
+): UserList | null {
+  const current = getUserList(id);
+  if (!current) return null;
+  const next: UserList = { ...current };
+  if (patch.name != null) {
+    const name = patch.name.trim().slice(0, 120);
+    if (!name) throw new Error('name required');
+    if (name !== current.name) {
+      next.name = name;
+      const base = slugify(name);
+      next.slug = base === current.slug ? current.slug : uniqueSlug(base);
+    }
+  }
+  if (patch.description !== undefined) next.description = patch.description;
+  if (patch.color !== undefined) next.color = patch.color;
+  if (patch.icon !== undefined) next.icon = patch.icon;
+  if (patch.pinned !== undefined) next.pinned = patch.pinned ? 1 : 0;
+  next.updated_at = Date.now();
+  db.prepare(`
+    UPDATE user_list
+       SET name = ?, slug = ?, description = ?, color = ?, icon = ?, pinned = ?, updated_at = ?
+     WHERE id = ?
+  `).run(next.name, next.slug, next.description, next.color, next.icon, next.pinned, next.updated_at, id);
+  return next;
+}
+
+export function deleteUserList(id: number): boolean {
+  const info = db.prepare('DELETE FROM user_list WHERE id = ?').run(id);
+  return info.changes > 0;
+}
+
+export function listUserListItems(listId: number): UserListItem[] {
+  return db
+    .prepare(`
+      SELECT list_id, vn_id, order_index, added_at, note
+      FROM user_list_vn
+      WHERE list_id = ?
+      ORDER BY order_index ASC, added_at DESC
+    `)
+    .all(listId) as UserListItem[];
+}
+
+export function listListsForVn(vnId: string): UserList[] {
+  return db
+    .prepare(`
+      SELECT l.id, l.name, l.slug, l.description, l.color, l.icon, l.pinned, l.created_at, l.updated_at
+      FROM user_list l
+      JOIN user_list_vn lv ON lv.list_id = l.id
+      WHERE lv.vn_id = ?
+      ORDER BY l.pinned DESC, l.name COLLATE NOCASE
+    `)
+    .all(vnId) as UserList[];
+}
+
+export function listAllListMemberships(): Record<string, UserList[]> {
+  const rows = db
+    .prepare(`
+      SELECT lv.vn_id, l.id, l.name, l.slug, l.description, l.color, l.icon, l.pinned, l.created_at, l.updated_at
+      FROM user_list_vn lv
+      JOIN user_list l ON l.id = lv.list_id
+      ORDER BY l.pinned DESC, l.name COLLATE NOCASE
+    `)
+    .all() as Array<UserList & { vn_id: string }>;
+  const out: Record<string, UserList[]> = {};
+  for (const r of rows) {
+    const { vn_id, ...list } = r;
+    (out[vn_id] ??= []).push(list);
+  }
+  return out;
+}
+
+export function addVnToList(listId: number, vnId: string, note?: string | null): UserListItem | null {
+  const list = getUserList(listId);
+  if (!list) return null;
+  const now = Date.now();
+  const next = (db
+    .prepare('SELECT COALESCE(MAX(order_index), -1) + 1 AS n FROM user_list_vn WHERE list_id = ?')
+    .get(listId) as { n: number }).n;
+  db.prepare(`
+    INSERT INTO user_list_vn (list_id, vn_id, order_index, added_at, note)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(list_id, vn_id) DO UPDATE SET note = excluded.note
+  `).run(listId, vnId, next, now, note ?? null);
+  db.prepare('UPDATE user_list SET updated_at = ? WHERE id = ?').run(now, listId);
+  return {
+    list_id: listId,
+    vn_id: vnId,
+    order_index: next,
+    added_at: now,
+    note: note ?? null,
+  };
+}
+
+export function removeVnFromList(listId: number, vnId: string): boolean {
+  const info = db.prepare('DELETE FROM user_list_vn WHERE list_id = ? AND vn_id = ?').run(listId, vnId);
+  if (info.changes > 0) {
+    db.prepare('UPDATE user_list SET updated_at = ? WHERE id = ?').run(Date.now(), listId);
+  }
+  return info.changes > 0;
+}
+
+export function reorderListItems(listId: number, vnIds: string[]): void {
+  const stmt = db.prepare('UPDATE user_list_vn SET order_index = ? WHERE list_id = ? AND vn_id = ?');
+  const now = Date.now();
+  db.transaction(() => {
+    vnIds.forEach((vnId, idx) => stmt.run(idx, listId, vnId));
+    db.prepare('UPDATE user_list SET updated_at = ? WHERE id = ?').run(now, listId);
+  })();
 }
