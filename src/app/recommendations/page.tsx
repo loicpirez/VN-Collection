@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Sparkles, Star } from 'lucide-react';
 import { recommendVns } from '@/lib/recommend';
@@ -5,6 +6,11 @@ import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = await getDict();
+  return { title: dict.nav.recommend };
+}
 
 export default async function RecommendationsPage({
   searchParams,

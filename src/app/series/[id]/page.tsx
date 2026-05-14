@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Bookmark } from 'lucide-react';
@@ -11,6 +12,14 @@ import { SeriesMetaEditor } from '@/components/SeriesMetaEditor';
 import type { Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const n = Number(id);
+  if (!Number.isFinite(n) || n <= 0) return {};
+  const series = getSeries(n);
+  return series ? { title: series.name } : {};
+}
 
 export default async function SeriesDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

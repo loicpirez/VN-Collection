@@ -1,8 +1,14 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BarChart3, Database, Globe, KeyRound, Languages, MapPin, Package, Sparkles, Star, Tags as TagsIcon, User as UserIcon } from 'lucide-react';
 import { db, getAggregateStats, getCacheFreshness, getStats } from '@/lib/db';
 import { getAuthInfo, getGlobalStats, type VndbStatsGlobal } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = await getDict();
+  return { title: dict.nav.stats };
+}
 import { CachePanel } from '@/components/CachePanel';
 import { HBarChart, VBarChart, DonutChart } from '@/components/charts/BarChart';
 import { ImportPanel } from '@/components/ImportPanel';

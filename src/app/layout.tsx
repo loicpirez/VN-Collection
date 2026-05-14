@@ -18,8 +18,16 @@ import { ToastProvider } from '@/components/ToastProvider';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
+  // Per-page titles use the `%s` template — child routes export their
+  // own metadata with a short string, the template wraps it. e.g.
+  // a VN detail page exports "Saya no Uta", browser tab shows
+  // "Saya no Uta · VN Collection". Pages that don't set metadata fall
+  // back to the default ("VN Collection") via the `default` slot.
   return {
-    title: dict.app.title,
+    title: {
+      template: `%s · ${dict.app.title}`,
+      default: dict.app.title,
+    },
     description: dict.app.tagline,
   };
 }

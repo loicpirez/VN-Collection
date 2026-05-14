@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Building2, Crown, Trophy } from 'lucide-react';
 import { getCacheFreshness, listProducerStats } from '@/lib/db';
@@ -6,6 +7,11 @@ import { ProducerLogo } from '@/components/ProducerLogo';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = await getDict();
+  return { title: dict.nav.producers };
+}
 
 export default async function ProducersPage() {
   const t = await getDict();

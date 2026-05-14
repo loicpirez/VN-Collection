@@ -17,26 +17,54 @@ interface Props {
   current: SourceChoice;
   vndb: Poster;
   egs: Poster;
+  /** User-uploaded / picked cover (vn.custom_cover). null when none. */
+  custom: Poster;
   sexual: number | null;
   alt: string;
   /** Tailwind class added to each image wrapper. */
   imageClassName?: string;
 }
 
+type Column = 'vndb' | 'egs' | 'custom';
+
 function hasPoster(p: Poster): boolean {
   return !!(p.remote || p.local);
 }
 
+function pickColumn(
+  pref: SourceChoice,
+  vndb: Poster,
+  egs: Poster,
+  custom: Poster,
+): { used: Column | null; fellBack: boolean } {
+  const vndbHas = hasPoster(vndb);
+  const egsHas = hasPoster(egs);
+  const customHas = hasPoster(custom);
+  // Explicit preference wins when populated; otherwise fall back in
+  // priority: custom -> vndb -> egs (custom is the user's own choice
+  // so it shouldn't be silently demoted by an empty preferred side).
+  if (pref === 'custom' && customHas) return { used: 'custom', fellBack: false };
+  if (pref === 'egs' && egsHas) return { used: 'egs', fellBack: false };
+  if (pref === 'vndb' && vndbHas) return { used: 'vndb', fellBack: false };
+  if (customHas) return { used: 'custom', fellBack: pref !== 'auto' && pref !== 'custom' };
+  if (vndbHas) return { used: 'vndb', fellBack: pref === 'egs' };
+  if (egsHas) return { used: 'egs', fellBack: pref === 'vndb' };
+  return { used: null, fellBack: false };
+}
+
 /**
- * Image variant of FieldCompare — picks between VNDB cover and the EGS cover
- * (the EGS image is best-effort, so we still render the column when only
- * a remote URL is set; SafeImage shows the fallback if it 404s).
+ * Image variant of FieldCompare — three-way picker over the VNDB cover,
+ * the EGS cover and the user's custom cover (vn.custom_cover). When any
+ * two of the three are populated the user can flip between them; the
+ * custom column only renders when there's actually a custom set, while
+ * the EGS column renders whenever EGS knows the game.
  */
 export function CoverCompare({
   vnId,
   current,
   vndb,
   egs,
+  custom,
   sexual,
   alt,
   imageClassName = 'aspect-[2/3] w-full rounded-xl shadow-card',
@@ -50,9 +78,15 @@ export function CoverCompare({
 
   const vndbHas = hasPoster(vndb);
   const egsHas = hasPoster(egs);
-  const canCompare = vndbHas && egsHas;
-  const resolved = resolveField(vndbHas ? 'vndb' : null, egsHas ? 'egs' : null, optimistic);
-  const active = resolved.used === 'egs' ? egs : vndb;
+  const customHas = hasPoster(custom);
+  const populatedCount = [vndbHas, egsHas, customHas].filter(Boolean).length;
+  const canCompare = populatedCount >= 2;
+  const resolved = pickColumn(optimistic, vndb, egs, custom);
+  const active = resolved.used === 'egs'
+    ? egs
+    : resolved.used === 'custom'
+      ? custom
+      : vndb;
 
   async function persist(next: SourceChoice) {
     if (pending) return;
@@ -86,9 +120,9 @@ export function CoverCompare({
           <div className="flex items-center justify-between gap-2 text-[10px]">
             <span className="inline-flex items-center gap-1 text-muted">
               {t.detail.cover}
-              {resolved.used && resolved.used !== (optimistic === 'egs' ? 'egs' : 'vndb') && (
+              {resolved.used && (
                 <span className="rounded bg-bg-elev/60 px-1 align-middle normal-case tracking-normal">
-                  ↪ {resolved.used.toUpperCase()}
+                  {resolved.used === 'custom' ? t.coverPicker.custom : resolved.used.toUpperCase()}
                 </span>
               )}
             </span>
@@ -107,31 +141,58 @@ export function CoverCompare({
     );
   }
 
+  const columns: Array<{
+    key: Column;
+    label: string;
+    poster: Poster;
+    tone: 'vndb' | 'egs' | 'custom';
+    onUse: () => void;
+    useLabel: string;
+  }> = [];
+  columns.push({
+    key: 'vndb',
+    label: 'VNDB',
+    poster: vndb,
+    tone: 'vndb',
+    onUse: () => persist('vndb'),
+    useLabel: t.compare.useVndb,
+  });
+  columns.push({
+    key: 'egs',
+    label: 'EGS',
+    poster: egs,
+    tone: 'egs',
+    onUse: () => persist('egs'),
+    useLabel: t.compare.useEgs,
+  });
+  if (customHas) {
+    columns.push({
+      key: 'custom',
+      label: t.coverPicker.custom,
+      poster: custom,
+      tone: 'custom',
+      onUse: () => persist('custom'),
+      useLabel: t.compare.useCustom,
+    });
+  }
+
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2">
-        <CoverColumn
-          tone="vndb"
-          label="VNDB"
-          poster={vndb}
-          alt={`${alt} — VNDB`}
-          sexual={sexual}
-          active={resolved.used === 'vndb'}
-          pending={pending && optimistic === 'vndb'}
-          onUse={() => persist('vndb')}
-          useLabel={t.compare.useVndb}
-        />
-        <CoverColumn
-          tone="egs"
-          label="EGS"
-          poster={egs}
-          alt={`${alt} — EGS`}
-          sexual={sexual}
-          active={resolved.used === 'egs'}
-          pending={pending && optimistic === 'egs'}
-          onUse={() => persist('egs')}
-          useLabel={t.compare.useEgs}
-        />
+      <div className={`grid gap-2 ${columns.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        {columns.map((col) => (
+          <CoverColumn
+            key={col.key}
+            tone={col.tone}
+            label={col.label}
+            poster={col.poster}
+            alt={`${alt} — ${col.label}`}
+            sexual={sexual}
+            active={resolved.used === col.key}
+            pending={pending && optimistic === col.key}
+            onUse={col.onUse}
+            useLabel={col.useLabel}
+          />
+        ))}
       </div>
       <div className="flex items-center justify-between gap-2 text-[10px]">
         <button
@@ -169,7 +230,7 @@ function CoverColumn({
   onUse,
   useLabel,
 }: {
-  tone: 'vndb' | 'egs';
+  tone: 'vndb' | 'egs' | 'custom';
   label: string;
   poster: Poster;
   alt: string;
@@ -180,6 +241,12 @@ function CoverColumn({
   useLabel: string;
 }) {
   const empty = !hasPoster(poster);
+  const toneClass =
+    tone === 'egs'
+      ? 'text-accent'
+      : tone === 'custom'
+        ? 'text-accent-blue'
+        : 'text-muted';
   return (
     <div
       className={`rounded-lg border p-1.5 ${
@@ -187,7 +254,7 @@ function CoverColumn({
       }`}
     >
       <div className="mb-1 flex items-center justify-between gap-1 text-[10px]">
-        <span className={`font-bold uppercase tracking-wider ${tone === 'egs' ? 'text-accent' : 'text-muted'}`}>
+        <span className={`font-bold uppercase tracking-wider ${toneClass}`}>
           {label}
           {active && <Check className="ml-1 inline-block h-3 w-3 align-middle text-accent" />}
         </span>

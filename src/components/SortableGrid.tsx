@@ -19,7 +19,6 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
 import { VnCard } from './VnCard';
 import type { CollectionItem, Status } from '@/lib/types';
 
@@ -30,16 +29,25 @@ interface Props {
 }
 
 /**
- * Polished sortable grid using @dnd-kit. Drop targets shift around the cursor,
- * the picked-up card lifts with a DragOverlay (with scale + shadow), and the
- * rest of the grid animates into place via CSS transforms. Touch + keyboard
- * (Space/Enter to pick up, arrow keys to move, Space/Enter to drop) supported
- * for free via @dnd-kit's keyboard sensor.
+ * Polished sortable grid using @dnd-kit. The **entire card** is the drag
+ * surface — no separate grip handle. A short pointer movement (< 6 px)
+ * passes through as a click so the underlying <Link> still navigates to
+ * the VN page; anything beyond that starts the drag. dnd-kit's
+ * PointerSensor doesn't pre-empt the click chain, so the favorite heart
+ * and lists picker overlays on the card still receive their own clicks
+ * without engaging the drag.
+ *
+ * Drop targets shift around the cursor, the picked-up card lifts with a
+ * DragOverlay (scale + shadow), and the rest of the grid animates into
+ * place via CSS transforms. Touch + keyboard (Space/Enter to pick up,
+ * arrow keys to move, Space/Enter to drop) supported for free via
+ * @dnd-kit's keyboard sensor.
  */
 export function SortableGrid({ items, onReorder }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  // Allow a small drag distance before initiating, so a plain click still
-  // navigates to the VN page without engaging the drag.
+  // 6 px activation distance — small enough to feel responsive, large
+  // enough that a click on the favorite / lists / context-menu overlays
+  // never accidentally engages the drag.
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -99,23 +107,22 @@ function SortableCard({ item, isDragGhost }: { item: CollectionItem; isDragGhost
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    // Suppress the browser's native HTML5 drag preview on the underlying
+    // <Link> so dnd-kit's DragOverlay is the only thing the user sees.
+    WebkitUserDrag: 'none' as const,
   };
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`group/sortable relative ${isDragging ? 'opacity-30 saturate-50' : ''}`}
+      {...attributes}
+      {...listeners}
+      aria-roledescription="sortable item"
+      className={`group/sortable relative cursor-grab touch-none select-none active:cursor-grabbing ${
+        isDragging ? 'opacity-30 saturate-50' : ''
+      }`}
+      onDragStart={(e) => e.preventDefault()}
     >
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        aria-label="Reorder"
-        className="absolute left-1.5 top-1.5 z-30 inline-flex h-7 w-7 cursor-grab touch-none items-center justify-center rounded-md border border-border bg-bg-card/90 text-muted backdrop-blur transition-all hover:scale-110 hover:border-accent hover:text-accent active:cursor-grabbing active:scale-95"
-        onClick={(e) => e.preventDefault()}
-      >
-        <GripVertical className="h-3.5 w-3.5" aria-hidden />
-      </button>
       {!isDragGhost && <CardInner item={item} />}
     </div>
   );

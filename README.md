@@ -1,5 +1,9 @@
 # VN Collection
 
+<p align="center">
+  <img src="./Screenshot.png" alt="VN Collection screenshot — library grid with status filters, sort controls and cards" width="100%" />
+</p>
+
 Personal Visual Novel collection manager with a polished, IMDB / Steam-inspired UI.
 All your data lives in a local SQLite file — no cloud, no account, no telemetry.
 

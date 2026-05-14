@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -27,6 +28,12 @@ const ROLE_KEY: Record<string, 'role_scenario' | 'role_chardesign' | 'role_art' 
   producer: 'role_producer',
   staff: 'role_staff',
 };
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const profile = getStaffProfileFromCredits(id);
+  return profile?.name ? { title: profile.name } : {};
+}
 
 export default async function StaffPage({
   params,

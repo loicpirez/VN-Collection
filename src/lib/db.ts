@@ -1158,7 +1158,7 @@ export function clearEgsForVn(vnId: string): void {
   db.prepare('DELETE FROM egs_game WHERE vn_id = ?').run(vnId);
 }
 
-export type SourceChoice = 'auto' | 'vndb' | 'egs';
+export type SourceChoice = 'auto' | 'vndb' | 'egs' | 'custom';
 export type SourceField = 'title' | 'description' | 'image' | 'brand' | 'rating' | 'playtime';
 
 export type SourcePrefMap = Partial<Record<SourceField, SourceChoice>>;

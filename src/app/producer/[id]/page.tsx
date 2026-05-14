@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
@@ -32,6 +33,12 @@ const TYPE_KEY: Record<string, 'type_co' | 'type_in' | 'type_ng'> = {
   in: 'type_in',
   ng: 'type_ng',
 };
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const local = getProducerLocal(id);
+  return local?.name ? { title: local.name } : {};
+}
 
 export default async function ProducerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, CalendarRange, ExternalLink, Flame, Globe, Library as LibraryIcon } from 'lucide-react';
@@ -11,6 +12,11 @@ import { RefreshPageButton } from '@/components/RefreshPageButton';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = await getDict();
+  return { title: dict.nav.upcoming };
+}
 
 type Tab = 'collection' | 'anticipated' | 'all';
 

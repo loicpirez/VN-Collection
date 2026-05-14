@@ -11,13 +11,13 @@
  * yields the other side. Used for description, image, brand, etc.
  */
 
-export type SourceChoice = 'auto' | 'vndb' | 'egs';
+export type SourceChoice = 'auto' | 'vndb' | 'egs' | 'custom';
 
 export interface ResolvedField<T> {
   value: T | null;
-  /** Which side actually supplied the value. `null` when both were empty. */
-  used: 'vndb' | 'egs' | null;
-  /** True when the active source had no value and we fell back to the other side. */
+  /** Which side actually supplied the value. `null` when every source was empty. */
+  used: 'vndb' | 'egs' | 'custom' | null;
+  /** True when the active source had no value and we fell back to another side. */
   fellBack: boolean;
 }
 

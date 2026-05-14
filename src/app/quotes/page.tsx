@@ -1,9 +1,15 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Quote, Search } from 'lucide-react';
 import { listAllQuotes } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = await getDict();
+  return { title: dict.nav.quotes };
+}
 
 export default async function QuotesPage({
   searchParams,

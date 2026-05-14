@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ListChecks, Pin } from 'lucide-react';
 import { listUserLists } from '@/lib/db';
@@ -6,6 +7,11 @@ import { CreateListForm } from '@/components/CreateListForm';
 import { ListCardActions } from '@/components/ListCardActions';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = await getDict();
+  return { title: dict.lists.pageTitle };
+}
 
 export default async function ListsPage() {
   const t = await getDict();

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Box, Download, ExternalLink, Globe, Home, MapPin, Package, Star } from 'lucide-react';
@@ -99,6 +100,14 @@ async function loadVn(id: string): Promise<{ vn: CollectionItem | null; error: s
   }
 }
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id: rawId } = await params;
+  const id = decodeURIComponent(rawId).replace(/^egs:/, 'egs_');
+  const local = getCollectionItem(id);
+  const title = local?.title ?? id;
+  return { title };
+}
+
 export default async function VnDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id: rawId } = await params;
   // Next gives us URL-encoded dynamic params (e.g. `egs%3A894`); decode once
@@ -139,26 +148,35 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
   const listsForThisVn = listListsForVn(id);
   const status = (vn.status as Status | undefined) ?? null;
   const ratingNum = vn.rating != null ? (vn.rating / 10).toFixed(1) : '—';
-  // Per-field source preference (VNDB or EGS) — pulled per-VN, defaults to VNDB.
+  // Per-field source preference (VNDB / EGS / Custom) — pulled per-VN, defaults to Auto.
   const egsRow = getEgsForVn(vn.id);
   const sourcePref = getSourcePref(vn.id);
-  // Build the two candidate poster sets ({ remote, local }) then let resolveField pick.
+  // Three independent poster sources so the compare panel can show them
+  // side-by-side without conflating custom into the VNDB column.
   const vndbPoster = {
     remote: vn.image_url ?? null,
-    local: vn.custom_cover || vn.local_image || null,
+    local: vn.local_image ?? null,
   };
   const egsPoster = {
     remote: egsRow?.image_url ?? null,
     local: egsRow?.local_image ?? null,
   };
+  const customPoster = {
+    remote: vn.custom_cover && /^https?:\/\//i.test(vn.custom_cover) ? vn.custom_cover : null,
+    local: vn.custom_cover && !/^https?:\/\//i.test(vn.custom_cover) ? vn.custom_cover : null,
+  };
   const vndbPosterHas = !!(vndbPoster.remote || vndbPoster.local);
   const egsPosterHas = !!(egsPoster.remote || egsPoster.local);
-  const heroResolved = resolveField(
-    vndbPosterHas ? 'vndb' : null,
-    egsPosterHas ? 'egs' : null,
-    sourcePref.image ?? 'auto',
-  );
-  const heroPoster = heroResolved.used === 'egs' ? egsPoster : vndbPoster;
+  const customPosterHas = !!(customPoster.remote || customPoster.local);
+  // Hero resolution priority: explicit pref > custom > vndb > egs.
+  const imagePref = sourcePref.image ?? 'auto';
+  let heroPoster = vndbPoster;
+  if (imagePref === 'custom' && customPosterHas) heroPoster = customPoster;
+  else if (imagePref === 'egs' && egsPosterHas) heroPoster = egsPoster;
+  else if (imagePref === 'vndb' && vndbPosterHas) heroPoster = vndbPoster;
+  else if (customPosterHas) heroPoster = customPoster;
+  else if (vndbPosterHas) heroPoster = vndbPoster;
+  else if (egsPosterHas) heroPoster = egsPoster;
   // Banner override: any local path or URL the user picked. Fallback to the cover.
   const bannerSource = vn.banner_image || vn.local_image || vn.image_url;
   const bannerIsUrl = bannerSource ? /^https?:\/\//i.test(bannerSource) : false;
@@ -193,12 +211,13 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
 
         <div className="relative -mt-44 grid grid-cols-1 gap-4 px-3 pb-4 sm:gap-6 sm:px-6 sm:pb-6 md:grid-cols-[260px_1fr] md:gap-8 md:px-8 md:pb-8">
           <div className="z-10 mx-auto w-full max-w-[260px] md:mx-0">
-            {inCol && egsPosterHas ? (
+            {inCol && (egsPosterHas || customPosterHas) ? (
               <CoverCompare
                 vnId={vn.id}
                 current={sourcePref.image ?? 'auto'}
                 vndb={vndbPoster}
                 egs={egsPoster}
+                custom={customPoster}
                 sexual={vn.image_sexual ?? null}
                 alt={vn.title}
               />

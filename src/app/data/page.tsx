@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Activity, CalendarRange, Database, Download, FileJson, FileSpreadsheet, FileUp, HardDrive, KeyRound, Sparkles } from 'lucide-react';
 import { getCacheFreshness, getDbStatus } from '@/lib/db';
@@ -14,6 +15,11 @@ import { RefreshPageButton } from '@/components/RefreshPageButton';
 import { SelectiveFullDownload } from '@/components/SelectiveFullDownload';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = await getDict();
+  return { title: dict.nav.data };
+}
 
 export default async function DataPage() {
   const t = await getDict();

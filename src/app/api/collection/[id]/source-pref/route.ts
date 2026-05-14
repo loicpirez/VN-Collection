@@ -11,7 +11,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 const VALID_FIELDS: SourceField[] = ['title', 'description', 'image', 'brand', 'rating', 'playtime'];
-const VALID_CHOICES: SourceChoice[] = ['auto', 'vndb', 'egs'];
+const VALID_CHOICES: SourceChoice[] = ['auto', 'vndb', 'egs', 'custom'];
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;

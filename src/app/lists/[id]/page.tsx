@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ListChecks, Pin } from 'lucide-react';
@@ -54,6 +55,14 @@ function loadCards(items: UserListItem[]): Map<string, VnRow> {
     )
     .all(...ids) as VnRow[];
   return new Map(rows.map((r) => [r.id, r]));
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const listId = Number(id);
+  if (!Number.isFinite(listId) || listId <= 0) return {};
+  const list = getUserList(listId);
+  return list ? { title: list.name } : {};
 }
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
