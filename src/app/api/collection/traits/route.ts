@@ -35,7 +35,7 @@ export async function GET() {
         } else {
           map.set(tr.id, {
             id: tr.id,
-            name: tr.name,
+            name: tr.name ?? tr.id,
             group_name: tr.group_name ?? null,
             sexual: !!tr.sexual,
             count: 1,

@@ -5,11 +5,37 @@ import type { Screenshot, VndbSearchHit } from './types';
 
 export const VNDB_API = 'https://api.vndb.org/kana';
 
+/**
+ * VNDB Kana API v2 — exhaustive field constants.
+ *
+ * Each constant below selects EVERY field documented for that endpoint
+ * (https://api.vndb.org/kana/spec). Where a nested sub-resource would
+ * cause "Too much data selected" errors if fully expanded inline, we
+ * select its ID plus the most-displayable handful and rely on the
+ * dedicated per-entity endpoint (and the per-entity full-download
+ * fan-out in `lib/{character,staff,producer}-full.ts`) to surface every
+ * remaining field on demand.
+ *
+ * The raw response from each detail fetch is also persisted verbatim in
+ * the local SQLite so the user owns every byte VNDB has returned —
+ * even fields not currently rendered are queryable from the cache and
+ * exportable via /data → export.
+ */
+const IMAGE_FULL = 'id,url,dims,sexual,violence,votecount,thumbnail,thumbnail_dims';
+const CHAR_IMAGE_FULL = 'id,url,dims,sexual,violence,votecount';
+const EXTLINK_FULL = 'url,label,name,id';
+const PRODUCER_FULL_SUB = `name,original,aliases,lang,type,description,extlinks{${EXTLINK_FULL}}`;
+const STAFF_FULL_SUB = `aid,ismain,name,original,lang,gender,description,aliases{aid,name,latin,ismain},extlinks{${EXTLINK_FULL}}`;
+const TAG_FULL_SUB = 'name,aliases,description,category,searchable,applicable,vn_count';
+const TRAIT_FULL_SUB = 'name,aliases,description,searchable,applicable,sexual,group_id,group_name,char_count';
+
 const VN_DETAIL_FIELDS = [
   'title',
   'alttitle',
+  'titles{lang,title,latin,official,main}',
   'aliases',
   'olang',
+  'devstatus',
   'released',
   'languages',
   'platforms',
@@ -20,31 +46,37 @@ const VN_DETAIL_FIELDS = [
   'votecount',
   'average',
   'description',
-  'image.url',
-  'image.thumbnail',
-  'image.dims',
-  'image.sexual',
-  'image.violence',
-  'extlinks{url,label,name}',
-  'developers{id,name,original,lang,type}',
-  'tags{id,name,category,rating,spoiler}',
-  'screenshots{url,thumbnail,sexual,violence,dims}',
+  `image{${IMAGE_FULL}}`,
+  `extlinks{${EXTLINK_FULL}}`,
+  `developers{id,${PRODUCER_FULL_SUB}}`,
+  `tags{id,rating,spoiler,lie,${TAG_FULL_SUB}}`,
+  `screenshots{${IMAGE_FULL},release.id}`,
   'editions{eid,lang,name,official}',
-  'staff{eid,role,note,id,aid,name,original,lang}',
-  'va{note,character{id,name,original,image.url}, staff{id,aid,name,original,lang}}',
+  `staff{eid,role,note,id,${STAFF_FULL_SUB}}`,
+  `va{note,character{id,name,original,aliases,image{${CHAR_IMAGE_FULL}}},staff{id,${STAFF_FULL_SUB}}}`,
+  // Relations: same shape as a VN but kept shallow (no further nested
+  // relations / staff / va / tags / screenshots) — those balloon the
+  // response. Users click through to a related VN for the full detail.
   'relations.id',
   'relations.title',
   'relations.alttitle',
+  'relations.titles{lang,title,latin,official,main}',
+  'relations.aliases',
+  'relations.olang',
+  'relations.devstatus',
   'relations.released',
   'relations.rating',
   'relations.votecount',
+  'relations.average',
+  'relations.length',
   'relations.length_minutes',
+  'relations.length_votes',
   'relations.languages',
   'relations.platforms',
-  'relations.developers{id,name}',
-  'relations.image.url',
-  'relations.image.thumbnail',
-  'relations.image.sexual',
+  'relations.description',
+  'relations.developers{id,name,original,lang,type}',
+  `relations.image{${IMAGE_FULL}}`,
+  `relations.extlinks{${EXTLINK_FULL}}`,
   'relations.relation',
   'relations.relation_official',
 ].join(', ');
@@ -63,17 +95,14 @@ const VN_SEARCH_FIELDS = [
   'developers{id,name}',
 ].join(', ');
 
-const PRODUCER_FIELDS = ['name', 'original', 'aliases', 'lang', 'type', 'description', 'extlinks{url,label,name}'].join(', ');
+const PRODUCER_FIELDS = PRODUCER_FULL_SUB;
 
 const CHARACTER_FIELDS = [
   'name',
   'original',
   'aliases',
   'description',
-  'image.url',
-  'image.dims',
-  'image.sexual',
-  'image.violence',
+  `image{${CHAR_IMAGE_FULL}}`,
   'blood_type',
   'height',
   'weight',
@@ -85,25 +114,18 @@ const CHARACTER_FIELDS = [
   'birthday',
   'sex',
   'gender',
-  'vns{id,role,spoiler,title,alttitle,released,image.url,image.thumbnail,image.sexual,rating}',
-  'traits{id,name,group_name,spoiler,sexual}',
+  // vns.* exposes the full VN object; we keep this rich but shallow
+  // (no nested staff/va/relations/tags) so a popular character query
+  // doesn't trip the "too much data" estimator.
+  `vns{id,role,spoiler,title,alttitle,released,olang,languages,platforms,rating,votecount,length_minutes,image{${IMAGE_FULL}},developers{id,name},release{id,title,alttitle,released,minage,official,patch,freeware,has_ero,languages{lang,title,latin,mtl,main},platforms}}`,
+  `traits{id,spoiler,lie,${TRAIT_FULL_SUB}}`,
 ].join(', ');
 
-const STAFF_FIELDS = [
-  'aid',
-  'ismain',
-  'name',
-  'original',
-  'lang',
-  'gender',
-  'description',
-  'aliases{aid,name,latin,ismain}',
-  'extlinks{url,label,name}',
-].join(', ');
+const STAFF_FIELDS = STAFF_FULL_SUB;
 
-const TAG_FIELDS = ['name', 'aliases', 'description', 'category', 'searchable', 'applicable', 'vn_count'].join(', ');
+const TAG_FIELDS = TAG_FULL_SUB;
 
-const TRAIT_FIELDS = ['name', 'aliases', 'description', 'searchable', 'applicable', 'sexual', 'group_id', 'group_name', 'char_count'].join(', ');
+const TRAIT_FIELDS = TRAIT_FULL_SUB;
 
 const RELEASE_FIELDS = [
   'title',
@@ -124,13 +146,18 @@ const RELEASE_FIELDS = [
   'notes',
   'gtin',
   'catalog',
-  'producers{id,name,developer,publisher}',
-  'extlinks{url,label,name}',
-  'vns{id,rtype}',
-  'images{id,url,thumbnail,dims,sexual,violence,type,languages,photo,vn}',
+  `producers{id,developer,publisher,${PRODUCER_FULL_SUB}}`,
+  `extlinks{${EXTLINK_FULL}}`,
+  'vns{id,rtype,title,alttitle,released,image.url,image.thumbnail,image.sexual,rating}',
+  `images{${IMAGE_FULL},type,languages,photo,vn}`,
 ].join(', ');
 
-const QUOTE_FIELDS = ['quote', 'score', 'vn{id,title}', 'character{id,name,original}'].join(', ');
+const QUOTE_FIELDS = [
+  'quote',
+  'score',
+  `vn{id,title,alttitle,released,image{${IMAGE_FULL}}}`,
+  `character{id,name,original,aliases,image{${CHAR_IMAGE_FULL}}}`,
+].join(', ');
 
 /**
  * VNDB token resolver: prefers the DB-stored value (set via UI) and falls back
@@ -266,12 +293,113 @@ export async function advancedSearchVn(
   }, TTL.vnSearch);
 }
 
+export interface VndbExtLink {
+  url: string;
+  label: string;
+  name: string;
+  id?: string | number | null;
+}
+
+export interface VndbImage {
+  id?: string;
+  url: string;
+  thumbnail?: string;
+  dims?: [number, number];
+  thumbnail_dims?: [number, number];
+  sexual?: number;
+  violence?: number;
+  votecount?: number;
+}
+
+export interface VndbCharImage {
+  id?: string;
+  url: string;
+  dims?: [number, number];
+  sexual?: number;
+  violence?: number;
+  votecount?: number;
+}
+
+export interface VndbTitleRecord {
+  lang: string;
+  title: string;
+  latin: string | null;
+  official: boolean;
+  main: boolean;
+}
+
+export interface VndbVnDeveloper {
+  id: string;
+  name: string;
+  original?: string | null;
+  aliases?: string[];
+  lang?: string | null;
+  type?: string | null;
+  description?: string | null;
+  extlinks?: VndbExtLink[];
+}
+
+export interface VndbVnTag {
+  id: string;
+  name: string;
+  rating: number;
+  spoiler: number;
+  lie?: boolean;
+  category?: 'cont' | 'ero' | 'tech' | null;
+  aliases?: string[];
+  description?: string | null;
+  searchable?: boolean;
+  applicable?: boolean;
+  vn_count?: number;
+}
+
+export interface VndbVnStaff {
+  eid: number | null;
+  role: string;
+  note: string | null;
+  id: string;
+  aid: number;
+  ismain?: boolean;
+  name: string;
+  original: string | null;
+  lang: string | null;
+  gender?: string | null;
+  description?: string | null;
+  aliases?: VndbStaffAlias[];
+  extlinks?: VndbExtLink[];
+}
+
+export interface VndbVnVa {
+  note: string | null;
+  character: {
+    id: string;
+    name: string;
+    original: string | null;
+    aliases?: string[];
+    image?: VndbCharImage | null;
+  };
+  staff: {
+    id: string;
+    aid: number;
+    ismain?: boolean;
+    name: string;
+    original: string | null;
+    lang: string | null;
+    gender?: string | null;
+    description?: string | null;
+    aliases?: VndbStaffAlias[];
+    extlinks?: VndbExtLink[];
+  };
+}
+
 export interface VndbVn {
   id: string;
   title: string;
   alttitle: string | null;
+  titles?: VndbTitleRecord[];
   aliases?: string[];
   olang: string | null;
+  devstatus?: 0 | 1 | 2 | null;
   released: string | null;
   languages: string[];
   platforms: string[];
@@ -282,27 +410,14 @@ export interface VndbVn {
   votecount: number | null;
   average?: number | null;
   description: string | null;
-  image: { url: string; thumbnail: string; dims: [number, number]; sexual?: number; violence?: number } | null;
-  extlinks?: { url: string; label: string; name: string }[];
+  image: VndbImage | null;
+  extlinks?: VndbExtLink[];
   has_anime?: boolean | null;
   editions?: { eid: number; lang: string | null; name: string; official: boolean }[];
-  staff?: {
-    eid: number | null;
-    role: string;
-    note: string | null;
-    id: string;
-    aid: number;
-    name: string;
-    original: string | null;
-    lang: string | null;
-  }[];
-  va?: {
-    note: string | null;
-    character: { id: string; name: string; original: string | null; image?: { url: string } | null };
-    staff: { id: string; aid: number; name: string; original: string | null; lang: string | null };
-  }[];
-  developers: { id: string; name: string; original?: string | null; lang?: string | null; type?: string | null }[];
-  tags: { id: string; name: string; rating: number; spoiler: number; category: 'cont' | 'ero' | 'tech' }[];
+  staff?: VndbVnStaff[];
+  va?: VndbVnVa[];
+  developers: VndbVnDeveloper[];
+  tags: VndbVnTag[];
   screenshots: Screenshot[];
   relations?: VndbRelationEntry[];
 }
@@ -310,8 +425,24 @@ export interface VndbVn {
 export interface VndbRelationEntry {
   id: string;
   title: string;
+  alttitle?: string | null;
+  titles?: VndbTitleRecord[];
+  aliases?: string[];
+  olang?: string | null;
+  devstatus?: 0 | 1 | 2 | null;
   released: string | null;
-  image: { url: string; thumbnail?: string; sexual?: number } | null;
+  rating?: number | null;
+  votecount?: number | null;
+  average?: number | null;
+  length?: number | null;
+  length_minutes?: number | null;
+  length_votes?: number | null;
+  languages?: string[];
+  platforms?: string[];
+  description?: string | null;
+  developers?: VndbVnDeveloper[];
+  image: VndbImage | null;
+  extlinks?: VndbExtLink[];
   relation: string;
   relation_official: boolean;
 }
@@ -345,9 +476,9 @@ export interface VndbProducer {
   original: string | null;
   aliases: string[];
   lang: string | null;
-  type: string | null;
+  type: 'co' | 'in' | 'ng' | string | null;
   description: string | null;
-  extlinks: { url: string; label: string; name: string }[];
+  extlinks: VndbExtLink[];
 }
 
 export async function getProducer(id: string): Promise<VndbProducer | null> {
@@ -366,7 +497,7 @@ export interface VndbCharacter {
   original: string | null;
   aliases: string[];
   description: string | null;
-  image: { url: string; dims?: [number, number]; sexual?: number; violence?: number } | null;
+  image: VndbCharImage | null;
   blood_type: string | null;
   height: number | null;
   weight: number | null;
@@ -379,7 +510,22 @@ export interface VndbCharacter {
   sex: [string | null, string | null] | null;
   gender: [string | null, string | null] | null;
   vns: VndbCharacterVn[];
-  traits: { id: string; name: string; group_name: string; spoiler: number; sexual: boolean }[];
+  traits: VndbCharacterTrait[];
+}
+
+export interface VndbCharacterTrait {
+  id: string;
+  spoiler: number;
+  lie?: boolean;
+  name?: string;
+  aliases?: string[];
+  description?: string | null;
+  searchable?: boolean;
+  applicable?: boolean;
+  sexual?: boolean;
+  group_id?: string | null;
+  group_name?: string | null;
+  char_count?: number;
 }
 
 export interface VndbCharacterVn {
@@ -389,8 +535,27 @@ export interface VndbCharacterVn {
   title?: string;
   alttitle?: string | null;
   released?: string | null;
-  image?: { url: string; thumbnail?: string; sexual?: number } | null;
+  olang?: string | null;
+  languages?: string[];
+  platforms?: string[];
+  length_minutes?: number | null;
   rating?: number | null;
+  votecount?: number | null;
+  developers?: { id: string; name: string }[];
+  image?: VndbImage | null;
+  release?: {
+    id: string;
+    title?: string;
+    alttitle?: string | null;
+    released?: string | null;
+    minage?: number | null;
+    official?: boolean;
+    patch?: boolean;
+    freeware?: boolean;
+    has_ero?: boolean;
+    languages?: VndbReleaseLanguage[];
+    platforms?: string[];
+  } | null;
 }
 
 export async function getCharactersForVn(vnId: string, max = 30): Promise<VndbCharacter[]> {
@@ -458,7 +623,7 @@ export interface VndbStaff {
   gender: string | null;
   description: string | null;
   aliases: VndbStaffAlias[];
-  extlinks: { url: string; label: string; name: string }[];
+  extlinks: VndbExtLink[];
 }
 
 export async function searchStaff(query: string, { results = 30, mainOnly = true } = {}): Promise<VndbStaff[]> {
@@ -719,6 +884,29 @@ export interface VndbReleaseLanguage {
   main: boolean;
 }
 
+export interface VndbReleaseProducer {
+  id: string;
+  developer: boolean;
+  publisher: boolean;
+  name: string;
+  original?: string | null;
+  aliases?: string[];
+  lang?: string | null;
+  type?: 'co' | 'in' | 'ng' | string | null;
+  description?: string | null;
+  extlinks?: VndbExtLink[];
+}
+
+export interface VndbReleaseVn {
+  id: string;
+  rtype: 'trial' | 'partial' | 'complete';
+  title?: string;
+  alttitle?: string | null;
+  released?: string | null;
+  rating?: number | null;
+  image?: VndbImage | null;
+}
+
 export interface VndbRelease {
   id: string;
   title: string;
@@ -739,9 +927,9 @@ export interface VndbRelease {
   notes: string | null;
   gtin: string | null;
   catalog: string | null;
-  producers: { id: string; name: string; developer: boolean; publisher: boolean }[];
-  extlinks: { url: string; label: string; name: string; id?: string | number }[];
-  vns: { id: string; rtype: 'trial' | 'partial' | 'complete' }[];
+  producers: VndbReleaseProducer[];
+  extlinks: VndbExtLink[];
+  vns: VndbReleaseVn[];
   images: VndbReleaseImage[];
 }
 
@@ -749,9 +937,11 @@ export interface VndbReleaseImage {
   id: string;
   url: string;
   thumbnail?: string;
+  thumbnail_dims?: [number, number];
   dims?: [number, number];
   sexual?: number;
   violence?: number;
+  votecount?: number;
   type: 'pkgfront' | 'pkgback' | 'pkgcontent' | 'pkgside' | 'pkgmed' | 'dig';
   languages?: string[] | null;
   photo?: boolean;
@@ -783,8 +973,20 @@ export interface VndbQuote {
   id: string;
   quote: string;
   score: number;
-  vn: { id: string; title: string } | null;
-  character: { id: string; name: string; original: string | null } | null;
+  vn: {
+    id: string;
+    title: string;
+    alttitle?: string | null;
+    released?: string | null;
+    image?: VndbImage | null;
+  } | null;
+  character: {
+    id: string;
+    name: string;
+    original: string | null;
+    aliases?: string[];
+    image?: VndbCharImage | null;
+  } | null;
 }
 
 export async function getRandomQuote(): Promise<VndbQuote | null> {

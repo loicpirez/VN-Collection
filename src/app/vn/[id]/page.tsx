@@ -218,6 +218,29 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               <div className="min-w-0">
                 <MatchBadges egsOnly={vn.id.startsWith('egs_')} egs={egsRow} t={t} />
                 <TitleLine title={vn.title} alttitle={vn.alttitle} />
+                {(vn.titles ?? []).length > 1 && (
+                  <details className="mt-1 text-[11px]">
+                    <summary className="cursor-pointer text-muted hover:text-white">
+                      <span className="font-bold uppercase tracking-wider">{t.detail.titlesAll}</span>
+                      <span className="ml-1 opacity-70">({(vn.titles ?? []).length})</span>
+                    </summary>
+                    <ul className="mt-1 space-y-0.5 pl-2">
+                      {(vn.titles ?? []).map((tr) => (
+                        <li key={`${tr.lang}-${tr.title}`} className="text-white/85">
+                          <span className="mr-1 inline-flex h-4 min-w-[1.5rem] items-center justify-center rounded bg-bg-elev/60 px-1 text-[9px] font-bold uppercase tracking-wider text-muted">
+                            {tr.lang}
+                          </span>
+                          {tr.title}
+                          {tr.latin && tr.latin !== tr.title && (
+                            <span className="ml-1 text-muted">({tr.latin})</span>
+                          )}
+                          {!tr.official && <span className="ml-1 text-[9px] text-muted">· unoff.</span>}
+                          {tr.main && <span className="ml-1 text-[9px] font-bold text-accent">★</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
                 {(vn.aliases ?? []).length > 0 && (
                   <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11px] text-muted">
                     <span className="font-bold uppercase tracking-wider">
@@ -255,9 +278,30 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <dd className="font-semibold">{vn.released}</dd>
                 </div>
               )}
+              {vn.devstatus != null && vn.devstatus !== 0 && (
+                <div>
+                  <dt className="label">{t.detail.devstatus}</dt>
+                  <dd className="font-semibold">
+                    {vn.devstatus === 1 ? t.detail.devstatusInDev : t.detail.devstatusCancelled}
+                  </dd>
+                </div>
+              )}
+              {vn.olang && (
+                <div>
+                  <dt className="label">{t.detail.olang}</dt>
+                  <dd className="font-semibold">{vn.olang.toUpperCase()}</dd>
+                </div>
+              )}
               <div className="col-span-2 sm:col-span-3">
                 <dt className="label">{t.detail.lengthVndb}</dt>
-                <dd className="font-semibold">{fmtMinutes(vn.length_minutes)}</dd>
+                <dd className="font-semibold">
+                  {fmtMinutes(vn.length_minutes)}
+                  {vn.length_votes != null && vn.length_votes > 0 && (
+                    <span className="ml-2 text-xs font-normal text-muted">
+                      · {vn.length_votes} {t.detail.lengthVotes}
+                    </span>
+                  )}
+                </dd>
                 {inCol && (
                   <ReadingSpeedBadge
                     vndbLength={vn.length_minutes ?? null}
@@ -265,6 +309,12 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   />
                 )}
               </div>
+              {vn.average != null && vn.rating != null && vn.average !== vn.rating && (
+                <div>
+                  <dt className="label">{t.detail.averageVndb}</dt>
+                  <dd className="font-semibold">{(vn.average / 10).toFixed(2)}</dd>
+                </div>
+              )}
               <div>
                 <dt className="label">{t.detail.myPlaytime}</dt>
                 <dd className="font-semibold">{fmtMinutes(vn.playtime_minutes)}</dd>
@@ -341,10 +391,15 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <Link
                     key={tag.id}
                     href={`/?tag=${encodeURIComponent(tag.id)}`}
-                    className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent"
-                    title={t.library.filterByTag}
+                    className={`rounded-md border bg-bg-elev px-2 py-0.5 text-[11px] transition-colors hover:border-accent hover:text-accent ${
+                      tag.lie
+                        ? 'border-status-on_hold/40 text-status-on_hold'
+                        : 'border-border text-muted'
+                    }`}
+                    title={tag.lie ? `${t.library.filterByTag} · ${t.detail.tagLie}` : t.library.filterByTag}
                   >
                     {tag.name}
+                    {tag.lie && <span className="ml-1 text-[9px] opacity-80">⚠</span>}
                   </Link>
                 ))}
               </div>

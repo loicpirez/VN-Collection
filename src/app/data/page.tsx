@@ -109,7 +109,11 @@ export default async function DataPage() {
           <Link href="/api/backup" className="btn" download>
             <HardDrive className="h-4 w-4" /> {t.dataMgmt.backupDb}
           </Link>
+          <Link href="/api/export/raw" className="btn" download>
+            <FileJson className="h-4 w-4" /> {t.dataMgmt.exportRawCache}
+          </Link>
         </div>
+        <p className="mt-2 text-[11px] text-muted">{t.dataMgmt.exportRawCacheHint}</p>
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">

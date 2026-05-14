@@ -6,6 +6,9 @@ import { refreshVn } from '@/lib/vndb';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
+import { downloadFullReleasesForVn } from '@/lib/release-full';
+import { downloadFullTagsForVn } from '@/lib/tag-full';
+import { downloadFullTraitsForVn } from '@/lib/trait-full';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -42,6 +45,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       });
       void downloadFullProducerForVn(id).catch((e) => {
         console.error(`[assets:${id}] producer fan-out failed:`, (e as Error).message);
+      });
+      void downloadFullReleasesForVn(id).catch((e) => {
+        console.error(`[assets:${id}] release fan-out failed:`, (e as Error).message);
+      });
+      void downloadFullTagsForVn(id).catch((e) => {
+        console.error(`[assets:${id}] tag fan-out failed:`, (e as Error).message);
+      });
+      void downloadFullTraitsForVn(id).catch((e) => {
+        console.error(`[assets:${id}] trait fan-out failed:`, (e as Error).message);
       });
     }
     // Force-refresh the EGS payload too — pulls every gamelist column, refreshes the

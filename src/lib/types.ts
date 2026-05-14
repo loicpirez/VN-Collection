@@ -65,7 +65,7 @@ export interface VnRow {
   votecount: number | null;
   description: string | null;
   developers: { id: string; name: string }[];
-  tags: { id: string; name: string; rating: number; spoiler: number; category?: 'cont' | 'ero' | 'tech' | null }[];
+  tags: { id: string; name: string; rating: number; spoiler: number; lie?: boolean; category?: 'cont' | 'ero' | 'tech' | null }[];
   screenshots: Screenshot[];
   release_images: ReleaseImage[];
   local_image: string | null;
@@ -79,6 +79,13 @@ export interface VnRow {
   length_votes: number | null;
   average: number | null;
   has_anime: boolean | null;
+  /** 0 = Finished, 1 = In development, 2 = Cancelled. Per VNDB /vn devstatus field. */
+  devstatus: 0 | 1 | 2 | null;
+  /**
+   * Full list of titles across every language VNDB has on file (vs the single
+   * `title` / `alttitle` pair). `main: true` corresponds to the VN's olang.
+   */
+  titles: { lang: string; title: string; latin: string | null; official: boolean; main: boolean }[];
   editions: { eid: number; lang: string | null; name: string; official: boolean }[];
   staff: {
     eid: number | null;

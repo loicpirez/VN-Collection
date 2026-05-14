@@ -275,6 +275,8 @@ function open(): Database.Database {
   ensureColumn(db, 'vn', 'length_votes', 'INTEGER');
   ensureColumn(db, 'vn', 'average', 'REAL'); // raw vote average (vs Bayesian `rating`)
   ensureColumn(db, 'vn', 'has_anime', 'INTEGER'); // boolean 0/1/NULL
+  ensureColumn(db, 'vn', 'devstatus', 'INTEGER'); // 0=Finished, 1=In development, 2=Cancelled
+  ensureColumn(db, 'vn', 'titles', 'TEXT'); // JSON [{lang,title,latin,official,main}]
   ensureColumn(db, 'vn', 'editions', 'TEXT'); // JSON [{eid,lang,name,official}]
   ensureColumn(db, 'vn', 'staff', 'TEXT'); // JSON [{eid,role,note,id,aid,name,original,lang}]
   ensureColumn(db, 'vn', 'va', 'TEXT'); // JSON [{note,character,staff}]
@@ -505,8 +507,10 @@ export interface RawVnPayload {
   title: string;
   alttitle?: string | null;
   aliases?: string[];
+  titles?: { lang: string; title: string; latin: string | null; official: boolean; main: boolean }[];
   released?: string | null;
   olang?: string | null;
+  devstatus?: 0 | 1 | 2 | null;
   languages?: string[];
   platforms?: string[];
   length_minutes?: number | null;
@@ -523,7 +527,7 @@ export interface RawVnPayload {
   staff?: unknown[]; // forwarded verbatim — typed in vndb.ts
   va?: unknown[];
   developers?: { id: string; name: string }[];
-  tags?: { id: string; name: string; rating: number; spoiler: number; category?: 'cont' | 'ero' | 'tech' | null }[];
+  tags?: { id: string; name: string; rating: number; spoiler: number; lie?: boolean; category?: 'cont' | 'ero' | 'tech' | null }[];
   screenshots?: Screenshot[];
   relations?: {
     id: string;
@@ -573,17 +577,17 @@ interface VaEntry {
 const upsertVnTx = db.transaction((vn: RawVnPayload) => {
   db.prepare(`
     INSERT INTO vn (id, title, alttitle, image_url, image_thumb, image_sexual, image_violence,
-                    released, olang, languages, platforms, length_minutes, length, length_votes, rating, votecount, average,
+                    released, olang, devstatus, titles, languages, platforms, length_minutes, length, length_votes, rating, votecount, average,
                     description, developers, tags, screenshots, relations, aliases, extlinks,
                     has_anime, editions, staff, va, raw, fetched_at)
     VALUES (@id, @title, @alttitle, @image_url, @image_thumb, @image_sexual, @image_violence,
-            @released, @olang, @languages, @platforms, @length_minutes, @length, @length_votes, @rating, @votecount, @average,
+            @released, @olang, @devstatus, @titles, @languages, @platforms, @length_minutes, @length, @length_votes, @rating, @votecount, @average,
             @description, @developers, @tags, @screenshots, @relations, @aliases, @extlinks,
             @has_anime, @editions, @staff, @va, @raw, @fetched_at)
     ON CONFLICT(id) DO UPDATE SET
       title=excluded.title, alttitle=excluded.alttitle, image_url=excluded.image_url,
       image_thumb=excluded.image_thumb, image_sexual=excluded.image_sexual, image_violence=excluded.image_violence,
-      released=excluded.released, olang=excluded.olang,
+      released=excluded.released, olang=excluded.olang, devstatus=excluded.devstatus, titles=excluded.titles,
       languages=excluded.languages, platforms=excluded.platforms,
       length_minutes=excluded.length_minutes, length=excluded.length, length_votes=excluded.length_votes,
       rating=excluded.rating, votecount=excluded.votecount, average=excluded.average,
@@ -599,6 +603,8 @@ const upsertVnTx = db.transaction((vn: RawVnPayload) => {
     aliases: JSON.stringify(vn.aliases ?? []),
     extlinks: JSON.stringify(vn.extlinks ?? []),
     has_anime: vn.has_anime == null ? null : vn.has_anime ? 1 : 0,
+    devstatus: vn.devstatus ?? null,
+    titles: JSON.stringify(vn.titles ?? []),
     editions: JSON.stringify(vn.editions ?? []),
     staff: JSON.stringify(vn.staff ?? []),
     va: JSON.stringify(vn.va ?? []),
@@ -621,7 +627,14 @@ const upsertVnTx = db.transaction((vn: RawVnPayload) => {
     tags: JSON.stringify(
       (vn.tags ?? [])
         .slice(0, 25)
-        .map((t) => ({ id: t.id, name: t.name, rating: t.rating, spoiler: t.spoiler, category: t.category ?? null })),
+        .map((t) => ({
+          id: t.id,
+          name: t.name,
+          rating: t.rating,
+          spoiler: t.spoiler,
+          lie: !!t.lie,
+          category: t.category ?? null,
+        })),
     ),
     screenshots: JSON.stringify(vn.screenshots ?? []),
     relations: JSON.stringify(
@@ -1711,6 +1724,8 @@ interface DbRow {
   length_votes: number | null;
   average: number | null;
   has_anime: number | null;
+  devstatus: number | null;
+  titles: string | null;
   editions: string | null;
   staff: string | null;
   va: string | null;
@@ -1768,6 +1783,8 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     length_votes: row.length_votes ?? null,
     average: row.average ?? null,
     has_anime: row.has_anime == null ? null : !!row.has_anime,
+    devstatus: row.devstatus == null ? null : (row.devstatus as 0 | 1 | 2),
+    titles: row.titles ? JSON.parse(row.titles) : [],
     editions: row.editions ? JSON.parse(row.editions) : [],
     staff: row.staff ? JSON.parse(row.staff) : [],
     va: row.va ? JSON.parse(row.va) : [],
