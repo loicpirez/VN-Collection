@@ -38,8 +38,7 @@ export function SpoilerToggle() {
         aria-expanded={open}
       >
         {settings.spoilerLevel === 0 ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-        <span className="hidden sm:inline">{labelByLevel[settings.spoilerLevel]}</span>
-        <span className="sm:hidden">{settings.spoilerLevel === 0 ? '○' : settings.spoilerLevel}</span>
+        <span>{labelByLevel[settings.spoilerLevel]}</span>
       </button>
       {open && (
         <>
@@ -48,7 +47,7 @@ export function SpoilerToggle() {
             onClick={() => setOpen(false)}
             aria-hidden
           />
-          <div className="absolute right-0 top-full z-40 mt-1 w-60 rounded-lg border border-border bg-bg-card p-2 shadow-card">
+          <div className="absolute right-0 top-full z-40 mt-1 w-[min(92vw,15rem)] rounded-lg border border-border bg-bg-card p-2 shadow-card">
             <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-muted">
               {t.spoiler.title}
             </div>

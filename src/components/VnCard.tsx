@@ -167,7 +167,7 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
           }}
           title={t.wishlist.removeOne}
           aria-label={t.wishlist.removeOne}
-          className="absolute left-2 top-2 z-20 hidden h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped group-hover:inline-flex"
+          className="absolute left-2 top-2 z-20 inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped sm:hidden sm:group-hover:inline-flex sm:group-focus-within:inline-flex"
         >
           <X className="h-4 w-4" aria-hidden />
         </button>
@@ -200,7 +200,7 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
             if (e.key === 'Enter' || e.key === ' ') handleAdd(e);
           }}
           disabled={adding}
-          className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-accent/90 px-2 py-0.5 text-[11px] font-bold text-bg shadow-card opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100 group-focus-within:opacity-100 disabled:opacity-50"
+          className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-accent/90 px-2 py-0.5 text-[11px] font-bold text-bg shadow-card transition-opacity hover:bg-accent disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
           title={t.form.add}
         >
           {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}

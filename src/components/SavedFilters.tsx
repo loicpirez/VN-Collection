@@ -123,7 +123,7 @@ export function SavedFilters() {
         <ChevronDown className="h-3 w-3" aria-hidden />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-72 rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card">
+        <div className="absolute left-0 top-full z-30 mt-1 w-[min(92vw,18rem)] rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card">
           {filters.length === 0 ? (
             <p className="px-1 py-1 text-muted">{t.savedFilters.popoverEmpty}</p>
           ) : (

@@ -91,7 +91,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
                 {s.description && <div className="line-clamp-2 text-xs text-muted">{s.description}</div>}
               </Link>
               <button
-                className="btn btn-danger opacity-0 transition-opacity group-hover:opacity-100"
+                className="btn btn-danger transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                 onClick={() => remove(s.id)}
                 aria-label={t.series.delete}
                 title={t.series.delete}

@@ -133,7 +133,7 @@ export function TagsBrowser() {
               <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
                 <span className="tabular-nums">{tag.vn_count.toLocaleString()} {t.tags.vnCount}</span>
                 {tag.aliases.length > 0 && <span className="truncate">· {tag.aliases.slice(0, 2).join(', ')}</span>}
-                <span className="ml-auto inline-flex items-center gap-1 text-accent opacity-0 transition-opacity group-hover:opacity-100">
+                <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                   {t.tags.openInLibrary}
                   <ArrowRight className="h-3 w-3" aria-hidden />
                 </span>

@@ -263,12 +263,12 @@ export function RoutesSection({ vnId, inCollection }: Props) {
               )}
 
               {r.completed_date && (
-                <span className="hidden text-[10px] text-muted tabular-nums sm:inline">
+                <span className="text-[10px] text-muted tabular-nums">
                   {r.completed_date}
                 </span>
               )}
 
-              <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="flex items-center gap-0.5 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                 <button
                   type="button"
                   onClick={() => move(r.id, -1)}
