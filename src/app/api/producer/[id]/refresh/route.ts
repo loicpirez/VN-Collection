@@ -35,5 +35,10 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     developers: result.developerVns.length,
     publishers: result.publisherVns.length,
     owned: result.ownedUnique,
+    // True when at least one of the two paginated walks fell back
+    // to the stale cache because the live VNDB call threw. The
+    // toast surfaces a "served stale" hint so the user knows the
+    // counts may be out of date and can retry.
+    stale: result.stale,
   });
 }

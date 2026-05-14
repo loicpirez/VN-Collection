@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Check, Package, Wrench } from 'lucide-react';
+import { AlertTriangle, Check, Package, Wrench } from 'lucide-react';
 import { fetchProducerAssociations, type ProducerAssociations, type ProducerVnRef } from '@/lib/producer-associations';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from './SafeImage';
@@ -34,6 +34,7 @@ export async function ProducerVnsSections({ producerId }: { producerId: string }
       ownedUnique: 0,
       fromCache: false,
       upstreamFailed: true,
+      stale: false,
     };
   }
 
@@ -53,6 +54,23 @@ export async function ProducerVnsSections({ producerId }: { producerId: string }
               .replace('{devs}', String(data.developerVns.length))
               .replace('{pubs}', String(data.publisherVns.length))}
           </p>
+          {/*
+            Stale badge: rendered when at least one paginated walk
+            fell back to the cache because the live VNDB call threw.
+            The counts above can still be wrong, so we flag it
+            visually next to the summary line. The refresh button
+            below is the user's only recourse — clicking it busts
+            the cache and re-tries upstream.
+          */}
+          {data.stale && (
+            <span
+              className="mt-1 inline-flex w-fit items-center gap-1 rounded-md border border-status-on_hold/50 bg-status-on_hold/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-status-on_hold"
+              title={t.producerVns.staleSuffix}
+            >
+              <AlertTriangle className="h-3 w-3" aria-hidden />
+              {t.producerVns.staleBadge}
+            </span>
+          )}
         </div>
         <ProducerRefreshButton producerId={producerId} />
       </div>

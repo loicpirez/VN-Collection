@@ -34,6 +34,7 @@ export function ProducerRefreshButton({ producerId }: { producerId: string }) {
         publishers?: number;
         owned?: number;
         upstreamFailed?: boolean;
+        stale?: boolean;
       };
       if (!r.ok) {
         throw new Error(body.error || t.common.error);
@@ -44,12 +45,20 @@ export function ProducerRefreshButton({ producerId }: { producerId: string }) {
       const devs = typeof body.developers === 'number' ? body.developers : 0;
       const pubs = typeof body.publishers === 'number' ? body.publishers : 0;
       const owned = typeof body.owned === 'number' ? body.owned : 0;
-      toast.success(
-        t.producerVns.refreshDone
-          .replace('{devs}', String(devs))
-          .replace('{pubs}', String(pubs))
-          .replace('{owned}', String(owned)),
-      );
+      const message = t.producerVns.refreshDone
+        .replace('{devs}', String(devs))
+        .replace('{pubs}', String(pubs))
+        .replace('{owned}', String(owned));
+      // When the data came from a stale-while-error fallback the
+      // counts reflect the last-known cache, not the live truth.
+      // We surface that as a "warning" toast (yellow tone) and
+      // append the stale-data suffix so the user can decide to
+      // retry once VNDB is healthy again.
+      if (body.stale) {
+        toast.warning(`${message} · ${t.producerVns.staleSuffix}`);
+      } else {
+        toast.success(message);
+      }
       startTransition(() => router.refresh());
     } catch (err) {
       toast.error((err as Error).message);

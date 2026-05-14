@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { createPortal } from 'react-dom';
 import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 
-export type ToastKind = 'success' | 'error' | 'info';
+export type ToastKind = 'success' | 'error' | 'info' | 'warning';
 
 interface ToastEntry {
   id: number;
@@ -18,6 +18,13 @@ interface ToastApi {
   success: (message: string, duration?: number) => void;
   error: (message: string, duration?: number) => void;
   info: (message: string, duration?: number) => void;
+  /**
+   * Yellow-tone toast used for "operation succeeded but the data
+   * is stale" situations — e.g. a refresh that fell back to the
+   * cache because VNDB was unreachable. Distinct from `error` so
+   * the user doesn't read it as a hard failure.
+   */
+  warning: (message: string, duration?: number) => void;
   dismiss: (id: number) => void;
 }
 
@@ -56,6 +63,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       success: (m, d) => push('success', m, d),
       error: (m, d) => push('error', m, d),
       info: (m, d) => push('info', m, d),
+      warning: (m, d) => push('warning', m, d),
       dismiss,
     }),
     [push, dismiss],
@@ -87,8 +95,15 @@ function ToastView({ toast, onDismiss }: { toast: ToastEntry; onDismiss: () => v
       ? 'border-status-completed/60 bg-status-completed/15 text-status-completed'
       : toast.kind === 'error'
         ? 'border-status-dropped/60 bg-status-dropped/15 text-status-dropped'
-        : 'border-border bg-bg-card text-white';
-  const Icon = toast.kind === 'success' ? CheckCircle2 : toast.kind === 'error' ? AlertTriangle : Info;
+        : toast.kind === 'warning'
+          ? 'border-status-on_hold/60 bg-status-on_hold/15 text-status-on_hold'
+          : 'border-border bg-bg-card text-white';
+  const Icon =
+    toast.kind === 'success'
+      ? CheckCircle2
+      : toast.kind === 'error' || toast.kind === 'warning'
+        ? AlertTriangle
+        : Info;
   return (
     <div
       role={toast.kind === 'error' ? 'alert' : 'status'}

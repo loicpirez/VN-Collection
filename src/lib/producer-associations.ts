@@ -31,6 +31,13 @@ export interface ProducerAssociations {
    * is the truth.
    */
   upstreamFailed: boolean;
+  /**
+   * `true` when at least one paginated page was served as a
+   * stale-while-error fallback (upstream threw, cache replied). The
+   * data is still usable but the UI should surface a "stale" hint
+   * so the user knows to retry.
+   */
+  stale: boolean;
 }
 
 interface VndbVnSummary {
@@ -69,14 +76,26 @@ const RELEASE_FIELDS =
  * path so a producer-scoped query (`POST /vn:producer`) doesn't
  * collide with the regular VN search (`POST /vn`).
  */
+interface PaginateResult<T> {
+  rows: T[];
+  /**
+   * True when ANY page in this paginated walk was served from a
+   * stale-while-error fallback (upstream failed, cache returned the
+   * last-known body). Propagated to the caller so the UI can show
+   * a "served stale" badge instead of pretending the data is fresh.
+   */
+  stale: boolean;
+}
+
 async function paginatePost<T>(
   endpoint: string,
   pathTag: string,
   baseBody: Record<string, unknown>,
   maxPages: number,
   ttlMs: number,
-): Promise<T[]> {
+): Promise<PaginateResult<T>> {
   const out: T[] = [];
+  let stale = false;
   for (let page = 1; page <= maxPages; page++) {
     const body = { ...baseBody, page, results: 100 };
     const r = await cachedFetch<VndbResp<T>>(
@@ -89,10 +108,11 @@ async function paginatePost<T>(
       },
       { ttlMs },
     );
+    if (r.stale) stale = true;
     out.push(...(r.data.results ?? []));
     if (!r.data.more) break;
   }
-  return out;
+  return { rows: out, stale };
 }
 
 function summarize(v: VndbVnSummary): Omit<ProducerVnRef, 'owned'> {
@@ -136,6 +156,7 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
       ownedUnique: 0,
       fromCache: false,
       upstreamFailed: false,
+      stale: false,
     };
   }
 
@@ -145,8 +166,9 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
   //    nuke every other producer's cached pages.
   let devs: VndbVnSummary[] = [];
   let devsOk = false;
+  let devsStale = false;
   try {
-    devs = await paginatePost<VndbVnSummary>(
+    const r = await paginatePost<VndbVnSummary>(
       '/vn',
       `POST /vn:producer:${producerId}`,
       {
@@ -158,6 +180,8 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
       3,
       TTL.vnSearch,
     );
+    devs = r.rows;
+    devsStale = r.stale;
     devsOk = true;
   } catch {
     devs = [];
@@ -168,8 +192,9 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
   //    release may map to multiple VNs; dedupe by VN id.
   let releases: VndbReleaseRow[] = [];
   let releasesOk = false;
+  let releasesStale = false;
   try {
-    releases = await paginatePost<VndbReleaseRow>(
+    const r = await paginatePost<VndbReleaseRow>(
       '/release',
       `POST /release:producer:${producerId}`,
       {
@@ -181,6 +206,8 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
       5,
       TTL.releases,
     );
+    releases = r.rows;
+    releasesStale = r.stale;
     releasesOk = true;
   } catch {
     releases = [];
@@ -223,6 +250,7 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
     ownedUnique: developerVns.filter((v) => v.owned).length + publisherVns.filter((v) => v.owned).length,
     fromCache: false,
     upstreamFailed: !devsOk && !releasesOk,
+    stale: devsStale || releasesStale,
   };
 }
 

@@ -609,6 +609,8 @@ export const dictionaries = {
       refresh: 'Actualiser',
       refreshing: 'Actualisation…',
       refreshDone: 'Mis à jour · {devs} dév. / {pubs} éd. · {owned} possédés',
+      staleSuffix: 'données potentiellement obsolètes — VNDB injoignable, cache renvoyé.',
+      staleBadge: 'Données en cache',
     },
     series: {
       pageTitle: 'Séries / Collections',
@@ -2075,6 +2077,8 @@ export const dictionaries = {
       refresh: 'Refresh',
       refreshing: 'Refreshing…',
       refreshDone: 'Updated · {devs} dev / {pubs} pub · {owned} owned',
+      staleSuffix: 'data may be stale — VNDB unreachable, cache served.',
+      staleBadge: 'Cached data',
     },
     series: {
       pageTitle: 'Series / Collections',
@@ -3541,6 +3545,8 @@ export const dictionaries = {
       refresh: '更新',
       refreshing: '更新中…',
       refreshDone: '更新完了 · 開発 {devs} / パブリッシャー {pubs} · 所有 {owned}',
+      staleSuffix: 'データが古い可能性 — VNDB に接続できずキャッシュを返却。',
+      staleBadge: 'キャッシュデータ',
     },
     series: {
       pageTitle: 'シリーズ・コレクション',

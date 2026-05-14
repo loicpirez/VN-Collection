@@ -66,6 +66,14 @@ export interface FetchResult<T> {
   fromCache: boolean;
   status: number;
   cachedAt: number;
+  /**
+   * `true` when the fetch upstream failed and the result is being
+   * served from the cached body as a stale-while-error fallback.
+   * Distinct from `fromCache` (which is also true on a regular hit
+   * before TTL expiry) and from `status: 304` (a real conditional
+   * revalidation). Callers can surface a warning to the user.
+   */
+  stale?: boolean;
 }
 
 export interface CachedFetchOptions {
@@ -114,6 +122,7 @@ export async function cachedFetch<T>(
           fromCache: true,
           status: 0,
           cachedAt: cached.fetched_at,
+          stale: true,
         };
       }
       throw err;
