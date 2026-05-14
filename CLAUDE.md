@@ -163,14 +163,21 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET | `/api/wishlist` | Authenticated wishlist (ulist label 5) + in_collection + EGS hint |
 | DELETE | `/api/wishlist/[id]` | Remove a VN from VNDB wishlist (PATCH labels_unset=[5]) |
 | GET/POST/PATCH/DELETE | `/api/collection/[id]/owned-releases` | Per-edition inventory (location, edition_label, condition, price, dumped…) |
+| GET/POST/PATCH/DELETE | `/api/collection/[id]/game-log` | Per-VN free-form timestamped notes (`vn_game_log`) |
 | GET/PATCH | `/api/collection/[id]/source-pref` | Per-VN / per-field source preference JSON |
 | GET/POST/DELETE | `/api/vn/[id]/erogamescape` | Resolve / link / unlink an EGS game for a VN |
 | GET | `/api/vn/[id]/erogamescape?refresh=1` | Force re-fetch of every EGS column |
 | GET/PATCH/DELETE | `/api/vn/[id]/vndb-status` | Read the user's VNDB ulist labels for a VN + toggle them via `labels_set` / `labels_unset` |
+| GET | `/api/vn/[id]/lists` | Lists this VN belongs to |
 | POST | `/api/egs/[id]/add` | EGS-only add → synthetic VN id `egs:<id>` + collection insert |
 | GET | `/api/egs/search?q=&limit=` | EGS candidate search (used by /search and the manual-link picker) |
+| GET | `/api/egs-cover/[id]` | Tiered cover resolver for an EGS game (302 redirect) |
 | GET | `/api/route/[routeId]` / PATCH / DELETE | Per-route management |
 | GET/POST/PATCH | `/api/collection/[id]/routes` | Per-VN routes (autocomplete from cast) |
+| GET / POST | `/api/lists` | List / create user lists |
+| GET / PATCH / DELETE | `/api/lists/[id]` | List CRUD |
+| POST / DELETE | `/api/lists/[id]/items` | Add / remove / reorder list members |
+| POST | `/api/refresh/global` | Bust EGS cover cache + re-fetch page-level caches |
 
 ---
 
@@ -231,9 +238,27 @@ series           PK id (auto)
 
 series_vn        PK (series_id, vn_id), order_index
 
+user_list        PK id (auto)
+                  name, slug (UNIQUE), description, color, icon,
+                  pinned BOOL, created_at, updated_at
+
+user_list_vn     PK (list_id, vn_id)
+                  order_index, added_at, note
+                  — NO FK on vn_id so anticipated / wishlist entries
+                  — that aren't in `vn(id)` yet can be tracked
+
+vn_activity      PK id (auto)
+                  vn_id (FK→vn), kind, payload JSON, occurred_at
+
+vn_game_log      PK id (auto)
+                  vn_id (FK→vn), note, logged_at, session_minutes NULL,
+                  created_at, updated_at
+
 vndb_cache       PK cache_key
                   body, etag, last_modified, fetched_at, expires_at
                   cache_key format: "{METHOD path}|{METHOD}|{sha1(body)[:16]}"
+                  Also hosts EGS cover resolver entries under
+                  "egs:cover-resolved:<egs_id>" with shorter neg-TTL.
 ```
 
 ---
@@ -419,7 +444,57 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 - After a write that changes the VNDB-side data (you wouldn't be doing that —
   we are read-only on VNDB), invalidate via `invalidateVnCache(id)` or
   `invalidateByPath('POST /vn')`.
-- The cache panel on `/stats` lets the user purge expired or by prefix.
+- The cache panel on `/stats` lets the user purge expired or by prefix
+  and is **collapsed by default** (uncollapses on click).
+- The `vndb_cache` table also hosts EGS cover resolver entries under
+  `egs:cover-resolved:<egs_id>`. Hits cache for 7d; misses for 1h.
+  `POST /api/refresh/global` busts every `egs:cover-resolved:%` row
+  so users can force a re-resolve.
+
+### Time-ago formatting
+- `src/lib/time-ago.ts` is the single source of truth for "X ago"
+  formatting. Six tiers: minute (< 1h) → hour (< 24h) → day (< 7d) →
+  week (< 30d) → month (< 365d) → year. i18n via `t.timeAgo.*` keys.
+- Consumers: `RefreshPageButton` (the freshness chip), `GameLog`
+  (entry timestamps). When adding a new "X ago" surface, use this util
+  rather than inlining the math.
+
+### Lazy-loading images
+- `<SafeImage>` drives loading via `IntersectionObserver`
+  (`rootMargin: 500px 0px`), not native `loading="lazy"` — the native
+  attribute breaks subtly on overflow-scroll grids and SSR/hydration
+  mismatches. Resets state when `src` changes so virtualised lists
+  don't inherit a stale "errored" flag.
+- Pass `priority` for above-the-fold imagery to skip the observer.
+
+### Content controls hub (eye icon)
+- `SpoilerToggle` is the user-facing component but it covers every
+  display gate now (spoiler / hide images / blur R18 / hide sexual /
+  NSFW threshold / show sexual traits).
+- A "All settings…" button at the bottom of the popover dispatches a
+  `vn:open-settings` `CustomEvent`. `SettingsButton` listens for it
+  (lives in `layout.tsx` as a sibling) and opens its modal.
+- When adding a new content-safety pref, surface it in **both** the
+  eye popover and the gear modal so users can reach it from either.
+
+### Lists feature (lib/db.ts → "User Lists" section)
+- `user_list_vn.vn_id` has **no FK to vn(id)**. Anticipated entries
+  the user wants to curate before they hit the local `vn` table need
+  to fit, so we deliberately drop the constraint.
+- `listAllListMemberships()` is the bulk-lookup helper for cards. When
+  exposing the lists count on a card grid, prefer calling this once
+  server-side and threading `listCount` into the card data rather than
+  per-VN `listListsForVn()`.
+- `ListsPickerButton` is lazy — it only fetches `/api/lists` +
+  `/api/vn/[id]/lists` when the popover opens. Card grids stay cheap.
+
+### Cover source picker
+- `CoverSourcePicker` is the canonical surface for changing the cover.
+  Three sources: VNDB (DELETE `/api/collection/[id]/cover`), EGS (POST
+  `{source:'url', value:'/api/egs-cover/<egs_id>'}`), Custom (file
+  upload, URL input, or pick from the in-VN gallery).
+- When adding a new source, extend the tabbed UI; don't introduce a
+  separate component.
 
 ### Tailwind
 - Custom palette: `bg`, `bg-card`, `bg-elev`, `border`, `accent`, `accent-blue`, `muted`,
@@ -512,9 +587,12 @@ New DB tables introduced by recent batches:
 | Table | Owner feature | Notes |
 | --- | --- | --- |
 | `vn_activity` | Reading log | One row per status / playtime / note change. Written inside the existing `updateCollection` transaction so the audit trail never drifts from the actual state. |
+| `vn_game_log` | Game log | Free-form timestamped journal next to the Pomodoro. Distinct from `vn_activity` — the activity table tracks state, this one tracks impressions. `session_minutes` is optional and lifted from the live Pomodoro count via `SessionPanel`. |
+| `user_list` / `user_list_vn` | Universal lists | Free-form user-curated groupings, vn_id has **no FK** to support anticipated / wishlist entries. `listAllListMemberships()` returns a `Map<vn_id, UserList[]>` for cheap per-card lookups. |
 | `saved_filter` | Saved filter combos | URL-param strings pinned by name; rendered as chips above the library filters. |
 | `reading_queue` | Reading queue | VNs the user wants to play next, distinct from the "Planning" status. Ordered manually. |
 | `reading_goal` | Yearly reading goal | One row per year. Progress ring against `countFinishedInYear`. |
+| `steam_link` | Steam playtime sync | VN ↔ Steam appid mapping with `source` ('auto' / 'manual') and last-synced minutes. Manual links are sticky. |
 
 ## Not implemented (yet)
 

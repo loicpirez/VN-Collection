@@ -71,6 +71,61 @@ notice when something notable lines up.
   - Loading shows a skeleton card grid; the "list is empty" copy only
     appears post-resolve.
 
+### Universal Lists ✅
+Free-form user-curated groupings independent of status / series / tags.
+A VN can be in any number of lists. Schema:
+
+```sql
+user_list(id, name, slug UNIQUE, description, color, icon,
+          pinned BOOL, created_at, updated_at)
+user_list_vn(list_id FK, vn_id, order_index, added_at, note,
+             PRIMARY KEY(list_id, vn_id))
+```
+
+`user_list_vn.vn_id` deliberately has **no FK** to `vn(id)` so
+anticipated / wishlist entries that aren't yet in the `vn` table can
+still be tracked.
+
+Routes: `GET /api/lists`, `POST /api/lists`, `GET/PATCH/DELETE
+/api/lists/[id]`, `POST/DELETE /api/lists/[id]/items`,
+`GET /api/vn/[id]/lists`.
+
+UI:
+  - `/lists` overview — grid of cards with color, name, description,
+    VN count. Hover any card for the ⋮ menu (Pin / Rename / Delete).
+    Create form at the top with name + description + 8-preset color
+    picker.
+  - `/lists/[id]` detail — header with metadata editor (rename, recolor,
+    delete), add-VN form (`v123` / `egs_456`), and a VnCard grid for
+    every member with hover X to remove from the list.
+  - `ListsPickerButton` on every `VnCard` — lazy popover with search,
+    every existing list as a checkbox, inline "create new list" input,
+    live count chip when the VN belongs to ≥ 1 list. Optimistic toggles.
+  - `VnListMemberships` chips under the VN detail title — one per list
+    membership, colored by the list, click to open the list, X to remove.
+
+### Favorite hover toggle ✅
+`FavoriteToggleButton` renders as an overlay heart on every `VnCard`
+(top-left) and as an inline pill in the VN detail action bar. The
+overlay is **always tappable** (no `hidden sm:inline` traps — mobile
+and tablet are first-class). Filled red when favorited, hover-revealed
+outline otherwise. Auto-adds a search hit to the collection (status =
+planning) before flipping the favorite if the VN isn't already tracked.
+Optimistic update with rollback on error.
+
+### Cover source picker ✅
+`CoverSourcePicker` is a modal triggered from the VN detail action bar
+that lets the user pick the cover from three categorical sources:
+  1. **VNDB** — `DELETE /api/collection/[id]/cover` (revert to default).
+  2. **EGS** — `POST {source:'url', value:'/api/egs-cover/<egs_id>'}`.
+  3. **Custom** — file upload (multipart), URL input, *or* pick from
+     a thumbnail grid of every screenshot + per-release artwork
+     attached to this VN (each tile is a one-click "set as cover").
+
+The current pick is ring-highlighted so it's obvious which image is
+live. Initial tab is inferred from `currentCustomCover` (EGS URL →
+EGS tab, anything else → Custom tab, null → VNDB tab).
+
 ---
 
 ## Per-VN detail page
@@ -161,6 +216,27 @@ condition, price paid, currency, acquired date, **purchase place**
 25-minute timer with a one-click "log to playtime". Adds an activity
 entry automatically. Toggles from the playtime row on the detail page.
 
+Now publishes its live elapsed-minute count via the `SessionPanel`
+wrapper so siblings (the Game log) can stamp notes with the running
+session length.
+
+### Game log ✅
+Free-form timestamped journal per VN, distinct from the activity log
+(which records state changes). Schema:
+
+```sql
+vn_game_log(id, vn_id FK, note TEXT, logged_at INTEGER,
+            session_minutes INTEGER NULL, created_at, updated_at)
+```
+
+UI lives next to the Pomodoro (inside `SessionPanel`). Composer with
+⌘/Ctrl + Enter to submit, live character counter (8000 max), optional
+"attach Xm of active session" chip when the timer is running. Entries
+are grouped by day with localized headers, sorted newest-first, with
+hover-revealed Edit / Delete and a session-minute chip when stamped.
+
+Routes: `GET/POST/PATCH/DELETE /api/collection/[id]/game-log`.
+
 ---
 
 ## Discovery
@@ -173,14 +249,34 @@ ranked. Toggle for including ero tags.
 ### Upcoming releases ✅
 `/upcoming` — three tabs to choose your scope of "what's next":
   - **My collection** (default): future releases from producers already in
-    your collection, grouped by month.
+    your collection, grouped by month. When VNDB returns `vns[].image=null`,
+    the page overlays the local DB cover (image_url/image_thumb/local_image)
+    so collection items always render a poster even for unreleased entries.
   - **EGS anticipated**: top-100 games on ErogameScape ranked by user
     purchase intent (`必ず購入 / 多分購入 / 様子見` counts), with cover
-    images and a VNDB cross-link per row when EGS records one.
+    images and a VNDB cross-link per row when EGS records one. Covers
+    resolve via `/api/egs-cover/[id]` (see "EGS cover resolver" below).
   - **All VNDB**: every upcoming release VNDB tracks in the next 12 months.
 
 Each tab body streams in via `<Suspense>` with a skeleton placeholder so
 the page header + tab strip paint immediately.
+
+### EGS cover resolver ✅
+`GET /api/egs-cover/[id]` — tiered resolution chain (first hit wins):
+  1. `gamelist.banner_url` (curated EGS banner, trusted — no probe).
+  2. **Linked VNDB cover** via `egs_game.vn_id` → `vn.image_url` (or
+     local mirror at `/api/files/<local_image>`). Best quality + most
+     reliable for anticipated entries.
+  3. **Probed** `egs:image.php?game=<id>` — single GET with Range
+     header, 3.5s timeout.
+  4. First available shop URL — Suruga-ya / DMM / DLsite / Gyutto
+     (returned unprobed; the user's browser is the final arbiter since
+     these CDNs refuse server-side fetches).
+
+Hits cache for 7 days. Misses cache for 1 hour (down from the previous
+24 h) so freshly-published banners surface inside the hour. The global
+`POST /api/refresh/global` busts every `egs:cover-resolved:*` cache
+row so users can force re-resolution.
 
 ### Cross-VN quotes ✅
 `/quotes` — every quote across every VN you've fetched, with character +
@@ -264,13 +360,57 @@ Inspect the VNDB cache by prefix; purge expired or selective entries.
 
 ## Settings
 
-### `/settings` (in /data hub) ✅
-Local display preferences:
-- NSFW threshold (0–2 from VNDB image flagging)
-- Hide images globally
-- Prefer local images over remote URLs
-- Default sort
-- VNDB token
+### Content controls hub ✅ (closed-eye icon)
+The eye icon in the navbar opens a compact popover that exposes every
+"what shows on screen" preference in one place:
+- **Spoiler level** (0 / 1 / 2 — matches VNDB's site preference,
+  filters tags / traits / character meta across the app)
+- **Hide all images** globally
+- **Blur R18** imagery
+- **Hide sexual images** as a hard filter
+- **NSFW threshold** slider (0–2, 0.1 steps)
+- **Show sexual traits** on character pages
+- "All settings…" button dispatches a `vn:open-settings` `CustomEvent`
+  that `SettingsButton` listens for to open the canonical modal
+
+The eye icon switches between `Eye` (any non-default gate active) and
+`EyeOff` (everything locked down) so the user can read their current
+posture at a glance. State is mirrored to localStorage + cookie by
+`DisplaySettingsProvider`.
+
+### Full settings modal ✅ (gear icon)
+`SettingsButton` opens a modal portal (escapes the header stacking
+context) with every content-controls toggle mirrored, plus:
+- **VNDB token** (paste from <https://vndb.org/u/tokens>) + writeback
+  + status pull + fan-out toggle + backup URL
+- **Steam** Web API key + 64-bit SteamID
+- **Random quote source** — all VNDB or only from your collection
+- **Default sort** for the library
+- **Original title first** (swap headline ↔ subtitle)
+- **Prefer local images** (read from `/api/files/` instead of remote
+  CDNs when a mirror exists)
+
+### Per-page Refresh button + freshness chip ✅
+`RefreshPageButton` renders on every browse / discovery page that
+depends on remote caches (Producers, Data, Stats, Upcoming, Tags,
+Traits). The button:
+- Reads `lastUpdatedAt` server-side via `getCacheFreshness(patterns)`
+  — `SELECT MAX(fetched_at) FROM vndb_cache WHERE cache_key LIKE …`
+- Renders a tiered relative-time chip ("Data Xh ago") via the shared
+  `timeAgo()` util — minute → hour → day → week → month → year. Ticks
+  every 30 s.
+- Turns the chip red when stale (never downloaded or > 7 d).
+- Clicking Refresh runs `POST /api/refresh/global`: bust EGS cover
+  cache → re-fetch EGS anticipated → VNDB stats / schema / authinfo
+  → upcoming (collection + global). Each task is a tracked job in the
+  download status bar.
+
+### Time-ago util ✅
+`src/lib/time-ago.ts` — single source of truth for "X ago" formatting.
+Tiers: minute (< 1 h) → hour (< 24 h) → day (< 7 d) → week (< 30 d) →
+month (< 365 d) → year. Used by `RefreshPageButton`, `GameLog`, and
+anywhere else relative time is needed. i18n keys in the `timeAgo.*`
+group across all three locales.
 
 ### Localisation ✅
 FR / EN / JA. Switch via the language pill in the top nav.
@@ -350,14 +490,17 @@ Drop a `.json` or `.db` file anywhere on `/data` to trigger the import.
 | `Escape` | Close menus / dialogs |
 
 ### Grouped responsive navbar ✅
-The top nav has three always-visible primary links (Library / Wishlist /
-Search) plus three category dropdowns:
+The top nav has four always-visible primary links (Library / Wishlist /
+Lists / Search) plus three category dropdowns:
   - **Discover** — Upcoming, For you, Quotes
   - **Browse** — Producers, Series, Tags, Traits, Year, Labels
   - **Data & Stats** — Stats, Shelf, Steam, Data
 
-On screens narrower than `md` the whole nav collapses into a single
-hamburger sheet that lists every destination grouped by category.
+The right edge carries the closed-eye content-controls hub, the
+language switcher and the settings gear — all three remain visible
+at every screen width. On screens narrower than `md` the rest of the
+nav collapses into a single hamburger sheet that lists every
+destination grouped by category.
 
 ### Tutorial tour ✅
 First-time visitors get a guided pass over the most important surfaces
@@ -375,6 +518,20 @@ Internals: `src/components/Skeleton.tsx` exports `SkeletonBlock`,
 `SkeletonCard`, `SkeletonCardGrid`, `SkeletonRows`, `SkeletonText`, and
 `SkeletonTable`. Server components with slow async fetches wrap them in
 `<Suspense>` (see `/upcoming` tabs and `/staff/[id]` extra credits).
+
+### Viewport-aware lazy image loading ✅
+`SafeImage` drives loading via `IntersectionObserver` (`rootMargin: 500px
+0px`) instead of relying on native `loading="lazy"`. Native lazy-load
+breaks subtly on grids inside overflow-scroll containers, transformed
+parents, and SSR / hydration mismatches — symptom: images stay blank
+while the user scrolls past. The observer-based approach starts the
+network fetch when the element comes within 500 px of the viewport and
+resets its state when the `src` changes, so recycled cards in
+virtualised lists don't inherit a stale "errored" flag from the
+previous VN.
+
+Props: `priority?: boolean` skips the observer entirely for above-the-
+fold imagery (VN detail hero, lightbox).
 
 ### Auto-recursive download (fan-out) ✅
 When a VN is added or re-fetched, the app fans out in the background to
@@ -471,18 +628,22 @@ filled.
 | `collection` | User-side state per VN | vn_id, status, user_rating, playtime_minutes, started/finished_date, notes, favorite, location, edition_*, physical_location JSON, custom_description |
 | `egs_game` | ErogameScape mirror, one row per VN | vn_id, egs_id, gamename, median, average, playtime_median_minutes, source, raw_json |
 | `producer` | VNDB producer mirror | id, name, original, lang, type, aliases JSON, extlinks JSON, logo_path |
-| `series` / `series_vn` | User-defined groupings | series.id, series_vn.{series_id, vn_id, order_index} |
+| `series` / `series_vn` | VNDB-relation-aware groupings | series.id, series_vn.{series_id, vn_id, order_index} |
+| `user_list` | Universal user-curated lists | id, name, slug UNIQUE, description, color, icon, pinned, created_at, updated_at |
+| `user_list_vn` | List membership join | list_id FK, vn_id (no FK), order_index, added_at, note |
 | `vn_route` | Per-VN route list | id, vn_id, name, completed, completed_date, order_index, notes |
 | `vn_quote` | Cached VNDB quotes | quote_id, vn_id, quote, score, character_id |
 | `vn_staff_credit` | Indexed staff role table | vn_id, sid, role, name |
 | `vn_va_credit` | Indexed VA + character table | vn_id, sid, c_id, c_name, c_image_url, va_name |
 | `vn_activity` | Reading-log audit trail | id, vn_id, kind, payload JSON, occurred_at |
+| `vn_game_log` | Free-form timestamped journal | id, vn_id FK, note, logged_at, session_minutes, created_at, updated_at |
 | `owned_release` | Physical / digital inventory | id, vn_id, release_id, location, condition, price_paid, currency, photos JSON |
 | `vndb_cache` | HTTP cache for VNDB + EGS responses | cache_key, body, etag, last_modified, fetched_at, expires_at |
 | `app_setting` | Misc key/value store | key, value |
 | `saved_filter` | Saved filter combos | id, name, params, position |
 | `reading_goal` | Yearly goals | year, target |
 | `reading_queue` | Priority queue separate from Planning | vn_id, position, added_at |
+| `steam_link` | VN ↔ Steam appid map | vn_id, appid, steam_name, source, last_synced_minutes |
 
 Migrations are idempotent via `ensureColumn` / `CREATE TABLE IF NOT
 EXISTS`, with marker rows in `app_setting` for one-shot data migrations

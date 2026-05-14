@@ -319,6 +319,12 @@ export const dictionaries = {
       revealOne: 'Révéler ce spoiler',
       hideOne: 'Masquer à nouveau',
     },
+    contentControls: {
+      title: 'Affichage & contenus sensibles',
+      nsfwSection: 'Contenu adulte',
+      openSettings: 'Toutes les options…',
+      showSexualHint: 'Affiche les traits marqués sexuels sur les pages personnages.',
+    },
     compareWith: {
       cta: 'Comparer…',
       title: 'Comparer avec d\'autres VN',
@@ -1721,6 +1727,12 @@ export const dictionaries = {
       revealOne: 'Reveal this spoiler',
       hideOne: 'Hide again',
     },
+    contentControls: {
+      title: 'Display & sensitive content',
+      nsfwSection: 'Adult content',
+      openSettings: 'All settings…',
+      showSexualHint: 'Show traits marked as sexual on character pages.',
+    },
     compareWith: {
       cta: 'Compare with…',
       title: 'Compare with other VNs',
@@ -3122,6 +3134,12 @@ export const dictionaries = {
       hint: 'タグ・特徴・キャラページに適用される全体フィルター（VNDB と同じ仕組み）。',
       revealOne: 'このネタバレを表示',
       hideOne: '再び隠す',
+    },
+    contentControls: {
+      title: '表示・成人向けコンテンツ',
+      nsfwSection: '成人向けコンテンツ',
+      openSettings: 'すべての設定…',
+      showSexualHint: 'キャラページでセクシャル属性の特徴を表示します。',
     },
     compareWith: {
       cta: '比較…',

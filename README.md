@@ -29,7 +29,18 @@ ingested, cached locally, and can be combined or compared per-field.
 - **Routes** — heroine / branch tracker with autocomplete from the VN's
   main / primary cast, completion checkboxes, and reorderable list
 - **Markdown notes** (GFM, tables, code blocks) for personal reviews
-- **Series / collections** to group VNs (`Fate`, `Type-Moon`, …)
+- **Series / collections** to group VNs along VNDB relations (`Fate`, `Type-Moon`, …)
+- **Universal Lists** (`/lists`) — free-form user-curated groupings
+  ("GOAT", "To replay", "Comfy SoL", …) that work across the whole app.
+  A VN can be in any number of lists, with color tags, pinning and
+  drag-handle reorder. Lists accept any VN id including anticipated
+  / wishlist entries that aren't fully in your collection yet.
+- **Favorite toggle on every card** — a heart icon at the top-left of every
+  poster is always tappable (mobile / tablet parity). Auto-adds a search
+  hit to the collection (`status=planning`) before favoriting if needed.
+- **Lists picker on every card** — a bookmark icon at the top-right opens
+  a lazy popover with the full list registry, search filter, and an inline
+  "create new list" input. Optimistic toggles.
 - Sort: recently updated, added, title, VNDB rating, your rating, playtime,
   release year, publisher, **EGS rating**, **combined (VNDB + EGS) / 2**
 - Filters: status, publisher, series, tag, free-text, place, year range,
@@ -37,6 +48,9 @@ ingested, cached locally, and can be combined or compared per-field.
 - Group-by: status, publisher, tag, series
 - Recently viewed strip on the home page (localStorage, last 12 entries)
 - Bulk select / edit / download
+- **Viewport-aware lazy image loading** via IntersectionObserver
+  (`rootMargin: 500px`) so virtualised / overflow-scroll grids actually
+  fetch covers as the user scrolls instead of stalling on stale cells
 
 ### VNDB integration (every Kana endpoint)
 - VN search (debounced) + advanced filters
@@ -122,10 +136,23 @@ ingested, cached locally, and can be combined or compared per-field.
   dig) + every character image + the EGS cover
 - Image gallery filtered by type, with lightbox
 - "Set as banner" button on every gallery image
-- Custom cover upload (override the VNDB poster)
-- Custom banner upload + drag-positionable focal point
-- **Hide all images** mode + **blur R18** mode with adjustable threshold
-  (0–2) + **Hide sexual content** hard filter
+- **Cover source picker** — modal triggered from the VN detail action bar.
+  Three tabs:
+    1. **VNDB** — revert to the upstream cover.
+    2. **EGS** — use the cover resolved by `/api/egs-cover/[id]`.
+    3. **Custom** — file upload, external URL, *or* pick any image
+       already attached to the VN (screenshots / per-release artwork).
+- Custom cover upload (override the VNDB poster); custom banner upload
+  + drag-positionable focal point
+- **EGS cover resolver** with tiered fallback: banner_url (trusted, no
+  probe) → linked VNDB cover via `egs_game.vn_id` → probed EGS
+  `image.php` → first available shop URL (Suruga-ya / DMM / DLsite /
+  Gyutto). Negative cache TTL of 1 h so a freshly-published cover
+  surfaces within an hour; the global refresh button busts the cache.
+- **Content-controls hub** (closed-eye icon in the navbar) — opens a
+  popover with spoiler level (0/1/2), hide all images, blur R18,
+  hide sexual images, NSFW threshold slider (0–2), show sexual traits,
+  plus a one-click jump to the full settings modal
 - Prefer-local toggle so images survive offline / VNDB outages
 - "Download all data" button on the library fully refreshes both VNDB
   and EGS payloads + re-mirrors all images
@@ -135,7 +162,13 @@ ingested, cached locally, and can be combined or compared per-field.
 - In-flight dedupe (multiple concurrent requests for the same data → 1
   upstream hit)
 - Stale-while-error fallback if VNDB / EGS is down
-- Cache panel on `/stats` (counts per endpoint, prune expired, clear all)
+- Cache panel on `/stats`, **collapsed by default** (counts per endpoint,
+  prune expired, clear all)
+- **Per-page Refresh button** with a **Data Xh ago** chip on every browse
+  page (Producers / Data / Stats / Upcoming / Tags / Traits). The chip
+  reads the freshest `fetched_at` from cache rows powering the page and
+  renders a tiered relative time (minute / hour / day / week / month / year)
+  that ticks every 30 s. Clicking Refresh runs the global refresh pipeline.
 - DB status panel on `/data`: row counts per table, VNDB auth state,
   token source (DB / env / none), EGS coverage, cache freshness, DB path
 
@@ -160,13 +193,39 @@ ingested, cached locally, and can be combined or compared per-field.
 - Title display can be flipped per-locale (Settings → "Original title
   first") so 日本語 becomes the headline and romaji the subtitle
 
-### Settings (Settings panel — top-right gear icon)
-- Hide all images / Blur R18 / NSFW threshold / Prefer local images
-- **Hide sexual content** (hard filter — entries above the threshold
-  are dropped, not blurred)
+### Reading & journaling
+- **Pomodoro timer** on every detail page — 25 min default, configurable.
+  On stop, prompt to merge the elapsed minutes into `playtime_minutes`.
+  Publishes the live elapsed-minute count via `SessionPanel` so the
+  game log can stamp notes with "23m into a session".
+- **Game log** — free-form timestamped journal next to the Pomodoro.
+  Distinct from the activity log (which records state changes). Entries
+  are grouped by day with hover-revealed edit / delete, ⌘/Ctrl+Enter to
+  submit, character counter, optional session-minute attachment.
+- **Activity log** — automatic per-VN audit trail of status / rating /
+  playtime / favorite / started / finished / notes changes, plus manual
+  entries.
+- **Reading queue** — drag-orderable priority queue, distinct from
+  `status='planning'`.
+
+### Settings & content controls
+The **closed-eye icon** in the navbar opens the content-controls hub:
+- **Spoiler level** (0 = none / 1 = minor / 2 = all) — matches VNDB
+- **Hide all images** globally
+- **Blur R18** imagery
+- **Hide sexual images** as a hard filter
+- **NSFW threshold** slider (0 → 2, 0.1 steps)
+- **Show sexual traits** on character pages
+- "All settings…" jumps to the full gear-icon modal
+
+The **gear icon** in the navbar opens the full settings modal:
+- Every content-controls toggle (mirrored)
 - **Original title first** (swap headline ↔ subtitle)
-- **VNDB token** (paste from <https://vndb.org/u/tokens>)
+- **VNDB token** (paste from <https://vndb.org/u/tokens>) + writeback,
+  status pull, fan-out auto-download toggle, backup URL
+- **Steam** API key + 64-bit SteamID
 - **Random quote source** — all VNDB or only from your collection
+- **Default sort** for the library
 
 ### i18n
 French / English / Japanese, type-safe dictionary. Cookie-driven, switch
@@ -255,21 +314,32 @@ No state library. No auth. No tracking.
         │                      │    │  - lib/source-resolve.ts     │
         └──────────────────────┘    └──┬──────────────────┬────────┘
                                        ▼                  ▼
-                              ┌──────────────────┐ ┌──────────────┐
-                              │ data/            │ │ data/storage │
-                              │ collection.db    │ │ ├ vn/        │
-                              │ (SQLite WAL)     │ │ ├ vn-sc/     │
-                              │                  │ │ ├ cover/     │
-                              │ vn / collection  │ │ ├ producer/  │
-                              │ producer / series│ │ ├ series/    │
-                              │ series_vn        │ │ └ character/ │
-                              │ owned_release    │ └──────────────┘
-                              │ vn_route         │
-                              │ character_image  │
-                              │ egs_game         │
-                              │ vndb_cache       │
-                              │ app_setting      │
-                              └──────────────────┘
+                              ┌────────────────────────┐ ┌──────────────┐
+                              │ data/                  │ │ data/storage │
+                              │ collection.db          │ │ ├ vn/        │
+                              │ (SQLite WAL)           │ │ ├ vn-sc/     │
+                              │                        │ │ ├ cover/     │
+                              │ vn / collection        │ │ ├ producer/  │
+                              │ producer / series      │ │ ├ series/    │
+                              │ series_vn              │ │ └ character/ │
+                              │ owned_release          │ └──────────────┘
+                              │ vn_route               │
+                              │ vn_activity            │
+                              │ vn_game_log            │
+                              │ vn_quote               │
+                              │ vn_staff_credit        │
+                              │ vn_va_credit           │
+                              │ character_image        │
+                              │ egs_game               │
+                              │ user_list              │
+                              │ user_list_vn           │
+                              │ saved_filter           │
+                              │ reading_queue          │
+                              │ reading_goal           │
+                              │ steam_link             │
+                              │ vndb_cache             │
+                              │ app_setting            │
+                              └────────────────────────┘
 ```
 
 VNDB and ErogameScape entries coexist:
@@ -281,39 +351,24 @@ VNDB and ErogameScape entries coexist:
 
 ---
 
-## Roadmap
+## Roadmap & references
 
-The next batch of features is documented in [PLAN.md](PLAN.md) with file
-paths, DB shape and rough sizing. The catalogue of every shipped feature
-lives in [FEATURES.md](FEATURES.md) — start there if you're new to the
-codebase. First-time visitors also get an in-app guided tour
+[FEATURES.md](FEATURES.md) is the canonical catalogue of every shipped
+feature, with file paths, DB shape and API surface. Start there if
+you're new to the codebase.
+
+[TUTORIAL.md](TUTORIAL.md) is the user-facing walkthrough — every
+screen, every keyboard shortcut, every workflow.
+
+[PLAN.md](PLAN.md) captures the implementation plans for the historical
+feature batches and what's still on deck.
+
+[CLAUDE.md](CLAUDE.md) is the architecture / agent guide — conventions,
+gotchas, where to add new endpoints, how the rate limiter / fan-out /
+cache layer fit together.
+
+First-time visitors also get an in-app guided tour
 (re-runnable from `/data → Tour`).
-
-Highlights:
-
-- **Random pick** — one-click "what should I play next" respecting filters.
-- **Tag co-occurrence** — given a VN, surface the tags that frequently
-  co-occur across your collection.
-- **Reading speed estimator** — derive your personal multiplier from
-  completed VNs and predict reading time vs VNDB / EGS.
-- **Voice-actor heatmap** — year-by-year timeline of a VA's credits with
-  "in my collection" highlights.
-- **Quick-actions on cards** — right-click menu to change status, mark
-  favourite, jump to producer.
-- **Export ICS / CSV / JSON** — portable snapshots of your library + a
-  calendar of started / finished dates.
-- **Reading log / activity timeline** — per-VN journal of status changes,
-  playtime updates, notes, manual entries.
-- **Recommendations from VNDB tags** — "you rated A, B, C high → here are
-  similar VNs you don't own".
-- **Calendar of upcoming releases** — surfaces sequels / new entries from
-  producers already in your collection.
-- **Series auto-detect** — propose series membership from VNDB `seq` / `preq`
-  relations when a VN is added.
-- **Comparison view** — pick 2–4 VNs and see them side-by-side with shared
-  staff, tag overlap, and "similar to all of these" suggestions.
-
-Each lands as its own commit; see [PLAN.md](PLAN.md) for the rollout order.
 
 ---
 

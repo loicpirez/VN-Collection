@@ -154,6 +154,17 @@ export function SettingsButton() {
     setMounted(true);
   }, []);
 
+  // External "open me" trigger (dispatched by SpoilerToggle's
+  // "Open full settings" button so the user can drill from the
+  // eye popover into the canonical settings modal).
+  useEffect(() => {
+    function onOpen() {
+      setOpen(true);
+    }
+    window.addEventListener('vn:open-settings', onOpen);
+    return () => window.removeEventListener('vn:open-settings', onOpen);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
