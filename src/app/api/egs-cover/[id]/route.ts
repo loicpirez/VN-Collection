@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { fetchEgsGame } from '@/lib/erogamescape';
 
 /**
  * Cover resolver for EGS games. EGS records external-shop ids on each game
@@ -163,6 +164,27 @@ function loadRawRow(egsId: number): Record<string, string | null> {
   return {};
 }
 
+/**
+ * Anticipated entries and other "not in my collection" EGS rows are not
+ * present in `egs_game.raw_json` (that table is keyed off the user's
+ * collection). When the local read comes up empty, hit EGS once via
+ * `fetchEgsGame` — that helper caches the raw row in `vndb_cache` and
+ * returns the full gamelist record, from which we extract the shop ids
+ * (banner_url, surugaya_1, dmm, dlsite_id, gyutto_id) the resolver
+ * needs. Result is then memoized at the egs-cover level too.
+ */
+async function loadRawRowWithFallback(egsId: number): Promise<Record<string, string | null>> {
+  const cached = loadRawRow(egsId);
+  if (Object.keys(cached).length > 0) return cached;
+  try {
+    const game = await fetchEgsGame(egsId);
+    const raw = (game?.raw ?? null) as Record<string, string | null> | null;
+    return raw ?? {};
+  } catch {
+    return {};
+  }
+}
+
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const egsId = Number(id);
@@ -177,7 +199,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.redirect(cached, 302);
   }
 
-  const raw = loadRawRow(egsId);
+  const raw = await loadRawRowWithFallback(egsId);
   let fallback: string | null = null;
   for (const source of SOURCES) {
     const candidate = source.resolve(raw, egsId);
