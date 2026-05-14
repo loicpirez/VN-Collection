@@ -227,6 +227,17 @@ function open(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_vn_activity_vn ON vn_activity(vn_id, occurred_at DESC);
 
+    CREATE TABLE IF NOT EXISTS vn_game_log (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      vn_id        TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
+      note         TEXT NOT NULL,
+      logged_at    INTEGER NOT NULL,
+      session_minutes INTEGER,
+      created_at   INTEGER NOT NULL,
+      updated_at   INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_game_log_vn ON vn_game_log(vn_id, logged_at DESC);
+
     CREATE TABLE IF NOT EXISTS saved_filter (
       id       INTEGER PRIMARY KEY AUTOINCREMENT,
       name     TEXT NOT NULL,
@@ -1648,6 +1659,98 @@ export function addManualActivity(vnId: string, text: string, occurredAt?: numbe
 
 export function deleteActivity(id: number): void {
   db.prepare('DELETE FROM vn_activity WHERE id = ?').run(id);
+}
+
+/**
+ * "Game log" entries — free-form timestamped notes attached to a VN.
+ * Distinct from `vn_activity` (which records state changes); the game
+ * log is what the user types during/after a session (impressions,
+ * route choices, "Saber dies in chapter 4", etc.).
+ *
+ * `session_minutes` is optional — set by the Pomodoro integration so
+ * the UI can show "logged 23m into a session".
+ */
+export interface GameLogEntry {
+  id: number;
+  vn_id: string;
+  note: string;
+  logged_at: number;
+  session_minutes: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+const GAME_LOG_NOTE_MAX = 8000;
+
+export function listGameLogForVn(vnId: string, limit = 200): GameLogEntry[] {
+  return db
+    .prepare(`
+      SELECT id, vn_id, note, logged_at, session_minutes, created_at, updated_at
+      FROM vn_game_log WHERE vn_id = ?
+      ORDER BY logged_at DESC, id DESC
+      LIMIT ?
+    `)
+    .all(vnId, limit) as GameLogEntry[];
+}
+
+export function addGameLogEntry(
+  vnId: string,
+  note: string,
+  loggedAt?: number,
+  sessionMinutes?: number | null,
+): GameLogEntry {
+  const trimmed = note.trim().slice(0, GAME_LOG_NOTE_MAX);
+  if (trimmed.length === 0) throw new Error('empty note');
+  const now = Date.now();
+  const ts = loggedAt ?? now;
+  const minutes = sessionMinutes != null && sessionMinutes > 0 ? Math.round(sessionMinutes) : null;
+  const info = db
+    .prepare(`
+      INSERT INTO vn_game_log (vn_id, note, logged_at, session_minutes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `)
+    .run(vnId, trimmed, ts, minutes, now, now);
+  return {
+    id: Number(info.lastInsertRowid),
+    vn_id: vnId,
+    note: trimmed,
+    logged_at: ts,
+    session_minutes: minutes,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+export function updateGameLogEntry(
+  id: number,
+  patch: { note?: string; logged_at?: number; session_minutes?: number | null },
+): GameLogEntry | null {
+  const current = db
+    .prepare('SELECT id, vn_id, note, logged_at, session_minutes, created_at, updated_at FROM vn_game_log WHERE id = ?')
+    .get(id) as GameLogEntry | undefined;
+  if (!current) return null;
+  const next: GameLogEntry = {
+    ...current,
+    note: patch.note != null ? patch.note.trim().slice(0, GAME_LOG_NOTE_MAX) : current.note,
+    logged_at: patch.logged_at ?? current.logged_at,
+    session_minutes:
+      patch.session_minutes === undefined
+        ? current.session_minutes
+        : patch.session_minutes != null && patch.session_minutes > 0
+          ? Math.round(patch.session_minutes)
+          : null,
+    updated_at: Date.now(),
+  };
+  if (next.note.length === 0) throw new Error('empty note');
+  db.prepare(
+    'UPDATE vn_game_log SET note = ?, logged_at = ?, session_minutes = ?, updated_at = ? WHERE id = ?',
+  ).run(next.note, next.logged_at, next.session_minutes, next.updated_at, id);
+  return next;
+}
+
+export function deleteGameLogEntry(id: number): boolean {
+  const info = db.prepare('DELETE FROM vn_game_log WHERE id = ?').run(id);
+  return info.changes > 0;
 }
 
 function safeParseJson(s: string): Record<string, unknown> | null {

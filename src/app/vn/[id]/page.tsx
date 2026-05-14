@@ -8,6 +8,7 @@ import {
   isEgsOnly,
   isInCollection,
   listActivityForVn,
+  listGameLogForVn,
   listSeries,
   upsertVn,
 } from '@/lib/db';
@@ -32,7 +33,7 @@ import { ActivityTimeline } from '@/components/ActivityTimeline';
 import { SeriesAutoSuggest } from '@/components/SeriesAutoSuggest';
 import { detectSeriesForVn } from '@/lib/series-detect';
 import { QueueButton } from '@/components/QueueButton';
-import { PomodoroTimer } from '@/components/PomodoroTimer';
+import { SessionPanel } from '@/components/SessionPanel';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { AnimeChip } from '@/components/AnimeChip';
 import { CoverQuickActions } from '@/components/CoverQuickActions';
@@ -506,9 +507,13 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
       )}
 
       {inCol && (
-        <div className="mt-6 grid gap-4 md:grid-cols-[1fr_280px]">
+        <div className="mt-6 space-y-4">
+          <SessionPanel
+            vnId={vn.id}
+            currentMinutes={vn.playtime_minutes ?? 0}
+            initialLog={listGameLogForVn(vn.id, 200)}
+          />
           <ActivityTimeline vnId={vn.id} initial={listActivityForVn(vn.id, 50)} />
-          <PomodoroTimer vnId={vn.id} currentMinutes={vn.playtime_minutes ?? 0} />
         </div>
       )}
 

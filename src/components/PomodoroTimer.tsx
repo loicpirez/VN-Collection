@@ -9,6 +9,12 @@ interface Props {
   vnId: string;
   /** Current playtime in minutes; used as the base when adding the elapsed value. */
   currentMinutes: number;
+  /**
+   * Called whenever the live elapsed-minute count changes so a sibling
+   * component (e.g. <GameLog/>) can offer to stamp a new note with the
+   * running session length. Receives 0 when the timer is idle.
+   */
+  onElapsedChange?: (minutes: number) => void;
 }
 
 /**
@@ -21,7 +27,7 @@ interface Props {
  * Time is tracked via Date.now() deltas (not setInterval increments) so
  * the timer stays correct even if the tab is throttled in the background.
  */
-export function PomodoroTimer({ vnId, currentMinutes }: Props) {
+export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -48,6 +54,11 @@ export function PomodoroTimer({ vnId, currentMinutes }: Props) {
       ? pausedAt - startedAt - pausedMs
       : now - startedAt - pausedMs;
   const elapsedSec = Math.max(0, Math.floor(elapsedMs / 1000));
+  const elapsedMin = Math.floor(elapsedSec / 60);
+
+  useEffect(() => {
+    onElapsedChange?.(elapsedMin);
+  }, [elapsedMin, onElapsedChange]);
   const totalSec = targetMin * 60;
   const remainingSec = Math.max(0, totalSec - elapsedSec);
   const done = startedAt != null && remainingSec === 0;
