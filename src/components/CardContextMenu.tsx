@@ -115,7 +115,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
             type="button"
             disabled={!!busy}
             onClick={() => patch({ status: active ? null : s }, `status-${s}`)}
-            className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left transition-colors ${
+            className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors sm:py-1 ${
               active ? 'bg-accent/15 text-accent' : 'hover:bg-bg-elev'
             }`}
           >
@@ -137,7 +137,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
           setFavLocal((v) => !v);
           patch({ favorite: !favLocal }, 'favorite');
         }}
-        className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
+        className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
       >
         <span className="inline-flex items-center gap-2">
           <Heart className={`h-3.5 w-3.5 ${favLocal ? 'fill-accent text-accent' : ''}`} />
@@ -149,46 +149,73 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
       <Link
         href={`/vn/${vnId}`}
         onClick={onClose}
-        className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
+        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
       >
         <Star className="h-3.5 w-3.5" /> {t.quickActions.open}
       </Link>
 
+      {/*
+        Two role sections, each with a light header so the rows
+        don't read as one undifferentiated list of links. Each
+        section renders Open + Filter on one line each so the
+        menu height stays bounded even with both roles present.
+        Touch-friendly: py-2 keeps every row ≥ WCAG's 40px target.
+      */}
+      {(developer?.id || publisher?.id) && (
+        <div className="my-1 border-t border-border" />
+      )}
+
       {developer?.id && (
         <>
-          <Link
-            href={`/producer/${developer.id}`}
-            onClick={onClose}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
-          >
-            <Building2 className="h-3.5 w-3.5" /> {t.quickActions.openDeveloper}
-          </Link>
-          <Link
-            href={`/?producer=${developer.id}`}
-            onClick={onClose}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
-          >
-            <Tag className="h-3.5 w-3.5" /> {t.quickActions.filterSameDeveloper}
-          </Link>
+          <div className="px-2 pb-0.5 pt-1 text-[10px] uppercase tracking-wider text-muted">
+            {t.detail.developers}
+          </div>
+          <div className="flex items-stretch gap-1 px-1">
+            <Link
+              href={`/producer/${developer.id}`}
+              onClick={onClose}
+              className="flex flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
+            >
+              <Building2 className="h-3.5 w-3.5" />
+              <span className="truncate">{t.quickActions.openDeveloper}</span>
+            </Link>
+            <Link
+              href={`/?producer=${developer.id}`}
+              onClick={onClose}
+              aria-label={t.quickActions.filterSameDeveloper}
+              title={t.quickActions.filterSameDeveloper}
+              className="inline-flex w-9 items-center justify-center rounded-md hover:bg-bg-elev"
+            >
+              <Tag className="h-3.5 w-3.5" />
+            </Link>
+          </div>
         </>
       )}
 
       {publisher?.id && (
         <>
-          <Link
-            href={`/producer/${publisher.id}`}
-            onClick={onClose}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
-          >
-            <Package className="h-3.5 w-3.5" /> {t.quickActions.openPublisher}
-          </Link>
-          <Link
-            href={`/?publisher=${publisher.id}`}
-            onClick={onClose}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
-          >
-            <Tag className="h-3.5 w-3.5" /> {t.quickActions.filterSamePublisher}
-          </Link>
+          <div className="px-2 pb-0.5 pt-1 text-[10px] uppercase tracking-wider text-accent-blue/80">
+            {t.detail.publishers}
+          </div>
+          <div className="flex items-stretch gap-1 px-1">
+            <Link
+              href={`/producer/${publisher.id}`}
+              onClick={onClose}
+              className="flex flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
+            >
+              <Package className="h-3.5 w-3.5" />
+              <span className="truncate">{t.quickActions.openPublisher}</span>
+            </Link>
+            <Link
+              href={`/?publisher=${publisher.id}`}
+              onClick={onClose}
+              aria-label={t.quickActions.filterSamePublisher}
+              title={t.quickActions.filterSamePublisher}
+              className="inline-flex w-9 items-center justify-center rounded-md hover:bg-bg-elev"
+            >
+              <Tag className="h-3.5 w-3.5" />
+            </Link>
+          </div>
         </>
       )}
     </div>

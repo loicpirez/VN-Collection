@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Building2, Crown, Package, Trophy, Wrench } from 'lucide-react';
+import { Building2, Crown, Download, Package, Trophy, Wrench } from 'lucide-react';
 import { listProducerStats, listPublisherStats } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
@@ -63,11 +63,20 @@ export default async function ProducersPage({
       </div>
 
       {producers.length === 0 ? (
-        <div className="py-16 text-center">
+        <div className="mx-auto max-w-md py-16 text-center">
           <Building2 className="mx-auto mb-4 h-12 w-12 text-muted" aria-hidden />
-          <p className="text-muted">
+          <p className="mb-4 text-muted">
             {role === 'publisher' ? t.producers.emptyPublisher : t.producers.emptyDeveloper}
           </p>
+          {role === 'publisher' && (
+            <p className="mx-auto mb-4 max-w-sm text-xs text-muted/80">
+              {t.producers.emptyPublisherHint}
+            </p>
+          )}
+          <Link href="/" className="btn">
+            <Download className="h-4 w-4" />
+            {t.producers.emptyCta}
+          </Link>
         </div>
       ) : (
         <ProducerTable producers={producers} role={role} t={t} />

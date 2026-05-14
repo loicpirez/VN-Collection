@@ -343,34 +343,54 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
             </div>
           </div>
         )}
-        {data.developers && data.developers.length > 0 && (
-          <div
-            className="inline-flex items-center gap-1 text-[11px] text-muted"
-            title={`${t.detail.developers}: ${data.developers.map((d) => d.name).join(', ')}`}
-          >
-            <Building2 className="h-3 w-3 shrink-0" aria-hidden />
-            <span className="line-clamp-1">{data.developers.map((d) => d.name).join(', ')}</span>
-          </div>
-        )}
+        {data.developers && data.developers.length > 0 && (() => {
+          // Show only the primary developer name with a "+N" suffix
+          // when there are more — comma-joining the whole list got
+          // truncated to the first ~6 visible characters on dense
+          // grids, which was useless ("Type-Moon..." or worse).
+          const names = data.developers.map((d) => d.name).filter(Boolean);
+          const primary = names[0];
+          const extra = names.length - 1;
+          return (
+            <div
+              className="inline-flex items-center gap-1 text-[11px] text-muted"
+              title={`${t.detail.developers}: ${names.join(', ')}`}
+            >
+              <Building2 className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="line-clamp-1">
+                {primary}
+                {extra > 0 && <span className="text-muted/70"> +{extra}</span>}
+              </span>
+            </div>
+          );
+        })()}
         {(() => {
           // Publishers that are ALSO developers are dropped — they're
           // already represented in the developer chip above. Showing
           // them twice would just waste a row on every self-published
-          // studio (Type-Moon, Key, …).
+          // studio (Type-Moon, Key, …). Dedup normalises trim + case
+          // because VNDB occasionally returns names with trailing
+          // whitespace ("Type-Moon ").
           if (!data.publishers || data.publishers.length === 0) return null;
+          const norm = (s: string) => s.trim().toLowerCase();
           const devIds = new Set((data.developers ?? []).map((d) => d.id).filter(Boolean));
-          const devNames = new Set((data.developers ?? []).map((d) => d.name));
+          const devNames = new Set((data.developers ?? []).map((d) => norm(d.name)));
           const distinct = data.publishers.filter(
-            (p) => (!p.id || !devIds.has(p.id)) && !devNames.has(p.name),
+            (p) => (!p.id || !devIds.has(p.id)) && !devNames.has(norm(p.name)),
           );
           if (distinct.length === 0) return null;
+          const primary = distinct[0].name;
+          const extra = distinct.length - 1;
           return (
             <div
-              className="inline-flex items-center gap-1 text-[11px] text-muted/85"
+              className="inline-flex items-center gap-1 text-[11px] text-accent-blue/90"
               title={`${t.detail.publishers}: ${distinct.map((p) => p.name).join(', ')}`}
             >
               <Package className="h-3 w-3 shrink-0" aria-hidden />
-              <span className="line-clamp-1">{distinct.map((p) => p.name).join(', ')}</span>
+              <span className="line-clamp-1">
+                {primary}
+                {extra > 0 && <span className="text-accent-blue/70"> +{extra}</span>}
+              </span>
             </div>
           );
         })()}

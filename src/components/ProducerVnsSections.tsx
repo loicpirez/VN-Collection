@@ -57,21 +57,33 @@ export async function ProducerVnsSections({ producerId }: { producerId: string }
         <ProducerRefreshButton producerId={producerId} />
       </div>
 
-      <RoleSection
-        title={t.producerVns.developerCredits}
-        emptyMessage={t.producerVns.noDeveloper}
-        icon="dev"
-        vns={data.developerVns}
-        t={t}
-      />
+      {/*
+        Hide an empty role section when the other side has data — a
+        publisher-only studio shouldn't ship a heavy "As developer"
+        empty frame, and vice versa. When BOTH are empty we still
+        render the developer section as a single empty state so the
+        page isn't completely blank.
+      */}
+      {(data.developerVns.length > 0 ||
+        (data.developerVns.length === 0 && data.publisherVns.length === 0)) && (
+        <RoleSection
+          title={t.producerVns.developerCredits}
+          emptyMessage={t.producerVns.noDeveloper}
+          icon="dev"
+          vns={data.developerVns}
+          t={t}
+        />
+      )}
 
-      <RoleSection
-        title={t.producerVns.publisherCredits}
-        emptyMessage={t.producerVns.noPublisher}
-        icon="pub"
-        vns={data.publisherVns}
-        t={t}
-      />
+      {data.publisherVns.length > 0 && (
+        <RoleSection
+          title={t.producerVns.publisherCredits}
+          emptyMessage={t.producerVns.noPublisher}
+          icon="pub"
+          vns={data.publisherVns}
+          t={t}
+        />
+      )}
     </section>
   );
 }
