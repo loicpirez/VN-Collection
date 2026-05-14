@@ -8,6 +8,7 @@ import { ProducerLogo } from '@/components/ProducerLogo';
 import { ProducerLogoUpload } from '@/components/ProducerLogoUpload';
 import { VnGrid } from '@/components/VnGrid';
 import { ProducerCompletion } from '@/components/ProducerCompletion';
+import { readScrapedProducerInfo } from '@/lib/scrape-producer-relations';
 import type { ProducerRow } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -119,6 +120,8 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
 
       <ProducerCompletion producerId={producer.id} />
 
+      <ProducerScrapedRelations pid={producer.id} t={t} />
+
       <VnGrid items={items} emptyMessage={t.library.empty.descriptionFiltered} />
     </div>
   );
@@ -126,4 +129,34 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
 
 function stripBbCode(s: string): string {
   return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
+}
+
+/**
+ * Renders the parent/subsidiary/spawned/imprint relations VNDB exposes
+ * only on the web UI. Data is populated by the producer-scrape fan-out
+ * (`scrapeProducersForVn`) when the user runs "Download all". The block
+ * is hidden when nothing has been scraped yet so we don't show a stale
+ * empty state.
+ */
+function ProducerScrapedRelations({ pid, t }: { pid: string; t: Awaited<ReturnType<typeof getDict>> }) {
+  const info = readScrapedProducerInfo(pid);
+  if (!info || info.relations.length === 0) return null;
+  return (
+    <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.producers.scrapedRelations}</h3>
+      <ul className="grid gap-2 text-xs sm:grid-cols-2">
+        {info.relations.map((r) => (
+          <li key={`${r.relation}-${r.id}`} className="flex items-baseline gap-2">
+            <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-muted">{r.relation}</span>
+            <Link href={`/producer/${r.id}`} className="font-semibold hover:text-accent">
+              {r.name}
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[10px] text-muted/70">
+        {t.producers.scrapedRelationsHint}
+      </p>
+    </section>
+  );
 }

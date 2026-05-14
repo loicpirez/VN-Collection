@@ -6,6 +6,7 @@ import { findCharacterSiblings, getVasForCharacter } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
+import { readScrapedCharacterInfo } from '@/lib/scrape-character-instances';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,6 +82,9 @@ export default async function CharacterPage({
   // case where VNDB editors split a recurring character (e.g. Aikiss 1's
   // Saegusa Hinata at c11994 vs Aikiss 3's at c89053).
   const siblings = findCharacterSiblings(id);
+  // vndb.org HTML scrape — provides character "instances" and the full
+  // per-VN voice-actor map that the Kana API doesn't expose.
+  const scraped = readScrapedCharacterInfo(id);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -164,6 +168,51 @@ export default async function CharacterPage({
       )}
 
       <CharacterMetaClient char={char} />
+
+      {scraped && scraped.instances.length > 0 && (
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+          <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+            <Users className="h-4 w-4 text-accent" /> {t.characters.instances}
+            <span className="text-[10px] font-normal text-muted">· {scraped.instances.length}</span>
+          </h3>
+          <ul className="grid gap-2 text-xs sm:grid-cols-2">
+            {scraped.instances.map((inst) => (
+              <li key={`${inst.cid}-${inst.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
+                <Link href={`/character/${inst.cid}`} className="font-semibold hover:text-accent">
+                  {inst.name}
+                </Link>
+                <span className="text-muted">·</span>
+                <Link href={`/vn/${inst.vn_id}`} className="text-muted hover:text-accent">
+                  {inst.vn_title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[10px] text-muted/70">{t.characters.instancesHint}</p>
+        </section>
+      )}
+
+      {scraped && scraped.voiced_by.length > 0 && (
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+          <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+            <Mic2 className="h-4 w-4 text-accent" /> {t.characters.voicedByAll}
+            <span className="text-[10px] font-normal text-muted">· {scraped.voiced_by.length}</span>
+          </h3>
+          <ul className="grid gap-2 text-xs sm:grid-cols-2">
+            {scraped.voiced_by.map((v) => (
+              <li key={`${v.sid}-${v.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
+                <Link href={`/staff/${v.sid}`} className="font-semibold hover:text-accent">
+                  {v.staff_name}
+                </Link>
+                <span className="text-muted">·</span>
+                <Link href={`/vn/${v.vn_id}`} className="text-muted hover:text-accent">
+                  {v.vn_title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {vas.length > 0 && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">

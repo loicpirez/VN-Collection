@@ -10,6 +10,9 @@ import { downloadFullReleasesForVn, downloadScreenshotReleasesForVn } from '@/li
 import { downloadFullTagsForVn } from '@/lib/tag-full';
 import { downloadFullTraitsForVn } from '@/lib/trait-full';
 import { downloadFullRelationsForVn } from '@/lib/relations-full';
+import { scrapeProducersForVn } from '@/lib/scrape-producer-relations';
+import { scrapeTagDagForVn } from '@/lib/scrape-tag-dag';
+import { scrapeCharactersForVn } from '@/lib/scrape-character-instances';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -61,6 +64,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       });
       void downloadFullRelationsForVn(id).catch((e) => {
         console.error(`[assets:${id}] relations fan-out failed:`, (e as Error).message);
+      });
+      void scrapeProducersForVn(id).catch((e) => {
+        console.error(`[assets:${id}] producer-scrape fan-out failed:`, (e as Error).message);
+      });
+      void scrapeTagDagForVn(id).catch((e) => {
+        console.error(`[assets:${id}] tag-DAG scrape fan-out failed:`, (e as Error).message);
+      });
+      void scrapeCharactersForVn(id).catch((e) => {
+        console.error(`[assets:${id}] character-scrape fan-out failed:`, (e as Error).message);
       });
     }
     // Force-refresh the EGS payload too — pulls every gamelist column, refreshes the

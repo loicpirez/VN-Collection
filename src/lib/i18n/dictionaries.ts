@@ -509,6 +509,8 @@ export const dictionaries = {
       type_in: 'Indépendant',
       type_ng: 'Groupe amateur',
       aliases: 'Alias',
+      scrapedRelations: 'Relations (vndb.org)',
+      scrapedRelationsHint: 'Données récupérées depuis la page vndb.org (l\'API ne les expose pas). Mises à jour via « Tout télécharger ».',
     },
     series: {
       pageTitle: 'Séries / Collections',
@@ -598,6 +600,9 @@ export const dictionaries = {
       alsoVoicedBy: 'Aussi doublé(e) par',
       sameName: 'Même nom dans la collection',
       sameNameHint: 'VNDB sépare parfois un même personnage récurrent en plusieurs entrées (une par VN). Voici les autres fiches portant ce nom.',
+      instances: 'Autres instances (vndb.org)',
+      instancesHint: 'Fiches frères/sœurs déclarées sur vndb.org — l\'API ne les expose pas. Mises à jour par « Tout télécharger ».',
+      voicedByAll: 'Doubleurs (vndb.org)',
     },
     staff: {
       section: 'Équipe',
@@ -1807,6 +1812,8 @@ export const dictionaries = {
       type_in: 'Individual',
       type_ng: 'Amateur group',
       aliases: 'Aliases',
+      scrapedRelations: 'Relations (vndb.org)',
+      scrapedRelationsHint: 'Pulled from the vndb.org page (the API does not expose them). Refreshed by "Download all".',
     },
     series: {
       pageTitle: 'Series / Collections',
@@ -1896,6 +1903,9 @@ export const dictionaries = {
       alsoVoicedBy: 'Also voiced by',
       sameName: 'Same name in your collection',
       sameNameHint: 'VNDB sometimes splits a recurring character into multiple records (one per VN). Here are other entries sharing this display name.',
+      instances: 'Instances (vndb.org)',
+      instancesHint: 'Sibling character records declared on vndb.org — the API does not expose them. Refreshed by "Download all".',
+      voicedByAll: 'Voiced by (vndb.org)',
     },
     staff: {
       section: 'Staff',
@@ -3105,6 +3115,8 @@ export const dictionaries = {
       type_in: '個人',
       type_ng: '同人',
       aliases: '別名',
+      scrapedRelations: '関連メーカー（vndb.org）',
+      scrapedRelationsHint: 'API では提供されないため vndb.org のページから取得。「全て取得」で更新されます。',
     },
     series: {
       pageTitle: 'シリーズ・コレクション',
@@ -3194,6 +3206,9 @@ export const dictionaries = {
       alsoVoicedBy: '他の声優',
       sameName: 'コレクション内で同名',
       sameNameHint: 'VNDB は同じ人物でも VN ごとに別エントリを作ることがあります。同名の他キャラページはこちら。',
+      instances: '別エントリ（vndb.org）',
+      instancesHint: 'vndb.org のページから取得した姉妹キャラエントリ（API では取得不可）。「全て取得」で更新されます。',
+      voicedByAll: '担当声優（vndb.org）',
     },
     staff: {
       section: 'スタッフ',
