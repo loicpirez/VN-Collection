@@ -1207,6 +1207,47 @@ export function setAppSetting(key: string, value: string | null): void {
   `).run(key, value);
 }
 
+/**
+ * Migrate every reference from `fromId` (typically an `egs_NNN` synthetic) to
+ * `toId` (a real VNDB `vNNN`). Used when the user manually links an
+ * EGS-only collection entry to its VNDB equivalent: the collection row,
+ * owned_release, custom quotes, routes, series membership, and the EGS
+ * link all move to the real VN, then the synthetic vn row is dropped.
+ *
+ * `toId` must already exist in the `vn` table — call `upsertVn` first with
+ * the freshly-fetched VNDB payload.
+ */
+export function migrateVnId(fromId: string, toId: string): void {
+  if (fromId === toId) return;
+  const target = db.prepare('SELECT id FROM vn WHERE id = ?').get(toId);
+  if (!target) throw new Error(`migrateVnId: target ${toId} not in vn table`);
+
+  const tx = db.transaction(() => {
+    // Drop a possible duplicate collection row on the target before moving.
+    const targetCol = db.prepare('SELECT 1 FROM collection WHERE vn_id = ?').get(toId);
+    if (targetCol) {
+      db.prepare('DELETE FROM collection WHERE vn_id = ?').run(toId);
+    }
+    db.prepare('UPDATE collection SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE egs_game SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE vn_quote SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE owned_release SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE vn_route SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE series_vn SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE vn_activity SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE vn_staff_credit SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE vn_va_credit SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    // Synthetic row is no longer referenced — clean up.
+    db.prepare('DELETE FROM vn WHERE id = ?').run(fromId);
+  });
+  db.pragma('foreign_keys = OFF');
+  try {
+    tx();
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
+}
+
 /** Stamp a VN row with the `egs_only` flag (used for EGS-sourced synthetic entries). */
 export function markVnEgsOnly(vnId: string, egsOnly: boolean): void {
   db.prepare('UPDATE vn SET egs_only = ? WHERE id = ?').run(egsOnly ? 1 : 0, vnId);

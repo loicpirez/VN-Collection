@@ -45,6 +45,8 @@ import { RelationsSection } from '@/components/RelationsSection';
 import { RecordRecentView } from '@/components/RecordRecentView';
 import { TitleLine } from '@/components/TitleLine';
 import { EgsPanel } from '@/components/EgsPanel';
+import { LinkToVndbButton } from '@/components/LinkToVndbButton';
+import { CompareWithButton } from '@/components/CompareWithButton';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
 import { MatchBadges } from '@/components/MatchBadges';
 import { VndbStatusPanel } from '@/components/VndbStatusPanel';
@@ -363,6 +365,10 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <ExternalLink className="h-4 w-4" /> {t.detail.viewOnVndb}
                 </a>
               )}
+              {vn.id.startsWith('egs_') && (
+                <LinkToVndbButton vnId={vn.id} seedQuery={vn.alttitle?.trim() || vn.title} />
+              )}
+              <CompareWithButton currentVnId={vn.id} />
               {(vn.extlinks ?? []).slice(0, 8).map((l) => (
                 <a
                   key={l.url}
