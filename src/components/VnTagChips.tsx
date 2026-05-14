@@ -1,7 +1,6 @@
 'use client';
-import Link from 'next/link';
 import { useDisplaySettings } from '@/lib/settings/client';
-import { useT } from '@/lib/i18n/client';
+import { SpoilerChip } from './SpoilerChip';
 
 interface Tag {
   id: string;
@@ -13,42 +12,30 @@ interface Tag {
 }
 
 /**
- * VNDB-style tag chip row that filters by the global spoiler level.
- * Sexual ("ero") tags are gated by `showSexualTraits` so the user has
- * one switch for adult content and another for plot-level spoilers.
+ * VNDB-style tag row. Every tag is rendered, but tags whose `spoiler`
+ * exceeds the global toggle (or `category === 'ero'` when sexual is off)
+ * are rendered as a redacted lock placeholder. Clicking the placeholder
+ * reveals just that tag with a warning border so the user knows what
+ * they uncovered.
  */
 export function VnTagChips({ tags, max = 16 }: { tags: Tag[]; max?: number }) {
-  const t = useT();
   const { settings } = useDisplaySettings();
-  const visible = tags
-    .filter((tag) => {
-      if (tag.spoiler > settings.spoilerLevel) return false;
-      if (!settings.showSexualTraits && tag.category === 'ero') return false;
-      return true;
-    })
-    .slice(0, max);
-  if (visible.length === 0) return null;
+  if (!tags.length) return null;
+  const visible = tags.slice(0, max);
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
       {visible.map((tag) => (
-        <Link
+        <SpoilerChip
           key={tag.id}
+          level={tag.spoiler}
+          sexual={tag.category === 'ero'}
+          lie={tag.lie}
+          currentSpoilerLevel={settings.spoilerLevel}
+          showSexual={settings.showSexualTraits}
           href={`/?tag=${encodeURIComponent(tag.id)}`}
-          className={`rounded-md border bg-bg-elev px-2 py-0.5 text-[11px] transition-colors hover:border-accent hover:text-accent ${
-            tag.lie
-              ? 'border-status-on_hold/40 text-status-on_hold'
-              : tag.spoiler > 0
-                ? 'border-status-on_hold/30 text-muted'
-                : tag.category === 'ero'
-                  ? 'border-status-dropped/30 text-status-dropped'
-                  : 'border-border text-muted'
-          }`}
-          title={tag.lie ? t.detail.tagLie : t.library.filterByTag}
         >
           {tag.name}
-          {tag.lie && <span className="ml-1 text-[9px]">⚠</span>}
-          {tag.spoiler > 0 && <span className="ml-1 text-[9px]">!</span>}
-        </Link>
+        </SpoilerChip>
       ))}
     </div>
   );

@@ -1,7 +1,9 @@
 'use client';
-import Link from 'next/link';
+import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
+import { SpoilerChip } from './SpoilerChip';
 import type { VndbCharacter } from '@/lib/vndb';
 
 interface Props {
@@ -9,14 +11,15 @@ interface Props {
 }
 
 /**
- * Renders the spoiler-sensitive parts of the character page (extra sex /
- * gender lines, trait list) using the global spoiler-level setting
- * configured via <SpoilerToggle/> in the header. Lives in its own client
- * component so the parent character page can stay server-rendered.
+ * Spoiler-sensitive part of the character page rendered client-side so
+ * it can read the global <SpoilerToggle/> setting plus per-field local
+ * reveal state (sex / gender spoiler line, individual trait chips).
  *
- * Mirrors VNDB's model: spoilerLevel=0 hides spoilers; =1 minor; =2 all.
- * Sexual traits use a separate toggle (showSexualTraits) since users
- * often want to see story spoilers without unblurring NSFW data.
+ * Per-field reveal: each spoiler-tagged trait renders as a redacted chip
+ * via <SpoilerChip/>; click to unblur just that trait. The "spoiler sex"
+ * and "spoiler gender" lines each have their own click-to-reveal button
+ * so the user can flip them individually without changing the global
+ * level.
  */
 export function CharacterMetaClient({ char }: Props) {
   const t = useT();
@@ -29,24 +32,24 @@ export function CharacterMetaClient({ char }: Props) {
   const genderA = char.gender?.[0] ?? null;
   const genderB = char.gender?.[1] ?? null;
 
-  const visibleTraits = (char.traits ?? []).filter((tr) => {
-    if (tr.spoiler > level) return false;
-    if (!showSexual && tr.sexual) return false;
-    return true;
-  });
-  const hiddenTraitCount = (char.traits ?? []).length - visibleTraits.length;
+  const sexDiffers = !!sexB && sexB !== sexA;
+  const genderDiffers = !!genderB && genderB !== genderA;
 
   return (
     <>
-      {level > 0 && (sexB && sexB !== sexA) && (
-        <p className="mt-1 text-[11px] text-status-on_hold">
-          <span className="font-bold uppercase tracking-wider">{t.characters.sexReal}:</span> {labelSex(sexB)}
-        </p>
+      {sexDiffers && (
+        <InlineSpoilerReveal
+          label={t.characters.sexReal}
+          value={labelSex(sexB)}
+          autoReveal={level > 0}
+        />
       )}
-      {level > 0 && (genderB && genderB !== genderA) && (
-        <p className="mt-0.5 text-[11px] text-status-on_hold">
-          <span className="font-bold uppercase tracking-wider">{t.characters.genderReal}:</span> {labelGender(genderB)}
-        </p>
+      {genderDiffers && (
+        <InlineSpoilerReveal
+          label={t.characters.genderReal}
+          value={labelGender(genderB)}
+          autoReveal={level > 0}
+        />
       )}
       {(char.traits ?? []).length > 0 && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
@@ -54,37 +57,70 @@ export function CharacterMetaClient({ char }: Props) {
             <h3 className="text-xs font-bold uppercase tracking-widest text-muted">{t.characters.traits}</h3>
             <p className="text-[10px] text-muted">
               {t.spoiler.title}: {level === 0 ? t.spoiler.lvl0 : level === 1 ? t.spoiler.lvl1 : t.spoiler.lvl2}
-              {hiddenTraitCount > 0 && <span className="ml-1">· +{hiddenTraitCount}</span>}
+              {!showSexual && ' · -' + t.spoiler.showSexual}
             </p>
           </div>
-          {visibleTraits.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {visibleTraits.map((tr) => (
-                <Link
-                  key={tr.id}
-                  href={`/trait/${encodeURIComponent(tr.id)}`}
-                  className={`rounded-md border bg-bg-elev px-2 py-0.5 text-[11px] transition-colors hover:border-accent hover:text-accent ${
-                    tr.spoiler > 0
-                      ? 'border-status-on_hold/40 text-status-on_hold'
-                      : tr.sexual
-                        ? 'border-status-dropped/40 text-status-dropped'
-                        : 'border-border text-muted'
-                  }`}
-                  title={tr.spoiler > 0 ? t.characters.spoilerBadge : tr.lie ? t.characters.traitLie : undefined}
-                >
-                  {tr.group_name && <span className="opacity-60">{tr.group_name} / </span>}
-                  {tr.name ?? tr.id}
-                  {tr.lie && <span className="ml-1 text-[9px]">⚠</span>}
-                  {tr.spoiler > 0 && <span className="ml-1 text-[9px]">!</span>}
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[11px] text-muted">{hiddenTraitCount} hidden — adjust spoiler toggle in header</p>
-          )}
+          <div className="flex flex-wrap gap-1.5">
+            {(char.traits ?? []).map((tr) => (
+              <SpoilerChip
+                key={tr.id}
+                level={tr.spoiler}
+                sexual={tr.sexual}
+                lie={tr.lie}
+                currentSpoilerLevel={level}
+                showSexual={showSexual}
+                href={`/trait/${encodeURIComponent(tr.id)}`}
+              >
+                {tr.group_name && <span className="opacity-60">{tr.group_name} / </span>}
+                {tr.name ?? tr.id}
+              </SpoilerChip>
+            ))}
+          </div>
         </section>
       )}
     </>
+  );
+}
+
+function InlineSpoilerReveal({
+  label,
+  value,
+  autoReveal,
+}: {
+  label: string;
+  value: string | null;
+  autoReveal: boolean;
+}) {
+  const t = useT();
+  const [revealed, setRevealed] = useState(autoReveal);
+  if (!value) return null;
+  return (
+    <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-status-on_hold">
+      <span className="font-bold uppercase tracking-wider">{label}:</span>
+      {revealed ? (
+        <span>{value}</span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setRevealed(true)}
+          className="inline-flex items-center gap-1 rounded border border-dashed border-status-on_hold/60 bg-bg-elev/40 px-1.5 py-0.5 text-status-on_hold/80 hover:border-status-on_hold hover:text-status-on_hold"
+          aria-label={t.spoiler.revealOne}
+        >
+          <EyeOff className="h-3 w-3" />
+          <span className="font-mono">█████</span>
+        </button>
+      )}
+      {revealed && (
+        <button
+          type="button"
+          onClick={() => setRevealed(false)}
+          className="ml-1 text-muted/70 hover:text-muted"
+          aria-label={t.spoiler.hideOne}
+        >
+          <Eye className="h-3 w-3" />
+        </button>
+      )}
+    </p>
   );
 }
 

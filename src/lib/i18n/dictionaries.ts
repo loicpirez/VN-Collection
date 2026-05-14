@@ -305,6 +305,8 @@ export const dictionaries = {
       lvl2: 'Tous',
       showSexual: 'Traits sexuels',
       hint: 'Filtre global appliqué aux tags, traits et fiches personnages — comme sur VNDB.',
+      revealOne: 'Révéler ce spoiler',
+      hideOne: 'Masquer à nouveau',
     },
     compareWith: {
       cta: 'Comparer…',
@@ -1601,6 +1603,8 @@ export const dictionaries = {
       lvl2: 'All',
       showSexual: 'Sexual traits',
       hint: 'Global filter applied to tags, traits and character pages — same model as VNDB.',
+      revealOne: 'Reveal this spoiler',
+      hideOne: 'Hide again',
     },
     compareWith: {
       cta: 'Compare with…',
@@ -2897,6 +2901,8 @@ export const dictionaries = {
       lvl2: 'すべて',
       showSexual: 'セクシャル特徴',
       hint: 'タグ・特徴・キャラページに適用される全体フィルター（VNDB と同じ仕組み）。',
+      revealOne: 'このネタバレを表示',
+      hideOne: '再び隠す',
     },
     compareWith: {
       cta: '比較…',
