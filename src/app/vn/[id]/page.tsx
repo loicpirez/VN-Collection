@@ -36,6 +36,7 @@ import { QueueButton } from '@/components/QueueButton';
 import { SessionPanel } from '@/components/SessionPanel';
 import { FavoriteToggleButton } from '@/components/FavoriteToggleButton';
 import { ListsPickerButton } from '@/components/ListsPickerButton';
+import { CoverSourcePicker } from '@/components/CoverSourcePicker';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { AnimeChip } from '@/components/AnimeChip';
 import { CoverQuickActions } from '@/components/CoverQuickActions';
@@ -433,6 +434,16 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                 </a>
               )}
               <CoverQuickActions vnId={vn.id} inCollection={inCol} status={status} />
+              {inCol && (
+                <CoverSourcePicker
+                  vnId={vn.id}
+                  vndbImage={vn.image_url}
+                  egsId={egsRow?.egs_id ?? null}
+                  currentCustomCover={vn.custom_cover ?? null}
+                  screenshots={vn.screenshots ?? []}
+                  releaseImages={vn.release_images ?? []}
+                />
+              )}
               {inCol && <DownloadAssetsButton vnId={vn.id} />}
               {inCol && <QueueButton vnId={vn.id} />}
               {inCol && (

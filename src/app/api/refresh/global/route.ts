@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 import { startJob, tickJob, finishJob, recordError } from '@/lib/download-status';
 import { fetchEgsAnticipated } from '@/lib/erogamescape';
 import { getGlobalStats, getAuthInfo, getSchema } from '@/lib/vndb';
@@ -20,6 +21,12 @@ export const maxDuration = 300;
  */
 export async function POST() {
   const tasks: Array<{ name: string; run: () => Promise<unknown> }> = [
+    {
+      name: 'EGS cover cache (bust)',
+      run: async () => {
+        db.prepare("DELETE FROM vndb_cache WHERE cache_key LIKE 'egs:cover-resolved:%'").run();
+      },
+    },
     { name: 'EGS anticipated (top 100)', run: () => fetchEgsAnticipated(100) },
     { name: 'VNDB stats',                run: () => getGlobalStats() },
     { name: 'VNDB schema',                run: () => getSchema() },
