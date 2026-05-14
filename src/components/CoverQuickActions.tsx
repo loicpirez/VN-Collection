@@ -71,12 +71,17 @@ export function CoverQuickActions({ vnId, inCollection, status }: Props) {
     try {
       if (status === 'planning') {
         // Already wishlisted — clearing local status by removing is the
-        // simplest semantic. The user can always re-add.
+        // simplest semantic. The user can always re-add. Inline the DELETE
+        // here so we don't ask for two confirmations (the inner one warns
+        // about the collection again, which is what we already confirmed).
         if (!confirm(t.coverActions.unwishConfirm)) {
           setBusy(null);
           return;
         }
-        await removeFromCollection();
+        const r = await fetch(`/api/collection/${vnId}`, { method: 'DELETE' });
+        if (!r.ok) throw new Error(t.common.error);
+        toast.success(t.coverActions.unwishlisted);
+        startTransition(() => router.refresh());
         return;
       }
       // Not in collection or different status — set to planning.

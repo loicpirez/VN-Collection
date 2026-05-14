@@ -740,6 +740,7 @@ export const dictionaries = {
       wishlisted: 'En wishlist',
       unwish: 'Retirer de la wishlist',
       unwishConfirm: 'Retirer ce VN de la wishlist ? Le statut sera effacé.',
+      unwishlisted: 'Retiré de la wishlist',
     },
     savedFilters: {
       title: 'Filtres',
@@ -2042,6 +2043,7 @@ export const dictionaries = {
       removed: 'Removed from collection',
       wishlist: 'Wishlist',
       wishlisted: 'Wishlisted',
+      unwishlisted: 'Removed from wishlist',
       unwish: 'Remove from wishlist',
       unwishConfirm: 'Remove from wishlist? The status will be cleared.',
     },
@@ -3346,6 +3348,7 @@ export const dictionaries = {
       removed: 'コレクションから削除',
       wishlist: 'ウィッシュに追加',
       wishlisted: 'ウィッシュ済',
+      unwishlisted: 'ウィッシュから削除しました',
       unwish: 'ウィッシュから削除',
       unwishConfirm: 'ウィッシュから削除しますか？ ステータスがクリアされます。',
     },

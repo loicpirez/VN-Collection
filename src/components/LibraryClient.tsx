@@ -326,7 +326,7 @@ export function LibraryClient() {
     ],
   );
   const hiddenBySexualCount = items.length - visibleItems.length;
-  const groups = useMemo(() => groupItems(visibleItems, group, t), [visibleItems, group, t]);
+  const groups = useMemo(() => groupItems(visibleItems, group, t, sort, order), [visibleItems, group, t, sort, order]);
 
   return (
     <div>
@@ -851,7 +851,13 @@ interface Group {
   items: CollectionItem[];
 }
 
-function groupItems(items: CollectionItem[], group: GroupKey, t: ReturnType<typeof useT>): Group[] {
+function groupItems(
+  items: CollectionItem[],
+  group: GroupKey,
+  t: ReturnType<typeof useT>,
+  sort: SortKey,
+  order: 'asc' | 'desc',
+): Group[] {
   if (group === 'none') return [{ key: 'all', label: '', items }];
   const map = new Map<string, Group>();
   const fallback = (label: string) => ({ key: '__none__', label, items: [] as CollectionItem[] });
@@ -865,10 +871,14 @@ function groupItems(items: CollectionItem[], group: GroupKey, t: ReturnType<type
       map.get(k)!.items.push(it);
     } else if (group === 'producer') {
       const dev = it.developers[0];
-      const k = dev?.id ?? '__none__';
+      // Fall back to the developer name when the id is missing or blank.
+      // EGS-synthetic entries sometimes carry a brand_name without a VNDB
+      // producer id, which was previously dumping every such VN into the
+      // generic "Other" bucket and hiding the brand.
+      const devKey = (dev?.id && dev.id.trim()) || (dev?.name && `n:${dev.name}`) || '__none__';
       const label = dev?.name ?? t.library.groupOther;
-      if (!map.has(k)) map.set(k, { key: k, label, items: [] });
-      map.get(k)!.items.push(it);
+      if (!map.has(devKey)) map.set(devKey, { key: devKey, label, items: [] });
+      map.get(devKey)!.items.push(it);
     } else if (group === 'series') {
       const list = it.series ?? [];
       if (list.length === 0) {
@@ -897,5 +907,29 @@ function groupItems(items: CollectionItem[], group: GroupKey, t: ReturnType<type
       }
     }
   }
-  return Array.from(map.values()).sort((a, b) => b.items.length - a.items.length);
+  // Group ordering follows the active sort key when it matches the group
+  // axis (sort=producer + group=producer → alphabetical groups, sort
+  // direction respected). Otherwise default to item-count descending so
+  // the biggest buckets stay on top.
+  const groups = Array.from(map.values());
+  const axisMatch =
+    (group === 'producer' && sort === 'producer') ||
+    (group === 'status' && sort === 'updated_at') === false && (group === 'status' && false);
+  if ((group === 'producer' && sort === 'producer')
+      || (group === 'series')
+      || (group === 'tag')) {
+    groups.sort((a, b) => a.label.localeCompare(b.label));
+    if (order === 'desc') groups.reverse();
+    // Always put the "Other" bucket last regardless of sort direction.
+    const otherIdx = groups.findIndex((g) => g.key === '__none__');
+    if (otherIdx !== -1) {
+      const [other] = groups.splice(otherIdx, 1);
+      groups.push(other);
+    }
+    return groups;
+  }
+  // unused but kept to silence the unused-var when narrowing logic above
+  void axisMatch;
+  groups.sort((a, b) => b.items.length - a.items.length);
+  return groups;
 }
