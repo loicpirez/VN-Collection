@@ -286,9 +286,9 @@ function AnticipatedSection({
     return <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">{t.upcoming.emptyAnticipated}</p>;
   }
   return (
-    <section className="rounded-xl border border-accent/40 bg-accent/5 p-5">
+    <section className="rounded-xl border border-accent/40 bg-accent/5 p-4 sm:p-5">
       <p className="mb-4 text-[11px] text-muted">{t.upcoming.anticipatedSubtitle}</p>
-      <ol className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+      <ol className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
         {rows.map((a, i) => {
           // Prefer the VNDB cover when the anticipated row carries a
           // vndb_id and VNDB returned an image for it. Falls back to the
@@ -296,68 +296,77 @@ function AnticipatedSection({
           const vndbCover = a.vndb_id ? vndbCovers.get(a.vndb_id) ?? null : null;
           const coverSrc = vndbCover?.url ?? `/api/egs-cover/${a.egs_id}`;
           const coverSexual = vndbCover?.sexual ?? null;
+          const coverHref = a.vndb_id
+            ? `/vn/${a.vndb_id}`
+            : `https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${a.egs_id}`;
           return (
-          <li key={a.egs_id} className="flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-3">
-            <div className="relative shrink-0">
-              <Link
-                href={a.vndb_id ? `/vn/${a.vndb_id}` : `https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${a.egs_id}`}
-                target={a.vndb_id ? undefined : '_blank'}
-                rel={a.vndb_id ? undefined : 'noopener noreferrer'}
-                className="block h-24 w-16 overflow-hidden rounded"
-              >
-                <SafeImage src={coverSrc} alt={a.gamename} sexual={coverSexual} className="h-full w-full" />
-              </Link>
-              <span className="absolute -left-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-bg shadow">
-                {i + 1}
-              </span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline gap-2">
-                {a.vndb_id ? (
-                  <Link href={`/vn/${a.vndb_id}`} className="line-clamp-1 text-sm font-bold hover:text-accent">
-                    {a.gamename}
-                  </Link>
-                ) : (
-                  <span className="line-clamp-1 text-sm font-bold">{a.gamename}</span>
-                )}
-              </div>
-              <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted">
-                <span className="rounded bg-bg-card px-1.5 py-0.5 uppercase tracking-wider text-accent">{a.sellday}</span>
-                {a.brand_name && <span>{a.brand_name}</span>}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
-                <span className="inline-flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 font-semibold text-accent">
-                  {t.upcoming.willBuy} {a.will_buy}
-                </span>
-                <span className="inline-flex items-center gap-1 rounded bg-accent-blue/15 px-1.5 py-0.5 font-semibold text-accent-blue">
-                  {t.upcoming.probablyBuy} {a.probably_buy}
-                </span>
-                <span className="inline-flex items-center gap-1 rounded bg-muted/15 px-1.5 py-0.5 font-semibold text-muted">
-                  {t.upcoming.watching} {a.watching}
-                </span>
-              </div>
-              <div className="mt-1.5 flex gap-2">
-                <a
-                  href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${a.egs_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent"
+            <li
+              key={a.egs_id}
+              className="group flex gap-4 rounded-xl border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent sm:p-4"
+            >
+              <div className="relative shrink-0">
+                <Link
+                  href={coverHref}
+                  target={a.vndb_id ? undefined : '_blank'}
+                  rel={a.vndb_id ? undefined : 'noopener noreferrer'}
+                  className="block h-48 w-32 overflow-hidden rounded-lg shadow-card sm:h-56 sm:w-36"
                 >
-                  <ExternalLink className="h-3 w-3" /> EGS
-                </a>
-                {a.vndb_id && (
+                  <SafeImage src={coverSrc} alt={a.gamename} sexual={coverSexual} className="h-full w-full" />
+                </Link>
+                <span className="absolute -left-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-accent text-xs font-bold text-bg shadow-card">
+                  {i + 1}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex flex-wrap items-baseline gap-2">
+                  {a.vndb_id ? (
+                    <Link href={`/vn/${a.vndb_id}`} className="line-clamp-2 text-base font-bold hover:text-accent">
+                      {a.gamename}
+                    </Link>
+                  ) : (
+                    <span className="line-clamp-2 text-base font-bold">{a.gamename}</span>
+                  )}
+                </div>
+                <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
+                  <span className="rounded bg-bg-card px-2 py-0.5 font-mono uppercase tracking-wider text-accent">{a.sellday}</span>
+                  {a.brand_name && <span className="line-clamp-1">{a.brand_name}</span>}
+                </div>
+                <div className="mb-3 flex flex-wrap gap-1.5 text-[10px]">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-accent/15 px-2 py-1 font-bold text-accent">
+                    <span className="opacity-70">{t.upcoming.willBuy}</span>
+                    <span className="text-sm">{a.will_buy}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-md bg-accent-blue/15 px-2 py-1 font-bold text-accent-blue">
+                    <span className="opacity-70">{t.upcoming.probablyBuy}</span>
+                    <span className="text-sm">{a.probably_buy}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-md bg-muted/15 px-2 py-1 font-bold text-muted">
+                    <span className="opacity-70">{t.upcoming.watching}</span>
+                    <span className="text-sm">{a.watching}</span>
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-3 text-[11px]">
                   <a
-                    href={`https://vndb.org/${a.vndb_id}`}
+                    href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${a.egs_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent"
+                    className="inline-flex items-center gap-1 text-muted hover:text-accent"
                   >
-                    <ExternalLink className="h-3 w-3" /> VNDB
+                    <ExternalLink className="h-3 w-3" /> EGS
                   </a>
-                )}
+                  {a.vndb_id && (
+                    <a
+                      href={`https://vndb.org/${a.vndb_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-muted hover:text-accent"
+                    >
+                      <ExternalLink className="h-3 w-3" /> VNDB
+                    </a>
+                  )}
+                </div>
               </div>
-            </div>
-          </li>
+            </li>
           );
         })}
       </ol>

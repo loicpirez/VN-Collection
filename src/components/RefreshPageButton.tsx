@@ -22,16 +22,28 @@ import { useToast } from './ToastProvider';
  */
 export function RefreshPageButton({
   className = '',
-  lastUpdatedAt = null,
+  lastUpdatedAt,
 }: {
   className?: string;
+  /**
+   * Most-recent `fetched_at` (epoch-ms) for the cache rows powering this
+   * page. When omitted (or undefined) the freshness chip is hidden
+   * entirely — pages with on-demand or local-only data shouldn't pretend
+   * to have a meaningful freshness reading. Pass `null` to explicitly
+   * render a "never downloaded" chip.
+   */
   lastUpdatedAt?: number | null;
 } = {}) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const [now, setNow] = useState<number | null>(null);
+  // `now` starts at lastUpdatedAt itself so the SSR render of the chip
+  // reads "just now" instead of a raw `toLocaleString()` timestamp. Once
+  // the client mounts we tick every 30s for live updates.
+  const [now, setNow] = useState<number>(
+    typeof lastUpdatedAt === 'number' ? lastUpdatedAt : Date.now(),
+  );
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -61,9 +73,13 @@ export function RefreshPageButton({
     }
   }
 
+  // Undefined → page is local-only or on-demand, no freshness chip.
+  // null → page tracks a remote cache that's never been populated.
+  // number → real timestamp, render relative time.
+  const showChip = lastUpdatedAt !== undefined;
   return (
     <div className={`inline-flex flex-wrap items-center gap-2 ${className}`}>
-      <FreshnessChip lastUpdatedAt={lastUpdatedAt} now={now} />
+      {showChip && <FreshnessChip lastUpdatedAt={lastUpdatedAt} now={now} />}
       <button
         type="button"
         onClick={run}
@@ -78,13 +94,11 @@ export function RefreshPageButton({
   );
 }
 
-function FreshnessChip({ lastUpdatedAt, now }: { lastUpdatedAt: number | null; now: number | null }) {
+function FreshnessChip({ lastUpdatedAt, now }: { lastUpdatedAt: number | null; now: number }) {
   const t = useT();
   const stale =
-    lastUpdatedAt == null || (now != null && now - lastUpdatedAt > 7 * 86_400_000);
-  const label = now == null && lastUpdatedAt != null
-    ? new Date(lastUpdatedAt).toLocaleString()
-    : timeAgo(lastUpdatedAt, t, now ?? Date.now());
+    lastUpdatedAt == null || now - lastUpdatedAt > 7 * 86_400_000;
+  const label = timeAgo(lastUpdatedAt, t, now);
   const absolute = lastUpdatedAt == null ? '' : new Date(lastUpdatedAt).toLocaleString();
   return (
     <span

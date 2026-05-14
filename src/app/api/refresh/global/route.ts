@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { startJob, tickJob, finishJob, recordError } from '@/lib/download-status';
 import { fetchEgsAnticipated } from '@/lib/erogamescape';
-import { getGlobalStats, getAuthInfo, getSchema } from '@/lib/vndb';
+import { getGlobalStats, getAuthInfo, getSchema, searchTags, searchTraits } from '@/lib/vndb';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection } from '@/lib/upcoming';
 
 export const dynamic = 'force-dynamic';
@@ -47,6 +47,11 @@ export async function POST() {
     { name: 'VNDB authinfo',              run: async () => { try { return await getAuthInfo(); } catch { return null; } } },
     { name: 'Upcoming · collection',      run: () => fetchUpcomingForCollection() },
     { name: 'Upcoming · all VNDB (top 200)', run: () => fetchAllUpcomingFromVndb(200) },
+    // Re-populate the default tag/trait searches so the freshness chip
+    // on /tags and /traits reads "just now" after a refresh instead of
+    // hanging on the now-deleted older value.
+    { name: 'Tags · default search',      run: () => searchTags('', { results: 60 }) },
+    { name: 'Traits · default search',    run: () => searchTraits('', { results: 60 }) },
   ];
 
   const job = startJob('vndb-pull', 'Global refresh', tasks.length, null);
