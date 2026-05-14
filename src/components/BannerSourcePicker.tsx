@@ -45,7 +45,10 @@ export function BannerSourcePicker({
   const toast = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>(currentBanner ? 'custom' : 'default');
+  // Default to Custom — the picker exists mostly so users can upload /
+  // paste / pick from gallery. Resetting to default is a single click
+  // from the Custom tab anyway.
+  const [tab, setTab] = useState<Tab>('custom');
   const [busy, setBusy] = useState(false);
   const [urlValue, setUrlValue] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -177,11 +180,11 @@ export function BannerSourcePicker({
               </button>
             </header>
             <nav className="flex border-b border-border">
-              <TabButton active={tab === 'default'} onClick={() => setTab('default')}>
-                {t.bannerPicker.defaultTab}
-              </TabButton>
               <TabButton active={tab === 'custom'} onClick={() => setTab('custom')}>
                 {t.coverPicker.custom}
+              </TabButton>
+              <TabButton active={tab === 'default'} onClick={() => setTab('default')}>
+                {t.bannerPicker.defaultTab}
               </TabButton>
             </nav>
             <div className="max-h-[60vh] overflow-y-auto p-4">

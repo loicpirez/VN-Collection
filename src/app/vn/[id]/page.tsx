@@ -39,6 +39,7 @@ import { SessionPanel } from '@/components/SessionPanel';
 import { FavoriteToggleButton } from '@/components/FavoriteToggleButton';
 import { ListsPickerButton } from '@/components/ListsPickerButton';
 import { CoverSourcePicker } from '@/components/CoverSourcePicker';
+import { CoverEditOverlay } from '@/components/CoverEditOverlay';
 import { BannerSourcePicker } from '@/components/BannerSourcePicker';
 import { VnListMemberships } from '@/components/VnListMemberships';
 import { PlaytimeCompare } from '@/components/PlaytimeCompare';
@@ -213,32 +214,35 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
 
         <div className="relative -mt-44 grid grid-cols-1 gap-4 px-3 pb-4 sm:gap-6 sm:px-6 sm:pb-6 md:grid-cols-[260px_1fr] md:gap-8 md:px-8 md:pb-8">
           <div className="z-10 mx-auto w-full max-w-[260px] md:mx-0">
-            {inCol && (egsPosterHas || customPosterHas) ? (
-              <CoverCompare
-                vnId={vn.id}
-                current={sourcePref.image ?? 'auto'}
-                vndb={vndbPoster}
-                egs={egsPoster}
-                custom={customPoster}
-                sexual={vn.image_sexual ?? null}
-                alt={vn.title}
-              />
-            ) : (
-              <div className="relative">
-                <SafeImage
-                  src={heroPoster.remote}
-                  localSrc={heroPoster.local}
-                  alt={vn.title}
+            <div className="group relative">
+              {inCol && (egsPosterHas || customPosterHas) ? (
+                <CoverCompare
+                  vnId={vn.id}
+                  current={sourcePref.image ?? 'auto'}
+                  vndb={vndbPoster}
+                  egs={egsPoster}
+                  custom={customPoster}
                   sexual={vn.image_sexual ?? null}
-                  className="aspect-[2/3] w-full rounded-xl shadow-card"
+                  alt={vn.title}
                 />
-                {inCol && !heroPoster.remote && !heroPoster.local && (
-                  <div className="absolute inset-x-2 bottom-2 z-10 flex justify-center">
-                    <CoverUploader vnId={vn.id} hasCustom={!!vn.custom_cover} variant="inline" />
-                  </div>
-                )}
-              </div>
-            )}
+              ) : (
+                <div className="relative">
+                  <SafeImage
+                    src={heroPoster.remote}
+                    localSrc={heroPoster.local}
+                    alt={vn.title}
+                    sexual={vn.image_sexual ?? null}
+                    className="aspect-[2/3] w-full rounded-xl shadow-card"
+                  />
+                  {inCol && !heroPoster.remote && !heroPoster.local && (
+                    <div className="absolute inset-x-2 bottom-2 z-10 flex justify-center">
+                      <CoverUploader vnId={vn.id} hasCustom={!!vn.custom_cover} variant="inline" />
+                    </div>
+                  )}
+                </div>
+              )}
+              {inCol && <CoverEditOverlay vnId={vn.id} />}
+            </div>
           </div>
 
           <div className="z-10 flex flex-col gap-3 pt-6 md:pt-44">

@@ -68,6 +68,22 @@ export function CoverSourcePicker({
     };
   }, [open]);
 
+  // Listen for a global "open the cover picker" event so secondary
+  // triggers (e.g. the hover overlay on the cover image itself) can
+  // pop this modal without re-implementing the upload flow. Scoped to
+  // this vnId so visiting another VN's detail page in the same session
+  // doesn't accidentally cross-open another VN's picker.
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const ce = e as CustomEvent<{ vnId?: string }>;
+      if (ce.detail?.vnId && ce.detail.vnId !== vnId) return;
+      setOpen(true);
+      setTab('custom');
+    }
+    window.addEventListener('vn:open-cover-picker', onOpen as EventListener);
+    return () => window.removeEventListener('vn:open-cover-picker', onOpen as EventListener);
+  }, [vnId]);
+
   async function applySource(source: 'url' | 'screenshot' | 'release' | 'path', value: string) {
     setBusy(true);
     try {
@@ -177,12 +193,12 @@ export function CoverSourcePicker({
               </button>
             </header>
             <nav className="flex border-b border-border">
+              <TabButton active={tab === 'custom'} onClick={() => setTab('custom')}>
+                {t.coverPicker.custom}
+              </TabButton>
               <TabButton active={tab === 'vndb'} onClick={() => setTab('vndb')}>VNDB</TabButton>
               <TabButton active={tab === 'egs'} onClick={() => setTab('egs')} disabled={!egsId}>
                 EGS
-              </TabButton>
-              <TabButton active={tab === 'custom'} onClick={() => setTab('custom')}>
-                {t.coverPicker.custom}
               </TabButton>
             </nav>
             <div className="max-h-[60vh] overflow-y-auto p-4">
@@ -367,8 +383,12 @@ function TabButton({
   );
 }
 
-function initialTab(egsId: number | null, currentCustom: string | null): Tab {
-  if (currentCustom && /^\/api\/egs-cover\//.test(currentCustom)) return 'egs';
-  if (currentCustom) return 'custom';
-  return 'vndb';
+function initialTab(_egsId: number | null, _currentCustom: string | null): Tab {
+  // Default to the Custom tab — the modal exists primarily so users can
+  // upload their own image, paste a URL, or pick from the in-VN gallery.
+  // Reverting to VNDB or switching to EGS is a one-click affordance from
+  // any tab. Earlier versions opened on whichever source was currently
+  // active, but that hid the upload button behind a tab switch and
+  // confused users who came in looking for "upload custom cover".
+  return 'custom';
 }
