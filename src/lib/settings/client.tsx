@@ -22,6 +22,16 @@ export interface DisplaySettings {
   hideSexual: boolean;
   /** Library grid density: false = comfortable (default), true = dense. */
   denseLibrary: boolean;
+  /**
+   * Spoiler level shown by default across the app.
+   *   0 = none (default — like VNDB out of the box)
+   *   1 = minor spoilers
+   *   2 = major spoilers
+   * Tags / traits / characters honor this in the same way VNDB does.
+   */
+  spoilerLevel: 0 | 1 | 2;
+  /** When true, sexual traits / NSFW-flagged traits are revealed. */
+  showSexualTraits: boolean;
 }
 
 const DEFAULTS: DisplaySettings = {
@@ -32,6 +42,8 @@ const DEFAULTS: DisplaySettings = {
   preferNativeTitle: false,
   hideSexual: false,
   denseLibrary: false,
+  spoilerLevel: 0,
+  showSexualTraits: false,
 };
 
 const STORAGE_KEY = 'vn_display_settings_v1';

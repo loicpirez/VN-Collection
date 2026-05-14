@@ -12,6 +12,7 @@ import { I18nProvider } from '@/lib/i18n/client';
 import { DisplaySettingsProvider, type DisplaySettings } from '@/lib/settings/client';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { SettingsButton } from '@/components/SettingsButton';
+import { SpoilerToggle } from '@/components/SpoilerToggle';
 import { QuoteFooter } from '@/components/QuoteFooter';
 import { ToastProvider } from '@/components/ToastProvider';
 
@@ -61,6 +62,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </Link>
                 <GroupedNav />
                 <div className="ml-auto flex items-center gap-2">
+                  <SpoilerToggle />
                   <SettingsButton />
                   <LanguageSwitcher />
                 </div>

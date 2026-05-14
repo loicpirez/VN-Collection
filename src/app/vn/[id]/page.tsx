@@ -56,6 +56,7 @@ import { FieldCompare } from '@/components/FieldCompare';
 import { CustomSynopsis } from '@/components/CustomSynopsis';
 import { BrandCompare } from '@/components/BrandCompare';
 import { CoverCompare } from '@/components/CoverCompare';
+import { VnTagChips } from '@/components/VnTagChips';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -131,7 +132,6 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
   const allSeries = listSeries();
   const status = (vn.status as Status | undefined) ?? null;
   const ratingNum = vn.rating != null ? (vn.rating / 10).toFixed(1) : '—';
-  const visibleTags = (vn.tags ?? []).filter((tag) => tag.spoiler === 0).slice(0, 16);
   // Per-field source preference (VNDB or EGS) — pulled per-VN, defaults to VNDB.
   const egsRow = getEgsForVn(vn.id);
   const sourcePref = getSourcePref(vn.id);
@@ -385,25 +385,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               </div>
             )}
 
-            {visibleTags.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {visibleTags.map((tag) => (
-                  <Link
-                    key={tag.id}
-                    href={`/?tag=${encodeURIComponent(tag.id)}`}
-                    className={`rounded-md border bg-bg-elev px-2 py-0.5 text-[11px] transition-colors hover:border-accent hover:text-accent ${
-                      tag.lie
-                        ? 'border-status-on_hold/40 text-status-on_hold'
-                        : 'border-border text-muted'
-                    }`}
-                    title={tag.lie ? `${t.library.filterByTag} · ${t.detail.tagLie}` : t.library.filterByTag}
-                  >
-                    {tag.name}
-                    {tag.lie && <span className="ml-1 text-[9px] opacity-80">⚠</span>}
-                  </Link>
-                ))}
-              </div>
-            )}
+            <VnTagChips tags={vn.tags ?? []} max={16} />
 
             <div className="mt-3 flex flex-wrap gap-2">
               {vn.id.startsWith('egs_') && egsRow?.egs_id ? (

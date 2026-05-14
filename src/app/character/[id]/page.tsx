@@ -5,6 +5,7 @@ import { getCharacter, type VndbCharacter } from '@/lib/vndb';
 import { findCharacterSiblings, getVasForCharacter } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { CharacterMetaClient } from '@/components/CharacterMetaClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,16 +40,11 @@ function stripBb(s: string | null | undefined): string {
 
 export default async function CharacterPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ spoilers?: string; sexual?: string }>;
 }) {
   const { id } = await params;
   if (!/^c\d+$/i.test(id)) notFound();
-  const { spoilers: showSpoilersParam, sexual: showSexualParam } = await searchParams;
-  const showSpoilers = showSpoilersParam === '1';
-  const showSexual = showSexualParam === '1';
   const t = await getDict();
   let char: VndbCharacter | null = null;
   try {
@@ -70,35 +66,13 @@ export default async function CharacterPage({
   const bday = fmtBirthday(char.birthday);
   if (bday) meta.push({ label: t.characters.birthday, value: bday });
   const sexA = sexLabel(char.sex, 0);
-  const sexB = showSpoilers ? sexLabel(char.sex, 1) : null;
-  if (sexA) {
-    const showBoth = !!sexB && sexB !== sexA;
-    meta.push({
-      label: showBoth ? t.characters.sexApparent : t.characters.sex,
-      value: sexA,
-    });
-    if (showBoth) meta.push({ label: t.characters.sexReal, value: sexB! });
-  }
+  if (sexA) meta.push({ label: t.characters.sex, value: sexA });
   const genderA = genderLabel(char.gender, 0);
-  const genderB = showSpoilers ? genderLabel(char.gender, 1) : null;
-  if (genderA) {
-    const showBoth = !!genderB && genderB !== genderA;
-    meta.push({
-      label: showBoth ? t.characters.genderApparent : t.characters.gender,
-      value: genderA,
-    });
-    if (showBoth) meta.push({ label: t.characters.genderReal, value: genderB! });
-  }
+  if (genderA) meta.push({ label: t.characters.gender, value: genderA });
 
   const sortedVns = [...char.vns].sort(
     (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9),
   );
-  const visibleTraits = char.traits.filter((tr) => {
-    if (!showSpoilers && tr.spoiler > 0) return false;
-    if (!showSexual && tr.sexual) return false;
-    return true;
-  });
-  const hiddenTraitCount = char.traits.length - visibleTraits.length;
   // "Also voiced by" comes from local vn_va_credit (covers every VN the
   // user has fetched). VNDB doesn't expose per-VN voiced data on the
   // character endpoint, so we don't try to cross-reference unowned VNs.
@@ -189,67 +163,7 @@ export default async function CharacterPage({
         </section>
       )}
 
-      {char.traits.length > 0 && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-muted">{t.characters.traits}</h3>
-            <div className="inline-flex items-center gap-2 text-[10px]">
-              <Link
-                href={`/character/${id}?${new URLSearchParams({
-                  ...(showSpoilers ? {} : { spoilers: '1' }),
-                  ...(showSexual ? { sexual: '1' } : {}),
-                }).toString()}`}
-                className={`rounded border px-1.5 py-0.5 transition-colors ${
-                  showSpoilers ? 'border-accent text-accent' : 'border-border text-muted hover:border-accent'
-                }`}
-                title={t.characters.traitsShowSpoilers}
-              >
-                {t.characters.traitsShowSpoilers} {showSpoilers ? '✓' : '○'}
-              </Link>
-              <Link
-                href={`/character/${id}?${new URLSearchParams({
-                  ...(showSpoilers ? { spoilers: '1' } : {}),
-                  ...(showSexual ? {} : { sexual: '1' }),
-                }).toString()}`}
-                className={`rounded border px-1.5 py-0.5 transition-colors ${
-                  showSexual ? 'border-accent text-accent' : 'border-border text-muted hover:border-accent'
-                }`}
-                title={t.characters.traitsShowSexual}
-              >
-                {t.characters.traitsShowSexual} {showSexual ? '✓' : '○'}
-              </Link>
-              {hiddenTraitCount > 0 && (
-                <span className="text-muted">+{hiddenTraitCount}</span>
-              )}
-            </div>
-          </div>
-          {visibleTraits.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {visibleTraits.map((tr) => (
-                <Link
-                  key={tr.id}
-                  href={`/trait/${encodeURIComponent(tr.id)}`}
-                  className={`rounded-md border bg-bg-elev px-2 py-0.5 text-[11px] transition-colors hover:border-accent hover:text-accent ${
-                    tr.spoiler > 0
-                      ? 'border-status-on_hold/40 text-status-on_hold'
-                      : tr.sexual
-                        ? 'border-status-dropped/40 text-status-dropped'
-                        : 'border-border text-muted'
-                  }`}
-                  title={tr.spoiler > 0 ? t.characters.spoilerBadge : tr.lie ? t.characters.traitLie : undefined}
-                >
-                  {tr.group_name && <span className="opacity-60">{tr.group_name} / </span>}
-                  {tr.name}
-                  {tr.lie && <span className="ml-1 text-[9px]">⚠</span>}
-                  {tr.spoiler > 0 && <span className="ml-1 text-[9px]">!</span>}
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[11px] text-muted">{hiddenTraitCount} hidden behind toggles</p>
-          )}
-        </section>
-      )}
+      <CharacterMetaClient char={char} />
 
       {vas.length > 0 && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">

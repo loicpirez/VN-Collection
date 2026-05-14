@@ -298,6 +298,14 @@ export const dictionaries = {
       confirm: 'Migrer cette entrée vers {id} ? L\'entrée egs_ synthétique sera supprimée.',
       done: 'Entrée migrée vers le VN VNDB',
     },
+    spoiler: {
+      title: 'Spoilers',
+      lvl0: 'Aucun',
+      lvl1: 'Mineurs',
+      lvl2: 'Tous',
+      showSexual: 'Traits sexuels',
+      hint: 'Filtre global appliqué aux tags, traits et fiches personnages — comme sur VNDB.',
+    },
     compareWith: {
       cta: 'Comparer…',
       title: 'Comparer avec d\'autres VN',
@@ -1586,6 +1594,14 @@ export const dictionaries = {
       confirm: 'Migrate this entry to {id}? The synthetic egs_ row will be removed.',
       done: 'Migrated to the VNDB VN',
     },
+    spoiler: {
+      title: 'Spoilers',
+      lvl0: 'None',
+      lvl1: 'Minor',
+      lvl2: 'All',
+      showSexual: 'Sexual traits',
+      hint: 'Global filter applied to tags, traits and character pages — same model as VNDB.',
+    },
     compareWith: {
       cta: 'Compare with…',
       title: 'Compare with other VNs',
@@ -2873,6 +2889,14 @@ export const dictionaries = {
       openVndb: 'VNDB で開く',
       confirm: 'このエントリを {id} に移行しますか？合成 egs_ エントリは削除されます。',
       done: 'VNDB の VN へ移行しました',
+    },
+    spoiler: {
+      title: 'ネタバレ',
+      lvl0: 'なし',
+      lvl1: '軽度',
+      lvl2: 'すべて',
+      showSexual: 'セクシャル特徴',
+      hint: 'タグ・特徴・キャラページに適用される全体フィルター（VNDB と同じ仕組み）。',
     },
     compareWith: {
       cta: '比較…',
