@@ -20,13 +20,27 @@ export const maxDuration = 300;
  * progress is visible alongside the per-VN fan-outs.
  */
 export async function POST() {
+  // First sweep: delete every cache row this refresh is supposed to
+  // re-populate. Without this step the next call to getGlobalStats() /
+  // fetchEgsAnticipated() / fetchAllUpcomingFromVndb() would just hit
+  // the in-DB cache and return the same fetched_at — the refresh
+  // would feel like a no-op (which is what the user was seeing).
+  const bust = db.prepare(
+    "DELETE FROM vndb_cache WHERE " +
+    "cache_key LIKE 'egs:cover-resolved:%' OR " +
+    "cache_key LIKE 'anticipated:%' OR " +
+    "cache_key LIKE '% /stats|%' OR " +
+    "cache_key LIKE '% /schema|%' OR " +
+    "cache_key LIKE '% /authinfo|%' OR " +
+    "cache_key LIKE '% /release|%' OR " +
+    "cache_key LIKE '% /release:%' OR " +
+    "cache_key LIKE '% /producer|%' OR " +
+    "cache_key LIKE '% /producer:%' OR " +
+    "cache_key LIKE '% /tag|%' OR " +
+    "cache_key LIKE '% /trait|%'",
+  );
   const tasks: Array<{ name: string; run: () => Promise<unknown> }> = [
-    {
-      name: 'EGS cover cache (bust)',
-      run: async () => {
-        db.prepare("DELETE FROM vndb_cache WHERE cache_key LIKE 'egs:cover-resolved:%'").run();
-      },
-    },
+    { name: 'Cache rows (bust)', run: async () => { bust.run(); } },
     { name: 'EGS anticipated (top 100)', run: () => fetchEgsAnticipated(100) },
     { name: 'VNDB stats',                run: () => getGlobalStats() },
     { name: 'VNDB schema',                run: () => getSchema() },

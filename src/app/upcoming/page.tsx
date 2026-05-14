@@ -48,7 +48,7 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Pro
   const t = await getDict();
   const { tab: rawTab } = await searchParams;
   const tab = parseTab(rawTab);
-  const lastUpdatedAt = getCacheFreshness(['/release|%', 'anticipated:%']);
+  const lastUpdatedAt = getCacheFreshness(['% /release|%', '% /release:%', 'anticipated:%']);
 
   return (
     <div className="mx-auto max-w-5xl">

@@ -11,6 +11,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function TraitsPage() {
-  const lastUpdatedAt = getCacheFreshness(['/trait|%', 'trait_full:%']);
+  const lastUpdatedAt = getCacheFreshness(['% /trait|%', 'trait_full:%']);
   return <TraitsBrowser lastUpdatedAt={lastUpdatedAt} />;
 }

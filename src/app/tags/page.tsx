@@ -11,6 +11,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function TagsPage() {
-  const lastUpdatedAt = getCacheFreshness(['/tag|%', 'tag_full:%']);
+  const lastUpdatedAt = getCacheFreshness(['% /tag|%', 'tag_full:%']);
   return <TagsBrowser lastUpdatedAt={lastUpdatedAt} />;
 }

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Activity, CalendarRange, Database, Download, FileJson, FileSpreadsheet, FileUp, HardDrive, KeyRound, Sparkles } from 'lucide-react';
-import { getCacheFreshness, getDbStatus } from '@/lib/db';
+import { getDbStatus } from '@/lib/db';
 import { getAuthInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { ImportPanel } from '@/components/ImportPanel';
@@ -11,7 +11,6 @@ import { RunTourButton } from '@/components/RunTourButton';
 import { SteamSettingsBlock } from '@/components/SteamSettingsBlock';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { RecentActivityStrip } from '@/components/RecentActivityStrip';
-import { RefreshPageButton } from '@/components/RefreshPageButton';
 import { SelectiveFullDownload } from '@/components/SelectiveFullDownload';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +23,6 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function DataPage() {
   const t = await getDict();
   const status = getDbStatus();
-  const lastUpdatedAt = getCacheFreshness(['/stats|%', '/authinfo|%', '/schema|%']);
   let auth: { id: string; username: string; permissions: string[] } | null = null;
   let authError: string | null = null;
   try {
@@ -40,7 +38,6 @@ export default async function DataPage() {
           <h1 className="text-2xl font-bold">{t.dataMgmt.title}</h1>
           <p className="text-sm text-muted">{t.dataMgmt.subtitle}</p>
         </div>
-        <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
       </header>
 
       <RecentActivityStrip />

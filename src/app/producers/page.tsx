@@ -16,7 +16,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ProducersPage() {
   const t = await getDict();
   const producers = listProducerStats();
-  const lastUpdatedAt = getCacheFreshness(['/producer|%', 'producer_full:%']);
+  // Cache keys are stored as "{METHOD} {path}|{METHOD}|{hash}" so we
+  // anchor the LIKE pattern on the path-segment, not on the bare `/path|`
+  // prefix the previous code looked for (which never matched anything).
+  const lastUpdatedAt = getCacheFreshness(['% /producer|%', '% /producer:%', 'producer_full:%']);
 
   if (producers.length === 0) {
     return (
