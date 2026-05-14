@@ -28,6 +28,30 @@ NSFW, nukige…). All state lives in URL params so the back button works.
 ### Sort + custom drag-reorder ✅
 Standard sort dropdown plus an opt-in `sort=custom` mode that unlocks
 drag-to-reorder via @dnd-kit. Reset button reverts to the default sort.
+Whole-card drag surface (no separate handle) — clicks pass through
+to the underlying `<Link>` and the heart / lists overlays because the
+PointerSensor has a 6 px activation distance. Honors the comfortable /
+dense toggle in custom-order mode as well.
+
+### Four-way playtime model ✅
+Three real playtime sources — VNDB community length, EGS user-review
+median, and the user's own recorded time — used to render as three
+disconnected inline labels with no source-priority story. Now there
+are four sort keys + one card display:
+
+- `playtime`          — user's own recorded time, no fallback.
+- `length_minutes`    — VNDB length only.
+- `egs_playtime`      — EGS median only.
+- `combined_playtime` — average of every populated source. The SQL
+  divides by `populated_count` so a single-source value ranks at its
+  own magnitude rather than getting watered down by missing data.
+  Example: VNDB 95 + EGS 90 + Mine 93 → (95+90+93)/3 = 92.67.
+
+On `/vn/[id]` a `PlaytimeCompare` component shows all four columns
+with "Use" buttons that write `source_pref.playtime` (was dead code).
+Every `VnCard` shows the **All** combined value as the primary
+playtime chip with the per-source breakdown beneath and a tooltip
+listing each source.
 
 ### Quick-actions on cards ✅
 Right-click a tile → menu with status change, favourite toggle, "open
@@ -253,9 +277,14 @@ ranked. Toggle for including ero tags.
     the page overlays the local DB cover (image_url/image_thumb/local_image)
     so collection items always render a poster even for unreleased entries.
   - **EGS anticipated**: top-100 games on ErogameScape ranked by user
-    purchase intent (`必ず購入 / 多分購入 / 様子見` counts), with cover
-    images and a VNDB cross-link per row when EGS records one. Covers
-    resolve via `/api/egs-cover/[id]` (see "EGS cover resolver" below).
+    purchase intent (`必ず購入 / 多分購入 / 様子見` counts) with a VNDB
+    cross-link per row when EGS records one. Cards lay out 2-per-row
+    with big 128×192 covers (152×224 on sm+) so the cover is actually
+    visible. For rows carrying a `vndb_id` the cover is fetched
+    directly from VNDB via one batched call (`fetchVnCovers(ids)`);
+    everything else falls through `/api/egs-cover/[id]` (see "EGS
+    cover resolver" below). Big rank chip on each card (h-8 w-8),
+    bold intent counters with muted labels.
   - **All VNDB**: every upcoming release VNDB tracks in the next 12 months.
 
 Each tab body streams in via `<Suspense>` with a skeleton placeholder so
@@ -268,15 +297,29 @@ the page header + tab strip paint immediately.
      local mirror at `/api/files/<local_image>`). Best quality + most
      reliable for anticipated entries.
   3. **Probed** `egs:image.php?game=<id>` — single GET with Range
-     header, 3.5s timeout.
-  4. First available shop URL — Suruga-ya / DMM / DLsite / Gyutto
-     (returned unprobed; the user's browser is the final arbiter since
-     these CDNs refuse server-side fetches).
+     header, 3.5 s timeout.
+  4. First available shop URL — Suruga-ya / DMM / DLsite / Gyutto.
 
-Hits cache for 7 days. Misses cache for 1 hour (down from the previous
-24 h) so freshly-published banners surface inside the hour. The global
-`POST /api/refresh/global` busts every `egs:cover-resolved:*` cache
-row so users can force re-resolution.
+**Server-side proxy, not 302 redirect.** For any off-origin target the
+route fetches the upstream bytes and streams them back with a clean
+`Content-Type` + a `Cache-Control: public, max-age=86400, swr=604800`
+header. Same-origin `/api/files/<path>` targets still 302-redirect
+(no extra bandwidth). Proxying sidesteps the referer / mixed-content /
+Cloudflare bot-mitigation failures that were silently breaking the
+browser fetch when the route 302'd cross-origin.
+
+Hits cache for 7 days. Misses cache for 1 hour (down from 24 h) so
+freshly-published banners surface inside the hour. The global
+`POST /api/refresh/global` busts every `egs:cover-resolved:*` row so
+users can force re-resolution.
+
+### Anticipated covers via VNDB direct ✅
+`/upcoming?tab=anticipated` server-component calls
+`fetchVnCovers(ids)` once after `fetchEgsAnticipated`, batching every
+anticipated row's `vndb_id` into a single VNDB POST. The card then
+renders the high-quality VNDB poster URL inline (with the correct
+`sexual` flag for NSFW gating) instead of bouncing through the EGS
+resolver. EGS-only rows (no `vndb_id`) fall back to `/api/egs-cover/`.
 
 ### Cross-VN quotes ✅
 `/quotes` — every quote across every VN you've fetched, with character +
@@ -391,19 +434,31 @@ context) with every content-controls toggle mirrored, plus:
   CDNs when a mirror exists)
 
 ### Per-page Refresh button + freshness chip ✅
-`RefreshPageButton` renders on every browse / discovery page that
-depends on remote caches (Producers, Data, Stats, Upcoming, Tags,
-Traits). The button:
+`RefreshPageButton` renders on the pages whose render genuinely
+depends on a remote cache: **`/upcoming`**, **`/tags`**, **`/traits`**.
+The button:
 - Reads `lastUpdatedAt` server-side via `getCacheFreshness(patterns)`
-  — `SELECT MAX(fetched_at) FROM vndb_cache WHERE cache_key LIKE …`
+  — `SELECT MAX(fetched_at) FROM vndb_cache WHERE cache_key LIKE …`.
+  Patterns anchor on the actual key format `{METHOD} {path}|{METHOD}|{hash}`
+  (e.g. `'% /tag|%'`, `'tag_full:%'`, `'anticipated:%'`).
 - Renders a tiered relative-time chip ("Data Xh ago") via the shared
-  `timeAgo()` util — minute → hour → day → week → month → year. Ticks
-  every 30 s.
+  `timeAgo()` util. `now` defaults to `lastUpdatedAt` on the server so
+  the SSR first paint reads "just now" instead of a raw timestamp;
+  the client useEffect re-syncs to `Date.now()` and ticks every 30 s.
 - Turns the chip red when stale (never downloaded or > 7 d).
-- Clicking Refresh runs `POST /api/refresh/global`: bust EGS cover
-  cache → re-fetch EGS anticipated → VNDB stats / schema / authinfo
-  → upcoming (collection + global). Each task is a tracked job in the
-  download status bar.
+- Hidden when `lastUpdatedAt` is `undefined` (the prop is omitted).
+  Pages with purely-local SQL (`/stats`, `/data`, `/producers`) don't
+  carry the chip — a freshness reading there would be meaningless.
+- Clicking Refresh calls `POST /api/refresh/global`, which **busts the
+  relevant cache rows first** (`egs:cover-resolved:%`, `anticipated:%`,
+  `% /stats|%`, `% /schema|%`, `% /authinfo|%`, `% /release|%`,
+  `% /release:%`, `% /producer|%`, `% /producer:%`, `% /tag|%`,
+  `% /trait|%`) then re-fetches each (EGS anticipated top 100, VNDB
+  stats / schema / authinfo, upcoming collection + global, default
+  tag/trait searches). Without the bust step the helpers would just
+  read the still-fresh cache and `fetched_at` wouldn't move forward —
+  which is why the button felt like a no-op before. Each task is a
+  tracked job in the download status bar.
 
 ### Time-ago util ✅
 `src/lib/time-ago.ts` — single source of truth for "X ago" formatting.

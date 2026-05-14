@@ -75,44 +75,53 @@ Sections from top to bottom:
 
 1. **Headline**: title, alttitle, rating, year, length, languages,
    platforms, developer. The length row carries the **Reading speed
-   estimator** ("VNDB: 16h · EGS: 12h · You: ≈14h").
+   estimator** ("VNDB: 16h · EGS: 12h · You: ≈14h") and the
+   **Playtime compare** — four columns (VNDB / EGS / Mine / All)
+   where you pick which one is canonical for this VN. "All" is the
+   average of every populated source; pinning a source writes to
+   `source_pref.playtime` and drives every downstream display.
    **List-membership chips** appear right under the title — one chip
    per list the VN belongs to, colored by the list, click to open
    the list, X to remove.
-2. **Action buttons**: external VNDB link, optional extlinks, your
-   personal download URL, **Cover source picker**, Download all data,
-   Add to reading queue, **Favorite** inline toggle, **Lists** picker
-   inline pill, Anime adaptation chip.
-3. **Smart status hint** appears below when your `playtime` ≥ VNDB
+2. **Cover & banner**: tap the **Change cover** pill on the cover
+   image itself (or the matching pill in the action bar) to open
+   the source picker — opens to the Custom tab so the upload /
+   URL / in-VN gallery picker is on screen immediately. Same for
+   the banner via the **Change banner** picker (Custom by default).
+3. **Action buttons**: external VNDB link, optional extlinks, your
+   personal download URL, **Change cover** / **Change banner**,
+   Download all data, Add to reading queue, **Favorite** inline
+   toggle, **Lists** picker inline pill, Anime adaptation chip.
+4. **Smart status hint** appears below when your `playtime` ≥ VNDB
    length and you're still marked Playing — one click flips to
    `completed`.
-4. **Cover source picker** — modal with three tabs:
-    - **VNDB** — revert to the VNDB default cover.
-    - **EGS** — use the cover resolved by `/api/egs-cover/[id]`.
+5. **Cover source picker** modal (opens on Custom by default):
     - **Custom** — file upload, paste a URL, *or* pick from a
       thumbnail grid built from every screenshot + per-release
       artwork attached to this VN.
-5. **Pomodoro timer** + **Game log** — `SessionPanel` hosts both side
+    - **VNDB** — revert to the upstream default.
+    - **EGS** — use the cover served by `/api/egs-cover/[id]`.
+6. **Pomodoro timer** + **Game log** — `SessionPanel` hosts both side
    by side. Start a 25-min reading session; on stop, prompt to merge
    the elapsed minutes into `playtime_minutes`. The Pomodoro publishes
    the live elapsed-minute count to the game log, which is a free-form
-   timestamped journal ("Saber dies in chapter 4", "started Ayaka's
+   timestamped journal ("Great pacing in act 2", "started the main
    route") with day-grouped rendering, hover-revealed edit/delete,
    ⌘/Ctrl+Enter to submit, optional "attach 23m of session" chip.
-6. **Synopsis**: source-comparison panel (VNDB ↔ EGS) plus a "Write
+7. **Synopsis**: source-comparison panel (VNDB ↔ EGS) plus a "Write
    your own" override that replaces both with your custom text.
-7. **Tags & co-occurrence** — non-spoiler tags inline. Below: tags
+8. **Tags & co-occurrence** — non-spoiler tags inline. Below: tags
    from other VNs in your collection that frequently co-occur with
    these.
-8. **More like this** → `/similar?vn=…` for tag-seeded recommendations
+9. **More like this** → `/similar?vn=…` for tag-seeded recommendations
    centred on this VN.
-9. **Series auto-suggest** if VNDB relations match in-collection VNs.
-10. **Cast / Staff / Routes / Activity log** — each its own section.
-11. **Releases & owned editions** — track physical / digital copies.
+10. **Series auto-suggest** if VNDB relations match in-collection VNs.
+11. **Cast / Staff / Routes / Activity log** — each its own section.
+12. **Releases & owned editions** — track physical / digital copies.
     Each edition records location, box type, condition, price paid,
     currency, **acquired date**, and **purchase place** (the store
     name, URL, or second-hand seller — full provenance per copy).
-12. **Quotes section** at the bottom for VNDB-cached quotes.
+13. **Quotes section** at the bottom for VNDB-cached quotes.
 
 ---
 
@@ -150,10 +159,14 @@ Sections from top to bottom:
        your collection (default).
     2. **EGS anticipated** — top games on ErogameScape ranked by user
        purchase intent (`必ず購入 / 多分購入 / 様子見`), each cross-linked
-       to its VNDB entry when EGS records one. Covers resolve via the
-       tiered chain (banner_url → VNDB cover → EGS image → shop URL),
-       so anticipated entries that EGS has mapped to VNDB load high-
-       quality covers immediately.
+       to its VNDB entry when EGS records one. Cards render **2-per-row
+       with big 128×192 covers** (152×224 on sm+) so the cover is
+       actually visible. For rows linked to VNDB, the cover comes
+       directly from `t.vndb.org` in one batched call; everything else
+       falls through the EGS resolver chain (banner_url → linked VNDB
+       cover → EGS image → shop URL), which now **proxies image bytes
+       server-side** so cross-origin / referer mitigations don't break
+       the browser fetch.
     3. **All VNDB** — every upcoming release VNDB tracks for the next
        12 months.
   Tab bodies stream in with a skeleton placeholder. The header carries
@@ -380,25 +393,34 @@ server — they just drain through the queue at the throttled pace.
 
 ### Per-page Refresh + freshness chip
 
-Every browse / discovery page that depends on remote caches carries a
-**Refresh** button with a tiered **Data Xh ago** chip beside it (Producers,
-Data, Stats, Upcoming, Tags, Traits). The chip:
+The Refresh button with the **Data Xh ago** chip lives on the pages
+whose render genuinely depends on a remote cache: **`/upcoming`**,
+**`/tags`**, **`/traits`**. Pages that compute from local SQL only
+(`/stats`, `/data`, `/producers`) intentionally don't show the chip —
+a freshness reading there would be meaningless.
 
-- Reads the most-recent `fetched_at` across the cache keys powering the
-  page (computed server-side via `getCacheFreshness()`).
-- Renders a tiered relative time — minute (< 1 h) → hour (< 24 h) → day
-  (< 7 d) → week (< 30 d) → month (< 365 d) → year.
+The chip:
+- Reads the most-recent `fetched_at` from cache rows matching the
+  page's LIKE patterns (computed server-side via `getCacheFreshness()`).
+- Renders a tiered relative time — just now (< 1 m) → minute (< 1 h)
+  → hour (< 24 h) → day (< 7 d) → week (< 30 d) → month (< 365 d) →
+  year.
 - Turns red when stale (never downloaded or > 7 days).
-- Ticks every 30 s so it stays accurate without a render.
+- Ticks every 30 s, deterministic on SSR (initial server render uses
+  `lastUpdatedAt` as `now` so the first paint reads "just now"
+  instead of a raw timestamp).
 
-Clicking Refresh runs the global refresh pipeline:
+Clicking Refresh runs `/api/refresh/global`:
 
-1. Bust the `egs:cover-resolved:*` cache so anticipated covers re-resolve.
-2. Re-fetch EGS anticipated top 100.
-3. Re-fetch VNDB stats / schema / authinfo.
-4. Re-fetch upcoming releases (collection + global).
-
-Each task surfaces as its own job in the download status bar.
+1. **Bust** every cache row this refresh is supposed to re-populate
+   (egs cover resolver, anticipated, VNDB stats / schema / authinfo /
+   release / producer / tag / trait). Without this step the helpers
+   below would just read the still-fresh cache and `fetched_at`
+   wouldn't move — which is why the button felt like a no-op before.
+2. **Re-fetch**: EGS anticipated top 100, VNDB stats / schema /
+   authinfo, upcoming collection + all VNDB, default tag/trait
+   searches. Each is a separate tracked job in the download status
+   bar.
 
 ---
 

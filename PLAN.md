@@ -149,6 +149,91 @@ comparison view last (depends on the recommendations helper).
 
 ---
 
+## Batch D — playtime + cover/banner upload + refresh fixes (2026-05-14) — shipped ✅
+
+### D.1 Four-way playtime model
+
+- Three independent sources (`vn.length_minutes`, `egs_game.playtime_median_minutes`,
+  `collection.playtime_minutes`) plus a fourth virtual **All** column
+  that averages every populated source.
+- New sort keys end-to-end (`ListOptions['sort']`, `sortMap` SQL,
+  `VALID_SORTS` in `/api/collection` + `/api/settings`, `SortKey`
+  unions in `LibraryClient` + `SettingsButton`, `library.sort.*`
+  i18n in FR/EN/JA): `playtime`, `length_minutes`, `egs_playtime`,
+  `combined_playtime`.
+- New `PlaytimeCompare` component on `/vn/[id]` (four columns) writes
+  `source_pref.playtime` (was dead code).
+- `VnCard` renders the **All** value as the primary playtime chip with
+  the per-source breakdown beneath + a tooltip listing every source.
+
+### D.2 EGS cover resolver — server-side proxy
+
+- `/api/egs-cover/[id]` no longer 302-redirects cross-origin. It
+  fetches upstream bytes server-side and streams them back with a
+  clean `Content-Type` and 24 h public cache header.
+- Same-origin `/api/files/<path>` targets still 302 — no need to
+  proxy what the user can reach directly.
+- Anticipated cards on `/upcoming?tab=anticipated` now use a batched
+  `fetchVnCovers(ids)` to pull VNDB covers directly when a row is
+  mapped to a VNDB id; only unmapped EGS rows fall through to the
+  resolver.
+
+### D.3 Cover & banner pickers reachable, defaults to Custom
+
+- `CoverEditOverlay` always-tappable pill on the cover image itself
+  (top-right corner, hover-revealed on desktop, always tap on touch).
+  Dispatches `vn:open-cover-picker` which the existing
+  `CoverSourcePicker` listens for. Single modal, multiple triggers.
+- `CoverSourcePicker` + `BannerSourcePicker` default to the **Custom**
+  tab so the file-upload affordance is on screen immediately. Tab
+  order: Custom → VNDB → EGS (cover), Custom → Default (banner).
+- Tab labels renamed across FR/EN/JA — "Cover source" → **"Change
+  cover"** etc. so the upload entry-point is named what users look for.
+
+### D.4 Whole-card drag in custom-order mode
+
+- Removed the GripVertical handle. The whole card is now the drag
+  surface, dnd-kit PointerSensor's 6 px activation lets clicks pass
+  through to the underlying `<Link>` + the heart / lists overlays.
+- Wrapper carries `block w-full min-w-0` so the post-drop card stays
+  bound to its grid column.
+- New `dense` prop on `SortableGrid` so the comfortable/dense toggle
+  works in `sort=custom` mode.
+
+### D.5 Refresh button actually refreshes
+
+- `/api/refresh/global` now **busts the relevant cache rows first**
+  then re-fetches. Without the bust step the helpers were reading
+  through the still-fresh cache and `fetched_at` never moved — the
+  button felt like a no-op.
+- Bust list: `egs:cover-resolved:%`, `anticipated:%`, `% /stats|%`,
+  `% /schema|%`, `% /authinfo|%`, `% /release|%`, `% /release:%`,
+  `% /producer|%`, `% /producer:%`, `% /tag|%`, `% /trait|%`.
+- Re-fetch list adds `searchTags('', { results: 60 })` and
+  `searchTraits('', { results: 60 })` so the chip on `/tags` and
+  `/traits` reads "just now" after a refresh.
+- Freshness chip pulled from `/stats`, `/data`, `/producers` —
+  those pages are local-only SQL, the chip there only ever lied.
+- `RefreshPageButton` SSR render: `now` defaults to `lastUpdatedAt`
+  so first paint reads "just now" instead of a raw timestamp.
+  Client useEffect re-syncs to `Date.now()` + tick every 30 s.
+- `getCacheFreshness` LIKE patterns fixed across all callers — keys
+  are stored `{METHOD} {path}|{METHOD}|{hash}`, not `/path|`. Old
+  patterns never matched, so the chip always said "Never" even when
+  the cache was perfectly populated.
+
+### D.6 Other UX
+
+- `/api/download-status` polling: 1.5 s / 10 s → 4 s / 60 s, paused
+  on `document.visibilityState === 'hidden'`, resumes on focus.
+  Stops flooding the server log during long bulk runs.
+- GameLog placeholder: removed the Fate spoiler ("Saber dies in
+  chapter 4") across FR/EN/JA.
+- Tour: new **Lists** step + refreshed `vnpage` body to mention
+  PlaytimeCompare, cover/banner pickers, lists picker, game log.
+
+---
+
 ## Future / backlog
 
 Items that have been sketched but not started:

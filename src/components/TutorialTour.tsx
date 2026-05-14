@@ -16,6 +16,7 @@ interface Step {
 const STEPS: Step[] = [
   { route: '/', key: 'library' },
   { route: '/search', key: 'search' },
+  { route: '/lists', key: 'lists' },
   { route: '/recommendations', key: 'recommend' },
   { route: '/upcoming', key: 'upcoming' },
   { route: '/quotes', key: 'quotes' },

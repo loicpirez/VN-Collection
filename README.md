@@ -45,8 +45,17 @@ ingested, cached locally, and can be combined or compared per-field.
 - **Lists picker on every card** — a bookmark icon at the top-right opens
   a lazy popover with the full list registry, search filter, and an inline
   "create new list" input. Optimistic toggles.
-- Sort: recently updated, added, title, VNDB rating, your rating, playtime,
-  release year, publisher, **EGS rating**, **combined (VNDB + EGS) / 2**
+- Sort: recently updated, added, title, VNDB rating, your rating,
+  release year, publisher, **EGS rating**, **combined rating (VNDB +
+  EGS) / 2**, and the four-way playtime model:
+    - **My playtime** — `collection.playtime_minutes` only, no fallback.
+    - **VNDB length** — `vn.length_minutes` only.
+    - **EGS playtime** — `egs_game.playtime_median_minutes` only.
+    - **All playtime (avg)** — average of every populated source.
+      Example: VNDB 95 + EGS 90 + Mine 93 → 92.67. Single-source
+      entries rank at their own magnitude (no divide-by-three
+      penalty for missing data). Cards display the All value as the
+      primary playtime chip with the per-source breakdown beneath.
 - Filters: status, publisher, series, tag, free-text, place, year range,
   **dumped state** — all persisted in the URL
 - Group-by: status, publisher, tag, series
@@ -140,19 +149,36 @@ ingested, cached locally, and can be combined or compared per-field.
   dig) + every character image + the EGS cover
 - Image gallery filtered by type, with lightbox
 - "Set as banner" button on every gallery image
-- **Cover source picker** — modal triggered from the VN detail action bar.
-  Three tabs:
-    1. **VNDB** — revert to the upstream cover.
-    2. **EGS** — use the cover resolved by `/api/egs-cover/[id]`.
-    3. **Custom** — file upload, external URL, *or* pick any image
-       already attached to the VN (screenshots / per-release artwork).
-- Custom cover upload (override the VNDB poster); custom banner upload
-  + drag-positionable focal point
-- **EGS cover resolver** with tiered fallback: banner_url (trusted, no
-  probe) → linked VNDB cover via `egs_game.vn_id` → probed EGS
+- **Cover source picker** — modal triggered from a "Change cover"
+  overlay on the cover image itself (always tappable on touch,
+  hover-revealed on desktop) and from the action bar. Opens to the
+  Custom tab so the file-upload affordance is visible immediately;
+  the other two tabs are one click away:
+    1. **Custom** (default) — file upload, paste a URL, or pick
+       any screenshot / per-release art already on the VN.
+    2. **VNDB** — revert to the upstream cover.
+    3. **EGS** — use the cover served by `/api/egs-cover/[id]`.
+- **Banner source picker** — parallel modal for the hero banner.
+  "Default" tab (use the cover-derived blurred backdrop) and "Custom"
+  tab (upload / URL / pick from in-VN gallery).
+- Banner uploader has a drag-positionable focal point for fine-tuning.
+- **Three-way cover compare** on `/vn/[id]` — VNDB / EGS / Custom side
+  by side with "Use this" buttons. Auto-resolution priority Custom →
+  VNDB → EGS so a user pick always wins over the upstream default.
+- **EGS cover resolver** with tiered fallback: banner_url (trusted,
+  no probe) → linked VNDB cover via `egs_game.vn_id` → probed EGS
   `image.php` → first available shop URL (Suruga-ya / DMM / DLsite /
-  Gyutto). Negative cache TTL of 1 h so a freshly-published cover
-  surfaces within an hour; the global refresh button busts the cache.
+  Gyutto). The route **proxies image bytes server-side** instead of
+  302-redirecting so referer / mixed-content / bot-mitigation
+  failures don't break the browser fetch. Negative cache TTL of 1 h
+  so a freshly-published cover surfaces within an hour; the global
+  refresh busts the cache.
+- **Anticipated covers via VNDB** — `/upcoming?tab=anticipated`
+  batches one VNDB call for every anticipated row carrying a
+  `vndb_id`, then renders the high-quality VNDB poster directly.
+  Cards are laid out 2-per-row with 128×192 (152×224 on sm+) covers
+  for genuine visibility. EGS-only entries fall back to the resolver
+  chain above.
 - **Content-controls hub** (closed-eye icon in the navbar) — opens a
   popover with spoiler level (0/1/2), hide all images, blur R18,
   hide sexual images, NSFW threshold slider (0–2), show sexual traits,
@@ -168,11 +194,21 @@ ingested, cached locally, and can be combined or compared per-field.
 - Stale-while-error fallback if VNDB / EGS is down
 - Cache panel on `/stats`, **collapsed by default** (counts per endpoint,
   prune expired, clear all)
-- **Per-page Refresh button** with a **Data Xh ago** chip on every browse
-  page (Producers / Data / Stats / Upcoming / Tags / Traits). The chip
-  reads the freshest `fetched_at` from cache rows powering the page and
-  renders a tiered relative time (minute / hour / day / week / month / year)
-  that ticks every 30 s. Clicking Refresh runs the global refresh pipeline.
+- **Per-page Refresh button** with a **Data Xh ago** chip on the
+  pages whose render genuinely depends on a remote cache —
+  `/upcoming`, `/tags`, `/traits`. (Pages backed by purely-local SQL
+  — `/stats`, `/data`, `/producers` — don't show the chip because a
+  freshness reading there would be meaningless.) The chip reads the
+  freshest `fetched_at` from cache rows matching the page's LIKE
+  patterns and renders a tiered relative time (minute / hour / day /
+  week / month / year), ticking every 30 s.
+- Clicking Refresh runs `/api/refresh/global`: **busts** the relevant
+  cache rows first (EGS cover resolver, anticipated, VNDB stats /
+  schema / authinfo / release / producer / tag / trait), then
+  re-fetches each so `fetched_at` actually moves forward. Without the
+  bust step the helpers would just read the still-fresh cache and the
+  chip would never update — which is what made the button feel like
+  a no-op before.
 - DB status panel on `/data`: row counts per table, VNDB auth state,
   token source (DB / env / none), EGS coverage, cache freshness, DB path
 

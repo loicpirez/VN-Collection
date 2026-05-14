@@ -444,12 +444,22 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 - After a write that changes the VNDB-side data (you wouldn't be doing that —
   we are read-only on VNDB), invalidate via `invalidateVnCache(id)` or
   `invalidateByPath('POST /vn')`.
+- **Cache key format** is `{METHOD} {path}|{METHOD}|{hash}` (`buildKey()`
+  in `lib/vndb-cache.ts`). e.g. `POST /vn|POST|<sha1>`. When writing
+  LIKE patterns against `cache_key` always anchor with `'% /path|%'`,
+  never `'/path|%'` — the latter never matches because of the
+  method prefix.
 - The cache panel on `/stats` lets the user purge expired or by prefix
   and is **collapsed by default** (uncollapses on click).
 - The `vndb_cache` table also hosts EGS cover resolver entries under
   `egs:cover-resolved:<egs_id>`. Hits cache for 7d; misses for 1h.
-  `POST /api/refresh/global` busts every `egs:cover-resolved:%` row
-  so users can force a re-resolve.
+- `POST /api/refresh/global` **busts before re-fetching** so the
+  re-fetch actually moves `fetched_at` forward. Bust patterns mirror
+  what the route then re-populates: `egs:cover-resolved:%`,
+  `anticipated:%`, `% /stats|%`, `% /schema|%`, `% /authinfo|%`,
+  `% /release|%`, `% /release:%`, `% /producer|%`, `% /producer:%`,
+  `% /tag|%`, `% /trait|%`. Without this step the freshness chip
+  would show a refresh but the actual data wouldn't change.
 
 ### Time-ago formatting
 - `src/lib/time-ago.ts` is the single source of truth for "X ago"
@@ -492,9 +502,45 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 - `CoverSourcePicker` is the canonical surface for changing the cover.
   Three sources: VNDB (DELETE `/api/collection/[id]/cover`), EGS (POST
   `{source:'url', value:'/api/egs-cover/<egs_id>'}`), Custom (file
-  upload, URL input, or pick from the in-VN gallery).
+  upload, URL input, or pick from the in-VN gallery). Modal opens to
+  the **Custom** tab so the file-upload affordance is on screen
+  immediately. Tab order: Custom → VNDB → EGS.
+- A secondary trigger lives directly on the cover image as
+  `CoverEditOverlay` (pinned top-right, always tap-target, hover-
+  revealed on desktop). It dispatches a `vn:open-cover-picker`
+  CustomEvent with the VN id; the modal listens for it and opens.
+  Single modal instance, multiple triggers.
+- `BannerSourcePicker` mirrors the same pattern (Custom default tab).
 - When adding a new source, extend the tabbed UI; don't introduce a
   separate component.
+
+### Playtime model
+- Four sort keys + a virtual "All" column: `playtime` (user only,
+  no fallback), `length_minutes` (VNDB length), `egs_playtime` (EGS
+  user-review median), `combined_playtime` (avg of every populated
+  source — VNDB / EGS / Mine — divided by count of populated, so a
+  single-source value ranks at its own magnitude).
+- `PlaytimeCompare` on `/vn/[id]` is the canonical UI; writes
+  `source_pref.playtime`.
+- `VnCard` shows the **All** value as primary chip + the per-source
+  breakdown beneath. When adding a new playtime surface, average the
+  three sources (not just two) — single-source fallback was the bug
+  earlier.
+
+### Refresh button / freshness chip
+- `RefreshPageButton` is shown only on pages whose render genuinely
+  depends on a remote cache: `/upcoming`, `/tags`, `/traits`.
+  Local-only pages (`/stats`, `/data`, `/producers`) deliberately do
+  **not** show the chip — a freshness reading there is misleading.
+- The button accepts `lastUpdatedAt`: omitted/undefined → no chip,
+  `null` → "never" chip, number → relative time. Server passes the
+  result of `getCacheFreshness(patterns)` which returns
+  `MAX(fetched_at)` across matching cache rows.
+- SSR: `now` defaults to `lastUpdatedAt` so the first paint reads
+  "just now" instead of a raw timestamp. Client useEffect re-syncs
+  to `Date.now()` + ticks every 30 s.
+- Refresh click → `POST /api/refresh/global` which busts + re-fetches
+  (see "Caching gotchas").
 
 ### Tailwind
 - Custom palette: `bg`, `bg-card`, `bg-elev`, `border`, `accent`, `accent-blue`, `muted`,
