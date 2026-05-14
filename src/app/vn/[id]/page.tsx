@@ -41,6 +41,7 @@ import { ListsPickerButton } from '@/components/ListsPickerButton';
 import { CoverSourcePicker } from '@/components/CoverSourcePicker';
 import { BannerSourcePicker } from '@/components/BannerSourcePicker';
 import { VnListMemberships } from '@/components/VnListMemberships';
+import { PlaytimeCompare } from '@/components/PlaytimeCompare';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { AnimeChip } from '@/components/AnimeChip';
 import { CoverQuickActions } from '@/components/CoverQuickActions';
@@ -326,11 +327,23 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               <div className="col-span-2 sm:col-span-3">
                 <dt className="label">{t.detail.lengthVndb}</dt>
                 <dd className="font-semibold">
-                  {fmtMinutes(vn.length_minutes)}
-                  {vn.length_votes != null && vn.length_votes > 0 && (
-                    <span className="ml-2 text-xs font-normal text-muted">
-                      · {vn.length_votes} {t.detail.lengthVotes}
-                    </span>
+                  {inCol ? (
+                    <PlaytimeCompare
+                      vnId={vn.id}
+                      current={sourcePref.playtime ?? 'auto'}
+                      vndb={vn.length_minutes ?? null}
+                      egs={egsRow?.playtime_median_minutes ?? null}
+                      mine={vn.playtime_minutes ?? null}
+                    />
+                  ) : (
+                    <>
+                      {fmtMinutes(vn.length_minutes)}
+                      {vn.length_votes != null && vn.length_votes > 0 && (
+                        <span className="ml-2 text-xs font-normal text-muted">
+                          · {vn.length_votes} {t.detail.lengthVotes}
+                        </span>
+                      )}
+                    </>
                   )}
                 </dd>
                 {inCol && (
@@ -346,10 +359,6 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <dd className="font-semibold">{(vn.average / 10).toFixed(2)}</dd>
                 </div>
               )}
-              <div>
-                <dt className="label">{t.detail.myPlaytime}</dt>
-                <dd className="font-semibold">{fmtMinutes(vn.playtime_minutes)}</dd>
-              </div>
               {!!vn.languages?.length && (
                 <div className="col-span-2 sm:col-span-3">
                   <dt className="label">{t.detail.languages}</dt>

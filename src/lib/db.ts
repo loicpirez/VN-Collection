@@ -1953,6 +1953,9 @@ export interface ListOptions {
     | 'rating'
     | 'user_rating'
     | 'playtime'
+    | 'length_minutes'
+    | 'egs_playtime'
+    | 'combined_playtime'
     | 'released'
     | 'producer'
     | 'egs_rating'
@@ -1982,6 +1985,17 @@ export function listCollection({
     user_rating: 'c.user_rating',
     // Effective playtime: user value if > 0, else fall back to VNDB length.
     playtime: 'COALESCE(NULLIF(c.playtime_minutes, 0), v.length_minutes)',
+    // VNDB community length only, no fallback to user or EGS.
+    length_minutes: 'v.length_minutes',
+    // EGS user-review median playtime only.
+    egs_playtime: 'e.playtime_median_minutes',
+    // Combined community playtime: VNDB length and EGS median averaged.
+    // Falls back to whichever side has a value; nulls last regardless.
+    combined_playtime:
+      'CASE WHEN v.length_minutes IS NULL AND e.playtime_median_minutes IS NULL THEN NULL ' +
+      'WHEN v.length_minutes IS NULL THEN e.playtime_median_minutes ' +
+      'WHEN e.playtime_median_minutes IS NULL THEN v.length_minutes ' +
+      'ELSE (v.length_minutes + e.playtime_median_minutes) / 2.0 END',
     released: 'v.released',
     producer: "json_extract(v.developers, '$[0].name')",
     egs_rating: 'e.median',
@@ -1996,7 +2010,11 @@ export function listCollection({
     // those to the bottom regardless of asc/desc so dragged items always lead.
     custom: 'CASE WHEN c.custom_order = 0 THEN 1 ELSE 0 END, c.custom_order',
   };
-  const needsEgsJoin = sort === 'egs_rating' || sort === 'combined_rating';
+  const needsEgsJoin =
+    sort === 'egs_rating' ||
+    sort === 'combined_rating' ||
+    sort === 'egs_playtime' ||
+    sort === 'combined_playtime';
   const sortCol = sortMap[sort] ?? 'c.updated_at';
   const dir = order === 'asc' ? 'ASC' : 'DESC';
   const where: string[] = [];

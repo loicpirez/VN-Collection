@@ -23,6 +23,9 @@ type SortKey =
   | 'rating'
   | 'user_rating'
   | 'playtime'
+  | 'length_minutes'
+  | 'egs_playtime'
+  | 'combined_playtime'
   | 'released'
   | 'producer'
   | 'egs_rating'
@@ -35,6 +38,9 @@ const SORT_KEYS: SortKey[] = [
   'rating',
   'user_rating',
   'playtime',
+  'length_minutes',
+  'egs_playtime',
+  'combined_playtime',
   'released',
   'producer',
   'egs_rating',
