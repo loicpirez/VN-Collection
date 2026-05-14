@@ -23,7 +23,7 @@ export function CoverEditOverlay({ vnId }: { vnId: string }) {
       }}
       title={t.coverPicker.openTitle}
       aria-label={t.coverPicker.open}
-      className="absolute right-2 top-2 z-30 inline-flex items-center gap-1 rounded-md bg-black/70 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-card backdrop-blur transition-opacity hover:bg-accent hover:text-bg sm:opacity-70 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+      className="absolute right-2 top-2 z-30 inline-flex items-center gap-1 rounded-md bg-black/70 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-card backdrop-blur transition-opacity hover:bg-accent hover:text-bg sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 sm:hover:opacity-100"
     >
       <ImageUp className="h-3.5 w-3.5" aria-hidden />
       {t.coverPicker.open}

@@ -28,7 +28,10 @@ interface Props {
 
 export function RelationsSection({ relations }: Props) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  // Default to open — the relation graph is the primary reason to visit
+  // the section, hiding it behind a click was friction. Users can still
+  // collapse it manually.
+  const [open, setOpen] = useState(true);
 
   const grouped = useMemo(() => {
     const map = new Map<string, EnrichedRelation[]>();

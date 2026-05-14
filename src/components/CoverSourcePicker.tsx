@@ -84,6 +84,26 @@ export function CoverSourcePicker({
     return () => window.removeEventListener('vn:open-cover-picker', onOpen as EventListener);
   }, [vnId]);
 
+  /**
+   * Storing a new custom_cover only changes the displayed hero when the
+   * user's `source_pref.image` resolves to the custom column. If the user
+   * had previously pinned VNDB or EGS, custom would lose. So every
+   * "pick a custom" path here ALSO flips `source_pref.image` to 'custom'
+   * — picking a new cover should obviously promote it to active. This
+   * was the "selecting new cover doesn't do anything" bug.
+   */
+  async function pinCustomPref(): Promise<void> {
+    try {
+      await fetch(`/api/collection/${vnId}/source-pref`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: 'custom' }),
+      });
+    } catch {
+      // Pref sync is best-effort; cover already saved.
+    }
+  }
+
   async function applySource(source: 'url' | 'screenshot' | 'release' | 'path', value: string) {
     setBusy(true);
     try {
@@ -93,6 +113,7 @@ export function CoverSourcePicker({
         body: JSON.stringify({ source, value }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      await pinCustomPref();
       toast.success(t.toast.coverSaved);
       setOpen(false);
       startTransition(() => router.refresh());
@@ -106,9 +127,41 @@ export function CoverSourcePicker({
   async function resetToVndb() {
     setBusy(true);
     try {
+      // Clear any custom_cover override then pin the source pref to VNDB
+      // so the hero resolver picks vndbPoster regardless of what custom
+      // / EGS columns contain.
       const r = await fetch(`/api/collection/${vnId}/cover`, { method: 'DELETE' });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      await fetch(`/api/collection/${vnId}/source-pref`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: 'vndb' }),
+      }).catch(() => undefined);
       toast.success(t.toast.coverReset);
+      setOpen(false);
+      startTransition(() => router.refresh());
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Use the EGS cover by flipping `source_pref.image = 'egs'` rather than
+   * stuffing the EGS proxy URL into `custom_cover`. The hero resolver
+   * already handles egsPoster as a first-class column.
+   */
+  async function useEgs() {
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/collection/${vnId}/source-pref`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: 'egs' }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      toast.success(t.toast.coverSaved);
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (e) {
@@ -129,6 +182,7 @@ export function CoverSourcePicker({
       fd.append('file', file);
       const r = await fetch(`/api/collection/${vnId}/cover`, { method: 'POST', body: fd });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      await pinCustomPref();
       toast.success(t.toast.coverSaved);
       setOpen(false);
       startTransition(() => router.refresh());
@@ -237,7 +291,7 @@ export function CoverSourcePicker({
                       <div className="flex-1">
                         <button
                           type="button"
-                          onClick={() => applySource('url', `/api/egs-cover/${egsId}`)}
+                          onClick={useEgs}
                           disabled={busy}
                           className="btn btn-primary"
                         >

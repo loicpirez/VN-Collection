@@ -148,7 +148,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      className={`relative h-64 w-full overflow-hidden ${
+      className={`group relative h-64 w-full overflow-hidden ${
         editing ? 'cursor-crosshair touch-none' : ''
       }`}
     >
@@ -214,7 +214,11 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
 
       {inCollection && src && (
         <div
-          className="absolute right-3 top-3 z-10 flex flex-wrap items-center gap-1.5"
+          className={`absolute right-3 top-3 z-10 flex flex-wrap items-center gap-1.5 transition-opacity ${
+            editing
+              ? 'opacity-100'
+              : 'sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 sm:hover:opacity-100'
+          }`}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerMove={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
