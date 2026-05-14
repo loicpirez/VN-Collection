@@ -44,9 +44,32 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
   if (!/^p\d+$/i.test(id)) notFound();
   const t = await getDict();
-  const producer = await loadProducer(id);
-  if (!producer) notFound();
-  const items = listCollection({ producer: id, sort: 'updated_at' });
+  let producer = await loadProducer(id);
+  // Gracefully fall back when VNDB is unreachable AND nothing is cached:
+  // try to derive a name from any in-collection VN that credits this
+  // producer as developer or publisher. The user still gets a page they
+  // can navigate from instead of a hard 404.
+  const itemsAsDev = listCollection({ producer: id, sort: 'updated_at' });
+  const itemsAsPub = listCollection({ publisher: id, sort: 'updated_at' });
+  const items = itemsAsDev.length > 0 ? itemsAsDev : itemsAsPub;
+  if (!producer) {
+    const sample =
+      itemsAsDev[0]?.developers?.find((d) => d.id === id) ??
+      itemsAsPub[0]?.publishers?.find((p) => p.id === id);
+    if (!sample && items.length === 0) notFound();
+    producer = {
+      id,
+      name: sample?.name ?? id,
+      original: null,
+      lang: null,
+      type: null,
+      description: null,
+      aliases: [],
+      extlinks: [],
+      logo_path: null,
+      fetched_at: 0,
+    };
+  }
   const typeKey = producer.type ? TYPE_KEY[producer.type] : null;
 
   return (

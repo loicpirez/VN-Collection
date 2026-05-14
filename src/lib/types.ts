@@ -65,6 +65,7 @@ export interface VnRow {
   votecount: number | null;
   description: string | null;
   developers: { id: string; name: string }[];
+  publishers: { id: string; name: string }[];
   tags: { id: string; name: string; rating: number; spoiler: number; lie?: boolean; category?: 'cont' | 'ero' | 'tech' | null }[];
   screenshots: Screenshot[];
   release_images: ReleaseImage[];
@@ -116,6 +117,7 @@ export interface VnRelation {
   languages: string[];
   platforms: string[];
   developers: { id?: string; name: string }[];
+  publishers: { id?: string; name: string }[];
   image_url: string | null;
   image_thumb: string | null;
   image_sexual: number | null;

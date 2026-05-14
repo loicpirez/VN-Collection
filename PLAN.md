@@ -234,6 +234,60 @@ comparison view last (depends on the recommendations helper).
 
 ---
 
+## Batch E — publishers, View on EGS, producer fallback, anticipated skeleton (2026-05-14) — shipped ✅
+
+### E.1 Publishers as a first-class field
+
+- New `vn.publishers` JSON column (`ensureColumn`).
+- `setVnPublishers(vnId, publishers[])` helper in `lib/db.ts`.
+- `fetchAndDownloadReleaseImages()` in `lib/assets.ts` now also walks
+  every release's `producers[]` where `publisher: true`, dedupes by
+  id, and writes the result via `setVnPublishers`. So both the
+  individual add (`POST /api/collection/[id]`) and the bulk refresh
+  (`POST /api/collection/[id]/assets?refresh=true`) populate
+  publishers — no separate fetch.
+- `ListOptions` gains `publisher?: string`; `listCollection` SQL
+  matches against `v.publishers` independently of the existing
+  developer filter. Both filters are exposed as `?producer=` and
+  `?publisher=` on `/api/collection`.
+- `/vn/[id]` renders a "Publishers" chip row right under the
+  developer compare; each chip is a link to `/producer/[id]`.
+- `CollectionItem.publishers` + `VnRow.publishers` types updated.
+
+### E.2 View on EGS button
+
+- The action bar on `/vn/[id]` now renders both "View on VNDB" and
+  "View on EGS" side by side whenever the VN has both ids. Previously
+  it was an either/or block — EGS-only synthetic entries showed EGS,
+  everything else showed VNDB. New shape:
+    - Non-`egs_` VN → always shows VNDB.
+    - Any VN with an EGS row → also shows EGS.
+- i18n: `detail.viewOnEgs` already existed; no new key needed.
+
+### E.3 Graceful producer page + generic not-found
+
+- `/producer/[id]` no longer calls `notFound()` when the VNDB fetch
+  fails AND the local producer cache is empty. Falls back to the
+  name credited on any in-collection VN (developer OR publisher
+  side), and lists the VNs from the user's collection. Only 404s
+  when there's literally no local trace.
+- The global `not-found.tsx` template was hardcoded to "VN not
+  found" (`t.detail.notFoundTitle`) but is used by every notFound()
+  across the app — producer, staff, character, series, list. It now
+  reads `t.common.pageNotFound` ("Page not found") + a generic body
+  hint. FR/EN/JA keys added.
+
+### E.4 Anticipated skeleton matches the 2-col layout
+
+- `UpcomingTabSkeleton` for `tab === 'anticipated'` was a generic
+  card grid. Replaced with a 2-per-row skeleton that mirrors the
+  real card shape (h-48 w-32 poster on the left, info column on
+  the right with bold title, ratings line, three big intent badges,
+  external-link row). The page no longer reshapes when the data
+  resolves.
+
+---
+
 ## Future / backlog
 
 Items that have been sketched but not started:

@@ -388,6 +388,33 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   />
                 </div>
               )}
+              {(vn.publishers?.length ?? 0) > 0 && (
+                <div className="col-span-2 sm:col-span-3">
+                  <dt className="label">{t.detail.publishers}</dt>
+                  <dd className="mt-1 flex flex-wrap gap-1.5">
+                    {(vn.publishers ?? []).map((p) =>
+                      p.id ? (
+                        <Link
+                          key={p.id}
+                          href={`/producer/${p.id}`}
+                          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-xs font-semibold text-white/85 hover:border-accent hover:text-accent"
+                        >
+                          <Package className="h-3 w-3 text-accent-blue" aria-hidden />
+                          {p.name}
+                        </Link>
+                      ) : (
+                        <span
+                          key={p.name}
+                          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-xs font-semibold text-muted"
+                        >
+                          <Package className="h-3 w-3 text-accent-blue" aria-hidden />
+                          {p.name}
+                        </span>
+                      ),
+                    )}
+                  </dd>
+                </div>
+              )}
             </dl>
 
             {inCol && (
@@ -432,7 +459,12 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
             <VnTagChips tags={vn.tags ?? []} max={16} />
 
             <div className="mt-3 flex flex-wrap gap-2">
-              {vn.id.startsWith('egs_') && egsRow?.egs_id ? (
+              {!vn.id.startsWith('egs_') && (
+                <a href={`https://vndb.org/${vn.id}`} target="_blank" rel="noopener noreferrer" className="btn">
+                  <ExternalLink className="h-4 w-4" /> {t.detail.viewOnVndb}
+                </a>
+              )}
+              {egsRow?.egs_id && (
                 <a
                   href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${egsRow.egs_id}`}
                   target="_blank"
@@ -440,10 +472,6 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   className="btn"
                 >
                   <ExternalLink className="h-4 w-4" /> {t.detail.viewOnEgs}
-                </a>
-              ) : (
-                <a href={`https://vndb.org/${vn.id}`} target="_blank" rel="noopener noreferrer" className="btn">
-                  <ExternalLink className="h-4 w-4" /> {t.detail.viewOnVndb}
                 </a>
               )}
               {vn.id.startsWith('egs_') && (

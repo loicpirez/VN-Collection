@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
   const status = sp.get('status') ?? '';
   const q = sp.get('q') ?? '';
   const producer = sp.get('producer') ?? '';
+  const publisher = sp.get('publisher') ?? '';
   const tag = sp.get('tag') ?? '';
   const place = sp.get('place') ?? '';
   const seriesRaw = sp.get('series');
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
     status: status as ListOptions['status'],
     q,
     producer: producer || undefined,
+    publisher: publisher || undefined,
     series: series && Number.isFinite(series) ? series : undefined,
     tag: tag || undefined,
     place: place || undefined,

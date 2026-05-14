@@ -114,7 +114,37 @@ async function TabContent({ tab, t }: { tab: Tab; t: Dictionary }) {
 }
 
 function UpcomingTabSkeleton({ tab }: { tab: Tab }) {
-  if (tab === 'anticipated') return <SkeletonCardGrid count={12} />;
+  // Anticipated renders 2-per-row big cards with a 128×192 (152×224 sm+)
+  // poster on the left and a wide info column on the right. Mirror that
+  // shape with skeleton blocks so the layout doesn't jump when the data
+  // resolves.
+  if (tab === 'anticipated') {
+    return (
+      <section className="rounded-xl border border-accent/40 bg-accent/5 p-4 sm:p-5">
+        <div className="mb-4 h-3 w-72 rounded bg-bg-elev/60 animate-pulse" />
+        <ol className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <li key={i} className="flex gap-4 rounded-xl border border-border bg-bg-elev/40 p-3 sm:p-4">
+              <div className="h-48 w-32 shrink-0 animate-pulse rounded-lg bg-bg-elev sm:h-56 sm:w-36" />
+              <div className="min-w-0 flex-1 space-y-3">
+                <div className="h-5 w-5/6 rounded bg-bg-elev/80 animate-pulse" />
+                <div className="h-3 w-2/3 rounded bg-bg-elev/60 animate-pulse" />
+                <div className="flex gap-1.5">
+                  <div className="h-7 w-20 rounded-md bg-bg-elev/60 animate-pulse" />
+                  <div className="h-7 w-20 rounded-md bg-bg-elev/60 animate-pulse" />
+                  <div className="h-7 w-20 rounded-md bg-bg-elev/60 animate-pulse" />
+                </div>
+                <div className="flex gap-3">
+                  <div className="h-3 w-10 rounded bg-bg-elev/40 animate-pulse" />
+                  <div className="h-3 w-10 rounded bg-bg-elev/40 animate-pulse" />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    );
+  }
   return <SkeletonRows count={6} />;
 }
 

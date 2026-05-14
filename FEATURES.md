@@ -154,10 +154,48 @@ EGS tab, anything else → Custom tab, null → VNDB tab).
 
 ## Per-VN detail page
 
+### Developers + Publishers ✅
+VNDB distinguishes between **developer** (the studio that made the VN)
+and **publisher** (the company that publishes / localizes a release).
+We mirror both:
+- Developers come from `/vn { developers{...} }` and live in
+  `vn.developers` (JSON).
+- Publishers are aggregated from every release's `release.producers[]`
+  where `publisher = true`, deduped by id and persisted to
+  `vn.publishers` (JSON). VNDB only exposes the role at the release
+  level, so the release-mirror pipeline (`ensureLocalImagesForVn` →
+  `fetchAndDownloadReleaseImages`) populates them — meaning every
+  add, refresh, and bulk re-download path keeps publishers fresh.
+- The library filter accepts both `?producer=p123` (developer side)
+  and `?publisher=p123` (publisher side) as **separate** params so
+  a producer credited under both roles still shows up correctly per
+  side.
+- /vn/[id] renders a "Publishers" row right under the developer
+  compare. Each publisher chip links to `/producer/[id]`.
+- `/producers` ranking is developer-only on purpose (the page is
+  "studios behind VNs I own"). Publisher-only producers reach their
+  page through publisher chips and the `?publisher` filter.
+
 ### Sources comparison (VNDB / EGS) ✅
 Synopsis / cover / brand / etc. each surface a tab toggle. Per-field
 "Set as default" pins the user's preferred side, otherwise auto-resolve
 picks VNDB first then falls back to EGS.
+
+### View on VNDB + View on EGS ✅
+The action bar on `/vn/[id]` carries a "View on VNDB" external link
+and, when the VN has an EGS row linked, **also** a "View on EGS"
+link — both visible simultaneously so the user can jump to either
+upstream page in one click. EGS-only synthetic entries only show
+the EGS button (no VNDB id to link to).
+
+### Graceful producer page ✅
+`/producer/[id]` no longer hard-404s when the VNDB fetch fails AND
+nothing is cached locally. Falls back to deriving a name from any
+in-collection VN that credits the producer (developer or publisher),
+so the page still shows the user's owned VNs and the producer chip
+they navigated from. The global not-found template is now wording-
+generic ("Page not found"), no longer "VN not found", because it
+fires for every notFound() across the app.
 
 ### Custom synopsis ✅
 Write your own description. Overrides VNDB / EGS by default with a

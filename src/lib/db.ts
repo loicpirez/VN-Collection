@@ -305,6 +305,11 @@ function open(): Database.Database {
   ensureColumn(db, 'vn', 'banner_image', 'TEXT');
   ensureColumn(db, 'vn', 'banner_position', 'TEXT');
   ensureColumn(db, 'vn', 'relations', 'TEXT');
+  // Publishers (JSON [{id, name}]) — distinct from `developers`. VNDB's
+  // `/vn` endpoint only carries the developer role; publishers live on
+  // each release's `producers[]` entry with `publisher = true`. We
+  // aggregate + dedupe across releases at fetch time and persist here.
+  ensureColumn(db, 'vn', 'publishers', 'TEXT');
   ensureColumn(db, 'vn', 'aliases', 'TEXT'); // JSON array of strings
   ensureColumn(db, 'vn', 'extlinks', 'TEXT'); // JSON [{url,label,name}]
   ensureColumn(db, 'vn', 'length_votes', 'INTEGER');
@@ -1027,6 +1032,23 @@ export function setLocalScreenshots(vnId: string, shots: Screenshot[]): void {
 
 export function setReleaseImages(vnId: string, images: ReleaseImage[]): void {
   db.prepare('UPDATE vn SET release_images = ? WHERE id = ?').run(JSON.stringify(images), vnId);
+}
+
+/**
+ * Persist the deduped publisher list for a VN. Computed at fetch time
+ * by walking every release's `producers[]` and keeping the rows where
+ * `publisher = true`. VNDB only exposes producer roles at the release
+ * level, so this column is the only place to read "who publishes this
+ * VN" from once releases are fetched.
+ */
+export function setVnPublishers(vnId: string, publishers: { id: string; name: string }[]): void {
+  const dedup = new Map<string, { id: string; name: string }>();
+  for (const p of publishers) {
+    if (!p.id || !p.name) continue;
+    if (!dedup.has(p.id)) dedup.set(p.id, { id: p.id, name: p.name });
+  }
+  const json = JSON.stringify(Array.from(dedup.values()));
+  db.prepare('UPDATE vn SET publishers = ? WHERE id = ?').run(json, vnId);
 }
 
 export interface CharacterImageRecord {
@@ -1837,6 +1859,7 @@ interface DbRow {
   votecount: number | null;
   description: string | null;
   developers: string;
+  publishers: string | null;
   tags: string;
   screenshots: string | null;
   release_images: string | null;
@@ -1896,6 +1919,7 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     votecount: row.votecount,
     description: row.description,
     developers: JSON.parse(row.developers || '[]'),
+    publishers: row.publishers ? JSON.parse(row.publishers) : [],
     tags: JSON.parse(row.tags || '[]'),
     screenshots: row.screenshots ? JSON.parse(row.screenshots) : [],
     release_images: row.release_images ? JSON.parse(row.release_images) : [],
@@ -1940,6 +1964,7 @@ export interface ListOptions {
   status?: Status | '';
   q?: string;
   producer?: string;
+  publisher?: string;
   series?: number;
   tag?: string;
   place?: string;
@@ -1968,6 +1993,7 @@ export function listCollection({
   status,
   q,
   producer,
+  publisher,
   series,
   tag,
   place,
@@ -2042,6 +2068,10 @@ export function listCollection({
   if (producer) {
     where.push("EXISTS (SELECT 1 FROM json_each(v.developers) WHERE json_extract(value, '$.id') = ?)");
     params.push(producer);
+  }
+  if (publisher) {
+    where.push("EXISTS (SELECT 1 FROM json_each(COALESCE(v.publishers, '[]')) WHERE json_extract(value, '$.id') = ?)");
+    params.push(publisher);
   }
   if (tag) {
     where.push("EXISTS (SELECT 1 FROM json_each(v.tags) WHERE json_extract(value, '$.id') = ?)");

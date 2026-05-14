@@ -527,6 +527,22 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
   three sources (not just two) — single-source fallback was the bug
   earlier.
 
+### Publishers — release-level role, persisted on the VN row
+- VNDB's `/vn` endpoint exposes `developers{...}` but NOT publishers.
+  Publishers only exist on `release.producers[]` with `publisher: true`.
+- We aggregate publishers across every release of a VN in
+  `fetchAndDownloadReleaseImages()` (`lib/assets.ts`) — same loop that
+  mirrors release images. Deduped by id and written to the
+  `vn.publishers` JSON column via `setVnPublishers()`. So both the
+  individual add path (`POST /api/collection/[id]`) and the bulk
+  refresh path (`POST /api/collection/[id]/assets?refresh=true`) keep
+  it fresh; no separate publisher fetch needed.
+- The library filter exposes `?producer=p123` (developers) and
+  `?publisher=p123` (publishers) as **separate** params. Never merge
+  them into an OR — a producer can be credited only as publisher
+  (localization houses), and the user's mental model distinguishes
+  the roles.
+
 ### Refresh button / freshness chip
 - `RefreshPageButton` is shown only on pages whose render genuinely
   depends on a remote cache: `/upcoming`, `/tags`, `/traits`.

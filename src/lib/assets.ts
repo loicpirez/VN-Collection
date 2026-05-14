@@ -9,6 +9,7 @@ import {
   setLocalScreenshots,
   setQuotesForVn,
   setReleaseImages,
+  setVnPublishers,
   upsertCharacterImage,
 } from './db';
 import { getCharactersForVn, getQuotesForVn, getReleasesForVn } from './vndb';
@@ -145,6 +146,25 @@ async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage
 
   const existing = getCollectionItem(vnId)?.release_images ?? [];
   const existingByKey = new Map(existing.map((img) => [`${img.release_id}:${img.id ?? img.url}`, img]));
+
+  // Aggregate publishers across every release of this VN. VNDB only
+  // exposes producer roles at the release level (`release.producers[]`
+  // with `developer / publisher / distributor` flags), so this loop is
+  // the cheapest place to fold them into a per-VN `vn.publishers`
+  // column — we're already walking the same releases for image
+  // mirroring.
+  const publishers: { id: string; name: string }[] = [];
+  const seenPub = new Set<string>();
+  for (const release of releases) {
+    if (release.vns.findIndex((v) => v.id === vnId) === -1) continue;
+    for (const p of release.producers ?? []) {
+      if (!p.publisher || !p.id || !p.name) continue;
+      if (seenPub.has(p.id)) continue;
+      seenPub.add(p.id);
+      publishers.push({ id: p.id, name: p.name });
+    }
+  }
+  setVnPublishers(vnId, publishers);
 
   const out: ReleaseImage[] = [];
   let idx = 0;
