@@ -1910,6 +1910,23 @@ interface DbRow {
   updated_at?: number;
 }
 
+/**
+ * JSON.parse wrapper that returns the fallback on parse failure
+ * instead of throwing. A single corrupted JSON column used to blow
+ * up the entire listCollection map because every row mapper called
+ * JSON.parse unconditionally — one bad row took the whole library
+ * down.
+ */
+function safeJsonParse<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed as T;
+  } catch {
+    return fallback;
+  }
+}
+
 function rowToItem(row: DbRow | undefined): CollectionItem | null {
   if (!row) return null;
   return {
@@ -1922,34 +1939,34 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     image_violence: row.image_violence,
     released: row.released,
     olang: row.olang,
-    languages: JSON.parse(row.languages || '[]'),
-    platforms: JSON.parse(row.platforms || '[]'),
+    languages: safeJsonParse(row.languages, [] as string[]),
+    platforms: safeJsonParse(row.platforms, [] as string[]),
     length_minutes: row.length_minutes,
     length: row.length,
     rating: row.rating,
     votecount: row.votecount,
     description: row.description,
-    developers: JSON.parse(row.developers || '[]'),
-    publishers: row.publishers ? JSON.parse(row.publishers) : [],
-    tags: JSON.parse(row.tags || '[]'),
-    screenshots: row.screenshots ? JSON.parse(row.screenshots) : [],
-    release_images: row.release_images ? JSON.parse(row.release_images) : [],
+    developers: safeJsonParse(row.developers, [] as { id: string; name: string }[]),
+    publishers: safeJsonParse(row.publishers, [] as { id: string; name: string }[]),
+    tags: safeJsonParse(row.tags, [] as CollectionItem['tags']),
+    screenshots: safeJsonParse(row.screenshots, [] as CollectionItem['screenshots']),
+    release_images: safeJsonParse(row.release_images, [] as CollectionItem['release_images']),
     local_image: row.local_image,
     local_image_thumb: row.local_image_thumb,
     custom_cover: row.custom_cover,
     banner_image: row.banner_image,
     banner_position: row.banner_position,
-    relations: row.relations ? JSON.parse(row.relations) : [],
-    aliases: row.aliases ? JSON.parse(row.aliases) : [],
-    extlinks: row.extlinks ? JSON.parse(row.extlinks) : [],
+    relations: safeJsonParse(row.relations, [] as CollectionItem['relations']),
+    aliases: safeJsonParse(row.aliases, [] as string[]),
+    extlinks: safeJsonParse(row.extlinks, [] as CollectionItem['extlinks']),
     length_votes: row.length_votes ?? null,
     average: row.average ?? null,
     has_anime: row.has_anime == null ? null : !!row.has_anime,
     devstatus: row.devstatus == null ? null : (row.devstatus as 0 | 1 | 2),
-    titles: row.titles ? JSON.parse(row.titles) : [],
-    editions: row.editions ? JSON.parse(row.editions) : [],
-    staff: row.staff ? JSON.parse(row.staff) : [],
-    va: row.va ? JSON.parse(row.va) : [],
+    titles: safeJsonParse(row.titles, [] as CollectionItem['titles']),
+    editions: safeJsonParse(row.editions, [] as CollectionItem['editions']),
+    staff: safeJsonParse(row.staff, [] as CollectionItem['staff']),
+    va: safeJsonParse(row.va, [] as CollectionItem['va']),
     fetched_at: row.fetched_at,
     status: row.status as Status | undefined,
     user_rating: row.user_rating ?? null,
@@ -2047,8 +2064,14 @@ export function listCollection({
       '   (CASE WHEN c.playtime_minutes IS NULL OR c.playtime_minutes = 0 THEN 0 ELSE 1 END)' +
       ' , 0)',
     released: 'v.released',
-    producer: "json_extract(v.developers, '$[0].name')",
-    publisher: "json_extract(v.publishers, '$[0].name')",
+    // First-by-name across all entries: a VN's publisher array is
+    // ordered by release-iteration order in setVnPublishers (which
+    // is fetch-order, not stable). Picking the alphabetically-first
+    // entry per row makes the sort deterministic.
+    producer:
+      "(SELECT MIN(json_extract(value, '$.name')) FROM json_each(COALESCE(v.developers, '[]')))",
+    publisher:
+      "(SELECT MIN(json_extract(value, '$.name')) FROM json_each(COALESCE(v.publishers, '[]')))",
     egs_rating: 'e.median',
     // Combined: VNDB rating (0-100) and EGS median (0-100), averaged.
     // When only one exists, fall back to it; nulls last regardless.

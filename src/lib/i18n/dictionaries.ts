@@ -573,8 +573,8 @@ export const dictionaries = {
     producers: {
       pageTitle: 'Studios & éditeurs',
       ranking: 'Classement par nombre de VN',
-      rankingDeveloper: 'Studios classés par nombre de VN développés dans ta collection',
-      rankingPublisher: 'Éditeurs (publishers) classés par nombre de VN publiés dans ta collection',
+      rankingDeveloper: 'Classés par VN développés',
+      rankingPublisher: 'Classés par VN publiés',
       tabDevelopers: 'Développeurs',
       tabPublishers: 'Éditeurs',
       emptyDeveloper: 'Aucun développeur dans ta collection.',
@@ -2037,8 +2037,8 @@ export const dictionaries = {
     producers: {
       pageTitle: 'Studios & publishers',
       ranking: 'Ranked by VN count',
-      rankingDeveloper: 'Developers ranked by VNs they developed in your collection',
-      rankingPublisher: 'Publishers ranked by VNs they published in your collection',
+      rankingDeveloper: 'Ranked by VNs developed',
+      rankingPublisher: 'Ranked by VNs published',
       tabDevelopers: 'Developers',
       tabPublishers: 'Publishers',
       emptyDeveloper: 'No developer in your collection yet.',
@@ -3501,8 +3501,8 @@ export const dictionaries = {
     producers: {
       pageTitle: 'スタジオ & パブリッシャー',
       ranking: 'コレクション内 VN 数で並び替え',
-      rankingDeveloper: 'コレクション内で開発元として登録されている VN 数で並び替え',
-      rankingPublisher: 'コレクション内でパブリッシャーとして登録されている VN 数で並び替え',
+      rankingDeveloper: '開発元別 VN 数',
+      rankingPublisher: 'パブリッシャー別 VN 数',
       tabDevelopers: '開発元',
       tabPublishers: 'パブリッシャー',
       emptyDeveloper: 'コレクションに開発元はまだありません。',

@@ -134,8 +134,14 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
         type="button"
         disabled={!!busy}
         onClick={() => {
-          setFavLocal((v) => !v);
-          patch({ favorite: !favLocal }, 'favorite');
+          // Compute next once and reuse for both the optimistic UI
+          // and the request body — the old version read favLocal
+          // inside setFavLocal then again in patch(), which works by
+          // coincidence today but desyncs under React 19 concurrent
+          // batching.
+          const next = !favLocal;
+          setFavLocal(next);
+          patch({ favorite: next }, 'favorite');
         }}
         className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
       >
