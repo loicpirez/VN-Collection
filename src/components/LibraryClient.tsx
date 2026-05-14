@@ -165,13 +165,26 @@ export function LibraryClient() {
 
   useEffect(() => {
     fetch('/api/producers')
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         setProducers(d.producers ?? []);
         setPublishers(d.publishers ?? []);
       })
-      .catch(() => {});
-    fetch('/api/series').then((r) => r.json()).then((d) => setSeries(d.series ?? [])).catch(() => {});
+      .catch((e: Error) => {
+        // Surface in the dev console so a silent dropdown failure
+        // doesn't masquerade as an empty filter set.
+        console.error('Failed to load producers/publishers list', e);
+      });
+    fetch('/api/series')
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => setSeries(d.series ?? []))
+      .catch((e: Error) => console.error('Failed to load series list', e));
   }, []);
 
   // Resolve tag name when filtered by tag

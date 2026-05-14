@@ -72,7 +72,7 @@ export function SpoilerToggle() {
         aria-label={t.contentControls.title}
       >
         {lit ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-        <span className="hidden sm:inline">{labelByLevel[settings.spoilerLevel]}</span>
+        <span>{labelByLevel[settings.spoilerLevel]}</span>
       </button>
       {open && (
         <div

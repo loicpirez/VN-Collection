@@ -114,7 +114,12 @@ export function VBarChart({
           </div>
         );
         return d.href ? (
-          <Link key={`${d.label}-${i}`} href={d.href} className="block">
+          <Link
+            key={`${d.label}-${i}`}
+            href={d.href}
+            aria-label={tooltip}
+            className="block rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          >
             {inner}
           </Link>
         ) : (

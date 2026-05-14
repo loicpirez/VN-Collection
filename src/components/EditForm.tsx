@@ -82,22 +82,28 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     );
   }
 
+  // Derived field-level validity so the offending input can carry
+  // aria-invalid and a red ring at edit-time, not just at save-time.
+  const userRatingNum = userRating === '' ? null : Number(userRating);
+  const userRatingInvalid =
+    userRatingNum !== null && (Number.isNaN(userRatingNum) || userRatingNum < 10 || userRatingNum > 100);
+  const playtimeNum = Number(playtime);
+  const playtimeInvalid = Number.isNaN(playtimeNum) || playtimeNum < 0;
+
   function handleSave() {
-    const ur = userRating === '' ? null : Number(userRating);
-    if (ur !== null && (Number.isNaN(ur) || ur < 10 || ur > 100)) {
+    if (userRatingInvalid) {
       setError(t.form.errors.ratingRange);
       return;
     }
-    const pt = Number(playtime);
-    if (Number.isNaN(pt) || pt < 0) {
+    if (playtimeInvalid) {
       setError(t.form.errors.playtimeInvalid);
       return;
     }
     withTransition(() =>
       call('PATCH', {
         status,
-        user_rating: ur,
-        playtime_minutes: pt,
+        user_rating: userRatingNum,
+        playtime_minutes: playtimeNum,
         started_date: started || null,
         finished_date: finished || null,
         notes: notes || null,
@@ -175,19 +181,40 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           <label className="flex flex-col gap-1">
             <span className="label">{t.form.myRating}</span>
             <input
-              className="input"
+              className={`input ${userRatingInvalid ? 'border-status-dropped ring-1 ring-status-dropped' : ''}`}
               type="number"
               min={10}
               max={100}
               step={1}
               value={userRating}
+              aria-invalid={userRatingInvalid || undefined}
+              aria-describedby={userRatingInvalid ? 'edit-rating-error' : undefined}
               onChange={(e) => setUserRating(e.target.value)}
             />
+            {userRatingInvalid && (
+              <span id="edit-rating-error" className="text-[11px] text-status-dropped">
+                {t.form.errors.ratingRange}
+              </span>
+            )}
           </label>
 
           <label className="flex flex-col gap-1">
             <span className="label">{t.form.playtimeMinutes}</span>
-            <input className="input" type="number" min={0} step={1} value={playtime} onChange={(e) => setPlaytime(e.target.value)} />
+            <input
+              className={`input ${playtimeInvalid ? 'border-status-dropped ring-1 ring-status-dropped' : ''}`}
+              type="number"
+              min={0}
+              step={1}
+              value={playtime}
+              aria-invalid={playtimeInvalid || undefined}
+              aria-describedby={playtimeInvalid ? 'edit-playtime-error' : undefined}
+              onChange={(e) => setPlaytime(e.target.value)}
+            />
+            {playtimeInvalid && (
+              <span id="edit-playtime-error" className="text-[11px] text-status-dropped">
+                {t.form.errors.playtimeInvalid}
+              </span>
+            )}
           </label>
 
           <label className="flex flex-col gap-1">

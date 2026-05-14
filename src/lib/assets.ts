@@ -49,10 +49,15 @@ export async function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult
     setLocalImagePaths(vnId, poster, thumb);
   }
 
+  // Screenshots: download up to 4 in parallel. VNDB's CDN is happy
+  // to serve concurrent requests, and a VN with 30 screenshots used
+  // to be the dominant latency on import because each fileExists +
+  // downloadToBucket pair awaited the previous one sequentially.
   const shots = item.screenshots ?? [];
-  const next: Screenshot[] = [];
+  const CONCURRENCY = 4;
   let mutated = false;
-  for (let i = 0; i < shots.length; i++) {
+  const next: Screenshot[] = new Array(shots.length);
+  async function workOne(i: number): Promise<void> {
     const s = shots[i];
     let local = s.local ?? null;
     let localThumb = s.local_thumb ?? null;
@@ -61,7 +66,7 @@ export async function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult
         local = await downloadToBucket(s.url, 'vnScreenshot', `${vnId}-sc-${i}`);
         mutated = true;
       } catch {
-        // ignore
+        // ignore individual failure
       }
     }
     if (s.thumbnail && (!localThumb || !(await fileExists(localThumb)))) {
@@ -69,11 +74,25 @@ export async function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult
         localThumb = await downloadToBucket(s.thumbnail, 'vnScreenshot', `${vnId}-sc-${i}-thumb`);
         mutated = true;
       } catch {
-        // ignore
+        // ignore individual failure
       }
     }
-    next.push({ ...s, local, local_thumb: localThumb });
+    next[i] = { ...s, local, local_thumb: localThumb };
   }
+  let cursor = 0;
+  const workers: Promise<void>[] = [];
+  for (let w = 0; w < Math.min(CONCURRENCY, shots.length); w++) {
+    workers.push(
+      (async () => {
+        while (true) {
+          const idx = cursor++;
+          if (idx >= shots.length) return;
+          await workOne(idx);
+        }
+      })(),
+    );
+  }
+  await Promise.all(workers);
   if (mutated) setLocalScreenshots(vnId, next);
 
   // Release / package images (pkgfront, pkgback, pkgcontent, pkgside, pkgmed, dig)

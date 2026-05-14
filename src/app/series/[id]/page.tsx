@@ -81,7 +81,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
       </div>
 
       {items.length === 0 ? (
-        <div className="py-12 text-center text-muted">{t.library.empty.descriptionFiltered}</div>
+        <div className="py-12 text-center text-muted">{t.series.emptyDetail}</div>
       ) : (
         <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {items.map((it) => (
