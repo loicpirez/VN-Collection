@@ -1134,6 +1134,7 @@ export const dictionaries = {
         developers: 'Éditeurs',
         tags: 'Tags (non-spoiler)',
         staff: 'Équipe',
+        seiyuu: 'Seiyuu',
       },
       shared: {
         title: 'Points communs',
@@ -2439,6 +2440,7 @@ export const dictionaries = {
         developers: 'Developers',
         tags: 'Tags (non-spoiler)',
         staff: 'Staff',
+        seiyuu: 'Seiyuu',
       },
       shared: {
         title: 'Shared',
@@ -3744,6 +3746,7 @@ export const dictionaries = {
         developers: 'ブランド',
         tags: 'タグ（ネタバレなし）',
         staff: 'スタッフ',
+        seiyuu: '声優',
       },
       shared: {
         title: '共通点',

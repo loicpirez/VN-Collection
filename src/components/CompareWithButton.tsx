@@ -33,7 +33,7 @@ export function CompareWithButton({ currentVnId }: { currentVnId: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch('/api/collection?sort=title', { cache: 'no-store' });
+      const r = await fetch('/api/collection?sort=released&order=desc', { cache: 'no-store' });
       if (!r.ok) return;
       const data = (await r.json()) as { items?: CollectionRow[] };
       setRows((data.items ?? []).filter((it) => it.id !== currentVnId));

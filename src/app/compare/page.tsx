@@ -273,10 +273,17 @@ export default async function ComparePage({
             <CellHead label={t.compareView.row.cover} />
             {items.map((it) => (
               <div key={`cover-${it.id}`} className="bg-bg-card p-3">
-                <Link href={`/vn/${it.id}`} className="block aspect-[2/3] w-full overflow-hidden rounded">
+                <Link
+                  href={`/vn/${it.id}`}
+                  className="mx-auto block aspect-[2/3] w-full max-w-[140px] overflow-hidden rounded"
+                >
+                  {/* Use the full-resolution image when we have it locally
+                      so the cover doesn't look pixellated from upscaling
+                      a 256px thumbnail. SafeImage prefers `localSrc` and
+                      falls back to `src`. */}
                   <SafeImage
-                    src={it.image_thumb || it.image_url}
-                    localSrc={it.local_image_thumb || it.local_image}
+                    src={it.image_url || it.image_thumb}
+                    localSrc={it.local_image || it.local_image_thumb}
                     sexual={it.image_sexual ?? null}
                     alt={it.title}
                     className="h-full w-full"
@@ -342,16 +349,18 @@ export default async function ComparePage({
             <CellHead label={t.compareView.row.developers} />
             {items.map((it) => (
               <div key={`devs-${it.id}`} className="bg-bg-card p-3 text-xs">
-                {(it.developers ?? []).map((d, i) => (
-                  <span
-                    key={`${d.id ?? d.name}-${i}`}
-                    className={`mr-1 inline-block rounded px-1.5 py-0.5 ${
-                      sharedDevs.has(d.name) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
-                    }`}
-                  >
-                    {d.name}
-                  </span>
-                ))}
+                {(it.developers ?? []).map((d, i) => {
+                  const cls = `mr-1 inline-block rounded px-1.5 py-0.5 ${
+                    sharedDevs.has(d.name) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
+                  }`;
+                  return d.id && /^p\d+$/i.test(d.id) ? (
+                    <Link key={`${d.id}-${i}`} href={`/producer/${d.id}`} className={`${cls} hover:underline`}>
+                      {d.name}
+                    </Link>
+                  ) : (
+                    <span key={`${d.name}-${i}`} className={cls}>{d.name}</span>
+                  );
+                })}
               </div>
             ))}
 
@@ -363,14 +372,15 @@ export default async function ComparePage({
                     .filter((tg) => tg.spoiler === 0)
                     .slice(0, 14)
                     .map((tg) => (
-                      <span
+                      <Link
                         key={tg.id}
-                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                        href={`/?tag=${encodeURIComponent(tg.id)}`}
+                        className={`rounded px-1.5 py-0.5 text-[10px] hover:underline ${
                           sharedTagIds.has(tg.id) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
                         }`}
                       >
                         {tg.name}
-                      </span>
+                      </Link>
                     ))}
                 </div>
               </div>
@@ -394,6 +404,29 @@ export default async function ComparePage({
                   ))}
               </div>
             ))}
+
+            <CellHead label={t.compareView.row.seiyuu} />
+            {items.map((it) => {
+              const vas = (it.va ?? []).slice(0, 10);
+              return (
+                <div key={`va-${it.id}`} className="bg-bg-card p-3 text-[11px]">
+                  {vas.length === 0 ? (
+                    <span className="text-muted/60">—</span>
+                  ) : (
+                    vas.map((v, i) => (
+                      <Link
+                        key={`${v.staff.id}-${i}`}
+                        href={`/staff/${v.staff.id}`}
+                        className="mr-1 inline-block rounded px-1 py-0.5 text-muted hover:bg-accent/15 hover:text-accent"
+                        title={`${v.character.name}${v.note ? ` · ${v.note}` : ''}`}
+                      >
+                        {v.staff.name}
+                      </Link>
+                    ))
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
