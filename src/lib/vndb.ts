@@ -97,6 +97,7 @@ const STAFF_FIELDS = [
   'lang',
   'gender',
   'description',
+  'aliases{aid,name,latin,ismain}',
   'extlinks{url,label,name}',
 ].join(', ');
 
@@ -440,6 +441,13 @@ export async function searchCharacters(query: string, { results = 30 } = {}): Pr
 }
 
 // Staff
+export interface VndbStaffAlias {
+  aid: number;
+  name: string;
+  latin: string | null;
+  ismain: boolean;
+}
+
 export interface VndbStaff {
   id: string;
   aid: number;
@@ -449,6 +457,7 @@ export interface VndbStaff {
   lang: string | null;
   gender: string | null;
   description: string | null;
+  aliases: VndbStaffAlias[];
   extlinks: { url: string; label: string; name: string }[];
 }
 

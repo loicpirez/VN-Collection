@@ -12,6 +12,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
 import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
+import { readStaffFullCache } from '@/lib/staff-full';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +55,15 @@ export default async function StaffPage({
   const knownProdVnIds = new Set(production.map((c) => c.vn.id));
   const knownVaVnIds = new Set(voice.map((c) => c.vn.id));
 
+  // Pull richer profile fields (aliases, description, extlinks, gender)
+  // from the staff_full cache — `getStaffProfileFromCredits` only knows
+  // about credits and gives us a single canonical name.
+  const fullProfile = readStaffFullCache(id)?.profile ?? null;
+  const aliases = (fullProfile?.aliases ?? []).filter((a) => !a.ismain);
+  const extlinks = fullProfile?.extlinks ?? [];
+  const description = fullProfile?.description ?? null;
+  const gender = fullProfile?.gender ?? null;
+
   const prodByRole = new Map<string, typeof production>();
   for (const credit of production) {
     for (const r of credit.roles) {
@@ -81,6 +91,7 @@ export default async function StaffPage({
             )}
             <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
               {profile?.lang && <span>{profile.lang.toUpperCase()}</span>}
+              {gender && <span>{gender === 'f' ? '♀' : gender === 'm' ? '♂' : gender}</span>}
               <span>
                 {production.length} {t.staff.vnCount} · {t.staff.productionCredits.toLowerCase()}
               </span>
@@ -88,6 +99,39 @@ export default async function StaffPage({
                 {voice.length} {t.staff.vnCount} · {t.staff.voiceCredits.toLowerCase()}
               </span>
             </div>
+            {aliases.length > 0 && (
+              <div className="mt-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted">{t.staff.aliases}</div>
+                <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                  {aliases.map((a) => (
+                    <span key={a.aid} className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
+                      <span className="text-white/85">{a.name}</span>
+                      {a.latin && a.latin !== a.name && (
+                        <span className="ml-1 text-[10px] text-muted">({a.latin})</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {description && (
+              <p className="mt-3 whitespace-pre-wrap text-xs text-white/80">{description}</p>
+            )}
+            {extlinks.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+                {extlinks.map((l) => (
+                  <a
+                    key={l.url}
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
+                  >
+                    {l.label}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start">
             <StaffDownloadButton sid={id} />
