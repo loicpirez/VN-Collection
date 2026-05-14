@@ -490,6 +490,7 @@ export const dictionaries = {
       type_co: 'Société',
       type_in: 'Indépendant',
       type_ng: 'Groupe amateur',
+      aliases: 'Alias',
     },
     series: {
       pageTitle: 'Séries / Collections',
@@ -1759,6 +1760,7 @@ export const dictionaries = {
       type_co: 'Company',
       type_in: 'Individual',
       type_ng: 'Amateur group',
+      aliases: 'Aliases',
     },
     series: {
       pageTitle: 'Series / Collections',
@@ -3028,6 +3030,7 @@ export const dictionaries = {
       type_co: '法人',
       type_in: '個人',
       type_ng: '同人',
+      aliases: '別名',
     },
     series: {
       pageTitle: 'シリーズ・コレクション',

@@ -47,23 +47,38 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
         <ArrowLeft className="h-4 w-4" /> {t.producers.back}
       </Link>
 
-      <header className="mb-6 flex flex-col gap-4 rounded-2xl border border-border bg-bg-card p-6 sm:flex-row sm:items-center">
+      <header className="mb-6 flex flex-col gap-4 rounded-2xl border border-border bg-bg-card p-6 sm:flex-row sm:items-start">
         <ProducerLogo producer={producer} size={96} />
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">{producer.name}</h1>
           {producer.original && producer.original !== producer.name && (
             <div className="text-sm text-muted">{producer.original}</div>
           )}
-          <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
-            {typeKey && <span>{t.producers[typeKey]}</span>}
-            {producer.lang && <span>{producer.lang.toUpperCase()}</span>}
-            <span>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            {typeKey && (
+              <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted">
+                {t.producers[typeKey]}
+              </span>
+            )}
+            {producer.lang && (
+              <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted">
+                {producer.lang.toUpperCase()}
+              </span>
+            )}
+            <span className="text-muted">
               {items.length} {t.producers.vnCount}
             </span>
           </div>
           {producer.aliases.length > 0 && (
-            <div className="mt-1 text-xs text-muted">
-              {producer.aliases.slice(0, 6).join(' · ')}
+            <div className="mt-3">
+              <div className="text-[10px] uppercase tracking-wider text-muted">{t.producers.aliases}</div>
+              <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                {producer.aliases.map((a) => (
+                  <span key={a} className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-white/85">
+                    {a}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -80,21 +95,27 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
         </section>
       )}
 
-      {producer.extlinks.length > 0 && (
-        <section className="mb-8 flex flex-wrap gap-2">
-          {producer.extlinks.map((l) => (
-            <a
-              key={l.url}
-              href={l.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn"
-            >
-              <ExternalLink className="h-3.5 w-3.5" /> {l.label}
-            </a>
-          ))}
-        </section>
-      )}
+      <section className="mb-8 flex flex-wrap gap-2">
+        <a
+          href={`https://vndb.org/${producer.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn"
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> VNDB
+        </a>
+        {producer.extlinks.map((l) => (
+          <a
+            key={l.url}
+            href={l.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> {l.label}
+          </a>
+        ))}
+      </section>
 
       <ProducerCompletion producerId={producer.id} />
 
