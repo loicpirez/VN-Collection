@@ -29,7 +29,7 @@ export async function AnniversaryFeed() {
             >
               <div className="h-8 w-6 overflow-hidden rounded">
                 <SafeImage
-                  src={r.image_thumb || r.image_url}
+                  src={r.image_url || r.image_thumb}
                   localSrc={r.local_image_thumb}
                   sexual={r.image_sexual ?? null}
                   alt={r.title}

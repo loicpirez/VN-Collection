@@ -128,7 +128,7 @@ function CardInner({ item }: { item: CollectionItem }) {
         id: item.id,
         title: item.title,
         alttitle: item.alttitle,
-        poster: item.image_thumb || item.image_url,
+        poster: item.image_url || item.image_thumb,
         localPoster: item.local_image_thumb || item.local_image,
         customCover: item.custom_cover,
         sexual: item.image_sexual,

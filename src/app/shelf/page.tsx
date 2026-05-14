@@ -107,7 +107,7 @@ export default async function ShelfPage() {
                   >
                     <div className="h-20 w-14 shrink-0 overflow-hidden rounded">
                       <SafeImage
-                        src={e.vn_image_thumb || e.vn_image_url}
+                        src={e.vn_image_url || e.vn_image_thumb}
                         localSrc={e.vn_local_image_thumb}
                         sexual={e.vn_image_sexual}
                         alt={e.vn_title}

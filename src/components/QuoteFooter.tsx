@@ -45,8 +45,8 @@ export function QuoteFooter() {
       onFocus={() => setHovered(true)}
     >
       <div className="mx-auto max-w-7xl px-6">
-        <div className="overflow-hidden rounded-t-md border border-b-0 border-border bg-bg/95 backdrop-blur transition-[max-height] duration-300 ease-out max-h-7 group-hover:max-h-28 group-focus-within:max-h-28">
-          <div className="flex items-center gap-2 px-3 py-1 text-[11px]">
+        <div className="overflow-hidden rounded-t-md border border-b-0 border-border bg-bg/95 backdrop-blur transition-[max-height] duration-300 ease-out max-h-5 group-hover:max-h-28 group-focus-within:max-h-28">
+          <div className="flex items-center gap-2 px-3 py-0.5 text-[10px]">
             <MessageSquareQuote className="h-3 w-3 shrink-0 text-muted transition-colors group-hover:text-accent" aria-hidden />
             <span className="shrink-0 font-medium uppercase tracking-wider text-muted/70 transition-colors group-hover:text-muted">
               {t.quotes.randomTitle}

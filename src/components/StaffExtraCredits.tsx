@@ -135,7 +135,7 @@ function ExternalVnCard({
       } hover:border-accent`}
     >
       <Link href={`/vn/${vn.id}`} className="block h-24 w-16 shrink-0 overflow-hidden rounded">
-        <SafeImage src={vn.image_thumb || vn.image_url} alt={vn.title} className="h-full w-full" />
+        <SafeImage src={vn.image_url || vn.image_thumb} alt={vn.title} className="h-full w-full" />
       </Link>
       <div className="min-w-0 flex-1">
         <Link href={`/vn/${vn.id}`} className="line-clamp-2 text-xs font-bold transition-colors hover:text-accent">

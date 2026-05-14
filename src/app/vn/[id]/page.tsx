@@ -166,7 +166,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
       <RecordRecentView
         id={vn.id}
         title={vn.title}
-        poster={vn.image_thumb || vn.image_url}
+        poster={vn.image_url || vn.image_thumb}
         localPoster={vn.local_image_thumb || vn.local_image}
         sexual={vn.image_sexual}
       />

@@ -823,7 +823,7 @@ function Grid({
             id: it.id,
             title: it.title,
             alttitle: it.alttitle,
-            poster: it.image_thumb || it.image_url,
+            poster: it.image_url || it.image_thumb,
             localPoster: it.local_image_thumb || it.local_image,
             customCover: it.custom_cover,
             sexual: it.image_sexual,

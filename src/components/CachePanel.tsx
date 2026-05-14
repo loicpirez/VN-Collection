@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState, useTransition } from 'react';
-import { Trash2, RefreshCw, Database } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, RefreshCw, Database } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 interface CacheStat {
@@ -28,6 +28,10 @@ export function CachePanel() {
   const t = useT();
   const [stats, setStats] = useState<CacheStat | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Collapsed by default — the cache panel is a power-user tool, not the
+  // first thing the user wants to see on /stats. They open it when they
+  // want to inspect / prune.
+  const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
@@ -60,17 +64,28 @@ export function CachePanel() {
 
   return (
     <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-      <div className="mb-3 flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-left"
+        aria-expanded={open}
+      >
+        {open ? <ChevronDown className="h-4 w-4 text-muted" aria-hidden /> : <ChevronRight className="h-4 w-4 text-muted" aria-hidden />}
         <Database className="h-5 w-5 text-accent" aria-hidden />
-        <h2 className="text-lg font-bold">{t.cache.title}</h2>
-      </div>
-      <p className="mb-4 text-xs text-muted">{t.cache.subtitle}</p>
+        <h2 className="flex-1 text-lg font-bold">{t.cache.title}</h2>
+        {stats && (
+          <span className="text-xs text-muted">
+            {stats.total} {t.cache.entries}
+          </span>
+        )}
+      </button>
+      {open && <p className="mb-4 mt-3 text-xs text-muted">{t.cache.subtitle}</p>}
 
-      {error && <p className="mb-3 text-sm text-status-dropped">{error}</p>}
+      {open && error && <p className="mb-3 text-sm text-status-dropped">{error}</p>}
 
-      {!stats ? (
+      {open && !stats ? (
         <p className="text-sm text-muted">{t.common.loading}</p>
-      ) : (
+      ) : open && stats ? (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label={t.cache.entries} value={stats.total} />
@@ -106,7 +121,7 @@ export function CachePanel() {
             </button>
           </div>
         </>
-      )}
+      ) : null}
     </section>
   );
 }

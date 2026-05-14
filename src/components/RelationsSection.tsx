@@ -78,7 +78,12 @@ export function RelationsSection({ relations }: Props) {
                     data={{
                       id: r.id,
                       title: r.title,
-                      poster: r.image_thumb || r.image_url,
+                      // Prefer the full-res image_url over the 256px
+                      // image_thumb so cards in this grid stay sharp at
+                      // the 200+px display width. SafeImage handles its
+                      // own decoding cost; the thumb fallback only fires
+                      // when image_url is missing.
+                      poster: r.image_url || r.image_thumb,
                       sexual: r.image_sexual,
                       released: r.released,
                       rating: r.rating,

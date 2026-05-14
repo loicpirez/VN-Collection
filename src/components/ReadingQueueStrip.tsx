@@ -51,7 +51,7 @@ export async function ReadingQueueStrip() {
                 <span className="font-mono text-[10px] text-muted">{i + 1}</span>
                 <div className="h-8 w-6 overflow-hidden rounded">
                   <SafeImage
-                    src={v.image_thumb || v.image_url}
+                    src={v.image_url || v.image_thumb}
                     localSrc={v.local_image_thumb}
                     sexual={v.image_sexual ?? null}
                     alt={v.title}

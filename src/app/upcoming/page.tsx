@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarRange, ExternalLink, Flame, Globe, Library as Librar
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRelease } from '@/lib/upcoming';
 import { fetchEgsAnticipated, type EgsAnticipated } from '@/lib/erogamescape';
 import { getDict } from '@/lib/i18n/server';
+import { db } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid, SkeletonRows } from '@/components/Skeleton';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
@@ -127,6 +128,52 @@ function TabLink({
   );
 }
 
+interface LocalVnCover {
+  url: string | null;
+  thumb: string | null;
+  local: string | null;
+  local_thumb: string | null;
+  sexual: number | null;
+}
+
+/**
+ * VNDB's `/release` endpoint sometimes returns `vns[].image = null` for
+ * upcoming entries (cover not uploaded yet). For VNs already in the
+ * user's collection we have richer data locally — including a mirrored
+ * cover. Look up every referenced VN id in one shot and overlay.
+ */
+function loadLocalCovers(rows: UpcomingRelease[]): Map<string, LocalVnCover> {
+  const ids = Array.from(
+    new Set(rows.flatMap((r) => r.vns.map((v) => v.id)).filter((id) => /^v\d+$/i.test(id))),
+  );
+  if (ids.length === 0) return new Map();
+  const placeholders = ids.map(() => '?').join(',');
+  const localRows = db
+    .prepare(
+      `SELECT id, image_url, image_thumb, image_sexual, local_image, local_image_thumb
+       FROM vn WHERE id IN (${placeholders})`,
+    )
+    .all(...ids) as Array<{
+      id: string;
+      image_url: string | null;
+      image_thumb: string | null;
+      image_sexual: number | null;
+      local_image: string | null;
+      local_image_thumb: string | null;
+    }>;
+  const map = new Map<string, LocalVnCover>();
+  for (const r of localRows) {
+    map.set(r.id, {
+      url: r.image_url,
+      thumb: r.image_thumb,
+      local: r.local_image,
+      local_thumb: r.local_image_thumb,
+      sexual: r.image_sexual,
+    });
+  }
+  return map;
+}
+
 function ReleasesSection({
   rows,
   empty,
@@ -139,6 +186,7 @@ function ReleasesSection({
       <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">{empty}</p>
     );
   }
+  const localCovers = loadLocalCovers(rows);
   const grouped = groupByMonth(rows);
   return (
     <>
@@ -151,16 +199,25 @@ function ReleasesSection({
             {rels.map((r) => (
               <li key={r.id}>
                 <div className="flex gap-3 rounded-lg border border-border bg-bg-elev/30 p-3">
-                  {r.vns[0] && (
-                    <Link href={`/vn/${r.vns[0].id}`} className="block h-24 w-16 shrink-0 overflow-hidden rounded">
-                      <SafeImage
-                        src={r.vns[0].image?.thumbnail || r.vns[0].image?.url || null}
-                        sexual={r.vns[0].image?.sexual ?? null}
-                        alt={r.title}
-                        className="h-full w-full"
-                      />
-                    </Link>
-                  )}
+                  {r.vns[0] && (() => {
+                    const v = r.vns[0];
+                    const local = localCovers.get(v.id);
+                    const remoteFromRel = v.image?.url || v.image?.thumbnail || null;
+                    const finalRemote = remoteFromRel || local?.url || local?.thumb || null;
+                    const finalLocal = local?.local || local?.local_thumb || null;
+                    const finalSexual = v.image?.sexual ?? local?.sexual ?? null;
+                    return (
+                      <Link href={`/vn/${v.id}`} className="block h-24 w-16 shrink-0 overflow-hidden rounded">
+                        <SafeImage
+                          src={finalRemote}
+                          localSrc={finalLocal}
+                          sexual={finalSexual}
+                          alt={r.title}
+                          className="h-full w-full"
+                        />
+                      </Link>
+                    );
+                  })()}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-baseline gap-2">
                       <span className="font-bold">{r.title}</span>

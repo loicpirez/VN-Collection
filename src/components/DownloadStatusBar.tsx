@@ -109,7 +109,7 @@ export function DownloadStatusBar() {
     // Anchored bottom-right above the QuoteFooter (which lives at bottom-0
     // and grows to ~112px on hover — `bottom-32` clears the expanded
     // height). Popover opens upward so it stays inside the viewport.
-    <div className="fixed bottom-0 right-2 z-40 flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 pb-1 sm:right-4 sm:max-w-sm">
+    <div className="fixed bottom-5 right-2 z-40 flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 sm:right-4 sm:max-w-sm">
       {retryingNow && (
         <div className="rounded-md border border-status-on_hold/60 bg-status-on_hold/10 px-3 py-2 text-[11px] text-status-on_hold shadow-card">
           <div className="flex items-center gap-1.5 font-bold">

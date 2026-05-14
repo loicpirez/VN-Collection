@@ -1,5 +1,5 @@
 'use client';
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Eye, EyeOff, ImageOff, ShieldAlert } from 'lucide-react';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
@@ -13,6 +13,12 @@ export interface SafeImageProps {
   style?: CSSProperties;
   fit?: 'cover' | 'contain';
   onLoadError?: () => void;
+  /**
+   * When true, skip the IntersectionObserver-based lazy preload and request
+   * the image immediately. Use for above-the-fold imagery (the cover on
+   * the VN detail page, the lightbox).
+   */
+  priority?: boolean;
 }
 
 function publicLocal(rel: string | null | undefined): string | null {
@@ -20,6 +26,20 @@ function publicLocal(rel: string | null | undefined): string | null {
   return `/api/files/${rel}`;
 }
 
+/**
+ * Image with three responsibilities:
+ *   1. NSFW gating (hideImages / blurR18 / nsfwThreshold from settings).
+ *   2. Local-first source resolution: when `localSrc` is provided and the
+ *      "Prefer local images" setting is on, render the mirrored copy from
+ *      /api/files/{path} instead of the remote VNDB CDN.
+ *   3. Lazy loading via IntersectionObserver. Native `loading="lazy"`
+ *      ships in every modern browser but breaks subtly on grids inside
+ *      overflow-scroll containers, transformed parents, and SSR/hydration
+ *      mismatches — symptom: image stays blank while the user scrolls past.
+ *      We replace it with a hand-rolled observer that triggers when the
+ *      element comes within 500 px of the viewport, then sets `src`
+ *      directly so the browser fetches eagerly with a known intent.
+ */
 export function SafeImage({
   src,
   localSrc,
@@ -29,16 +49,51 @@ export function SafeImage({
   style,
   fit = 'cover',
   onLoadError,
+  priority = false,
 }: SafeImageProps) {
   const t = useT();
   const { settings } = useDisplaySettings();
   const [reveal, setReveal] = useState(false);
   const [errored, setErrored] = useState(false);
+  const [inView, setInView] = useState(priority);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const local = publicLocal(localSrc);
   const url = settings.preferLocalImages ? local || src || '' : src || local || '';
   const explicit = isExplicit(sexual, settings.nsfwThreshold);
   const shouldBlur = explicit && settings.blurR18 && !reveal;
+
+  // Reset error / inView state when the underlying URL changes — without
+  // this a recycled card in a virtualised list would inherit a stale
+  // "errored" flag from the previous VN.
+  useEffect(() => {
+    setErrored(false);
+    if (priority) setInView(true);
+  }, [url, priority]);
+
+  useEffect(() => {
+    if (priority || inView) return;
+    const el = containerRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setInView(true);
+            io.disconnect();
+            break;
+          }
+        }
+      },
+      { rootMargin: '500px 0px', threshold: 0.01 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [priority, inView]);
 
   if (settings.hideImages) {
     return (
@@ -69,12 +124,16 @@ export function SafeImage({
   }
 
   return (
-    <div className={`relative overflow-hidden ${className}`} style={style}>
+    <div ref={containerRef} className={`relative overflow-hidden ${className}`} style={style}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={url}
+        src={inView ? url : undefined}
         alt={alt}
-        loading="lazy"
+        decoding="async"
+        // Once the observer says "in view" we want the network to start
+        // immediately, so `eager`. Priority images skip the observer
+        // entirely and also load eagerly from the first paint.
+        loading={priority || inView ? 'eager' : 'lazy'}
         className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
         onError={() => {
           setErrored(true);
