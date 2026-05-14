@@ -1042,6 +1042,49 @@ export async function getGlobalStats(): Promise<VndbStatsGlobal> {
   return vndbGet<VndbStatsGlobal>('/stats', TTL.stats);
 }
 
+/**
+ * Batched cover-only lookup for a list of VN ids. Used by surfaces that
+ * carry an external VN-id mapping (notably EGS Anticipated: every row
+ * has its `vndb_id`) so the cover can be pulled directly from VNDB
+ * instead of going through the EGS resolver chain. One call regardless
+ * of list size, cached for 24h via the standard vnSearch TTL.
+ *
+ * Result map is keyed by VN id (`v123`). Entries missing from VNDB or
+ * stripped of `image` simply don't appear in the map.
+ */
+export interface VndbCoverInfo {
+  url: string;
+  thumbnail: string | null;
+  sexual: number | null;
+}
+export async function fetchVnCovers(ids: string[]): Promise<Map<string, VndbCoverInfo>> {
+  const out = new Map<string, VndbCoverInfo>();
+  const cleaned = Array.from(new Set(ids.filter((id) => /^v\d+$/i.test(id))));
+  if (cleaned.length === 0) return out;
+  // VNDB rejects `or` clauses with fewer than 2 predicates.
+  const filters = cleaned.length === 1
+    ? ['id', '=', cleaned[0]]
+    : ['or', ...cleaned.map((id) => ['id', '=', id])];
+  try {
+    const r = await vndbPost<VndbResponse<{ id: string; image: VndbImage | null }>>('/vn', {
+      filters,
+      fields: 'id,image.url,image.thumbnail,image.sexual',
+      results: Math.min(cleaned.length, 100),
+    }, TTL.vnSearch);
+    for (const v of r.results) {
+      if (!v.image?.url) continue;
+      out.set(v.id, {
+        url: v.image.url,
+        thumbnail: v.image.thumbnail ?? null,
+        sexual: typeof v.image.sexual === 'number' ? v.image.sexual : null,
+      });
+    }
+  } catch {
+    // Network blips fall back to whatever the caller renders without us.
+  }
+  return out;
+}
+
 export interface VndbAuthInfo {
   id: string;
   username: string;

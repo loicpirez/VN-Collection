@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, CalendarRange, ExternalLink, Flame, Globe, Library as LibraryIcon } from 'lucide-react';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRelease } from '@/lib/upcoming';
 import { fetchEgsAnticipated, type EgsAnticipated } from '@/lib/erogamescape';
+import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
@@ -89,7 +90,13 @@ async function TabContent({ tab, t }: { tab: Tab; t: Dictionary }) {
   try {
     if (tab === 'anticipated') {
       const rows = await fetchEgsAnticipated(100);
-      return <AnticipatedSection rows={rows} t={t} />;
+      // Most anticipated entries already carry a VNDB id (the card title
+      // links there). Batch-fetch their cover URLs in a single VNDB call
+      // so we can show the high-quality VNDB poster directly instead of
+      // bouncing through the EGS resolver / shop CDNs.
+      const vndbIds = rows.map((r) => r.vndb_id).filter((v): v is string => !!v);
+      const vndbCovers = await fetchVnCovers(vndbIds);
+      return <AnticipatedSection rows={rows} vndbCovers={vndbCovers} t={t} />;
     }
     if (tab === 'all') {
       const rows = await fetchAllUpcomingFromVndb(200);
@@ -268,9 +275,11 @@ function ReleasesSection({
 
 function AnticipatedSection({
   rows,
+  vndbCovers,
   t,
 }: {
   rows: EgsAnticipated[];
+  vndbCovers: Map<string, VndbCoverInfo>;
   t: Dictionary;
 }) {
   if (rows.length === 0) {
@@ -280,7 +289,14 @@ function AnticipatedSection({
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-5">
       <p className="mb-4 text-[11px] text-muted">{t.upcoming.anticipatedSubtitle}</p>
       <ol className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-        {rows.map((a, i) => (
+        {rows.map((a, i) => {
+          // Prefer the VNDB cover when the anticipated row carries a
+          // vndb_id and VNDB returned an image for it. Falls back to the
+          // EGS resolver chain only when there's no VNDB mapping.
+          const vndbCover = a.vndb_id ? vndbCovers.get(a.vndb_id) ?? null : null;
+          const coverSrc = vndbCover?.url ?? `/api/egs-cover/${a.egs_id}`;
+          const coverSexual = vndbCover?.sexual ?? null;
+          return (
           <li key={a.egs_id} className="flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-3">
             <div className="relative shrink-0">
               <Link
@@ -289,7 +305,7 @@ function AnticipatedSection({
                 rel={a.vndb_id ? undefined : 'noopener noreferrer'}
                 className="block h-24 w-16 overflow-hidden rounded"
               >
-                <SafeImage src={`/api/egs-cover/${a.egs_id}`} alt={a.gamename} className="h-full w-full" />
+                <SafeImage src={coverSrc} alt={a.gamename} sexual={coverSexual} className="h-full w-full" />
               </Link>
               <span className="absolute -left-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-bg shadow">
                 {i + 1}
@@ -342,7 +358,8 @@ function AnticipatedSection({
               </div>
             </div>
           </li>
-        ))}
+          );
+        })}
       </ol>
     </section>
   );
