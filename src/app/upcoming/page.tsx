@@ -279,10 +279,10 @@ function ReleasesSection({
                         </Link>
                       ))}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-1 text-[9px]">
-                      {r.patch && <span className="rounded bg-status-on_hold/15 px-1.5 py-0.5 text-status-on_hold">PATCH</span>}
-                      {r.freeware && <span className="rounded bg-accent-blue/15 px-1.5 py-0.5 text-accent-blue">FREEWARE</span>}
-                      {r.has_ero && <span className="rounded bg-status-dropped/15 px-1.5 py-0.5 text-status-dropped">18+</span>}
+                    <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-semibold">
+                      {r.patch && <span className="rounded bg-status-on_hold/25 px-1.5 py-0.5 text-status-on_hold">PATCH</span>}
+                      {r.freeware && <span className="rounded bg-accent-blue/25 px-1.5 py-0.5 text-accent-blue">FREEWARE</span>}
+                      {r.has_ero && <span className="rounded bg-status-dropped/25 px-1.5 py-0.5 text-status-dropped">18+</span>}
                     </div>
                     <a
                       href={`https://vndb.org/${r.id}`}

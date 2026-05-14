@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
@@ -242,7 +243,14 @@ export function WishlistClient() {
           {error}
         </div>
       ) : items.length === 0 ? (
-        <div className="py-12 text-center text-muted">{t.wishlist.empty}</div>
+        <div className="mx-auto max-w-md py-12 text-center">
+          <Heart className="mx-auto mb-4 h-12 w-12 text-muted" aria-hidden />
+          <p className="mb-4 text-muted">{t.wishlist.empty}</p>
+          <Link href="/search" className="btn btn-primary">
+            <Search className="h-4 w-4" />
+            {t.wishlist.emptyCta}
+          </Link>
+        </div>
       ) : (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2">

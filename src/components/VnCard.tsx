@@ -317,7 +317,7 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
             >
               <Clock className="h-3 w-3" aria-hidden />
               {allPlaytime}
-              <span className="text-[9px] font-normal uppercase tracking-wider text-status-playing/70">
+              <span className="text-[10px] font-normal uppercase tracking-wider text-status-playing/80">
                 {t.playtime.combined}
               </span>
             </span>
