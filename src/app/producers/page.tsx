@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Building2, Crown, Trophy } from 'lucide-react';
-import { listProducerStats } from '@/lib/db';
+import { getCacheFreshness, listProducerStats } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function ProducersPage() {
   const t = await getDict();
   const producers = listProducerStats();
+  const lastUpdatedAt = getCacheFreshness(['/producer|%', 'producer_full:%']);
 
   if (producers.length === 0) {
     return (
@@ -29,7 +30,7 @@ export default async function ProducersPage() {
           <h1 className="text-2xl font-bold">{t.producers.pageTitle}</h1>
           <p className="text-sm text-muted">{t.producers.ranking}</p>
         </div>
-        <RefreshPageButton />
+        <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
       </header>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-bg-card">

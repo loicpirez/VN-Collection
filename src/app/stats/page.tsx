@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { BarChart3, Database, Globe, KeyRound, Languages, MapPin, Package, Sparkles, Star, Tags as TagsIcon, User as UserIcon } from 'lucide-react';
-import { db, getAggregateStats, getStats } from '@/lib/db';
+import { db, getAggregateStats, getCacheFreshness, getStats } from '@/lib/db';
 import { getAuthInfo, getGlobalStats, type VndbStatsGlobal } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { CachePanel } from '@/components/CachePanel';
@@ -55,6 +55,7 @@ export default async function StatsPage() {
     globalError = (e as Error).message;
   }
   const auth = await getAuthInfo();
+  const lastUpdatedAt = getCacheFreshness(['/stats|%', '/authinfo|%']);
 
   const myH = Math.round(my.playtime_minutes / 60);
   const myAvg = my.avg_user_rating != null ? (my.avg_user_rating / 10).toFixed(1) : '—';
@@ -81,7 +82,7 @@ export default async function StatsPage() {
       <header className="flex flex-wrap items-center gap-3">
         <BarChart3 className="h-7 w-7 text-accent" aria-hidden />
         <h1 className="flex-1 text-2xl font-bold">{t.stats.pageTitle}</h1>
-        <RefreshPageButton />
+        <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
       </header>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">

@@ -1,7 +1,7 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Clock, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
@@ -12,13 +12,32 @@ import { useToast } from './ToastProvider';
  * with the new data. Standalone button — drops in on /producers,
  * /tags, /traits, /upcoming, /stats, /data, /year, /quotes,
  * /brand-overlap, /recommendations, /shelf, /similar.
+ *
+ * `lastUpdatedAt` (epoch-ms) is the most recent `fetched_at` from the
+ * cache rows powering the current page. Computed server-side by the
+ * caller via `getCacheFreshness()` and rendered as a relative-time
+ * chip next to the button so the user always sees how stale the data
+ * is at a glance.
  */
-export function RefreshPageButton({ className = '' }: { className?: string } = {}) {
+export function RefreshPageButton({
+  className = '',
+  lastUpdatedAt = null,
+}: {
+  className?: string;
+  lastUpdatedAt?: number | null;
+} = {}) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState<number | null>(null);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    setNow(Date.now());
+    const tick = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(tick);
+  }, []);
 
   async function run() {
     setBusy(true);
@@ -42,15 +61,61 @@ export function RefreshPageButton({ className = '' }: { className?: string } = {
   }
 
   return (
-    <button
-      type="button"
-      onClick={run}
-      disabled={busy}
-      className={`btn ${className}`}
-      title={t.refreshPage.title}
+    <div className={`inline-flex flex-wrap items-center gap-2 ${className}`}>
+      <FreshnessChip lastUpdatedAt={lastUpdatedAt} now={now} />
+      <button
+        type="button"
+        onClick={run}
+        disabled={busy}
+        className="btn"
+        title={t.refreshPage.title}
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        {t.refreshPage.cta}
+      </button>
+    </div>
+  );
+}
+
+function FreshnessChip({ lastUpdatedAt, now }: { lastUpdatedAt: number | null; now: number | null }) {
+  const t = useT();
+  let label: string;
+  let stale = false;
+  if (lastUpdatedAt == null) {
+    label = t.refreshPage.lastUpdatedNever;
+    stale = true;
+  } else if (now == null) {
+    label = new Date(lastUpdatedAt).toLocaleString();
+  } else {
+    const diff = Math.max(0, now - lastUpdatedAt);
+    const m = Math.floor(diff / 60_000);
+    const h = Math.floor(diff / 3_600_000);
+    const d = Math.floor(diff / 86_400_000);
+    if (d >= 1) {
+      label = t.refreshPage.lastUpdatedDays.replace('{n}', String(d));
+      stale = d >= 7;
+    } else if (h >= 1) {
+      label = t.refreshPage.lastUpdatedHours.replace('{n}', String(h));
+    } else if (m >= 1) {
+      label = t.refreshPage.lastUpdatedMinutes.replace('{n}', String(m));
+    } else {
+      label = t.refreshPage.lastUpdatedJustNow;
+    }
+  }
+  const absolute = lastUpdatedAt == null ? '' : new Date(lastUpdatedAt).toLocaleString();
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium uppercase tracking-wider ${
+        stale
+          ? 'border-status-dropped/40 bg-status-dropped/10 text-status-dropped'
+          : 'border-border bg-bg-elev/40 text-muted'
+      }`}
+      title={absolute || undefined}
+      suppressHydrationWarning
     >
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-      {t.refreshPage.cta}
-    </button>
+      <Clock className="h-3 w-3 opacity-70" />
+      <span className="opacity-70">{t.refreshPage.lastUpdatedLabel}</span>
+      <span>{label}</span>
+    </span>
   );
 }

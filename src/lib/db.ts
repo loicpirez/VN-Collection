@@ -3271,6 +3271,21 @@ export function deleteCacheByPathPrefix(pathPrefix: string): number {
   return info.changes;
 }
 
+/**
+ * Most-recent `fetched_at` across cache rows whose `cache_key` matches any
+ * of the supplied LIKE patterns (e.g. `'anticipated:%'`, `'/release|%'`).
+ * Returns null when no row matches — the page has never been cached at all.
+ * Used by <RefreshPageButton/> to render "Refreshed Xh ago".
+ */
+export function getCacheFreshness(patterns: string[]): number | null {
+  if (patterns.length === 0) return null;
+  const clauses = patterns.map(() => 'cache_key LIKE ?').join(' OR ');
+  const row = db
+    .prepare(`SELECT MAX(fetched_at) AS newest FROM vndb_cache WHERE ${clauses}`)
+    .get(...patterns) as { newest: number | null } | undefined;
+  return row?.newest ?? null;
+}
+
 // Export / Import
 
 export interface CollectionExportPayload {

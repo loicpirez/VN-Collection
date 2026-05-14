@@ -7,7 +7,7 @@ import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import type { VndbTrait } from '@/lib/vndb-types';
 
-export function TraitsBrowser() {
+export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null } = {}) {
   const t = useT();
   const [q, setQ] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
@@ -60,7 +60,7 @@ export function TraitsBrowser() {
           <h1 className="text-2xl font-bold">{t.traits.pageTitle}</h1>
           <p className="text-sm text-muted">{t.traits.pageSubtitle}</p>
         </div>
-        <RefreshPageButton />
+        <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">

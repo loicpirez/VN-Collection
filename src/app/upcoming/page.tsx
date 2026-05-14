@@ -4,7 +4,7 @@ import { ArrowLeft, CalendarRange, ExternalLink, Flame, Globe, Library as Librar
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRelease } from '@/lib/upcoming';
 import { fetchEgsAnticipated, type EgsAnticipated } from '@/lib/erogamescape';
 import { getDict } from '@/lib/i18n/server';
-import { db } from '@/lib/db';
+import { db, getCacheFreshness } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid, SkeletonRows } from '@/components/Skeleton';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
@@ -41,6 +41,7 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Pro
   const t = await getDict();
   const { tab: rawTab } = await searchParams;
   const tab = parseTab(rawTab);
+  const lastUpdatedAt = getCacheFreshness(['/release|%', 'anticipated:%']);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -56,7 +57,7 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Pro
             </h1>
             <p className="mt-1 text-sm text-muted">{t.upcoming.subtitle}</p>
           </div>
-          <RefreshPageButton />
+          <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
         </div>
         <nav className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
           <TabLink href="/upcoming" active={tab === 'collection'} icon={<LibraryIcon className="h-3.5 w-3.5" />}>

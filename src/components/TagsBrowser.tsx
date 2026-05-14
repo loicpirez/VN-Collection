@@ -13,7 +13,7 @@ const CATEGORIES: { key: 'cont' | 'ero' | 'tech'; tkey: 'cat_cont' | 'cat_ero' |
   { key: 'tech', tkey: 'cat_tech' },
 ];
 
-export function TagsBrowser() {
+export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null } = {}) {
   const t = useT();
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<'' | 'cont' | 'ero' | 'tech'>('');
@@ -72,7 +72,7 @@ export function TagsBrowser() {
           <h1 className="text-2xl font-bold">{t.tags.pageTitle}</h1>
           <p className="text-sm text-muted">{t.tags.pageSubtitle}</p>
         </div>
-        <RefreshPageButton />
+        <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">
