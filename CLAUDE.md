@@ -57,8 +57,8 @@ vndb-collection/
 │   │   ├── layout.tsx                  # I18nProvider + DisplaySettings + nav + QuoteFooter
 │   │   ├── page.tsx                    # Library (Suspense + LibraryClient)
 │   │   ├── search/page.tsx             # SearchClient (debounced + advanced filters)
-│   │   ├── producers/page.tsx          # Ranked publisher table
-│   │   ├── producer/[id]/page.tsx      # Publisher detail + VN grid
+│   │   ├── producers/page.tsx          # Two-tab ranking: Developers / Publishers
+│   │   ├── producer/[id]/page.tsx      # Producer detail — dev section + pub section
 │   │   ├── series/page.tsx             # Series management
 │   │   ├── series/[id]/page.tsx        # Series detail
 │   │   ├── tags/page.tsx               # Tag browser (click → /?tag=g…)
@@ -123,7 +123,7 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| GET | `/api/collection` | List + stats (filters: status, producer, series, tag, q, sort, order) |
+| GET | `/api/collection` | List + stats (filters: status, **producer** (developer side), **publisher** (publisher side), series, tag, q, sort, order). Sort accepts `producer` / `publisher`; group accepts `producer` / `publisher`. |
 | POST | `/api/collection/[id]` | **First add: triggers `ensureLocalImagesForVn`** synchronously |
 | PATCH | `/api/collection/[id]` | Update tracking fields |
 | DELETE | `/api/collection/[id]` | Remove from collection |
@@ -148,9 +148,10 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET | `/api/tags?q=&category=` | Tag search/browse |
 | GET | `/api/traits?q=` | Trait search/browse |
 | GET | `/api/producer/[id]` | Producer detail (cache 24 h) |
-| POST | `/api/producer/[id]/logo` | Upload publisher logo |
+| POST | `/api/producer/[id]/refresh` | Bust the dev (`POST /vn:producer`) + pub (`POST /release:producer`) cache rows then re-fetch. Used by the per-page Refresh button on `/producer/[id]`. |
+| POST | `/api/producer/[id]/logo` | Upload producer logo |
 | DELETE | `/api/producer/[id]/logo` | Reset logo |
-| GET | `/api/producers` | Ranked publishers in your collection |
+| GET | `/api/producers` | Returns both `producers` (developer ranking) and `publishers` (publisher ranking) arrays. |
 | GET | `/api/series` / POST | List + create |
 | GET/PATCH/DELETE | `/api/series/[id]` | CRUD |
 | POST/DELETE | `/api/series/[id]/vn/[vnId]` | Link/unlink VN |
@@ -366,9 +367,10 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
   never hardcoded.
 
 ### URL-as-state
-- Library filters (status, producer, series, tag, q, sort, order, group) are
-  derived **from `useSearchParams`**, not from `useState`. Setters update the
-  URL via `router.replace(..., { scroll: false })`.
+- Library filters (status, **producer** (developer side), **publisher**
+  (publisher side, separate from producer), series, tag, q, sort,
+  order, group) are derived **from `useSearchParams`**, not from
+  `useState`. Setters update the URL via `router.replace(..., { scroll: false })`.
 - Only the search input (`qInput`) keeps a local mirror, debounced 300 ms → URL.
 - The `q` text box reads back from URL on changes (`useEffect → setQInput(urlQ)`)
   so external clears (e.g. "Reset" button) propagate.

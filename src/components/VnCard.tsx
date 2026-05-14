@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, Plus, Sparkles, X } from 'lucide-react';
+import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, Package, Plus, Sparkles, X } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
@@ -30,6 +30,15 @@ export interface CardData {
   favorite?: boolean;
   inCollectionBadge?: boolean;
   developers?: { id?: string; name: string }[];
+  /**
+   * Publishers credited on this VN's releases (deduped). Distinct
+   * from developers per VNDB's data model — surfaced as a separate
+   * chip so the user sees who DEVELOPED vs who PUBLISHED. Only
+   * publishers that are not also developers are rendered, to keep
+   * the chip useful (a self-publishing studio is already named in
+   * the developer chip).
+   */
+  publishers?: { id?: string; name: string }[];
   /** ErogameScape median rating on a 0-100 scale, when available. */
   egs_median?: number | null;
   /** ErogameScape median user playtime in minutes, when available. */
@@ -302,12 +311,34 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
         {data.developers && data.developers.length > 0 && (
           <div
             className="inline-flex items-center gap-1 text-[11px] text-muted"
-            title={data.developers.map((d) => d.name).join(', ')}
+            title={`${t.detail.developers}: ${data.developers.map((d) => d.name).join(', ')}`}
           >
             <Building2 className="h-3 w-3 shrink-0" aria-hidden />
             <span className="line-clamp-1">{data.developers.map((d) => d.name).join(', ')}</span>
           </div>
         )}
+        {(() => {
+          // Publishers that are ALSO developers are dropped — they're
+          // already represented in the developer chip above. Showing
+          // them twice would just waste a row on every self-published
+          // studio (Type-Moon, Key, …).
+          if (!data.publishers || data.publishers.length === 0) return null;
+          const devIds = new Set((data.developers ?? []).map((d) => d.id).filter(Boolean));
+          const devNames = new Set((data.developers ?? []).map((d) => d.name));
+          const distinct = data.publishers.filter(
+            (p) => (!p.id || !devIds.has(p.id)) && !devNames.has(p.name),
+          );
+          if (distinct.length === 0) return null;
+          return (
+            <div
+              className="inline-flex items-center gap-1 text-[11px] text-muted/85"
+              title={`${t.detail.publishers}: ${distinct.map((p) => p.name).join(', ')}`}
+            >
+              <Package className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="line-clamp-1">{distinct.map((p) => p.name).join(', ')}</span>
+            </div>
+          );
+        })()}
       </div>
     </>
   );
@@ -342,6 +373,11 @@ export function VnCard({ data, selectable = false, selected = false, onSelect, e
           status={data.status ?? null}
           favorite={!!data.favorite}
           developer={data.developers?.[0] ?? null}
+          publisher={
+            (data.publishers ?? []).find(
+              (p) => !(data.developers ?? []).some((d) => d.id && p.id && d.id === p.id),
+            ) ?? null
+          }
           anchor={menuAnchor}
           onClose={() => setMenuAnchor(null)}
         />

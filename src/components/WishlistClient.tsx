@@ -29,6 +29,14 @@ interface WishlistItem {
     platforms: string[];
     image: { url: string; thumbnail: string; sexual?: number } | null;
     developers: { id: string; name: string }[];
+    /**
+     * Publisher data is not part of the `POST /ulist` payload (VNDB only
+     * exposes producer roles at the release level). Wishlist cards
+     * therefore render without a publisher chip — to surface publishers
+     * the VN has to be added to the collection first, which triggers the
+     * release walk in `fetchAndDownloadReleaseImages`.
+     */
+    publishers?: { id?: string; name: string }[];
   };
   in_collection: boolean;
   egs: { median: number | null; playtime_median_minutes: number | null } | null;
@@ -342,6 +350,7 @@ export function WishlistClient() {
                       rating: it.vn.rating,
                       length_minutes: it.vn.length_minutes,
                       developers: it.vn.developers,
+                      publishers: it.vn.publishers,
                       inCollectionBadge: it.in_collection,
                       egs_median: it.egs?.median ?? null,
                       egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,

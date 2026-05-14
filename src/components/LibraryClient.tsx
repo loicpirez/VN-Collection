@@ -28,6 +28,7 @@ type SortKey =
   | 'combined_playtime'
   | 'released'
   | 'producer'
+  | 'publisher'
   | 'egs_rating'
   | 'combined_rating'
   | 'custom';
@@ -43,13 +44,14 @@ const SORT_KEYS: SortKey[] = [
   'combined_playtime',
   'released',
   'producer',
+  'publisher',
   'egs_rating',
   'combined_rating',
   'custom',
 ];
 
-type GroupKey = 'none' | 'tag' | 'producer' | 'status' | 'series';
-const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'tag', 'series'];
+type GroupKey = 'none' | 'tag' | 'producer' | 'publisher' | 'status' | 'series';
+const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series'];
 
 const Q_DEBOUNCE_MS = 300;
 
@@ -61,6 +63,7 @@ export function LibraryClient() {
   // Derive every filter / sort / group from the URL so they survive navigation.
   const status = (searchParams.get('status') ?? '') as Status | '';
   const producer = searchParams.get('producer') ?? '';
+  const publisher = searchParams.get('publisher') ?? '';
   const seriesId = searchParams.get('series') ?? '';
   const urlTag = searchParams.get('tag') ?? '';
   const urlPlace = searchParams.get('place') ?? '';
@@ -132,6 +135,7 @@ export function LibraryClient() {
   const [items, setItems] = useState<CollectionItem[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, byStatus: [], playtime_minutes: 0 });
   const [producers, setProducers] = useState<ProducerStat[]>([]);
+  const [publishers, setPublishers] = useState<ProducerStat[]>([]);
   const [series, setSeries] = useState<SeriesRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -155,7 +159,13 @@ export function LibraryClient() {
   }
 
   useEffect(() => {
-    fetch('/api/producers').then((r) => r.json()).then((d) => setProducers(d.producers ?? [])).catch(() => {});
+    fetch('/api/producers')
+      .then((r) => r.json())
+      .then((d) => {
+        setProducers(d.producers ?? []);
+        setPublishers(d.publishers ?? []);
+      })
+      .catch(() => {});
     fetch('/api/series').then((r) => r.json()).then((d) => setSeries(d.series ?? [])).catch(() => {});
   }, []);
 
@@ -182,6 +192,7 @@ export function LibraryClient() {
     const params = new URLSearchParams();
     if (status) params.set('status', status);
     if (producer) params.set('producer', producer);
+    if (publisher) params.set('publisher', publisher);
     if (seriesId) params.set('series', seriesId);
     if (urlTag) params.set('tag', urlTag);
     if (urlPlace) params.set('place', urlPlace);
@@ -206,7 +217,7 @@ export function LibraryClient() {
     return () => {
       alive = false;
     };
-  }, [status, producer, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlDumped, urlQ, sort, order, refreshKey, t.common.error]);
+  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlDumped, urlQ, sort, order, refreshKey, t.common.error]);
 
   function clearAll() {
     router.replace('/', { scroll: false });
@@ -219,7 +230,7 @@ export function LibraryClient() {
   );
   const totalH = Math.round(stats.playtime_minutes / 60);
   const hasFilters =
-    !!status || !!producer || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlYearMin || !!urlYearMax || urlDumped === '1' || urlDumped === '0';
+    !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlYearMin || !!urlYearMax || urlDumped === '1' || urlDumped === '0';
   const yearLabel = urlYearMin && urlYearMax
     ? urlYearMin === urlYearMax
       ? urlYearMin
@@ -371,10 +382,23 @@ export function LibraryClient() {
             className="input w-auto"
             value={producer}
             onChange={(e) => setParam('producer', e.target.value || null)}
-            aria-label={t.library.filterByProducer}
+            aria-label={t.library.filterByDeveloper}
           >
-            <option value="">{t.library.filterByProducer}</option>
+            <option value="">{t.library.filterByDeveloper}</option>
             {producers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} · {p.vn_count}
+              </option>
+            ))}
+          </select>
+          <select
+            className="input w-auto"
+            value={publisher}
+            onChange={(e) => setParam('publisher', e.target.value || null)}
+            aria-label={t.library.filterByPublisher}
+          >
+            <option value="">{t.library.filterByPublisher}</option>
+            {publishers.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} · {p.vn_count}
               </option>
@@ -544,7 +568,17 @@ export function LibraryClient() {
           >
             {GROUP_KEYS.map((g) => (
               <option key={g} value={g}>
-                {g === 'none' ? t.library.groupNone : g === 'tag' ? t.library.groupTag : g === 'producer' ? t.library.groupProducer : g === 'series' ? t.library.groupSeries : t.library.groupStatus}
+                {g === 'none'
+                  ? t.library.groupNone
+                  : g === 'tag'
+                  ? t.library.groupTag
+                  : g === 'producer'
+                  ? t.library.groupDeveloper
+                  : g === 'publisher'
+                  ? t.library.groupPublisher
+                  : g === 'series'
+                  ? t.library.groupSeries
+                  : t.library.groupStatus}
               </option>
             ))}
           </select>
@@ -844,6 +878,7 @@ function Grid({
             status: it.status as Status | undefined,
             favorite: it.favorite,
             developers: it.developers,
+            publishers: it.publishers,
             isFanDisc: (it.relations ?? []).some((r) => r.relation === 'orig'),
           }}
         />
@@ -886,6 +921,23 @@ function groupItems(
       const label = dev?.name ?? t.library.groupOther;
       if (!map.has(devKey)) map.set(devKey, { key: devKey, label, items: [] });
       map.get(devKey)!.items.push(it);
+    } else if (group === 'publisher') {
+      // Same shape as the developer group, but indexed on `vn.publishers`
+      // — VNDB models publisher as a release-level role, so this bucket
+      // is intentionally distinct from the developer bucket and a VN
+      // with multiple publishers shows up under each.
+      const pubs = (it.publishers ?? []).filter((p) => p && (p.id || p.name));
+      if (pubs.length === 0) {
+        const fb = map.get('__none__') ?? fallback(t.library.groupOther);
+        fb.items.push(it);
+        map.set('__none__', fb);
+      } else {
+        for (const pub of pubs) {
+          const k = (pub.id && pub.id.trim()) || `n:${pub.name}`;
+          if (!map.has(k)) map.set(k, { key: k, label: pub.name, items: [] });
+          map.get(k)!.items.push(it);
+        }
+      }
     } else if (group === 'series') {
       const list = it.series ?? [];
       if (list.length === 0) {
@@ -921,8 +973,11 @@ function groupItems(
   const groups = Array.from(map.values());
   const axisMatch =
     (group === 'producer' && sort === 'producer') ||
+    (group === 'publisher' && sort === 'publisher') ||
     (group === 'status' && sort === 'updated_at') === false && (group === 'status' && false);
   if ((group === 'producer' && sort === 'producer')
+      || (group === 'publisher' && sort === 'publisher')
+      || (group === 'publisher')
       || (group === 'series')
       || (group === 'tag')) {
     groups.sort((a, b) => a.label.localeCompare(b.label));

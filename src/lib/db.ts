@@ -1983,6 +1983,7 @@ export interface ListOptions {
     | 'combined_playtime'
     | 'released'
     | 'producer'
+    | 'publisher'
     | 'egs_rating'
     | 'combined_rating'
     | 'custom';
@@ -2036,6 +2037,7 @@ export function listCollection({
       ' , 0)',
     released: 'v.released',
     producer: "json_extract(v.developers, '$[0].name')",
+    publisher: "json_extract(v.publishers, '$[0].name')",
     egs_rating: 'e.median',
     // Combined: VNDB rating (0-100) and EGS median (0-100), averaged.
     // When only one exists, fall back to it; nulls last regardless.
@@ -2813,6 +2815,49 @@ export function listProducerStats(): ProducerStat[] {
       LEFT JOIN producer p ON p.id = dp.pid
       WHERE dp.pid IS NOT NULL
       GROUP BY dp.pid
+      ORDER BY vn_count DESC, name ASC
+    `)
+    .all() as (ProducerDbRow & { vn_count: number; avg_user_rating: number | null; avg_rating: number | null })[];
+  return rows.map((r) => ({
+    ...(producerToRow(r) as ProducerRow),
+    vn_count: r.vn_count,
+    avg_user_rating: r.avg_user_rating,
+    avg_rating: r.avg_rating,
+  }));
+}
+
+/**
+ * Symmetric to `listProducerStats` but indexed on `vn.publishers` (the
+ * deduped publisher list set by `setVnPublishers` after walking each
+ * release's `producers[]`). Publishers that never also developed the
+ * VN are surfaced here even when they're absent from `vn.developers`,
+ * so a publisher-only studio (Mangagamer, JAST, …) is rankable.
+ */
+export function listPublisherStats(): ProducerStat[] {
+  const rows = db
+    .prepare(`
+      WITH pub_pairs AS (
+        SELECT v.id AS vn_id,
+               json_extract(pe.value, '$.id') AS pid,
+               json_extract(pe.value, '$.name') AS pname
+        FROM collection c
+        JOIN vn v ON v.id = c.vn_id
+        JOIN json_each(COALESCE(v.publishers, '[]')) pe
+      )
+      SELECT
+        pp.pid AS id,
+        COALESCE(p.name, pp.pname) AS name,
+        p.original, p.lang, p.type, p.description, p.aliases, p.extlinks, p.logo_path,
+        COALESCE(p.fetched_at, 0) AS fetched_at,
+        COUNT(DISTINCT pp.vn_id) AS vn_count,
+        AVG(c.user_rating) AS avg_user_rating,
+        AVG(v.rating) AS avg_rating
+      FROM pub_pairs pp
+      JOIN collection c ON c.vn_id = pp.vn_id
+      JOIN vn v ON v.id = pp.vn_id
+      LEFT JOIN producer p ON p.id = pp.pid
+      WHERE pp.pid IS NOT NULL
+      GROUP BY pp.pid
       ORDER BY vn_count DESC, name ASC
     `)
     .all() as (ProducerDbRow & { vn_count: number; avg_user_rating: number | null; avg_rating: number | null })[];

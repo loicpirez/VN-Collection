@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, Check, Heart, Loader2, Star, Tag, X } from 'lucide-react';
+import { Building2, Check, Heart, Loader2, Package, Star, Tag, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { STATUSES, type Status } from '@/lib/types';
@@ -13,6 +13,13 @@ interface Props {
   status: Status | null | undefined;
   favorite: boolean;
   developer: { id?: string; name: string } | null;
+  /**
+   * Distinct publisher (not also credited as developer) for the VN.
+   * Drives the optional "Open publisher" / "Filter by this publisher"
+   * rows so the user can navigate the publisher side from a card
+   * right-click without confusing it with the developer side.
+   */
+  publisher: { id?: string; name: string } | null;
   /** Screen-space anchor (clientX/clientY) — the menu places itself relative. */
   anchor: { x: number; y: number };
   onClose: () => void;
@@ -25,7 +32,7 @@ interface Props {
  * Escape, or any successful action. All actions hit existing PATCH routes
  * — no new server surface.
  */
-export function CardContextMenu({ vnId, status, favorite, developer, anchor, onClose, onChange }: Props) {
+export function CardContextMenu({ vnId, status, favorite, developer, publisher, anchor, onClose, onChange }: Props) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -148,22 +155,42 @@ export function CardContextMenu({ vnId, status, favorite, developer, anchor, onC
       </Link>
 
       {developer?.id && (
-        <Link
-          href={`/producer/${developer.id}`}
-          onClick={onClose}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
-        >
-          <Building2 className="h-3.5 w-3.5" /> {t.quickActions.openProducer}
-        </Link>
+        <>
+          <Link
+            href={`/producer/${developer.id}`}
+            onClick={onClose}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
+          >
+            <Building2 className="h-3.5 w-3.5" /> {t.quickActions.openDeveloper}
+          </Link>
+          <Link
+            href={`/?producer=${developer.id}`}
+            onClick={onClose}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
+          >
+            <Tag className="h-3.5 w-3.5" /> {t.quickActions.filterSameDeveloper}
+          </Link>
+        </>
       )}
 
-      <Link
-        href={`/?producer=${developer?.id ?? ''}`}
-        onClick={onClose}
-        className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
-      >
-        <Tag className="h-3.5 w-3.5" /> {t.quickActions.filterSameProducer}
-      </Link>
+      {publisher?.id && (
+        <>
+          <Link
+            href={`/producer/${publisher.id}`}
+            onClick={onClose}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
+          >
+            <Package className="h-3.5 w-3.5" /> {t.quickActions.openPublisher}
+          </Link>
+          <Link
+            href={`/?publisher=${publisher.id}`}
+            onClick={onClose}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elev"
+          >
+            <Tag className="h-3.5 w-3.5" /> {t.quickActions.filterSamePublisher}
+          </Link>
+        </>
+      )}
     </div>
   );
 }

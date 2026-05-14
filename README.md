@@ -46,8 +46,9 @@ ingested, cached locally, and can be combined or compared per-field.
   a lazy popover with the full list registry, search filter, and an inline
   "create new list" input. Optimistic toggles.
 - Sort: recently updated, added, title, VNDB rating, your rating,
-  release year, publisher, **EGS rating**, **combined rating (VNDB +
-  EGS) / 2**, and the four-way playtime model:
+  release year, **developer** (first dev name), **publisher** (first
+  publisher name — VNDB's release-level role), **EGS rating**,
+  **combined rating (VNDB + EGS) / 2**, and the four-way playtime model:
     - **My playtime** — `collection.playtime_minutes` only, no fallback.
     - **VNDB length** — `vn.length_minutes` only.
     - **EGS playtime** — `egs_game.playtime_median_minutes` only.
@@ -56,9 +57,11 @@ ingested, cached locally, and can be combined or compared per-field.
       entries rank at their own magnitude (no divide-by-three
       penalty for missing data). Cards display the All value as the
       primary playtime chip with the per-source breakdown beneath.
-- Filters: status, publisher, series, tag, free-text, place, year range,
-  **dumped state** — all persisted in the URL
-- Group-by: status, publisher, tag, series
+- Filters: status, **developer (`?producer=`)**, **publisher
+  (`?publisher=`)** — two separate axes, never collapsed — series,
+  tag, free-text, place, year range, **dumped state** — all
+  persisted in the URL
+- Group-by: status, developer, publisher, tag, series
 - Recently viewed strip on the home page (localStorage, last 12 entries)
 - Bulk select / edit / download
 - **Viewport-aware lazy image loading** via IntersectionObserver
@@ -67,7 +70,14 @@ ingested, cached locally, and can be combined or compared per-field.
 
 ### VNDB integration (every Kana endpoint)
 - VN search (debounced) + advanced filters
-- Producer pages with logo upload + ranking + average rating
+- **Producer pages**: `/producer/[id]` paginates `POST /vn`
+  (developer credits) AND `POST /release` (publisher credits) and
+  renders two distinct sections — "As developer" and "As publisher"
+  — with owned/missing badges. `/producers` ranking has two tabs
+  (Developers / Publishers) backed by independent indexes
+  (`vn.developers` vs `vn.publishers`), so a publisher-only studio
+  appears only under the Publishers tab. Logo upload + average
+  rating per role.
 - Character pages — metadata, traits, every VN they appear in
 - Tag & trait browsers — trait page has an "In my collection" toggle
 - Release listings per VN — package artwork, languages with mtl flag,

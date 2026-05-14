@@ -161,6 +161,7 @@ function CardInner({ item }: { item: CollectionItem }) {
         status: item.status as Status | undefined,
         favorite: item.favorite,
         developers: item.developers,
+        publishers: item.publishers,
         isFanDisc: (item.relations ?? []).some((r) => r.relation === 'orig'),
       }}
     />

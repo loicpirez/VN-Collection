@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { BarChart3, Database, Globe, KeyRound, Languages, MapPin, Package, Sparkles, Star, Tags as TagsIcon, User as UserIcon } from 'lucide-react';
-import { db, getAggregateStats, getStats } from '@/lib/db';
+import { BarChart3, Database, Globe, KeyRound, Languages, MapPin, Package, Sparkles, Star, Tags as TagsIcon, User as UserIcon, Wrench } from 'lucide-react';
+import { db, getAggregateStats, getStats, listProducerStats, listPublisherStats } from '@/lib/db';
 import { getAuthInfo, getGlobalStats, type VndbStatsGlobal } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 
@@ -162,6 +162,8 @@ export default async function StatsPage() {
         </Card>
       )}
 
+      <ProducerRankCards t={t} />
+
       <div className="grid gap-6 md:grid-cols-2">
         {agg.byLanguage.length > 0 && (
           <Card title={t.charts.byLanguage} icon={<Languages className="h-5 w-5 text-accent" />}>
@@ -283,6 +285,39 @@ export default async function StatsPage() {
         <p className="mt-3 text-[11px] text-muted">{t.dataMgmt.importHint}</p>
         <ImportPanel />
       </section>
+    </div>
+  );
+}
+
+/**
+ * Two side-by-side bar charts surfacing the top developers and top
+ * publishers in the user's collection. The two rankings come from
+ * separate joins (vn.developers vs vn.publishers) so a
+ * publisher-only studio appears under publishers without polluting
+ * the developer side, matching VNDB's release-level role model.
+ */
+function ProducerRankCards({ t }: { t: Awaited<ReturnType<typeof getDict>> }) {
+  const devs = listProducerStats().slice(0, 10);
+  const pubs = listPublisherStats().slice(0, 10);
+  if (devs.length === 0 && pubs.length === 0) return null;
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      {devs.length > 0 && (
+        <Card title={t.charts.topDevelopers} icon={<Wrench className="h-5 w-5 text-accent" />}>
+          <HBarChart
+            data={devs.map((p) => ({ label: p.name, value: p.vn_count, href: `/producer/${p.id}` }))}
+            barClassName="bg-accent"
+          />
+        </Card>
+      )}
+      {pubs.length > 0 && (
+        <Card title={t.charts.topPublishers} icon={<Package className="h-5 w-5 text-accent" />}>
+          <HBarChart
+            data={pubs.map((p) => ({ label: p.name, value: p.vn_count, href: `/producer/${p.id}` }))}
+            barClassName="bg-accent-blue"
+          />
+        </Card>
+      )}
     </div>
   );
 }

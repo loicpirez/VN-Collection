@@ -103,6 +103,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
                   status: it.status as Status | undefined,
                   favorite: it.favorite,
                   developers: it.developers,
+                  publishers: it.publishers,
                 }}
               />
             </div>

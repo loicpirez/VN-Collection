@@ -35,6 +35,7 @@ interface VnRow {
   status: string | null;
   favorite: number | null;
   developers: string | null;
+  publishers: string | null;
 }
 
 function loadCards(items: UserListItem[]): Map<string, VnRow> {
@@ -48,7 +49,7 @@ function loadCards(items: UserListItem[]): Map<string, VnRow> {
               c.custom_cover, v.released, v.rating,
               c.user_rating, c.playtime_minutes, v.length_minutes,
               c.status, c.favorite,
-              v.developers
+              v.developers, v.publishers
          FROM vn v
     LEFT JOIN collection c ON c.vn_id = v.id
         WHERE v.id IN (${placeholders})`,
@@ -117,6 +118,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           {items.map((it) => {
             const row = rows.get(it.vn_id);
             const developers = parseDevelopers(row?.developers ?? null);
+            const publishers = parseDevelopers(row?.publishers ?? null);
             return (
               <div key={it.vn_id} className="group relative">
                 <ListRemoveVn listId={list.id} vnId={it.vn_id} />
@@ -138,6 +140,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
                       status: (row.status as Status | null) ?? undefined,
                       favorite: !!row.favorite,
                       developers,
+                      publishers,
                     }}
                   />
                 ) : (

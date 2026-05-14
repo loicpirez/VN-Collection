@@ -154,27 +154,62 @@ EGS tab, anything else → Custom tab, null → VNDB tab).
 
 ## Per-VN detail page
 
-### Developers + Publishers ✅
-VNDB distinguishes between **developer** (the studio that made the VN)
-and **publisher** (the company that publishes / localizes a release).
-We mirror both:
-- Developers come from `/vn { developers{...} }` and live in
-  `vn.developers` (JSON).
-- Publishers are aggregated from every release's `release.producers[]`
-  where `publisher = true`, deduped by id and persisted to
-  `vn.publishers` (JSON). VNDB only exposes the role at the release
-  level, so the release-mirror pipeline (`ensureLocalImagesForVn` →
-  `fetchAndDownloadReleaseImages`) populates them — meaning every
-  add, refresh, and bulk re-download path keeps publishers fresh.
-- The library filter accepts both `?producer=p123` (developer side)
-  and `?publisher=p123` (publisher side) as **separate** params so
-  a producer credited under both roles still shows up correctly per
-  side.
-- /vn/[id] renders a "Publishers" row right under the developer
-  compare. Each publisher chip links to `/producer/[id]`.
-- `/producers` ranking is developer-only on purpose (the page is
-  "studios behind VNs I own"). Publisher-only producers reach their
-  page through publisher chips and the `?publisher` filter.
+### Producer / Developer / Publisher — three concepts, end-to-end ✅
+VNDB models three distinct things and we keep them distinct everywhere:
+- **Producer** — the *entity*: a company / individual / amateur group
+  (`POST /producer`, ids like `p123`, type `co` / `in` / `ng`).
+- **Developer** — a *role*: a producer credited as the studio that
+  made the VN. Exposed twice on VNDB: directly on `POST /vn` via
+  `developers[]`, and on `POST /release` via `producers[].developer = true`.
+- **Publisher** — a *role*: a producer credited as the entity that
+  publishes / localizes a release. **Only** exposed on `POST /release`
+  via `producers[].publisher = true` (there is no `publishers[]` on
+  `POST /vn`).
+
+The same producer entity can hold the developer role for VN A, the
+publisher role for VN B, and both for VN C. We never collapse the
+two roles into one bucket.
+
+**Storage:**
+- `vn.developers` JSON — read straight from `POST /vn { developers }`.
+- `vn.publishers` JSON — computed by walking every release's
+  `producers[]` (`publisher = true`) and deduping by producer id.
+  VNDB only exposes the role at the release level, so the release-
+  mirror pipeline (`ensureLocalImagesForVn` →
+  `fetchAndDownloadReleaseImages`) populates them on every add /
+  refresh / bulk path.
+- `producer` table — local mirror of `POST /producer` (name, type,
+  aliases, logo, extlinks). Shared by both roles.
+
+**Filtering & sorting (`listCollection`):**
+- `?producer=p123` matches `vn.developers[].id = p123` (developer side).
+- `?publisher=p123` matches `vn.publishers[].id = p123` (publisher side).
+- The two filters are **separate** — a producer credited under both
+  roles is reachable per side without collisions.
+- `sort=producer` orders by first developer name; `sort=publisher`
+  orders by first publisher name. Both group axes available
+  (`group=producer` and `group=publisher`).
+
+**UI surfaces:**
+- VN cards render two chips: a developer chip (`Building2` icon)
+  and, when the publisher is *distinct* from any developer, a
+  publisher chip (`Package` icon). Self-publishing studios collapse
+  into the developer chip only.
+- Right-click on a card → "Open developer", "Filter by this
+  developer", "Open publisher", "Filter by this publisher" (the
+  publisher rows only render when a distinct publisher is known).
+- `/vn/[id]` renders Developers and Publishers as two separate
+  compare rows, each chip linking to `/producer/[id]`.
+- `/producer/[id]` paginates `POST /vn` (developer credits) AND
+  `POST /release` (publisher credits) and renders **two sections**
+  — "As developer" and "As publisher" — with owned / missing
+  markers and inline "+" buttons.
+- `/producers` ranking has two tabs (`?role=dev` default, `?role=publisher`),
+  backed by `listProducerStats` (dev) and `listPublisherStats` (pub).
+  Publisher-only studios (Mangagamer, JAST, NekoNyan…) only appear
+  under the Publishers tab.
+- `/stats` shows two ranked bar charts side by side: Top developers
+  and Top publishers.
 
 ### Sources comparison (VNDB / EGS) ✅
 Synopsis / cover / brand / etc. each surface a tab toggle. Per-field

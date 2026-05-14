@@ -288,6 +288,86 @@ comparison view last (depends on the recommendations helper).
 
 ---
 
+## Batch F — Producer / Developer / Publisher end-to-end (2026-05-15) — shipped ✅
+
+VNDB models three things — the producer entity, the developer role,
+the publisher role — and previously the UI conflated them. This
+batch threads the distinction through every surface.
+
+### F.1 `/producer/[id]` shows BOTH roles
+
+- New `src/lib/producer-associations.ts`: `fetchProducerAssociations(p)`
+  paginates `POST /vn` with `developer = p` (3 pages) for developer
+  credits AND `POST /release` with `producer = p` (5 pages) walking
+  `producers[].publisher = true` for publisher credits. The two
+  arrays are deduped so a VN credited as developer drops out of
+  the publisher list.
+- New `src/app/api/producer/[id]/refresh/route.ts`: busts the
+  `POST /vn:producer|%` + `POST /release:producer|%` cache rows
+  then re-fetches.
+- New `<ProducerVnsSections>` server component renders two
+  distinct cards — "As developer" and "As publisher" — each with
+  owned/total counts, covers, and inline "+" buttons for the
+  missing VNs.
+- New `<ProducerRefreshButton>` client component (toasts the
+  live dev/pub/owned counts and `router.refresh()`es).
+- Old `ProducerCompletion` (dev-only) and `VnGrid` (local-only) are
+  deleted — they were the source of the "only shows 1 VN" bug on
+  publisher-only producers.
+
+### F.2 `/producers` two-tab ranking
+
+- New `listPublisherStats()` in `lib/db.ts`, symmetric to
+  `listProducerStats()`, indexed on `vn.publishers`. A publisher-only
+  studio (Mangagamer, JAST, NekoNyan…) appears only under the
+  Publishers tab.
+- `/producers` page rebuilt as two-tab UI (URL `?role=publisher` to
+  switch). Each tab shows count, average user rating, average VNDB
+  rating, role-specific empty state.
+
+### F.3 Stats page producer breakdown
+
+- New `<ProducerRankCards>` section on `/stats`: two side-by-side
+  horizontal bar charts — "Top developers" and "Top publishers" —
+  top 10 each, bars link to the corresponding `/producer/[id]`.
+- i18n keys `charts.topDevelopers` / `charts.topPublishers` (FR/EN/JA).
+
+### F.4 Card-level publisher chip + context menu
+
+- `CardData` gains a `publishers?` field; `VnCard` renders a second
+  chip (`Package` icon) listing publishers that are NOT also
+  credited as developer (self-publishing studios stay in the
+  developer chip only, no doubles).
+- `CardContextMenu` accepts a `publisher` prop and renders "Open
+  publisher" / "Filter by this publisher" rows alongside the
+  developer ones. Each row is conditional on the role being known.
+- Every card feeder threads `it.publishers` through: `SortableGrid`,
+  `LibraryClient`, `RelationsSection`, `WishlistClient` (typed
+  optional since `/ulist` doesn't expose publishers), `series/[id]`,
+  `lists/[id]` (raw SQL gains `v.publishers` + parser reuse).
+
+### F.5 Library filter / sort / group on publisher
+
+- `?publisher=p123` filter input added next to the developer
+  dropdown — both visible at all times, never collapsed.
+- `sort=publisher` orders by `json_extract(v.publishers, '$[0].name')`.
+- `group=publisher` axis added (one row per publisher, multi-VN
+  collapses into the publisher's bucket).
+- i18n: `library.filterByDeveloper` / `library.filterByPublisher`,
+  `library.sort.producer` / `library.sort.publisher`,
+  `library.groupDeveloper` / `library.groupPublisher`,
+  `quickActions.openDeveloper` / `openPublisher` /
+  `filterSameDeveloper` / `filterSamePublisher`. The existing
+  `filterSameProducer` / `groupProducer` keys are aliased to the
+  developer side (FR/EN/JA).
+
+### F.6 `/api/producers` returns both arrays
+
+- `GET /api/producers` now returns `{ producers, publishers }` —
+  one round-trip drives both filter dropdowns.
+
+---
+
 ## Future / backlog
 
 Items that have been sketched but not started:
