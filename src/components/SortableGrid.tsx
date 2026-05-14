@@ -112,6 +112,10 @@ function SortableCard({ item, isDragGhost }: { item: CollectionItem; isDragGhost
     id: item.id,
     transition: { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
   });
+  // `block w-full min-w-0` keeps the wrapper bound to its grid column on
+  // drop. Without it, certain combinations of dnd-kit transforms +
+  // Tailwind's `select-none` were leaving the wrapper sized by intrinsic
+  // content (= bigger than the column) after the drag settled.
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -126,7 +130,7 @@ function SortableCard({ item, isDragGhost }: { item: CollectionItem; isDragGhost
       {...attributes}
       {...listeners}
       aria-roledescription="sortable item"
-      className={`group/sortable relative cursor-grab touch-none select-none active:cursor-grabbing ${
+      className={`group/sortable relative block w-full min-w-0 cursor-grab touch-none select-none active:cursor-grabbing ${
         isDragging ? 'opacity-30 saturate-50' : ''
       }`}
       onDragStart={(e) => e.preventDefault()}

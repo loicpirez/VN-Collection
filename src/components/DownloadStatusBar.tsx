@@ -35,10 +35,15 @@ interface Snapshot {
 /**
  * Sticky bottom-right indicator showing every in-flight VNDB fan-out job
  * plus the rate-limiter's current state (active / queued requests).
- * Polls /api/download-status every 1.5s while jobs are running, every
- * 10s otherwise. The popover lists every recent job with progress bars
- * and inlines any errors — so failures are visible to the user instead
- * of swallowed silently.
+ *
+ * Polling cadence:
+ *   - Active jobs / throttled requests: every 4s.
+ *   - Idle and the popover is closed: every 60s.
+ *   - Page hidden (visibility API) or document not focused: pause entirely.
+ *
+ * The previous 1.5s active / 10s idle pace flooded the server log during a
+ * bulk run (~40 GETs/min while the panel was hidden); the new pace keeps
+ * the live progress feel without spamming.
  *
  * Hidden entirely when no jobs are tracked and nothing is in flight.
  */
@@ -54,6 +59,13 @@ export function DownloadStatusBar() {
 
     const tick = async () => {
       if (!alive) return;
+      // Pause polling when the tab is hidden — the throttle / job state
+      // can't change without the user being present, so there's nothing
+      // to redraw. Resume on visibilitychange below.
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        timer = setTimeout(tick, 5_000);
+        return;
+      }
       try {
         const r = await fetch('/api/download-status', { cache: 'no-store' });
         if (r.ok) {
@@ -64,14 +76,32 @@ export function DownloadStatusBar() {
         // Network blips are fine, retry on the next tick.
       }
       if (!alive) return;
-      const active = data?.jobs.some((j) => j.finished_at == null) ?? false;
-      const delay = active || (data?.throttle.active ?? 0) > 0 ? 1500 : 10_000;
+      const active =
+        (data?.jobs.some((j) => j.finished_at == null) ?? false) ||
+        (data?.throttle.active ?? 0) > 0 ||
+        (data?.throttle.queued ?? 0) > 0;
+      // 4s when something is in flight (user actively sees progress),
+      // 60s when idle (we still want the bar to come alive if a background
+      // job starts, just not every couple seconds).
+      const delay = active ? 4_000 : 60_000;
       timer = setTimeout(tick, delay);
     };
     tick();
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        if (timer) clearTimeout(timer);
+        tick();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisible);
+    }
     return () => {
       alive = false;
       if (timer) clearTimeout(timer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisible);
+      }
     };
   }, [data]);
 

@@ -167,6 +167,52 @@ function shopUrl(raw: RawRow): string | null {
   return null;
 }
 
+/**
+ * Stream the resolved image content back to the caller instead of
+ * 302-redirecting. Shop CDNs (Suruga-ya, DMM, DLsite, Gyutto) live
+ * behind Cloudflare and Referer-based bot mitigations that can refuse
+ * cross-origin <img> loads from localhost, and the browser may also
+ * mixed-content-block http://-only fallbacks when this app runs over
+ * https. Proxying through the Node server sidesteps both classes of
+ * failure — the browser only ever talks to /api/egs-cover/<id>, gets
+ * the bytes back with a clean Content-Type, and renders.
+ *
+ * Local /api/files/<path> hits stay on the same origin so we 302 those
+ * directly; only the cross-origin paths fetch + pipe.
+ */
+async function proxyImage(target: string, origin: string): Promise<Response> {
+  if (target.startsWith(`${origin}/`) || target.startsWith('/')) {
+    const absolute = target.startsWith('/') ? `${origin}${target}` : target;
+    return NextResponse.redirect(absolute, 302);
+  }
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12_000);
+    const upstream = await fetch(target, {
+      method: 'GET',
+      signal: ctrl.signal,
+      redirect: 'follow',
+      headers: { 'User-Agent': 'Mozilla/5.0 vn-collection/1.0' },
+    }).finally(() => clearTimeout(timer));
+    if (!upstream.ok || !upstream.body) {
+      return new NextResponse(null, { status: 404 });
+    }
+    const ct = upstream.headers.get('content-type') ?? 'image/jpeg';
+    if (!ct.toLowerCase().startsWith('image/')) {
+      return new NextResponse(null, { status: 404 });
+    }
+    return new NextResponse(upstream.body, {
+      status: 200,
+      headers: {
+        'Content-Type': ct,
+        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+      },
+    });
+  } catch {
+    return new NextResponse(null, { status: 404 });
+  }
+}
+
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const egsId = Number(id);
@@ -179,11 +225,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const cached = readCached(cacheKey);
   if (cached === null) return new NextResponse(null, { status: 404 });
   if (typeof cached === 'string' && cached.length > 0) {
-    // Older cache entries may have stored a relative `/api/files/...`
-    // path. Re-anchor those to the current origin so the redirect stays
-    // absolute even after a deployment switch.
-    const target = cached.startsWith('/') ? `${origin}${cached}` : cached;
-    return NextResponse.redirect(target, 302);
+    return proxyImage(cached, origin);
   }
 
   const raw = await readRawWithFallback(egsId);
@@ -192,28 +234,29 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const banner = (raw.banner_url ?? '').trim();
   if (/^https?:\/\//i.test(banner)) {
     writeCached(cacheKey, banner, CACHE_TTL_MS);
-    return NextResponse.redirect(banner, 302);
+    return proxyImage(banner, origin);
   }
 
   // 2) VNDB cover via linked vn_id.
   const vndbUrl = vndbCoverFor(raw.vn_id, origin);
   if (vndbUrl) {
     writeCached(cacheKey, vndbUrl, CACHE_TTL_MS);
-    return NextResponse.redirect(vndbUrl, 302);
+    return proxyImage(vndbUrl, origin);
   }
 
   // 3) EGS image.php — probe, since it 404s often.
   const egsUrl = `${EGS_BASE}/image.php?game=${egsId}`;
   if (await probeImage(egsUrl)) {
     writeCached(cacheKey, egsUrl, CACHE_TTL_MS);
-    return NextResponse.redirect(egsUrl, 302);
+    return proxyImage(egsUrl, origin);
   }
 
-  // 4) First shop URL — unprobed, browser is the final arbiter.
+  // 4) First shop URL — proxy too, so Cloudflare / referer mitigations
+  // don't break the browser fetch.
   const shop = shopUrl(raw);
   if (shop) {
     writeCached(cacheKey, shop, CACHE_TTL_MS);
-    return NextResponse.redirect(shop, 302);
+    return proxyImage(shop, origin);
   }
 
   writeCached(cacheKey, null, NEGATIVE_TTL_MS);
