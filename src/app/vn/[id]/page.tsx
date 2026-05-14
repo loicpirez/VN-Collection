@@ -9,6 +9,7 @@ import {
   isInCollection,
   listActivityForVn,
   listGameLogForVn,
+  listListsForVn,
   listSeries,
   upsertVn,
 } from '@/lib/db';
@@ -37,6 +38,7 @@ import { SessionPanel } from '@/components/SessionPanel';
 import { FavoriteToggleButton } from '@/components/FavoriteToggleButton';
 import { ListsPickerButton } from '@/components/ListsPickerButton';
 import { CoverSourcePicker } from '@/components/CoverSourcePicker';
+import { VnListMemberships } from '@/components/VnListMemberships';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { AnimeChip } from '@/components/AnimeChip';
 import { CoverQuickActions } from '@/components/CoverQuickActions';
@@ -134,6 +136,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
   }
   const inCol = isInCollection(id);
   const allSeries = listSeries();
+  const listsForThisVn = listListsForVn(id);
   const status = (vn.status as Status | undefined) ?? null;
   const ratingNum = vn.rating != null ? (vn.rating / 10).toFixed(1) : '—';
   // Per-field source preference (VNDB or EGS) — pulled per-VN, defaults to VNDB.
@@ -257,6 +260,10 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                     ))}
                   </div>
                 )}
+                <VnListMemberships
+                  vnId={vn.id}
+                  lists={listsForThisVn.map((l) => ({ id: l.id, name: l.name, color: l.color }))}
+                />
               </div>
               {status && <StatusBadge status={status} />}
             </div>
