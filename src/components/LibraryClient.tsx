@@ -138,6 +138,11 @@ export function LibraryClient() {
   const [publishers, setPublishers] = useState<ProducerStat[]>([]);
   const [series, setSeries] = useState<SeriesRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Gates the empty-state copy so we never flash "no results" before
+  // at least one fetch has resolved. setLoading alone is not enough —
+  // a fast 0-result response would still show the empty state before
+  // the user sees the skeleton.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tagName, setTagName] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -186,8 +191,12 @@ export function LibraryClient() {
   }, [urlTag]);
 
   useEffect(() => {
+    // AbortController so rapid filter/sort/q changes cancel the
+    // in-flight request — better-sqlite3 is synchronous and N JSON
+    // parses per item make stacked requests genuinely expensive.
+    const ctrl = new AbortController();
     let alive = true;
-    if (refreshKey === 0) setLoading(true);
+    setLoading(true);
     setError(null);
     const params = new URLSearchParams();
     if (status) params.set('status', status);
@@ -202,7 +211,7 @@ export function LibraryClient() {
     if (urlQ) params.set('q', urlQ);
     params.set('sort', sort);
     params.set('order', order);
-    fetch(`/api/collection?${params}`)
+    fetch(`/api/collection?${params}`, { signal: ctrl.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json()).error || t.common.error);
         return r.json();
@@ -211,11 +220,16 @@ export function LibraryClient() {
         if (!alive) return;
         setItems(data.items);
         setStats(data.stats);
+        setHasLoadedOnce(true);
       })
-      .catch((e: Error) => alive && setError(e.message))
+      .catch((e: Error) => {
+        if (!alive || e.name === 'AbortError') return;
+        setError(e.message);
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
+      ctrl.abort();
     };
   }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlDumped, urlQ, sort, order, refreshKey, t.common.error]);
 
@@ -259,7 +273,6 @@ export function LibraryClient() {
   const urlHasNotes = searchParams.get('has_notes');
   const urlHasCustomCover = searchParams.get('has_custom_cover');
   const urlHasBanner = searchParams.get('has_banner');
-  const urlHasOwned = searchParams.get('has_owned');
   const urlIsFavorite = searchParams.get('is_favorite');
   const urlHasReleased = searchParams.get('has_released');
   const urlIsNsfw = searchParams.get('is_nsfw');
@@ -307,21 +320,15 @@ export function LibraryClient() {
         if (!ternaryMatches(urlIsFavorite, !!it.favorite)) return false;
         if (!ternaryMatches(urlHasReleased, !!it.released)) return false;
         if (!ternaryMatches(urlIsNsfw, isAdult(it))) return false;
-        // Nukige: a VN tagged "Nukige" on VNDB or rated hard on EGS's
-        // soft↔hard axis (≥ 4 out of 5). Tag name match is case-insensitive
-        // because VNDB capitalises it but locales vary.
+        // Nukige: a VN tagged "Nukige" on VNDB. Tag-name match is
+        // case-insensitive because VNDB capitalises it but locales
+        // vary. (The previous attempt also tried to match against
+        // an EGS `axis` field, but that field is never returned by
+        // the collection API — the branch was dead.)
         if (!ternaryMatches(
           urlIsNukige,
-          (it.tags ?? []).some((tag) => tag.name?.toLowerCase() === 'nukige') ||
-            (typeof it.egs?.median === 'number' &&
-              typeof (it.egs as unknown as { axis?: number }).axis === 'number' &&
-              ((it.egs as unknown as { axis?: number }).axis ?? 0) >= 4),
+          (it.tags ?? []).some((tag) => tag.name?.toLowerCase() === 'nukige'),
         )) return false;
-        // has_owned currently can't be filtered without joining owned_release;
-        // expose the checkbox but skip until we plumb the count through listCollection.
-        if (urlHasOwned === '1' || urlHasOwned === '0') {
-          // No data on the client yet — fall through (no-op). Future work.
-        }
         return true;
       }),
     [
@@ -335,7 +342,6 @@ export function LibraryClient() {
       urlHasNotes,
       urlHasCustomCover,
       urlHasBanner,
-      urlHasOwned,
       urlIsFavorite,
       urlHasReleased,
       urlIsNsfw,
@@ -622,7 +628,7 @@ export function LibraryClient() {
         </div>
       )}
 
-      {loading ? (
+      {loading || !hasLoadedOnce ? (
         <SkeletonCardGrid count={24} />
       ) : items.length === 0 ? (
         <div className="py-20 text-center">
@@ -966,32 +972,31 @@ function groupItems(
       }
     }
   }
-  // Group ordering follows the active sort key when it matches the group
-  // axis (sort=producer + group=producer → alphabetical groups, sort
-  // direction respected). Otherwise default to item-count descending so
-  // the biggest buckets stay on top.
+  // Group ordering policy:
+  //   - Group axis matches sort axis (producer+producer, publisher+
+  //     publisher): alphabetical by group label, honoring sort
+  //     direction.
+  //   - Series / tag groupings: always alphabetical (those axes
+  //     don't have a corresponding numeric sort).
+  //   - Everything else (status, publisher when sorted by something
+  //     unrelated): biggest bucket first.
+  // In all cases the "Other" bucket goes last.
   const groups = Array.from(map.values());
-  const axisMatch =
+  const sortAlphabetical =
     (group === 'producer' && sort === 'producer') ||
     (group === 'publisher' && sort === 'publisher') ||
-    (group === 'status' && sort === 'updated_at') === false && (group === 'status' && false);
-  if ((group === 'producer' && sort === 'producer')
-      || (group === 'publisher' && sort === 'publisher')
-      || (group === 'publisher')
-      || (group === 'series')
-      || (group === 'tag')) {
+    group === 'series' ||
+    group === 'tag';
+  if (sortAlphabetical) {
     groups.sort((a, b) => a.label.localeCompare(b.label));
     if (order === 'desc') groups.reverse();
-    // Always put the "Other" bucket last regardless of sort direction.
-    const otherIdx = groups.findIndex((g) => g.key === '__none__');
-    if (otherIdx !== -1) {
-      const [other] = groups.splice(otherIdx, 1);
-      groups.push(other);
-    }
-    return groups;
+  } else {
+    groups.sort((a, b) => b.items.length - a.items.length);
   }
-  // unused but kept to silence the unused-var when narrowing logic above
-  void axisMatch;
-  groups.sort((a, b) => b.items.length - a.items.length);
+  const otherIdx = groups.findIndex((g) => g.key === '__none__');
+  if (otherIdx !== -1) {
+    const [other] = groups.splice(otherIdx, 1);
+    groups.push(other);
+  }
   return groups;
 }

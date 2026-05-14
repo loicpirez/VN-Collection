@@ -157,6 +157,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  // Fail loudly when the row isn't there: silent success was masking
+  // stale optimistic-UI deletes and typo'd ids that would never tell
+  // the caller anything was wrong.
+  if (!isInCollection(id)) {
+    return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  }
   removeFromCollection(id);
   return NextResponse.json({ ok: true });
 }

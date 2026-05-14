@@ -2075,8 +2075,14 @@ export function listCollection({
     params.push(status);
   }
   if (q) {
-    where.push('(v.title LIKE ? OR v.alttitle LIKE ?)');
-    params.push(`%${q}%`, `%${q}%`);
+    // Escape SQL LIKE wildcards so a literal underscore or percent
+    // in the user query matches literally. Without this, typing
+    // `egs_` (a common synthetic-id prefix) matched every 4-char
+    // run after "egs" — the `_` was acting as a single-char
+    // wildcard. The ESCAPE clause makes `\` a literal-escape char.
+    const safe = q.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    where.push("(v.title LIKE ? ESCAPE '\\' OR v.alttitle LIKE ? ESCAPE '\\')");
+    params.push(`%${safe}%`, `%${safe}%`);
   }
   if (producer) {
     where.push("EXISTS (SELECT 1 FROM json_each(v.developers) WHERE json_extract(value, '$.id') = ?)");

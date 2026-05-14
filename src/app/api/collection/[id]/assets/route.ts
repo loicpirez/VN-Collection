@@ -105,6 +105,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       egs_warning: egsWarning,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message, egs_warning: egsWarning }, { status: 502 });
+    // 500 for local disk / DB / unexpected errors; 502 only when the
+    // failure is clearly an upstream issue (EgsUnreachable already
+    // captured into `egs_warning` above). The catch here covers DB
+    // writes, filesystem errors, schema bugs — none of which should
+    // be reported as "VNDB is down".
+    return NextResponse.json(
+      { error: (err as Error).message, egs_warning: egsWarning },
+      { status: 500 },
+    );
   }
 }
