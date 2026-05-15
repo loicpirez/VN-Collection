@@ -432,7 +432,7 @@ batch threads the distinction through every surface.
   EGS-linked VN in the collection with EGS median, EGS playtime,
   resolution source (`auto` / `manual` / `search`), plus the
   `EgsSyncBlock` for bulk pull.
-- Wired into `MoreNavMenu` Insights group alongside `/steam`.
+- Wired into `MoreNavMenu` Data & Stats group alongside `/steam`.
 - Wired into the `/data` page EGS section with an "Open EGS" CTA.
 
 ### G.7 Data page — emojis → lucide icons + Selective full download surface
@@ -442,6 +442,30 @@ batch threads the distinction through every surface.
 - Selective full download remains on `/data` under its own
   section with a `Download` icon — earlier hidden visually
   because it lacked a header icon.
+
+### G.8 Drag-and-drop shelf layout
+
+- New tables `shelf_unit(id, name, cols, rows, …)` +
+  `shelf_slot(shelf_id, row, col, vn_id, release_id, placed_at)`
+  with UNIQUE on `(vn_id, release_id)` (one slot per edition) and
+  PK on `(shelf_id, row, col)` (one edition per slot).
+- DB helpers: `listShelves`, `getShelf`, `createShelf`,
+  `renameShelf`, `resizeShelf` (returns evicted set when shrinking),
+  `deleteShelf`, `reorderShelves`, `listShelfSlots`,
+  `listUnplacedOwnedReleases`, `placeShelfItem` (handles swap
+  semantics atomically), `removeShelfPlacement`,
+  `getShelfPlacementForEdition`.
+- API: `GET /api/shelves[?pool=1]`, `POST /api/shelves`,
+  `PATCH /api/shelves` (reorder), `GET /api/shelves/[id]`,
+  `PATCH /api/shelves/[id]` (rename / resize),
+  `DELETE /api/shelves/[id]`, `POST /api/shelves/[id]/slots`
+  (place / swap), `DELETE /api/shelves/[id]/slots` (unplace).
+- Third tab on `/shelf?view=layout` renders the new
+  `<ShelfLayoutEditor>` (client component). DnD via @dnd-kit:
+  Pointer (6 px), Touch (150 ms long-press), Keyboard sensors.
+  Optimistic state with rollback on error.
+- Tour step `shelfLayout` added; nav entry stays under `/shelf`
+  (the layout is a sub-view, not a separate route).
 
 ## Batch H — backlog cleanup (2026-05-15) — shipped ✅
 
@@ -505,7 +529,35 @@ work, not aspirational. This batch closes every item except
   tests never touch real data. `tests/stubs/server-only.ts`
   stubs the Next.js `server-only` directive.
 - Coverage: shelf place / swap / resize / unplace semantics
-  + download-status pub/sub mutator chain. 18 / 18 passing.
+  + download-status pub/sub mutator chain + the drag-id parser.
+  Counter is intentionally omitted from this doc — it rolls fast.
+  Check the test runner output for the current number.
+
+---
+
+## Batches I / J / K / L — drag-id, audit waves, data hub polish (2026-05-15) — shipped ✅
+
+- **Batch I**: drag-id collision fix (`:` → `|`), per-route input
+  validation across the API surface, SSE coalescing, perf passes
+  on `listCollection`, and a sweep of a11y / focus-trap gaps.
+- **Batch J** (waves 1–7): security tightening (SSRF allowlist
+  guards on every remote fetch, manual-redirect on `proxyImage`,
+  CSRF `same-site` removed), perf reductions (`listDumpStatus`
+  subquery collapse, batched `getEgsForVns` /
+  `listSeriesForVnsMany`, `getAggregateStats` invalidation,
+  `staff_credit_index` / `character_vn_index` derived tables),
+  a11y + i18n cleanup (every tab strip wired as `role="tablist" /
+  "tab" / "tabpanel"`, all unicode glyphs replaced with Lucide,
+  hardcoded English strings + raw enum bleeds purged), `loading.tsx`
+  for every missing route, docs sweep.
+- **Batch K**: shared `toCardData` projection + `MemoCard` /
+  `CardInner` propagation across every grid (LibraryClient,
+  WishlistClient, RelationsSection, SortableGrid, SearchClient,
+  `/lists/[id]`, `/series/[id]`).
+- **Batch L**: `findBrandStaffOverlap` rewritten on top of the
+  index table; `downloadFullTraitsForVn` uses the same index +
+  the correct `char_full:%` cache-key prefix (previous code looked
+  for `character_full:%` which returned zero rows).
 
 ---
 
@@ -532,30 +584,6 @@ Upgraded `next` 15.1.6 → 16.2.6, `react` 19.0 → 19.2.6, `@types/react`
 - **Live smoke test passes**: GET `/data` 200, POST `/api/shelves`
   with JSON 200, with `text/plain` 415, cross-origin 403 — the CSRF
   proxy correctly fires in Node-runtime mode.
-
-### G.8 Drag-and-drop shelf layout
-
-- New tables `shelf_unit(id, name, cols, rows, …)` +
-  `shelf_slot(shelf_id, row, col, vn_id, release_id, placed_at)`
-  with UNIQUE on `(vn_id, release_id)` (one slot per edition) and
-  PK on `(shelf_id, row, col)` (one edition per slot).
-- DB helpers: `listShelves`, `getShelf`, `createShelf`,
-  `renameShelf`, `resizeShelf` (returns evicted set when shrinking),
-  `deleteShelf`, `reorderShelves`, `listShelfSlots`,
-  `listUnplacedOwnedReleases`, `placeShelfItem` (handles swap
-  semantics atomically), `removeShelfPlacement`,
-  `getShelfPlacementForEdition`.
-- API: `GET /api/shelves[?pool=1]`, `POST /api/shelves`,
-  `PATCH /api/shelves` (reorder), `GET /api/shelves/[id]`,
-  `PATCH /api/shelves/[id]` (rename / resize),
-  `DELETE /api/shelves/[id]`, `POST /api/shelves/[id]/slots`
-  (place / swap), `DELETE /api/shelves/[id]/slots` (unplace).
-- Third tab on `/shelf?view=layout` renders the new
-  `<ShelfLayoutEditor>` (client component). DnD via @dnd-kit:
-  Pointer (6 px), Touch (150 ms long-press), Keyboard sensors.
-  Optimistic state with rollback on error.
-- Tour step `shelfLayout` added; nav entry stays under `/shelf`
-  (the layout is a sub-view, not a separate route).
 
 ---
 

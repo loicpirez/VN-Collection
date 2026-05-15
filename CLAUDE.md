@@ -37,7 +37,7 @@ We optimise for the desktop power-user use case (large screens, mouse, French/En
 | Lint | `next lint` was removed in Next 16. No formal linter wired in yet; tsc + tests are the safety net. |
 | Proxy / middleware | The `middleware` filename was renamed to `proxy` in Next 16. CSRF guard lives at `src/proxy.ts` (Node.js runtime). |
 
-The sandbox runs `npm run build` to verify TypeScript + Next routes compile.
+The sandbox runs `yarn build` to verify TypeScript + Next routes compile.
 Always run it before declaring a change "done".
 
 ---
@@ -48,13 +48,13 @@ Always run it before declaring a change "done".
 vndb-collection/
 ├── data/                              # gitignored — SQLite + downloaded images
 │   ├── collection.db (+ .db-shm/.db-wal)
-│   └── storage/
+│   └── storage/                        # subdirs auto-created lazily on first write
 │       ├── vn/         (cover + thumb)
 │       ├── vn-sc/      (screenshots + release pkg artwork)
 │       ├── cover/      (user-uploaded custom cover/banner)
 │       ├── producer/   (publisher logos)
-│       └── series/     (series cover + banner, written by /api/series/[id]/image)
-├── public/                             # static, currently empty
+│       ├── series/     (series cover + banner, written by /api/series/[id]/image)
+│       └── character/  (VNDB character images mirrored by downloadCharacterImages)
 ├── src/
 │   ├── app/                            # Next.js App Router
 │   │   ├── layout.tsx                  # I18nProvider + DisplaySettings + nav + QuoteFooter
@@ -162,7 +162,7 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET | `/api/vndb/quote/random` | Random quote (TTL = 0, never cached) |
 | GET | `/api/vndb/cache` | Cache stats |
 | DELETE | `/api/vndb/cache` (`?mode=expired|prefix&prefix=…`) | Invalidate cache |
-| GET/PATCH | `/api/settings` | Read / update app settings (`vndb_token`, `random_quote_source`) |
+| GET/PATCH | `/api/settings` | Read / update app settings. SAFE_KEYS: `vndb_token`, `random_quote_source`, `default_sort`, `vndb_writeback`, `vndb_backup_url`, `vndb_backup_enabled`, `steam_api_key`, `steam_id`, `egs_username`, `vndb_fanout`. Sensitive keys (token / Steam key / backup URL) leave a tail in `app_setting_audit`. |
 | GET | `/api/wishlist` | Authenticated wishlist (ulist label 5) + in_collection + EGS hint |
 | DELETE | `/api/wishlist/[id]` | Remove a VN from VNDB wishlist (PATCH labels_unset=[5]) |
 | GET/POST/PATCH/DELETE | `/api/collection/[id]/owned-releases` | Per-edition inventory (location, edition_label, condition, price, dumped…) |
@@ -193,8 +193,13 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | POST | `/api/backup/restore` | DB / JSON import (multipart) |
 | GET | `/api/maintenance/duplicates` / `/api/maintenance/stale` | Diagnostics for the data-maintenance panel |
 | GET | `/api/places` | Distinct values seen in `owned_release.physical_location` |
-| GET | `/api/reading-goal` / `/api/reading-queue` / `/api/saved-filters` | Per-feature reads |
-| GET | `/api/series/[id]/image`, `/api/series/[id]/vn` | Series asset + collection list |
+| GET/POST | `/api/reading-goal` | Per-year target; POST upserts the row. |
+| GET/POST/DELETE/PATCH | `/api/reading-queue` | Personal "play next" queue; POST adds, DELETE removes, PATCH reorders. |
+| GET/POST/DELETE/PATCH | `/api/saved-filters` (+ `/[id]` for DELETE) | Pinned URL-param presets above the library filters. PATCH reorders. |
+| GET | `/api/egs/sync` | Suggestions table for the EGS reviews fan-out (paired with POST below) |
+| POST | `/api/egs/sync` | Apply EGS reviews / playtime sync for confirmed rows |
+| GET | `/api/series/[id]/image` | Series cover / banner asset |
+| GET/POST/DELETE | `/api/series/[id]/vn/[vnId]` | Per-VN series membership (POST link, DELETE unlink). |
 | POST | `/api/search/textual` | Server-side filtered text search |
 | POST | `/api/staff/[id]/download` | Trigger full VNDB credit-list fan-out for a staff profile |
 | GET | `/api/steam/library` / `POST /api/steam/link` / `POST /api/steam/sync` | Steam integration endpoints |
@@ -222,11 +227,17 @@ DBs upgrade transparently.
 ```
 vn               PK id           — VNDB id (v123)
                   title, alttitle, image_url, image_thumb, image_sexual, image_violence,
-                  released, olang, languages, platforms, length, length_minutes,
-                  rating, votecount, description,
-                  developers (JSON), tags (JSON), screenshots (JSON), release_images (JSON),
-                  local_image, local_image_thumb, custom_cover, banner_image,
+                  released, olang, devstatus, languages, platforms,
+                  length, length_minutes, length_votes,
+                  rating, votecount, average,
+                  description, titles (JSON), aliases (JSON), extlinks (JSON),
+                  developers (JSON), publishers (JSON), tags (JSON),
+                  screenshots (JSON), release_images (JSON), relations (JSON),
+                  has_anime, editions (JSON), staff (JSON), va (JSON),
+                  local_image, local_image_thumb, custom_cover, banner_image, banner_position,
                   raw (full VNDB payload), fetched_at
+                  — Most JSON columns are added via `ensureColumn` migrations
+                  so older DBs upgrade in place. See `db.ts` lines 351–422.
 
 collection       PK vn_id (FK→vn)
                   status, user_rating, playtime_minutes, started_date, finished_date,
@@ -245,7 +256,8 @@ vn_route         PK id (auto)
                   vn_id, name, completed, completed_date, order_index, notes,
                   created_at, updated_at
 
-character_image  PK char_id           — local mirror of EGS character covers
+character_image  PK character_id      — local mirror of VNDB character images
+                                       (populated by downloadCharacterImages())
                   url, local_path, fetched_at
 
 egs_game         PK vn_id (FK→vn)
@@ -272,22 +284,24 @@ series           PK id (auto)
 
 series_vn        PK (series_id, vn_id), order_index
 
-vn_quote         PK id (auto)
-                  vn_id (FK→vn), body, character_name, source, created_at
+vn_quote         PK quote_id
+                  vn_id, quote, score, character_id, character_name, fetched_at
+                  — Mirrors VNDB's `/quote` payload per VN.
 
-vn_staff_credit  PK (vn_id, sid, eid)
-                  role, name_override, note, ismain
+vn_staff_credit  no formal PK; indexed on (vn_id, sid)
+                  vn_id, sid, aid, eid, role, note, name, original, lang
                   — Materialized from vn.staff JSON for fast aggregate queries
 
-vn_va_credit     PK (vn_id, sid, c_id)
-                  note, name_override
+vn_va_credit     no formal PK; indexed on (vn_id, sid)
+                  vn_id, sid, aid, c_id, c_name, c_original, c_image_url,
+                  va_name, va_original, va_lang, note
                   — Joins vn ↔ staff ↔ character for the seiyuu page
 
 saved_filter     PK id (auto)
-                  name, url_params, pinned, order_index, created_at
+                  name, params, position, created_at
 
-reading_queue    PK id (auto)
-                  vn_id (FK→vn), order_index, added_at
+reading_queue    PK vn_id
+                  position, added_at
 
 reading_goal     PK year
                   target, updated_at
@@ -682,9 +696,72 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
   before data arrives as a recurring quality issue.
 
 ### Markdown
-- `MarkdownNotes` (editor) and `MarkdownView` (read-only) are exported from the
-  same file. Always pass plain user input — we strip BBCode (VNDB-style)
-  via a regex helper named `cleanDesc` / `stripBb` in the page that needs it.
+- `MarkdownNotes` (editor) is in `MarkdownNotes.tsx`; the heavy
+  `MarkdownView` (`react-markdown` + `remark-gfm`, ~100 kB gz) lives
+  in its own module and is `next/dynamic`-loaded so the bundle only
+  ships when the user opens the preview tab.
+
+### VNDB BBCode rendering
+- `<VndbMarkup>` in `src/components/VndbMarkup.tsx` is the single
+  source of truth for rendering VNDB-flavoured BBCode
+  (`[url=…]label[/url]`, `[b]`, `[i]`, `[u]`, `[s]`, `[spoiler]`,
+  autolinks, `\n` → `<br />`). URL hrefs are scheme-allowlisted
+  (http/https/mailto/relative) — `javascript:` / `data:` are
+  rewritten to `#`.
+- For plain-text needs (filter chips, search snippets) call
+  `stripVndbMarkup` from the same module. The inline `stripBb` regex
+  copies that used to live in 4 pages were removed.
+
+### Language codes
+- `lib/language-names.ts` maps VNDB language codes to display names
+  via `languageDisplayName(code)`. Lookup is case-insensitive; codes
+  unknown to the map fall back to the raw uppercase form. Replaces
+  the previous `LangFlag` Regional-Indicator-emoji rendering — every
+  surface now renders the `Globe` Lucide icon plus the localised
+  name.
+
+### Shared `CardData` projection
+- `src/components/cardData.ts` exports `toCardData` (and
+  `toCardDataLite` for partial rows). Every grid that renders
+  `<VnCard>` should call `toCardData(it)` instead of inlining
+  `data={{ id: it.id, … }}` — inline objects break the
+  `React.memo(VnCard)` shortcut whenever an unrelated parent state
+  ticks. The function is WeakMap-cached on the input row.
+
+### Drag-id parser
+- `src/lib/drag-id.ts` exposes `parseDragId` / `parseCellId` for
+  `@dnd-kit` ids. Both the shelf-layout editor and the unit tests
+  import directly from here — the test suite previously re-inlined
+  the parser and would silently pass while the source regressed.
+
+### Tap-target utility classes
+- `globals.css` ships `.tap-target` (±10 px invisible hit area) and
+  `.tap-target-tight` (±6 px) plus `.icon-chip`, `.tile`,
+  `.icon-btn`, `.pill` shared chip primitives. Use these on icon-
+  only buttons and any chip-shaped element so the bundle doesn't
+  ship the same long Tailwind class string 80+ times.
+
+### DB caching gotchas
+- `getAggregateStats` keeps a 30-second in-process cache.
+  `addToCollection` / `updateCollection` / `removeFromCollection`
+  call `invalidateAggregateStats()` to bust it; callers that mutate
+  outside those helpers should do the same.
+- Next.js 16's `images.minimumCacheTTL` defaults to **4 hours**.
+  `next.config.mjs` doesn't override it, so any future `<Image
+  src="…">` consumer of an external host gets at most 4h of
+  negative caching — long enough to matter when a fresh upload
+  "doesn't appear" until the TTL expires. The app currently routes
+  every external image through `<SafeImage>` (plain `<img>`) so
+  this default isn't exercised, but flag it if a user reports stale
+  external images after a Next 16 upgrade.
+
+### Lazy DB init
+- `lib/db.ts` exports `db = open()` at the top, but the heavy work
+  (mkdirSync, schema creation, migration block) only fires on first
+  module import via the `global.__vndb_db` singleton — under
+  Next.js semantics that's first-request-that-touches-the-module.
+  The DB path is built via string concatenation so Turbopack's NFT
+  tracer can't statically follow it into the project tree.
 
 ---
 
@@ -705,26 +782,22 @@ Two strict requirements:
 ```bash
 rm -f data/collection.db data/collection.db-shm data/collection.db-wal
 rm -rf data/storage
-npm run dev   # next time you GET /, the schema is recreated
+yarn dev   # next time you GET /, the schema is recreated
 ```
 
 ---
 
-## Smoke testing
+## Testing
 
-There is no Vitest/Jest yet. Manual smoke scripts live in `/tmp/`. The pattern is:
-
-```bash
-pkill -f next; sleep 1
-nohup npm start > /tmp/server.log 2>&1 &
-disown
-sleep 6
-# curl checks here
-pkill -f next
-```
-
-`npm run build` is the strongest single check — it runs full TypeScript +
-Next.js validation + page generation.
+- **Unit tests**: Vitest is wired up. Run with `yarn test` (one-shot) or
+  `yarn test:watch`. Test files live under `tests/` and each spec
+  isolates its DB via a per-worker temp directory configured by
+  `tests/setup.ts` (sets `DB_PATH` to a `mkdtemp` location).
+- **Smoke script**: `scripts/smoke.sh` starts a production server,
+  exercises a few high-traffic endpoints, and tears down.
+- **Build as the safety net**: `yarn build` runs full TypeScript +
+  Next.js validation + page generation — the strongest single check
+  and the closest emulation of production.
 
 ---
 
@@ -744,7 +817,7 @@ If you're an agent picking up mid-feature:
   into `db.ts`). The conventions in this guide still apply —
   `getDict()`, `SafeImage`, URL-state-over-`useState`, etc.
 - All routes accept their dynamic params via the async `params` /
-  `searchParams` shape from Next.js 15+ — `const { id } = await params`.
+  `searchParams` shape from Next.js 16 — `const { id } = await params`.
 
 New DB tables introduced by recent batches:
 
@@ -785,7 +858,7 @@ New DB tables introduced by recent batches:
 ---
 
 ## When in doubt
-- Run `npm run build`.
+- Run `yarn build`.
 - Read the relevant i18n key — if it's missing in EN/JA, add it.
 - Check that you used `<SafeImage>` for any new image.
 - Check that filters / sort / new state lives in the URL, not in `useState`.

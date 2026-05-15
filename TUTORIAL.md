@@ -160,7 +160,7 @@ Sections from top to bottom:
 - `/recommendations` (`g r`) — tag-seeded picks weighted by your top
   ratings. Toggle whether to include ero tags.
 - `/upcoming` (`g u`) — three tabs of "what's next":
-    1. **My collection** — future releases from publishers already in
+    1. **My collection** — future releases from developers already in
        your collection (default).
     2. **EGS anticipated** — top games on ErogameScape ranked by user
        purchase intent (`必ず購入 / 多分購入 / 様子見`), each cross-linked
@@ -281,8 +281,8 @@ Tabbed-style sections:
   VN's detail page.
 - **Tour** — `Run the tour again` if you closed it.
 - **Cache panel** — inspect / purge VNDB cache entries.
-- **Schema browser** — `/schema` (linked from the Insights nav
-  group) renders the VNDB `/schema` endpoint as a filterable
+- **Schema browser** — `/schema` (linked from the Data & Stats
+  nav group) renders the VNDB `/schema` endpoint as a filterable
   tree. Useful when you need to know "what language codes does
   VNDB support" or "what does devstatus=2 mean".
 

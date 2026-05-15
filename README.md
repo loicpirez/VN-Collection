@@ -13,7 +13,7 @@ SQL form for Japan-side ratings, brand info, and synopses. Both sources are
 ingested, cached locally, and can be combined or compared per-field.
 
 ![status](https://img.shields.io/badge/status-self--hosted-blue)
-![stack](https://img.shields.io/badge/stack-Next.js%2015%20·%20React%2019%20·%20SQLite-22c55e)
+![stack](https://img.shields.io/badge/stack-Next.js%2016%20·%20React%2019%20·%20SQLite-22c55e)
 ![locale](https://img.shields.io/badge/i18n-FR%20·%20EN%20·%20JA-f5c518)
 
 ---
@@ -388,16 +388,20 @@ from the navbar. Zero hardcoded user-facing string in components.
 git clone <this-repo>
 cd vndb-collection
 cp .env.example .env.local       # add your VNDB token (optional)
-npm install
-npm run dev                       # http://localhost:3000
+yarn install
+yarn dev                          # http://localhost:3000
 ```
 
 For production:
 
 ```bash
-npm run build
-npm start
+yarn build
+yarn start
 ```
+
+> The repo's `package.json` keeps a `package-lock.json` and a `yarn.lock`
+> side-by-side; the canonical tool is **yarn**. CI, CLAUDE.md and AGENTS.md
+> all assume yarn — pick the same locally to keep lockfiles consistent.
 
 The local DB lives at `./data/collection.db` (SQLite WAL).
 Downloaded images go under `./data/storage/`.
@@ -418,6 +422,18 @@ Visit <https://vndb.org/u/tokens> while logged in, generate one, then either:
 When both are set the DB value wins. The app works without a token
 (anonymous read access) but rate limits are tighter and the wishlist
 endpoint is gated behind authentication.
+
+**Credential hygiene.** The `VNDB_TOKEN` value sits in `.env.local`
+in plaintext. `.gitignore` covers the file, but the data archive
+(`./data/`) does not contain it. Before publishing the repo,
+sharing a backup zip, or screen-recording the project tree:
+
+- Rotate the token at <https://vndb.org/u/tokens>.
+- Confirm `.env.local` is not part of any export by running
+  `find . -name '.env.local' -not -path './node_modules/*'`.
+- The app also records token swaps in `app_setting_audit` (last-4
+  preview only) so unauthorised PATCHes to `/api/settings` leave a
+  trail visible in `/data → Settings → Recent changes`.
 
 ### ErogameScape
 

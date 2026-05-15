@@ -13,7 +13,9 @@ Pair with:
 > Status legend: ✅ shipped · 🧪 scaffolded (works but minimal) · 🚧 planned.
 
 > Tip: the in-app guided tour auto-opens on first visit and walks you
-> through the eight most important surfaces. Re-runnable from
+> through every major surface (15 steps covering library, search,
+> lists, recommend, upcoming, quotes, year, stats, shelf, shelf
+> layout, steam, EGS, dumped, data, VN detail). Re-runnable from
 > `/data → Tour`.
 
 ---
@@ -295,6 +297,15 @@ inline underneath each card. Thumbs come from
 `character_image.local_path` joined into `listStaffVaCredits`. Tap a
 character thumb to jump to `/character/[id]`. Synthetic `egs_*` VN
 cards suppress the VNDB external-link button (no `v` id to link).
+
+### Brand overlap ✅
+`/brand-overlap?a=p1&b=p2` answers "which staff / VA worked at both
+of these studios?". Two `<select>` pickers pull from `/api/producers`;
+the resolver narrows candidate sids via the `staff_credit_index`
+derived table (avoiding a full scan of every cached `staff_full:*`
+body), then sorts crossover rows by `aCredits.length +
+bCredits.length` descending. Roles render via the shared
+`roleLabel` helper so every locale gets translated role names.
 
 ### Series auto-detect ✅
 When the VN's VNDB relations include other in-collection entries, the
@@ -607,7 +618,7 @@ ErogameScape is wired with the same UX patterns as Steam:
 | --- | --- | --- |
 | Dedicated landing page | `/steam` | `/egs` |
 | Sync block | inline on `/steam` + `/data` | inline on `/egs` + `/data` |
-| Nav entry | Insights group | Insights group (`nav.egs`) |
+| Nav entry | Data & Stats group | Data & Stats group (`nav.egs`) |
 | Synthetic VN ids | n/a — Steam links to existing `v\d+` | `egs_<id>` — coexists everywhere |
 | Sort key | `steam_playtime` | `egs_playtime` |
 | Field-source toggle | n/a | per-field (description, cover, brand) |
@@ -678,9 +689,10 @@ nav collapses into a single hamburger sheet that lists every
 destination grouped by category.
 
 ### Tutorial tour ✅
-First-time visitors get a guided pass over the most important surfaces
-(library, search, VN detail, settings, stats). Re-runnable from
-`/data → Tour`.
+First-time visitors get a 15-step guided pass over the major surfaces:
+library, search, lists, recommendations, upcoming, quotes, year,
+stats, shelf, shelf layout, steam, EGS, dumped, data hub, and the VN
+detail page. Re-runnable from `/data → Tour`.
 
 ### Skeleton loading states ✅
 Every async section renders a layout-matching skeleton while loading —
@@ -939,7 +951,7 @@ filled.
 | `vn` | VNDB mirror, one row per VN id | id, title, alttitle, image_*, length_*, rating, tags JSON, relations JSON, staff JSON, va JSON, fetched_at |
 | `collection` | User-side state per VN | vn_id, status, user_rating, playtime_minutes, started/finished_date, notes, favorite, location, edition_*, physical_location JSON, custom_description |
 | `egs_game` | ErogameScape mirror, one row per VN | vn_id, egs_id, gamename, median, average, playtime_median_minutes, source, raw_json |
-| `producer` | VNDB producer mirror | id, name, original, lang, type, aliases JSON, extlinks JSON, logo_path |
+| `producer` | VNDB producer mirror | id, name, original, lang, type, description, aliases JSON, extlinks JSON, logo_path, fetched_at |
 | `series` / `series_vn` | VNDB-relation-aware groupings | series.id, series_vn.{series_id, vn_id, order_index} |
 | `user_list` | Universal user-curated lists | id, name, slug UNIQUE, description, color, icon, pinned, created_at, updated_at |
 | `user_list_vn` | List membership join | list_id FK, vn_id (no FK), order_index, added_at, note |
@@ -949,12 +961,18 @@ filled.
 | `vn_va_credit` | Indexed VA + character table | vn_id, sid, c_id, c_name, c_image_url, va_name |
 | `vn_activity` | Reading-log audit trail | id, vn_id, kind, payload JSON, occurred_at |
 | `vn_game_log` | Free-form timestamped journal | id, vn_id FK, note, logged_at, session_minutes, created_at, updated_at |
-| `owned_release` | Physical / digital inventory | id, vn_id, release_id, location, condition, price_paid, currency, photos JSON |
+| `owned_release` | Physical / digital inventory | composite PK (vn_id, release_id); columns: location, edition_label, condition, price_paid, currency, acquired_date, purchase_place, dumped, notes |
+| `character_image` | Local mirror of VNDB character images | character_id PK, local_path, original_url, fetched_at |
+| `shelf_unit` | One per "real shelf" the user models | id, name, cols, rows, order_index, created_at, updated_at |
+| `shelf_slot` | Sparse placement table (one row per occupied cell) | composite PK (shelf_id, row, col); UNIQUE(vn_id, release_id); FK on (vn_id, release_id) cascades from owned_release |
+| `staff_credit_index` | Derived index from `staff_full` cache | (sid, vn_id, is_va) — narrows brand-overlap scans before parsing JSON |
+| `character_vn_index` | Derived index from `char_full` cache | (character_id, vn_id) — narrows trait fan-out before parsing JSON |
+| `app_setting_audit` | Append-only audit log | id, key, prior_preview, next_preview, changed_at — last 4 chars only |
 | `vndb_cache` | HTTP cache for VNDB + EGS responses | cache_key, body, etag, last_modified, fetched_at, expires_at |
 | `app_setting` | Misc key/value store | key, value |
 | `saved_filter` | Saved filter combos | id, name, params, position |
 | `reading_goal` | Yearly goals | year, target |
-| `reading_queue` | Priority queue separate from Planning | vn_id, position, added_at |
+| `reading_queue` | Priority queue separate from Planning | vn_id PK, position, added_at |
 | `steam_link` | VN ↔ Steam appid map | vn_id, appid, steam_name, source, last_synced_minutes |
 
 Migrations are idempotent via `ensureColumn` / `CREATE TABLE IF NOT
