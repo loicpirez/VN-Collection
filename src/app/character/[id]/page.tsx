@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ExternalLink, Mic2, Users } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Mic2, Star, Users } from 'lucide-react';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
 import { findCharacterSiblings, getVasForCharacter } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
@@ -233,8 +233,12 @@ export default async function CharacterPage({
                   <div className="mt-1 text-[11px] text-muted">
                     {va.vns.length} {t.staff.vnCount}
                     {va.vns.some((v) => v.in_collection) && (
-                      <span className="ml-1 rounded bg-accent/15 px-1 text-[9px] font-bold uppercase tracking-wider text-accent">
-                        ★
+                      <span
+                        className="ml-1 inline-flex items-center rounded bg-accent/15 px-1 text-accent"
+                        aria-label={t.staff.ownedTitle}
+                        title={t.staff.ownedTitle}
+                      >
+                        <Star className="h-2.5 w-2.5 fill-accent" aria-hidden />
                       </span>
                     )}
                   </div>
@@ -280,7 +284,11 @@ export default async function CharacterPage({
                         <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">{v.alttitle}</div>
                       )}
                       <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
-                        {ratingDisplay && <span className="text-accent">★ {ratingDisplay}</span>}
+                        {ratingDisplay && (
+                          <span className="inline-flex items-center gap-0.5 text-accent">
+                            <Star className="h-2.5 w-2.5 fill-accent" aria-hidden /> {ratingDisplay}
+                          </span>
+                        )}
                         {year && <span>{year}</span>}
                       </div>
                     </div>

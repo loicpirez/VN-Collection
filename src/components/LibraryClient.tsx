@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Calendar, CheckSquare, ChevronDown, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Calendar, Check, CheckSquare, ChevronDown, Circle, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
 import { StatusIcon } from './StatusIcon';
@@ -838,8 +838,8 @@ function MoreFilters({
                   }`}
                   title={t.library.moreFilters.cycleHint}
                 >
-                  <span className="font-bold tabular-nums">
-                    {tone === 'yes' ? '✓' : tone === 'no' ? '✗' : '○'}
+                  <span className="inline-flex items-center justify-center" aria-hidden>
+                    {tone === 'yes' ? <Check className="h-3 w-3" /> : tone === 'no' ? <X className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
                   </span>
                   {label}
                 </button>

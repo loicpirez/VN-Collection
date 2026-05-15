@@ -382,7 +382,7 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
         <Field icon={<MapPin className="h-3 w-3" />} label={t.inventory.purchasePlace} value={edition.purchase_place} />
       )}
       {edition.dumped && (
-        <Field icon={<HardDriveDownload className="h-3 w-3" />} label={t.form.dumped} value="✓" valueClassName="text-accent" />
+        <Field icon={<HardDriveDownload className="h-3 w-3" />} label={t.form.dumped} value={t.common.yes} valueClassName="text-accent" />
       )}
       {edition.physical_location.length > 0 && (
         <div className="col-span-2 sm:col-span-3">

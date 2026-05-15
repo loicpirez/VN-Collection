@@ -109,7 +109,11 @@ export default async function StaffPage({
             )}
             <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
               {profile?.lang && <span>{profile.lang.toUpperCase()}</span>}
-              {gender && <span>{gender === 'f' ? '♀' : gender === 'm' ? '♂' : gender}</span>}
+              {gender && (
+                <span aria-label={t.staff.gender}>
+                  {gender === 'f' ? t.staff.genderF : gender === 'm' ? t.staff.genderM : gender}
+                </span>
+              )}
               <span>
                 {production.length} {t.staff.vnCount} · {t.staff.productionCredits.toLowerCase()}
               </span>

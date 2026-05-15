@@ -160,20 +160,20 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
           className="btn"
           onClick={() => applyField({ kind: 'favorite', value: true })}
           disabled={busy}
+          aria-label={t.bulkEdit.markFavorite}
           title={t.bulkEdit.markFavorite}
         >
-          <Heart className="h-4 w-4 fill-accent text-accent" />
-          ★
+          <Heart className="h-4 w-4 fill-accent text-accent" aria-hidden />
         </button>
         <button
           type="button"
           className="btn"
           onClick={() => applyField({ kind: 'favorite', value: false })}
           disabled={busy}
+          aria-label={t.bulkEdit.unmarkFavorite}
           title={t.bulkEdit.unmarkFavorite}
         >
-          <Heart className="h-4 w-4" />
-          ✕
+          <Heart className="h-4 w-4" aria-hidden />
         </button>
 
         <button

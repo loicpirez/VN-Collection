@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Sparkles, Star } from 'lucide-react';
 import { db } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
@@ -117,7 +117,7 @@ export default async function EgsPage() {
                     <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0 text-[11px] text-muted">
                       {l.median != null && (
                         <span className="text-accent">
-                          {(l.median / 100).toFixed(2)} ★
+                          <Star className="mr-0.5 inline h-3 w-3 fill-accent" aria-hidden /> {(l.median / 100).toFixed(2)}
                         </span>
                       )}
                       {l.playtime_minutes != null && l.playtime_minutes > 0 && (

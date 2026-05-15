@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check, CornerDownRight, ExternalLink, Sparkles } from 'lucide-react';
 import { getCharactersForTrait, getTrait, type VndbCharacter, type VndbTrait } from '@/lib/vndb';
 import { getCharacterImages, listInCollectionVnIds } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
@@ -153,9 +153,10 @@ export default async function TraitPage({
                         <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">{c.original}</div>
                       )}
                       {firstVn && (
-                        <div className="mt-1 line-clamp-1 text-[10px] text-muted">
-                          → {firstVn.title ?? firstVn.id}
-                          {owned && <span className="ml-1 text-accent">✓</span>}
+                        <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted">
+                          <CornerDownRight className="h-2.5 w-2.5" aria-hidden />
+                          <span className="line-clamp-1">{firstVn.title ?? firstVn.id}</span>
+                          {owned && <Check className="h-2.5 w-2.5 text-accent" aria-hidden />}
                         </div>
                       )}
                     </div>

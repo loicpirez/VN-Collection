@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Database as DbIcon, Loader2, Upload } from 'lucide-react';
+import { CheckCircle2, Database as DbIcon, Loader2, Upload } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
 
@@ -126,7 +126,9 @@ export function ImportPanel() {
       </div>
       {summary && summary.kind === 'json' && (
         <div className="mt-3 rounded-lg border border-border bg-bg-card p-3 text-left text-xs">
-          <p className="font-bold text-status-completed">✓ {t.dataMgmt.importDone}</p>
+          <p className="inline-flex items-center gap-1 font-bold text-status-completed">
+            <CheckCircle2 className="h-4 w-4" aria-hidden /> {t.dataMgmt.importDone}
+          </p>
           <ul className="mt-2 grid grid-cols-2 gap-1 text-muted">
             <li>VN: <b className="text-white">{summary.data.vns_upserted}</b></li>
             <li>Collection: <b className="text-white">{summary.data.collection_upserted}</b></li>

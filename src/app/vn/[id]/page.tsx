@@ -267,8 +267,13 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                           {tr.latin && tr.latin !== tr.title && (
                             <span className="ml-1 text-muted">({tr.latin})</span>
                           )}
-                          {!tr.official && <span className="ml-1 text-[9px] text-muted">· unoff.</span>}
-                          {tr.main && <span className="ml-1 text-[9px] font-bold text-accent">★</span>}
+                          {!tr.official && <span className="ml-1 text-[9px] text-muted">· {t.titles.unofficial}</span>}
+                          {tr.main && (
+                            <Star
+                              className="ml-1 inline h-2.5 w-2.5 fill-accent text-accent"
+                              aria-label={t.titles.main}
+                            />
+                          )}
                         </li>
                       ))}
                     </ul>

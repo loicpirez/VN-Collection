@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Loader2, RefreshCw, Save, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, Clock, Loader2, RefreshCw, Save, Sparkles, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
@@ -205,12 +205,21 @@ export function EgsSyncBlock() {
                 </Link>
                 <span className="text-[10px] text-muted">
                   {s.egs_minutes != null && s.egs_minutes > s.local_minutes && (
-                    <span className="mr-2">⏱ {fmtMin(s.local_minutes)} → {fmtMin(s.egs_minutes)}</span>
+                    <span className="mr-2 inline-flex items-center gap-1">
+                      <Clock className="h-3 w-3" aria-hidden /> {fmtMin(s.local_minutes)}
+                      <ArrowRight className="h-3 w-3" aria-hidden /> {fmtMin(s.egs_minutes)}
+                    </span>
                   )}
                   {s.egs_score != null && s.egs_score > 0 && s.local_rating == null && (
-                    <span className="mr-2">★ {s.egs_score}</span>
+                    <span className="mr-2 inline-flex items-center gap-1">
+                      <Star className="h-3 w-3 fill-accent" aria-hidden /> {s.egs_score}
+                    </span>
                   )}
-                  {s.egs_finish_date && <span className="mr-2">✓ {s.egs_finish_date}</span>}
+                  {s.egs_finish_date && (
+                    <span className="mr-2 inline-flex items-center gap-1">
+                      <Check className="h-3 w-3" aria-hidden /> {s.egs_finish_date}
+                    </span>
+                  )}
                 </span>
               </li>
             );

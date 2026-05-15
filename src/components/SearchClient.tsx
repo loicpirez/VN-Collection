@@ -22,7 +22,6 @@ interface EgsCandidate {
 const COMMON_LANGS = ['en', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'fr', 'de', 'es', 'it', 'ru'];
 const COMMON_PLATFORMS = ['win', 'lin', 'mac', 'ios', 'and', 'web', 'swi', 'ps4', 'ps5', 'psv', 'psp', 'xb1', 'xbs', 'n3d'];
 
-const LENGTH_LABELS = ['Very short', 'Short', 'Medium', 'Long', 'Very long'];
 
 interface AdvParams {
   langs: string[];
@@ -404,7 +403,7 @@ export function SearchClient() {
                         setAdv((s) => ({ ...s, lengthMin: n, lengthMax: n }));
                       }}
                     >
-                      {n} · {LENGTH_LABELS[n - 1]}
+                      {n} · {t.search.lengthLabels[n - 1] ?? ''}
                     </button>
                   );
                 })}

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertTriangle, Check, Package, Wrench } from 'lucide-react';
+import { AlertTriangle, Check, Package, Star, Wrench } from 'lucide-react';
 import { fetchProducerAssociations, type ProducerAssociations, type ProducerVnRef } from '@/lib/producer-associations';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from './SafeImage';
@@ -161,7 +161,11 @@ function RoleSection({
                   )}
                   <p className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
                     {v.released?.slice(0, 4) && <span>{v.released.slice(0, 4)}</span>}
-                    {v.rating != null && <span className="text-accent">★ {(v.rating / 10).toFixed(1)}</span>}
+                    {v.rating != null && (
+                      <span className="inline-flex items-center gap-0.5 text-accent">
+                        <Star className="h-2.5 w-2.5 fill-accent" aria-hidden /> {(v.rating / 10).toFixed(1)}
+                      </span>
+                    )}
                   </p>
                 </div>
               </Link>
