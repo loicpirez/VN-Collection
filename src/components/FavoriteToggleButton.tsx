@@ -96,9 +96,6 @@ export function FavoriteToggleButton({
     <button
       type="button"
       onClick={toggle}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') toggle(e);
-      }}
       disabled={busy}
       aria-pressed={on}
       aria-label={label}

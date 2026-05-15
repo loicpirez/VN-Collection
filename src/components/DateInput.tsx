@@ -140,41 +140,37 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
 
   return (
     <div ref={wrapperRef} className="relative flex flex-col gap-1">
-      <button
-        type="button"
-        id={id}
-        aria-label={ariaLabel}
-        onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center justify-between gap-2 ${className || 'input'}`}
-      >
-        <span className="inline-flex items-center gap-2">
+      {/*
+        Trigger + clear used to be a <span role="button"> nested
+        inside the outer <button>. Nested interactives are invalid
+        HTML and a11y trees ignore the inner one. Now: an outer
+        flex row with the picker button on the left and (when a
+        value is set) a real sibling <button> on the right.
+      */}
+      <div className={`inline-flex items-center justify-between gap-2 ${className || 'input'}`}>
+        <button
+          type="button"
+          id={id}
+          aria-label={ariaLabel}
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex flex-1 items-center gap-2 text-left"
+        >
           <Calendar className="h-4 w-4 text-muted" aria-hidden />
           <span className={value ? 'text-white' : 'text-muted/60'}>
             {formatted || t.dateInput.empty}
           </span>
-        </span>
+        </button>
         {value && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              clear();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                clear();
-              }
-            }}
-            className="inline-flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
+          <button
+            type="button"
+            onClick={clear}
             aria-label={t.dateInput.clear}
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
           >
-            <X className="h-3 w-3" />
-          </span>
+            <X className="h-3 w-3" aria-hidden />
+          </button>
         )}
-      </button>
+      </div>
 
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 w-[280px] rounded-xl border border-border bg-bg-card p-3 shadow-card">

@@ -73,21 +73,37 @@ export function CharactersSection({ vnId }: { vnId: string }) {
               const roleLabel = t.characters.roles[role as keyof typeof t.characters.roles] ?? role;
               const meta = ageString(c, t);
               return (
-                <Link
+                // Nested <Link> elements are invalid HTML (anchors
+                // can't contain anchors). Outer wrapper is now a
+                // styled <div> with a single linked title and the
+                // image is its own Link; trait chips below stay as
+                // their own Links without being nested inside the
+                // character link.
+                <div
                   key={c.id}
-                  href={`/character/${c.id}`}
                   className="flex gap-3 rounded-lg border border-border bg-bg-elev/50 p-3 transition-colors hover:border-accent"
                 >
-                  <SafeImage
-                    src={c.image?.url ?? null}
-                    localSrc={c.localImage ?? null}
-                    sexual={c.image?.sexual ?? null}
-                    alt={c.name}
-                    className="h-28 w-20 shrink-0 rounded-md"
-                  />
+                  <Link
+                    href={`/character/${c.id}`}
+                    className="shrink-0"
+                    aria-label={c.name}
+                  >
+                    <SafeImage
+                      src={c.image?.url ?? null}
+                      localSrc={c.localImage ?? null}
+                      sexual={c.image?.sexual ?? null}
+                      alt={c.name}
+                      className="h-28 w-20 rounded-md"
+                    />
+                  </Link>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <h4 className="truncate text-sm font-bold">{c.name}</h4>
+                      <Link
+                        href={`/character/${c.id}`}
+                        className="truncate text-sm font-bold hover:text-accent"
+                      >
+                        <h4 className="truncate">{c.name}</h4>
+                      </Link>
                       <span className="rounded-md bg-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">
                         {roleLabel}
                       </span>
@@ -107,8 +123,7 @@ export function CharactersSection({ vnId }: { vnId: string }) {
                             <Link
                               key={tr.id}
                               href={`/trait/${encodeURIComponent(tr.id)}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="rounded bg-bg px-1.5 py-0.5 text-[10px] text-muted transition-colors hover:bg-accent hover:text-bg"
+                              className="rounded bg-bg px-1.5 py-0.5 text-[11px] text-muted transition-colors hover:bg-accent hover:text-bg"
                             >
                               {tr.name}
                             </Link>
@@ -116,7 +131,7 @@ export function CharactersSection({ vnId }: { vnId: string }) {
                       </div>
                     )}
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>

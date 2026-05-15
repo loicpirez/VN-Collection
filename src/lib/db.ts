@@ -646,7 +646,18 @@ const upsertVnTx = db.transaction((vn: RawVnPayload) => {
       tags=excluded.tags, screenshots=excluded.screenshots, relations=excluded.relations,
       aliases=excluded.aliases, extlinks=excluded.extlinks,
       has_anime=excluded.has_anime, editions=excluded.editions, staff=excluded.staff, va=excluded.va,
-      raw=excluded.raw, fetched_at=excluded.fetched_at
+      raw=excluded.raw,
+      -- Monotonic fetched_at. A second writer with an OLDER timestamp
+      -- (concurrent refresh, retried import, slow VNDB response that
+      -- finished after a faster one) used to clobber the newer
+      -- timestamp and the data with it. Now the older write is a
+      -- no-op on every column.
+      fetched_at=CASE
+        WHEN excluded.fetched_at >= vn.fetched_at
+          THEN excluded.fetched_at
+          ELSE vn.fetched_at
+      END
+    WHERE excluded.fetched_at >= vn.fetched_at
   `).run({
     id: vn.id,
     title: vn.title,
@@ -675,18 +686,27 @@ const upsertVnTx = db.transaction((vn: RawVnPayload) => {
     average: vn.average ?? null,
     description: vn.description ?? null,
     developers: JSON.stringify((vn.developers ?? []).map((d) => ({ id: d.id, name: d.name }))),
-    tags: JSON.stringify(
-      (vn.tags ?? [])
-        .slice(0, 25)
-        .map((t) => ({
-          id: t.id,
-          name: t.name,
-          rating: t.rating,
-          spoiler: t.spoiler,
-          lie: !!t.lie,
-          category: t.category ?? null,
-        })),
-    ),
+    // Top-50 tags by rating-implicit order from VNDB. We do drop some
+    // VNs' long tail (a few popular VNs have 80+ applied tags), but
+    // the dropped tags are always the lowest-rated ones and we log
+    // when it happens so it's not invisible.
+    tags: (() => {
+      const all = (vn.tags ?? []).map((t) => ({
+        id: t.id,
+        name: t.name,
+        rating: t.rating,
+        spoiler: t.spoiler,
+        lie: !!t.lie,
+        category: t.category ?? null,
+      }));
+      const TAG_LIMIT = 50;
+      if (all.length > TAG_LIMIT) {
+        console.warn(
+          `[upsertVn] ${vn.id}: dropping ${all.length - TAG_LIMIT} tags (kept top ${TAG_LIMIT}).`,
+        );
+      }
+      return JSON.stringify(all.slice(0, TAG_LIMIT));
+    })(),
     screenshots: JSON.stringify(vn.screenshots ?? []),
     relations: JSON.stringify(
       (vn.relations ?? []).map((r) => ({

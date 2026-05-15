@@ -54,6 +54,12 @@ export function DownloadStatusBar() {
   const [dismissedFinished, setDismissedFinished] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    // Mount-only effect. Earlier versions listed `data` as a dep so
+    // every snapshot tore down and rebuilt the polling loop — which
+    // ALSO captured a stale `data` inside the closure when deciding
+    // the next tick interval. Both bugs fixed by:
+    //   1) keeping the effect to mount-only (empty deps)
+    //   2) reading the just-fetched snapshot directly to decide delay
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -66,20 +72,23 @@ export function DownloadStatusBar() {
         timer = setTimeout(tick, 5_000);
         return;
       }
+      let next: Snapshot | null = null;
       try {
         const r = await fetch('/api/download-status', { cache: 'no-store' });
         if (r.ok) {
-          const next = (await r.json()) as Snapshot;
+          next = (await r.json()) as Snapshot;
           if (alive) setData(next);
         }
       } catch {
         // Network blips are fine, retry on the next tick.
       }
       if (!alive) return;
+      // Decide the next cadence from the FRESH snapshot, not from the
+      // closure-captured `data` (which was always one render behind).
       const active =
-        (data?.jobs.some((j) => j.finished_at == null) ?? false) ||
-        (data?.throttle.active ?? 0) > 0 ||
-        (data?.throttle.queued ?? 0) > 0;
+        (next?.jobs.some((j) => j.finished_at == null) ?? false) ||
+        (next?.throttle.active ?? 0) > 0 ||
+        (next?.throttle.queued ?? 0) > 0;
       // 4s when something is in flight (user actively sees progress),
       // 60s when idle (we still want the bar to come alive if a background
       // job starts, just not every couple seconds).
@@ -103,7 +112,7 @@ export function DownloadStatusBar() {
         document.removeEventListener('visibilitychange', onVisible);
       }
     };
-  }, [data]);
+  }, []);
 
   const live = data?.jobs.filter((j) => j.finished_at == null) ?? [];
   const visibleFinished = (data?.jobs.filter((j) => j.finished_at != null && !dismissedFinished.has(j.id)) ?? []).slice(0, 6);

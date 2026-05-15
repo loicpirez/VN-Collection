@@ -125,21 +125,29 @@ export function SafeImage({
 
   return (
     <div ref={containerRef} className={`relative overflow-hidden ${className}`} style={style}>
+      {/* Omit the src attribute entirely until the element is in
+          view. Setting src=undefined caused some browsers to
+          interpret the prop as the document URL and issue a
+          spurious request for the host page. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={inView ? url : undefined}
-        alt={alt}
-        decoding="async"
-        // Once the observer says "in view" we want the network to start
-        // immediately, so `eager`. Priority images skip the observer
-        // entirely and also load eagerly from the first paint.
-        loading={priority || inView ? 'eager' : 'lazy'}
-        className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
-        onError={() => {
-          setErrored(true);
-          onLoadError?.();
-        }}
-      />
+      {inView ? (
+        <img
+          src={url}
+          alt={alt}
+          decoding="async"
+          loading={priority ? 'eager' : 'lazy'}
+          className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
+          onError={() => {
+            setErrored(true);
+            onLoadError?.();
+          }}
+        />
+      ) : (
+        <div
+          className={`h-full w-full bg-bg-elev/40 transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
+          aria-hidden
+        />
+      )}
       {shouldBlur && (
         <button
           type="button"

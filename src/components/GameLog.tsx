@@ -199,8 +199,9 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
               title={attachSession ? t.gameLog.attachedSessionNo : t.gameLog.attachedSession.replace('{n}', String(liveSessionMinutes))}
             >
               <Sparkles className="h-3 w-3" />
-              {(attachSession ? t.gameLog.attachedSession : t.gameLog.attachedSession)
-                .replace('{n}', String(liveSessionMinutes))}
+              {attachSession
+                ? t.gameLog.attachedSessionNo
+                : t.gameLog.attachedSession.replace('{n}', String(liveSessionMinutes))}
             </button>
           ) : null}
           <span className={`ml-auto text-[10px] ${remaining < 100 ? 'text-status-dropped' : 'text-muted'}`}>
