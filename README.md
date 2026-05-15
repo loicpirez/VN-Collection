@@ -432,7 +432,7 @@ table.
 
 | Layer | Choice | Why |
 | --- | --- | --- |
-| Framework | Next.js 15 (App Router) | Server actions + RSC + dynamic routes |
+| Framework | Next.js 16 (App Router) | Turbopack default, async request APIs, `proxy` convention |
 | UI | React 19, TailwindCSS 3.4 | No component library; fast iteration |
 | Icons | lucide-react | Tree-shakable, consistent style |
 | DB | better-sqlite3 11 | Sync, in-process, WAL, blazing fast |
@@ -453,7 +453,7 @@ No state library. No auth. No tracking.
                              │                            │
                              ▼  (cached, ETag-aware)      ▼  (cached, 24h TTL)
         ┌──────────────────────┐    ┌──────────────────────────────┐
-        │  Browser (React 19)  │◀──▶│ Next.js 15 server (Node 20+) │
+        │  Browser (React 19)  │◀──▶│ Next.js 16 server (Node 20.9+)│
         │  - URL-driven state  │    │  - /api/* routes             │
         │  - i18n (cookie)     │    │  - lib/vndb.ts               │
         │  - SafeImage         │    │  - lib/vndb-cache.ts         │

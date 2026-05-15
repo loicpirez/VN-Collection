@@ -27,12 +27,15 @@ We optimise for the desktop power-user use case (large screens, mouse, French/En
 | | |
 | --- | --- |
 | Runtime | Node 20+ |
-| Framework | **Next.js 15** App Router · React 19 · TypeScript strict |
+| Framework | **Next.js 16** App Router · React 19 · TypeScript strict |
 | Styling | **Tailwind 3.4**, no component lib, dark theme baked in `globals.css` |
 | Icons | **lucide-react** — never use unicode pictographs |
 | DB | **better-sqlite3 11**, sync, WAL, single file at `data/collection.db` |
 | Markdown | react-markdown + remark-gfm (notes only) |
 | Tests | Vitest (`yarn test` / `yarn test:watch`). Per-worker temp SQLite via `tests/setup.ts`. Smoke tests under `scripts/smoke.sh`. |
+| Next.js version | 16.x with Turbopack default. `next dev` writes to `.next/dev`, `next build` to `.next/`. Concurrent execution works. |
+| Lint | `next lint` was removed in Next 16. No formal linter wired in yet; tsc + tests are the safety net. |
+| Proxy / middleware | The `middleware` filename was renamed to `proxy` in Next 16. CSRF guard lives at `src/proxy.ts` (Node.js runtime). |
 
 The sandbox runs `npm run build` to verify TypeScript + Next routes compile.
 Always run it before declaring a change "done".
@@ -741,7 +744,7 @@ If you're an agent picking up mid-feature:
   into `db.ts`). The conventions in this guide still apply —
   `getDict()`, `SafeImage`, URL-state-over-`useState`, etc.
 - All routes accept their dynamic params via the async `params` /
-  `searchParams` shape from Next.js 15 — `const { id } = await params`.
+  `searchParams` shape from Next.js 15+ — `const { id } = await params`.
 
 New DB tables introduced by recent batches:
 

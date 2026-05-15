@@ -509,6 +509,30 @@ work, not aspirational. This batch closes every item except
 
 ---
 
+## Batch M — Next.js 16 upgrade (2026-05-15) — shipped ✅
+
+Upgraded `next` 15.1.6 → 16.2.6, `react` 19.0 → 19.2.6, `@types/react`
+19.0 → 19.2.14.
+
+- **`next/proxy` rename**: `src/middleware.ts` → `src/proxy.ts`; the
+  exported `middleware` function → `proxy`. Next.js 16 deprecated
+  the middleware convention.
+- **`next lint` removed**: dropped the `lint` script from
+  `package.json`. tsc + Vitest are the safety net until a flat-
+  config ESLint setup lands.
+- **Turbopack default**: `yarn build` now uses Turbopack out of the
+  box. `next.config.mjs` had no custom webpack config so no
+  migration needed.
+- **`.next/dev` split**: `next dev` writes to `.next/dev`, freeing
+  `.next/` for build artifacts. Existing `.next` `.gitignore` rule
+  covers both.
+- **No async-request-API codemod needed**: every route handler
+  already awaits `params` / `searchParams` (compliance landed in
+  batch H).
+- **Live smoke test passes**: GET `/data` 200, POST `/api/shelves`
+  with JSON 200, with `text/plain` 415, cross-origin 403 — the CSRF
+  proxy correctly fires in Node-runtime mode.
+
 ### G.8 Drag-and-drop shelf layout
 
 - New tables `shelf_unit(id, name, cols, rows, …)` +
