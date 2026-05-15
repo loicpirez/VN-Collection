@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
 interface DialogProps {
@@ -55,11 +55,24 @@ export function Dialog({
   const descId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const restoreFocusTo = useRef<HTMLElement | null>(null);
+  // Stash `onClose` in a ref so the effect doesn't re-run (and tear
+  // down the focus trap) every time a parent recreates the closure.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Capture the active element BEFORE React commits the dialog tree
+  // (in commit-time `useLayoutEffect`, not the post-paint `useEffect`)
+  // so that even legacy Safari + Portal interleavings still see the
+  // pre-open trigger as the focused element.
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (typeof document === 'undefined') return;
+    restoreFocusTo.current = document.activeElement as HTMLElement | null;
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     if (typeof document === 'undefined') return;
-    restoreFocusTo.current = document.activeElement as HTMLElement | null;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -77,7 +90,7 @@ export function Dialog({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && !disableEscape) {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -105,7 +118,7 @@ export function Dialog({
       // keyboard users land back on the trigger button.
       restoreFocusTo.current?.focus({ preventScroll: true });
     };
-  }, [open, onClose, disableEscape]);
+  }, [open, disableEscape]);
 
   if (!open) return null;
   if (typeof document === 'undefined') return null;
@@ -173,11 +186,23 @@ export function useDialogA11y({
   disableEscape?: boolean;
 }): void {
   const restoreFocusTo = useRef<HTMLElement | null>(null);
+  // Same trick as <Dialog> — keep the effect dependency list small
+  // so an unstable `onClose` reference doesn't tear down the trap.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Commit-time capture so the eventual focus restoration always
+  // returns to the trigger that was actually focused at the moment
+  // the consumer flipped `open` to true.
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (typeof document === 'undefined') return;
+    restoreFocusTo.current = document.activeElement as HTMLElement | null;
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     if (typeof document === 'undefined') return;
-    restoreFocusTo.current = document.activeElement as HTMLElement | null;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -193,7 +218,7 @@ export function useDialogA11y({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && !disableEscape) {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -218,5 +243,5 @@ export function useDialogA11y({
       document.body.style.overflow = prevOverflow;
       restoreFocusTo.current?.focus({ preventScroll: true });
     };
-  }, [open, onClose, panelRef, disableEscape]);
+  }, [open, panelRef, disableEscape]);
 }

@@ -101,9 +101,11 @@ export function GroupedNav() {
       </nav>
       <button
         type="button"
-        className="md:hidden inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-bg-card hover:text-white"
+        className="tap-target md:hidden inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-bg-card hover:text-white"
         onClick={() => setMobileOpen(true)}
         aria-label={t.nav.openMenu}
+        aria-expanded={mobileOpen}
+        aria-haspopup="dialog"
       >
         <Menu className="h-5 w-5" aria-hidden />
       </button>
@@ -138,19 +140,37 @@ function NavLink({ href, label, icon: Icon }: NavItem) {
 function NavGroup({ label, items, icon: Icon }: { label: string; items: NavItem[]; icon?: LucideIcon }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuId = useId();
   useEffect(() => {
     if (!open) return;
     function outside(e: MouseEvent) {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     }
-    function escape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
+    function key(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+      const items = Array.from(
+        ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+      );
+      if (items.length === 0) return;
+      const idx = items.indexOf(document.activeElement as HTMLElement);
+      let next: HTMLElement | undefined;
+      if (e.key === 'Home') next = items[0];
+      else if (e.key === 'End') next = items[items.length - 1];
+      else if (e.key === 'ArrowDown') next = items[(idx + 1 + items.length) % items.length] ?? items[0];
+      else next = items[(idx - 1 + items.length) % items.length] ?? items[items.length - 1];
+      e.preventDefault();
+      next?.focus();
     }
     window.addEventListener('mousedown', outside);
-    window.addEventListener('keydown', escape);
+    window.addEventListener('keydown', key);
     return () => {
       window.removeEventListener('mousedown', outside);
-      window.removeEventListener('keydown', escape);
+      window.removeEventListener('keydown', key);
     };
   }, [open]);
   return (
@@ -159,20 +179,28 @@ function NavGroup({ label, items, icon: Icon }: { label: string; items: NavItem[
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-bg-card hover:text-white"
+        aria-haspopup="menu"
+        aria-controls={menuId}
+        className="tap-target inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-bg-card hover:text-white"
       >
         {Icon && <Icon className="h-4 w-4" aria-hidden />}
         {label}
         <ChevronDown className="h-3 w-3" aria-hidden />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-40 mt-1 w-56 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card">
+        <div
+          id={menuId}
+          role="menu"
+          aria-label={label}
+          className="absolute left-0 top-full z-40 mt-1 w-56 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
+        >
           {items.map((item) => (
             <Link
               key={item.href}
               href={item.href}
+              role="menuitem"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-muted hover:bg-bg-elev hover:text-white"
+              className="tap-target flex items-center gap-2 rounded-md px-2 py-1.5 text-muted hover:bg-bg-elev hover:text-white"
             >
               <item.icon className="h-4 w-4" aria-hidden />
               {item.label}
@@ -214,7 +242,7 @@ function MobileSheet({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-muted hover:text-white"
+            className="tap-target-tight rounded-md p-1 text-muted hover:text-white"
             aria-label={t.common.close}
           >
             <X className="h-4 w-4" aria-hidden />

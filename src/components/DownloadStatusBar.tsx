@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { AlertTriangle, Cloud, CloudDownload, X } from 'lucide-react';
+import { useEffect, useId, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Cloud, CloudDownload, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 interface JobError {
@@ -51,6 +51,7 @@ export function DownloadStatusBar() {
   const t = useT();
   const [data, setData] = useState<Snapshot | null>(null);
   const [open, setOpen] = useState(false);
+  const popoverId = useId();
   const [dismissedFinished, setDismissedFinished] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -185,7 +186,10 @@ export function DownloadStatusBar() {
     // Anchored bottom-right above the QuoteFooter (which lives at bottom-0
     // and grows to ~112px on hover — `bottom-32` clears the expanded
     // height). Popover opens upward so it stays inside the viewport.
-    <div className="fixed bottom-5 right-2 z-40 flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 sm:right-4 sm:max-w-sm">
+    <div
+      className="fixed bottom-5 right-2 z-40 flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 sm:right-4 sm:max-w-sm"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       {retryingNow && (
         <div className="rounded-md border border-status-on_hold/60 bg-status-on_hold/10 px-3 py-2 text-[11px] text-status-on_hold shadow-card">
           <div className="flex items-center gap-1.5 font-bold">
@@ -200,7 +204,7 @@ export function DownloadStatusBar() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`group flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold shadow-card transition-colors ${
+        className={`tap-target group flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold shadow-card transition-colors ${
           retryingNow
             ? 'border-status-on_hold/60 bg-status-on_hold/15 text-status-on_hold'
             : live.length > 0
@@ -210,6 +214,9 @@ export function DownloadStatusBar() {
                 : 'border-border bg-bg-card text-muted hover:text-white'
         }`}
         aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-controls={popoverId}
+        aria-label={t.downloadStatus.title}
       >
         {retryingNow ? (
           <AlertTriangle className="h-3.5 w-3.5" />
@@ -234,7 +241,12 @@ export function DownloadStatusBar() {
         )}
       </button>
       {open && (
-        <div className="absolute bottom-full right-0 mb-2 w-[min(92vw,24rem)] max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card">
+        <div
+          id={popoverId}
+          role="dialog"
+          aria-label={t.downloadStatus.title}
+          className="absolute bottom-full right-0 mb-2 w-[min(92vw,24rem)] max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card"
+        >
           <header className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[11px] font-bold uppercase tracking-widest text-muted">
               {t.downloadStatus.title}
@@ -242,10 +254,10 @@ export function DownloadStatusBar() {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded text-muted hover:text-white"
+              className="tap-target-tight rounded text-muted hover:text-white"
               aria-label={t.common.close}
             >
-              <X className="h-3 w-3" />
+              <X className="h-3 w-3" aria-hidden />
             </button>
           </header>
           <p className="mb-3 text-[10px] text-muted">
@@ -258,15 +270,30 @@ export function DownloadStatusBar() {
             {[...live, ...visibleFinished].map((j) => {
               const pct = j.total === 0 ? 0 : Math.round((j.done / j.total) * 100);
               const finished = j.finished_at != null;
+              const stateIcon = finished
+                ? j.errors.length > 0
+                  ? <AlertTriangle className="h-3 w-3 shrink-0 text-status-dropped" aria-label={t.downloadStatus.kindError} />
+                  : <CheckCircle2 className="h-3 w-3 shrink-0 text-status-completed" aria-label={t.downloadStatus.kindDone} />
+                : <CloudDownload className="h-3 w-3 shrink-0 animate-pulse text-accent" aria-label={t.downloadStatus.kindRunning} />;
               return (
                 <li key={j.id} className="rounded-md border border-border bg-bg-elev/30 p-2">
                   <div className="flex items-baseline justify-between gap-2 text-[11px]">
-                    <span className="truncate font-semibold">{labelKind(j.kind)} · {j.label}</span>
+                    <span className="inline-flex min-w-0 items-center gap-1 truncate font-semibold">
+                      {stateIcon}
+                      {labelKind(j.kind)} · {j.label}
+                    </span>
                     <span className="shrink-0 text-[10px] text-muted">
                       {j.done}/{j.total}
                     </span>
                   </div>
-                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-bg-elev">
+                  <div
+                    role="progressbar"
+                    aria-valuenow={j.done}
+                    aria-valuemin={0}
+                    aria-valuemax={j.total || 1}
+                    aria-label={`${labelKind(j.kind)} · ${j.label}`}
+                    className="mt-1 h-1.5 w-full overflow-hidden rounded bg-bg-elev"
+                  >
                     <div
                       className={`h-full transition-[width] ${
                         finished

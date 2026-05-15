@@ -4,6 +4,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -145,6 +146,9 @@ function ConfirmDialog({
   onClose: (ok: boolean) => void;
 }) {
   const t = useT();
+  const titleId = useId();
+  const bodyId = useId();
+  const typeHintId = useId();
   const [typed, setTyped] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
@@ -200,8 +204,8 @@ function ConfirmDialog({
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="confirm-dialog-title"
-      aria-describedby="confirm-dialog-body"
+      aria-labelledby={titleId}
+      aria-describedby={bodyId}
       className="fixed inset-0 z-[1200] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
       onClick={() => onClose(false)}
     >
@@ -212,7 +216,7 @@ function ConfirmDialog({
       >
         <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
           <h2
-            id="confirm-dialog-title"
+            id={titleId}
             className={`inline-flex items-center gap-2 text-sm font-bold ${
               danger ? 'text-status-dropped' : 'text-white'
             }`}
@@ -224,20 +228,20 @@ function ConfirmDialog({
             type="button"
             onClick={() => onClose(false)}
             aria-label={t.common.close}
-            className="rounded text-muted hover:text-white"
+            className="tap-target-tight rounded text-muted hover:text-white"
           >
             <X className="h-4 w-4" aria-hidden />
           </button>
         </header>
         <p
-          id="confirm-dialog-body"
+          id={bodyId}
           className="whitespace-pre-wrap px-4 py-3 text-sm text-white/90"
         >
           {entry.message}
         </p>
         {needsTyping && (
           <div className="px-4 pb-3">
-            <label className="block text-xs text-muted">
+            <label id={typeHintId} className="block text-xs text-muted">
               {t.common.confirmTypeHint.replace('{token}', entry.requireTyping ?? '')}
             </label>
             <input
@@ -245,7 +249,7 @@ function ConfirmDialog({
               className="input mt-1 w-full"
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
-              aria-label={t.common.confirmTypeHint.replace('{token}', entry.requireTyping ?? '')}
+              aria-labelledby={typeHintId}
             />
           </div>
         )}
@@ -285,6 +289,8 @@ function PromptDialog({
   onClose: (value: string | null) => void;
 }) {
   const t = useT();
+  const titleId = useId();
+  const errorId = useId();
   const [value, setValue] = useState(entry.initial ?? '');
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -341,7 +347,7 @@ function PromptDialog({
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="prompt-dialog-title"
+      aria-labelledby={titleId}
       className="fixed inset-0 z-[1200] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
       onClick={() => onClose(null)}
     >
@@ -351,14 +357,14 @@ function PromptDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-          <h2 id="prompt-dialog-title" className="text-sm font-bold text-white">
+          <h2 id={titleId} className="text-sm font-bold text-white">
             {entry.title ?? entry.message ?? t.common.confirmTitle}
           </h2>
           <button
             type="button"
             onClick={() => onClose(null)}
             aria-label={t.common.close}
-            className="rounded text-muted hover:text-white"
+            className="tap-target-tight rounded text-muted hover:text-white"
           >
             <X className="h-4 w-4" aria-hidden />
           </button>
@@ -381,11 +387,12 @@ function PromptDialog({
               value={value}
               placeholder={entry.placeholder ?? ''}
               onChange={(e) => setValue(e.target.value)}
+              aria-label={entry.title ?? entry.message ?? t.common.confirmTitle}
               aria-invalid={!!validationError || undefined}
-              aria-describedby={validationError ? 'prompt-dialog-error' : undefined}
+              aria-describedby={validationError ? errorId : undefined}
             />
             {validationError && (
-              <p id="prompt-dialog-error" className="mt-1 text-[11px] text-status-dropped">
+              <p id={errorId} className="mt-1 text-[11px] text-status-dropped">
                 {validationError}
               </p>
             )}

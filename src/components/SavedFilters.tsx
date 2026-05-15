@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Bookmark, BookmarkPlus, ChevronDown, Loader2, Pin, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -30,6 +30,7 @@ export function SavedFilters() {
   const [nameOpen, setNameOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const popoverId = useId();
 
   useEffect(() => {
     load();
@@ -112,7 +113,9 @@ export function SavedFilters() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`inline-flex items-center gap-1.5 rounded-md border bg-bg-elev/40 px-2 py-1 text-[11px] ${
+        aria-haspopup="menu"
+        aria-controls={popoverId}
+        className={`tap-target inline-flex items-center gap-1.5 rounded-md border bg-bg-elev/40 px-2 py-1 text-[11px] ${
           active ? 'border-accent text-accent' : 'border-border text-muted hover:border-accent hover:text-accent'
         }`}
         title={t.savedFilters.title}
@@ -123,7 +126,12 @@ export function SavedFilters() {
         <ChevronDown className="h-3 w-3" aria-hidden />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-[min(92vw,18rem)] rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card">
+        <div
+          id={popoverId}
+          role="menu"
+          aria-label={t.savedFilters.title}
+          className="absolute left-0 top-full z-30 mt-1 w-[min(92vw,18rem)] rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card"
+        >
           {filters.length === 0 ? (
             <p className="px-1 py-1 text-muted">{t.savedFilters.popoverEmpty}</p>
           ) : (
@@ -151,9 +159,9 @@ export function SavedFilters() {
                       onClick={() => remove(f.id)}
                       disabled={busy === `del-${f.id}`}
                       aria-label={t.common.delete}
-                      className="rounded text-muted hover:text-status-dropped"
+                      className="tap-target-tight rounded text-muted hover:text-status-dropped"
                     >
-                      {busy === `del-${f.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                      {busy === `del-${f.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" aria-hidden />}
                     </button>
                   </li>
                 );
@@ -179,6 +187,7 @@ export function SavedFilters() {
                 onChange={(e) => setDraftName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setNameOpen(false); }}
                 placeholder={t.savedFilters.namePlaceholder}
+                aria-label={t.savedFilters.namePlaceholder}
                 className="input w-full py-1 text-xs"
                 maxLength={60}
               />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
@@ -53,11 +53,13 @@ export function SchemaBrowser({ schema }: Props) {
     <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
       <label className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-bg px-2 py-1.5 text-sm">
         <Search className="h-4 w-4 text-muted" aria-hidden />
+        <span className="sr-only">{t.schemaPage.filterPlaceholder}</span>
         <input
           type="search"
           value={rawQuery}
           onChange={(e) => setRawQuery(e.target.value)}
           placeholder={t.schemaPage.filterPlaceholder}
+          aria-label={t.schemaPage.filterPlaceholder}
           className="flex-1 bg-transparent outline-none"
         />
       </label>
@@ -147,6 +149,21 @@ function Node({
   const inMatchTree = hasFilter && visiblePaths?.has(path);
   const open = openLocal || !!inMatchTree;
 
+  // When a filter goes from non-empty back to empty, promote the
+  // filter-driven open state into the local toggle so the user
+  // doesn't see every previously-matched branch suddenly collapse.
+  const prevHadFilter = useRef(hasFilter);
+  useEffect(() => {
+    if (prevHadFilter.current && !hasFilter && inMatchTree && !openLocal) {
+      setOpenLocal(true);
+    }
+    prevHadFilter.current = hasFilter;
+    // inMatchTree is derived from `hasFilter` + `visiblePaths`; the
+    // intent is "react when the filter clears", not when the tree
+    // contents shift, so we only depend on hasFilter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasFilter]);
+
   if (hasFilter && !inMatchTree) return null;
 
   const isObject = v !== null && typeof v === 'object';
@@ -161,9 +178,16 @@ function Node({
     );
   }
 
-  const entries = Array.isArray(v)
-    ? v.map((item, i) => [String(i), item] as const)
-    : Object.entries(v as Record<string, unknown>);
+  // Cheap count for the closed-state badge; full entry materialisation
+  // is deferred until the node is actually expanded.
+  const entryCount = Array.isArray(v)
+    ? v.length
+    : Object.keys(v as Record<string, unknown>).length;
+  const entries = open
+    ? Array.isArray(v)
+      ? v.map((item, i) => [String(i), item] as const)
+      : Object.entries(v as Record<string, unknown>)
+    : [];
 
   return (
     <li style={indent}>
@@ -172,11 +196,12 @@ function Node({
         onClick={() => setOpenLocal((o) => !o)}
         className="inline-flex items-center gap-1 text-left text-muted hover:text-white"
         aria-expanded={open}
+        aria-label={k}
       >
         {open ? <ChevronDown className="h-3 w-3" aria-hidden /> : <ChevronRight className="h-3 w-3" aria-hidden />}
         <KeyChip k={k} filter={filter} />
-        <span className="text-[10px] text-muted/60">
-          {Array.isArray(v) ? `[${entries.length}]` : `{${entries.length}}`}
+        <span className="text-[10px] text-muted/60" aria-hidden>
+          {Array.isArray(v) ? `[${entryCount}]` : `{${entryCount}}`}
         </span>
       </button>
       {open && (

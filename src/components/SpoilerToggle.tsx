@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Eye, EyeOff, Settings2, ShieldAlert } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
@@ -27,6 +27,7 @@ export function SpoilerToggle() {
   const { settings, set } = useDisplaySettings();
   const [open, setOpen] = useState(false);
   const popRef = useRef<HTMLDivElement | null>(null);
+  const popoverId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -65,17 +66,19 @@ export function SpoilerToggle() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-bg-card px-2 text-xs font-semibold text-muted hover:text-white"
+        className="tap-target inline-flex h-11 items-center gap-1.5 rounded-lg border border-border bg-bg-card px-2 text-xs font-semibold text-muted hover:text-white"
         title={t.contentControls.title}
-        aria-haspopup="true"
+        aria-haspopup="dialog"
         aria-expanded={open}
+        aria-controls={popoverId}
         aria-label={t.contentControls.title}
       >
-        {lit ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+        {lit ? <Eye className="h-3.5 w-3.5" aria-hidden /> : <EyeOff className="h-3.5 w-3.5" aria-hidden />}
         <span>{labelByLevel[settings.spoilerLevel]}</span>
       </button>
       {open && (
         <div
+          id={popoverId}
           className="absolute right-0 top-full z-40 mt-1 w-[min(95vw,20rem)] rounded-lg border border-border bg-bg-card p-3 shadow-card"
           role="dialog"
           aria-label={t.contentControls.title}
@@ -184,17 +187,21 @@ function RowToggle({
   value: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const labelId = useId();
+  const hintId = useId();
   return (
     <button
       type="button"
       role="switch"
       aria-checked={value}
+      aria-labelledby={labelId}
+      aria-describedby={hintId}
       onClick={() => onChange(!value)}
       className="flex w-full items-start justify-between gap-2 rounded-md border border-border bg-bg-elev/40 px-2 py-1.5 text-left hover:border-accent/40"
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-xs font-semibold">{label}</span>
-        <span className="block text-[10px] text-muted">{hint}</span>
+        <span id={labelId} className="block text-xs font-semibold">{label}</span>
+        <span id={hintId} className="block text-[10px] text-muted">{hint}</span>
       </span>
       <span
         className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors ${

@@ -1,9 +1,10 @@
 'use client';
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { Download, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
+import { ArrowRight, Download, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
@@ -179,30 +180,23 @@ export function SettingsButton() {
     return () => window.removeEventListener('vn:open-settings', onOpen);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  // ESC handling, body-scroll lock, and focus trap are owned by
+  // `useDialogA11y` above; the duplicate handler that used to live
+  // here ran a second ESC listener and a second `body.overflow`
+  // toggle whose teardown could undo the trap's own restoration.
 
   return (
     <>
       <button
         type="button"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-bg-card text-muted hover:text-white"
+        className="tap-target inline-flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-bg-card text-muted hover:text-white"
         onClick={() => setOpen(true)}
         aria-label={t.settings.title}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         title={t.settings.title}
       >
-        <Settings2 className="h-4 w-4" />
+        <Settings2 className="h-4 w-4" aria-hidden />
       </button>
 
       {mounted && open
@@ -223,11 +217,11 @@ export function SettingsButton() {
               >
                 <button
                   type="button"
-                  className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-bg-elev hover:text-white"
+                  className="tap-target absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-bg-elev hover:text-white"
                   onClick={() => setOpen(false)}
                   aria-label={t.common.close}
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-4 w-4" aria-hidden />
                 </button>
                 <h2 id={titleId} className="mb-1 text-lg font-bold">{t.settings.title}</h2>
                 <p className="mb-5 text-xs text-muted">{t.settings.subtitle}</p>
@@ -367,11 +361,13 @@ export function SettingsButton() {
                             <ul className="max-h-48 space-y-0.5 overflow-y-auto">
                               {pullDiff.changes.map((c) => (
                                 <li key={c.vn_id} className="flex items-center justify-between gap-2">
-                                  <a href={`/vn/${c.vn_id}`} target="_blank" rel="noopener noreferrer" className="truncate hover:text-accent">
+                                  <Link href={`/vn/${c.vn_id}`} target="_blank" rel="noopener noreferrer" className="truncate hover:text-accent">
                                     {c.title}
-                                  </a>
-                                  <span className="shrink-0 text-[10px] text-muted">
-                                    {c.from ?? '—'} → <span className="text-accent">{c.to}</span>
+                                  </Link>
+                                  <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted">
+                                    {c.from ?? '—'}
+                                    <ArrowRight className="h-3 w-3" aria-hidden />
+                                    <span className="text-accent">{c.to}</span>
                                   </span>
                                 </li>
                               ))}
@@ -385,9 +381,9 @@ export function SettingsButton() {
                               <ul className="mt-1 space-y-0.5 pl-3">
                                 {pullDiff.unmatched.map((u) => (
                                   <li key={u.vn_id}>
-                                    <a href={`/vn/${u.vn_id}`} target="_blank" rel="noopener noreferrer" className="hover:text-accent">
+                                    <Link href={`/vn/${u.vn_id}`} target="_blank" rel="noopener noreferrer" className="hover:text-accent">
                                       {u.vn_id}
-                                    </a>
+                                    </Link>
                                     <span className="ml-1">· {u.status}</span>
                                   </li>
                                 ))}
@@ -410,9 +406,11 @@ export function SettingsButton() {
                       <span className="font-bold">{t.settings.vndbBackupTitle}</span>
                       <span className="block text-[10px] text-muted">{t.settings.vndbBackupDesc}</span>
                       <input
-                        type="text"
+                        type="url"
+                        inputMode="url"
                         defaultValue={server?.vndb_backup_url ?? ''}
                         placeholder="https://api.yorhel.org/kana"
+                        aria-label={t.settings.vndbBackupTitle}
                         onBlur={(e) => {
                           const v = e.target.value.trim();
                           if (v !== (server?.vndb_backup_url ?? '')) {
@@ -532,16 +530,20 @@ function Toggle({
   value: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const labelId = useId();
+  const descId = useId();
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-border bg-bg-elev/50 p-3 hover:border-accent">
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-bg-elev/50 p-3 hover:border-accent">
       <div className="min-w-0">
-        <div className="text-sm font-semibold">{label}</div>
-        <div className="text-[11px] text-muted">{description}</div>
+        <div id={labelId} className="text-sm font-semibold">{label}</div>
+        <div id={descId} className="text-[11px] text-muted">{description}</div>
       </div>
       <button
         type="button"
         role="switch"
         aria-checked={value}
+        aria-labelledby={labelId}
+        aria-describedby={descId}
         onClick={() => onChange(!value)}
         className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${value ? 'bg-accent' : 'bg-bg-elev'}`}
       >
@@ -551,6 +553,6 @@ function Toggle({
           }`}
         />
       </button>
-    </label>
+    </div>
   );
 }

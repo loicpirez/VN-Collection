@@ -37,22 +37,51 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
   const toast = useToast();
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<Element | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [favLocal, setFavLocal] = useState(favorite);
 
   useEffect(() => {
+    // Remember the element that had focus when the menu opened so
+    // we can return there on close — the ARIA menu pattern requires
+    // it for keyboard users.
+    triggerRef.current = typeof document !== 'undefined' ? document.activeElement : null;
     function outside(e: MouseEvent) {
       if (!ref.current?.contains(e.target as Node)) onClose();
     }
-    function escape(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+    function key(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      // Arrow-key navigation through `role="menuitem"` siblings —
+      // ARIA menu pattern. Tab still moves normally.
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+      const items = Array.from(
+        ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]') ?? [],
+      ).filter((el) => !el.hasAttribute('disabled'));
+      if (items.length === 0) return;
+      const idx = items.indexOf(document.activeElement as HTMLElement);
+      let next: HTMLElement | undefined;
+      if (e.key === 'Home') next = items[0];
+      else if (e.key === 'End') next = items[items.length - 1];
+      else if (e.key === 'ArrowDown') next = items[(idx + 1 + items.length) % items.length] ?? items[0];
+      else next = items[(idx - 1 + items.length) % items.length] ?? items[items.length - 1];
+      e.preventDefault();
+      next?.focus();
     }
     window.addEventListener('mousedown', outside, true);
-    window.addEventListener('keydown', escape);
+    window.addEventListener('keydown', key);
     return () => {
       window.removeEventListener('mousedown', outside, true);
-      window.removeEventListener('keydown', escape);
+      window.removeEventListener('keydown', key);
+      // Return focus to whatever had it before the menu opened.
+      const t = triggerRef.current;
+      if (t && t instanceof HTMLElement && document.contains(t)) {
+        t.focus({ preventScroll: true });
+      }
     };
   }, [onClose]);
 
@@ -103,9 +132,9 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
           type="button"
           onClick={onClose}
           aria-label={t.common.close}
-          className="rounded text-muted hover:text-white"
+          className="tap-target-tight rounded text-muted hover:text-white"
         >
-          <X className="h-3 w-3" />
+          <X className="h-3 w-3" aria-hidden />
         </button>
       </div>
 
@@ -117,6 +146,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
         return (
           <button
             key={s}
+            role="menuitem"
             type="button"
             disabled={!!busy}
             onClick={() => patch({ status: active ? null : s }, `status-${s}`)}
@@ -136,6 +166,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
       <div className="my-1 border-t border-border" />
 
       <button
+        role="menuitem"
         type="button"
         disabled={!!busy}
         onClick={() => {
@@ -159,10 +190,11 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
 
       <Link
         href={`/vn/${vnId}`}
+        role="menuitem"
         onClick={onClose}
         className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
       >
-        <Star className="h-3.5 w-3.5" /> {t.quickActions.open}
+        <Star className="h-3.5 w-3.5" aria-hidden /> {t.quickActions.open}
       </Link>
 
       {/*
@@ -184,20 +216,22 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
           <div className="flex items-stretch gap-1 px-1">
             <Link
               href={`/producer/${developer.id}`}
+              role="menuitem"
               onClick={onClose}
               className="flex flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
             >
-              <Building2 className="h-3.5 w-3.5" />
+              <Building2 className="h-3.5 w-3.5" aria-hidden />
               <span className="truncate">{t.quickActions.openDeveloper}</span>
             </Link>
             <Link
               href={`/?producer=${developer.id}`}
+              role="menuitem"
               onClick={onClose}
               aria-label={t.quickActions.filterSameDeveloper}
               title={t.quickActions.filterSameDeveloper}
-              className="inline-flex w-9 items-center justify-center rounded-md hover:bg-bg-elev"
+              className="tap-target inline-flex w-11 items-center justify-center rounded-md hover:bg-bg-elev"
             >
-              <Tag className="h-3.5 w-3.5" />
+              <Tag className="h-3.5 w-3.5" aria-hidden />
             </Link>
           </div>
         </>
@@ -211,20 +245,22 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
           <div className="flex items-stretch gap-1 px-1">
             <Link
               href={`/producer/${publisher.id}`}
+              role="menuitem"
               onClick={onClose}
               className="flex flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
             >
-              <Package className="h-3.5 w-3.5" />
+              <Package className="h-3.5 w-3.5" aria-hidden />
               <span className="truncate">{t.quickActions.openPublisher}</span>
             </Link>
             <Link
               href={`/?publisher=${publisher.id}`}
+              role="menuitem"
               onClick={onClose}
               aria-label={t.quickActions.filterSamePublisher}
               title={t.quickActions.filterSamePublisher}
-              className="inline-flex w-9 items-center justify-center rounded-md hover:bg-bg-elev"
+              className="tap-target inline-flex w-11 items-center justify-center rounded-md hover:bg-bg-elev"
             >
-              <Tag className="h-3.5 w-3.5" />
+              <Tag className="h-3.5 w-3.5" aria-hidden />
             </Link>
           </div>
         </>

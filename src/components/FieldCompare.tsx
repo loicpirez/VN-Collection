@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
+import { memo, useEffect, useId, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, GitCompareArrows, Loader2, PinIcon } from 'lucide-react';
+import { Ban, Check, CornerDownRight, GitCompareArrows, Loader2, PinIcon } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { resolveField, type SourceChoice } from '@/lib/source-resolve';
@@ -86,17 +86,24 @@ export function FieldCompare({
     // pref signal — re-sync when the pref changes.
   }, [resolved.used]);
 
+  const vndbTabId = useId();
+  const egsTabId = useId();
+  const vndbPanelId = useId();
+  const egsPanelId = useId();
   if (!compareOpen) {
     const shownText = activeTab === 'egs' ? (egs ?? '') : (vndb ?? '');
     const isPinned = optimistic === activeTab || (optimistic === 'auto' && resolved.used === activeTab);
+    const activePanelId = activeTab === 'egs' ? egsPanelId : vndbPanelId;
+    const activeTabId = activeTab === 'egs' ? egsTabId : vndbTabId;
     return (
       <div>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <span className="text-[11px] uppercase tracking-wider text-muted">
             {label}
             {resolved.used && resolved.used !== activeTab && (
-              <span className="ml-2 rounded bg-bg-elev/60 px-1.5 py-0.5 align-middle text-[9px] normal-case tracking-normal text-muted">
-                ↪ {resolved.used.toUpperCase()}
+              <span className="ml-2 inline-flex items-center gap-1 rounded bg-bg-elev/60 px-1.5 py-0.5 align-middle text-[9px] normal-case tracking-normal text-muted">
+                <CornerDownRight className="h-2.5 w-2.5" aria-hidden />
+                {resolved.used.toUpperCase()}
               </span>
             )}
           </span>
@@ -110,7 +117,10 @@ export function FieldCompare({
                 <button
                   type="button"
                   role="tab"
+                  id={vndbTabId}
                   aria-selected={activeTab === 'vndb'}
+                  aria-controls={vndbPanelId}
+                  tabIndex={activeTab === 'vndb' ? 0 : -1}
                   onClick={() => setActiveTab('vndb')}
                   className={`rounded px-2 py-0.5 ${
                     activeTab === 'vndb'
@@ -119,12 +129,15 @@ export function FieldCompare({
                   }`}
                   title={!vndbHas ? t.compare.emptySide : undefined}
                 >
-                  VNDB{!vndbHas && <span className="ml-0.5 opacity-60">·∅</span>}
+                  VNDB{!vndbHas && <Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-label={t.compare.emptySide} />}
                 </button>
                 <button
                   type="button"
                   role="tab"
+                  id={egsTabId}
                   aria-selected={activeTab === 'egs'}
+                  aria-controls={egsPanelId}
+                  tabIndex={activeTab === 'egs' ? 0 : -1}
                   onClick={() => setActiveTab('egs')}
                   className={`rounded px-2 py-0.5 ${
                     activeTab === 'egs'
@@ -133,7 +146,7 @@ export function FieldCompare({
                   }`}
                   title={!egsHas ? t.compare.emptySide : undefined}
                 >
-                  EGS{!egsHas && <span className="ml-0.5 opacity-60">·∅</span>}
+                  EGS{!egsHas && <Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-label={t.compare.emptySide} />}
                 </button>
               </div>
             )}
@@ -162,13 +175,15 @@ export function FieldCompare({
             )}
           </div>
         </div>
-        {shownText ? (
-          <Body text={shownText} />
-        ) : (
-          <p className="text-xs italic text-muted/70">
-            {activeTab === 'egs' ? t.compare.noEgsValue : t.compare.noVndbValue}
-          </p>
-        )}
+        <div role="tabpanel" id={activePanelId} aria-labelledby={activeTabId} tabIndex={0}>
+          {shownText ? (
+            <Body text={shownText} />
+          ) : (
+            <p className="text-xs italic text-muted/70">
+              {activeTab === 'egs' ? t.compare.noEgsValue : t.compare.noVndbValue}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -226,13 +241,19 @@ export function FieldCompare({
   );
 }
 
-function Body({ text }: { text: string }) {
+/**
+ * Memoized so flipping tabs / optimistic-pinning / pending state
+ * doesn't re-tokenize the description on every render.
+ * `<VndbMarkup>` parses BBCode each time it's called — cheap with the
+ * O(N) sticky-regex tokenizer, but free is better than cheap.
+ */
+const Body = memo(function Body({ text }: { text: string }) {
   return (
     <div className="whitespace-pre-wrap leading-relaxed text-white/85">
       <VndbMarkup text={text} />
     </div>
   );
-}
+});
 
 function ColumnCard({
   tone,

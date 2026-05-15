@@ -55,6 +55,10 @@ export function BannerSourcePicker({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
+  const customTabId = useId();
+  const defaultTabId = useId();
+  const customPanelId = useId();
+  const defaultPanelId = useId();
   const [, startTransition] = useTransition();
 
   useDialogA11y({ open, onClose: () => setOpen(false), panelRef: dialogRef });
@@ -122,19 +126,24 @@ export function BannerSourcePicker({
       value: s.local || s.url,
       source: 'screenshot' as const,
       sexual: s.sexual ?? null,
-      label: `Screenshot ${i + 1}`,
+      label: `${t.media.screenshots} ${i + 1}`,
       aspect: 'aspect-video' as const,
     })),
-    ...releaseImages.map((img) => ({
-      key: `${img.release_id}-${img.id ?? img.url}`,
-      src: img.thumbnail || img.url,
-      local: img.local_thumb || img.local || null,
-      value: img.local || img.url,
-      source: 'release' as const,
-      sexual: img.sexual ?? null,
-      label: `${img.type} · ${img.release_title}`,
-      aspect: img.type === 'pkgmed' ? ('aspect-square' as const) : ('aspect-[2/3]' as const),
-    })),
+    ...releaseImages.map((img) => {
+      const typeKey = img.type.toLowerCase() as keyof typeof t.media;
+      const localizedType =
+        typeKey in t.media && typeof t.media[typeKey] === 'string' ? t.media[typeKey] : img.type;
+      return {
+        key: `${img.release_id}-${img.id ?? img.url}`,
+        src: img.thumbnail || img.url,
+        local: img.local_thumb || img.local || null,
+        value: img.local || img.url,
+        source: 'release' as const,
+        sexual: img.sexual ?? null,
+        label: `${localizedType} · ${img.release_title}`,
+        aspect: img.type === 'pkgmed' ? ('aspect-square' as const) : ('aspect-[2/3]' as const),
+      };
+    }),
   ];
 
   return (
@@ -173,21 +182,31 @@ export function BannerSourcePicker({
                 <X className="h-4 w-4" />
               </button>
             </header>
-            <nav className="flex border-b border-border">
-              <TabButton active={tab === 'custom'} onClick={() => setTab('custom')}>
+            <nav role="tablist" aria-label={t.bannerPicker.title} className="flex border-b border-border">
+              <TabButton
+                active={tab === 'custom'}
+                onClick={() => setTab('custom')}
+                id={customTabId}
+                controls={customPanelId}
+              >
                 {t.coverPicker.custom}
               </TabButton>
-              <TabButton active={tab === 'default'} onClick={() => setTab('default')}>
+              <TabButton
+                active={tab === 'default'}
+                onClick={() => setTab('default')}
+                id={defaultTabId}
+                controls={defaultPanelId}
+              >
                 {t.bannerPicker.defaultTab}
               </TabButton>
             </nav>
             <div className="max-h-[60vh] overflow-y-auto p-4">
               {tab === 'default' && (
-                <section className="text-sm">
+                <section role="tabpanel" id={defaultPanelId} aria-labelledby={defaultTabId} tabIndex={0} className="text-sm">
                   <p className="mb-3 text-xs text-muted">{t.bannerPicker.defaultHint}</p>
                   <div className="flex flex-wrap items-start gap-4">
                     <div className="h-32 w-56 shrink-0 overflow-hidden rounded-lg border border-border bg-bg-elev">
-                      <SafeImage src={coverRemote} localSrc={coverLocal} alt="cover" sexual={coverSexual} className="h-full w-full" />
+                      <SafeImage src={coverRemote} localSrc={coverLocal} alt={t.bannerPicker.title} sexual={coverSexual} className="h-full w-full" />
                     </div>
                     <div className="flex flex-col gap-2">
                       <button
@@ -216,7 +235,7 @@ export function BannerSourcePicker({
                 </section>
               )}
               {tab === 'custom' && (
-                <section className="space-y-4 text-sm">
+                <section role="tabpanel" id={customPanelId} aria-labelledby={customTabId} tabIndex={0} className="space-y-4 text-sm">
                   <div>
                     <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
                       {t.coverPicker.uploadLabel}
@@ -249,10 +268,12 @@ export function BannerSourcePicker({
                     </label>
                     <div className="flex flex-wrap gap-2">
                       <input
-                        type="text"
+                        type="url"
+                        inputMode="url"
                         value={urlValue}
                         onChange={(e) => setUrlValue(e.target.value)}
                         placeholder="https://…"
+                        aria-label={t.coverPicker.urlLabel}
                         className="input flex-1 min-w-[200px]"
                       />
                       <button
@@ -321,10 +342,14 @@ function TabButton({
   active,
   onClick,
   disabled,
+  id,
+  controls,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  id?: string;
+  controls?: string;
   disabled?: boolean;
   children: React.ReactNode;
 }) {
@@ -333,6 +358,11 @@ function TabButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      role="tab"
+      id={id}
+      aria-controls={controls}
+      aria-selected={active}
+      tabIndex={active ? 0 : -1}
       className={`relative flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${
         disabled
           ? 'cursor-not-allowed text-muted/40'

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 interface Producer {
@@ -49,21 +49,33 @@ export function BrandOverlapPicker({ initialA, initialB }: { initialA: string | 
 
   return (
     <form className="mt-4 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto]" onSubmit={submit}>
-      <select className="input" value={a} onChange={(e) => setA(e.target.value)}>
+      <select
+        className="input"
+        value={a}
+        onChange={(e) => setA(e.target.value)}
+        aria-label={t.brandOverlap.pickPlaceholderA}
+      >
         <option value="">{t.brandOverlap.pickPlaceholderA}</option>
         {list.map((p) => (
           <option key={p.id} value={p.id}>{p.name} ({p.vn_count})</option>
         ))}
       </select>
-      <span className="hidden text-muted sm:inline">↔</span>
-      <select className="input" value={b} onChange={(e) => setB(e.target.value)}>
+      <span className="inline-flex items-center justify-center text-muted" aria-hidden>
+        <ArrowLeftRight className="h-3 w-3" />
+      </span>
+      <select
+        className="input"
+        value={b}
+        onChange={(e) => setB(e.target.value)}
+        aria-label={t.brandOverlap.pickPlaceholderB}
+      >
         <option value="">{t.brandOverlap.pickPlaceholderB}</option>
         {list.map((p) => (
           <option key={p.id} value={p.id}>{p.name} ({p.vn_count})</option>
         ))}
       </select>
       <button type="submit" className="btn btn-primary" disabled={!a || !b || a === b}>
-        <ArrowRight className="h-4 w-4" /> {t.brandOverlap.compare}
+        <ArrowRight className="h-4 w-4" aria-hidden /> {t.brandOverlap.compare}
       </button>
     </form>
   );

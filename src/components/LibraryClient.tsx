@@ -1,9 +1,10 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowDown, ArrowUp, Calendar, Check, CheckSquare, ChevronDown, Circle, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, Search, Tags as TagsIcon, X } from 'lucide-react';
-import { VnCard, type CardData } from './VnCard';
+import { VnCard } from './VnCard';
+import { toCardData } from './cardData';
 import { SkeletonCardGrid } from './Skeleton';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
@@ -12,6 +13,7 @@ import { SortableGrid } from './SortableGrid';
 import { RandomPickButton } from './RandomPickButton';
 import { SavedFilters } from './SavedFilters';
 import { useT } from '@/lib/i18n/client';
+import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
@@ -58,6 +60,7 @@ const Q_DEBOUNCE_MS = 300;
 
 export function LibraryClient() {
   const t = useT();
+  const toast = useToast();
   const { confirm } = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -176,9 +179,9 @@ export function LibraryClient() {
         setPublishers(d.publishers ?? []);
       })
       .catch((e: Error) => {
-        // Surface in the dev console so a silent dropdown failure
-        // doesn't masquerade as an empty filter set.
-        console.error('Failed to load producers/publishers list', e);
+        // Surface a toast so a silent dropdown failure doesn't
+        // masquerade as an empty filter set.
+        toast.error(`${t.common.error}: ${e.message}`);
       });
     fetch('/api/series')
       .then(async (r) => {
@@ -186,8 +189,8 @@ export function LibraryClient() {
         return r.json();
       })
       .then((d) => setSeries(d.series ?? []))
-      .catch((e: Error) => console.error('Failed to load series list', e));
-  }, []);
+      .catch((e: Error) => toast.error(`${t.common.error}: ${e.message}`));
+  }, [toast, t.common.error]);
 
   // Resolve tag name when filtered by tag
   useEffect(() => {
@@ -368,7 +371,7 @@ export function LibraryClient() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
+      <div className="scroll-fade-right mb-4 flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
         <button
           className={`chip whitespace-nowrap ${!status ? 'chip-active' : ''}`}
           onClick={() => setParam('status', null)}
@@ -877,58 +880,62 @@ function Grid({
   const cls = dense
     ? 'grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8'
     : 'grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6';
+  // Stash the per-render onToggle in a ref so each `<VnCard>` can get
+  // an `onSelect` reference that's stable across renders. Without this
+  // the `() => onToggle?.(it.id)` arrow was freshly allocated every
+  // render, defeating `React.memo(VnCard)` whenever a sibling state
+  // ticked (search query, sort change, …).
+  const onToggleRef = useRef(onToggle);
+  onToggleRef.current = onToggle;
+  const onSelectFor = useCallback((id: string) => {
+    onToggleRef.current?.(id);
+  }, []);
+  // Re-project once per `items` reference change instead of identity-
+  // caching each row. WeakMap-by-identity inside `toCardData` still
+  // catches re-renders that re-use the same array, and `useMemo`
+  // catches the bulk array-replace case after a refetch — the audit's
+  // M6 concern about the WeakMap missing on every refetch.
+  const cardData = useMemo(() => items.map(toCardData), [items]);
   return (
     <div className={cls}>
-      {items.map((it) => (
-        <VnCard
+      {items.map((it, i) => (
+        <MemoCard
           key={it.id}
+          id={it.id}
+          data={cardData[i]}
           selectable={selectMode}
           selected={selected.has(it.id)}
-          onSelect={() => onToggle?.(it.id)}
-          data={toCardData(it)}
+          onSelect={onSelectFor}
         />
       ))}
     </div>
   );
 }
 
-/**
- * Memoized projection from the heavy `CollectionItem` row to the
- * `CardData` props the card actually uses. WeakMap-cached on `it`
- * so the same input object always yields the same output object —
- * letting `React.memo(VnCard)` skip re-rendering when only an
- * unrelated parent state (filter query, etc.) ticks. Without this
- * the inline `data={{...}}` rebuilt on every render defeated the
- * memo entirely.
- */
-const cardDataCache = new WeakMap<CollectionItem, CardData>();
-function toCardData(it: CollectionItem): CardData {
-  const cached = cardDataCache.get(it);
-  if (cached) return cached;
-  const data: CardData = {
-    id: it.id,
-    title: it.title,
-    alttitle: it.alttitle,
-    poster: it.image_url || it.image_thumb,
-    localPoster: it.local_image || it.local_image_thumb,
-    customCover: it.custom_cover,
-    sexual: it.image_sexual,
-    released: it.released,
-    egs_median: it.egs?.median ?? null,
-    egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
-    rating: it.rating,
-    user_rating: it.user_rating,
-    playtime_minutes: it.playtime_minutes,
-    length_minutes: it.length_minutes,
-    status: it.status as Status | undefined,
-    favorite: it.favorite,
-    developers: it.developers,
-    publishers: it.publishers,
-    isFanDisc: (it.relations ?? []).some((r) => r.relation === 'orig'),
-  };
-  cardDataCache.set(it, data);
-  return data;
-}
+const MemoCard = memo(function MemoCard({
+  id,
+  data,
+  selectable,
+  selected,
+  onSelect,
+}: {
+  id: string;
+  data: ReturnType<typeof toCardData>;
+  selectable: boolean;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const handle = useCallback(() => onSelect(id), [onSelect, id]);
+  return (
+    <VnCard
+      selectable={selectable}
+      selected={selected}
+      onSelect={handle}
+      data={data}
+    />
+  );
+});
+
 
 interface Group {
   key: string;

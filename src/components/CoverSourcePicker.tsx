@@ -56,6 +56,12 @@ export function CoverSourcePicker({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
+  const customTabId = useId();
+  const vndbTabId = useId();
+  const egsTabId = useId();
+  const customPanelId = useId();
+  const vndbPanelId = useId();
+  const egsPanelId = useId();
 
   // body-scroll lock + ESC + focus trap. Replaces the previous
   // bespoke ESC handler with the shared hook so every modal in the
@@ -195,7 +201,7 @@ export function CoverSourcePicker({
       value: s.local || s.url,
       source: 'screenshot' as const,
       sexual: s.sexual ?? null,
-      label: `Screenshot ${i + 1}`,
+      label: `${t.media.screenshots} ${i + 1}`,
     })),
     ...releaseImages.map((img) => ({
       key: `${img.release_id}-${img.id ?? img.url}`,
@@ -204,7 +210,7 @@ export function CoverSourcePicker({
       value: img.local || img.url,
       source: 'release' as const,
       sexual: img.sexual ?? null,
-      label: `${img.type} · ${img.release_title}`,
+      label: `${mediaTypeLabel(img.type, t)} · ${img.release_title}`,
     })),
   ];
 
@@ -244,18 +250,36 @@ export function CoverSourcePicker({
                 <X className="h-4 w-4" />
               </button>
             </header>
-            <nav className="flex border-b border-border">
-              <TabButton active={tab === 'custom'} onClick={() => setTab('custom')}>
+            <nav role="tablist" aria-label={t.coverPicker.title} className="flex border-b border-border">
+              <TabButton
+                active={tab === 'custom'}
+                onClick={() => setTab('custom')}
+                id={customTabId}
+                controls={customPanelId}
+              >
                 {t.coverPicker.custom}
               </TabButton>
-              <TabButton active={tab === 'vndb'} onClick={() => setTab('vndb')}>VNDB</TabButton>
-              <TabButton active={tab === 'egs'} onClick={() => setTab('egs')} disabled={!egsId}>
+              <TabButton
+                active={tab === 'vndb'}
+                onClick={() => setTab('vndb')}
+                id={vndbTabId}
+                controls={vndbPanelId}
+              >
+                VNDB
+              </TabButton>
+              <TabButton
+                active={tab === 'egs'}
+                onClick={() => setTab('egs')}
+                disabled={!egsId}
+                id={egsTabId}
+                controls={egsPanelId}
+              >
                 EGS
               </TabButton>
             </nav>
             <div className="max-h-[60vh] overflow-y-auto p-4">
               {tab === 'vndb' && (
-                <section className="text-sm">
+                <section role="tabpanel" id={vndbPanelId} aria-labelledby={vndbTabId} tabIndex={0} className="text-sm">
                   <p className="mb-3 text-xs text-muted">{t.coverPicker.vndbHint}</p>
                   <div className="flex flex-wrap items-start gap-4">
                     <div className="h-48 w-32 shrink-0 overflow-hidden rounded-lg border border-border bg-bg-elev">
@@ -279,7 +303,7 @@ export function CoverSourcePicker({
                 </section>
               )}
               {tab === 'egs' && (
-                <section className="text-sm">
+                <section role="tabpanel" id={egsPanelId} aria-labelledby={egsTabId} tabIndex={0} className="text-sm">
                   <p className="mb-3 text-xs text-muted">{t.coverPicker.egsHint}</p>
                   {egsId ? (
                     <EgsCandidateGrid
@@ -294,7 +318,7 @@ export function CoverSourcePicker({
                 </section>
               )}
               {tab === 'custom' && (
-                <section className="space-y-4 text-sm">
+                <section role="tabpanel" id={customPanelId} aria-labelledby={customTabId} tabIndex={0} className="space-y-4 text-sm">
                   <div>
                     <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
                       {t.coverPicker.uploadLabel}
@@ -327,10 +351,12 @@ export function CoverSourcePicker({
                     </label>
                     <div className="flex flex-wrap gap-2">
                       <input
-                        type="text"
+                        type="url"
+                        inputMode="url"
                         value={urlValue}
                         onChange={(e) => setUrlValue(e.target.value)}
                         placeholder="https://…"
+                        aria-label={t.coverPicker.urlLabel}
                         className="input flex-1 min-w-[200px]"
                       />
                       <button
@@ -399,11 +425,15 @@ function TabButton({
   active,
   onClick,
   disabled,
+  id,
+  controls,
   children,
 }: {
   active: boolean;
   onClick: () => void;
   disabled?: boolean;
+  id?: string;
+  controls?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -411,6 +441,11 @@ function TabButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      role="tab"
+      id={id}
+      aria-controls={controls}
+      aria-selected={active}
+      tabIndex={active ? 0 : -1}
       className={`relative flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${
         disabled
           ? 'cursor-not-allowed text-muted/40'
@@ -423,6 +458,21 @@ function TabButton({
       {active && <span className="absolute inset-x-0 bottom-0 h-[2px] bg-accent" />}
     </button>
   );
+}
+
+type MediaTypeKey = 'pkgfront' | 'pkgback' | 'pkgcontent' | 'pkgside' | 'pkgmed' | 'dig';
+
+function mediaTypeLabel(rawType: string, t: ReturnType<typeof useT>): string {
+  const key = rawType.toLowerCase() as MediaTypeKey;
+  const labels: Record<MediaTypeKey, string> = {
+    pkgfront: t.media.pkgfront,
+    pkgback: t.media.pkgback,
+    pkgcontent: t.media.pkgcontent,
+    pkgside: t.media.pkgside,
+    pkgmed: t.media.pkgmed,
+    dig: t.media.dig,
+  };
+  return labels[key] ?? rawType;
 }
 
 function initialTab(_egsId: number | null, _currentCustom: string | null): Tab {

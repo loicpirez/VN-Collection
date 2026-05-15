@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bookmark, Check, ListPlus, Loader2, Plus, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -39,6 +39,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
   const [filter, setFilter] = useState('');
   const [memberCount, setMemberCount] = useState<number | null>(initialMemberCount ?? null);
   const popRef = useRef<HTMLDivElement | null>(null);
+  const popoverId = useId();
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -154,9 +155,12 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
         onClick={toggleOpen}
         className={triggerClass}
         aria-label={t.lists.addToListAria}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-controls={popoverId}
         title={t.lists.addToListAria}
       >
-        {variant === 'inline' ? <ListPlus className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+        {variant === 'inline' ? <ListPlus className="h-3.5 w-3.5" aria-hidden /> : <Bookmark className="h-3.5 w-3.5" aria-hidden />}
         {variant === 'inline' ? t.lists.cardChip : null}
         {(memberCount ?? 0) > 0 && (
           <span className={variant === 'inline' ? 'rounded bg-accent px-1 text-bg' : 'rounded bg-accent px-1 text-bg'}>
@@ -166,6 +170,9 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
       </button>
       {open && (
         <div
+          id={popoverId}
+          role="menu"
+          aria-label={t.lists.addToList}
           onClick={(e) => e.stopPropagation()}
           className="absolute right-0 top-full z-50 mt-1 w-64 rounded-lg border border-border bg-bg-card p-2 text-sm shadow-card"
         >
@@ -174,10 +181,10 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded-md p-1 text-muted hover:text-white"
+              className="tap-target-tight rounded-md p-1 text-muted hover:text-white"
               aria-label={t.common.close}
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" aria-hidden />
             </button>
           </div>
           {loading && (
@@ -193,6 +200,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder={t.lists.newListPlaceholder}
+                  aria-label={t.lists.newListPlaceholder}
                   className="input mb-2 w-full text-xs"
                 />
               )}
@@ -209,8 +217,10 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
                     <li key={l.id}>
                       <button
                         type="button"
+                        role="menuitemcheckbox"
+                        aria-checked={checked}
                         onClick={() => toggle(l)}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
+                        className="tap-target flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
                       >
                         <span
                           className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
@@ -240,6 +250,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
                     if (e.key === 'Enter') createAndAdd();
                   }}
                   placeholder={t.lists.newListPlaceholder}
+                  aria-label={t.lists.create}
                   className="input flex-1 text-xs"
                 />
                 <button
