@@ -87,11 +87,20 @@ export function TutorialTour() {
   const titleKey = `step_${cur.key}_title` as keyof typeof t.tour.steps;
   const bodyKey = `step_${cur.key}_body` as keyof typeof t.tour.steps;
 
+  // Non-modal dialog — the tour panel coexists with the page content
+  // and shouldn't trap focus. Screen readers should still announce
+  // it as a dialog with an accessible name so users hear the title
+  // and step count when it appears.
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[min(92vw,420px)] rounded-2xl border border-accent/40 bg-bg-card p-5 shadow-card">
+    <div
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="vn-tour-title"
+      className="fixed bottom-4 right-4 z-50 w-[min(92vw,420px)] rounded-2xl border border-accent/40 bg-bg-card p-5 shadow-card"
+    >
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
-          <GraduationCap className="h-4 w-4" /> {t.tour.title}
+        <span id="vn-tour-title" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
+          <GraduationCap className="h-4 w-4" aria-hidden /> {t.tour.title}
         </span>
         <button
           type="button"

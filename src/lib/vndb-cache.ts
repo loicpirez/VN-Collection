@@ -10,6 +10,7 @@ import {
   type CacheRow,
 } from './db';
 import { throttledFetch } from './vndb-throttle';
+import { isAllowedHttpTarget } from './url-allowlist';
 
 const DEFAULT_BACKUP = 'https://api.yorhel.org/kana';
 const PRIMARY = 'https://api.vndb.org/kana';
@@ -33,7 +34,14 @@ function mirrorUrl(url: string): string | null {
   const base = backupBase();
   if (!base) return null;
   if (!url.startsWith(PRIMARY)) return null;
-  return base + url.slice(PRIMARY.length);
+  const candidate = base + url.slice(PRIMARY.length);
+  // Defence in depth: even though the settings API already validates
+  // `vndb_backup_url` against `^https?://…`, an attacker who got
+  // through the settings gate could point this at
+  // http://169.254.169.254 to exfiltrate cloud metadata. Run the
+  // built mirror URL through the shared SSRF allowlist — non-VNDB
+  // hosts are rejected here too.
+  return isAllowedHttpTarget(candidate) ? candidate : null;
 }
 
 export const TTL = {

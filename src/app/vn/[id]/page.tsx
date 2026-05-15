@@ -134,9 +134,9 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               href={`https://vndb.org/${id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-accent hover:underline"
+              className="inline-flex items-center gap-1 text-accent hover:underline"
             >
-              {t.detail.openOnVndb} →
+              {t.detail.openOnVndb} <ExternalLink className="h-3 w-3" aria-hidden />
             </a>
           </p>
         </div>

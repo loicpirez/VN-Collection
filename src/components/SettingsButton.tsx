@@ -1,5 +1,6 @@
 'use client';
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react';
+import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { Download, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
@@ -60,6 +61,9 @@ export function SettingsButton() {
   const { settings, set, reset } = useDisplaySettings();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
+  useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
   const [server, setServer] = useState<ServerSettings | null>(null);
   const [tokenInput, setTokenInput] = useState('');
   const [savingToken, setSavingToken] = useState(false);
@@ -92,6 +96,10 @@ export function SettingsButton() {
       vndb_fanout: boolean;
       steam_api_key: string | null;
       steam_id: string | null;
+      // /api/settings accepts this too; aligning the client type with
+      // the route's surface so future EGS-username UI can call save
+      // without a fresh widen.
+      egs_username: string | null;
     }>,
   ) {
     try {
@@ -201,14 +209,18 @@ export function SettingsButton() {
         ? createPortal(
             <div
               className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-6"
-              role="dialog"
-              aria-modal="true"
-              aria-label={t.settings.title}
               onClick={(e) => {
                 if (e.target === e.currentTarget) setOpen(false);
               }}
             >
-              <div className="relative mt-6 w-full max-w-3xl rounded-2xl border border-border bg-bg-card p-4 shadow-card sm:mt-12 sm:p-6">
+              <div
+                ref={panelRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                tabIndex={-1}
+                className="relative mt-6 w-full max-w-3xl rounded-2xl border border-border bg-bg-card p-4 shadow-card outline-none sm:mt-12 sm:p-6"
+              >
                 <button
                   type="button"
                   className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-bg-elev hover:text-white"
@@ -217,7 +229,7 @@ export function SettingsButton() {
                 >
                   <X className="h-4 w-4" />
                 </button>
-                <h2 className="mb-1 text-lg font-bold">{t.settings.title}</h2>
+                <h2 id={titleId} className="mb-1 text-lg font-bold">{t.settings.title}</h2>
                 <p className="mb-5 text-xs text-muted">{t.settings.subtitle}</p>
 
                 <div className="grid gap-4 md:grid-cols-2">

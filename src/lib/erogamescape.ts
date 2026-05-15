@@ -58,6 +58,24 @@ interface CacheRow {
   expires_at: number;
 }
 
+/**
+ * Strict sanitizer for values that flow into the remote EGS Postgres
+ * ILIKE clause. The previous escape stripped only `' % \`; this
+ * version keeps a positive allowlist of letters / digits / CJK /
+ * basic punctuation that's known-safe inside a quoted LIKE pattern,
+ * and drops everything else (including `;`, `--`, `/*`, dollar
+ * quotes, control chars).
+ *
+ * Returns an empty string when nothing usable survives — callers
+ * should treat that as "no results" rather than issuing a query
+ * with `WHERE … ILIKE '%%'`.
+ */
+function sanitizeForEgsLike(value: string): string {
+  return value
+    .replace(/[^\p{Letter}\p{Number}\p{Mark}\s.\-_]/gu, '')
+    .trim();
+}
+
 function cacheKey(prefix: string, value: string): string {
   return `egs:${prefix}:${value}`;
 }
@@ -589,7 +607,14 @@ export async function searchEgsByName(query: string, opts: { force?: boolean } =
     const cached = readCache<EgsGame | null>(cacheK);
     if (cached !== null) return cached;
   }
-  const escaped = trimmed.replace(/['%\\]/g, '');
+  // The query is interpolated directly into a Postgres ILIKE clause
+  // on the remote SQL form, so the sanitizer has to be aggressive:
+  // drop every character outside the ASCII letters / digits / CJK /
+  // whitespace / hyphen / underscore / dot range. This rejects every
+  // SQL meta-character (' " ; -- /* % \ ( ) ; etc.) instead of just
+  // the four we used to strip.
+  const escaped = sanitizeForEgsLike(trimmed);
+  if (!escaped) return null;
   // Search the native (gamename) and the kana reading (furigana) so romaji /
   // hiragana queries still hit. count2 NULLs are pushed to the bottom by
   // putting "count2 IS NULL" first in the ORDER BY (EGS' Postgres rejects
@@ -629,7 +654,8 @@ export async function searchEgsCandidates(query: string, limit = 20): Promise<Eg
   const cached = readCache<EgsCandidate[]>(cacheK);
   if (cached) return cached;
   const safeLimit = Math.min(50, Math.max(1, Math.floor(limit)));
-  const escaped = trimmed.replace(/['%\\]/g, '');
+  const escaped = sanitizeForEgsLike(trimmed);
+  if (!escaped) return [];
   const sql = `
     SELECT id, gamename, median, count2 AS count, sellday FROM gamelist
     WHERE gamename ILIKE '%${escaped}%' OR furigana ILIKE '%${escaped}%'
@@ -697,7 +723,12 @@ export async function fetchEgsUserReviews(username: string): Promise<EgsUserRevi
   const cached = readCache<EgsUserReviewRow[]>(cacheK);
   if (cached) return cached;
 
-  const escaped = trimmed.replace(/['%\\]/g, '');
+  // Username is interpolated into an equality clause. EGS uids are
+  // restricted to ASCII letters / digits / underscore on the upstream
+  // service; reject anything else outright instead of trying to
+  // selectively escape SQL meta-characters.
+  if (!/^[A-Za-z0-9_]{1,32}$/.test(trimmed)) return [];
+  const escaped = trimmed;
   const sql = `SELECT ur.game AS egs_id, ur.tokuten, ur.total_play_time, `
     + `to_char(ur.start_date,'YYYY-MM-DD') AS start_date, `
     + `to_char(ur.finish_date,'YYYY-MM-DD') AS finish_date, `

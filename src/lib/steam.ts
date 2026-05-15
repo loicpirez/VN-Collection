@@ -39,8 +39,20 @@ export async function fetchOwnedGames(): Promise<SteamPlaytime[]> {
   if (!cfg.apiKey || !cfg.steamId) {
     throw new Error('Steam not configured — set steam_api_key and steam_id in app settings');
   }
-  const url = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=${cfg.apiKey}&steamid=${cfg.steamId}&include_appinfo=1&format=json`;
-  const res = await fetch(url, { cache: 'no-store' });
+  // Steam's Web API requires the key as a URL query parameter (no
+  // Authorization header support). We build the URL in a local
+  // string and NEVER include it in thrown errors or logs — only the
+  // status code surfaces. The fetch agent itself is presumed
+  // trusted; downstream consumers see appid + minutes only.
+  const url = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=${encodeURIComponent(cfg.apiKey)}&steamid=${encodeURIComponent(cfg.steamId)}&include_appinfo=1&format=json`;
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: 'no-store' });
+  } catch (e) {
+    // Strip the URL from network-level errors so the key never lands
+    // in a stack trace.
+    throw new Error(`Steam fetch failed: ${(e as Error).message.replace(/key=[^&\s]+/g, 'key=***')}`);
+  }
   if (!res.ok) throw new Error(`Steam HTTP ${res.status}`);
   const data = (await res.json()) as {
     response?: { games?: { appid: number; name: string; playtime_forever: number }[] };

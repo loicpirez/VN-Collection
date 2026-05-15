@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Check, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 
@@ -57,8 +57,9 @@ export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
         owned ? 'border-status-completed/50 bg-status-completed/5' : 'border-border bg-bg-elev/30'
       }`}
     >
-      <Link href={`/vn/${vnId}`} className="text-xs text-muted hover:text-accent">
-        → <span className="font-mono">{vnId}</span>
+      <Link href={`/vn/${vnId}`} className="inline-flex items-center gap-1 text-xs text-muted hover:text-accent">
+        <ArrowRight className="h-3 w-3" aria-hidden />
+        <span className="font-mono">{vnId}</span>
       </Link>
       <div className="flex items-center gap-1">
         <button

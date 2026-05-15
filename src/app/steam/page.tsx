@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Gamepad2, Link2, Loader2, Search, X } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, ArrowRight, Check, Gamepad2, Link2, Loader2, Search, Settings2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from '@/components/ToastProvider';
 import { useConfirm } from '@/components/ConfirmDialog';
@@ -198,7 +198,10 @@ export default function SteamSyncPage() {
           <p className="font-semibold text-status-on_hold">{suggestionsError}</p>
           {suggestionsError.toLowerCase().includes('steam not configured') && (
             <p className="mt-2 text-xs text-muted">
-              {t.steam.howToConfigure} <Link href="/data" className="font-bold text-accent hover:underline">{t.nav.data}</Link> → ⚙
+              {t.steam.howToConfigure}{' '}
+              <Link href="/data" className="inline-flex items-center gap-1 font-bold text-accent hover:underline">
+                {t.nav.data} <Settings2 className="h-3 w-3" aria-hidden />
+              </Link>
             </p>
           )}
         </div>
@@ -250,8 +253,9 @@ export default function SteamSyncPage() {
                         </p>
                       </div>
                       <span className="shrink-0 text-right text-[11px]">
-                        <span className="block text-muted">
-                          {fmt(s.current_minutes)} →{' '}
+                        <span className="block inline-flex items-center gap-1 text-muted">
+                          {fmt(s.current_minutes)}
+                          <ArrowRight className="h-3 w-3" aria-hidden />
                           <span className="text-accent">{fmt(s.steam_minutes)}</span>
                         </span>
                         <span className="block font-mono text-[10px] text-accent">+{fmt(s.delta)}</span>
@@ -300,7 +304,9 @@ export default function SteamSyncPage() {
                   <Link href={`/vn/${l.vn_id}`} className="line-clamp-1 font-bold hover:text-accent">
                     {l.vn_id}
                   </Link>
-                  <span className="line-clamp-1 text-muted">↔ {l.steam_name}</span>
+                  <span className="line-clamp-1 inline-flex items-center gap-1 text-muted">
+                    <ArrowLeftRight className="h-2.5 w-2.5" aria-hidden /> {l.steam_name}
+                  </span>
                 </span>
                 <span
                   className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wider ${

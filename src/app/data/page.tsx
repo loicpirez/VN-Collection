@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Activity, BookMarked, CalendarRange, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, HardDriveDownload, KeyRound, QrCode, Sparkles } from 'lucide-react';
+import { Activity, BookMarked, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, HardDriveDownload, KeyRound, QrCode, Sparkles } from 'lucide-react';
 import { getDbStatus } from '@/lib/db';
 import { getAuthInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
@@ -208,8 +208,9 @@ export default async function DataPage() {
           <Download className="h-5 w-5 text-accent" /> {t.dataMgmt.assetsSectionTitle}
         </h2>
         <p className="mb-3 text-xs text-muted">{t.dataMgmt.assetsSectionHint}</p>
-        <p className="text-xs text-muted">
-          → <Link href="/" className="text-accent hover:underline">{t.dataMgmt.bulkLinkHint}</Link>
+        <p className="inline-flex items-center gap-1 text-xs text-muted">
+          <CornerDownRight className="h-3 w-3" aria-hidden />
+          <Link href="/" className="text-accent hover:underline">{t.dataMgmt.bulkLinkHint}</Link>
         </p>
       </section>
     </div>

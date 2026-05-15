@@ -385,6 +385,9 @@ export const dictionaries = {
       unofficial: 'non officiel',
       main: 'Titre principal',
     },
+    tagInput: {
+      removeTag: 'Retirer {v}',
+    },
     detail: {
       ratingOf10: '/10',
       votes: 'votes',
@@ -2002,6 +2005,9 @@ export const dictionaries = {
       unofficial: 'unofficial',
       main: 'Primary title',
     },
+    tagInput: {
+      removeTag: 'Remove {v}',
+    },
     detail: {
       ratingOf10: '/10',
       votes: 'votes',
@@ -3618,6 +3624,9 @@ export const dictionaries = {
     titles: {
       unofficial: '非公式',
       main: 'メインタイトル',
+    },
+    tagInput: {
+      removeTag: '{v} を削除',
     },
     detail: {
       ratingOf10: '/10',

@@ -1,6 +1,7 @@
 'use client';
 import { useId, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { useT } from '@/lib/i18n/client';
 
 interface Props {
   values: string[];
@@ -22,6 +23,7 @@ export function TagInput({
   maxLength = 200,
   className = '',
 }: Props) {
+  const t = useT();
   const [draft, setDraft] = useState('');
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -75,7 +77,7 @@ export function TagInput({
                 remove(i);
               }}
               className="-mr-1 inline-flex h-4 w-4 items-center justify-center rounded text-muted hover:bg-status-dropped hover:text-bg"
-              aria-label={`Remove ${v}`}
+              aria-label={t.tagInput.removeTag.replace('{v}', v)}
             >
               <X className="h-3 w-3" />
             </button>

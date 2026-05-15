@@ -515,8 +515,22 @@ function open(): Database.Database {
         delVa.run(r.id);
         let staff: StaffEntry[] = [];
         let va: VaEntry[] = [];
-        try { staff = r.staff ? (JSON.parse(r.staff) as StaffEntry[]) : []; } catch { staff = []; }
-        try { va = r.va ? (JSON.parse(r.va) as VaEntry[]) : []; } catch { va = []; }
+        // Surface parse failures during the one-shot migration so a
+        // corrupt JSON column doesn't silently zero out a row's
+        // credits — without this every row with bad JSON quietly
+        // dropped all its staff / VA links.
+        try {
+          staff = r.staff ? (JSON.parse(r.staff) as StaffEntry[]) : [];
+        } catch (e) {
+          console.warn(`[migrate] vn ${r.id} has malformed staff JSON: ${(e as Error).message}`);
+          staff = [];
+        }
+        try {
+          va = r.va ? (JSON.parse(r.va) as VaEntry[]) : [];
+        } catch (e) {
+          console.warn(`[migrate] vn ${r.id} has malformed va JSON: ${(e as Error).message}`);
+          va = [];
+        }
         for (const s of staff) {
           if (!s?.id || !s.name) continue;
           insStaff.run(r.id, s.id, s.aid ?? null, s.eid ?? null, s.role ?? '', s.note ?? null, s.name, s.original ?? null, s.lang ?? null);
@@ -2019,14 +2033,27 @@ interface DbRow {
  * JSON.parse unconditionally — one bad row took the whole library
  * down.
  */
-function safeJsonParse<T>(raw: string | null | undefined, fallback: T): T {
+/**
+ * Crash-shield JSON.parse with optional shape validation. The
+ * `validate` argument is a user-supplied type guard — when it
+ * returns false, the fallback is used. Without a validator, the
+ * helper only protects against parse errors; downstream code still
+ * has to trust the row shape.
+ */
+function safeJsonParse<T>(
+  raw: string | null | undefined,
+  fallback: T,
+  validate?: (v: unknown) => v is T,
+): T {
   if (!raw) return fallback;
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    return parsed as T;
+    parsed = JSON.parse(raw);
   } catch {
     return fallback;
   }
+  if (validate && !validate(parsed)) return fallback;
+  return parsed as T;
 }
 
 function rowToItem(row: DbRow | undefined): CollectionItem | null {
@@ -4450,6 +4477,17 @@ export async function restoreFromSqliteFile(buffer: Buffer): Promise<SqliteResto
   ).all() as { name: string }[]).map((r) => r.name);
 
   const summary: SqliteRestoreSummary = { tables: [], skipped: [] };
+  // SQLite refuses parameter binding inside ATTACH DATABASE, so the
+  // path goes through literal-quote escaping. Reject anything that
+  // doesn't look like an absolute filesystem path — the caller
+  // already feeds us a server-generated `mkdtemp` output, but a
+  // defensive check costs nothing.
+  if (!tmpPath.startsWith('/') && !/^[A-Za-z]:\\/.test(tmpPath)) {
+    throw new Error('restore tmpPath must be absolute');
+  }
+  if (tmpPath.includes('\0') || tmpPath.length > 1024) {
+    throw new Error('restore tmpPath looks malformed');
+  }
   db.exec(`ATTACH DATABASE '${tmpPath.replace(/'/g, "''")}' AS src`);
   const previousForeignKeys = db.pragma('foreign_keys', { simple: true }) as 0 | 1;
   db.pragma('foreign_keys = OFF');

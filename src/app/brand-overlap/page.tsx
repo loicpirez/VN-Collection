@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, Mic2, Users } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, Mic2, Users } from 'lucide-react';
 import { findBrandStaffOverlap } from '@/lib/brand-overlap';
 import { getDict } from '@/lib/i18n/server';
 import { BrandOverlapPicker } from '@/components/BrandOverlapPicker';
@@ -61,7 +61,7 @@ async function Result({ a, b }: { a: string; b: string }) {
         <Link href={`/producer/${a}`} className="font-bold hover:text-accent">
           {result.a?.name ?? a}
         </Link>
-        <span className="text-muted">↔</span>
+        <ArrowLeftRight className="h-4 w-4 text-muted" aria-hidden />
         <Link href={`/producer/${b}`} className="font-bold hover:text-accent">
           {result.b?.name ?? b}
         </Link>

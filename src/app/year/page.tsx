@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, Award, Clock, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Award, ChevronLeft, ChevronRight, Clock, Sparkles, Star } from 'lucide-react';
 import { getReadingGoal, yearReview } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { ActivityHeatmap } from '@/components/ActivityHeatmap';
@@ -57,7 +57,7 @@ export default async function YearPage({
             aria-label={t.year.previousYear}
             title={t.year.previousYear}
           >
-            ←
+            <ChevronLeft className="h-4 w-4" aria-hidden />
           </Link>
           <span className="rounded-md bg-bg-elev px-2 py-1 font-mono">{year}</span>
           <Link
@@ -66,7 +66,7 @@ export default async function YearPage({
             aria-label={t.year.nextYear}
             title={t.year.nextYear}
           >
-            →
+            <ChevronRight className="h-4 w-4" aria-hidden />
           </Link>
         </div>
       </header>

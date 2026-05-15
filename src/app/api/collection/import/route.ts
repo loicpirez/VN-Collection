@@ -6,10 +6,28 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
+// Personal-app collections rarely exceed a few MB even with full
+// asset metadata. A 100 MB cap protects against either an accidental
+// file upload or a malicious sustained-payload attack while leaving
+// 10× headroom over realistic real-world dumps.
+const MAX_IMPORT_BYTES = 100 * 1024 * 1024;
+
 export async function POST(req: NextRequest) {
   // Import overwrites the entire collection — gate.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+
+  const contentLength = req.headers.get('content-length');
+  if (contentLength) {
+    const n = Number(contentLength);
+    if (Number.isFinite(n) && n > MAX_IMPORT_BYTES) {
+      return NextResponse.json(
+        { error: `payload too large (${(n / 1024 / 1024).toFixed(1)} MB, max ${MAX_IMPORT_BYTES / 1024 / 1024} MB)` },
+        { status: 413 },
+      );
+    }
+  }
+
   let body: CollectionExportPayload;
   const ct = req.headers.get('content-type') ?? '';
   try {
@@ -17,6 +35,9 @@ export async function POST(req: NextRequest) {
       const fd = await req.formData();
       const file = fd.get('file');
       if (!(file instanceof File)) return NextResponse.json({ error: 'missing file' }, { status: 400 });
+      if (file.size > MAX_IMPORT_BYTES) {
+        return NextResponse.json({ error: 'file too large' }, { status: 413 });
+      }
       body = JSON.parse(await file.text()) as CollectionExportPayload;
     } else {
       body = (await req.json()) as CollectionExportPayload;
