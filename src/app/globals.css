@@ -73,8 +73,53 @@
     border-radius: 8px;
     pointer-events: auto;
   }
+  /*
+   * Tiny shared building blocks that the audit flagged for
+   * extraction — the repeated class strings ran ~3 kB of duplicated
+   * Tailwind output across the bundle.
+   *
+   *   .icon-chip   — `inline-flex items-center gap-1 rounded` (~88 hits)
+   *   .tile        — card-shaped panel surface (~44 hits)
+   *   .icon-btn    — square icon-only button (~31 hits, varied sizes)
+   *   .pill        — small bordered pill (badge-style chip, ~7 hits)
+   *
+   * They are intentionally framework-neutral; consumers add sizing,
+   * colour and hover state on top.
+   */
+  .icon-chip {
+    @apply inline-flex items-center gap-1 rounded;
+  }
+  .tile {
+    @apply rounded-lg border border-border bg-bg-elev/30;
+  }
+  .icon-btn {
+    @apply inline-flex items-center justify-center;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-xs;
+  }
 }
 
 /* Hide scrollbar in chip rows */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/*
+ * Right-edge fade hint for horizontally-scrollable rows. Indicates
+ * there's more content off-screen — without it phones leave the
+ * user guessing whether the row is the whole story or just a slice.
+ * Apply alongside `overflow-x-auto` on the scroll container.
+ */
+.scroll-fade-right {
+  position: relative;
+}
+.scroll-fade-right::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  pointer-events: none;
+  background: linear-gradient(to left, rgba(12, 15, 20, 0.9), transparent);
+}

@@ -25,6 +25,10 @@ async function loadProducer(id: string): Promise<ProducerRow | null> {
     upsertProducer(fresh);
     return getProducerLocal(id);
   } catch {
+    // VNDB unreachable — serve the stale cached row so the page still
+    // renders. The freshness check above ensures we'd have refetched
+    // when next.js's revalidate window expired anyway; until then a
+    // stale producer record is far better than a 500.
     return cached;
   }
 }

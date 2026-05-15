@@ -16,6 +16,11 @@ import {
   resizeShelf,
 } from '@/lib/db';
 
+// Force lib/db to bootstrap the schema before we open our own raw
+// connection. The lib/db `db` export is a lazy Proxy now (audit
+// `db perf C-1` fix); without this nudge the file is empty until
+// the first real DB call inside one of the lib helpers.
+listShelves();
 const db = new Database(process.env.DB_PATH!);
 
 function ensureVnAndOwned(vnId: string, releaseId: string, title = vnId): void {
