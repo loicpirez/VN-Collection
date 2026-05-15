@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -119,7 +120,7 @@ export function DataMaintenance() {
                 {stale.slice(0, 50).map((s) => (
                   <li key={s.id} className="flex items-baseline justify-between gap-2 rounded-md border border-border bg-bg-elev/40 p-2">
                     <span className="min-w-0">
-                      <a href={`/vn/${s.id}`} className="truncate font-semibold hover:text-accent">{s.title}</a>
+                      <Link href={`/vn/${s.id}`} className="truncate font-semibold hover:text-accent">{s.title}</Link>
                       <span className="ml-1 text-[10px] text-muted">
                         {!s.has_cover && `· ${t.maintenance.noCover}`}
                         {!s.has_egs && `· ${t.maintenance.noEgs}`}

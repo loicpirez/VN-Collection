@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { Lock } from 'lucide-react';
+import { AlertTriangle, Lock } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   level: number;
   /** True if the item is flagged sexual / NSFW. Forces the lock when `showSexual=false`. */
   sexual?: boolean;
-  /** True if the source flagged the field as a "lie" (false-information tag). Rendered with a ⚠ marker. */
+  /** True if the source flagged the field as a "lie" (false-information tag). Rendered with an `AlertTriangle` icon. */
   lie?: boolean;
   /** Resolved spoilerLevel from <SpoilerToggle/>. */
   currentSpoilerLevel: number;
@@ -82,8 +82,8 @@ export function SpoilerChip({
     >
       {isStillSpoilery && <Lock className="h-2.5 w-2.5 opacity-60" aria-hidden />}
       {children}
-      {lie && <span className="text-[9px]">⚠</span>}
-      {level > 0 && !lie && <span className="text-[9px]">!</span>}
+      {lie && <AlertTriangle className="h-2.5 w-2.5" aria-label={t.detail.tagLie} />}
+      {level > 0 && !lie && <span className="text-[9px]" aria-hidden>!</span>}
     </Link>
   );
 }

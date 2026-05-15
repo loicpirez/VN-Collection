@@ -27,7 +27,7 @@ export function RecentlyViewedStrip() {
           <X className="h-3 w-3" /> {t.recently.clear}
         </button>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+      <div className="scroll-fade-right flex gap-3 overflow-x-auto pb-1 no-scrollbar">
         {items.map((it) => (
           <Link
             key={it.id}

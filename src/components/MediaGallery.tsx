@@ -54,12 +54,15 @@ export function MediaGallery({
         local: s.local,
         local_thumb: s.local_thumb,
         sexual: s.sexual ?? null,
-        alt: `Screenshot ${i + 1}`,
+        alt: `${t.media.screenshots} ${i + 1}`,
         aspect: 'landscape',
         dims: s.dims ?? null,
       })),
     };
     for (const img of releaseImages) {
+      const typeKey = img.type.toLowerCase() as keyof typeof t.media;
+      const localizedType =
+        typeKey in t.media && typeof t.media[typeKey] === 'string' ? t.media[typeKey] : img.type;
       const item: MediaItem = {
         key: `${img.release_id}-${img.id ?? img.url}`,
         url: img.url,
@@ -67,7 +70,7 @@ export function MediaGallery({
         local: img.local ?? null,
         local_thumb: img.local_thumb ?? null,
         sexual: img.sexual ?? null,
-        alt: `${img.type} — ${img.release_title}`,
+        alt: `${localizedType} — ${img.release_title}`,
         caption: img.release_title,
         aspect: img.type === 'pkgmed' ? 'square' : 'portrait',
         dims: img.dims ?? null,
@@ -75,7 +78,7 @@ export function MediaGallery({
       out[img.type].push(item);
     }
     return out;
-  }, [screenshots, releaseImages]);
+  }, [screenshots, releaseImages, t]);
 
   const visible = useMemo<MediaItem[]>(() => {
     if (filter === 'all') {
@@ -217,7 +220,7 @@ export function MediaGallery({
             {visible[active].alt}
           </h2>
           <button
-            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-bg-card text-white"
+            className="absolute right-4 top-4 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card text-white"
             onClick={(e) => { e.stopPropagation(); close(); }}
             aria-label={t.common.close}
           >
@@ -226,14 +229,14 @@ export function MediaGallery({
           {visible.length > 1 && (
             <>
               <button
-                className="absolute left-4 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-bg-card text-white"
+                className="absolute left-4 top-1/2 -translate-y-1/2 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card text-white"
                 onClick={(e) => { e.stopPropagation(); prev(); }}
                 aria-label={t.common.prev}
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
-                className="absolute right-4 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-bg-card text-white"
+                className="absolute right-4 top-1/2 -translate-y-1/2 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card text-white"
                 onClick={(e) => { e.stopPropagation(); next(); }}
                 aria-label={t.common.next}
               >

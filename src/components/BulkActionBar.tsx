@@ -117,7 +117,10 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
   const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
-    <div className="fixed bottom-10 left-1/2 z-50 w-[min(96vw,720px)] -translate-x-1/2 rounded-xl border border-border bg-bg-card p-2 shadow-card backdrop-blur sm:bottom-4 sm:p-3">
+    <div
+      className="fixed bottom-10 left-1/2 z-50 w-[min(96vw,720px)] -translate-x-1/2 rounded-xl border border-border bg-bg-card p-2 shadow-card backdrop-blur sm:bottom-4 sm:p-3"
+      style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+    >
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         <span className="text-sm font-bold">
           {selectedIds.length} {t.bulkEdit.selected}

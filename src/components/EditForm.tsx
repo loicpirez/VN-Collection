@@ -2,7 +2,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Bookmark, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowRight, Bookmark, Plus, Save, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -186,6 +186,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
             <input
               className={`input ${userRatingInvalid ? 'border-status-dropped ring-1 ring-status-dropped' : ''}`}
               type="number"
+              inputMode="numeric"
               min={10}
               max={100}
               step={1}
@@ -206,6 +207,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
             <input
               className={`input ${playtimeInvalid ? 'border-status-dropped ring-1 ring-status-dropped' : ''}`}
               type="number"
+              inputMode="numeric"
               min={0}
               step={1}
               value={playtime}
@@ -342,7 +344,12 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         )}
         {seriesNotIn.length > 0 && (
           <div className="flex gap-2">
-            <select className="input flex-1" value={seriesPickerId} onChange={(e) => setSeriesPickerId(e.target.value)}>
+            <select
+              className="input flex-1"
+              value={seriesPickerId}
+              onChange={(e) => setSeriesPickerId(e.target.value)}
+              aria-label={t.detail.addToSeries}
+            >
               <option value="">{t.detail.addToSeries}</option>
               {seriesNotIn.map((s) => (
                 <option key={s.id} value={String(s.id)}>{s.name}</option>
@@ -360,7 +367,10 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         )}
         {allSeries.length === 0 && (
           <p className="text-xs text-muted">
-            <Link href="/series" className="hover:text-accent">{t.series.pageTitle} →</Link>
+            <Link href="/series" className="inline-flex items-center gap-1 hover:text-accent">
+              {t.series.pageTitle}
+              <ArrowRight className="h-3 w-3" aria-hidden />
+            </Link>
           </p>
         )}
       </div>

@@ -67,12 +67,14 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
           <input
             className="input"
             placeholder={t.series.newName}
+            aria-label={t.series.newName}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <input
             className="input"
             placeholder={t.series.newDescription}
+            aria-label={t.series.newDescription}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />

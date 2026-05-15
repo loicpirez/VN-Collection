@@ -5,7 +5,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
-import { formatMinutes } from '@/lib/format';
+import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
 
 interface EgsGame {
   id: number;
@@ -46,11 +46,6 @@ interface Props {
    */
   initialGame?: EgsGame | null;
   initialSource?: Source;
-}
-
-function fmtMinutes(m: number | null | undefined): string | null {
-  const v = formatMinutes(m, { emptyValue: 'strict_positive' });
-  return v === '' ? null : v;
 }
 
 function combinedScore(vndb: number | null, egs: number | null): number | null {

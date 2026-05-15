@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Box, Download, ExternalLink, Globe, Home, MapPin, Package, Star } from 'lucide-react';
+import { ArrowLeft, Box, ChevronRight, Download, ExternalLink, Globe, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
 import {
   getCollectionItem,
   getEgsForVn,
@@ -249,7 +249,8 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                 <TitleLine title={vn.title} alttitle={vn.alttitle} />
                 {(vn.titles ?? []).length > 1 && (
                   <details className="mt-1 text-[11px]">
-                    <summary className="cursor-pointer text-muted hover:text-white">
+                    <summary className="inline-flex cursor-pointer items-center gap-1 text-muted hover:text-white [&::-webkit-details-marker]:hidden [list-style:none]">
+                      <ChevronRight className="h-3 w-3 transition-transform" aria-hidden />
                       <span className="font-bold uppercase tracking-wider">{t.detail.titlesAll}</span>
                       <span className="ml-1 opacity-70">({(vn.titles ?? []).length})</span>
                     </summary>
@@ -665,9 +666,9 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         {inCol && (
           <Link
             href={`/similar?vn=${vn.id}`}
-            className="self-start rounded-md border border-border bg-bg-card px-3 py-2 text-xs font-bold text-muted hover:border-accent hover:text-accent"
+            className="inline-flex items-center gap-1 self-start rounded-md border border-border bg-bg-card px-3 py-2 text-xs font-bold text-muted hover:border-accent hover:text-accent"
           >
-            ✨ {t.similar.moreLink}
+            <Sparkles className="h-3 w-3" aria-hidden /> {t.similar.moreLink}
           </Link>
         )}
         {inCol && <OwnedEditionsSection vnId={vn.id} />}

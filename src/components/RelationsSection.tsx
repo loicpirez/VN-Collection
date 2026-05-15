@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, GitMerge } from 'lucide-react';
-import { VnCard } from './VnCard';
+import { VnCard, type CardData } from './VnCard';
 import { useT } from '@/lib/i18n/client';
 import type { VnRelation } from '@/lib/types';
 
@@ -20,6 +20,30 @@ const RELATION_ORDER: Record<string, number> = {
 
 export interface EnrichedRelation extends VnRelation {
   in_collection: boolean;
+}
+
+// WeakMap-cached projection so the same row always yields the same
+// `CardData` reference — keeps `React.memo(VnCard)` from re-rendering
+// every card when the section's open/close state toggles.
+const relationCache = new WeakMap<EnrichedRelation, CardData>();
+
+function relationCardData(r: EnrichedRelation): CardData {
+  const cached = relationCache.get(r);
+  if (cached) return cached;
+  const data: CardData = {
+    id: r.id,
+    title: r.title,
+    poster: r.image_url || r.image_thumb,
+    sexual: r.image_sexual,
+    released: r.released,
+    rating: r.rating,
+    length_minutes: r.length_minutes,
+    developers: r.developers,
+    publishers: r.publishers,
+    inCollectionBadge: r.in_collection,
+  };
+  relationCache.set(r, data);
+  return data;
 }
 
 interface Props {
@@ -78,23 +102,7 @@ export function RelationsSection({ relations }: Props) {
                       label: r.relation_official ? label : `${label} · ${t.relations.unofficial}`,
                       tone: r.relation_official ? 'accent' : 'muted',
                     }}
-                    data={{
-                      id: r.id,
-                      title: r.title,
-                      // Prefer the full-res image_url over the 256px
-                      // image_thumb so cards in this grid stay sharp at
-                      // the 200+px display width. SafeImage handles its
-                      // own decoding cost; the thumb fallback only fires
-                      // when image_url is missing.
-                      poster: r.image_url || r.image_thumb,
-                      sexual: r.image_sexual,
-                      released: r.released,
-                      rating: r.rating,
-                      length_minutes: r.length_minutes,
-                      developers: r.developers,
-                      publishers: r.publishers,
-                      inCollectionBadge: r.in_collection,
-                    }}
+                    data={relationCardData(r)}
                   />
                 ))}
               </div>

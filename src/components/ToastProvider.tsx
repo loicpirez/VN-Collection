@@ -77,6 +77,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         createPortal(
           <div
             className="pointer-events-none fixed inset-x-0 bottom-12 z-[1100] flex flex-col items-center gap-2 px-4"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
             aria-live="polite"
             aria-atomic="false"
           >

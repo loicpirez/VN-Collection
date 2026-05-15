@@ -121,7 +121,7 @@ function ProducerTable({
 }) {
   const roleHeader = role === 'publisher' ? t.detail.publishers : t.detail.developers;
   return (
-    <div className="overflow-x-auto rounded-2xl border border-border bg-bg-card">
+    <div className="scroll-fade-right overflow-x-auto rounded-2xl border border-border bg-bg-card">
       <table className="w-full min-w-[640px] text-sm">
         <thead className="bg-bg-elev/60 text-left text-xs uppercase tracking-wider text-muted">
           <tr>

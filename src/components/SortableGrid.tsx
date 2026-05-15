@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -21,7 +21,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { VnCard } from './VnCard';
-import type { CollectionItem, Status } from '@/lib/types';
+import { toCardData } from './cardData';
+import type { CollectionItem } from '@/lib/types';
 
 interface Props {
   items: CollectionItem[];
@@ -145,30 +146,6 @@ function SortableCard({ item, isDragGhost }: { item: CollectionItem; isDragGhost
   );
 }
 
-function CardInner({ item }: { item: CollectionItem }) {
-  return (
-    <VnCard
-      data={{
-        id: item.id,
-        title: item.title,
-        alttitle: item.alttitle,
-        poster: item.image_url || item.image_thumb,
-        localPoster: item.local_image || item.local_image_thumb,
-        customCover: item.custom_cover,
-        sexual: item.image_sexual,
-        released: item.released,
-        egs_median: item.egs?.median ?? null,
-        egs_playtime_minutes: item.egs?.playtime_median_minutes ?? null,
-        rating: item.rating,
-        user_rating: item.user_rating,
-        playtime_minutes: item.playtime_minutes,
-        length_minutes: item.length_minutes,
-        status: item.status as Status | undefined,
-        favorite: item.favorite,
-        developers: item.developers,
-        publishers: item.publishers,
-        isFanDisc: (item.relations ?? []).some((r) => r.relation === 'orig'),
-      }}
-    />
-  );
-}
+const CardInner = memo(function CardInner({ item }: { item: CollectionItem }) {
+  return <VnCard data={toCardData(item)} />;
+});

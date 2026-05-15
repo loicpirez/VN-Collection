@@ -43,9 +43,15 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
 
   useEffect(() => {
     if (startedAt != null && pausedAt == null) {
-      tickRef.current = setInterval(() => setNow(Date.now()), 1000);
+      const id = setInterval(() => setNow(Date.now()), 1000);
+      tickRef.current = id;
       return () => {
-        if (tickRef.current) clearInterval(tickRef.current);
+        clearInterval(id);
+        // Clear the ref too so subsequent code can't accidentally see
+        // a stale id from a previous interval that was already torn
+        // down — the original code left `tickRef.current` pointing at
+        // a dead timer until the next start.
+        if (tickRef.current === id) tickRef.current = null;
       };
     }
   }, [startedAt, pausedAt]);
@@ -120,10 +126,12 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
         </span>
         <input
           type="number"
+          inputMode="numeric"
           min={1}
           max={120}
           value={targetMin}
           disabled={startedAt != null}
+          aria-label={t.pomodoro.label}
           onChange={(e) => setTargetMin(Math.max(1, Math.min(120, Number(e.target.value) || 1)))}
           className="input w-16 py-0.5 text-xs"
         />

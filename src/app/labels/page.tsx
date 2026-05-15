@@ -49,14 +49,12 @@ export default async function LabelsPage({
   const proto = h.get('x-forwarded-proto') ?? 'http';
   const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000';
   const origin = `${proto}://${host}`;
-  // Filter ids in SQL when supplied rather than loading the full library
-  // just to drop most rows.
-  const idList = filter ? Array.from(filter) : null;
-  const items = idList
-    ? listCollection({ sort: 'title' }).filter(
-        (it) => idList.includes(it.id) && (!status || it.status === status),
-      )
-    : listCollection({ sort: 'title' }).filter((it) => !status || it.status === status);
+  // Push id filtering into SQL so we don't load the full library just
+  // to drop most rows.
+  const idList = filter ? Array.from(filter) : undefined;
+  const items = listCollection({ sort: 'title', vnIds: idList }).filter(
+    (it) => !status || it.status === status,
+  );
 
   // Pre-render every QR SVG server-side, so the printed sheet doesn't
   // depend on any third-party service.

@@ -143,6 +143,12 @@ export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; 
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <h4 className="flex flex-wrap items-baseline gap-2 text-sm font-bold">
+                      {isOwned && (
+                        <Check
+                          className="inline h-3 w-3 shrink-0 text-status-completed"
+                          aria-label={t.releases.ownedYes}
+                        />
+                      )}
                       <Link href={`/release/${r.id}`} className="hover:text-accent">
                         {r.title}
                       </Link>

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, Database, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
-import { VnCard } from './VnCard';
+import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
 import { TextualSearchPanel } from './TextualSearchPanel';
 import { useToast } from './ToastProvider';
@@ -84,6 +84,27 @@ function isAdvActive(adv: AdvParams): boolean {
     adv.hasReview ||
     adv.hasAnime
   );
+}
+
+// WeakMap-cached projection so `React.memo(VnCard)` skips re-renders
+// when the only thing that changed is the search query.
+const searchCache = new WeakMap<VndbSearchHit, CardData>();
+
+function searchCardData(r: VndbSearchHit): CardData {
+  const cached = searchCache.get(r);
+  if (cached) return cached;
+  const data: CardData = {
+    id: r.id,
+    title: r.title,
+    poster: r.image?.thumbnail || r.image?.url || null,
+    released: r.released,
+    rating: r.rating,
+    length_minutes: r.length_minutes,
+    inCollectionBadge: r.in_collection,
+    developers: r.developers,
+  };
+  searchCache.set(r, data);
+  return data;
 }
 
 export function SearchClient() {
@@ -322,6 +343,7 @@ export function SearchClient() {
           ref={inputRef}
           className="input pl-9"
           placeholder={source === 'egs' ? t.search.egsPlaceholder : t.search.placeholder}
+          aria-label={source === 'egs' ? t.search.egsPlaceholder : t.search.placeholder}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
@@ -423,6 +445,7 @@ export function SearchClient() {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-muted">{t.search.yearMin}</span>
                 <input
                   type="number"
+                  inputMode="numeric"
                   className="input"
                   placeholder="1990"
                   min={1970}
@@ -435,6 +458,7 @@ export function SearchClient() {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-muted">{t.search.yearMax}</span>
                 <input
                   type="number"
+                  inputMode="numeric"
                   className="input"
                   placeholder="2026"
                   min={1970}
@@ -449,6 +473,7 @@ export function SearchClient() {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-muted">{t.search.ratingMin}</span>
                 <input
                   type="number"
+                  inputMode="numeric"
                   className="input"
                   placeholder="70"
                   min={10}
@@ -554,16 +579,7 @@ export function SearchClient() {
             <VnCard
               key={r.id}
               enableAdd
-              data={{
-                id: r.id,
-                title: r.title,
-                poster: r.image?.thumbnail || r.image?.url || null,
-                released: r.released,
-                rating: r.rating,
-                length_minutes: r.length_minutes,
-                inCollectionBadge: r.in_collection,
-                developers: r.developers,
-              }}
+              data={searchCardData(r)}
             />
           ))}
         </div>

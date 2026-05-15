@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  ArrowRight,
   CalendarCheck2,
   CalendarClock,
   Clock,
@@ -47,17 +48,33 @@ function fmtDate(ts: number, locale: string): string {
   });
 }
 
-function summary(entry: Entry, t: ReturnType<typeof useT>): string {
+function Arrow() {
+  return <ArrowRight className="inline-block h-3 w-3 align-middle" aria-hidden />;
+}
+
+function summary(entry: Entry, t: ReturnType<typeof useT>): ReactNode {
   const p = entry.payload ?? {};
   switch (entry.kind) {
     case 'status':
-      return `${t.activity.kind.status}: ${String(p.from ?? '—')} → ${String(p.to ?? '—')}`;
+      return (
+        <>
+          {t.activity.kind.status}: {String(p.from ?? '—')} <Arrow /> {String(p.to ?? '—')}
+        </>
+      );
     case 'rating':
-      return `${t.activity.kind.rating}: ${formatRating(p.from)} → ${formatRating(p.to)}`;
+      return (
+        <>
+          {t.activity.kind.rating}: {formatRating(p.from)} <Arrow /> {formatRating(p.to)}
+        </>
+      );
     case 'playtime': {
       const delta = typeof p.delta === 'number' ? p.delta : 0;
       const sign = delta > 0 ? '+' : '';
-      return `${t.activity.kind.playtime}: ${sign}${delta} min (→ ${p.to} min)`;
+      return (
+        <>
+          {t.activity.kind.playtime}: {sign}{delta} min (<Arrow /> {String(p.to)} min)
+        </>
+      );
     }
     case 'favorite':
       return p.to ? t.activity.kind.favoriteOn : t.activity.kind.favoriteOff;

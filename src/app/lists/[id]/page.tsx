@@ -9,13 +9,47 @@ import {
   type UserListItem,
 } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
-import { VnCard } from '@/components/VnCard';
+import { VnCard, type CardData } from '@/components/VnCard';
 import { ListMetaEditor } from '@/components/ListMetaEditor';
 import { ListRemoveVn } from '@/components/ListRemoveVn';
 import { ListAddVnForm } from '@/components/ListAddVnForm';
 import type { Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+
+// WeakMap-cached `CardData` projection. The row shape is custom (no
+// CollectionItem here — this query returns just the columns the card
+// uses), so we keep the cache local rather than sharing `toCardData`.
+const listRowCache = new WeakMap<VnRow, CardData>();
+
+function listCardData(
+  row: VnRow,
+  developers: { id?: string; name: string }[],
+  publishers: { id?: string; name: string }[],
+): CardData {
+  const cached = listRowCache.get(row);
+  if (cached) return cached;
+  const data: CardData = {
+    id: row.id,
+    title: row.title,
+    alttitle: row.alttitle,
+    poster: row.image_url || row.image_thumb,
+    localPoster: row.local_image || row.local_image_thumb,
+    customCover: row.custom_cover,
+    sexual: row.image_sexual,
+    released: row.released,
+    rating: row.rating,
+    user_rating: row.user_rating,
+    playtime_minutes: row.playtime_minutes ?? 0,
+    length_minutes: row.length_minutes,
+    status: (row.status as Status | null) ?? undefined,
+    favorite: !!row.favorite,
+    developers,
+    publishers,
+  };
+  listRowCache.set(row, data);
+  return data;
+}
 
 interface VnRow {
   id: string;
@@ -123,26 +157,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
               <div key={it.vn_id} className="group relative">
                 <ListRemoveVn listId={list.id} vnId={it.vn_id} />
                 {row ? (
-                  <VnCard
-                    data={{
-                      id: row.id,
-                      title: row.title,
-                      alttitle: row.alttitle,
-                      poster: row.image_url || row.image_thumb,
-                      localPoster: row.local_image || row.local_image_thumb,
-                      customCover: row.custom_cover,
-                      sexual: row.image_sexual,
-                      released: row.released,
-                      rating: row.rating,
-                      user_rating: row.user_rating,
-                      playtime_minutes: row.playtime_minutes,
-                      length_minutes: row.length_minutes,
-                      status: (row.status as Status | null) ?? undefined,
-                      favorite: !!row.favorite,
-                      developers,
-                      publishers,
-                    }}
-                  />
+                  <VnCard data={listCardData(row, developers, publishers)} />
                 ) : (
                   <StubCard vnId={it.vn_id} />
                 )}

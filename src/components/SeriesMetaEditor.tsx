@@ -2,6 +2,7 @@
 import { useState, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Image as ImageIcon, Loader2, Save, Trash2, Upload, X } from 'lucide-react';
+import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 
@@ -93,7 +94,11 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
           <label className="text-[11px] font-bold uppercase tracking-wider text-muted">{t.series.cover}</label>
           <div className="relative aspect-[2/3] overflow-hidden rounded-lg border border-border bg-bg-elev">
             {coverPath ? (
-              <img src={toUrl(coverPath) ?? ''} alt="" className="h-full w-full object-cover" />
+              <SafeImage
+                src={toUrl(coverPath) ?? ''}
+                alt={t.series.cover}
+                className="h-full w-full"
+              />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-muted">
                 <ImageIcon className="h-8 w-8" aria-hidden />
@@ -156,7 +161,11 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted">{t.series.banner}</span>
             <div className="relative h-28 overflow-hidden rounded-lg border border-border bg-bg-elev">
               {bannerPath ? (
-                <img src={toUrl(bannerPath) ?? ''} alt="" className="h-full w-full object-cover" />
+                <SafeImage
+                  src={toUrl(bannerPath) ?? ''}
+                  alt={t.series.banner}
+                  className="h-full w-full"
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-muted">
                   <ImageIcon className="h-8 w-8" aria-hidden />

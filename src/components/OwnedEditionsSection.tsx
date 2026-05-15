@@ -532,10 +532,12 @@ function EditionEditor({
         <input
           className="input"
           type="number"
+          inputMode="decimal"
           min={0}
           step="0.01"
           value={pricePaid}
           onChange={(e) => setPricePaid(e.target.value)}
+          aria-label={t.inventory.pricePaid}
         />
       </label>
       <label className="flex flex-col gap-1">

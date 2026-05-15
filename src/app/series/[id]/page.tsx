@@ -6,10 +6,11 @@ import { getSeries, listCollection } from '@/lib/db';
 import { publicUrlFor } from '@/lib/files';
 import { getDict } from '@/lib/i18n/server';
 import { VnCard } from '@/components/VnCard';
+import { toCardData } from '@/components/cardData';
+import { SafeImage } from '@/components/SafeImage';
 import { SeriesAddVnForm } from '@/components/SeriesAddVnForm';
 import { SeriesRemoveVn } from '@/components/SeriesRemoveVn';
 import { SeriesMetaEditor } from '@/components/SeriesMetaEditor';
-import type { Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,19 +40,19 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
       <header className="mb-6 overflow-hidden rounded-2xl border border-border bg-bg-card">
         {series.banner_path && (
           <div className="h-40 w-full overflow-hidden bg-bg-elev">
-            <img
+            <SafeImage
               src={publicUrlFor(series.banner_path) ?? ''}
-              alt=""
-              className="h-full w-full object-cover"
+              alt={`${series.name} — ${t.series.banner}`}
+              className="h-full w-full"
             />
           </div>
         )}
         <div className="flex items-start gap-4 p-6">
           {series.cover_path ? (
-            <img
+            <SafeImage
               src={publicUrlFor(series.cover_path) ?? ''}
-              alt=""
-              className="h-32 w-24 shrink-0 rounded-lg object-cover"
+              alt={`${series.name} — ${t.series.cover}`}
+              className="h-32 w-24 shrink-0 rounded-lg"
             />
           ) : (
             <Bookmark className="h-7 w-7 text-accent" aria-hidden />
@@ -87,25 +88,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
           {items.map((it) => (
             <div key={it.id} className="group relative">
               <SeriesRemoveVn seriesId={series.id} vnId={it.id} />
-              <VnCard
-                data={{
-                  id: it.id,
-                  title: it.title,
-                  poster: it.image_url || it.image_thumb,
-                  localPoster: it.local_image || it.local_image_thumb,
-                  customCover: it.custom_cover,
-                  sexual: it.image_sexual,
-                  released: it.released,
-                  rating: it.rating,
-                  user_rating: it.user_rating,
-                  playtime_minutes: it.playtime_minutes,
-                  length_minutes: it.length_minutes,
-                  status: it.status as Status | undefined,
-                  favorite: it.favorite,
-                  developers: it.developers,
-                  publishers: it.publishers,
-                }}
-              />
+              <VnCard data={toCardData(it)} />
             </div>
           ))}
         </div>

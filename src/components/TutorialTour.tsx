@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, GraduationCap, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -45,6 +45,7 @@ const STEPS: Step[] = [
 export function TutorialTour() {
   const t = useT();
   const router = useRouter();
+  const titleId = useId();
   const [active, setActive] = useState(false);
   const [step, setStep] = useState(0);
 
@@ -95,20 +96,20 @@ export function TutorialTour() {
     <div
       role="dialog"
       aria-modal="false"
-      aria-labelledby="vn-tour-title"
+      aria-labelledby={titleId}
       className="fixed bottom-4 right-4 z-50 w-[min(92vw,420px)] rounded-2xl border border-accent/40 bg-bg-card p-5 shadow-card"
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <span id="vn-tour-title" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
+        <span id={titleId} className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
           <GraduationCap className="h-4 w-4" aria-hidden /> {t.tour.title}
         </span>
         <button
           type="button"
           onClick={() => close(true)}
-          className="rounded text-muted hover:text-white"
+          className="tap-target-tight rounded text-muted hover:text-white"
           aria-label={t.common.close}
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4" aria-hidden />
         </button>
       </div>
       <h3 className="text-base font-bold">{t.tour.steps[titleKey] as string}</h3>

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
-import { VnCard } from './VnCard';
+import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -42,6 +42,33 @@ interface WishlistItem {
   };
   in_collection: boolean;
   egs: { median: number | null; playtime_median_minutes: number | null } | null;
+}
+
+// Same WeakMap-cached projection trick as `LibraryClient`'s `toCardData`
+// — keeps `React.memo(VnCard)` from re-rendering every wishlist card
+// whenever a sibling state (search query, sort change) ticks.
+const wishlistCache = new WeakMap<WishlistItem, CardData>();
+
+function wishlistCardData(it: WishlistItem): CardData {
+  const cached = wishlistCache.get(it);
+  if (cached) return cached;
+  const data: CardData = {
+    id: it.vn.id,
+    title: it.vn.title,
+    alttitle: it.vn.alttitle,
+    poster: it.vn.image?.thumbnail || it.vn.image?.url || null,
+    sexual: it.vn.image?.sexual ?? null,
+    released: it.vn.released,
+    rating: it.vn.rating,
+    length_minutes: it.vn.length_minutes,
+    developers: it.vn.developers,
+    publishers: it.vn.publishers,
+    inCollectionBadge: it.in_collection,
+    egs_median: it.egs?.median ?? null,
+    egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
+  };
+  wishlistCache.set(it, data);
+  return data;
 }
 
 export function WishlistClient() {
@@ -265,6 +292,7 @@ export function WishlistClient() {
               <input
                 className="input pl-9"
                 placeholder={t.wishlist.searchPlaceholder}
+                aria-label={t.wishlist.searchPlaceholder}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
@@ -274,6 +302,7 @@ export function WishlistClient() {
               onChange={(e) => setSort(e.target.value as WishlistSort)}
               className="input h-8 py-0 text-xs"
               title={t.wishlist.sortLabel}
+              aria-label={t.wishlist.sortLabel}
             >
               {SORT_KEYS.map((k) => (
                 <option key={k} value={k}>{t.wishlist.sortLabel}: {t.wishlist.sortOptions[k]}</option>
@@ -284,6 +313,7 @@ export function WishlistClient() {
               onChange={(e) => setGroup(e.target.value as WishlistGroup)}
               className="input h-8 py-0 text-xs"
               title={t.wishlist.groupLabel}
+              aria-label={t.wishlist.groupLabel}
             >
               {GROUP_KEYS.map((k) => (
                 <option key={k} value={k}>{t.wishlist.groupLabel}: {t.wishlist.groupOptions[k]}</option>
@@ -354,21 +384,7 @@ export function WishlistClient() {
                         ? () => removeOne(it.vn.id)
                         : undefined
                     }
-                    data={{
-                      id: it.vn.id,
-                      title: it.vn.title,
-                      alttitle: it.vn.alttitle,
-                      poster: it.vn.image?.thumbnail || it.vn.image?.url || null,
-                      sexual: it.vn.image?.sexual ?? null,
-                      released: it.vn.released,
-                      rating: it.vn.rating,
-                      length_minutes: it.vn.length_minutes,
-                      developers: it.vn.developers,
-                      publishers: it.vn.publishers,
-                      inCollectionBadge: it.in_collection,
-                      egs_median: it.egs?.median ?? null,
-                      egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
-                    }}
+                    data={wishlistCardData(it)}
                   />
                 ))}
               </div>
@@ -376,7 +392,10 @@ export function WishlistClient() {
           ))}
 
           {selectMode && selected.size > 0 && (
-            <div className="fixed bottom-10 left-1/2 z-50 w-[min(96vw,32rem)] -translate-x-1/2 rounded-full border border-border bg-bg-card px-4 py-2 shadow-card sm:bottom-4">
+            <div
+              className="fixed bottom-10 left-1/2 z-50 w-[min(96vw,32rem)] -translate-x-1/2 rounded-full border border-border bg-bg-card px-4 py-2 shadow-card sm:bottom-4"
+              style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+            >
               <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
                 <span className="text-muted">{t.wishlist.selectedCount.replace('{count}', String(selected.size))}</span>
                 <button
