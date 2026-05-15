@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Gamepad2, Link2, Loader2, Search, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from '@/components/ToastProvider';
+import { useConfirm } from '@/components/ConfirmDialog';
 import { SkeletonRows } from '@/components/Skeleton';
 
 interface Suggestion {
@@ -51,6 +52,7 @@ function fmt(m: number): string {
 export default function SteamSyncPage() {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
 
   // Suggestions (auto+manual links where Steam > local)
@@ -161,7 +163,8 @@ export default function SteamSyncPage() {
   }
 
   async function unlink(vnId: string) {
-    if (!confirm(t.steam.unlinkConfirm)) return;
+    const ok = await confirm({ message: t.steam.unlinkConfirm, tone: 'danger' });
+    if (!ok) return;
     try {
       const r = await fetch(`/api/steam/link?vn_id=${vnId}`, { method: 'DELETE' });
       if (!r.ok) throw new Error(t.common.error);

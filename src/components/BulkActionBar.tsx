@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/client';
 import { BOX_TYPES, EDITION_TYPES, LOCATIONS, STATUSES, type BoxType, type EditionType, type Location, type Status } from '@/lib/types';
 import { StatusIcon } from './StatusIcon';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 
 interface Props {
   selectedIds: string[];
@@ -40,6 +41,7 @@ async function deleteOne(vnId: string): Promise<void> {
 export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -79,7 +81,12 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
 
   async function applyDelete() {
     if (selectedIds.length === 0) return;
-    if (!confirm(t.bulkEdit.confirmDelete.replace('{n}', String(selectedIds.length)))) return;
+    const ok = await confirm({
+      message: t.bulkEdit.confirmDelete.replace('{n}', String(selectedIds.length)),
+      tone: 'danger',
+      requireTyping: selectedIds.length >= 5 ? 'DELETE' : undefined,
+    });
+    if (!ok) return;
     setBusy(true);
     setErrors([]);
     setProgress({ done: 0, total: selectedIds.length });

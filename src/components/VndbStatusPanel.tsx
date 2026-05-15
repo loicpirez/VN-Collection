@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 
@@ -34,6 +35,7 @@ interface State {
 export function VndbStatusPanel({ vnId }: { vnId: string }) {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [state, setState] = useState<State | null>(null);
@@ -107,7 +109,8 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   }
 
   async function clearAll() {
-    if (!confirm(t.vndbStatus.removeConfirm)) return;
+    const ok = await confirm({ message: t.vndbStatus.removeConfirm, tone: 'danger' });
+    if (!ok) return;
     setPendingClear(true);
     try {
       const r = await fetch(`/api/vn/${vnId}/vndb-status`, { method: 'DELETE' });

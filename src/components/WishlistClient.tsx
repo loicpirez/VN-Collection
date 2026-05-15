@@ -5,6 +5,7 @@ import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from
 import { VnCard } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 import { useT } from '@/lib/i18n/client';
 
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc';
@@ -46,6 +47,7 @@ interface WishlistItem {
 export function WishlistClient() {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   // Gate the empty-state copy so it never renders before the first successful
@@ -121,7 +123,11 @@ export function WishlistClient() {
   async function deleteSelected() {
     if (selected.size === 0) return;
     const list = Array.from(selected);
-    if (!confirm(t.wishlist.deleteConfirm.replace('{count}', String(list.length)))) return;
+    const ok = await confirm({
+      message: t.wishlist.deleteConfirm.replace('{count}', String(list.length)),
+      tone: 'danger',
+    });
+    if (!ok) return;
     setDeleting(true);
     let removed = 0;
     let failed = 0;

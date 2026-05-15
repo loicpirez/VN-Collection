@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Pause, Play, Square, Timer } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 
 interface Props {
   vnId: string;
@@ -30,6 +31,7 @@ interface Props {
 export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [targetMin, setTargetMin] = useState(25);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -86,7 +88,8 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
   async function logElapsed() {
     const min = Math.round(elapsedSec / 60);
     if (min <= 0) return;
-    if (!confirm(t.pomodoro.confirm.replace('{n}', String(min)))) return;
+    const ok = await confirm({ message: t.pomodoro.confirm.replace('{n}', String(min)) });
+    if (!ok) return;
     setSaving(true);
     try {
       const r = await fetch(`/api/collection/${vnId}`, {

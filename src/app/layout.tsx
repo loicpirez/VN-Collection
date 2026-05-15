@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { Library } from 'lucide-react';
@@ -15,6 +15,7 @@ import { SettingsButton } from '@/components/SettingsButton';
 import { SpoilerToggle } from '@/components/SpoilerToggle';
 import { QuoteFooter } from '@/components/QuoteFooter';
 import { ToastProvider } from '@/components/ToastProvider';
+import { ConfirmProvider } from '@/components/ConfirmDialog';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -31,6 +32,15 @@ export async function generateMetadata(): Promise<Metadata> {
     description: dict.app.tagline,
   };
 }
+
+// Next 15 wants viewport in a separate export. Sets the mobile theme
+// color to match the dark UI so the iOS / Android status bar bleeds
+// into the chrome instead of staying white.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#0b1220',
+};
 
 /**
  * Read the display-settings cookie set by the client provider. Lets us
@@ -62,25 +72,45 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <I18nProvider locale={locale} dict={dict}>
           <DisplaySettingsProvider initial={initialSettings}>
             <ToastProvider>
-            <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur">
-              <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-3 py-3 sm:gap-4 sm:px-6">
-                <Link href="/" className="flex items-center gap-2">
-                  <Library className="h-6 w-6 text-accent" aria-hidden />
-                  <span className="text-base font-bold tracking-wide">{dict.app.title}</span>
-                </Link>
-                <GroupedNav />
-                <div className="ml-auto flex items-center gap-2">
-                  <SpoilerToggle />
-                  <SettingsButton />
-                  <LanguageSwitcher />
-                </div>
-              </div>
-            </header>
-            <main className="mx-auto max-w-7xl px-3 pb-16 pt-6 sm:px-6 sm:pt-8">{children}</main>
-              <QuoteFooter />
-              <KeyboardShortcuts />
-              <TutorialTour />
-              <DownloadStatusBar />
+              <ConfirmProvider>
+                {/*
+                  Skip-to-content link for keyboard users. Visible only on
+                  focus (sr-only otherwise), lands on the <main id> below
+                  so Tab from the URL bar reaches content in one keystroke
+                  instead of cycling through the entire nav each time.
+                */}
+                <a
+                  href="#main-content"
+                  className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[1300] focus:rounded-md focus:bg-accent focus:px-3 focus:py-2 focus:text-bg focus:shadow-card"
+                >
+                  {dict.app.skipToContent}
+                </a>
+                <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur">
+                  <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-3 py-3 sm:gap-4 sm:px-6">
+                    <Link href="/" className="flex items-center gap-2">
+                      <Library className="h-6 w-6 text-accent" aria-hidden />
+                      <span className="text-base font-bold tracking-wide">{dict.app.title}</span>
+                    </Link>
+                    <GroupedNav />
+                    <div className="ml-auto flex items-center gap-2">
+                      <SpoilerToggle />
+                      <SettingsButton />
+                      <LanguageSwitcher />
+                    </div>
+                  </div>
+                </header>
+                <main
+                  id="main-content"
+                  className="mx-auto max-w-7xl px-3 pb-16 pt-6 sm:px-6 sm:pt-8"
+                  tabIndex={-1}
+                >
+                  {children}
+                </main>
+                <QuoteFooter />
+                <KeyboardShortcuts />
+                <TutorialTour />
+                <DownloadStatusBar />
+              </ConfirmProvider>
             </ToastProvider>
           </DisplaySettingsProvider>
         </I18nProvider>
@@ -88,4 +118,3 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     </html>
   );
 }
-

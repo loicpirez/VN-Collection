@@ -3,6 +3,7 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Database as DbIcon, Loader2, Upload } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useConfirm } from './ConfirmDialog';
 
 interface JsonSummary {
   vns_upserted: number;
@@ -30,6 +31,7 @@ async function detectKind(file: File): Promise<'json' | 'db'> {
 
 export function ImportPanel() {
   const t = useT();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
@@ -44,8 +46,16 @@ export function ImportPanel() {
     setSummary(null);
     try {
       const kind = await detectKind(file);
-      if (kind === 'db' && !confirm(t.dataMgmt.restoreConfirm)) {
-        return;
+      if (kind === 'db') {
+        // DB restore wipes every existing row — gate behind a
+        // type-to-confirm so an accidental drop doesn't atomic-
+        // destroy the user's collection.
+        const ok = await confirm({
+          message: t.dataMgmt.restoreConfirm,
+          tone: 'danger',
+          requireTyping: 'RESTORE',
+        });
+        if (!ok) return;
       }
       const fd = new FormData();
       fd.append('file', file);

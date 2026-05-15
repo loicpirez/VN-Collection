@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Clock, ExternalLink, Link2, Loader2, RefreshCw, Search, Sparkles, Star, Trash2, Users, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 
@@ -74,6 +75,7 @@ export function EgsPanel({
 }: Props) {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   // Hydrate from the server payload so first paint already shows the match.
   // We skip the fetch-on-mount when initialGame is provided (the server just
   // looked it up in the DB — a client round-trip would only re-confirm).
@@ -119,7 +121,8 @@ export function EgsPanel({
   }
 
   async function onUnlink() {
-    if (!confirm(t.egs.unlinkConfirm)) return;
+    const ok = await confirm({ message: t.egs.unlinkConfirm, tone: 'danger' });
+    if (!ok) return;
     try {
       await fetch(`/api/vn/${vnId}/erogamescape`, { method: 'DELETE' });
       setGame(null);

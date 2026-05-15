@@ -3,6 +3,7 @@ import { useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Pencil, Trash2, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 import { useT } from '@/lib/i18n/client';
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
 export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [text, setText] = useState(initial ?? '');
   const [editing, setEditing] = useState(false);
@@ -53,7 +55,8 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
   }
 
   async function clear() {
-    if (!confirm(t.customSynopsis.clearConfirm)) return;
+    const ok = await confirm({ message: t.customSynopsis.clearConfirm, tone: 'danger' });
+    if (!ok) return;
     setSaving(true);
     try {
       const r = await fetch(`/api/collection/${vnId}/custom-description`, {

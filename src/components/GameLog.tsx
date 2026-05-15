@@ -16,6 +16,7 @@ import {
 import { useLocale, useT } from '@/lib/i18n/client';
 import { timeAgo } from '@/lib/time-ago';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 
 export interface GameLogEntry {
   id: number;
@@ -50,6 +51,7 @@ interface Props {
  */
 export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
   const t = useT();
+  const { confirm } = useConfirm();
   const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
@@ -144,7 +146,8 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
   }
 
   async function remove(id: number) {
-    if (!confirm(t.gameLog.deleteConfirm)) return;
+    const ok = await confirm({ message: t.gameLog.deleteConfirm, tone: 'danger' });
+    if (!ok) return;
     try {
       const r = await fetch(`/api/collection/${vnId}/game-log?entry=${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);

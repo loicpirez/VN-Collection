@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Bookmark, Plus, Save, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 import { StatusIcon } from './StatusIcon';
 import { MarkdownNotes } from './MarkdownNotes';
 import { DateInput } from './DateInput';
@@ -21,6 +22,7 @@ interface Props {
 export function EditForm({ vn, inCollection, allSeries }: Props) {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -119,8 +121,9 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     );
   }
 
-  function handleRemove() {
-    if (!confirm(t.form.removeConfirm)) return;
+  async function handleRemove() {
+    const ok = await confirm({ message: t.form.removeConfirm, tone: 'danger' });
+    if (!ok) return;
     withTransition(
       () => call('DELETE').then(() => toast.success(t.toast.removed)),
       () => router.push('/'),

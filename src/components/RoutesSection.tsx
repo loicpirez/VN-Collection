@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Check, GitBranch, Loader2, Pencil, Plus, StickyNote, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useConfirm } from './ConfirmDialog';
 import type { RouteRow } from '@/lib/types';
 import type { VndbCharacter } from '@/lib/vndb-types';
 
@@ -15,6 +16,7 @@ const ROLE_PRIORITY: Record<string, number> = { main: 0, primary: 1, side: 2, ap
 
 export function RoutesSection({ vnId, inCollection }: Props) {
   const t = useT();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [routes, setRoutes] = useState<RouteRow[]>([]);
   const [draft, setDraft] = useState('');
@@ -128,7 +130,8 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   }
 
   async function remove(id: number) {
-    if (!confirm(t.routes.removeConfirm)) return;
+    const ok = await confirm({ message: t.routes.removeConfirm, tone: 'danger' });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

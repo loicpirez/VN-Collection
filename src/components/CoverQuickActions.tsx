@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Heart, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 
 interface Props {
   vnId: string;
@@ -29,6 +30,7 @@ interface Props {
 export function CoverQuickActions({ vnId, inCollection, status }: Props) {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -52,7 +54,8 @@ export function CoverQuickActions({ vnId, inCollection, status }: Props) {
   }
 
   async function removeFromCollection() {
-    if (!confirm(t.coverActions.removeConfirm)) return;
+    const ok = await confirm({ message: t.coverActions.removeConfirm, tone: 'danger' });
+    if (!ok) return;
     setBusy('remove');
     try {
       const r = await fetch(`/api/collection/${vnId}`, { method: 'DELETE' });
@@ -74,7 +77,8 @@ export function CoverQuickActions({ vnId, inCollection, status }: Props) {
         // simplest semantic. The user can always re-add. Inline the DELETE
         // here so we don't ask for two confirmations (the inner one warns
         // about the collection again, which is what we already confirmed).
-        if (!confirm(t.coverActions.unwishConfirm)) {
+        const ok = await confirm({ message: t.coverActions.unwishConfirm, tone: 'danger' });
+        if (!ok) {
           setBusy(null);
           return;
         }

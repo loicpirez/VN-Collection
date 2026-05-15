@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Check, Loader2, Pencil, Pin, PinOff, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 
 interface List {
   id: number;
@@ -19,6 +20,7 @@ export function ListMetaEditor({ list }: { list: List }) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(list.name);
   const [description, setDescription] = useState(list.description ?? '');
@@ -54,7 +56,8 @@ export function ListMetaEditor({ list }: { list: List }) {
   }
 
   async function destroy() {
-    if (!confirm(t.lists.deleteConfirm)) return;
+    const ok = await confirm({ message: t.lists.deleteConfirm, tone: 'danger' });
+    if (!ok) return;
     setBusy(true);
     try {
       const r = await fetch(`/api/lists/${list.id}`, { method: 'DELETE' });

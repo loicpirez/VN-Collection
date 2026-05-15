@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ExternalLink, Link2, Loader2, Search, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 import { useT } from '@/lib/i18n/client';
 
 interface SearchHit {
@@ -25,6 +26,7 @@ interface SearchHit {
 export function LinkToVndbButton({ vnId, seedQuery }: { vnId: string; seedQuery: string }) {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(seedQuery);
@@ -66,7 +68,11 @@ export function LinkToVndbButton({ vnId, seedQuery }: { vnId: string; seedQuery:
   }, [open]);
 
   async function link(targetId: string) {
-    if (!confirm(t.linkVndb.confirm.replace('{id}', targetId))) return;
+    const ok = await confirm({
+      message: t.linkVndb.confirm.replace('{id}', targetId),
+      tone: 'danger',
+    });
+    if (!ok) return;
     setLinkingId(targetId);
     try {
       const r = await fetch(`/api/vn/${vnId}/link-vndb`, {

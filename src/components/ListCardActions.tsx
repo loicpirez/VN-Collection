@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, MoreVertical, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 
 interface List {
   id: number;
@@ -15,6 +16,7 @@ export function ListCardActions({ list }: { list: List }) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
+  const { confirm, prompt } = useConfirm();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
@@ -38,12 +40,16 @@ export function ListCardActions({ list }: { list: List }) {
   }
 
   async function rename() {
-    const next = prompt(t.lists.rename, list.name);
-    if (!next || next.trim() === list.name) {
+    const next = await prompt({
+      title: t.lists.rename,
+      initial: list.name,
+      validate: (v) => (v.trim() ? null : t.lists.renameRequired),
+    });
+    if (next === null || !next || next === list.name) {
       setOpen(false);
       return;
     }
-    await patch({ name: next.trim() });
+    await patch({ name: next });
   }
 
   async function togglePin() {
@@ -51,7 +57,8 @@ export function ListCardActions({ list }: { list: List }) {
   }
 
   async function destroy() {
-    if (!confirm(t.lists.deleteConfirm)) {
+    const ok = await confirm({ message: t.lists.deleteConfirm, tone: 'danger' });
+    if (!ok) {
       setOpen(false);
       return;
     }

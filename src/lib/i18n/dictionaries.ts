@@ -7,6 +7,7 @@ export const dictionaries = {
     app: {
       title: 'VN Collection',
       tagline: 'Ma collection de Visual Novels',
+      skipToContent: 'Aller au contenu',
     },
     timeAgo: {
       never: 'jamais',
@@ -175,6 +176,8 @@ export const dictionaries = {
       noImage: "Pas d'image",
       cancel: 'Annuler',
       confirm: 'Confirmer',
+      confirmTitle: 'Confirmation requise',
+      confirmTypeHint: 'Tape « {token} » pour confirmer.',
       yes: 'Oui',
       no: 'Non',
       close: 'Fermer',
@@ -644,6 +647,7 @@ export const dictionaries = {
       pin: 'Épingler',
       unpin: 'Détacher',
       rename: 'Renommer',
+      renameRequired: 'Le nom ne peut pas être vide.',
       delete: 'Supprimer',
       deleteConfirm: 'Supprimer cette liste ?',
       addToList: 'Ajouter à une liste',
@@ -1475,6 +1479,7 @@ export const dictionaries = {
     app: {
       title: 'VN Collection',
       tagline: 'My Visual Novels collection',
+      skipToContent: 'Skip to content',
     },
     timeAgo: {
       never: 'never',
@@ -1643,6 +1648,8 @@ export const dictionaries = {
       noImage: 'No image',
       cancel: 'Cancel',
       confirm: 'Confirm',
+      confirmTitle: 'Are you sure?',
+      confirmTypeHint: 'Type "{token}" to confirm.',
       yes: 'Yes',
       no: 'No',
       close: 'Close',
@@ -2112,6 +2119,7 @@ export const dictionaries = {
       pin: 'Pin',
       unpin: 'Unpin',
       rename: 'Rename',
+      renameRequired: 'Name cannot be empty.',
       delete: 'Delete',
       deleteConfirm: 'Delete this list?',
       addToList: 'Add to list',
@@ -2943,6 +2951,7 @@ export const dictionaries = {
     app: {
       title: 'VN コレクション',
       tagline: '私のビジュアルノベルコレクション',
+      skipToContent: 'コンテンツへスキップ',
     },
     timeAgo: {
       never: '未取得',
@@ -3111,6 +3120,8 @@ export const dictionaries = {
       noImage: '画像なし',
       cancel: 'キャンセル',
       confirm: '確定',
+      confirmTitle: '本当に実行しますか？',
+      confirmTypeHint: '「{token}」と入力して確定してください。',
       yes: 'はい',
       no: 'いいえ',
       close: '閉じる',
@@ -3580,6 +3591,7 @@ export const dictionaries = {
       pin: 'ピン留め',
       unpin: 'ピン解除',
       rename: '名前を変更',
+      renameRequired: '名前は必須です。',
       delete: '削除',
       deleteConfirm: 'このリストを削除しますか？',
       addToList: 'リストに追加',

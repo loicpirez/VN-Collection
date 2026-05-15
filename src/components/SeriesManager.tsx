@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Bookmark, Plus, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useConfirm } from './ConfirmDialog';
 import type { SeriesRow } from '@/lib/types';
 
 export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
   const t = useT();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [items, setItems] = useState<SeriesRow[]>(initial);
   const [name, setName] = useState('');
@@ -42,7 +44,8 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
   }
 
   async function remove(id: number) {
-    if (!confirm(t.series.deleteConfirm)) return;
+    const ok = await confirm({ message: t.series.deleteConfirm, tone: 'danger' });
+    if (!ok) return;
     const res = await fetch(`/api/series/${id}`, { method: 'DELETE' });
     if (!res.ok) {
       setError(t.common.error);

@@ -12,6 +12,7 @@ import { SortableGrid } from './SortableGrid';
 import { RandomPickButton } from './RandomPickButton';
 import { SavedFilters } from './SavedFilters';
 import { useT } from '@/lib/i18n/client';
+import { useConfirm } from './ConfirmDialog';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
 import type { CollectionItem, ProducerStat, SeriesRow, Stats } from '@/lib/types';
@@ -57,6 +58,7 @@ const Q_DEBOUNCE_MS = 300;
 
 export function LibraryClient() {
   const t = useT();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -665,7 +667,11 @@ export function LibraryClient() {
               <button
                 type="button"
                 onClick={async () => {
-                  if (!confirm(t.library.customSortReset + ' ?')) return;
+                  const ok = await confirm({
+                    message: t.library.customSortReset,
+                    tone: 'danger',
+                  });
+                  if (!ok) return;
                   try {
                     await fetch('/api/collection/order', { method: 'DELETE' });
                     setRefreshKey((k) => k + 1);

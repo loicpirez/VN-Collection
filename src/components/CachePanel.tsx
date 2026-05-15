@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { ChevronDown, ChevronRight, Trash2, RefreshCw, Database } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useConfirm } from './ConfirmDialog';
 
 interface CacheStat {
   total: number;
@@ -26,6 +27,7 @@ function fmtTime(ts: number | null): string {
 
 export function CachePanel() {
   const t = useT();
+  const { confirm } = useConfirm();
   const [stats, setStats] = useState<CacheStat | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Collapsed by default — the cache panel is a power-user tool, not the
@@ -116,7 +118,14 @@ export function CachePanel() {
             <button className="btn" onClick={() => clearAll('expired')} disabled={pending}>
               <RefreshCw className="h-4 w-4" /> {t.cache.pruneExpired}
             </button>
-            <button className="btn btn-danger" onClick={() => { if (confirm(t.cache.clearConfirm)) clearAll('all'); }} disabled={pending}>
+            <button
+              className="btn btn-danger"
+              onClick={async () => {
+                const ok = await confirm({ message: t.cache.clearConfirm, tone: 'danger' });
+                if (ok) clearAll('all');
+              }}
+              disabled={pending}
+            >
               <Trash2 className="h-4 w-4" /> {t.cache.clearAll}
             </button>
           </div>

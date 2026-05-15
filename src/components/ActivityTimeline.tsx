@@ -14,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 
 type Kind = 'status' | 'rating' | 'playtime' | 'favorite' | 'started' | 'finished' | 'note' | 'manual';
@@ -90,6 +91,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
   const t = useT();
   const locale = useLocale();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [entries, setEntries] = useState<Entry[]>(initial);
   const [text, setText] = useState('');
@@ -125,7 +127,8 @@ export function ActivityTimeline({ vnId, initial }: Props) {
   }
 
   async function remove(id: number) {
-    if (!confirm(t.activity.deleteConfirm)) return;
+    const ok = await confirm({ message: t.activity.deleteConfirm, tone: 'danger' });
+    if (!ok) return;
     try {
       const r = await fetch(`/api/collection/${vnId}/activity?entry=${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);

@@ -24,6 +24,7 @@ import { SkeletonRows } from './Skeleton';
 import { DateInput } from './DateInput';
 import { TagInput } from './TagInput';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 import { useT } from '@/lib/i18n/client';
 import { BOX_TYPES, LOCATIONS, type BoxType, type Location } from '@/lib/types';
 import type { VndbRelease } from '@/lib/vndb-types';
@@ -58,6 +59,7 @@ const COMMON_CURRENCIES = ['JPY', 'EUR', 'USD', 'GBP', 'CNY', 'KRW'];
 export function OwnedEditionsSection({ vnId }: { vnId: string }) {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const [owned, setOwned] = useState<OwnedEdition[]>([]);
   const [releases, setReleases] = useState<VndbRelease[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +118,8 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
   }
 
   async function removeEdition(releaseId: string) {
-    if (!confirm(t.inventory.removeConfirm)) return;
+    const ok = await confirm({ message: t.inventory.removeConfirm, tone: 'danger' });
+    if (!ok) return;
     setBusy(true);
     try {
       const r = await fetch(

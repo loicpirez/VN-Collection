@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { UploadCloud } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 
 /**
  * Page-wide drag-and-drop receiver. Mounts a fixed overlay that only
@@ -17,6 +18,7 @@ import { useToast } from './ToastProvider';
 export function DropImport() {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -50,7 +52,14 @@ export function DropImport() {
         toast.error(t.dropImport.unsupported);
         return;
       }
-      if (isDb && !confirm(t.dropImport.dbConfirm.replace('{name}', file.name))) return;
+      if (isDb) {
+        const ok = await confirm({
+          message: t.dropImport.dbConfirm.replace('{name}', file.name),
+          tone: 'danger',
+          requireTyping: 'RESTORE',
+        });
+        if (!ok) return;
+      }
       setBusy(true);
       try {
         const fd = new FormData();
