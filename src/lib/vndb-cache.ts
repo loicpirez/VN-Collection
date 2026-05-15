@@ -63,6 +63,18 @@ export const TTL = {
   releaseById: 24 * 60 * 60 * 1000,
 } as const;
 
+/**
+ * Cache key shape: `<pathTag>|<METHOD>|<body-hash>`.
+ *
+ * The leading `<pathTag>` segment is what `db.ts:getCacheFreshness`
+ * uses to filter cache rows by `cache_key LIKE '<pathTag>|%'` (the
+ * trailing pipe is the segment boundary). New `cachedFetch` callers
+ * must therefore set `__pathTag` to a stable, prefix-unique value —
+ * defaulting to `<METHOD> <path>` works for routes that follow the
+ * `POST /vn` / `GET /trait` convention; bespoke pathTags (e.g.
+ * `staff_full:<sid>`) need to keep the pipe-separator shape or the
+ * freshness chip on the consumer page will silently render blank.
+ */
 function buildKey(method: string, path: string, body?: unknown): string {
   if (!body) return `${path}|${method}|`;
   const hash = createHash('sha1').update(JSON.stringify(body)).digest('hex').slice(0, 16);

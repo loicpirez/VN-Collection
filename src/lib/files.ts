@@ -4,12 +4,17 @@ import { extname, basename, normalize } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 
-// STORAGE_ROOT is built via string concatenation rather than
-// `path.resolve(process.cwd(), …)` so Turbopack's NFT tracer
-// doesn't follow every consumer into the project tree. The
-// resulting string is identical at runtime; `mkdir({recursive})`
-// and `readFile` etc. take any absolute path. Same applies to the
-// per-bucket and per-file paths below.
+// String-concat instead of `path.resolve(process.cwd(), …)` so
+// Turbopack's NFT (Node File Tracing) static analyzer doesn't drag
+// the entire `data/` tree into the build trace — `resolve()` /
+// `join()` calls under cwd are flagged "overly broad" and the
+// tracer can't see through plain concatenation. Same trick used for
+// `DB_PATH` in `lib/db.ts`.
+//
+// Constant is materialised at module-load time (one process.cwd
+// snapshot per Node process). Tests rotate cwd via a fresh
+// `mkdtemp` per worker so this is fine — but a runtime `chdir`
+// elsewhere would NOT update the value. Don't call `chdir`.
 export const STORAGE_ROOT = `${process.cwd()}/data/storage`;
 export const STORAGE_DIRS = {
   vnImage: 'vn',

@@ -1,13 +1,9 @@
 export const STATUSES = ['planning', 'playing', 'completed', 'on_hold', 'dropped'] as const;
 export type Status = (typeof STATUSES)[number];
 
-export const STATUS_ICONS: Record<Status, string> = {
-  planning: '◷',
-  playing: '▶',
-  completed: '✓',
-  on_hold: '⏸',
-  dropped: '✕',
-};
+// Live icon mapping lives in `components/StatusIcon.tsx` (Lucide icons).
+// The previous `STATUS_ICONS` unicode glyph map was unused; removed
+// to keep the project's "Lucide-only" rule unambiguous.
 
 export const EDITION_TYPES = ['none', 'physical', 'digital', 'limited', 'standard', 'collector', 'download_code'] as const;
 export type EditionType = (typeof EDITION_TYPES)[number];
@@ -172,6 +168,8 @@ export type CollectionItem = VnRow &
   Partial<CollectionFields> & {
     series?: SeriesLite[];
     egs?: EgsLite | null;
+    /** Number of personal lists this VN is currently a member of. */
+    list_count?: number;
   };
 
 export interface VndbSearchHit {

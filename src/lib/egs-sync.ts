@@ -46,31 +46,49 @@ export async function computeEgsSuggestions(): Promise<{
   const rows = await fetchEgsUserReviews(username);
   if (rows.length === 0) return { needsConfig: false, suggestions: [] };
 
+  // Chunk both IN-lookups so a user with thousands of EGS reviews
+  // doesn't bump `SQLITE_MAX_VARIABLE_NUMBER`, matching the
+  // convention in `getEgsForVns` / `listSeriesForVnsMany`.
+  const CHUNK = 500;
   const egsIds = rows.map((r) => r.egs_id);
-  const placeholders = egsIds.map(() => '?').join(',');
-  const linked = db
-    .prepare(`SELECT vn_id, egs_id FROM egs_game WHERE egs_id IN (${placeholders})`)
-    .all(...egsIds) as { vn_id: string; egs_id: number }[];
+  const linked: { vn_id: string; egs_id: number }[] = [];
+  for (let i = 0; i < egsIds.length; i += CHUNK) {
+    const chunk = egsIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    linked.push(
+      ...(db
+        .prepare(`SELECT vn_id, egs_id FROM egs_game WHERE egs_id IN (${placeholders})`)
+        .all(...chunk) as { vn_id: string; egs_id: number }[]),
+    );
+  }
   const byEgsId = new Map(linked.map((r) => [r.egs_id, r.vn_id]));
 
   const vnIds = Array.from(new Set(linked.map((r) => r.vn_id)));
   if (vnIds.length === 0) return { needsConfig: false, suggestions: [] };
 
-  const colRows = db
-    .prepare(`
-      SELECT c.vn_id, c.playtime_minutes, c.user_rating, v.title, c.started_date, c.finished_date
-      FROM collection c
-      JOIN vn v ON v.id = c.vn_id
-      WHERE c.vn_id IN (${vnIds.map(() => '?').join(',')})
-    `)
-    .all(...vnIds) as {
-      vn_id: string;
-      playtime_minutes: number | null;
-      user_rating: number | null;
-      title: string;
-      started_date: string | null;
-      finished_date: string | null;
-    }[];
+  type ColRow = {
+    vn_id: string;
+    playtime_minutes: number | null;
+    user_rating: number | null;
+    title: string;
+    started_date: string | null;
+    finished_date: string | null;
+  };
+  const colRows: ColRow[] = [];
+  for (let i = 0; i < vnIds.length; i += CHUNK) {
+    const chunk = vnIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    colRows.push(
+      ...(db
+        .prepare(`
+          SELECT c.vn_id, c.playtime_minutes, c.user_rating, v.title, c.started_date, c.finished_date
+          FROM collection c
+          JOIN vn v ON v.id = c.vn_id
+          WHERE c.vn_id IN (${placeholders})
+        `)
+        .all(...chunk) as ColRow[]),
+    );
+  }
   const local = new Map(colRows.map((r) => [r.vn_id, r]));
 
   const suggestions: EgsSuggestion[] = [];

@@ -63,9 +63,12 @@ function ensureColumn(db: Database.Database, table: string, column: string, ddl:
 function open(): Database.Database {
   if (global.__vndb_db) return global.__vndb_db;
   const dbPath = resolveDbPath();
-  // mkdirSync runs at first call (request time), not module load,
-  // so Turbopack's NFT tracer never sees a top-level FS write and
-  // can't drag the data dir into the build's trace.
+  // Path is constructed at call time (not as a module-level
+  // constant) so Turbopack's NFT tracer can't statically follow it
+  // into the project tree. `mkdirSync` then runs the first time
+  // anything in this module is reached at runtime — schema /
+  // migration work is amortised over the lifetime of the Node
+  // process via `global.__vndb_db`.
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
@@ -193,6 +196,19 @@ function open(): Database.Database {
       value TEXT
     );
 
+    -- Append-only audit log for sensitive settings (token swaps,
+    -- backup-URL rewrites). Only the last 4 chars of either value
+    -- are stored so the table itself can't leak the credential.
+    CREATE TABLE IF NOT EXISTS app_setting_audit (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      key           TEXT NOT NULL,
+      prior_preview TEXT,
+      next_preview  TEXT,
+      changed_at    INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_app_setting_audit_changed
+      ON app_setting_audit(changed_at DESC);
+
     CREATE TABLE IF NOT EXISTS egs_game (
       vn_id      TEXT PRIMARY KEY REFERENCES vn(id) ON DELETE CASCADE,
       egs_id     INTEGER,
@@ -207,6 +223,7 @@ function open(): Database.Database {
       fetched_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_egs_game_median ON egs_game(median);
+    CREATE INDEX IF NOT EXISTS idx_egs_game_egs_id ON egs_game(egs_id);
 
     CREATE TABLE IF NOT EXISTS vn_staff_credit (
       vn_id    TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
@@ -345,8 +362,30 @@ function open(): Database.Database {
       UNIQUE (vn_id, release_id),
       FOREIGN KEY (vn_id, release_id) REFERENCES owned_release(vn_id, release_id) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS idx_shelf_slot_item ON shelf_slot(vn_id, release_id);
+    -- The UNIQUE(vn_id, release_id) constraint above already creates a
+    -- covering index; no explicit one is needed.
+
+    -- Derived index over staff_full cache bodies. Lets brand-overlap
+    -- and per-VN trait lookups answer "which staff/characters touch
+    -- VN X" without parsing every cached JSON blob.
+    CREATE TABLE IF NOT EXISTS staff_credit_index (
+      sid     TEXT NOT NULL,
+      vn_id   TEXT NOT NULL,
+      is_va   INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (sid, vn_id, is_va)
+    );
+    CREATE INDEX IF NOT EXISTS idx_staff_credit_index_vn ON staff_credit_index(vn_id);
+
+    -- Same idea but for character_full cache bodies.
+    CREATE TABLE IF NOT EXISTS character_vn_index (
+      character_id TEXT NOT NULL,
+      vn_id        TEXT NOT NULL,
+      PRIMARY KEY (character_id, vn_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_character_vn_index_vn ON character_vn_index(vn_id);
   `);
+  // Remove the redundant index from older builds.
+  db.exec(`DROP INDEX IF EXISTS idx_shelf_slot_item`);
 
   ensureColumn(db, 'vn', 'screenshots', 'TEXT');
   ensureColumn(db, 'vn', 'image_sexual', 'REAL');
@@ -438,30 +477,36 @@ function open(): Database.Database {
   // colon breaks Next.js' dynamic-route matcher — a request for /vn/egs:894
   // arrives at the server as `params.id = 'egs%3A894'`, which fails the
   // /^egs_\d+$/ check and triggers a 404. Convert every reference to use an
-  // underscore. Runs once and is idempotent.
-  const legacyEgs = db
-    .prepare(`SELECT id FROM vn WHERE id LIKE 'egs:%'`)
-    .all() as { id: string }[];
-  if (legacyEgs.length > 0) {
-    const fix = db.transaction(() => {
-      for (const { id } of legacyEgs) {
-        const fixed = `egs_${id.slice(4)}`;
-        db.prepare('UPDATE vn SET id = ? WHERE id = ?').run(fixed, id);
-        // FKs aren't ON UPDATE CASCADE in the legacy schema, so update each side.
-        db.prepare('UPDATE collection SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-        db.prepare('UPDATE egs_game SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-        db.prepare('UPDATE vn_quote SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-        db.prepare('UPDATE owned_release SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-        db.prepare('UPDATE vn_route SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-        db.prepare('UPDATE series_vn SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+  // underscore. Gated by an `app_setting` marker so the (cheap but pointless)
+  // SELECT doesn't fire on every cold start once nothing's left to convert.
+  if (db.prepare(`SELECT value FROM app_setting WHERE key = 'egs_colon_to_underscore_v1'`).get() == null) {
+    const legacyEgs = db
+      .prepare(`SELECT id FROM vn WHERE id LIKE 'egs:%'`)
+      .all() as { id: string }[];
+    if (legacyEgs.length > 0) {
+      const fix = db.transaction(() => {
+        for (const { id } of legacyEgs) {
+          const fixed = `egs_${id.slice(4)}`;
+          db.prepare('UPDATE vn SET id = ? WHERE id = ?').run(fixed, id);
+          // FKs aren't ON UPDATE CASCADE in the legacy schema, so update each side.
+          db.prepare('UPDATE collection SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+          db.prepare('UPDATE egs_game SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+          db.prepare('UPDATE vn_quote SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+          db.prepare('UPDATE owned_release SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+          db.prepare('UPDATE vn_route SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+          db.prepare('UPDATE series_vn SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        }
+      });
+      db.pragma('foreign_keys = OFF');
+      try {
+        fix();
+      } finally {
+        db.pragma('foreign_keys = ON');
       }
-    });
-    db.pragma('foreign_keys = OFF');
-    try {
-      fix();
-    } finally {
-      db.pragma('foreign_keys = ON');
     }
+    db.prepare(
+      `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v1', '1')`,
+    ).run();
   }
 
   // Legacy migration: `egs_game.playtime_median_minutes` used to store the
@@ -581,7 +626,38 @@ function open(): Database.Database {
   return db;
 }
 
-export const db = open();
+/**
+ * Singleton DB handle.
+ *
+ * `open()` is only called on first property access of the exported
+ * `db` — the Proxy below defers it past module load. That matters
+ * for tests (which never touch the DB unless they really mean to),
+ * tooling that imports `db.ts` for type-introspection, and Next.js
+ * cold-paths where a module graph might be traced without actually
+ * running the handlers. After the first access, `global.__vndb_db`
+ * memoises across HMR / serverless cold-restarts.
+ *
+ * Internal module-top transactions (`upsertVnTx`, `updateCollectionTx`)
+ * also wrap their `db.transaction(...)` factory in a lazy getter for
+ * the same reason — otherwise the Proxy hit during module evaluation
+ * would defeat the deferral.
+ */
+let _dbInstance: Database.Database | null = null;
+function getDb(): Database.Database {
+  if (_dbInstance) return _dbInstance;
+  _dbInstance = open();
+  return _dbInstance;
+}
+
+export const db: Database.Database = new Proxy({} as Database.Database, {
+  get(_target, prop, receiver) {
+    const real = getDb();
+    const value = Reflect.get(real, prop, receiver);
+    // Method calls (db.prepare, db.transaction, db.exec, …) need
+    // to be bound to the actual Database instance, not the Proxy.
+    return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(real) : value;
+  },
+});
 
 function parsePlaces(s: string | null | undefined): string[] {
   if (!s) return [];
@@ -681,7 +757,16 @@ interface VaEntry {
   } | null;
 }
 
-const upsertVnTx = db.transaction((vn: RawVnPayload) => {
+// Lazy factory: defer the `db.transaction(...)` build until first call
+// so that `db.ts` module evaluation doesn't trigger the Proxy → open().
+// Stored as `null` until first hit, then memoised.
+let _upsertVnTxImpl: ((vn: RawVnPayload) => void) | null = null;
+function upsertVnTx(vn: RawVnPayload): void {
+  if (!_upsertVnTxImpl) _upsertVnTxImpl = buildUpsertVnTx();
+  _upsertVnTxImpl(vn);
+}
+function buildUpsertVnTx(): (vn: RawVnPayload) => void {
+  return db.transaction((vn: RawVnPayload) => {
   db.prepare(`
     INSERT INTO vn (id, title, alttitle, image_url, image_thumb, image_sexual, image_violence,
                     released, olang, devstatus, titles, languages, platforms, length_minutes, length, length_votes, rating, votecount, average,
@@ -798,7 +883,8 @@ const upsertVnTx = db.transaction((vn: RawVnPayload) => {
     fetched_at: Date.now(),
   });
   rebuildStaffVaCredits(vn.id, (vn.staff as StaffEntry[] | undefined) ?? [], (vn.va as VaEntry[] | undefined) ?? []);
-});
+  });
+}
 
 export function upsertVn(vn: RawVnPayload): void {
   upsertVnTx(vn);
@@ -1229,11 +1315,15 @@ export function getEgsForVn(vnId: string): EgsRow | null {
 export function getEgsForVns(vnIds: string[]): Map<string, EgsRow> {
   const out = new Map<string, EgsRow>();
   if (vnIds.length === 0) return out;
-  const placeholders = vnIds.map(() => '?').join(',');
-  const rows = db
-    .prepare(`SELECT * FROM egs_game WHERE vn_id IN (${placeholders})`)
-    .all(...vnIds) as EgsRow[];
-  for (const r of rows) out.set(r.vn_id, r);
+  const CHUNK = 500;
+  for (let i = 0; i < vnIds.length; i += CHUNK) {
+    const chunk = vnIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT * FROM egs_game WHERE vn_id IN (${placeholders})`)
+      .all(...chunk) as EgsRow[];
+    for (const r of rows) out.set(r.vn_id, r);
+  }
   return out;
 }
 
@@ -1391,15 +1481,51 @@ export function getAppSetting(key: string): string | null {
   return row?.value ?? null;
 }
 
+/**
+ * Setting keys whose changes leave a tail in `app_setting_audit`.
+ * Anything that swaps credentials or proxies outbound traffic — a
+ * silent rewrite would otherwise be impossible for the user to spot.
+ */
+const AUDITED_SETTING_KEYS = new Set(['vndb_token', 'steam_api_key', 'vndb_backup_url']);
+
+function tail4(s: string | null): string | null {
+  if (!s) return null;
+  const trimmed = s.trim();
+  if (!trimmed) return null;
+  return `…${trimmed.slice(-4)}`;
+}
+
 export function setAppSetting(key: string, value: string | null): void {
+  const wasAudited = AUDITED_SETTING_KEYS.has(key);
+  const prior = wasAudited ? getAppSetting(key) : null;
   if (value == null || value.length === 0) {
     db.prepare('DELETE FROM app_setting WHERE key = ?').run(key);
-    return;
+  } else {
+    db.prepare(`
+      INSERT INTO app_setting (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run(key, value);
   }
-  db.prepare(`
-    INSERT INTO app_setting (key, value) VALUES (?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `).run(key, value);
+  if (wasAudited && (prior ?? null) !== (value ?? null)) {
+    db.prepare(`
+      INSERT INTO app_setting_audit (key, prior_preview, next_preview, changed_at)
+      VALUES (?, ?, ?, ?)
+    `).run(key, tail4(prior), tail4(value), Date.now());
+  }
+}
+
+export interface SettingAuditEntry {
+  id: number;
+  key: string;
+  prior_preview: string | null;
+  next_preview: string | null;
+  changed_at: number;
+}
+
+export function listSettingAudit(limit = 50): SettingAuditEntry[] {
+  return db
+    .prepare('SELECT id, key, prior_preview, next_preview, changed_at FROM app_setting_audit ORDER BY changed_at DESC LIMIT ?')
+    .all(Math.max(1, Math.min(limit, 200))) as SettingAuditEntry[];
 }
 
 /**
@@ -1654,9 +1780,18 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
     now,
     now,
   );
+  invalidateAggregateStats();
 }
 
-const updateCollectionTx = db.transaction((vnId: string, fields: CollectionPatch) => {
+// Same lazy-factory pattern as `upsertVnTx` above — defers the
+// `db.transaction(...)` build past module evaluation.
+let _updateCollectionTxImpl: ((vnId: string, fields: CollectionPatch) => void) | null = null;
+function updateCollectionTx(vnId: string, fields: CollectionPatch): void {
+  if (!_updateCollectionTxImpl) _updateCollectionTxImpl = buildUpdateCollectionTx();
+  _updateCollectionTxImpl(vnId, fields);
+}
+function buildUpdateCollectionTx(): (vnId: string, fields: CollectionPatch) => void {
+  return db.transaction((vnId: string, fields: CollectionPatch) => {
   const sets: string[] = [];
   const params: unknown[] = [];
   const map: Record<string, (v: unknown) => unknown> = {
@@ -1729,7 +1864,8 @@ const updateCollectionTx = db.transaction((vnId: string, fields: CollectionPatch
   if ('notes' in fields) {
     log('note', { length: typeof fields.notes === 'string' ? fields.notes.length : 0 });
   }
-});
+  });
+}
 
 /**
  * Push a status change to VNDB if write-back is enabled.
@@ -1754,6 +1890,7 @@ export async function maybePushStatusToVndb(vnId: string, status: Status | null 
 
 export function updateCollection(vnId: string, fields: CollectionPatch): void {
   updateCollectionTx(vnId, fields);
+  invalidateAggregateStats();
 }
 
 export interface ActivityEntry {
@@ -1935,6 +2072,7 @@ function safeParseJson(s: string): Record<string, unknown> | null {
 
 export function removeFromCollection(vnId: string): void {
   db.prepare('DELETE FROM collection WHERE vn_id = ?').run(vnId);
+  invalidateAggregateStats();
 }
 
 export function isInCollection(vnId: string): boolean {
@@ -2149,6 +2287,8 @@ export interface ListOptions {
   yearMin?: number;
   yearMax?: number;
   dumped?: boolean;
+  /** Limit the result to these VN ids only. Empty array → no rows. */
+  vnIds?: readonly string[];
   sort?:
     | 'updated_at'
     | 'added_at'
@@ -2179,9 +2319,11 @@ export function listCollection({
   yearMin,
   yearMax,
   dumped,
+  vnIds,
   sort = 'updated_at',
   order = 'desc',
 }: ListOptions = {}): CollectionItem[] {
+  if (vnIds && vnIds.length === 0) return [];
   const sortMap: Record<NonNullable<ListOptions['sort']>, string> = {
     updated_at: 'c.updated_at',
     added_at: 'c.added_at',
@@ -2288,6 +2430,11 @@ export function listCollection({
     where.push('c.dumped = ?');
     params.push(dumped ? 1 : 0);
   }
+  if (vnIds && vnIds.length > 0) {
+    const placeholders = vnIds.map(() => '?').join(',');
+    where.push(`v.id IN (${placeholders})`);
+    params.push(...vnIds);
+  }
   let join = '';
   if (series) {
     join = 'JOIN series_vn sv ON sv.vn_id = v.id ';
@@ -2393,12 +2540,9 @@ export interface AggregateStats {
   };
 }
 
-// 30-second in-process cache. The stats page renders once per
-// visit, but the cache layer kicks in when the user navigates
-// elsewhere and back (e.g. through the data hub) — 8 full-table
-// scans collapse to ~free for the next 30 seconds. Bust on writes
-// is unnecessary because the page already shows a Refresh button
-// that hits /api/refresh/global, which doesn't go through here.
+// 30-second in-process cache so navigating away and back doesn't
+// re-run 8 full scans. Mutating helpers below call
+// `invalidateAggregateStats()` to bust this on writes.
 let aggregateStatsCache: { at: number; data: AggregateStats } | null = null;
 const AGGREGATE_STATS_TTL_MS = 30_000;
 
@@ -2409,6 +2553,10 @@ export function getAggregateStats(): AggregateStats {
   const data = computeAggregateStats();
   aggregateStatsCache = { at: Date.now(), data };
   return data;
+}
+
+export function invalidateAggregateStats(): void {
+  aggregateStatsCache = null;
 }
 
 function computeAggregateStats(): AggregateStats {
@@ -2786,6 +2934,13 @@ export interface ShelfEntry extends OwnedReleaseRow {
  * `physical_location` entry fall into the "Unsorted" bucket so the
  * caller can render them in their own group.
  */
+/**
+ * Upper-bound for `listAllOwnedReleases`. Real personal libraries top
+ * out in the low thousands of editions; 50k is generous and keeps the
+ * shelf grid from melting if the table grows unexpectedly.
+ */
+const LIST_ALL_OWNED_RELEASES_LIMIT = 50000;
+
 export function listAllOwnedReleases(): ShelfEntry[] {
   const rows = db
     .prepare(`
@@ -2798,8 +2953,9 @@ export function listAllOwnedReleases(): ShelfEntry[] {
       FROM owned_release o
       JOIN vn v ON v.id = o.vn_id
       ORDER BY v.title COLLATE NOCASE ASC
+      LIMIT ?
     `)
-    .all() as Array<OwnedReleaseDbRow & {
+    .all(LIST_ALL_OWNED_RELEASES_LIMIT) as Array<OwnedReleaseDbRow & {
       vn_title: string;
       vn_image_thumb: string | null;
       vn_image_url: string | null;
@@ -2853,10 +3009,17 @@ export function listDumpStatus(): DumpStatusEntry[] {
         v.local_image_thumb AS vn_local_image_thumb,
         v.image_sexual  AS vn_image_sexual,
         c.dumped        AS coll_dumped,
-        (SELECT COUNT(*) FROM owned_release o WHERE o.vn_id = v.id) AS total_editions,
-        (SELECT COUNT(*) FROM owned_release o WHERE o.vn_id = v.id AND o.dumped = 1) AS dumped_editions
+        COALESCE(ed.total_editions, 0)   AS total_editions,
+        COALESCE(ed.dumped_editions, 0)  AS dumped_editions
       FROM collection c
       JOIN vn v ON v.id = c.vn_id
+      LEFT JOIN (
+        SELECT vn_id,
+               COUNT(*)                                     AS total_editions,
+               SUM(CASE WHEN dumped = 1 THEN 1 ELSE 0 END)  AS dumped_editions
+        FROM owned_release
+        GROUP BY vn_id
+      ) ed ON ed.vn_id = v.id
       ORDER BY v.title COLLATE NOCASE ASC
     `)
     .all() as Array<{
@@ -3187,13 +3350,18 @@ export function placeShelfItem(input: PlaceShelfItemInput): PlaceShelfItemResult
   if (input.row < 0 || input.row >= shelf.rows) throw new Error('row out of bounds');
   if (input.col < 0 || input.col >= shelf.cols) throw new Error('col out of bounds');
 
-  const owned = db
-    .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
-    .get(input.vnId, input.releaseId);
-  if (!owned) throw new Error('owned edition not found');
-
   let swapped: PlaceShelfItemResult['swapped'] = null;
   const tx = db.transaction(() => {
+    // Owned-edition check inside the transaction so a concurrent
+    // DELETE of the owned_release row between check and INSERT
+    // can't sneak through. shelf_slot has no FK on owned_release
+    // (composite-key FKs cascade-only in SQLite), so without this
+    // we could end up with a placement pointing at a ghost edition.
+    const owned = db
+      .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
+      .get(input.vnId, input.releaseId);
+    if (!owned) throw new Error('owned edition not found');
+
     const prior = db
       .prepare(
         'SELECT shelf_id, row, col FROM shelf_slot WHERE vn_id = ? AND release_id = ?',
@@ -3665,20 +3833,24 @@ export function producerOwnershipSummary(producerId: string): {
 export function listSeriesForVnsMany(vnIds: string[]): Map<string, SeriesLite[]> {
   const out = new Map<string, SeriesLite[]>();
   if (vnIds.length === 0) return out;
-  const placeholders = vnIds.map(() => '?').join(',');
-  const rows = db
-    .prepare(`
-      SELECT sv.vn_id AS vn_id, s.id AS id, s.name AS name
-      FROM series s
-      JOIN series_vn sv ON sv.series_id = s.id
-      WHERE sv.vn_id IN (${placeholders})
-      ORDER BY s.name COLLATE NOCASE
-    `)
-    .all(...vnIds) as Array<{ vn_id: string; id: number; name: string }>;
-  for (const r of rows) {
-    const arr = out.get(r.vn_id) ?? [];
-    arr.push({ id: r.id, name: r.name });
-    out.set(r.vn_id, arr);
+  const CHUNK = 500;
+  for (let i = 0; i < vnIds.length; i += CHUNK) {
+    const chunk = vnIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`
+        SELECT sv.vn_id AS vn_id, s.id AS id, s.name AS name
+        FROM series s
+        JOIN series_vn sv ON sv.series_id = s.id
+        WHERE sv.vn_id IN (${placeholders})
+        ORDER BY s.name COLLATE NOCASE
+      `)
+      .all(...chunk) as Array<{ vn_id: string; id: number; name: string }>;
+    for (const r of rows) {
+      const arr = out.get(r.vn_id) ?? [];
+      arr.push({ id: r.id, name: r.name });
+      out.set(r.vn_id, arr);
+    }
   }
   return out;
 }
@@ -4095,8 +4267,18 @@ function normalizeTitle(s: string): string {
     .trim();
 }
 
+/**
+ * Hard upper bound on the `findDuplicates` scan. Prevents the
+ * maintenance page from pulling tens of thousands of rows into JS
+ * when the user's `vn` table grew large. 20k titles is well above
+ * any realistic personal library and only takes a few ms to scan.
+ */
+const FIND_DUPLICATES_LIMIT = 20000;
+
 export function findDuplicates(): DuplicateGroup[] {
-  const rows = db.prepare(`SELECT id, title FROM vn`).all() as { id: string; title: string }[];
+  const rows = db
+    .prepare(`SELECT id, title FROM vn ORDER BY id LIMIT ?`)
+    .all(FIND_DUPLICATES_LIMIT) as { id: string; title: string }[];
   const map = new Map<string, string[]>();
   for (const r of rows) {
     const norm = normalizeTitle(r.title);
@@ -4516,6 +4698,16 @@ export async function restoreFromSqliteFile(buffer: Buffer): Promise<SqliteResto
   ).all() as { name: string }[]).map((r) => r.name);
 
   const summary: SqliteRestoreSummary = { tables: [], skipped: [] };
+  // TODO: prefer `better-sqlite3`'s `Database.prototype.serialize()` /
+  // `.backup()` APIs over `ATTACH DATABASE '<path>'`. The string
+  // interpolation below is currently safe because (a) `tmpPath` is
+  // generated by `mkdtemp` on the server, (b) the identifier names
+  // come from `sqlite_master` on a DB whose DDL is hardcoded in this
+  // file, and (c) `colList` and `table` are validated against the
+  // same DDL — but the audit (`db audit M-7`) flagged the shape as a
+  // future-refactor candidate. Switching to the C-level backup API
+  // also removes the FK-off / FK-on dance below.
+  //
   // SQLite refuses parameter binding inside ATTACH DATABASE, so the
   // path goes through literal-quote escaping. Reject anything that
   // doesn't look like an absolute filesystem path — the caller
@@ -4783,6 +4975,20 @@ export function listAllListMemberships(): Record<string, UserList[]> {
     const { vn_id, ...list } = r;
     (out[vn_id] ??= []).push(list);
   }
+  return out;
+}
+
+/**
+ * Compact `(vn_id → list_count)` lookup. The full
+ * `listAllListMemberships` returns the list metadata too; this one is
+ * for surfaces that only need to render a numeric badge per card.
+ */
+export function countListMembershipsByVn(): Map<string, number> {
+  const rows = db
+    .prepare('SELECT vn_id, COUNT(*) AS n FROM user_list_vn GROUP BY vn_id')
+    .all() as { vn_id: string; n: number }[];
+  const out = new Map<string, number>();
+  for (const r of rows) out.set(r.vn_id, r.n);
   return out;
 }
 

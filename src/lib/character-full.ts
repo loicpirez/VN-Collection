@@ -44,14 +44,24 @@ export function readCharacterFullCache(cid: string): CharacterFullPayload | null
 
 function writeCharacterFullCache(cid: string, payload: CharacterFullPayload): void {
   const now = Date.now();
-  db.prepare(`
-    INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-    VALUES (?, ?, NULL, NULL, ?, ?)
-    ON CONFLICT(cache_key) DO UPDATE SET
-      body = excluded.body,
-      fetched_at = excluded.fetched_at,
-      expires_at = excluded.expires_at
-  `).run(key(cid), JSON.stringify(payload), now, now + TTL_MS);
+  const txn = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
+      VALUES (?, ?, NULL, NULL, ?, ?)
+      ON CONFLICT(cache_key) DO UPDATE SET
+        body = excluded.body,
+        fetched_at = excluded.fetched_at,
+        expires_at = excluded.expires_at
+    `).run(key(cid), JSON.stringify(payload), now, now + TTL_MS);
+    db.prepare('DELETE FROM character_vn_index WHERE character_id = ?').run(cid);
+    const vnIds = new Set<string>();
+    for (const v of payload.profile?.vns ?? []) {
+      if (v.id) vnIds.add(v.id);
+    }
+    const ins = db.prepare('INSERT OR IGNORE INTO character_vn_index (character_id, vn_id) VALUES (?, ?)');
+    for (const vn of vnIds) ins.run(cid, vn);
+  });
+  txn();
 }
 
 /**

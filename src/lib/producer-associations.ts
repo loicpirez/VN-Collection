@@ -257,11 +257,20 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
 function lookupOwned(ids: Set<string>): Set<string> {
   if (ids.size === 0) return new Set();
   const arr = Array.from(ids);
-  const placeholders = arr.map(() => '?').join(',');
-  const rows = db
-    .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
-    .all(...arr) as { vn_id: string }[];
-  return new Set(rows.map((r) => r.vn_id));
+  // Chunk so we never approach SQLite's `SQLITE_MAX_VARIABLE_NUMBER`
+  // limit, matching the convention in `isInCollectionMany` and
+  // `getEgsForVns`.
+  const CHUNK = 500;
+  const out = new Set<string>();
+  for (let i = 0; i < arr.length; i += CHUNK) {
+    const chunk = arr.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
+      .all(...chunk) as { vn_id: string }[];
+    for (const r of rows) out.add(r.vn_id);
+  }
+  return out;
 }
 
 /**

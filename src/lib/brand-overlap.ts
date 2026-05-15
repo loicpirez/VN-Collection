@@ -25,14 +25,19 @@ export interface BrandOverlapBrand {
   vnCount: number;
 }
 
+/**
+ * Roles as raw VNDB role enum strings (`scenario`, `art`, …) plus
+ * `va:<character>` synthetic entries for voice credits. The page is
+ * responsible for localising via `roleLabel` / `t.characters.castLabel`.
+ */
 export interface BrandOverlapEntry {
   sid: string;
   name: string;
   original: string | null;
   /** True when this staff has voice credits crossing both brands. */
   isVa: boolean;
-  aCredits: Array<{ vn_id: string; title: string; role: string }>;
-  bCredits: Array<{ vn_id: string; title: string; role: string }>;
+  aCredits: Array<{ vn_id: string; title: string; roles: string[] }>;
+  bCredits: Array<{ vn_id: string; title: string; roles: string[] }>;
 }
 
 export interface BrandOverlapResult {
@@ -64,9 +69,36 @@ export async function findBrandStaffOverlap(brandA: string, brandB: string): Pro
   const setB = new Set(compB.vns.map((v) => v.vnId));
   const [a, b] = await Promise.all([brandInfo(brandA, compA.totalKnown), brandInfo(brandB, compB.totalKnown)]);
 
+  // Step 1: narrow which staff matter via the derived index, instead of
+  // scanning every cached staff_full body. Returns staff who have at least
+  // one credit on either brand — the final overlap check still happens in
+  // JS after parsing.
+  const allVnIds = Array.from(new Set([...setA, ...setB]));
+  if (allVnIds.length === 0) return { a, b, entries: [], needsMoreData: true };
+
+  const candidateSids = new Set<string>();
+  const CHUNK = 500;
+  for (let i = 0; i < allVnIds.length; i += CHUNK) {
+    const chunk = allVnIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const found = db
+      .prepare(`SELECT DISTINCT sid FROM staff_credit_index WHERE vn_id IN (${placeholders})`)
+      .all(...chunk) as { sid: string }[];
+    for (const r of found) candidateSids.add(r.sid);
+  }
+  if (candidateSids.size === 0) {
+    const cacheRowCount = (db
+      .prepare(`SELECT COUNT(*) AS n FROM vndb_cache WHERE cache_key LIKE 'staff_full:%'`)
+      .get() as { n: number }).n;
+    return { a, b, entries: [], needsMoreData: cacheRowCount === 0 };
+  }
+
+  const sidList = Array.from(candidateSids);
+  const cacheKeys = sidList.map((s) => `staff_full:${s.toLowerCase()}`);
+  const placeholders = cacheKeys.map(() => '?').join(',');
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'staff_full:%'`)
-    .all() as { body: string }[];
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key IN (${placeholders})`)
+    .all(...cacheKeys) as { body: string }[];
 
   const entries: BrandOverlapEntry[] = [];
   for (const r of rows) {
@@ -84,8 +116,8 @@ export async function findBrandStaffOverlap(brandA: string, brandB: string): Pro
       const inA = setA.has(c.id);
       const inB = setB.has(c.id);
       if (!inA && !inB) continue;
-      const role = c.roles.map((r2) => r2.role).join(' / ');
-      const entry = { vn_id: c.id, title: c.title, role };
+      const roles = c.roles.map((r2) => r2.role);
+      const entry = { vn_id: c.id, title: c.title, roles };
       if (inA) aProd.push(entry);
       if (inB) bProd.push(entry);
     }
@@ -96,8 +128,10 @@ export async function findBrandStaffOverlap(brandA: string, brandB: string): Pro
       const inA = setA.has(c.id);
       const inB = setB.has(c.id);
       if (!inA && !inB) continue;
-      const chars = c.characters.map((ch) => ch.name).slice(0, 3).join(', ');
-      const entry = { vn_id: c.id, title: c.title, role: chars ? `CV: ${chars}` : 'CV' };
+      const chars = c.characters.map((ch) => ch.name).slice(0, 3);
+      // `va:<chars>` is a synthetic marker; the page maps it to
+      // `t.characters.castLabel` + the joined character names.
+      const entry = { vn_id: c.id, title: c.title, roles: [chars.length > 0 ? `va:${chars.join(', ')}` : 'va'] };
       if (inA) { aVaList.push(entry); aVa = true; }
       if (inB) { bVaList.push(entry); bVa = true; }
     }

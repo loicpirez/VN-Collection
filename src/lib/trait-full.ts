@@ -59,18 +59,27 @@ export async function downloadFullTraitInfo(iid: string): Promise<TraitFullPaylo
  */
 export async function downloadFullTraitsForVn(vnId: string, opts: { force?: boolean } = {}): Promise<{ scanned: number; downloaded: number }> {
   if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
-  const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'character_full:%' AND body LIKE ?`)
-    .all(`%${vnId}%`) as { body: string }[];
+  // Narrow via the index (vn_id → character_id) instead of scanning every
+  // cached character_full body.
+  const cidRows = db
+    .prepare('SELECT character_id FROM character_vn_index WHERE vn_id = ?')
+    .all(vnId) as { character_id: string }[];
   const ids = new Set<string>();
-  for (const r of rows) {
-    try {
-      const parsed = JSON.parse(r.body) as { character?: { traits?: { id: string }[] } };
-      for (const t of parsed.character?.traits ?? []) {
-        if (/^i\d+$/i.test(t.id)) ids.add(t.id);
+  if (cidRows.length > 0) {
+    const keys = cidRows.map((r) => `char_full:${r.character_id.toLowerCase()}`);
+    const placeholders = keys.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT body FROM vndb_cache WHERE cache_key IN (${placeholders})`)
+      .all(...keys) as { body: string }[];
+    for (const r of rows) {
+      try {
+        const parsed = JSON.parse(r.body) as { profile?: { traits?: { id: string }[] } | null };
+        for (const t of parsed.profile?.traits ?? []) {
+          if (/^i\d+$/i.test(t.id)) ids.add(t.id);
+        }
+      } catch {
+        continue;
       }
-    } catch {
-      continue;
     }
   }
   if (ids.size === 0) return { scanned: 0, downloaded: 0 };
