@@ -111,9 +111,17 @@ export async function PATCH(req: NextRequest) {
     setAppSetting('default_sort', v);
   }
   if ('vndb_writeback' in body) {
+    // Strict boolean check — previously any truthy value (including
+    // the string "false") was accepted.
+    if (typeof body.vndb_writeback !== 'boolean') {
+      return NextResponse.json({ error: 'vndb_writeback must be boolean' }, { status: 400 });
+    }
     setAppSetting('vndb_writeback', body.vndb_writeback ? '1' : null);
   }
   if ('vndb_backup_enabled' in body) {
+    if (typeof body.vndb_backup_enabled !== 'boolean') {
+      return NextResponse.json({ error: 'vndb_backup_enabled must be boolean' }, { status: 400 });
+    }
     setAppSetting('vndb_backup_enabled', body.vndb_backup_enabled ? '1' : null);
   }
   if ('vndb_backup_url' in body) {
@@ -132,6 +140,9 @@ export async function PATCH(req: NextRequest) {
     }
   }
   if ('vndb_fanout' in body) {
+    if (typeof body.vndb_fanout !== 'boolean') {
+      return NextResponse.json({ error: 'vndb_fanout must be boolean' }, { status: 400 });
+    }
     setAppSetting('vndb_fanout', body.vndb_fanout === false ? '0' : null);
   }
   if ('steam_api_key' in body) {

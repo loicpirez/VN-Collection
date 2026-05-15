@@ -12,6 +12,7 @@ import { CardContextMenu } from './CardContextMenu';
 import { FavoriteToggleButton } from './FavoriteToggleButton';
 import { ListsPickerButton } from './ListsPickerButton';
 import type { Status } from '@/lib/types';
+import { formatMinutes } from '@/lib/format';
 
 export interface CardData {
   id: string;
@@ -67,13 +68,12 @@ interface VnCardProps {
   onRemoveFromWishlist?: () => void | Promise<void>;
 }
 
+// VnCard renders the formatted value conditionally (null = "don't
+// render the chip"), so it asks for an empty fallback and treats
+// 0/negative as missing too.
 function fmtMinutes(m: number | null | undefined): string | null {
-  if (m == null || m <= 0) return null;
-  const h = Math.floor(m / 60);
-  const mn = m % 60;
-  if (h && mn) return `${h}h ${mn}m`;
-  if (h) return `${h}h`;
-  return `${mn}m`;
+  const v = formatMinutes(m, { emptyValue: 'strict_positive' });
+  return v === '' ? null : v;
 }
 
 export const VnCard = memo(VnCardImpl);

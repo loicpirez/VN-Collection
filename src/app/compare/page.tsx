@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-react';
 import { db, getCollectionItem } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
+import { formatMinutes } from '@/lib/format';
 import { SafeImage } from '@/components/SafeImage';
 import { LangList } from '@/components/LangFlag';
 
@@ -23,12 +24,7 @@ function parseIds(raw: string | undefined): string[] {
 }
 
 function fmtMinutes(m: number | null | undefined): string {
-  if (!m || m <= 0) return '—';
-  const h = Math.floor(m / 60);
-  const mn = m % 60;
-  if (h && mn) return `${h}h ${mn}m`;
-  if (h) return `${h}h`;
-  return `${mn}m`;
+  return formatMinutes(m, { fallback: '—', emptyValue: 'strict_positive' });
 }
 
 function intersection<T>(sets: Set<T>[]): Set<T> {

@@ -4,6 +4,15 @@ import { useRouter, usePathname } from 'next/navigation';
 import { CloudDownload, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
+/**
+ * Module-scope stop handler. The component is a singleton in
+ * practice (rendered once in the page chrome), so a `let` on the
+ * module is cleaner than stashing it on `window` via a double-cast.
+ * If we ever genuinely need multiple instances we'd promote this to
+ * a React context.
+ */
+let bulkAbortRef: (() => void) | null = null;
+
 interface Failure {
   id: string;
   message: string;
@@ -48,7 +57,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
 
     let abort = false;
     const onClickStop = () => { abort = true; };
-    (window as unknown as { __vndbBulkStop?: () => void }).__vndbBulkStop = onClickStop;
+    bulkAbortRef = onClickStop;
 
     const local: Failure[] = [];
     const egsAgg = new Map<EgsWarning['kind'], EgsWarning>();
@@ -97,7 +106,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
     } finally {
       setRunning(false);
       setCurrentTitle(null);
-      delete (window as unknown as { __vndbBulkStop?: () => void }).__vndbBulkStop;
+      bulkAbortRef = null;
     }
   }
 
@@ -145,8 +154,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
   }
 
   function stop() {
-    const fn = (window as unknown as { __vndbBulkStop?: () => void }).__vndbBulkStop;
-    fn?.();
+    bulkAbortRef?.();
   }
 
   function dismiss() {

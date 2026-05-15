@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { ExternalLink, Film, Gamepad2, ShoppingBag, Sparkles, Twitter, Users } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { formatMinutes } from '@/lib/format';
 
 interface RawRow {
   [key: string]: string | null;
@@ -18,12 +19,8 @@ function n(v: string | null | undefined): number | null {
 }
 
 function fmtMin(m: number | null): string | null {
-  if (!m || m <= 0) return null;
-  const h = Math.floor(m / 60);
-  const mn = m % 60;
-  if (h && mn) return `${h}h ${mn}m`;
-  if (h) return `${h}h`;
-  return `${mn}m`;
+  const v = formatMinutes(m, { emptyValue: 'strict_positive' });
+  return v === '' ? null : v;
 }
 
 /**

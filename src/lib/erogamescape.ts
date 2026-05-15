@@ -209,7 +209,7 @@ function toNumber(v: string | undefined): number | null {
 }
 
 /** Pulls the EGS game id from a VNDB release extlink URL, e.g. `?game=4192`. */
-export function parseEgsIdFromUrl(url: string): number | null {
+function parseEgsIdFromUrl(url: string): number | null {
   const m = url.match(/[?&]game=(\d+)/);
   if (!m) return null;
   const n = Number(m[1]);
@@ -217,7 +217,7 @@ export function parseEgsIdFromUrl(url: string): number | null {
 }
 
 /** Returns the first EGS game id found across the supplied release extlinks. */
-export function findEgsIdInExtlinks(
+function findEgsIdInExtlinks(
   extlinks: { url: string; label: string; name: string }[],
 ): number | null {
   for (const link of extlinks) {
@@ -574,12 +574,6 @@ export async function resolveEgsForVn(
   // negative so we don't retry on every page view.
   persistNoMatch(vnId);
   return { game, source };
-}
-
-export function readCachedEgsForVn(vnId: string): EgsGame | null {
-  const row = getEgsForVn(vnId);
-  if (!row) return null;
-  return rowToGame(row);
 }
 
 export function clearEgsCache(vnId: string): void {

@@ -1265,7 +1265,12 @@ export function clearEgsForVn(vnId: string): void {
   db.prepare('DELETE FROM egs_game WHERE vn_id = ?').run(vnId);
 }
 
-export type SourceChoice = 'auto' | 'vndb' | 'egs' | 'custom';
+// Canonical definition lives in source-resolve.ts. Re-exported here so
+// existing callers `import { SourceChoice } from '@/lib/db'` keep
+// compiling, but there's only one source of truth — adding a new
+// choice in source-resolve propagates everywhere.
+import type { SourceChoice as SourceChoiceCanonical } from './source-resolve';
+export type SourceChoice = SourceChoiceCanonical;
 export type SourceField = 'title' | 'description' | 'image' | 'brand' | 'rating' | 'playtime';
 
 export type SourcePrefMap = Partial<Record<SourceField, SourceChoice>>;

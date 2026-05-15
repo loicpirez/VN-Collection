@@ -17,6 +17,7 @@ import {
 } from '@/lib/db';
 import { getVn } from '@/lib/vndb';
 import { resolveField } from '@/lib/source-resolve';
+import { formatMinutes } from '@/lib/format';
 import { getDict } from '@/lib/i18n/server';
 import { EditForm } from '@/components/EditForm';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -74,12 +75,7 @@ export const dynamic = 'force-dynamic';
 const CACHE_MS = 24 * 3600 * 1000;
 
 function fmtMinutes(m: number | null | undefined): string {
-  if (!m) return '—';
-  const h = Math.floor(m / 60);
-  const mn = m % 60;
-  if (h && mn) return `${h}h ${mn}m`;
-  if (h) return `${h}h`;
-  return `${mn}m`;
+  return formatMinutes(m, { fallback: '—', emptyValue: 'strict_positive' });
 }
 
 async function loadVn(id: string): Promise<{ vn: CollectionItem | null; error: string | null }> {

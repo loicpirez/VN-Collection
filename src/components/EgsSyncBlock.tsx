@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, Check, Clock, Loader2, RefreshCw, Save, Sparkles, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useT } from '@/lib/i18n/client';
+import { formatMinutes } from '@/lib/format';
 import { useToast } from './ToastProvider';
 
 interface Suggestion {
@@ -19,11 +20,7 @@ interface Suggestion {
 }
 
 function fmtMin(n: number | null): string {
-  if (n == null) return '—';
-  if (n < 60) return `${n}m`;
-  const h = Math.floor(n / 60);
-  const m = n % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  return formatMinutes(n, { fallback: '—', emptyValue: 'allow_zero' });
 }
 
 /**
