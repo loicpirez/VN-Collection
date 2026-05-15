@@ -211,8 +211,8 @@ export default async function ComparePage({
                 {sharedTagsWithNames.map((tg) => (
                   <Link
                     key={tg.id}
-                    href={`/tag/${tg.id}`}
-                    className="rounded bg-accent/20 px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/30"
+                    href={`/?tag=${encodeURIComponent(tg.id)}`}
+                    className="rounded bg-accent/20 px-1.5 py-0.5 text-[11px] text-accent hover:bg-accent/30"
                   >
                     {tg.name}
                   </Link>

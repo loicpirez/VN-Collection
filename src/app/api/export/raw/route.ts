@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -18,11 +19,31 @@ export const runtime = 'nodejs';
  *
  * Output remains valid JSON (parseable by any standard JSON reader).
  */
-export async function GET() {
+export async function GET(req: Request) {
+  // The raw cache contains every authenticated /authinfo and /ulist
+  // response — including the user's full VNDB list contents and
+  // permissions. PII. Gate.
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const exportedAt = Date.now();
   const countRow = db
     .prepare('SELECT COUNT(*) AS n FROM vndb_cache')
     .get() as { n: number };
+
+  // Iterator lives at the closure level so `cancel()` (fired when
+  // the client disconnects mid-stream) can dispose of the prepared
+  // statement handle. Earlier versions leaked the handle on
+  // cancelled exports, which compounded over many runs.
+  let iter:
+    | IterableIterator<{
+        cache_key: string;
+        body: string;
+        etag: string | null;
+        last_modified: string | null;
+        fetched_at: number;
+        expires_at: number;
+      }>
+    | null = null;
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -34,7 +55,7 @@ export async function GET() {
           ),
         );
 
-        const iter = db
+        iter = db
           .prepare(
             'SELECT cache_key, body, etag, last_modified, fetched_at, expires_at FROM vndb_cache ORDER BY cache_key',
           )
@@ -70,9 +91,22 @@ export async function GET() {
 
         controller.enqueue(encoder.encode('\n  ]\n}\n'));
         controller.close();
+        iter = null;
       } catch (err) {
         controller.error(err);
       }
+    },
+    cancel() {
+      // Client disconnect: dispose of the iterator so better-sqlite3
+      // releases the statement handle.
+      if (iter && typeof iter.return === 'function') {
+        try {
+          iter.return(undefined);
+        } catch {
+          // best-effort
+        }
+      }
+      iter = null;
     },
   });
 

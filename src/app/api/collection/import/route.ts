@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { importData, type CollectionExportPayload } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
+  // Import overwrites the entire collection — gate.
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   let body: CollectionExportPayload;
   const ct = req.headers.get('content-type') ?? '';
   try {

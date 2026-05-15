@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listCollection } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,38 @@ function ics(text: string): string {
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
     .replace(/\r?\n/g, '\\n');
+}
+
+/**
+ * RFC 5545 §3.1 requires content lines to wrap at 75 octets, with
+ * continuation lines starting with a single space (CRLF + SPACE).
+ * Calendar apps that strictly validate (Outlook, some iOS imports)
+ * silently drop events whose lines exceed the limit. Long VN titles
+ * + UTF-8 multi-byte chars hit that threshold easily.
+ */
+function fold(line: string): string {
+  const enc = new TextEncoder();
+  const bytes = enc.encode(line);
+  if (bytes.length <= 75) return line;
+  // Walk by character, count bytes, emit CRLF + " " when we'd
+  // exceed 75 octets on the current segment. Continuation
+  // segments allow 74 octets to keep room for the leading space.
+  const out: string[] = [];
+  let segStart = 0;
+  let segBytes = 0;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    const chBytes = enc.encode(ch).length;
+    if (segBytes + chBytes > 75) {
+      out.push(line.slice(segStart, i));
+      segStart = i;
+      segBytes = 1 /* leading space */ + chBytes;
+    } else {
+      segBytes += chBytes;
+    }
+  }
+  out.push(line.slice(segStart));
+  return out.join('\r\n ');
 }
 
 /** YYYY-MM-DD → YYYYMMDD (ICS DTSTART;VALUE=DATE format). */
@@ -45,7 +78,10 @@ function dtstamp(): string {
  *   - All events are all-day. No way to capture "started at 21:00" in the
  *     current schema and a fake time would be worse than no time.
  */
-export async function GET() {
+export async function GET(req: Request) {
+  // ICS reveals reading dates per VN — PII. Gate.
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const items = listCollection({ sort: 'title' });
   const stamp = dtstamp();
   const lines: string[] = [
@@ -86,7 +122,8 @@ export async function GET() {
 
   lines.push('END:VCALENDAR');
   const today = new Date().toISOString().slice(0, 10);
-  return new NextResponse(lines.join('\r\n'), {
+  // Apply RFC 5545 line folding to every line before joining.
+  return new NextResponse(lines.map(fold).join('\r\n'), {
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
       'Content-Disposition': `attachment; filename="vn-collection-${today}.ics"`,

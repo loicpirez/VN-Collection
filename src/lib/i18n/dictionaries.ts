@@ -1058,6 +1058,7 @@ export const dictionaries = {
     labels: {
       title: 'Étiquettes QR imprimables',
       hint: 'Imprime cette page sur du papier autocollant — chaque QR pointe vers la fiche du VN.',
+      empty: 'Aucun VN ne correspond à ce filtre.',
       print: 'Imprimer',
       open: 'Étiquettes QR',
     },
@@ -2530,6 +2531,7 @@ export const dictionaries = {
     labels: {
       title: 'Printable QR labels',
       hint: 'Print on sticker paper — each QR points to the VN detail page.',
+      empty: 'No VN matches this filter.',
       print: 'Print',
       open: 'QR labels',
     },
@@ -4002,6 +4004,7 @@ export const dictionaries = {
     labels: {
       title: 'QR ラベル印刷',
       hint: 'シール用紙に印刷 — 各 QR は VN 詳細ページへリンクします。',
+      empty: '該当する VN がありません。',
       print: '印刷',
       open: 'QR ラベル',
     },

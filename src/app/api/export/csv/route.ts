@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listCollection } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,9 +32,20 @@ const COLUMNS = [
   'updated_at',
 ] as const;
 
+/**
+ * CSV escape PLUS formula-injection defense. Excel / Google Sheets
+ * treats a cell starting with `=`, `+`, `-`, `@` or a tab as a
+ * formula — a VN title like `=HYPERLINK("http://evil")` would
+ * execute when the CSV is opened. Prefix dangerous starts with a
+ * single quote, which Excel/Sheets renders as the literal value
+ * and discards on import.
+ */
 function csvEscape(v: unknown): string {
   if (v == null) return '';
-  const s = typeof v === 'string' ? v : Array.isArray(v) ? v.join('; ') : String(v);
+  let s = typeof v === 'string' ? v : Array.isArray(v) ? v.join('; ') : String(v);
+  if (s.length > 0 && /^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
@@ -47,7 +59,11 @@ function csvEscape(v: unknown): string {
  * tripping but matches what humans actually want to see in Excel. For
  * structured re-import use the JSON backup endpoint instead.
  */
-export async function GET() {
+export async function GET(req: Request) {
+  // CSV / ICS / JSON exports all carry PII (notes, ratings,
+  // play history). Gate behind localhost / admin token.
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const items = listCollection({ sort: 'title' });
   const lines: string[] = [COLUMNS.join(',')];
   for (const it of items) {

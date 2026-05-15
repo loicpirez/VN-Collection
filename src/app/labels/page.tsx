@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { ArrowLeft } from 'lucide-react';
+import { toString as qrToString } from 'qrcode';
 import { listCollection } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { PrintButton } from '@/components/PrintButton';
@@ -11,12 +12,19 @@ export const dynamic = 'force-dynamic';
  * Printable QR label sheet. Each label encodes the absolute URL of the
  * VN's detail page so a scan from a phone lands on the right entry.
  *
- * The QR rendering uses the public api.qrserver.com endpoint (no extra
- * dependency, no token). Image lazy-loads so a sheet of 100 labels
- * doesn't blow the network budget.
+ * QRs are generated server-side as inline SVG via the `qrcode` package
+ * — no external service. Earlier versions called api.qrserver.com,
+ * which leaked the host URL (often a LAN hostname or LAN IP) plus
+ * every VN ID to a third party for every label printed. Self-hosted
+ * privacy posture demands local generation.
  */
-function qrUrl(text: string, size = 96): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
+async function qrSvg(text: string): Promise<string> {
+  return qrToString(text, {
+    type: 'svg',
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    color: { dark: '#000000', light: '#ffffff' },
+  });
 }
 
 function parseIds(raw: string | undefined): Set<string> | null {
@@ -35,12 +43,24 @@ export default async function LabelsPage({
   const t = await getDict();
   // Derive the host from the incoming request so QR codes resolve back to
   // the same origin the user is browsing — works for any port or LAN IP.
+  // Prefer x-forwarded-host (when behind a reverse proxy) before host
+  // so the QRs encode the public hostname the user actually browses.
   const h = await headers();
   const proto = h.get('x-forwarded-proto') ?? 'http';
-  const host = h.get('host') ?? 'localhost:3000';
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000';
   const origin = `${proto}://${host}`;
-  const all = listCollection({ sort: 'title' });
-  const items = all.filter((it) => (filter == null || filter.has(it.id)) && (!status || it.status === status));
+  // Filter ids in SQL when supplied rather than loading the full library
+  // just to drop most rows.
+  const idList = filter ? Array.from(filter) : null;
+  const items = idList
+    ? listCollection({ sort: 'title' }).filter(
+        (it) => idList.includes(it.id) && (!status || it.status === status),
+      )
+    : listCollection({ sort: 'title' }).filter((it) => !status || it.status === status);
+
+  // Pre-render every QR SVG server-side, so the printed sheet doesn't
+  // depend on any third-party service.
+  const qrs = await Promise.all(items.map((it) => qrSvg(`${origin}/vn/${it.id}`)));
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -54,34 +74,35 @@ export default async function LabelsPage({
       <h1 className="mb-4 text-2xl font-bold print:hidden">{t.labels.title}</h1>
       <p className="mb-6 text-sm text-muted print:hidden">{t.labels.hint}</p>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 print:grid-cols-4 print:gap-1">
-        {items.map((it) => {
-          const url = `${origin}/vn/${it.id}`;
-          return (
+      {items.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted print:hidden">
+          {t.labels.empty}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 print:grid-cols-4 print:gap-1">
+          {items.map((it, i) => (
             <div
               key={it.id}
-              className="flex items-center gap-2 rounded-md border border-border bg-bg-card p-2 text-[10px] print:border-black/40"
+              className="flex items-center gap-2 rounded-md border border-border bg-bg-card p-2 text-[11px] print:border-black/40"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={qrUrl(url, 80)}
-                width={80}
-                height={80}
-                alt={`QR ${it.id}`}
-                loading="lazy"
-                className="shrink-0 bg-white"
+              {/* QR rendered as inline SVG — no network request, no
+                  third-party data leak, prints sharply at any size. */}
+              <div
+                aria-label={`QR ${it.id}`}
+                className="shrink-0 bg-white p-1 [&_svg]:h-20 [&_svg]:w-20"
+                dangerouslySetInnerHTML={{ __html: qrs[i] }}
               />
               <div className="min-w-0">
                 <p className="line-clamp-3 font-bold leading-tight">{it.title}</p>
-                <p className="mt-0.5 font-mono text-[9px] text-muted">{it.id}</p>
+                <p className="mt-0.5 font-mono text-[10px] text-muted">{it.id}</p>
                 {(it.physical_location ?? []).length > 0 && (
-                  <p className="mt-0.5 text-[9px] text-muted">{(it.physical_location ?? []).join(' · ')}</p>
+                  <p className="mt-0.5 text-[10px] text-muted">{(it.physical_location ?? []).join(' · ')}</p>
                 )}
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
       <style>{`
         @media print {

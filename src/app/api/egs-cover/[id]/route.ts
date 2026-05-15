@@ -180,10 +180,75 @@ function shopUrl(raw: RawRow): string | null {
  * Local /api/files/<path> hits stay on the same origin so we 302 those
  * directly; only the cross-origin paths fetch + pipe.
  */
+/**
+ * SSRF allowlist for the egs-cover proxy. Targets come from
+ * potentially-attacker-influenced sources (EGS raw_json scraped
+ * from the upstream HTML, banner URLs the user typed in). Without
+ * a filter, the proxy would happily fetch http://169.254.169.254/...
+ * (AWS metadata), http://localhost:5432/... (Postgres), or any
+ * intranet service the host can reach.
+ *
+ * The allowed hosts cover the legitimate sources: VNDB image CDN,
+ * VNDB Kana API, EGS image proxies (DLsite, DMM, Gyutto, suruga-ya,
+ * etc.). Everything else is rejected.
+ */
+const ALLOWED_HOSTS = new Set([
+  's2.vndb.org',
+  's.vndb.org',
+  't.vndb.org',
+  'cdn.vndb.org',
+  'api.vndb.org',
+  'erogamescape.dyndns.org',
+  'erogamescape.org',
+  'pics.dmm.co.jp',
+  'pics.dmm.com',
+  'img.dlsite.jp',
+  'www.suruga-ya.com',
+  'gyutto.com',
+  'gyutto.jp',
+  'image.itch.zone',
+  'cdn.steamgriddb.com',
+  'shared.cloudflare.steamstatic.com',
+  'steamcdn-a.akamaihd.net',
+  'media.steampowered.com',
+  'cdn.akamai.steamstatic.com',
+  'lemmasoft.renai.us',
+]);
+
+/**
+ * Reject literal private / loopback IPs that an attacker might
+ * encode in the host (e.g. http://127.0.0.1.evil.com/...). The
+ * fetch follows redirects, so even an allowed host could redirect
+ * to a private IP — we re-check after each redirect would be ideal,
+ * but the simpler win is to block requests targeting numeric hosts
+ * outright since none of our legitimate sources use raw IPs.
+ */
+function isAllowedTarget(target: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(target);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+  const host = url.hostname.toLowerCase();
+  // Reject IPv4 literals — none of our legitimate sources use them.
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return false;
+  // Reject IPv6 literals.
+  if (host.startsWith('[') || host.includes(':')) return false;
+  // Reject loopback and link-local hostnames.
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return false;
+  return ALLOWED_HOSTS.has(host);
+}
+
 async function proxyImage(target: string, origin: string): Promise<Response> {
   if (target.startsWith(`${origin}/`) || target.startsWith('/')) {
     const absolute = target.startsWith('/') ? `${origin}${target}` : target;
     return NextResponse.redirect(absolute, 302);
+  }
+  if (!isAllowedTarget(target)) {
+    // SSRF defense — never fetch arbitrary URLs server-side.
+    return new NextResponse(null, { status: 403 });
   }
   try {
     const ctrl = new AbortController();
@@ -191,6 +256,10 @@ async function proxyImage(target: string, origin: string): Promise<Response> {
     const upstream = await fetch(target, {
       method: 'GET',
       signal: ctrl.signal,
+      // `manual` would be safer (re-check each Location header), but
+      // legitimate image CDNs use 302 to a same-origin variant; we
+      // accept the small redirect-chain risk and rely on host
+      // allowlist as the primary control.
       redirect: 'follow',
       headers: { 'User-Agent': 'Mozilla/5.0 vn-collection/1.0' },
     }).finally(() => clearTimeout(timer));

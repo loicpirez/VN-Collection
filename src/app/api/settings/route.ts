@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppSetting, setAppSetting } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -43,7 +44,12 @@ function maskToken(value: string | null): { hasToken: boolean; preview: string |
   return { hasToken: true, preview: `…${tail}`, envFallback };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Settings hold the VNDB token, Steam API key, EGS username, and
+  // backup URL. The GET path returns masked previews but still
+  // confirms the existence of credentials — gated.
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const tokenRow = getAppSetting('vndb_token');
   const steamKey = getAppSetting('steam_api_key');
   return NextResponse.json({
@@ -53,7 +59,10 @@ export async function GET() {
     vndb_writeback: getAppSetting('vndb_writeback') === '1',
     vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
     vndb_backup_url: getAppSetting('vndb_backup_url') ?? DEFAULT_VNDB_BACKUP_URL,
-    steam_api_key: { hasKey: !!steamKey, preview: steamKey ? `…${steamKey.slice(-4)}` : null },
+    // No more last-4 preview of the Steam API key — confirming
+    // possession of a specific key by an attacker is information
+    // disclosure. UI gets a boolean only.
+    steam_api_key: { hasKey: !!steamKey, preview: null },
     steam_id: getAppSetting('steam_id') ?? '',
     egs_username: getAppSetting('egs_username') ?? '',
     vndb_fanout: getAppSetting('vndb_fanout') !== '0',
@@ -61,6 +70,11 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  // PATCH can replace the token, backup URL, etc. — a remote
+  // attacker who hits this can silently re-route every cached
+  // /vn or /producer call through their server.
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   for (const key of Object.keys(body)) {
     if (!SAFE_KEYS.has(key)) {
