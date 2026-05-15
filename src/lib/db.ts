@@ -1,7 +1,7 @@
 import 'server-only';
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, isAbsolute } from 'node:path';
 import {
   STATUSES,
   EDITION_TYPES,
@@ -25,8 +25,24 @@ import {
 } from './types';
 import { pushStatusToVndb } from './vndb-sync';
 
-const DB_PATH = resolve(process.cwd(), process.env.DB_PATH || './data/collection.db');
-mkdirSync(dirname(DB_PATH), { recursive: true });
+/**
+ * Lazy resolution of the SQLite path. Both absolute and `cwd`-
+ * relative `DB_PATH` values are accepted (default
+ * `./data/collection.db`).
+ *
+ * Built via string concatenation rather than
+ * `path.resolve(process.cwd(), env)` so Turbopack's NFT tracer
+ * doesn't follow this callsite into the project tree — the static
+ * analyzer flags `resolve()` / `join()` patterns under cwd as
+ * "overly broad" but is opaque to plain string ops. `better-
+ * sqlite3` resolves the runtime string normally.
+ */
+function resolveDbPath(): string {
+  const env = process.env.DB_PATH?.trim() || './data/collection.db';
+  if (isAbsolute(env)) return env;
+  const normalized = env.startsWith('./') ? env.slice(2) : env;
+  return `${process.cwd()}/${normalized}`;
+}
 
 declare global {
   // eslint-disable-next-line no-var
@@ -46,7 +62,12 @@ function ensureColumn(db: Database.Database, table: string, column: string, ddl:
 
 function open(): Database.Database {
   if (global.__vndb_db) return global.__vndb_db;
-  const db = new Database(DB_PATH);
+  const dbPath = resolveDbPath();
+  // mkdirSync runs at first call (request time), not module load,
+  // so Turbopack's NFT tracer never sees a top-level FS write and
+  // can't drag the data dir into the build's trace.
+  mkdirSync(dirname(dbPath), { recursive: true });
+  const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(`
@@ -1353,7 +1374,7 @@ export function getDbStatus(): DbStatus {
   const dbToken = (db.prepare('SELECT value FROM app_setting WHERE key = ?').get('vndb_token') as { value: string | null } | undefined)?.value;
   const tokenSource: 'db' | 'env' | 'none' = dbToken ? 'db' : process.env.VNDB_TOKEN ? 'env' : 'none';
   return {
-    db_path: DB_PATH,
+    db_path: resolveDbPath(),
     rows,
     egs_matched: egsCounts.matched ?? 0,
     egs_unmatched: egsCounts.unmatched ?? 0,
@@ -4447,7 +4468,7 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
 
 /** Returns the absolute filesystem path of the SQLite DB. Used for backup. */
 export function getDbPath(): string {
-  return DB_PATH;
+  return resolveDbPath();
 }
 
 export interface SqliteRestoreSummary {

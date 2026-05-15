@@ -1,10 +1,16 @@
 import 'server-only';
 import { mkdir, writeFile, stat, readFile } from 'node:fs/promises';
-import { resolve, extname, basename, normalize } from 'node:path';
+import { extname, basename, normalize } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 
-export const STORAGE_ROOT = resolve(process.cwd(), 'data', 'storage');
+// STORAGE_ROOT is built via string concatenation rather than
+// `path.resolve(process.cwd(), …)` so Turbopack's NFT tracer
+// doesn't follow every consumer into the project tree. The
+// resulting string is identical at runtime; `mkdir({recursive})`
+// and `readFile` etc. take any absolute path. Same applies to the
+// per-bucket and per-file paths below.
+export const STORAGE_ROOT = `${process.cwd()}/data/storage`;
 export const STORAGE_DIRS = {
   vnImage: 'vn',
   vnScreenshot: 'vn-sc',
@@ -16,14 +22,12 @@ export const STORAGE_DIRS = {
 
 export type StorageBucket = keyof typeof STORAGE_DIRS;
 
-await ensureDir(STORAGE_ROOT);
-
 async function ensureDir(p: string): Promise<void> {
   await mkdir(p, { recursive: true });
 }
 
 function bucketPath(bucket: StorageBucket): string {
-  return resolve(STORAGE_ROOT, STORAGE_DIRS[bucket]);
+  return `${STORAGE_ROOT}/${STORAGE_DIRS[bucket]}`;
 }
 
 function isInsideStorage(absPath: string): boolean {
@@ -33,7 +37,7 @@ function isInsideStorage(absPath: string): boolean {
 
 export async function fileExists(relPath: string): Promise<boolean> {
   if (!relPath) return false;
-  const abs = resolve(STORAGE_ROOT, relPath);
+  const abs = normalize(`${STORAGE_ROOT}/${relPath}`);
   if (!isInsideStorage(abs)) return false;
   try {
     await stat(abs);
@@ -44,7 +48,7 @@ export async function fileExists(relPath: string): Promise<boolean> {
 }
 
 export async function readStored(relPath: string): Promise<{ buffer: Buffer; contentType: string } | null> {
-  const abs = resolve(STORAGE_ROOT, relPath);
+  const abs = normalize(`${STORAGE_ROOT}/${relPath}`);
   if (!isInsideStorage(abs)) return null;
   try {
     const buffer = await readFile(abs);
@@ -104,7 +108,7 @@ export async function downloadToBucket(
   const safeName = `${sanitizeFilename(filenameHint)}${ext}`;
   const dir = bucketPath(bucket);
   await ensureDir(dir);
-  const abs = resolve(dir, safeName);
+  const abs = `${dir}/${safeName}`;
   await writeFile(abs, buf);
   return `${STORAGE_DIRS[bucket]}/${safeName}`;
 }
@@ -173,7 +177,7 @@ export async function saveUpload(
   const safeName = `${sanitizeFilename(filenameHint)}-${id}${ext}`;
   const dir = bucketPath(bucket);
   await ensureDir(dir);
-  const abs = resolve(dir, safeName);
+  const abs = `${dir}/${safeName}`;
   await writeFile(abs, buf);
   return `${STORAGE_DIRS[bucket]}/${safeName}`;
 }
