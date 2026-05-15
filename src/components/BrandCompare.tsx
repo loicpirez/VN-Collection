@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Check, GitCompareArrows, Loader2 } from 'lucide-react';
+import { Check, CornerDownRight, GitCompareArrows, Loader2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { resolveField, type SourceChoice } from '@/lib/source-resolve';
@@ -69,8 +69,9 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
           <span className="text-[11px] uppercase tracking-wider text-muted">
             {label}
             {resolved.used && resolved.used !== (optimistic === 'egs' ? 'egs' : 'vndb') && (
-              <span className="ml-2 rounded bg-bg-elev/60 px-1.5 py-0.5 align-middle text-[9px] normal-case tracking-normal text-muted">
-                ↪ {resolved.used.toUpperCase()}
+              <span className="ml-2 inline-flex items-center gap-1 rounded bg-bg-elev/60 px-1.5 py-0.5 align-middle text-[9px] normal-case tracking-normal text-muted">
+                <CornerDownRight className="h-2.5 w-2.5" aria-hidden />
+                {resolved.used.toUpperCase()}
               </span>
             )}
           </span>

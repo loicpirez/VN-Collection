@@ -3,30 +3,37 @@ import type { ReactNode } from 'react';
 /**
  * Render VNDB-flavoured BBCode as React nodes. Description fields
  * arrive from VNDB carrying tags like `[url=...]label[/url]` plus
- * `[b]` / `[i]` / `[u]` / `[s]` / `[spoiler]`. Until now most
- * call sites either ran them through a `stripBbcode` helper
- * (lost the links) or rendered the raw markup (leaked syntax into
- * the UI). This component is the single source of truth.
+ * `[b]` / `[i]` / `[u]` / `[s]` / `[spoiler]`.
  *
- *   • `[url=…]label[/url]`           → external anchor (target=_blank)
- *   • `[b]` / `[i]` / `[u]` / `[s]`  → strong / em / underline / strike
- *   • `[spoiler]…[/spoiler]`         → native `<details>` (no JS needed)
- *   • bare `http(s)://…`             → autolinked
- *   • `\n`                           → `<br />`
+ *   - `[url=…]label[/url]`           external anchor (target=_blank, scheme-allowlisted)
+ *   - `[b]` / `[i]` / `[u]` / `[s]`  strong / em / underline / strike
+ *   - `[spoiler]…[/spoiler]`         native `<details>` (no JS needed)
+ *   - bare `http(s)://…`             autolinked
+ *   - `\n`                           `<br />`
  *
- * Unknown / malformed tags are dropped silently — matching the
- * existing strip helpers' policy. Anchors always carry
- * `rel="noopener noreferrer"` and `target="_blank"`.
+ * URL hrefs are scheme-allowlisted (http/https/mailto/relative) to
+ * block `javascript:` and `data:text/html` payloads in untrusted
+ * descriptions. Anchors always carry `rel="noopener noreferrer"`.
+ *
+ * `tokenize()` is O(N): only invokes the regex on `[` characters and
+ * uses a sticky/global regex with `lastIndex` instead of slicing.
  */
 
 type Token =
   | { kind: 'text'; value: string }
   | { kind: 'br' }
-  | { kind: 'url'; href: string; label: string }
+  | { kind: 'url'; href: string; children: Token[]; fallback: string }
   | { kind: 'b' | 'i' | 'u' | 's' | 'spoiler'; children: Token[] };
 
-const BBCODE_TAG = /\[(\/?)(url|b|i|u|s|spoiler)(?:=([^\]]+))?\]/i;
+const BBCODE_TAG = /\[(\/?)(url|b|i|u|s|spoiler)(?:=([^\]]+))?\]/giy;
+const URL_CLOSE = /\[\/url\]/gi;
+const SAFE_URL_SCHEME = /^(?:https?:|mailto:|\/)/i;
 type InlineKind = 'b' | 'i' | 'u' | 's' | 'spoiler';
+
+function sanitizeHref(raw: string): string {
+  const trimmed = raw.trim();
+  return SAFE_URL_SCHEME.test(trimmed) ? trimmed : '#';
+}
 
 function tokenize(input: string): Token[] {
   const out: Token[] = [];
@@ -42,47 +49,56 @@ function tokenize(input: string): Token[] {
   };
 
   while (i < input.length) {
-    if (input[i] === '\n') {
+    const ch = input[i];
+    if (ch === '\n') {
       flush();
       target().push({ kind: 'br' });
       i += 1;
       continue;
     }
-    const rest = input.slice(i);
-    const match = rest.match(BBCODE_TAG);
-    if (match && match.index === 0) {
-      flush();
-      const close = match[1] === '/';
-      const tag = match[2].toLowerCase() as 'url' | InlineKind;
-      const attr = match[3];
-      if (tag === 'url' && !close) {
-        const start = i + match[0].length;
-        const end = input.toLowerCase().indexOf('[/url]', start);
-        if (end >= 0 && attr) {
-          const label = input.slice(start, end);
-          target().push({ kind: 'url', href: attr.trim(), label });
-          i = end + '[/url]'.length;
+    if (ch === '[') {
+      BBCODE_TAG.lastIndex = i;
+      const match = BBCODE_TAG.exec(input);
+      if (match) {
+        flush();
+        const close = match[1] === '/';
+        const tag = match[2].toLowerCase() as 'url' | InlineKind;
+        const attr = match[3];
+        if (tag === 'url' && !close) {
+          const start = i + match[0].length;
+          URL_CLOSE.lastIndex = start;
+          const endMatch = URL_CLOSE.exec(input);
+          if (endMatch && attr) {
+            const labelSrc = input.slice(start, endMatch.index);
+            target().push({
+              kind: 'url',
+              href: sanitizeHref(attr),
+              children: tokenize(labelSrc),
+              fallback: attr.trim(),
+            });
+            i = endMatch.index + endMatch[0].length;
+            continue;
+          }
+          i += match[0].length;
+          continue;
+        }
+        if (!close) {
+          stack.push({ kind: tag as InlineKind, tokens: [] });
+          i += match[0].length;
+          continue;
+        }
+        const top = stack[stack.length - 1];
+        if (top && top.kind === tag) {
+          stack.pop();
+          target().push({ kind: top.kind, children: top.tokens });
+          i += match[0].length;
           continue;
         }
         i += match[0].length;
         continue;
       }
-      if (!close) {
-        stack.push({ kind: tag as InlineKind, tokens: [] });
-        i += match[0].length;
-        continue;
-      }
-      const top = stack[stack.length - 1];
-      if (top && top.kind === tag) {
-        stack.pop();
-        target().push({ kind: top.kind, children: top.tokens });
-        i += match[0].length;
-        continue;
-      }
-      i += match[0].length;
-      continue;
     }
-    buf += input[i];
+    buf += ch;
     i += 1;
   }
   flush();
@@ -94,21 +110,19 @@ function tokenize(input: string): Token[] {
 }
 
 function pushText(arr: Token[], value: string): void {
-  // Autolink bare http(s) URLs so trailing notes like
-  // "see https://example.com" still render as a link without
-  // explicit `[url=…]` markup.
   const urlRe = /https?:\/\/[^\s<>"'\])}]+/gi;
   let last = 0;
   for (const m of value.matchAll(urlRe)) {
     if (m.index === undefined) continue;
+    const trimmed = m[0].replace(/[.,;:!?)]+$/, '');
     if (m.index > last) arr.push({ kind: 'text', value: value.slice(last, m.index) });
-    arr.push({ kind: 'url', href: m[0], label: m[0] });
-    last = m.index + m[0].length;
+    arr.push({ kind: 'url', href: sanitizeHref(trimmed), children: [{ kind: 'text', value: trimmed }], fallback: trimmed });
+    last = m.index + trimmed.length;
   }
   if (last < value.length) arr.push({ kind: 'text', value: value.slice(last) });
 }
 
-function renderTokens(tokens: Token[], keyPrefix = 'm'): ReactNode {
+function renderTokens(tokens: Token[], spoilerLabel: string, keyPrefix = 'm'): ReactNode {
   return tokens.map((tok, idx): ReactNode => {
     const key = `${keyPrefix}-${idx}`;
     switch (tok.kind) {
@@ -125,24 +139,25 @@ function renderTokens(tokens: Token[], keyPrefix = 'm'): ReactNode {
             rel="noopener noreferrer"
             className="text-accent hover:underline"
           >
-            {tok.label || tok.href}
+            {tok.children.length > 0 ? renderTokens(tok.children, spoilerLabel, key) : tok.fallback}
           </a>
         );
       case 'b':
-        return <strong key={key}>{renderTokens(tok.children, key)}</strong>;
+        return <strong key={key}>{renderTokens(tok.children, spoilerLabel, key)}</strong>;
       case 'i':
-        return <em key={key}>{renderTokens(tok.children, key)}</em>;
+        return <em key={key}>{renderTokens(tok.children, spoilerLabel, key)}</em>;
       case 'u':
-        return <span key={key} className="underline">{renderTokens(tok.children, key)}</span>;
+        return <span key={key} className="underline">{renderTokens(tok.children, spoilerLabel, key)}</span>;
       case 's':
-        return <span key={key} className="line-through">{renderTokens(tok.children, key)}</span>;
+        return <span key={key} className="line-through">{renderTokens(tok.children, spoilerLabel, key)}</span>;
       case 'spoiler':
         return (
           <details key={key} className="inline">
-            <summary className="cursor-pointer rounded bg-bg-elev/60 px-1 text-muted hover:text-white">
-              spoiler
+            <summary className="inline-flex cursor-pointer items-center gap-1 rounded bg-bg-elev/60 px-1 text-muted hover:text-white [&::-webkit-details-marker]:hidden [list-style:none]">
+              <svg aria-hidden viewBox="0 0 16 16" className="h-3 w-3 transition-transform [details[open]>summary>&]:rotate-90"><path fill="currentColor" d="M5 3l6 5-6 5z"/></svg>
+              {spoilerLabel}
             </summary>
-            <span>{renderTokens(tok.children, key)}</span>
+            <span>{renderTokens(tok.children, spoilerLabel, key)}</span>
           </details>
         );
     }
@@ -152,19 +167,23 @@ function renderTokens(tokens: Token[], keyPrefix = 'm'): ReactNode {
 export function VndbMarkup({
   text,
   className,
+  spoilerLabel = 'spoiler',
 }: {
   text: string | null | undefined;
   className?: string;
+  /** Localised summary text for `[spoiler]…[/spoiler]`. Server pages pass `t.spoiler.markupSummary`. */
+  spoilerLabel?: string;
 }) {
   if (!text) return null;
   const tokens = tokenize(text);
-  return <span className={className}>{renderTokens(tokens)}</span>;
+  return <span className={className}>{renderTokens(tokens, spoilerLabel)}</span>;
 }
 
 /**
  * Plain-text strip — same parser, renders only the visible label.
- * Use this where you previously regexed out BBCode (filter chips,
- * search snippets, etc.) so every site shares one parser.
+ * Used by filter chips, search snippets, anything that needs a
+ * BBCode-free string. All four legacy inline `stripBb` helpers
+ * across the app should route through here.
  */
 export function stripVndbMarkup(text: string | null | undefined): string {
   if (!text) return '';
@@ -183,7 +202,7 @@ function collapse(tokens: Token[]): string {
         out += '\n';
         break;
       case 'url':
-        out += tok.label || tok.href;
+        out += collapse(tok.children) || tok.fallback;
         break;
       case 'b':
       case 'i':

@@ -5,6 +5,7 @@ import { Library, Loader2, Search, Sparkles } from 'lucide-react';
 import { RefreshPageButton } from './RefreshPageButton';
 import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
+import { stripVndbMarkup } from './VndbMarkup';
 import type { VndbTrait } from '@/lib/vndb-types';
 
 export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null } = {}) {
@@ -110,7 +111,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
                 )}
               </div>
               {tr.description && (
-                <p className="mt-1 line-clamp-3 text-xs text-muted">{stripBb(tr.description)}</p>
+                <p className="mt-1 line-clamp-3 text-xs text-muted">{stripVndbMarkup(tr.description)}</p>
               )}
               <div className="mt-2 text-[11px] text-muted tabular-nums">
                 {tr.char_count.toLocaleString()} {t.traits.charCount}
@@ -123,6 +124,3 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
   );
 }
 
-function stripBb(s: string): string {
-  return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
-}

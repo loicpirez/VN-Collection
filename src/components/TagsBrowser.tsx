@@ -5,6 +5,7 @@ import { ArrowRight, Library, Loader2, Search, Tags } from 'lucide-react';
 import { RefreshPageButton } from './RefreshPageButton';
 import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
+import { stripVndbMarkup } from './VndbMarkup';
 import type { VndbTag } from '@/lib/vndb-types';
 
 const CATEGORIES: { key: 'cont' | 'ero' | 'tech'; tkey: 'cat_cont' | 'cat_ero' | 'cat_tech' }[] = [
@@ -129,7 +130,7 @@ export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number |
               </div>
               {tag.description && (
                 <p className="mt-1 line-clamp-3 text-xs text-muted">
-                  {stripBb(tag.description)}
+                  {stripVndbMarkup(tag.description)}
                 </p>
               )}
               <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
@@ -148,6 +149,3 @@ export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number |
   );
 }
 
-function stripBb(s: string): string {
-  return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
-}

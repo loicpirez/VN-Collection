@@ -7,6 +7,7 @@ import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { LangFlag } from '@/components/LangFlag';
 import { ReleaseOwnedToggle } from '@/components/ReleaseOwnedToggle';
+import { stripVndbMarkup } from '@/components/VndbMarkup';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,10 +24,6 @@ function fmtRes(r: VndbRelease['resolution']): string | null {
   return `${r[0]}×${r[1]}`;
 }
 
-function stripBb(s: string | null | undefined): string {
-  if (!s) return '';
-  return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
-}
 
 const TYPE_LABEL: Record<string, 'pkgfront' | 'pkgback' | 'pkgcontent' | 'pkgside' | 'pkgmed' | 'dig'> = {
   pkgfront: 'pkgfront',
@@ -101,7 +98,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
             rel="noopener noreferrer"
             className="btn shrink-0"
           >
-            <ExternalLink className="h-4 w-4" /> VNDB ↗
+            <ExternalLink className="h-4 w-4" aria-hidden /> VNDB
           </a>
         </div>
 
@@ -246,7 +243,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
         {release.notes && (
           <div className="mt-4 rounded-lg border border-border bg-bg-elev/40 p-3 text-sm leading-relaxed text-white/85">
-            {stripBb(release.notes)}
+            {stripVndbMarkup(release.notes)}
           </div>
         )}
 
@@ -312,7 +309,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                     <SafeImage
                       src={img.url}
                       sexual={img.sexual ?? null}
-                      alt={`${release.title} — ${img.type}`}
+                      alt={`${release.title} — ${t.media[typeKey]}`}
                       className="h-full w-full"
                       fit="contain"
                     />

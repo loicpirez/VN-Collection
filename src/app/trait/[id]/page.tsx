@@ -5,13 +5,10 @@ import { getCharactersForTrait, getTrait, type VndbCharacter, type VndbTrait } f
 import { getCharacterImages, listInCollectionVnIds } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { stripVndbMarkup } from '@/components/VndbMarkup';
 
 export const dynamic = 'force-dynamic';
 
-function stripBb(s: string | null | undefined): string {
-  if (!s) return '';
-  return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
-}
 
 export default async function TraitPage({
   params,
@@ -71,7 +68,7 @@ export default async function TraitPage({
             </div>
             {trait.description && (
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-white/85">
-                {stripBb(trait.description)}
+                {stripVndbMarkup(trait.description)}
               </p>
             )}
           </div>
@@ -81,7 +78,7 @@ export default async function TraitPage({
             rel="noopener noreferrer"
             className="btn shrink-0"
           >
-            <ExternalLink className="h-4 w-4" /> VNDB ↗
+            <ExternalLink className="h-4 w-4" aria-hidden /> VNDB
           </a>
         </div>
       </header>
