@@ -8,6 +8,7 @@ import { getProducer as fetchProducer } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
 import { ProducerLogoUpload } from '@/components/ProducerLogoUpload';
+import { VndbMarkup } from '@/components/VndbMarkup';
 import { ProducerVnsSections } from '@/components/ProducerVnsSections';
 import { readScrapedProducerInfo } from '@/lib/scrape-producer-relations';
 import type { ProducerRow } from '@/lib/types';
@@ -120,7 +121,9 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
       {producer.description && (
         <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">{stripBbCode(producer.description)}</p>
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
+            <VndbMarkup text={producer.description} />
+          </div>
         </section>
       )}
 
@@ -191,9 +194,6 @@ function ProducerVnsSkeleton() {
   );
 }
 
-function stripBbCode(s: string): string {
-  return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
-}
 
 /**
  * Renders the parent/subsidiary/spawned/imprint relations VNDB exposes

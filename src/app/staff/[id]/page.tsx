@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ExternalLink, Filter, Mic2, Star, Users } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Filter, Globe, Mic2, Star, User, Users } from 'lucide-react';
 import {
   getStaffProfileFromCredits,
   listStaffProductionCredits,
@@ -14,6 +14,8 @@ import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
 import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
 import { readStaffFullCache } from '@/lib/staff-full';
+import { VndbMarkup } from '@/components/VndbMarkup';
+import { languageDisplayName } from '@/lib/language-names';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,17 +109,26 @@ export default async function StaffPage({
             {profile?.original && profile.original !== profile.name && (
               <div className="mt-1 text-sm text-muted">{profile.original}</div>
             )}
-            <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
-              {profile?.lang && <span>{profile.lang.toUpperCase()}</span>}
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
+              {profile?.lang && (
+                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
+                  <Globe className="h-3 w-3" aria-hidden />
+                  {languageDisplayName(profile.lang)}
+                </span>
+              )}
               {gender && (
-                <span aria-label={t.staff.gender}>
+                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
+                  <User className="h-3 w-3" aria-hidden />
+                  {t.staff.gender}:{' '}
                   {gender === 'f' ? t.staff.genderF : gender === 'm' ? t.staff.genderM : gender}
                 </span>
               )}
-              <span>
+              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
+                <Users className="h-3 w-3" aria-hidden />
                 {production.length} {t.staff.vnCount} · {t.staff.productionCredits.toLowerCase()}
               </span>
-              <span>
+              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
+                <Mic2 className="h-3 w-3" aria-hidden />
                 {voice.length} {t.staff.vnCount} · {t.staff.voiceCredits.toLowerCase()}
               </span>
             </div>
@@ -137,7 +148,9 @@ export default async function StaffPage({
               </div>
             )}
             {description && (
-              <p className="mt-3 whitespace-pre-wrap text-xs text-white/80">{description}</p>
+              <div className="mt-3 whitespace-pre-wrap text-xs text-white/80">
+                <VndbMarkup text={description} />
+              </div>
             )}
             {extlinks.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5 text-xs">

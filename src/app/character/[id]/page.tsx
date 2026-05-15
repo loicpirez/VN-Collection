@@ -6,6 +6,7 @@ import { findCharacterSiblings, getVasForCharacter } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
+import { VndbMarkup } from '@/components/VndbMarkup';
 import { readScrapedCharacterInfo } from '@/lib/scrape-character-instances';
 
 export const dynamic = 'force-dynamic';
@@ -32,11 +33,6 @@ function genderLabel(g: [string | null, string | null] | null, idx: 0 | 1 = 0): 
   const v = g[idx];
   const map: Record<string, string> = { m: '♂', f: '♀', o: 'non-binary', a: 'ambiguous' };
   return v == null ? null : (map[v] ?? v);
-}
-
-function stripBb(s: string | null | undefined): string {
-  if (!s) return '';
-  return s.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
 }
 
 export default async function CharacterPage({
@@ -163,7 +159,9 @@ export default async function CharacterPage({
       {char.description && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">{stripBb(char.description)}</p>
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
+            <VndbMarkup text={char.description} />
+          </div>
         </section>
       )}
 

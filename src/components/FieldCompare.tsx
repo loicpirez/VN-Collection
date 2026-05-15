@@ -5,6 +5,7 @@ import { Check, GitCompareArrows, Loader2, PinIcon } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { resolveField, type SourceChoice } from '@/lib/source-resolve';
+import { VndbMarkup } from './VndbMarkup';
 
 type Field = 'description' | 'brand' | 'image';
 
@@ -25,10 +26,6 @@ interface Props {
   egsLinked?: boolean;
 }
 
-/** Strip VNDB BBCode + EGS HTML noise. Same shape both sides so the comparison is fair. */
-function clean(text: string): string {
-  return text.replace(/\[url=([^\]]+)\]([^[]+)\[\/url\]/g, '$2').replace(/\[\/?[a-z]+\]/gi, '');
-}
 
 /**
  * Text-only field renderer (description, etc.). Resolves a single value via the
@@ -230,7 +227,11 @@ export function FieldCompare({
 }
 
 function Body({ text }: { text: string }) {
-  return <p className="whitespace-pre-wrap leading-relaxed text-white/85">{clean(text)}</p>;
+  return (
+    <div className="whitespace-pre-wrap leading-relaxed text-white/85">
+      <VndbMarkup text={text} />
+    </div>
+  );
 }
 
 function ColumnCard({
