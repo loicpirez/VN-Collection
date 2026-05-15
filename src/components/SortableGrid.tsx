@@ -5,6 +5,7 @@ import {
   DragOverlay,
   PointerSensor,
   KeyboardSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -52,6 +53,10 @@ export function SortableGrid({ items, onReorder, dense = false }: Props) {
   // never accidentally engages the drag.
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    // Long-press to engage on touch — without this, mobile users
+    // couldn't drag at all on iOS (where Pointer events behave more
+    // like clicks unless the finger moves significantly first).
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 

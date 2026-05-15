@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition } from 'react';
+import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { Check, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, Sparkles, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
@@ -54,20 +55,12 @@ export function CoverSourcePicker({
   const [urlValue, setUrlValue] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
 
-  useEffect(() => {
-    if (!open) return;
-    function esc(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    window.addEventListener('keydown', esc);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', esc);
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  // body-scroll lock + ESC + focus trap. Replaces the previous
+  // bespoke ESC handler with the shared hook so every modal in the
+  // app gets the same a11y guarantees.
+  useDialogA11y({ open, onClose: () => setOpen(false), panelRef: dialogRef });
 
   // Listen for a global "open the cover picker" event so secondary
   // triggers (e.g. the hover overlay on the cover image itself) can
@@ -233,11 +226,15 @@ export function CoverSourcePicker({
         >
           <div
             ref={dialogRef}
-            className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
+            className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h2 className="text-base font-bold">{t.coverPicker.title}</h2>
+              <h2 id={titleId} className="text-base font-bold">{t.coverPicker.title}</h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}

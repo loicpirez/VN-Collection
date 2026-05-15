@@ -1,6 +1,7 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { useDialogA11y } from './Dialog';
 import { SafeImage } from './SafeImage';
 import { SetBannerButton } from './SetBannerButton';
 import { SetCoverButton } from './SetCoverButton';
@@ -113,6 +114,27 @@ export function MediaGallery({
   const prev = () => setActive((a) => (a == null ? null : (a - 1 + visible.length) % visible.length));
   const next = () => setActive((a) => (a == null ? null : (a + 1) % visible.length));
 
+  const lightboxRef = useRef<HTMLDivElement | null>(null);
+  const lightboxTitleId = useId();
+  useDialogA11y({ open: active != null, onClose: close, panelRef: lightboxRef });
+
+  // Arrow-key navigation in the lightbox so the user can flip through
+  // images without reaching for the mouse. ESC handled by useDialogA11y.
+  useEffect(() => {
+    if (active == null) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        prev();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        next();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active]);
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap gap-1.5">
@@ -182,7 +204,18 @@ export function MediaGallery({
       </div>
 
       {active != null && visible[active] && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={close}>
+        <div
+          ref={lightboxRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={lightboxTitleId}
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 outline-none"
+          onClick={close}
+        >
+          <h2 id={lightboxTitleId} className="sr-only">
+            {visible[active].alt}
+          </h2>
           <button
             className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-bg-card text-white"
             onClick={(e) => { e.stopPropagation(); close(); }}
@@ -195,14 +228,14 @@ export function MediaGallery({
               <button
                 className="absolute left-4 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-bg-card text-white"
                 onClick={(e) => { e.stopPropagation(); prev(); }}
-                aria-label="Prev"
+                aria-label={t.common.prev}
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 className="absolute right-4 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-bg-card text-white"
                 onClick={(e) => { e.stopPropagation(); next(); }}
-                aria-label="Next"
+                aria-label={t.common.next}
               >
                 <ChevronRight className="h-5 w-5" />
               </button>

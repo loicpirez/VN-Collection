@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
+import { useT } from '@/lib/i18n/client';
 
 export type ToastKind = 'success' | 'error' | 'info' | 'warning';
 
@@ -90,6 +91,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 function ToastView({ toast, onDismiss }: { toast: ToastEntry; onDismiss: () => void }) {
+  const t = useT();
   const tone =
     toast.kind === 'success'
       ? 'border-status-completed/60 bg-status-completed/15 text-status-completed'
@@ -115,7 +117,7 @@ function ToastView({ toast, onDismiss }: { toast: ToastEntry; onDismiss: () => v
         type="button"
         onClick={onDismiss}
         className="ml-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted hover:text-white"
-        aria-label="dismiss"
+        aria-label={t.common.dismiss}
       >
         <X className="h-3 w-3" />
       </button>

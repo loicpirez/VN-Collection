@@ -213,7 +213,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
       )}
       {selectable && data.favorite && (
         <Star
-          aria-label="favorite"
+          aria-label={t.form.favorite}
           className="absolute right-2 top-2 z-10 h-5 w-5 fill-accent text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
         />
       )}

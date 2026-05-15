@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition } from 'react';
+import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { Check, Image as ImageIcon, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
@@ -53,21 +54,10 @@ export function BannerSourcePicker({
   const [urlValue, setUrlValue] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
   const [, startTransition] = useTransition();
 
-  useEffect(() => {
-    if (!open) return;
-    function esc(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    window.addEventListener('keydown', esc);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', esc);
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  useDialogA11y({ open, onClose: () => setOpen(false), panelRef: dialogRef });
 
   async function applySource(source: 'url' | 'screenshot' | 'release' | 'path' | 'cover', value?: string) {
     setBusy(true);
@@ -165,11 +155,15 @@ export function BannerSourcePicker({
         >
           <div
             ref={dialogRef}
-            className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
+            className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h2 className="text-base font-bold">{t.bannerPicker.title}</h2>
+              <h2 id={titleId} className="text-base font-bold">{t.bannerPicker.title}</h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}

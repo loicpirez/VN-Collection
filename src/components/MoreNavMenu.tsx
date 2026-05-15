@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { useDialogA11y } from './Dialog';
 import Link from 'next/link';
 import {
   Award,
@@ -109,6 +110,7 @@ export function GroupedNav() {
       {mobileOpen && (
         <MobileSheet
           onClose={() => setMobileOpen(false)}
+          t={t}
           groups={[
             { title: t.nav.groupPrimary, items: primary },
             { title: t.nav.groupDiscover, items: discover },
@@ -185,35 +187,37 @@ function NavGroup({ label, items, icon: Icon }: { label: string; items: NavItem[
 function MobileSheet({
   onClose,
   groups,
+  t,
 }: {
   onClose: () => void;
   groups: { title: string; items: NavItem[] }[];
+  t: ReturnType<typeof useT>;
 }) {
-  useEffect(() => {
-    function escape(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', escape);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', escape);
-      document.body.style.overflow = prev;
-    };
-  }, [onClose]);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
+  useDialogA11y({ open: true, onClose, panelRef });
   return (
     <div className="fixed inset-0 z-50 md:hidden">
       <div className="absolute inset-0 bg-bg/80 backdrop-blur" onClick={onClose} aria-hidden />
-      <div className="absolute right-0 top-0 h-full w-72 max-w-[85vw] overflow-y-auto border-l border-border bg-bg-card shadow-card">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="absolute right-0 top-0 h-full w-72 max-w-[85vw] overflow-y-auto border-l border-border bg-bg-card shadow-card outline-none"
+      >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="text-sm font-bold tracking-wide">Menu</span>
+          <span id={titleId} className="text-sm font-bold tracking-wide">
+            {t.nav.openMenu}
+          </span>
           <button
             type="button"
             onClick={onClose}
             className="rounded-md p-1 text-muted hover:text-white"
-            aria-label="Close"
+            aria-label={t.common.close}
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
         <div className="px-2 py-2 text-sm">

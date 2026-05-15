@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Keyboard, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { Dialog } from './Dialog';
 
 const ROUTES: Record<string, string> = {
   h: '/',
@@ -93,37 +94,40 @@ export function KeyboardShortcuts() {
     };
   }, [help, router]);
 
-  if (!help) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/70 backdrop-blur" onClick={() => setHelp(false)}>
-      <div
-        className="w-[min(92vw,440px)] rounded-2xl border border-border bg-bg-card p-4 sm:p-6 shadow-card"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog
+      open={help}
+      onClose={() => setHelp(false)}
+      panelClassName="w-[min(92vw,440px)] p-4 sm:p-6"
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Keyboard className="h-5 w-5 text-accent" aria-hidden /> {t.shortcuts.title}
+        </span>
+      }
+    >
+      <button
+        type="button"
+        onClick={() => setHelp(false)}
+        className="absolute right-3 top-3 rounded text-muted hover:text-white"
+        aria-label={t.common.close}
       >
-        <div className="mb-3 flex items-baseline justify-between gap-2">
-          <h2 className="inline-flex items-center gap-2 text-lg font-bold">
-            <Keyboard className="h-5 w-5 text-accent" /> {t.shortcuts.title}
-          </h2>
-          <button type="button" onClick={() => setHelp(false)} className="rounded text-muted hover:text-white">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <ul className="space-y-1.5 text-sm">
-          <Row k="/" label={t.shortcuts.focusSearch} />
-          <Row k="?" label={t.shortcuts.help} />
-          <Row k="g h" label={t.shortcuts.goHome} />
-          <Row k="g s" label={t.shortcuts.goSearch} />
-          <Row k="g w" label={t.shortcuts.goWishlist} />
-          <Row k="g r" label={t.shortcuts.goRecommend} />
-          <Row k="g u" label={t.shortcuts.goUpcoming} />
-          <Row k="g q" label={t.shortcuts.goQuotes} />
-          <Row k="g y" label={t.shortcuts.goYear} />
-          <Row k="g t" label={t.shortcuts.goStats} />
-          <Row k="g d" label={t.shortcuts.goData} />
-          <Row k="Esc" label={t.shortcuts.close} />
-        </ul>
-      </div>
-    </div>
+        <X className="h-4 w-4" aria-hidden />
+      </button>
+      <ul className="space-y-1.5 text-sm">
+        <Row k="/" label={t.shortcuts.focusSearch} />
+        <Row k="?" label={t.shortcuts.help} />
+        <Row k="g h" label={t.shortcuts.goHome} />
+        <Row k="g s" label={t.shortcuts.goSearch} />
+        <Row k="g w" label={t.shortcuts.goWishlist} />
+        <Row k="g r" label={t.shortcuts.goRecommend} />
+        <Row k="g u" label={t.shortcuts.goUpcoming} />
+        <Row k="g q" label={t.shortcuts.goQuotes} />
+        <Row k="g y" label={t.shortcuts.goYear} />
+        <Row k="g t" label={t.shortcuts.goStats} />
+        <Row k="g d" label={t.shortcuts.goData} />
+        <Row k="Esc" label={t.shortcuts.close} />
+      </ul>
+    </Dialog>
   );
 }
 

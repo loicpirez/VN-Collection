@@ -128,7 +128,14 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
           className="input w-16 py-0.5 text-xs"
         />
       </div>
-      <div className="mb-2 font-mono text-2xl text-white">{mm}:{ss}</div>
+      <div
+        className="mb-2 font-mono text-2xl text-white"
+        aria-live="polite"
+        aria-atomic="true"
+        aria-label={`${mm} ${t.pomodoro.unitMinutes} ${ss} ${t.pomodoro.unitSeconds}`}
+      >
+        {mm}:{ss}
+      </div>
       <div className="mb-2 h-1 w-full overflow-hidden rounded-full bg-bg-elev">
         <div className="h-full bg-accent transition-[width]" style={{ width: `${pct}%` }} />
       </div>
