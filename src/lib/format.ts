@@ -16,7 +16,9 @@ export function formatMinutes(
 ): string {
   const fallback = opts.fallback ?? '';
   if (m == null) return fallback;
-  if (opts.emptyValue === 'strict_positive' && m <= 0) return fallback;
+  // `strict_positive` (the default) treats <=0 as missing. `allow_zero`
+  // lets `0` through as a real "0m" value. The previous two-branch form
+  // was redundant — the second condition already subsumed the first.
   if (opts.emptyValue !== 'allow_zero' && m <= 0) return fallback;
   const total = Math.round(m);
   const h = Math.floor(total / 60);
@@ -24,4 +26,15 @@ export function formatMinutes(
   if (h && mn) return `${h}h ${mn}m`;
   if (h) return `${h}h`;
   return `${mn}m`;
+}
+
+/**
+ * `formatMinutes` variant that returns `null` instead of a string when
+ * the value is missing/non-positive — handy for conditional render
+ * blocks (`{fmtMinutesOrNull(m) && <span>{...}</span>}`). Replaces the
+ * duplicated 3-line wrapper that lived in both `VnCard` and `EgsPanel`.
+ */
+export function formatMinutesOrNull(m: number | null | undefined): string | null {
+  const out = formatMinutes(m, { emptyValue: 'strict_positive' });
+  return out ? out : null;
 }

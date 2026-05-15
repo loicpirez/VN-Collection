@@ -1,9 +1,26 @@
 'use client';
 import { useState } from 'react';
-import { Edit3, Eye } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import dynamic from 'next/dynamic';
+import { Edit3, Eye, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+
+/**
+ * `react-markdown` + `remark-gfm` together weigh ~100 kB gzipped and
+ * are only needed when the user actually previews their notes. The
+ * heavy renderer is dynamic-imported and rendered client-side only;
+ * the textarea editor stays in the eager bundle.
+ */
+const MarkdownView = dynamic(
+  () => import('./MarkdownView').then((m) => m.MarkdownView),
+  {
+    ssr: false,
+    loading: () => (
+      <p className="inline-flex items-center gap-2 text-xs text-muted">
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+      </p>
+    ),
+  },
+);
 
 interface Props {
   value: string;
@@ -26,7 +43,7 @@ export function MarkdownNotes({ value, onChange, placeholder }: Props) {
           }`}
           onClick={() => setTab('edit')}
         >
-          <Edit3 className="h-3 w-3" /> {t.markdown.edit}
+          <Edit3 className="h-3 w-3" aria-hidden /> {t.markdown.edit}
         </button>
         <button
           type="button"
@@ -35,7 +52,7 @@ export function MarkdownNotes({ value, onChange, placeholder }: Props) {
           }`}
           onClick={() => setTab('preview')}
         >
-          <Eye className="h-3 w-3" /> {t.markdown.preview}
+          <Eye className="h-3 w-3" aria-hidden /> {t.markdown.preview}
         </button>
         <span className="ml-auto text-[11px] text-muted">{t.markdown.hint}</span>
       </div>
@@ -46,6 +63,7 @@ export function MarkdownNotes({ value, onChange, placeholder }: Props) {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder ?? t.markdown.placeholder}
+          aria-label={placeholder ?? t.markdown.placeholder}
         />
       ) : (
         <div className="prose-invert min-h-[140px] p-4 text-sm">
@@ -60,10 +78,4 @@ export function MarkdownNotes({ value, onChange, placeholder }: Props) {
   );
 }
 
-export function MarkdownView({ source }: { source: string }) {
-  return (
-    <div className="space-y-2 text-sm leading-relaxed text-white/90 [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-base [&_h2]:font-bold [&_h3]:font-semibold [&_a]:text-accent-blue [&_a:hover]:underline [&_code]:rounded [&_code]:bg-bg-elev [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-bg-elev [&_pre]:p-3 [&_pre]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:border-accent [&_blockquote]:pl-3 [&_blockquote]:text-muted [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{source}</ReactMarkdown>
-    </div>
-  );
-}
+export { MarkdownView } from './MarkdownView';

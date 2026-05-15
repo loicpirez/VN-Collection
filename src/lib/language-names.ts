@@ -1,21 +1,20 @@
 /**
- * Two-letter / locale-tag → display name. Used wherever VNDB's
- * bare language code (`ja`, `en`, `zh-Hans`, etc.) was previously
- * rendered as an uppercase chip — `JA` reads as cryptic acronym
- * out of context. Producers / staff / VN pages now wrap the code
- * with the full name so a hover-free chip says
- * "🌐 Japanese (ja)" instead of just "JA".
+ * VNDB language code → display name. Used wherever VNDB's bare
+ * language code (`ja`, `en`, `zh-Hans`) is rendered as a chip.
  *
- * Keep this list aligned with the VNDB schema's `languages` enum
- * (see `/schema` endpoint). New codes that aren't in this table
- * fall back to the raw uppercase form so the UI never goes blank.
+ * All keys are stored lowercase; `languageDisplayName` lowercases
+ * the input before lookup so mixed-case inputs like `'zh-Hans'`,
+ * `'ZH-HANS'`, and `'zh-hans'` all resolve.
+ *
+ * Aligned with the VNDB `/schema` endpoint's `languages` enum.
+ * Unknown codes fall back to the raw uppercase form.
  */
-export const LANGUAGE_NAMES: Record<string, string> = {
+const LANGUAGE_NAMES: Record<string, string> = {
   ja: 'Japanese',
   en: 'English',
   zh: 'Chinese',
-  'zh-Hans': 'Chinese (simplified)',
-  'zh-Hant': 'Chinese (traditional)',
+  'zh-hans': 'Chinese (Simplified)',
+  'zh-hant': 'Chinese (Traditional)',
   ko: 'Korean',
   fr: 'French',
   de: 'German',
@@ -24,11 +23,15 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   ru: 'Russian',
   pt: 'Portuguese',
   'pt-br': 'Portuguese (Brazil)',
+  'pt-pt': 'Portuguese (Portugal)',
   nl: 'Dutch',
   pl: 'Polish',
   sv: 'Swedish',
   fi: 'Finnish',
   da: 'Danish',
+  no: 'Norwegian',
+  nb: 'Norwegian Bokmål',
+  nn: 'Norwegian Nynorsk',
   cs: 'Czech',
   hu: 'Hungarian',
   ro: 'Romanian',
@@ -42,7 +45,6 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   uk: 'Ukrainian',
   bg: 'Bulgarian',
   el: 'Greek',
-  no: 'Norwegian',
   ca: 'Catalan',
   hr: 'Croatian',
   sk: 'Slovak',
@@ -57,9 +59,21 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   ur: 'Urdu',
   eo: 'Esperanto',
   la: 'Latin',
+  is: 'Icelandic',
+  ga: 'Irish',
+  mk: 'Macedonian',
+  sr: 'Serbian',
+  sq: 'Albanian',
+  tl: 'Tagalog',
+  fil: 'Filipino',
+  af: 'Afrikaans',
+  sw: 'Swahili',
+  iu: 'Inuktitut',
+  mi: 'Maori',
 };
 
 export function languageDisplayName(code: string | null | undefined): string {
   if (!code) return '';
-  return LANGUAGE_NAMES[code] ?? LANGUAGE_NAMES[code.toLowerCase()] ?? code.toUpperCase();
+  const lower = code.toLowerCase();
+  return LANGUAGE_NAMES[lower] ?? code.toUpperCase();
 }
