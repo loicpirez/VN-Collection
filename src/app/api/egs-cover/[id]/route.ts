@@ -203,6 +203,10 @@ const ALLOWED_HOSTS = new Set([
   'pics.dmm.co.jp',
   'pics.dmm.com',
   'img.dlsite.jp',
+  // Suruga-ya uses .jp (the shopUrl helper constructs
+  // suruga-ya.jp). Earlier audit listed .com which would have
+  // blocked legitimate fetches.
+  'www.suruga-ya.jp',
   'www.suruga-ya.com',
   'gyutto.com',
   'gyutto.jp',

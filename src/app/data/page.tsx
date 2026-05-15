@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Activity, CalendarRange, Database, Download, FileJson, FileSpreadsheet, FileUp, HardDrive, KeyRound, Sparkles } from 'lucide-react';
+import { Activity, BookMarked, CalendarRange, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, HardDriveDownload, KeyRound, QrCode, Sparkles } from 'lucide-react';
 import { getDbStatus } from '@/lib/db';
 import { getAuthInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
@@ -103,21 +103,28 @@ export default async function DataPage() {
         <h2 className="mb-2 text-base font-bold">{t.dataMgmt.exportSectionTitle}</h2>
         <p className="mb-4 text-xs text-muted">{t.dataMgmt.exportSectionHint}</p>
         <div className="flex flex-wrap gap-2">
-          <Link href="/api/collection/export" className="btn" download>
+          {/*
+            Plain <a download> instead of <Link download>. Next's
+            <Link> tries client-side navigation for internal hrefs
+            and ignores `download` on absolute API paths in some
+            versions. Plain anchors trigger the file-save flow
+            reliably across browsers.
+          */}
+          <a href="/api/collection/export" className="btn" download>
             <FileJson className="h-4 w-4" /> {t.dataMgmt.exportJson}
-          </Link>
-          <Link href="/api/export/csv" className="btn" download>
+          </a>
+          <a href="/api/export/csv" className="btn" download>
             <FileSpreadsheet className="h-4 w-4" /> {t.dataMgmt.exportCsv}
-          </Link>
-          <Link href="/api/export/ics" className="btn" download>
+          </a>
+          <a href="/api/export/ics" className="btn" download>
             <CalendarRange className="h-4 w-4" /> {t.dataMgmt.exportIcs}
-          </Link>
-          <Link href="/api/backup" className="btn" download>
+          </a>
+          <a href="/api/backup" className="btn" download>
             <HardDrive className="h-4 w-4" /> {t.dataMgmt.backupDb}
-          </Link>
-          <Link href="/api/export/raw" className="btn" download>
+          </a>
+          <a href="/api/export/raw" className="btn" download>
             <FileJson className="h-4 w-4" /> {t.dataMgmt.exportRawCache}
-          </Link>
+          </a>
         </div>
         <p className="mt-2 text-[11px] text-muted">{t.dataMgmt.exportRawCacheHint}</p>
       </section>
@@ -134,40 +141,58 @@ export default async function DataPage() {
       <DataMaintenance />
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.labels.title}</h2>
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
+          <QrCode className="h-4 w-4 text-accent" aria-hidden /> {t.labels.title}
+        </h2>
         <p className="mb-3 text-xs text-muted">{t.labels.hint}</p>
         <Link href="/labels" className="btn">
-          🏷️ {t.labels.open}
+          <QrCode className="h-4 w-4" aria-hidden /> {t.labels.open}
         </Link>
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.steam.title}</h2>
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
+          <Gamepad2 className="h-4 w-4 text-accent" aria-hidden /> {t.steam.title}
+        </h2>
         <p className="mb-3 text-xs text-muted">{t.steam.subtitle}</p>
         <Link href="/steam" className="btn">
-          🎮 {t.steam.open}
+          <Gamepad2 className="h-4 w-4" aria-hidden /> {t.steam.open}
         </Link>
         <SteamSettingsBlock />
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.egsSync.title}</h2>
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
+          <Sparkles className="h-4 w-4 text-accent" aria-hidden /> {t.egsSync.title}
+        </h2>
         <p className="mb-3 text-xs text-muted">{t.egsSync.subtitle}</p>
+        <Link href="/egs" className="btn mb-3 inline-flex">
+          <Sparkles className="h-4 w-4" aria-hidden /> {t.egs.open}
+        </Link>
         <EgsSyncBlock />
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.selectiveFullDownload.title}</h2>
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
+          <Download className="h-4 w-4 text-accent" aria-hidden /> {t.selectiveFullDownload.title}
+        </h2>
         <p className="mb-3 text-xs text-muted">{t.selectiveFullDownload.subtitle}</p>
         <SelectiveFullDownload />
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.shelf.title}</h2>
+        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
+          <BookMarked className="h-4 w-4 text-accent" aria-hidden /> {t.shelf.title}
+        </h2>
         <p className="mb-3 text-xs text-muted">{t.shelf.subtitle}</p>
-        <Link href="/shelf" className="btn">
-          📚 {t.shelf.open}
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/shelf" className="btn">
+            <BookMarked className="h-4 w-4" aria-hidden /> {t.shelf.open}
+          </Link>
+          <Link href="/dumped" className="btn">
+            <HardDriveDownload className="h-4 w-4" aria-hidden /> {t.dumped.open}
+          </Link>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">

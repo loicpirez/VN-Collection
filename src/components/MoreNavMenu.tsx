@@ -78,6 +78,7 @@ export function GroupedNav() {
     { href: '/stats', label: t.nav.stats, icon: BarChart3 },
     { href: '/shelf', label: t.nav.shelf, icon: Library },
     { href: '/steam', label: t.nav.steam, icon: Globe },
+    { href: '/egs', label: t.nav.egs, icon: Sparkles },
     { href: '/data', label: t.nav.data, icon: Database },
   ];
 

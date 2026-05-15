@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, Sparkles, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
+import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
@@ -284,22 +285,12 @@ export function CoverSourcePicker({
                 <section className="text-sm">
                   <p className="mb-3 text-xs text-muted">{t.coverPicker.egsHint}</p>
                   {egsId ? (
-                    <div className="flex flex-wrap items-start gap-4">
-                      <div className="h-48 w-32 shrink-0 overflow-hidden rounded-lg border border-border bg-bg-elev">
-                        <SafeImage src={`/api/egs-cover/${egsId}`} alt="EGS" className="h-full w-full" />
-                      </div>
-                      <div className="flex-1">
-                        <button
-                          type="button"
-                          onClick={useEgs}
-                          disabled={busy}
-                          className="btn btn-primary"
-                        >
-                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                          {t.coverPicker.useEgs}
-                        </button>
-                      </div>
-                    </div>
+                    <EgsCandidateGrid
+                      egsId={egsId}
+                      busy={busy}
+                      onUseDefault={useEgs}
+                      onPickUrl={(url) => applySource('url', url)}
+                    />
                   ) : (
                     <p className="text-xs text-muted">{t.coverPicker.noEgs}</p>
                   )}
@@ -445,4 +436,103 @@ function initialTab(_egsId: number | null, _currentCustom: string | null): Tab {
   // active, but that hid the upload button behind a tab switch and
   // confused users who came in looking for "upload custom cover".
   return 'custom';
+}
+
+interface EgsCandidate {
+  source: 'banner' | 'vndb' | 'image_php' | 'surugaya' | 'dmm' | 'dlsite' | 'gyutto';
+  url: string;
+  label: string;
+}
+
+/**
+ * Side-by-side grid of EVERY cover source EGS knows about — banner,
+ * linked VNDB cover, EGS image.php, plus shop URLs (Suruga-ya / DMM /
+ * DLsite / Gyutto). Each tile is clickable; the user picks the one
+ * they like and we pin it as a custom URL so it survives subsequent
+ * EGS refreshes (which otherwise re-run the priority fallback).
+ *
+ * The default-resolver path (which auto-picks per priority order)
+ * is preserved as a separate "Use EGS auto" button at the bottom —
+ * for users who don't want to pick manually.
+ */
+function EgsCandidateGrid({
+  egsId,
+  busy,
+  onUseDefault,
+  onPickUrl,
+}: {
+  egsId: number;
+  busy: boolean;
+  onUseDefault: () => void;
+  onPickUrl: (url: string) => void;
+}) {
+  const t = useT();
+  const [candidates, setCandidates] = useState<EgsCandidate[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setCandidates(null);
+    setError(null);
+    fetch(`/api/egs-cover/${egsId}/candidates`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d: { candidates: EgsCandidate[] }) => setCandidates(d.candidates))
+      .catch((e: Error) => {
+        if (e.name === 'AbortError') return;
+        setError(e.message);
+      });
+    return () => ctrl.abort();
+  }, [egsId]);
+
+  if (error) {
+    return <p className="text-xs text-status-dropped">{error}</p>;
+  }
+  if (!candidates) {
+    return <SkeletonBlock className="h-48 w-full" />;
+  }
+
+  return (
+    <div className="space-y-3">
+      <ul
+        className="grid gap-3"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}
+      >
+        {candidates.map((c) => (
+          <li key={c.source}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onPickUrl(c.url)}
+              className="flex w-full flex-col items-stretch gap-1 rounded-lg border border-border bg-bg-elev/30 p-1.5 text-left text-[11px] transition-colors hover:border-accent disabled:opacity-50"
+              title={c.url}
+            >
+              <div className="aspect-[2/3] w-full overflow-hidden rounded-md bg-bg-elev">
+                <SafeImage
+                  src={c.url}
+                  alt={c.label}
+                  className="h-full w-full"
+                />
+              </div>
+              <span className="line-clamp-1 px-0.5 text-center font-semibold text-muted">
+                {c.label}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onUseDefault}
+          className="btn btn-primary"
+          title={t.coverPicker.useEgsAutoHint}
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {t.coverPicker.useEgsAuto}
+        </button>
+        <span className="text-muted">{t.coverPicker.egsCandidateHint}</span>
+      </div>
+    </div>
+  );
 }

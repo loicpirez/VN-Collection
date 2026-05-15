@@ -2708,6 +2708,130 @@ export function listAllOwnedReleases(): ShelfEntry[] {
   }));
 }
 
+export interface DumpStatusEntry {
+  vn_id: string;
+  vn_title: string;
+  vn_image_thumb: string | null;
+  vn_image_url: string | null;
+  vn_local_image_thumb: string | null;
+  vn_image_sexual: number | null;
+  /** Number of owned_release rows for this VN. */
+  total_editions: number;
+  /** Number of those that have dumped=1. */
+  dumped_editions: number;
+  /** True when collection.dumped is also flagged on the VN itself. */
+  collection_dumped: boolean;
+}
+
+/**
+ * Per-VN dump status across the user's collection. Aggregates the
+ * owned_release.dumped flag on each release plus collection.dumped
+ * on the VN itself, so the dump-management page can show a single
+ * progress bar per game (X of Y editions dumped) even when a VN
+ * carries multiple physical editions.
+ *
+ * Sorted: in-progress VNs first (have at least one dumped edition
+ * but not all), then untouched (zero dumped), then fully done.
+ * Within each group, alphabetical.
+ */
+export function listDumpStatus(): DumpStatusEntry[] {
+  const rows = db
+    .prepare(`
+      SELECT
+        v.id            AS vn_id,
+        v.title         AS vn_title,
+        v.image_thumb   AS vn_image_thumb,
+        v.image_url     AS vn_image_url,
+        v.local_image_thumb AS vn_local_image_thumb,
+        v.image_sexual  AS vn_image_sexual,
+        c.dumped        AS coll_dumped,
+        (SELECT COUNT(*) FROM owned_release o WHERE o.vn_id = v.id) AS total_editions,
+        (SELECT COUNT(*) FROM owned_release o WHERE o.vn_id = v.id AND o.dumped = 1) AS dumped_editions
+      FROM collection c
+      JOIN vn v ON v.id = c.vn_id
+      ORDER BY v.title COLLATE NOCASE ASC
+    `)
+    .all() as Array<{
+      vn_id: string;
+      vn_title: string;
+      vn_image_thumb: string | null;
+      vn_image_url: string | null;
+      vn_local_image_thumb: string | null;
+      vn_image_sexual: number | null;
+      coll_dumped: number;
+      total_editions: number;
+      dumped_editions: number;
+    }>;
+  const entries: DumpStatusEntry[] = rows.map((r) => ({
+    vn_id: r.vn_id,
+    vn_title: r.vn_title,
+    vn_image_thumb: r.vn_image_thumb,
+    vn_image_url: r.vn_image_url,
+    vn_local_image_thumb: r.vn_local_image_thumb,
+    vn_image_sexual: r.vn_image_sexual,
+    total_editions: r.total_editions,
+    dumped_editions: r.dumped_editions,
+    collection_dumped: !!r.coll_dumped,
+  }));
+  // Sort: in-progress (1..N-1 of N dumped) first, untouched (0/N) next,
+  // fully-done last. Alphabetical inside each bucket.
+  return entries.sort((a, b) => {
+    const aDone = a.total_editions > 0 && a.dumped_editions === a.total_editions;
+    const bDone = b.total_editions > 0 && b.dumped_editions === b.total_editions;
+    const aPartial = a.dumped_editions > 0 && !aDone;
+    const bPartial = b.dumped_editions > 0 && !bDone;
+    const aBucket = aPartial ? 0 : aDone ? 2 : 1;
+    const bBucket = bPartial ? 0 : bDone ? 2 : 1;
+    if (aBucket !== bBucket) return aBucket - bBucket;
+    return a.vn_title.localeCompare(b.vn_title);
+  });
+}
+
+export interface DumpSummary {
+  /** Total VNs in the collection that have at least one owned release. */
+  totalVns: number;
+  /** Total owned_release rows. */
+  totalEditions: number;
+  /** owned_release rows with dumped=1. */
+  dumpedEditions: number;
+  /** VNs where every edition is dumped. */
+  fullyDumpedVns: number;
+  /** Percentage (0-100, rounded) of editions that are dumped. */
+  editionPct: number;
+}
+
+export function getDumpSummary(): DumpSummary {
+  const totals = db
+    .prepare(`
+      SELECT
+        (SELECT COUNT(DISTINCT vn_id) FROM owned_release) AS total_vns,
+        (SELECT COUNT(*)              FROM owned_release) AS total_editions,
+        (SELECT COUNT(*)              FROM owned_release WHERE dumped = 1) AS dumped_editions
+    `)
+    .get() as { total_vns: number; total_editions: number; dumped_editions: number };
+  const fullyDumpedVns = (db
+    .prepare(`
+      SELECT COUNT(*) AS n FROM (
+        SELECT vn_id, SUM(CASE WHEN dumped = 1 THEN 0 ELSE 1 END) AS notdone
+        FROM owned_release
+        GROUP BY vn_id
+        HAVING notdone = 0
+      )
+    `)
+    .get() as { n: number }).n;
+  const editionPct =
+    totals.total_editions === 0
+      ? 0
+      : Math.round((totals.dumped_editions / totals.total_editions) * 100);
+  return {
+    totalVns: totals.total_vns,
+    totalEditions: totals.total_editions,
+    dumpedEditions: totals.dumped_editions,
+    fullyDumpedVns,
+    editionPct,
+  };
+}
+
 export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {
   const rows = db
     .prepare('SELECT * FROM owned_release WHERE vn_id = ? ORDER BY added_at DESC')
