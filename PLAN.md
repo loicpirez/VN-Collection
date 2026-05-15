@@ -443,6 +443,72 @@ batch threads the distinction through every surface.
   section with a `Download` icon — earlier hidden visually
   because it lacked a header icon.
 
+## Batch H — backlog cleanup (2026-05-15) — shipped ✅
+
+User pushback: "Not implemented (yet)" block in CLAUDE.md was real
+work, not aspirational. This batch closes every item except
+`/rlist` writes (no UI consumer).
+
+### H.1 Shelf size limit raised + Pokémon-box paging
+
+- `SHELF_MAX` raised from 30 to 200 (each axis). Real shelves
+  fit comfortably; the cap is a sanity check, not a constraint.
+- Left / right chevrons flank the shelf-tab strip in
+  `<ShelfLayoutEditor>`; `← / →` arrow keys page between shelves
+  globally (blurs when typing in an input). Active tab shows
+  `i / N` so the user always knows where they are in the list.
+
+### H.2 Schema browser
+
+- `/schema` page consumes `getSchema()`.
+- `<SchemaBrowser>` renders a collapsible tree with a free-text
+  filter; matches highlight, paths auto-expand.
+- i18n: `schemaPage.*` keys.
+
+### H.3 Character + staff search pages
+
+- `/characters` and `/staff` pages reuse the existing
+  `searchCharacters` / `searchStaff` lib helpers (which already
+  powered the modal pickers).
+- Character page gates explicit imagery by default with an opt-in
+  checkbox; staff page toggles `ismain` to include aliases.
+- Both added to the Browse nav group.
+- i18n: `charactersSearch.*` and `staffSearch.*` keys.
+
+### H.4 VNDB ulist writeback
+
+- The API route already accepted vote / started / finished / notes
+  via `PATCH /api/vn/[id]/vndb-status`. The missing piece was UI.
+- New `<UlistDetailsEditor>` collapsed details panel under the
+  VNDB status panel on `/vn/[id]`. Pre-fills from `fetchUlistEntry`.
+  Vote stored client-side as 1.0–10.0 with one decimal; the
+  10–100 integer encoding lives at the API boundary.
+- i18n: `vndbStatus.detailsToggle / detailsSave / fieldVote /
+  fieldStarted / fieldFinished / fieldNotes / voteRange`.
+
+### H.5 SSE live status feed
+
+- New endpoint `GET /api/download-status/stream` (Server-Sent
+  Events). Subscribed to the in-process pub/sub added to
+  `lib/download-status.ts`: every `startJob` / `tickJob` /
+  `recordError` / `finishJob` emits, and a 25 s keep-alive
+  comment prevents proxy idle-timeouts.
+- `<DownloadStatusBar>` now connects to the stream first;
+  on EventSource error (readyState=CLOSED) it transparently
+  falls back to the original `/api/download-status` polling
+  cadence. Visibility-change handler reconnects on tab focus.
+
+### H.6 Vitest harness
+
+- `yarn test` (single run) / `yarn test:watch`.
+- `tests/setup.ts` pins `DB_PATH` to a per-worker temp file so
+  tests never touch real data. `tests/stubs/server-only.ts`
+  stubs the Next.js `server-only` directive.
+- Coverage: shelf place / swap / resize / unplace semantics
+  + download-status pub/sub mutator chain. 18 / 18 passing.
+
+---
+
 ### G.8 Drag-and-drop shelf layout
 
 - New tables `shelf_unit(id, name, cols, rows, …)` +

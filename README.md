@@ -48,11 +48,15 @@ ingested, cached locally, and can be combined or compared per-field.
 - **Drag-and-drop shelf layout** — `/shelf?view=layout` opens a
   2-D grid editor where each cell is a physical slot. Create
   multiple shelves ("Living room — left bookcase", "Office — top
-  shelf"), resize them in rows × columns at any time, then drag
-  editions from the **Unplaced** pool into specific slots to
-  reproduce your real-life arrangement. Drag from slot to slot to
-  move; drag onto an occupied slot to **swap** atomically; drag
-  back to the pool to unplace. Touch-friendly (long-press to drag),
+  shelf"), resize them independently to any rows × columns (1–200
+  each, mix-and-match — your real shelves don't have to share
+  shape), then drag editions from the **Unplaced** pool into
+  specific slots to reproduce your real-life arrangement. Drag
+  from slot to slot to move; drag onto an occupied slot to **swap**
+  atomically; drag back to the pool to unplace. Switch between
+  shelves like a Pokémon box: `←` / `→` arrow keys page through
+  them in order, or use the chevron buttons either side of the
+  tab strip. Touch-friendly (long-press to drag),
   keyboard-accessible (Space to pick up, arrows to move, Space to
   drop), and optimistic — every action persists to `shelf_unit` /
   `shelf_slot` with full rollback on error.
@@ -335,6 +339,42 @@ The **gear icon** in the navbar opens the full settings modal:
 - **Steam** API key + 64-bit SteamID
 - **Random quote source** — all VNDB or only from your collection
 - **Default sort** for the library
+
+### Direct VNDB writes
+The VNDB status panel on `/vn/[id]` writes back four ulist fields
+in addition to the label toggles: **vote** (1.0–10.0), **started**
+/ **finished** dates (ISO), and **notes** (free-text, visible on
+your VNDB profile). Stored server-side via `PATCH /ulist/<vid>`
+through the existing throttle. Empty value = clear.
+
+### Live status feed
+The download status bar subscribes to `/api/download-status/stream`,
+a Server-Sent Events feed driven by an in-process pub/sub. Every
+job mutation (start / tick / error / finish) and throttle event
+emits within milliseconds — no polling cost when nothing's
+happening. Falls back to the original interval-poll
+`/api/download-status` endpoint if `EventSource` is unavailable.
+
+### Search everywhere
+- **`/characters`** — search every character indexed on VNDB by
+  name (rōmaji or kana) or id (`c123`). NSFW images gated by
+  default; opt in via the "Include explicit" checkbox.
+- **`/staff`** — search every staff profile (writers, artists,
+  composers, seiyuu). Toggle "Include aliases" to drop the
+  `ismain=1` gate and surface pen names / stage names too.
+
+### Schema browser
+`/schema` renders VNDB's `/schema` endpoint as a filterable,
+collapsible JSON tree. Useful for decoding the codes you see in
+the API (language tags, platform codes, dev-status, extlink ids).
+Search filters keys and values across the whole tree and
+auto-expands the path to the match.
+
+### Tests
+Vitest runs in Node. `yarn test` (single run) or `yarn test:watch`.
+Per-worker temp SQLite database (`tests/setup.ts`) so tests never
+touch your real `collection.db`. Current coverage: shelf
+placement / swap / resize semantics, download-status pub/sub.
 
 ### i18n
 French / English / Japanese, type-safe dictionary. Cookie-driven, switch

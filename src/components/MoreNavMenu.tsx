@@ -9,18 +9,21 @@ import {
   ChevronDown,
   Cog,
   Database,
+  FileCode2,
   Globe,
   Heart,
   Library,
   ListChecks,
   type LucideIcon,
   Menu,
+  Mic,
   Quote,
   Search as SearchIcon,
   Sparkles,
   Tag,
   Tags,
   Trophy,
+  UserSquare,
   Wand2,
   X,
 } from 'lucide-react';
@@ -70,6 +73,8 @@ export function GroupedNav() {
     { href: '/series', label: t.nav.series, icon: Bookmark },
     { href: '/tags', label: t.nav.tags, icon: Tags },
     { href: '/traits', label: t.nav.traits, icon: Sparkles },
+    { href: '/characters', label: t.nav.characters, icon: UserSquare },
+    { href: '/staff', label: t.nav.staff, icon: Mic },
     { href: `/year?y=${new Date().getFullYear()}`, label: t.nav.year, icon: Award },
     { href: '/labels', label: t.nav.labels, icon: Tag },
   ];
@@ -79,6 +84,7 @@ export function GroupedNav() {
     { href: '/shelf', label: t.nav.shelf, icon: Library },
     { href: '/steam', label: t.nav.steam, icon: Globe },
     { href: '/egs', label: t.nav.egs, icon: Sparkles },
+    { href: '/schema', label: t.nav.schema, icon: FileCode2 },
     { href: '/data', label: t.nav.data, icon: Database },
   ];
 

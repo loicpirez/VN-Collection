@@ -264,13 +264,16 @@ Tabbed-style sections:
   Companion to the editor / producer completion pages.
 - **Shelf layout (drag-and-drop)** — `/shelf?view=layout` is a
   2-D grid editor. Create one or more shelves (give them a name
-  like "Living room — left bookcase"), set the size in columns ×
-  rows, then drag editions from the *Unplaced* pool into specific
-  slots to mirror your real physical setup. Drag from slot to slot
-  to move; drop onto an occupied slot to **swap** atomically;
-  drop back into the pool to unplace. Touch + keyboard friendly.
-  Resizing a shelf smaller surfaces an "N editions evicted"
-  warning and sends them safely to the pool — nothing lost.
+  like "Living room — left bookcase"), set each shelf's own
+  columns × rows independently, then drag editions from the
+  *Unplaced* pool into specific slots to mirror your real physical
+  setup. Drag from slot to slot to move; drop onto an occupied
+  slot to **swap** atomically; drop back into the pool to
+  unplace. Page between shelves with `←` / `→` arrow keys or the
+  chevron buttons either side of the tab strip — like flipping
+  through a Pokémon box. Touch + keyboard friendly. Resizing a
+  shelf smaller surfaces an "N editions evicted" warning and
+  sends them safely to the pool — nothing lost.
 - **Selective full download** — checkbox picker with Select all /
   Select none / Invert. Pick which VNs to fan-out staff /
   characters / developers for. Rate-limited by the global throttle.
@@ -278,6 +281,10 @@ Tabbed-style sections:
   VN's detail page.
 - **Tour** — `Run the tour again` if you closed it.
 - **Cache panel** — inspect / purge VNDB cache entries.
+- **Schema browser** — `/schema` (linked from the Insights nav
+  group) renders the VNDB `/schema` endpoint as a filterable
+  tree. Useful when you need to know "what language codes does
+  VNDB support" or "what does devstatus=2 mean".
 
 ---
 
@@ -344,8 +351,8 @@ dropdowns:
 
 - **Primary** — Library, Wishlist, Lists, Search
 - **Discover** — Upcoming, For you, Quotes
-- **Browse** — Producers, Series, Tags, Traits, Year, Labels
-- **Data & Stats** — Stats, Shelf, Steam, EGS, Data
+- **Browse** — Producers, Series, Tags, Traits, Characters, Staff, Year, Labels
+- **Data & Stats** — Stats, Shelf, Steam, EGS, Schema, Data
 
 On phones / narrow windows the whole nav collapses into a single
 hamburger sheet. The **closed-eye icon** (content-controls hub),

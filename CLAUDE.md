@@ -188,6 +188,7 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | DELETE | `/api/shelves/[id]` | Delete a shelf; slots cascade to the unplaced pool |
 | POST | `/api/shelves/[id]/slots` | Place an owned edition at `(row, col)` — atomic swap if both ends are slots |
 | DELETE | `/api/shelves/[id]/slots` | Return an edition to the unplaced pool |
+| GET | `/api/download-status/stream` | SSE stream of the download-status snapshot (pub/sub driven, with keep-alive comments every 25 s) |
 
 ---
 
@@ -701,14 +702,28 @@ New DB tables introduced by recent batches:
 | `steam_link` | Steam playtime sync | VN ↔ Steam appid mapping with `source` ('auto' / 'manual') and last-synced minutes. Manual links are sticky. |
 | `shelf_unit` / `shelf_slot` | Drag-and-drop shelf layout | `shelf_unit` is the (cols × rows) grid metadata; `shelf_slot` is sparse — one row per occupied slot, with composite PK `(shelf_id, row, col)` and UNIQUE `(vn_id, release_id)`. All mutations go through `placeShelfItem` for atomic swap-or-evict semantics. |
 
+## Backlog cleared (2026-05-15 batch H)
+
+- VNDB ulist writes (vote / started / finished / notes) — wired through
+  the existing `PATCH /api/vn/[id]/vndb-status` route via the new
+  `<UlistDetailsEditor>` panel on `/vn/[id]`.
+- Schema browser at `/schema` renders the `getSchema()` payload as a
+  filterable, collapsible JSON tree.
+- Character search at `/characters` and staff search at `/staff` —
+  full VNDB-wide query, idle hint + skeleton-free zero-state copy.
+- Live invalidation: `/api/download-status/stream` is a Server-Sent
+  Events feed driven by the pub/sub in `lib/download-status.ts`. The
+  status bar subscribes and falls back to polling on EventSource
+  failure.
+- Tests: Vitest configured (`yarn test` / `yarn test:watch`),
+  per-worker temp DB via `tests/setup.ts`, server-only stubbed in
+  `tests/stubs/`. Coverage: shelf placement / swap / resize semantics
+  + download-status pub/sub.
+
 ## Not implemented (yet)
 
-- VNDB List Management (POST/PATCH /ulist, /rlist) — read-only is enough for now
-- Schema browser (we fetch `/schema` but never display)
-- Character search page (only the modal section + character detail exist)
-- Staff search page (lib helpers exist, no UI route)
-- Real-time WebSocket invalidation for the bulk download
-- Tests
+- VNDB `/rlist` (release-level list) writes — `/ulist` is implemented;
+  release-list mutation has no consumer in the app today.
 
 ---
 

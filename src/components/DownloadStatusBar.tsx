@@ -54,24 +54,18 @@ export function DownloadStatusBar() {
   const [dismissedFinished, setDismissedFinished] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Mount-only effect. Earlier versions listed `data` as a dep so
-    // every snapshot tore down and rebuilt the polling loop — which
-    // ALSO captured a stale `data` inside the closure when deciding
-    // the next tick interval. Both bugs fixed by:
-    //   1) keeping the effect to mount-only (empty deps)
-    //   2) reading the just-fetched snapshot directly to decide delay
+    // Server-Sent Events stream gives us push-style updates within
+    // milliseconds of any job mutation, with no polling cost when
+    // nothing is happening. If `EventSource` isn't available or the
+    // connection errors repeatedly, we drop back to interval polling
+    // so older browsers and odd proxy setups still get progress.
     let alive = true;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let es: EventSource | null = null;
+    let useSse = typeof window !== 'undefined' && 'EventSource' in window;
 
-    const tick = async () => {
+    async function pollOnce() {
       if (!alive) return;
-      // Pause polling when the tab is hidden — the throttle / job state
-      // can't change without the user being present, so there's nothing
-      // to redraw. Resume on visibilitychange below.
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        timer = setTimeout(tick, 5_000);
-        return;
-      }
       let next: Snapshot | null = null;
       try {
         const r = await fetch('/api/download-status', { cache: 'no-store' });
@@ -83,23 +77,65 @@ export function DownloadStatusBar() {
         // Network blips are fine, retry on the next tick.
       }
       if (!alive) return;
-      // Decide the next cadence from the FRESH snapshot, not from the
-      // closure-captured `data` (which was always one render behind).
       const active =
         (next?.jobs.some((j) => j.finished_at == null) ?? false) ||
         (next?.throttle.active ?? 0) > 0 ||
         (next?.throttle.queued ?? 0) > 0;
-      // 4s when something is in flight (user actively sees progress),
-      // 60s when idle (we still want the bar to come alive if a background
-      // job starts, just not every couple seconds).
+      // Slower cadence than the SSE event rate because polling is a
+      // pure fallback for clients that lost the stream — we still
+      // want updates, just not at high frequency.
       const delay = active ? 4_000 : 60_000;
-      timer = setTimeout(tick, delay);
-    };
-    tick();
+      pollTimer = setTimeout(pollOnce, delay);
+    }
+
+    function startPolling() {
+      if (pollTimer) clearTimeout(pollTimer);
+      pollOnce();
+    }
+
+    function startSse() {
+      try {
+        es = new EventSource('/api/download-status/stream');
+        es.onmessage = (e) => {
+          if (!alive) return;
+          try {
+            setData(JSON.parse(e.data) as Snapshot);
+          } catch {
+            // Bad frame — ignore, the next one will be valid.
+          }
+        };
+        es.onerror = () => {
+          // Most reverse proxies hiccup at least once during cold
+          // boot. The browser auto-reconnects, but if EventSource
+          // gives up entirely (readyState=2 / CLOSED), we fall back
+          // to interval polling so the user never loses progress.
+          if (es && es.readyState === 2 && alive && useSse) {
+            useSse = false;
+            es.close();
+            es = null;
+            startPolling();
+          }
+        };
+      } catch {
+        useSse = false;
+        startPolling();
+      }
+    }
+
+    if (useSse) startSse();
+    else startPolling();
+
     const onVisible = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        if (timer) clearTimeout(timer);
-        tick();
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState !== 'visible') return;
+      if (useSse) {
+        // EventSource normally reconnects on its own when the tab
+        // wakes up, but recreating ensures we get a fresh snapshot
+        // immediately rather than waiting for the next event.
+        if (es) es.close();
+        startSse();
+      } else {
+        startPolling();
       }
     };
     if (typeof document !== 'undefined') {
@@ -107,7 +143,8 @@ export function DownloadStatusBar() {
     }
     return () => {
       alive = false;
-      if (timer) clearTimeout(timer);
+      if (pollTimer) clearTimeout(pollTimer);
+      if (es) es.close();
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', onVisible);
       }

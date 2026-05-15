@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { SkeletonBlock } from './Skeleton';
@@ -17,6 +17,9 @@ interface Label {
 interface Entry {
   id: string;
   vote: number | null;
+  started: string | null;
+  finished: string | null;
+  notes: string | null;
   labels: { id: number; label: string }[];
 }
 
@@ -171,7 +174,9 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
         </p>
       )}
 
-      <div className="flex flex-wrap gap-1.5">
+      <UlistDetailsEditor vnId={vnId} entry={state.entry} onSaved={load} />
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
         {togglable.map((l) => {
           const active = currentLabelIds.has(l.id);
           const isPredef = l.id < 10;
@@ -199,5 +204,132 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
         })}
       </div>
     </section>
+  );
+}
+
+/**
+ * Vote / started / finished / notes writeback for the user's VNDB
+ * list entry. Mirrors `PATCH /api/vn/[id]/vndb-status` accepting any
+ * subset of those fields. Vote is stored on VNDB as a 10–100 integer
+ * (1 decimal place); the UI lets the user type 0–10 with one decimal
+ * to keep it intuitive. Empty string → null (clears the field).
+ */
+function UlistDetailsEditor({
+  vnId,
+  entry,
+  onSaved,
+}: {
+  vnId: string;
+  entry: Entry | null;
+  onSaved: () => Promise<void>;
+}) {
+  const t = useT();
+  const toast = useToast();
+  const [vote, setVote] = useState<string>(entry?.vote != null ? (entry.vote / 10).toFixed(1) : '');
+  const [started, setStarted] = useState<string>(entry?.started ?? '');
+  const [finished, setFinished] = useState<string>(entry?.finished ?? '');
+  const [notes, setNotes] = useState<string>(entry?.notes ?? '');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setVote(entry?.vote != null ? (entry.vote / 10).toFixed(1) : '');
+    setStarted(entry?.started ?? '');
+    setFinished(entry?.finished ?? '');
+    setNotes(entry?.notes ?? '');
+  }, [entry?.vote, entry?.started, entry?.finished, entry?.notes]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const patch: Record<string, unknown> = {};
+      const trimmed = vote.trim();
+      if (trimmed === '') {
+        patch.vote = null;
+      } else {
+        const n = Math.round(Number(trimmed) * 10);
+        if (!Number.isFinite(n) || n < 10 || n > 100) {
+          toast.error(t.vndbStatus.voteRange);
+          setSaving(false);
+          return;
+        }
+        patch.vote = n;
+      }
+      patch.started = started.trim() || null;
+      patch.finished = finished.trim() || null;
+      patch.notes = notes.trim() || null;
+      const r = await fetch(`/api/vn/${vnId}/vndb-status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      toast.success(t.toast.saved);
+      await onSaved();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <details className="mt-3 rounded-lg border border-border bg-bg-elev/20 p-3 text-xs">
+      <summary className="cursor-pointer text-muted hover:text-white">
+        {t.vndbStatus.detailsToggle}
+      </summary>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-muted">{t.vndbStatus.fieldVote}</span>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            step={0.1}
+            value={vote}
+            onChange={(e) => setVote(e.target.value)}
+            placeholder="—"
+            className="rounded border border-border bg-bg px-2 py-1"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-muted">{t.vndbStatus.fieldStarted}</span>
+          <input
+            type="date"
+            value={started || ''}
+            onChange={(e) => setStarted(e.target.value)}
+            className="rounded border border-border bg-bg px-2 py-1"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-muted">{t.vndbStatus.fieldFinished}</span>
+          <input
+            type="date"
+            value={finished || ''}
+            onChange={(e) => setFinished(e.target.value)}
+            className="rounded border border-border bg-bg px-2 py-1"
+          />
+        </label>
+        <label className="flex flex-col gap-1 sm:col-span-2">
+          <span className="text-[10px] uppercase tracking-wider text-muted">{t.vndbStatus.fieldNotes}</span>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            className="resize-y rounded border border-border bg-bg px-2 py-1"
+          />
+        </label>
+      </div>
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
+          className="btn"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}
+          {t.vndbStatus.detailsSave}
+        </button>
+      </div>
+    </details>
   );
 }

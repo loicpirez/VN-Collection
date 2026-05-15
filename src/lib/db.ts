@@ -2880,7 +2880,9 @@ export interface ShelfUnitWithCount extends ShelfUnit {
 }
 
 const SHELF_MIN = 1;
-const SHELF_MAX = 30;
+// Sanity ceiling so a typo (e.g. cols=99999) doesn't blow up the
+// renderer or the DB. Plenty of headroom for any real-world bookcase.
+const SHELF_MAX = 200;
 
 function clampShelfDim(n: number, fallback: number): number {
   if (!Number.isFinite(n)) return fallback;

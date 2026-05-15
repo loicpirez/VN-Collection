@@ -29,6 +29,40 @@ const jobs = new Map<string, DownloadJob>();
 let nextSeq = 1;
 const MAX_LIVE_JOBS = 200;
 
+/**
+ * Minimal in-process pub/sub for SSE consumers. Every mutating call
+ * (startJob / tickJob / recordError / finishJob) emits a beat so the
+ * `/api/download-status/stream` route can push a fresh snapshot to
+ * connected clients without resorting to interval polling.
+ *
+ * `bumpStatus` is also exported so callers outside the lifecycle —
+ * e.g. the throttler when it transitions in/out of cooldown — can
+ * nudge subscribers.
+ */
+type Listener = () => void;
+const listeners = new Set<Listener>();
+
+function emit(): void {
+  for (const l of listeners) {
+    try {
+      l();
+    } catch {
+      // Listener throws shouldn't break the producer.
+    }
+  }
+}
+
+export function subscribeStatus(listener: Listener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function bumpStatus(): void {
+  emit();
+}
+
 function gc(): void {
   // Trim finished jobs older than 1h to keep the list bounded for the UI.
   const cutoff = Date.now() - 3600 * 1000;
@@ -62,6 +96,7 @@ export function startJob(kind: JobKind, label: string, total: number, vnId: stri
     finished_at: null,
   };
   jobs.set(id, job);
+  emit();
   return job;
 }
 
@@ -69,6 +104,7 @@ export function tickJob(jobId: string, by = 1): void {
   const j = jobs.get(jobId);
   if (!j) return;
   j.done = Math.min(j.total, j.done + by);
+  emit();
 }
 
 export function recordError(jobId: string, item: string, message: string): void {
@@ -77,6 +113,7 @@ export function recordError(jobId: string, item: string, message: string): void 
   j.errors.push({ item, message });
   // Surface to server logs so the user can correlate via the UI link.
   console.error(`[download:${j.kind}] ${item}: ${message}`);
+  emit();
 }
 
 export function finishJob(jobId: string): void {
@@ -86,6 +123,7 @@ export function finishJob(jobId: string): void {
   // If we never ticked but total > 0, mark as complete so the UI doesn't
   // appear stuck on partial progress.
   if (j.done < j.total) j.done = j.total;
+  emit();
 }
 
 export function listJobs(): DownloadJob[] {

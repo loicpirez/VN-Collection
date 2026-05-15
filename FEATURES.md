@@ -833,6 +833,15 @@ Resizing surfaces an "N editions evicted" warning if the new
 bounds are smaller than the current placements; evicted editions
 land back in the Unplaced pool, never silently lost.
 
+Multi-shelf navigation ("Pokémon box" pattern): each shelf can
+independently have its own (cols × rows) size, and the user can
+page between them with the **`←` / `→` arrow keys** or the
+chevron buttons either side of the tab strip. The active tab
+shows `i / N` so it's clear how many shelves there are and where
+you are in the list. Per-axis dim range: `1 ≤ x ≤ 200`. Tests
+in `tests/shelf-layout.test.ts` cover place / swap / resize /
+unplace semantics including the FK cascade.
+
 ### Synthetic releases for EGS-only VNs ✅
 VNs missing from VNDB's release index (`v.*` rows with no rows in
 `POST /release`, plus every `egs:*` synthetic VN) can still be
@@ -867,6 +876,50 @@ Same `/shelf` page — `owned_release.price_paid` + `currency` per row,
 running totals at the section heading + grand total in the page
 header. JSON / CSV export of the whole collection (including these
 fields) lives in `/data → Exports`.
+
+---
+
+## VNDB-wide search
+
+### Characters `/characters` ✅
+Free-text + `c123`-id search across every VNDB character profile.
+Renders 60-result cards with cover, original name, top aliases.
+Explicit imagery hidden behind a per-page opt-in checkbox.
+
+### Staff `/staff` ✅
+Same idea for staff profiles. `ismain=1` filter on by default;
+toggling "Include aliases" surfaces pen-name and stage-name
+entries. Each result links to `/staff/[id]` which auto-fetches
+the full credit graph on first visit.
+
+### Schema browser `/schema` ✅
+Renders the VNDB `/schema` endpoint as a filterable, collapsible
+JSON tree. Lookup any code you see in the API (language tags,
+platform codes, devstatus, extlink ids). Search highlights matches
+and auto-expands the path to them.
+
+---
+
+## Realtime + writes
+
+### Live status feed via SSE ✅
+The download status bar subscribes to
+`GET /api/download-status/stream` — a Server-Sent Events feed
+driven by a pub/sub bus inside `lib/download-status.ts`. Every
+job lifecycle event (start / tick / error / finish) and throttle
+state change emits within milliseconds; the bar never polls
+unless the EventSource connection fails (in which case it falls
+back to the original `/api/download-status` interval poll).
+Visibility-change reconnects on tab focus so a backgrounded tab
+gets a fresh snapshot immediately when the user returns.
+
+### VNDB ulist writeback ✅
+`PATCH /api/vn/[id]/vndb-status` accepts the full ulist surface:
+`labels_set`, `labels_unset`, `vote` (10–100), `started`,
+`finished`, `notes`. Surfaced in the UI via the
+`<UlistDetailsEditor>` collapsed details panel on `/vn/[id]`.
+Vote is stored as 10–100 integer on VNDB but rendered / edited
+in the UI as 1.0–10.0 with one decimal for human readability.
 
 ---
 

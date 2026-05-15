@@ -20,6 +20,8 @@ import {
   ArrowDown,
   Box,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Edit3,
   GripVertical,
   Layers,
@@ -55,7 +57,9 @@ type DragSource =
 
 const POOL_DROPPABLE_ID = '__pool__';
 const SHELF_MIN = 1;
-const SHELF_MAX = 30;
+// Matches the server-side sanity cap. Effectively unlimited for real
+// shelves — you'd run out of editions long before hitting it.
+const SHELF_MAX = 200;
 
 function clampDim(n: number): number {
   if (!Number.isFinite(n)) return SHELF_MIN;
@@ -129,6 +133,40 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
 
   const activeShelf = activeId != null ? shelves.find((s) => s.id === activeId) ?? null : null;
   const activeState = activeId != null ? loaded[activeId] ?? null : null;
+  const activeIndex = activeId != null ? shelves.findIndex((s) => s.id === activeId) : -1;
+
+  // Pokémon-box style left/right paging across shelves. Wraps around
+  // the ends so you can swipe forever. Disabled while a text input or
+  // textarea has focus so paging doesn't fight typing.
+  const pageShelf = useCallback(
+    (delta: -1 | 1) => {
+      if (shelves.length === 0) return;
+      const idx = activeIndex < 0 ? 0 : activeIndex;
+      const next = (idx + delta + shelves.length) % shelves.length;
+      setActiveId(shelves[next].id);
+    },
+    [shelves, activeIndex],
+  );
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        pageShelf(-1);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        pageShelf(1);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pageShelf]);
 
   // PointerSensor with 6 px activation lets a tap-through act as a
   // click on the underlying SafeImage; KeyboardSensor + TouchSensor
@@ -474,26 +512,61 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       onDragCancel={() => setDraggingFrom(null)}
     >
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        {/* Shelf tabs + toolbar */}
+        {/* Shelf tabs + toolbar — left/right paginators flank the tab
+            strip so the user can swipe between shelves like a Pokémon
+            box. Keyboard ←/→ does the same thing. */}
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {shelves.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setActiveId(s.id)}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors ${
-                  s.id === activeId
-                    ? 'border-accent bg-accent/15 text-accent'
-                    : 'border-border bg-bg-elev/40 text-muted hover:border-accent/60 hover:text-white'
-                }`}
-              >
-                <LayoutGrid className="h-3.5 w-3.5" aria-hidden /> {s.name}
-                <span className="rounded bg-bg-elev/60 px-1 text-[10px] font-normal text-muted/80">
-                  {s.placed_count} / {s.cols * s.rows}
-                </span>
-              </button>
-            ))}
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => pageShelf(-1)}
+              disabled={shelves.length < 2}
+              aria-label={t.shelfLayout.prevShelf}
+              title={t.shelfLayout.prevShelf}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent disabled:opacity-30"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+            </button>
+            <div
+              role="tablist"
+              aria-label={t.shelfLayout.pickShelf}
+              className="flex flex-wrap items-center gap-2"
+            >
+              {shelves.map((s, i) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={s.id === activeId}
+                  onClick={() => setActiveId(s.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors ${
+                    s.id === activeId
+                      ? 'border-accent bg-accent/15 text-accent'
+                      : 'border-border bg-bg-elev/40 text-muted hover:border-accent/60 hover:text-white'
+                  }`}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" aria-hidden /> {s.name}
+                  <span className="rounded bg-bg-elev/60 px-1 text-[10px] font-normal text-muted/80">
+                    {s.placed_count} / {s.cols * s.rows}
+                  </span>
+                  {s.id === activeId && (
+                    <span className="rounded bg-accent/20 px-1 text-[10px] font-bold tabular-nums text-accent">
+                      {i + 1}/{shelves.length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => pageShelf(1)}
+              disabled={shelves.length < 2}
+              aria-label={t.shelfLayout.nextShelf}
+              title={t.shelfLayout.nextShelf}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent disabled:opacity-30"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </button>
             <button
               type="button"
               onClick={() => setShowCreate((v) => !v)}
