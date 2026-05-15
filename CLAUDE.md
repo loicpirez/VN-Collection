@@ -32,7 +32,7 @@ We optimise for the desktop power-user use case (large screens, mouse, French/En
 | Icons | **lucide-react** — never use unicode pictographs |
 | DB | **better-sqlite3 11**, sync, WAL, single file at `data/collection.db` |
 | Markdown | react-markdown + remark-gfm (notes only) |
-| Tests | Smoke tests live in `/tmp/*_test.sh` shell scripts. No formal test framework yet. |
+| Tests | Vitest (`yarn test` / `yarn test:watch`). Per-worker temp SQLite via `tests/setup.ts`. Smoke tests under `scripts/smoke.sh`. |
 
 The sandbox runs `npm run build` to verify TypeScript + Next routes compile.
 Always run it before declaring a change "done".
@@ -50,7 +50,7 @@ vndb-collection/
 │       ├── vn-sc/      (screenshots + release pkg artwork)
 │       ├── cover/      (user-uploaded custom cover/banner)
 │       ├── producer/   (publisher logos)
-│       └── series/     (series cover, currently unused)
+│       └── series/     (series cover + banner, written by /api/series/[id]/image)
 ├── public/                             # static, currently empty
 ├── src/
 │   ├── app/                            # Next.js App Router
@@ -79,8 +79,7 @@ vndb-collection/
 │   │   ├── QuotesSection.tsx
 │   │   ├── QuoteFooter.tsx             # Hover-reveal random quote (lazy)
 │   │   ├── SafeImage.tsx               # Hide / blur-R18 / prefer-local
-│   │   ├── VnCard.tsx                  # Library/Search/Series card
-│   │   ├── VnGrid.tsx                  # Producer/Series VN grids
+│   │   ├── VnCard.tsx                  # Library/Search/Series card (React.memo)
 │   │   ├── StatusBadge.tsx · StatusIcon.tsx
 │   │   ├── CoverUploader.tsx · BannerControls.tsx · SetBannerButton.tsx
 │   │   ├── DownloadAssetsButton.tsx · BulkDownloadButton.tsx
@@ -170,7 +169,7 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET | `/api/vn/[id]/erogamescape?refresh=1` | Force re-fetch of every EGS column |
 | GET/PATCH/DELETE | `/api/vn/[id]/vndb-status` | Read the user's VNDB ulist labels for a VN + toggle them via `labels_set` / `labels_unset` |
 | GET | `/api/vn/[id]/lists` | Lists this VN belongs to |
-| POST | `/api/egs/[id]/add` | EGS-only add → synthetic VN id `egs:<id>` + collection insert |
+| POST | `/api/egs/[id]/add` | EGS-only add → synthetic VN id `egs_<id>` + collection insert |
 | GET | `/api/egs/search?q=&limit=` | EGS candidate search (used by /search and the manual-link picker) |
 | GET | `/api/egs-cover/[id]` | Tiered cover resolver for an EGS game (proxies bytes server-side) |
 | GET | `/api/egs-cover/[id]/candidates` | Enumerate every known EGS cover source (banner, VNDB, image.php, Suruga-ya, DMM, DLsite, Gyutto) without probing — UI shows them side-by-side |
@@ -179,7 +178,25 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET / POST | `/api/lists` | List / create user lists |
 | GET / PATCH / DELETE | `/api/lists/[id]` | List CRUD |
 | POST / DELETE | `/api/lists/[id]/items` | Add / remove / reorder list members |
-| POST | `/api/refresh/global` | Bust EGS cover cache + re-fetch page-level caches |
+| POST | `/api/refresh/global` | Bust EGS cover cache + re-fetch page-level caches. Gated behind `requireLocalhostOrToken`. |
+| GET | `/api/download-status` | Polling snapshot of every in-flight fan-out job + throttle stats. Fallback for clients without `EventSource`. |
+| GET | `/api/collection/[id]/activity` | Per-VN audit-trail entries (status / playtime / rating changes + manual notes) |
+| GET/POST | `/api/collection/[id]/custom-description` | Per-VN user-authored synopsis override |
+| GET | `/api/collection/find?q=` | Fuzzy in-collection title search (used by the Steam linker) |
+| POST | `/api/collection/full-download` | Selective bulk fan-out for a subset of VNs |
+| POST | `/api/collection/order` | Custom-sort drag order writeback |
+| GET | `/api/collection/tags`, `/api/collection/traits` | Aggregated tag / trait usage across the collection |
+| GET | `/api/export/csv` / `/api/export/ics` / `/api/export/raw` | CSV / iCal / raw-cache exports |
+| POST | `/api/backup/restore` | DB / JSON import (multipart) |
+| GET | `/api/maintenance/duplicates` / `/api/maintenance/stale` | Diagnostics for the data-maintenance panel |
+| GET | `/api/places` | Distinct values seen in `owned_release.physical_location` |
+| GET | `/api/reading-goal` / `/api/reading-queue` / `/api/saved-filters` | Per-feature reads |
+| GET | `/api/series/[id]/image`, `/api/series/[id]/vn` | Series asset + collection list |
+| POST | `/api/search/textual` | Server-side filtered text search |
+| POST | `/api/staff/[id]/download` | Trigger full VNDB credit-list fan-out for a staff profile |
+| GET | `/api/steam/library` / `POST /api/steam/link` / `POST /api/steam/sync` | Steam integration endpoints |
+| POST | `/api/vn/[id]/link-vndb` | Promote an `egs_NNN` synthetic VN to a real `v\d+` once VNDB knows it |
+| POST | `/api/vndb/pull-statuses` | Bulk refresh of users' ulist labels |
 | GET | `/api/shelves[?pool=1]` | List shelves; `?pool=1` also returns the unplaced editions |
 | POST | `/api/shelves` | Create a shelf `{name, cols?, rows?}` |
 | PATCH | `/api/shelves` | Reorder `{order: id[]}` |
@@ -211,13 +228,15 @@ vn               PK id           — VNDB id (v123)
 collection       PK vn_id (FK→vn)
                   status, user_rating, playtime_minutes, started_date, finished_date,
                   notes, favorite, location, edition_type, edition_label,
-                  physical_location, box_type, download_url, dumped,
+                  physical_location, box_type, download_url, dumped, custom_description,
+                  custom_order,
                   source_pref (JSON: {description:'egs', image:'vndb', …}),
                   added_at, updated_at
 
 owned_release    PK (vn_id, release_id)
                   notes, location, physical_location (JSON), box_type, edition_label,
-                  condition, price_paid, currency, acquired_date, dumped, added_at
+                  condition, price_paid, currency, acquired_date, purchase_place,
+                  dumped, added_at
 
 vn_route         PK id (auto)
                   vn_id, name, completed, completed_date, order_index, notes,
@@ -238,16 +257,51 @@ app_setting      PK key
                   value                — used for vndb_token, random_quote_source
 
 vn (additions)   egs_only INT — synthetic entries from /api/egs/[id]/add use
-                  id format `egs:<numeric>` and skip VNDB-only operations
+                  id format `egs_<numeric>` and skip VNDB-only operations
 
 producer         PK id           — VNDB producer id (p123)
                   name, original, lang, type, description, aliases (JSON),
                   extlinks (JSON), logo_path, fetched_at
 
 series           PK id (auto)
-                  name (UNIQUE), description, cover_path, created_at, updated_at
+                  name (UNIQUE), description, cover_path, banner_path,
+                  created_at, updated_at
 
 series_vn        PK (series_id, vn_id), order_index
+
+vn_quote         PK id (auto)
+                  vn_id (FK→vn), body, character_name, source, created_at
+
+vn_staff_credit  PK (vn_id, sid, eid)
+                  role, name_override, note, ismain
+                  — Materialized from vn.staff JSON for fast aggregate queries
+
+vn_va_credit     PK (vn_id, sid, c_id)
+                  note, name_override
+                  — Joins vn ↔ staff ↔ character for the seiyuu page
+
+saved_filter     PK id (auto)
+                  name, url_params, pinned, order_index, created_at
+
+reading_queue    PK id (auto)
+                  vn_id (FK→vn), order_index, added_at
+
+reading_goal     PK year
+                  target, updated_at
+
+steam_link       PK vn_id (FK→vn)
+                  appid, steam_name, source ('auto'|'manual'),
+                  last_synced_minutes, created_at, updated_at
+
+shelf_unit       PK id (auto)
+                  name, cols, rows, order_index, created_at, updated_at
+                  — Drag-and-drop 2-D shelf grid, /shelf?view=layout
+
+shelf_slot       PK (shelf_id, row, col)
+                  vn_id, release_id, placed_at
+                  UNIQUE (vn_id, release_id) — one slot per edition.
+                  All writes go through `placeShelfItem` for atomic
+                  swap-or-evict semantics.
 
 user_list        PK id (auto)
                   name, slug (UNIQUE), description, color, icon,
@@ -283,7 +337,7 @@ response (CSV) in the shared `vndb_cache` table.
 
 ### Resolution path
 
-1. `resolveEgsForVn(vnId)` short-circuits for `egs:<id>` synthetic VNs
+1. `resolveEgsForVn(vnId)` short-circuits for `egs_<id>` synthetic VNs
    (the encoded number IS the EGS id).
 2. Otherwise it pulls the VN's releases via VNDB, scans each release's
    `extlinks` array for `ErogameScape` → that's `source: 'extlink'`.
@@ -323,7 +377,7 @@ response (CSV) in the shared `vndb_cache` table.
   doesn't first-class (erogetrailers, dmm, dlsite_id, gyutto_id, genre,
   axis_of_soft_or_hard, max2, min2, median2, hanbaisuu, POV A/B/C, …).
 
-### Synthetic VN ids (`egs:<id>`)
+### Synthetic VN ids (`egs_<id>`)
 
 - Used by `/api/egs/[id]/add` when a game isn't on VNDB.
 - `markVnEgsOnly()` flips `vn.egs_only = 1`; `isEgsOnly()` checks it.
@@ -335,7 +389,7 @@ response (CSV) in the shared `vndb_cache` table.
 ### Shelf layout (`shelf_unit` + `shelf_slot`)
 
 - `shelf_unit` rows model named physical shelves with `(cols, rows)`
-  dimensions, clamped to `[1, 30]` server-side. `order_index` controls
+  dimensions, clamped to `[1, 200]` server-side. `order_index` controls
   tab order on `/shelf?view=layout`.
 - `shelf_slot` is sparse: a row exists only for occupied slots. The
   PRIMARY KEY `(shelf_id, row, col)` enforces "one edition per slot";
@@ -353,7 +407,7 @@ response (CSV) in the shared `vndb_cache` table.
 ### Synthetic release ids (`synthetic:<vnId>`)
 
 - Used by the shelf adder when a VN has **zero** rows in
-  `POST /release` (the common case for `egs:*` VNs, occasionally for
+  `POST /release` (the common case for `egs_*` VNs, occasionally for
   `v*` VNs as well). Lets the user shelve a "Main edition" without a
   real release id.
 - Validated in `/api/collection/[id]/owned-releases` via

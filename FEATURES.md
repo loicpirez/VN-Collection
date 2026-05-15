@@ -293,7 +293,7 @@ links to VNDB and EGS) — same component the library and producer
 pages use — with the **character thumbnails** the seiyuu voiced
 inline underneath each card. Thumbs come from
 `character_image.local_path` joined into `listStaffVaCredits`. Tap a
-character thumb to jump to `/character/[id]`. Synthetic `egs:*` VN
+character thumb to jump to `/character/[id]`. Synthetic `egs_*` VN
 cards suppress the VNDB external-link button (no `v` id to link).
 
 ### Series auto-detect ✅
@@ -608,7 +608,7 @@ ErogameScape is wired with the same UX patterns as Steam:
 | Dedicated landing page | `/steam` | `/egs` |
 | Sync block | inline on `/steam` + `/data` | inline on `/egs` + `/data` |
 | Nav entry | Insights group | Insights group (`nav.egs`) |
-| Synthetic VN ids | n/a — Steam links to existing `v\d+` | `egs:<id>` — coexists everywhere |
+| Synthetic VN ids | n/a — Steam links to existing `v\d+` | `egs_<id>` — coexists everywhere |
 | Sort key | `steam_playtime` | `egs_playtime` |
 | Field-source toggle | n/a | per-field (description, cover, brand) |
 
@@ -668,8 +668,8 @@ Drop a `.json` or `.db` file anywhere on `/data` to trigger the import.
 The top nav has four always-visible primary links (Library / Wishlist /
 Lists / Search) plus three category dropdowns:
   - **Discover** — Upcoming, For you, Quotes
-  - **Browse** — Producers, Series, Tags, Traits, Year, Labels
-  - **Data & Stats** — Stats, Shelf, Steam, EGS, Data
+  - **Browse** — Producers, Series, Tags, Traits, Characters, Staff, Year, Labels
+  - **Data & Stats** — Stats, Shelf, Steam, EGS, Schema, Data
 
 The right edge carries the closed-eye content-controls hub, the
 language switcher and the settings gear — all three remain visible
@@ -844,7 +844,7 @@ unplace semantics including the FK cascade.
 
 ### Synthetic releases for EGS-only VNs ✅
 VNs missing from VNDB's release index (`v.*` rows with no rows in
-`POST /release`, plus every `egs:*` synthetic VN) can still be
+`POST /release`, plus every `egs_*` synthetic VN) can still be
 shelved through a `synthetic:<vnId>` release id. The inventory
 adder shows a "Main edition" tile when no real releases exist; the
 API route `/api/collection/[id]/owned-releases` accepts the

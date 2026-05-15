@@ -375,7 +375,7 @@ batch threads the distinction through every surface.
 - `listStaffVaCredits()` now `LEFT JOIN`s `character_image` so each
   voiced character carries `local_image`.
 - `/staff/[id]` Voice section renders each VN as a full `VnCard` with
-  the character thumbs inline beneath. Synthetic `egs:*` cards
+  the character thumbs inline beneath. Synthetic `egs_*` cards
   suppress the VNDB external link button.
 - One-click jump from a character thumb to `/character/[id]`.
 

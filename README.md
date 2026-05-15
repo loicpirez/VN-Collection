@@ -32,7 +32,7 @@ ingested, cached locally, and can be combined or compared per-field.
   **purchase place** (store / URL / second-hand vendor), dumped
   state, and notes — independently of the VN-level status
 - **Synthetic releases for EGS-only / no-release VNs** — games VNDB
-  doesn't list a release for (typically `egs:*` entries) can still be
+  doesn't list a release for (typically `egs_*` entries) can still be
   shelved: the inventory adder shows a "Main edition" synthetic tile
   (`release_id = synthetic:<vnId>`). All owned-release plumbing
   (locations, currency, dumped state, shelf grouping) works the same
@@ -188,7 +188,7 @@ recommendations, shelf, dumped, stats).
   one (persisted with `source: 'manual'`).
 - **EGS-side search** on `/search` — when a game is missing from VNDB,
   flip the source toggle to EGS, find the game, click "Add via EGS".
-  Synthetic VN id `egs:<id>`; the entry coexists with VNDB-sourced VNs.
+  Synthetic VN id `egs_<id>`; the entry coexists with VNDB-sourced VNs.
 - **Per-field source preference** with VNDB-first auto-fallback.
   Each field (description, cover, brand) on `/vn/[id]` shows a
   "Compare" toggle that expands into a side-by-side view with
@@ -495,7 +495,7 @@ No state library. No auth. No tracking.
 
 VNDB and ErogameScape entries coexist:
 - `v\d+` → VNDB-sourced (the regular path)
-- `egs:\d+` → EGS-only synthetic, used for games missing from VNDB.
+- `egs_\d+` → EGS-only synthetic, used for games missing from VNDB.
   VNDB-only helpers (`getCharactersForVn`, `getReleasesForVn`,
   `getQuotesForVn`) short-circuit for non-`v` ids so list / detail
   pages still render cleanly without 500s.
