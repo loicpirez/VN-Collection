@@ -45,6 +45,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ routeId
   const { routeId } = await ctx.params;
   const id = parseId(routeId);
   if (id == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  deleteRoute(id);
+  const ok = deleteRoute(id);
+  if (!ok) return NextResponse.json({ error: 'not found' }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

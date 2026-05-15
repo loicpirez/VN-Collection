@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollectionItem, setCustomCover } from '@/lib/db';
-import { saveUpload } from '@/lib/files';
+import { saveUpload, UnsupportedFileType } from '@/lib/files';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -30,9 +30,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
     const file = fd.get('file');
     if (!(file instanceof File)) return NextResponse.json({ error: 'missing file' }, { status: 400 });
-    if (!file.type.startsWith('image/')) return NextResponse.json({ error: 'must be an image' }, { status: 400 });
-    if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: 'file too large (max 10MB)' }, { status: 400 });
-    const path = await saveUpload('vnCover', file, id);
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: 'file too large (max 10MB)' }, { status: 400 });
+    }
+    let path: string;
+    try {
+      // saveUpload now sniffs magic bytes; the client's
+      // Content-Type can no longer slip an HTML/SVG file in.
+      path = await saveUpload('vnCover', file, id);
+    } catch (e) {
+      if (e instanceof UnsupportedFileType) {
+        return NextResponse.json({ error: 'must be an image' }, { status: 400 });
+      }
+      throw e;
+    }
     setCustomCover(id, path);
     return NextResponse.json({ item: getCollectionItem(id), cover: path });
   }
@@ -48,6 +59,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     next = value;
   } else if ((source === 'screenshot' || source === 'release' || source === 'path') && value) {
+    // Reject any path that tries to escape STORAGE_ROOT (..) or
+    // contains URL-encoding tricks. The /api/files/[...path] route
+    // checks again at read time, but normalizing here keeps the
+    // stored value clean too.
+    if (/(^|\/)\.\.(\/|$)/.test(value) || value.includes('\0')) {
+      return NextResponse.json({ error: 'invalid path' }, { status: 400 });
+    }
     next = value;
   } else {
     return NextResponse.json({ error: 'invalid source' }, { status: 400 });
@@ -59,6 +77,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  // Fail loudly when the row isn't in collection — consistent with
+  // other DELETE routes and avoids masking stale optimistic UI.
+  if (!getCollectionItem(id)) {
+    return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  }
   setCustomCover(id, null);
   return NextResponse.json({ item: getCollectionItem(id) });
 }

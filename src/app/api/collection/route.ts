@@ -15,6 +15,7 @@ const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [
   'combined_playtime',
   'released',
   'producer',
+  'publisher',
   'egs_rating',
   'combined_rating',
   'custom',

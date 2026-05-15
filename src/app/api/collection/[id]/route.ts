@@ -31,18 +31,40 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
   }
   if ('user_rating' in body) {
     const v = body.user_rating;
-    if (v !== null && (typeof v !== 'number' || v < 10 || v > 100)) {
-      return { fields, error: 'user_rating must be 10-100 or null' };
+    if (v !== null && (typeof v !== 'number' || !Number.isInteger(v) || v < 10 || v > 100)) {
+      // SQLite column is INTEGER; previously we accepted 12.345 and
+      // SQLite silently coerced. Reject non-integers up front.
+      return { fields, error: 'user_rating must be an integer 10-100 or null' };
     }
     fields.user_rating = v as number | null;
   }
   if ('playtime_minutes' in body) {
     const v = body.playtime_minutes;
-    if (typeof v !== 'number' || v < 0) return { fields, error: 'playtime_minutes invalid' };
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 10_000_000) {
+      // Same integer-only rule. Upper bound = ~19 years, well past
+      // any realistic VN playtime; rejects accidental millisecond
+      // values (which used to silently land as huge minute counts).
+      return { fields, error: 'playtime_minutes must be a non-negative integer' };
+    }
     fields.playtime_minutes = v;
   }
-  if ('started_date' in body) fields.started_date = (body.started_date as string | null) || null;
-  if ('finished_date' in body) fields.finished_date = (body.finished_date as string | null) || null;
+  // Dates must look like YYYY-MM-DD (or empty / null). Without this
+  // gate any string slipped through the column and broke sort by
+  // started_date.
+  const isIsoDate = (v: unknown): v is string =>
+    typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  if ('started_date' in body) {
+    const v = body.started_date;
+    if (v == null || v === '') fields.started_date = null;
+    else if (isIsoDate(v)) fields.started_date = v;
+    else return { fields, error: 'started_date must be YYYY-MM-DD or null' };
+  }
+  if ('finished_date' in body) {
+    const v = body.finished_date;
+    if (v == null || v === '') fields.finished_date = null;
+    else if (isIsoDate(v)) fields.finished_date = v;
+    else return { fields, error: 'finished_date must be YYYY-MM-DD or null' };
+  }
   if ('notes' in body) fields.notes = (body.notes as string | null) || null;
   if ('favorite' in body) fields.favorite = !!body.favorite;
   if ('location' in body) {
@@ -101,8 +123,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ item, in_collection: !!item.status });
 }
 
+// VN ids look like `v123` (VNDB) or `egs_456` (synthetic EGS-only).
+// Validate up front so a typo doesn't reach VNDB / EGS / the DB.
+const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  if (!VN_ID_RE.test(id)) {
+    return NextResponse.json({ error: 'invalid VN id format' }, { status: 400 });
+  }
   const wasInCollection = isInCollection(id);
   if (!getCollectionItem(id)) {
     try {

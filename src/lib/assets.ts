@@ -24,7 +24,30 @@ interface EnsureResult {
   releaseImages: ReleaseImage[];
 }
 
-export async function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult> {
+/**
+ * Per-VN ensure lock. Two concurrent `/assets` POSTs for the same id
+ * used to spawn two parallel image-download cascades, two release
+ * walks, and two `upsertVn` writes against deterministic file paths
+ * like `${vnId}-cover.jpg` — one write could clobber another's
+ * half-written buffer. The lock de-dups: a second caller awaits the
+ * first call's result instead of re-running the whole fan-out.
+ *
+ * Scope: in-process. Self-hosted single-Node deployment is the only
+ * supported topology, so a Map is sufficient.
+ */
+const inflightEnsure = new Map<string, Promise<EnsureResult>>();
+
+export function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult> {
+  const existing = inflightEnsure.get(vnId);
+  if (existing) return existing;
+  const p = ensureLocalImagesForVnInner(vnId).finally(() => {
+    inflightEnsure.delete(vnId);
+  });
+  inflightEnsure.set(vnId, p);
+  return p;
+}
+
+async function ensureLocalImagesForVnInner(vnId: string): Promise<EnsureResult> {
   const item = getCollectionItem(vnId);
   if (!item) return { poster: null, posterThumb: null, screenshots: [], releaseImages: [] };
 

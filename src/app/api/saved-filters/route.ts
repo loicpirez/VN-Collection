@@ -24,7 +24,8 @@ export async function DELETE(req: NextRequest) {
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: 'id required' }, { status: 400 });
   }
-  deleteSavedFilter(id);
+  const ok = deleteSavedFilter(id);
+  if (!ok) return NextResponse.json({ error: 'not found' }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
 

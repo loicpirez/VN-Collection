@@ -2532,8 +2532,8 @@ export function updateRoute(routeId: number, fields: RoutePatch): RouteRow | nul
   return getRoute(routeId);
 }
 
-export function deleteRoute(routeId: number): void {
-  db.prepare('DELETE FROM vn_route WHERE id = ?').run(routeId);
+export function deleteRoute(routeId: number): boolean {
+  return db.prepare('DELETE FROM vn_route WHERE id = ?').run(routeId).changes > 0;
 }
 
 export function reorderRoutes(vnId: string, orderedIds: number[]): void {
@@ -3008,8 +3008,8 @@ export function createSavedFilter(name: string, params: string): SavedFilter {
   return db.prepare('SELECT * FROM saved_filter WHERE id = ?').get(info.lastInsertRowid) as SavedFilter;
 }
 
-export function deleteSavedFilter(id: number): void {
-  db.prepare('DELETE FROM saved_filter WHERE id = ?').run(id);
+export function deleteSavedFilter(id: number): boolean {
+  return db.prepare('DELETE FROM saved_filter WHERE id = ?').run(id).changes > 0;
 }
 
 export function reorderSavedFilters(ids: number[]): void {
@@ -3043,8 +3043,8 @@ export function addToReadingQueue(vnId: string): ReadingQueueEntry {
   return db.prepare('SELECT * FROM reading_queue WHERE vn_id = ?').get(vnId) as ReadingQueueEntry;
 }
 
-export function removeFromReadingQueue(vnId: string): void {
-  db.prepare('DELETE FROM reading_queue WHERE vn_id = ?').run(vnId);
+export function removeFromReadingQueue(vnId: string): boolean {
+  return db.prepare('DELETE FROM reading_queue WHERE vn_id = ?').run(vnId).changes > 0;
 }
 
 export function reorderReadingQueue(ids: string[]): void {
@@ -3133,8 +3133,8 @@ export function setSteamLink(args: {
   return getSteamLinkForVn(args.vnId)!;
 }
 
-export function deleteSteamLink(vnId: string): void {
-  db.prepare(`DELETE FROM steam_link WHERE vn_id = ?`).run(vnId);
+export function deleteSteamLink(vnId: string): boolean {
+  return db.prepare(`DELETE FROM steam_link WHERE vn_id = ?`).run(vnId).changes > 0;
 }
 
 export function markSteamSynced(vnId: string, minutes: number): void {

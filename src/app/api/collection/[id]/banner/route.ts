@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollectionItem, setBanner, setBannerPosition } from '@/lib/db';
-import { saveUpload } from '@/lib/files';
+import { saveUpload, UnsupportedFileType } from '@/lib/files';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,9 +32,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
     const file = fd.get('file');
     if (!(file instanceof File)) return NextResponse.json({ error: 'missing file' }, { status: 400 });
-    if (!file.type.startsWith('image/')) return NextResponse.json({ error: 'must be an image' }, { status: 400 });
-    if (file.size > 15 * 1024 * 1024) return NextResponse.json({ error: 'file too large (max 15MB)' }, { status: 400 });
-    const path = await saveUpload('vnCover', file, `${id}-banner`);
+    if (file.size > 15 * 1024 * 1024) {
+      return NextResponse.json({ error: 'file too large (max 15MB)' }, { status: 400 });
+    }
+    let path: string;
+    try {
+      path = await saveUpload('vnCover', file, `${id}-banner`);
+    } catch (e) {
+      if (e instanceof UnsupportedFileType) {
+        return NextResponse.json({ error: 'must be an image' }, { status: 400 });
+      }
+      throw e;
+    }
     setBanner(id, path);
     return NextResponse.json({ item: getCollectionItem(id), banner: path });
   }
@@ -54,7 +63,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     next = value;
   } else if ((source === 'screenshot' || source === 'release' || source === 'path') && value) {
-    // value is either a relative storage path (preferred — local) or a URL
+    // value is either a relative storage path (preferred — local) or a URL.
+    // Reject paths trying to escape the storage root.
+    if (/(^|\/)\.\.(\/|$)/.test(value) || value.includes('\0')) {
+      return NextResponse.json({ error: 'invalid path' }, { status: 400 });
+    }
     next = value;
   } else {
     return NextResponse.json({ error: 'invalid source' }, { status: 400 });
@@ -79,6 +92,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  if (!getCollectionItem(id)) {
+    return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  }
   setBanner(id, null);
   setBannerPosition(id, null);
   return NextResponse.json({ item: getCollectionItem(id) });

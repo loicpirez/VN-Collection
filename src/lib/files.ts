@@ -101,14 +101,66 @@ export async function downloadToBucket(
   return `${STORAGE_DIRS[bucket]}/${safeName}`;
 }
 
+/**
+ * Lightweight magic-byte sniff so a client lying about file.type
+ * ("Content-Type: image/png" on an actual HTML / SVG file) can't
+ * slip a non-image past the upload routes. Each entry is the
+ * canonical MIME type plus the leading bytes that uniquely
+ * identify the format.
+ */
+const IMAGE_MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
+  { mime: 'image/png', bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+  { mime: 'image/jpeg', bytes: [0xff, 0xd8, 0xff] },
+  { mime: 'image/gif', bytes: [0x47, 0x49, 0x46, 0x38] },
+  // WebP: "RIFF....WEBP" — the four bytes at offset 8 are "WEBP".
+  { mime: 'image/webp', bytes: [0x57, 0x45, 0x42, 0x50], offset: 8 },
+  { mime: 'image/bmp', bytes: [0x42, 0x4d] },
+  // AVIF: ISO-BMFF "ftypavif" at offset 4.
+  { mime: 'image/avif', bytes: [0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66], offset: 4 },
+];
+
+function detectImageMime(buf: Buffer): string | null {
+  for (const sig of IMAGE_MAGIC_BYTES) {
+    const offset = sig.offset ?? 0;
+    if (buf.length < offset + sig.bytes.length) continue;
+    let match = true;
+    for (let i = 0; i < sig.bytes.length; i++) {
+      if (buf[offset + i] !== sig.bytes[i]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return sig.mime;
+  }
+  return null;
+}
+
+export class UnsupportedFileType extends Error {
+  constructor(public providedType: string | null) {
+    super(`unsupported file type${providedType ? ` (declared as ${providedType})` : ''}`);
+  }
+}
+
+/**
+ * Save a client-uploaded image. Sniffs the actual bytes to determine
+ * the real MIME type — the client-supplied Content-Type can lie,
+ * and previously a banner / cover upload would happily persist an
+ * HTML or SVG file with a fake `.png` extension. By picking the
+ * extension from sniffed bytes instead of `file.type`, we both
+ * reject non-image uploads up front and store the file under a
+ * truthful extension.
+ */
 export async function saveUpload(
   bucket: StorageBucket,
   file: File,
   filenameHint: string,
 ): Promise<string> {
   const buf = Buffer.from(await file.arrayBuffer());
-  const ct = file.type || guessContentType(file.name);
-  const ext = extFromContentType(ct);
+  const detected = detectImageMime(buf);
+  if (!detected) {
+    throw new UnsupportedFileType(file.type || null);
+  }
+  const ext = extFromContentType(detected);
   const id = randomBytes(4).toString('hex');
   const safeName = `${sanitizeFilename(filenameHint)}-${id}${ext}`;
   const dir = bucketPath(bucket);

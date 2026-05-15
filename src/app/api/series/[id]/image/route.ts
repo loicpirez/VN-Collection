@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSeries, updateSeries } from '@/lib/db';
-import { saveUpload } from '@/lib/files';
+import { saveUpload, UnsupportedFileType } from '@/lib/files';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,11 +31,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
   const file = fd.get('file');
   const kindRaw = fd.get('kind');
-  const kind = kindRaw === 'banner' ? 'banner' : 'cover';
+  // Explicitly reject unknown kinds instead of silently defaulting
+  // to 'cover' — caller bug should surface early.
+  if (kindRaw !== 'banner' && kindRaw !== 'cover') {
+    return NextResponse.json({ error: 'kind must be banner or cover' }, { status: 400 });
+  }
+  const kind = kindRaw;
   if (!(file instanceof File)) return NextResponse.json({ error: 'missing file' }, { status: 400 });
-  if (!file.type.startsWith('image/')) return NextResponse.json({ error: 'must be an image' }, { status: 400 });
-  if (file.size > 15 * 1024 * 1024) return NextResponse.json({ error: 'file too large (max 15MB)' }, { status: 400 });
-  const path = await saveUpload('seriesCover', file, `${sid}-${kind}`);
+  if (file.size > 15 * 1024 * 1024) {
+    return NextResponse.json({ error: 'file too large (max 15MB)' }, { status: 400 });
+  }
+  let path: string;
+  try {
+    path = await saveUpload('seriesCover', file, `${sid}-${kind}`);
+  } catch (e) {
+    if (e instanceof UnsupportedFileType) {
+      return NextResponse.json({ error: 'must be an image' }, { status: 400 });
+    }
+    throw e;
+  }
   if (kind === 'banner') updateSeries(sid, { banner_path: path });
   else updateSeries(sid, { cover_path: path });
   return NextResponse.json({ path });

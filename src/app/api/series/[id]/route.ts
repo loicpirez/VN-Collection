@@ -39,6 +39,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   const { id } = await ctx.params;
   const n = parseId(id);
   if (n == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  if (!getSeries(n)) return NextResponse.json({ error: 'not found' }, { status: 404 });
   deleteSeries(n);
   return NextResponse.json({ ok: true });
 }

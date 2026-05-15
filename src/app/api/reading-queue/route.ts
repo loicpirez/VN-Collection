@@ -26,8 +26,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const vnId = req.nextUrl.searchParams.get('vn_id');
-  if (!vnId) return NextResponse.json({ error: 'vn_id required' }, { status: 400 });
-  removeFromReadingQueue(vnId);
+  if (!vnId || !/^(v\d+|egs_\d+)$/i.test(vnId)) {
+    return NextResponse.json({ error: 'vn_id required' }, { status: 400 });
+  }
+  const ok = removeFromReadingQueue(vnId);
+  if (!ok) return NextResponse.json({ error: 'not in queue' }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
 
