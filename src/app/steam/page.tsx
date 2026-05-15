@@ -220,30 +220,43 @@ export default function SteamSyncPage() {
               {suggestions.map((s) => {
                 const picked = picks.has(s.vn_id);
                 return (
-                  <li
-                    key={s.vn_id}
-                    onClick={() => togglePick(s.vn_id)}
-                    className={`flex cursor-pointer items-center gap-3 rounded-lg border bg-bg-elev/30 p-2 transition-colors ${
-                      picked ? 'border-accent ring-1 ring-accent/30' : 'border-border hover:border-accent/50'
-                    }`}
-                  >
-                    <span
-                      className={`flex h-5 w-5 items-center justify-center rounded-md border ${
-                        picked ? 'border-accent bg-accent text-bg' : 'border-border'
+                  <li key={s.vn_id}>
+                    {/*
+                      Was a <li onClick> with no keyboard handler — Tab
+                      couldn't reach the toggle, screen readers had no
+                      announcement. Now the entire row is a real
+                      <button> with role-appropriate aria-pressed.
+                    */}
+                    <button
+                      type="button"
+                      onClick={() => togglePick(s.vn_id)}
+                      aria-pressed={picked}
+                      className={`flex w-full items-center gap-3 rounded-lg border bg-bg-elev/30 p-2 text-left transition-colors ${
+                        picked ? 'border-accent ring-1 ring-accent/30' : 'border-border hover:border-accent/50'
                       }`}
                     >
-                      {picked && <Check className="h-3 w-3" />}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-1 text-sm font-bold">{s.vn_title}</p>
-                      <p className="line-clamp-1 text-[10px] text-muted">{s.steam_name} · appid {s.steam_appid}</p>
-                    </div>
-                    <span className="shrink-0 text-right text-[11px]">
-                      <span className="block text-muted">
-                        {fmt(s.current_minutes)} → <span className="text-accent">{fmt(s.steam_minutes)}</span>
+                      <span
+                        aria-hidden
+                        className={`flex h-5 w-5 items-center justify-center rounded-md border ${
+                          picked ? 'border-accent bg-accent text-bg' : 'border-border'
+                        }`}
+                      >
+                        {picked && <Check className="h-3 w-3" />}
                       </span>
-                      <span className="block font-mono text-[10px] text-accent">+{fmt(s.delta)}</span>
-                    </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-1 text-sm font-bold">{s.vn_title}</p>
+                        <p className="line-clamp-1 text-[11px] text-muted">
+                          {s.steam_name} · appid {s.steam_appid}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-right text-[11px]">
+                        <span className="block text-muted">
+                          {fmt(s.current_minutes)} →{' '}
+                          <span className="text-accent">{fmt(s.steam_minutes)}</span>
+                        </span>
+                        <span className="block font-mono text-[10px] text-accent">+{fmt(s.delta)}</span>
+                      </span>
+                    </button>
                   </li>
                 );
               })}

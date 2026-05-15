@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { advancedSearchVn, type AdvancedSearchOptions } from '@/lib/vndb';
-import { isInCollection } from '@/lib/db';
+import { isInCollectionMany } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,9 @@ export async function POST(req: NextRequest) {
   }
   try {
     const data = await advancedSearchVn(body);
-    const results = data.results.map((v) => ({ ...v, in_collection: isInCollection(v.id) }));
+    // Single IN(...) lookup instead of one SELECT per result.
+    const ownedIds = isInCollectionMany(data.results.map((v) => v.id));
+    const results = data.results.map((v) => ({ ...v, in_collection: ownedIds.has(v.id) }));
     return NextResponse.json({ results, more: data.more });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });

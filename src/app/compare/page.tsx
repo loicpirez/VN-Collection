@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-react';
 import { db, getCollectionItem } from '@/lib/db';
@@ -6,6 +7,11 @@ import { SafeImage } from '@/components/SafeImage';
 import { LangList } from '@/components/LangFlag';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = await getDict();
+  return { title: dict.compareView.pageTitle };
+}
 
 function parseIds(raw: string | undefined): string[] {
   if (!raw) return [];

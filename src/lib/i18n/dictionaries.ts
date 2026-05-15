@@ -190,6 +190,13 @@ export const dictionaries = {
       pageNotFound: 'Page introuvable',
       pageNotFoundHint: "Ce que tu cherches n'existe pas ou plus.",
     },
+    errorBoundary: {
+      title: 'Quelque chose a planté.',
+      body: 'Une erreur inattendue est survenue. Réessaie ; si ça persiste, ouvre la console pour voir la trace.',
+      retry: 'Réessayer',
+      home: 'Accueil',
+      digestLabel: 'Empreinte',
+    },
     status: {
       planning: 'À jouer',
       playing: 'En cours',
@@ -1292,6 +1299,7 @@ export const dictionaries = {
       errors: 'erreur(s)',
     },
     compareView: {
+      pageTitle: 'Comparer des VN',
       title: 'Comparaison',
       subtitle: 'Vue côte à côte. Les valeurs partagées sont mises en surbrillance.',
       notEnough: 'Sélectionne entre 2 et 4 VN avant de comparer.',
@@ -1668,6 +1676,13 @@ export const dictionaries = {
       unknown: 'Unknown',
       pageNotFound: 'Page not found',
       pageNotFoundHint: "What you're looking for doesn't exist (anymore).",
+    },
+    errorBoundary: {
+      title: 'Something broke.',
+      body: 'The page hit an unexpected error. Try again; if it persists, open the console for the stack.',
+      retry: 'Try again',
+      home: 'Home',
+      digestLabel: 'Digest',
     },
     status: {
       planning: 'Plan to play',
@@ -2771,6 +2786,7 @@ export const dictionaries = {
       errors: 'error(s)',
     },
     compareView: {
+      pageTitle: 'Compare VNs',
       title: 'Compare',
       subtitle: 'Side-by-side view. Shared values are highlighted.',
       notEnough: 'Select 2 to 4 VNs before comparing.',
@@ -3147,6 +3163,13 @@ export const dictionaries = {
       unknown: '不明',
       pageNotFound: 'ページが見つかりません',
       pageNotFoundHint: 'お探しのページは存在しないか、削除されています。',
+    },
+    errorBoundary: {
+      title: '問題が発生しました。',
+      body: '予期しないエラーが発生しました。もう一度お試しください。続く場合はコンソールでスタックを確認してください。',
+      retry: '再試行',
+      home: 'ホーム',
+      digestLabel: 'ID',
     },
     status: {
       planning: 'プレイ予定',
@@ -4250,6 +4273,7 @@ export const dictionaries = {
       errors: '件のエラー',
     },
     compareView: {
+      pageTitle: 'VN を比較',
       title: '比較',
       subtitle: '横並びビュー。共通する値はハイライト表示されます。',
       notEnough: '比較するには 2〜4 件を選択してください。',

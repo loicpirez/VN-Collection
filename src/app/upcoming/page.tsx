@@ -162,6 +162,9 @@ function TabLink({
   return (
     <Link
       href={href}
+      // aria-current marks the active tab for screen readers; without
+      // it the only signal was a color change, which AT can't perceive.
+      aria-current={active ? 'page' : undefined}
       className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 transition-colors ${
         active ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
       }`}

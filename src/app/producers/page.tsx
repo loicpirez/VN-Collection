@@ -99,6 +99,7 @@ function TabLink({
   return (
     <Link
       href={href}
+      aria-current={active ? 'page' : undefined}
       className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
         active ? 'bg-accent text-bg font-bold' : 'text-muted hover:bg-bg-elev'
       }`}

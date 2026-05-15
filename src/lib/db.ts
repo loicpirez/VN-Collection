@@ -1848,6 +1848,29 @@ export function isInCollection(vnId: string): boolean {
 }
 
 /**
+ * Batched variant of `isInCollection` — pass a list of VN ids, get
+ * back a Set of those that are in the collection. Callers (search
+ * routes, advanced search, relations rendering) used to .map() over
+ * single-row SELECTs, paying one round-trip per id. The SQLite
+ * parameter cap is 999 in older builds and 32766 in modern ones;
+ * we chunk to 500 to stay well below either limit.
+ */
+export function isInCollectionMany(vnIds: readonly string[]): Set<string> {
+  if (vnIds.length === 0) return new Set();
+  const out = new Set<string>();
+  const CHUNK = 500;
+  for (let i = 0; i < vnIds.length; i += CHUNK) {
+    const chunk = vnIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
+      .all(...chunk) as { vn_id: string }[];
+    for (const r of rows) out.add(r.vn_id);
+  }
+  return out;
+}
+
+/**
  * Bulk-update `collection.custom_order` so the supplied ids appear in order.
  * Index 0 gets order 1, index 1 gets order 2, etc. — 0 is reserved for "unset".
  * Ids not in the array are left alone (so reordering visible page A doesn't

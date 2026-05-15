@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Sparkles, Star } from 'lucide-react';
 import { getCollectionItem } from '@/lib/db';
@@ -6,6 +7,20 @@ import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ vn?: string }>;
+}): Promise<Metadata> {
+  const { vn: vnId } = await searchParams;
+  const dict = await getDict();
+  if (vnId) {
+    const seed = getCollectionItem(vnId);
+    if (seed) return { title: `${dict.similar.title}: ${seed.title}` };
+  }
+  return { title: dict.similar.title };
+}
 
 interface SimilarHit {
   id: string;
