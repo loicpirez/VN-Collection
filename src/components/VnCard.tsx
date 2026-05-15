@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState, useTransition } from 'react';
+import { memo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, MoreVertical, Package, Plus, Sparkles, X } from 'lucide-react';
@@ -76,7 +76,20 @@ function fmtMinutes(m: number | null | undefined): string | null {
   return `${mn}m`;
 }
 
-export function VnCard({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded, badge, onRemoveFromWishlist }: VnCardProps) {
+export const VnCard = memo(VnCardImpl);
+
+/**
+ * Inner implementation. Exported as `VnCard` (memoized) above so the
+ * library grid (200+ cards) doesn't re-render every tile when a
+ * single parent state ticks — every keystroke in the filter input
+ * used to trigger a full grid pass.
+ *
+ * Memo equality is React.memo's default (referential per-prop). The
+ * library passes a freshly-built `data` object from `LibraryClient`;
+ * that callsite extracts the build into a stable helper so the prop
+ * identity is stable across renders.
+ */
+function VnCardImpl({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded, badge, onRemoveFromWishlist }: VnCardProps) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();

@@ -226,6 +226,10 @@ function open(): Database.Database {
       occurred_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_vn_activity_vn ON vn_activity(vn_id, occurred_at DESC);
+    -- Global recent-activity strip and heatmap queries scan by
+    -- occurred_at without a vn_id filter; the per-VN index above
+    -- cannot serve them.
+    CREATE INDEX IF NOT EXISTS idx_vn_activity_occurred ON vn_activity(occurred_at DESC, id DESC);
 
     CREATE TABLE IF NOT EXISTS vn_game_log (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2254,9 +2258,14 @@ export function listCollection({
     `)
     .all(...params) as DbRow[];
   const items = rows.map((r) => rowToItem(r)!).filter(Boolean);
-  const egsMap = getEgsForVns(items.map((i) => i.id));
+  const ids = items.map((i) => i.id);
+  const egsMap = getEgsForVns(ids);
+  // Batch the series lookup — was previously one query per VN
+  // (`listSeriesForVn(item.id)` inside the loop). For a library of
+  // 500 VNs that meant 500 extra round-trips per page load.
+  const seriesMap = listSeriesForVnsMany(ids);
   for (const item of items) {
-    item.series = listSeriesForVn(item.id);
+    item.series = seriesMap.get(item.id) ?? [];
     const egs = egsMap.get(item.id);
     item.egs = egs
       ? {
@@ -3538,6 +3547,71 @@ export function listSeriesForVn(vnId: string): SeriesLite[] {
     .all(vnId) as SeriesLite[];
 }
 
+/**
+ * Batched lookup: one round-trip returns every (vn_id, series) pair
+ * for the input ids, grouped into a Map. Used by `listCollection` to
+ * avoid issuing one `listSeriesForVn` per row when rendering the
+ * library (500 VNs would mean 500 extra queries).
+ */
+/**
+ * Lightweight count + first-sample lookup used by `/producer/[id]`
+ * to size the header without paying for two full `listCollection`
+ * scans. Returns the in-collection VN ids credited to this producer
+ * (in either role) plus the very first row's developers/publishers
+ * arrays — enough to render the "X VN" badge and the fallback name
+ * when VNDB is unreachable.
+ */
+export function producerOwnershipSummary(producerId: string): {
+  ownedIds: Set<string>;
+  sample: { developers: Array<{ id: string; name: string }>; publishers: Array<{ id: string; name: string }> } | null;
+} {
+  const rows = db
+    .prepare(`
+      SELECT v.id, v.developers, v.publishers
+      FROM vn v
+      JOIN collection c ON c.vn_id = v.id
+      WHERE
+        (v.developers IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(v.developers) WHERE json_extract(value, '$.id') = ?
+        ))
+        OR (v.publishers IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(v.publishers) WHERE json_extract(value, '$.id') = ?
+        ))
+      ORDER BY c.updated_at DESC
+      LIMIT 500
+    `)
+    .all(producerId, producerId) as Array<{ id: string; developers: string | null; publishers: string | null }>;
+  const ownedIds = new Set(rows.map((r) => r.id));
+  const sample = rows[0]
+    ? {
+        developers: safeJsonParse<Array<{ id: string; name: string }>>(rows[0].developers, []),
+        publishers: safeJsonParse<Array<{ id: string; name: string }>>(rows[0].publishers, []),
+      }
+    : null;
+  return { ownedIds, sample };
+}
+
+export function listSeriesForVnsMany(vnIds: string[]): Map<string, SeriesLite[]> {
+  const out = new Map<string, SeriesLite[]>();
+  if (vnIds.length === 0) return out;
+  const placeholders = vnIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(`
+      SELECT sv.vn_id AS vn_id, s.id AS id, s.name AS name
+      FROM series s
+      JOIN series_vn sv ON sv.series_id = s.id
+      WHERE sv.vn_id IN (${placeholders})
+      ORDER BY s.name COLLATE NOCASE
+    `)
+    .all(...vnIds) as Array<{ vn_id: string; id: number; name: string }>;
+  for (const r of rows) {
+    const arr = out.get(r.vn_id) ?? [];
+    arr.push({ id: r.id, name: r.name });
+    out.set(r.vn_id, arr);
+  }
+  return out;
+}
+
 export function getSeries(id: number): SeriesWithVns | null {
   const s = db.prepare('SELECT * FROM series WHERE id = ?').get(id) as SeriesRow | undefined;
   if (!s) return null;
@@ -4494,12 +4568,16 @@ function uniqueSlug(base: string): string {
 }
 
 export function listUserLists(): UserListWithCount[] {
+  // LEFT JOIN + GROUP BY avoids the scalar subquery per row that
+  // SQLite would otherwise evaluate during the sort.
   return db
     .prepare(`
       SELECT l.id, l.name, l.slug, l.description, l.color, l.icon, l.pinned,
              l.created_at, l.updated_at,
-             (SELECT COUNT(*) FROM user_list_vn lv WHERE lv.list_id = l.id) AS vn_count
+             COUNT(lv.list_id) AS vn_count
       FROM user_list l
+      LEFT JOIN user_list_vn lv ON lv.list_id = l.id
+      GROUP BY l.id
       ORDER BY l.pinned DESC, l.updated_at DESC, l.id DESC
     `)
     .all() as UserListWithCount[];

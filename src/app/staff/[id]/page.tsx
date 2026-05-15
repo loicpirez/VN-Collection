@@ -48,13 +48,24 @@ export default async function StaffPage({
   const inCollectionOnly = scope === 'collection';
   const t = await getDict();
   const profile = getStaffProfileFromCredits(id);
-  const production = listStaffProductionCredits(id, { inCollectionOnly });
-  const voice = listStaffVaCredits(id, { inCollectionOnly });
+  // Fetch the all-credits arrays once, then derive both filtered
+  // views + the toggle counters from them in JS. The previous flow
+  // ran four heavy SQL queries per page load; with prolific staff
+  // (e.g. seiyuu with 500+ credits) that was the page's biggest cost.
+  const allProduction = listStaffProductionCredits(id);
+  const allVoice = listStaffVaCredits(id);
+  const production = inCollectionOnly
+    ? allProduction.filter((c) => c.vn.in_collection)
+    : allProduction;
+  const voice = inCollectionOnly
+    ? allVoice.filter((c) => c.vn.in_collection)
+    : allVoice;
   if (!profile && production.length === 0 && voice.length === 0) notFound();
 
-  const totalAll = listStaffProductionCredits(id).length + listStaffVaCredits(id).length;
-  const totalCol = listStaffProductionCredits(id, { inCollectionOnly: true }).length
-    + listStaffVaCredits(id, { inCollectionOnly: true }).length;
+  const totalAll = allProduction.length + allVoice.length;
+  const totalCol =
+    allProduction.filter((c) => c.vn.in_collection).length +
+    allVoice.filter((c) => c.vn.in_collection).length;
 
   // Locally-known credits paint immediately. The full VNDB download streams
   // in via <Suspense> in <StaffExtraCredits> below — that lets the user see

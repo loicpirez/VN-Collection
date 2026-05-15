@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
-import { getProducer as getProducerLocal, listCollection, upsertProducer } from '@/lib/db';
+import { getProducer as getProducerLocal, producerOwnershipSummary, upsertProducer } from '@/lib/db';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
@@ -45,23 +45,15 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
   if (!/^p\d+$/i.test(id)) notFound();
   const t = await getDict();
   let producer = await loadProducer(id);
-  // Gracefully fall back when VNDB is unreachable AND nothing is cached:
-  // try to derive a name from any in-collection VN that credits this
-  // producer as developer or publisher. The user still gets a page they
-  // can navigate from instead of a hard 404.
-  const itemsAsDev = listCollection({ producer: id, sort: 'updated_at' });
-  const itemsAsPub = listCollection({ publisher: id, sort: 'updated_at' });
-  // Union of in-collection VNs that credit this producer in either
-  // role. Used purely for the header "X VN" badge and the fallback
-  // when VNDB is unreachable — the dev/pub breakdown lives in the
-  // ProducerVnsSections panel below.
-  const ownedIds = new Set<string>();
-  for (const v of itemsAsDev) ownedIds.add(v.id);
-  for (const v of itemsAsPub) ownedIds.add(v.id);
+  // One focused query instead of two full `listCollection` scans:
+  // returns the in-collection vn ids credited to this producer in
+  // either role + the first row's developer/publisher arrays for the
+  // fallback name path.
+  const { ownedIds, sample: ownedSample } = producerOwnershipSummary(id);
   if (!producer) {
     const sample =
-      itemsAsDev[0]?.developers?.find((d) => d.id === id) ??
-      itemsAsPub[0]?.publishers?.find((p) => p.id === id);
+      ownedSample?.developers?.find((d) => d.id === id) ??
+      ownedSample?.publishers?.find((p) => p.id === id);
     if (!sample && ownedIds.size === 0) notFound();
     producer = {
       id,

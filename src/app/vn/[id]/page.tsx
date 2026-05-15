@@ -8,6 +8,7 @@ import {
   getSourcePref,
   isEgsOnly,
   isInCollection,
+  isInCollectionMany,
   listActivityForVn,
   listGameLogForVn,
   listListsForVn,
@@ -619,11 +620,17 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
       )}
 
       <div className="mt-6 space-y-3">
-        {vn.relations && vn.relations.length > 0 && (
-          <RelationsSection
-            relations={vn.relations.map((r) => ({ ...r, in_collection: isInCollection(r.id) }))}
-          />
-        )}
+        {vn.relations && vn.relations.length > 0 && (() => {
+          // Single IN(...) lookup beats one isInCollection() SELECT
+          // per relation. With ~30 relations this used to be 30
+          // round-trips per VN page render.
+          const ownedSet = isInCollectionMany(vn.relations.map((r) => r.id));
+          return (
+            <RelationsSection
+              relations={vn.relations.map((r) => ({ ...r, in_collection: ownedSet.has(r.id) }))}
+            />
+          );
+        })()}
         {!vn.id.startsWith('egs_') && <VndbStatusPanel vnId={vn.id} />}
         <EgsPanel
           vnId={vn.id}

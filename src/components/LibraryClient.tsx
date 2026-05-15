@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowDown, ArrowUp, Calendar, CheckSquare, ChevronDown, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, Search, Tags as TagsIcon, X } from 'lucide-react';
-import { VnCard } from './VnCard';
+import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
@@ -885,31 +885,49 @@ function Grid({
           selectable={selectMode}
           selected={selected.has(it.id)}
           onSelect={() => onToggle?.(it.id)}
-          data={{
-            id: it.id,
-            title: it.title,
-            alttitle: it.alttitle,
-            poster: it.image_url || it.image_thumb,
-            localPoster: it.local_image || it.local_image_thumb,
-            customCover: it.custom_cover,
-            sexual: it.image_sexual,
-            released: it.released,
-            egs_median: it.egs?.median ?? null,
-            egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
-            rating: it.rating,
-            user_rating: it.user_rating,
-            playtime_minutes: it.playtime_minutes,
-            length_minutes: it.length_minutes,
-            status: it.status as Status | undefined,
-            favorite: it.favorite,
-            developers: it.developers,
-            publishers: it.publishers,
-            isFanDisc: (it.relations ?? []).some((r) => r.relation === 'orig'),
-          }}
+          data={toCardData(it)}
         />
       ))}
     </div>
   );
+}
+
+/**
+ * Memoized projection from the heavy `CollectionItem` row to the
+ * `CardData` props the card actually uses. WeakMap-cached on `it`
+ * so the same input object always yields the same output object —
+ * letting `React.memo(VnCard)` skip re-rendering when only an
+ * unrelated parent state (filter query, etc.) ticks. Without this
+ * the inline `data={{...}}` rebuilt on every render defeated the
+ * memo entirely.
+ */
+const cardDataCache = new WeakMap<CollectionItem, CardData>();
+function toCardData(it: CollectionItem): CardData {
+  const cached = cardDataCache.get(it);
+  if (cached) return cached;
+  const data: CardData = {
+    id: it.id,
+    title: it.title,
+    alttitle: it.alttitle,
+    poster: it.image_url || it.image_thumb,
+    localPoster: it.local_image || it.local_image_thumb,
+    customCover: it.custom_cover,
+    sexual: it.image_sexual,
+    released: it.released,
+    egs_median: it.egs?.median ?? null,
+    egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
+    rating: it.rating,
+    user_rating: it.user_rating,
+    playtime_minutes: it.playtime_minutes,
+    length_minutes: it.length_minutes,
+    status: it.status as Status | undefined,
+    favorite: it.favorite,
+    developers: it.developers,
+    publishers: it.publishers,
+    isFanDisc: (it.relations ?? []).some((r) => r.relation === 'orig'),
+  };
+  cardDataCache.set(it, data);
+  return data;
 }
 
 interface Group {

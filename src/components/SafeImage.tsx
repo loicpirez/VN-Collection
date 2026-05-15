@@ -65,10 +65,13 @@ export function SafeImage({
 
   // Reset error / inView state when the underlying URL changes — without
   // this a recycled card in a virtualised list would inherit a stale
-  // "errored" flag from the previous VN.
+  // "errored" flag AND a stale "in view" flag from the previous VN
+  // (the previous version only reset `inView` when `priority` was set,
+  // so non-priority recycled cards eagerly loaded without the lazy
+  // gating actually firing).
   useEffect(() => {
     setErrored(false);
-    if (priority) setInView(true);
+    setInView(!!priority);
   }, [url, priority]);
 
   useEffect(() => {

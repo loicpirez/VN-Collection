@@ -41,6 +41,10 @@ const MAX_LIVE_JOBS = 200;
  */
 type Listener = () => void;
 const listeners = new Set<Listener>();
+// Sanity cap. Each SSE client adds one listener; we should never see
+// hundreds simultaneously. If we do, something leaked — drop the
+// oldest so the producer loop stays bounded.
+const MAX_LISTENERS = 100;
 
 // Coalesce bursts of mutations (e.g. hundreds of tickJob calls during
 // a bulk fan-out) into one notification per microtask, so SSE
@@ -62,6 +66,15 @@ function emit(): void {
 }
 
 export function subscribeStatus(listener: Listener): () => void {
+  // Defence against runaway listener counts (e.g. a reverse proxy
+  // that drops SSE connections without firing `abort`). Evicts the
+  // oldest subscriber rather than refusing — the producer loop
+  // running over a stale Set is more expensive than a dropped tab
+  // missing one beat.
+  if (listeners.size >= MAX_LISTENERS) {
+    const oldest = listeners.values().next().value;
+    if (oldest) listeners.delete(oldest);
+  }
   listeners.add(listener);
   return () => {
     listeners.delete(listener);

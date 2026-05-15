@@ -84,6 +84,12 @@ function note429(retryAfterMs: number): void {
   recent429s.unshift(now);
   trim429Window();
   lastRetryAfterUntil = Math.max(lastRetryAfterUntil, now + retryAfterMs);
+  // Tell the in-process pub/sub so SSE clients see the retry countdown
+  // transition without waiting for the next job tick. Imported lazily
+  // to avoid a circular dep with `download-status` consumers.
+  void import('./download-status').then((m) => m.bumpStatus()).catch(() => {
+    // Lazy import in a non-Next runtime (tests) may fail; safe to ignore.
+  });
 }
 
 async function sleep(ms: number): Promise<void> {
