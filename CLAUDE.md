@@ -172,7 +172,8 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET | `/api/vn/[id]/lists` | Lists this VN belongs to |
 | POST | `/api/egs/[id]/add` | EGS-only add → synthetic VN id `egs:<id>` + collection insert |
 | GET | `/api/egs/search?q=&limit=` | EGS candidate search (used by /search and the manual-link picker) |
-| GET | `/api/egs-cover/[id]` | Tiered cover resolver for an EGS game (302 redirect) |
+| GET | `/api/egs-cover/[id]` | Tiered cover resolver for an EGS game (proxies bytes server-side) |
+| GET | `/api/egs-cover/[id]/candidates` | Enumerate every known EGS cover source (banner, VNDB, image.php, Suruga-ya, DMM, DLsite, Gyutto) without probing — UI shows them side-by-side |
 | GET | `/api/route/[routeId]` / PATCH / DELETE | Per-route management |
 | GET/POST/PATCH | `/api/collection/[id]/routes` | Per-VN routes (autocomplete from cast) |
 | GET / POST | `/api/lists` | List / create user lists |
@@ -321,6 +322,21 @@ response (CSV) in the shared `vndb_cache` table.
   early-return `[]` for any id not starting with `v` so server pages
   render cleanly for EGS-only entries.
 - `loadVn()` on `/vn/[id]` skips the VNDB refresh for `isEgsOnly(id)` VNs.
+
+### Synthetic release ids (`synthetic:<vnId>`)
+
+- Used by the shelf adder when a VN has **zero** rows in
+  `POST /release` (the common case for `egs:*` VNs, occasionally for
+  `v*` VNs as well). Lets the user shelve a "Main edition" without a
+  real release id.
+- Validated in `/api/collection/[id]/owned-releases` via
+  `validateReleaseId(raw, vnId)` — accepts either `r\d+` (case-
+  insensitive, lowercased) or the literal `synthetic:<vnId>` for the
+  current VN. Reject everything else.
+- `/shelf` detects `release_id.startsWith('synthetic:')` and renders
+  plain text instead of a broken `/release/[id]` link.
+- All other owned-release columns (location, condition, currency,
+  dumped flag) work identically.
 
 ### Per-field source preference
 

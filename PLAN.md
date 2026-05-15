@@ -368,6 +368,83 @@ batch threads the distinction through every surface.
 
 ---
 
+## Batch G — seiyuu thumbs, shelf tabs, EGS parity, dumped page (2026-05-15) — shipped ✅
+
+### G.1 Seiyuu page character thumbnails
+
+- `listStaffVaCredits()` now `LEFT JOIN`s `character_image` so each
+  voiced character carries `local_image`.
+- `/staff/[id]` Voice section renders each VN as a full `VnCard` with
+  the character thumbs inline beneath. Synthetic `egs:*` cards
+  suppress the VNDB external link button.
+- One-click jump from a character thumb to `/character/[id]`.
+
+### G.2 Shelf — per-release vs per-VN tabs
+
+- `/shelf?view=release|item` toggle. Per-item is the original card-
+  per-edition view. Per-VN collapses multiple editions of the same
+  VN into a single card with edition count + distinct locations +
+  per-currency totals.
+- Currency rendering switched to `Intl.NumberFormat(locale, {style:
+  'currency', currency})` so JPY → ¥, EUR → €, USD → $.
+- Multi-tag physical locations render the secondary tags as a
+  smaller second line (e.g. *Living room · Shelf B · Floor 2 · Row 3*).
+
+### G.3 Synthetic releases for EGS-only / no-release VNs
+
+- New release id shape `synthetic:<vnId>` accepted by
+  `/api/collection/[id]/owned-releases` via `validateReleaseId` —
+  either a real `r\d+` or the literal `synthetic:<vnId>` for the
+  current VN. Rejects everything else.
+- `OwnedEditionsSection` shows a "Main edition" synthetic tile in
+  the adder when `releases.length === 0`.
+- Shelf detects `release_id.startsWith('synthetic:')` and renders
+  plain text instead of a broken `/release/[id]` link. Synthetic
+  rows still carry an "EGS" chip when the VN is EGS-only.
+
+### G.4 Multi-source EGS cover picker
+
+- New endpoint `GET /api/egs-cover/[id]/candidates` enumerates every
+  known source — banner_url, linked VNDB cover, `image.php`,
+  Suruga-ya, DMM, DLsite, Gyutto — **without probing** (keeps the
+  response fast and stateless).
+- `CoverSourcePicker` EGS tab now embeds `<EgsCandidateGrid>` —
+  side-by-side tiles, each one a one-click "pin as `custom_cover`"
+  via `POST /api/collection/[id]/cover {source:'url', value:<absolute>}`.
+- "Use EGS auto" button preserves the original priority-fallback
+  resolver behavior for users who want it.
+- SSRF allowlist updated: `www.suruga-ya.jp` added (was `.com`,
+  mismatched the shop URLs the candidates endpoint actually generates).
+
+### G.5 `/dumped` management page
+
+- `listDumpStatus()` + `getDumpSummary()` aggregation helpers in
+  `lib/db.ts`. Returns per-VN dumped/total edition counts +
+  global completion %.
+- `/dumped` renders a stats grid (total editions, dumped editions,
+  fully-dumped VNs, completion %) with a top progress bar and a card
+  per VN with its dumped ratio + mini progress bar. Fully-dumped
+  VNs flagged with a green border + checkmark.
+
+### G.6 `/egs` page parallel to `/steam`
+
+- New page at `src/app/egs/page.tsx` mirroring `/steam`. Lists every
+  EGS-linked VN in the collection with EGS median, EGS playtime,
+  resolution source (`auto` / `manual` / `search`), plus the
+  `EgsSyncBlock` for bulk pull.
+- Wired into `MoreNavMenu` Insights group alongside `/steam`.
+- Wired into the `/data` page EGS section with an "Open EGS" CTA.
+
+### G.7 Data page — emojis → lucide icons + Selective full download surface
+
+- All section headers on `/data` use lucide icons (`QrCode`,
+  `Gamepad2`, `BookMarked`, `HardDriveDownload`, `Sparkles`).
+- Selective full download remains on `/data` under its own
+  section with a `Download` icon — earlier hidden visually
+  because it lacked a header icon.
+
+---
+
 ## Future / backlog
 
 Items that have been sketched but not started:

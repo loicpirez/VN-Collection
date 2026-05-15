@@ -141,7 +141,7 @@ Optimistic update with rollback on error.
 `CoverSourcePicker` is a modal triggered from the VN detail action bar
 that lets the user pick the cover from three categorical sources:
   1. **VNDB** — `DELETE /api/collection/[id]/cover` (revert to default).
-  2. **EGS** — `POST {source:'url', value:'/api/egs-cover/<egs_id>'}`.
+  2. **EGS** — multi-source picker (see below).
   3. **Custom** — file upload (multipart), URL input, *or* pick from
      a thumbnail grid of every screenshot + per-release artwork
      attached to this VN (each tile is a one-click "set as cover").
@@ -149,6 +149,25 @@ that lets the user pick the cover from three categorical sources:
 The current pick is ring-highlighted so it's obvious which image is
 live. Initial tab is inferred from `currentCustomCover` (EGS URL →
 EGS tab, anything else → Custom tab, null → VNDB tab).
+
+#### Multi-source EGS cover picker ✅
+The EGS tab no longer locks you into the resolver's priority chain.
+It calls `GET /api/egs-cover/<id>/candidates` and renders **every**
+known source side-by-side as clickable tiles:
+- **EGS banner** — curated `gamelist.banner_url`.
+- **VNDB** — the upstream VNDB poster when EGS knows the linked
+  `vndb_id` for this game.
+- **EGS image.php** — EGS's own image redirector.
+- **Suruga-ya / DMM / DLsite / Gyutto** — shop variants whenever the
+  EGS row carries that store id.
+
+The candidates route does **no probing** (HEAD requests would
+quadruple latency); the UI lazy-loads each tile and the `<img onError>`
+hook surfaces 404s. Clicking a tile calls
+`POST /api/collection/[id]/cover {source:'url', value:<absolute>}` so
+the chosen source is pinned as `custom_cover` and survives refresh /
+global cache busts. A separate **"Use EGS auto"** button restores the
+priority-fallback default if the user wants the resolver's pick.
 
 ---
 
@@ -267,6 +286,15 @@ auto-downloads the full VNDB credit list (every VN + character that
 person worked on, cached 30 days) and surfaces the ones outside your
 collection under a "More credits" section. The download streams in
 behind a `<Suspense>` skeleton — locally-known credits paint instantly.
+
+The **Voice (seiyuu) section** on `/staff/[id]` renders each VN as a
+full **VnCard** (poster, title, owned-chip if in collection, external
+links to VNDB and EGS) — same component the library and producer
+pages use — with the **character thumbnails** the seiyuu voiced
+inline underneath each card. Thumbs come from
+`character_image.local_path` joined into `listStaffVaCredits`. Tap a
+character thumb to jump to `/character/[id]`. Synthetic `egs:*` VN
+cards suppress the VNDB external-link button (no `v` id to link).
 
 ### Series auto-detect ✅
 When the VN's VNDB relations include other in-collection entries, the
@@ -572,6 +600,25 @@ SQL form scraping for scores, playtime medians, brand, genre, comments.
 Typed `EgsUnreachable` error (network / server / throttled / blocked)
 propagates to the UI so transient outages don't wipe matched rows.
 
+### EGS as first-class peer of Steam ✅
+ErogameScape is wired with the same UX patterns as Steam:
+
+| Surface | Steam | EGS |
+| --- | --- | --- |
+| Dedicated landing page | `/steam` | `/egs` |
+| Sync block | inline on `/steam` + `/data` | inline on `/egs` + `/data` |
+| Nav entry | Insights group | Insights group (`nav.egs`) |
+| Synthetic VN ids | n/a — Steam links to existing `v\d+` | `egs:<id>` — coexists everywhere |
+| Sort key | `steam_playtime` | `egs_playtime` |
+| Field-source toggle | n/a | per-field (description, cover, brand) |
+
+`/egs` lists every EGS-linked VN in your collection with its EGS
+median, EGS playtime, source provenance (`auto` / `manual` / `search`),
+and a chevron-out link to the upstream EGS page. Includes the
+`EgsSyncBlock` (bulk-pull user reviews + playtime medians) and the
+same "Open EGS" CTA from `/data` for parity with the Steam settings
+block.
+
 ### Steam playtime sync ✅
 `/steam` pulls your Steam library via the Web API. Three sections:
 
@@ -622,7 +669,7 @@ The top nav has four always-visible primary links (Library / Wishlist /
 Lists / Search) plus three category dropdowns:
   - **Discover** — Upcoming, For you, Quotes
   - **Browse** — Producers, Series, Tags, Traits, Year, Labels
-  - **Data & Stats** — Stats, Shelf, Steam, Data
+  - **Data & Stats** — Stats, Shelf, Steam, EGS, Data
 
 The right edge carries the closed-eye content-controls hub, the
 language switcher and the settings gear — all three remain visible
@@ -730,6 +777,45 @@ boxes for instant lookup.
 Each card shows the cover, edition label, box type, condition,
 dumped flag, and `price_paid`. The header sums totals per currency
 and per location.
+
+Two view modes via `?view=release|item`:
+- **Per-item** (default) — every owned edition is its own card.
+  Useful for "which copy is in box vs. shelf" workflows. Multi-tag
+  physical locations render the secondary tags as a smaller line so
+  *Living room · Shelf B · Floor 2 · Row 3* is visible at a glance.
+- **Per-VN** — collapses multiple editions of the same VN into a
+  single card with the edition count, the *set* of distinct
+  locations, and per-currency totals summed across editions. Money
+  is rendered with `Intl.NumberFormat` so JPY → ¥, EUR → €, USD → $.
+
+### Synthetic releases for EGS-only VNs ✅
+VNs missing from VNDB's release index (`v.*` rows with no rows in
+`POST /release`, plus every `egs:*` synthetic VN) can still be
+shelved through a `synthetic:<vnId>` release id. The inventory
+adder shows a "Main edition" tile when no real releases exist; the
+API route `/api/collection/[id]/owned-releases` accepts the
+synthetic id alongside the regular `r\d+` shape. The shelf renders
+a "EGS" / "Main edition" chip in place of the broken
+`/release/[id]` link — every other owned-release field (location,
+condition, price, dumped flag) works the same.
+
+### Dump tracking — `/dumped` ✅
+Dedicated management page that surfaces dump-completion progress
+across the whole collection. Top stats grid:
+
+| Stat | Source |
+| --- | --- |
+| Total editions | `SUM(total_editions)` across all VNs |
+| Dumped editions | `SUM(dumped_editions)` (`owned_release.is_dumped = 1`) |
+| Fully dumped VNs | rows where `dumped_editions = total_editions > 0` |
+| Completion % | `SUM(dumped) / SUM(total) * 100` |
+
+Below the stats, one card per VN with the dumped-editions ratio,
+a mini progress bar, and a "fully done" badge when the count
+matches. Companion to `/producers?tab=completion` — answers
+"how complete is my archive?" the same way completion %
+answers "how thoroughly have I read this developer?".
+Helpers: `listDumpStatus()` / `getDumpSummary()` in `lib/db.ts`.
 
 ### Insurance / value tracking ✅
 Same `/shelf` page — `owned_release.price_paid` + `currency` per row,

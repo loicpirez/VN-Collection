@@ -26,10 +26,25 @@ ingested, cached locally, and can be combined or compared per-field.
   personal rating (10–100), playtime, started / finished dates, favorite,
   "dumped" flag, free-form download URL
 - **Per-edition inventory** — every `owned_release` row tracks location,
-  physical location (multi-tag), box type, edition label, condition
-  (sealed / new / opened / used / damaged), price paid + currency,
-  acquired date, **purchase place** (store / URL / second-hand vendor),
-  dumped state, and notes — independently of the VN-level status
+  physical location (multi-tag, e.g. *Living room · Shelf B · Floor 2
+  · Row 3*), box type, edition label, condition (sealed / new /
+  opened / used / damaged), price paid + currency, acquired date,
+  **purchase place** (store / URL / second-hand vendor), dumped
+  state, and notes — independently of the VN-level status
+- **Synthetic releases for EGS-only / no-release VNs** — games VNDB
+  doesn't list a release for (typically `egs:*` entries) can still be
+  shelved: the inventory adder shows a "Main edition" synthetic tile
+  (`release_id = synthetic:<vnId>`). All owned-release plumbing
+  (locations, currency, dumped state, shelf grouping) works the same
+  way as for VNDB releases; the only difference is no clickable
+  `/release/[id]` link.
+- **Shelf has per-release and per-VN tabs** — `/shelf` switches between
+  two views via `?view=release|item`. *Per-item* lists every owned
+  edition (the original behavior — useful for "which copy is in box
+  vs shelf"). *Per-VN* collapses multiple editions of the same VN
+  into a single card with the edition count, the set of distinct
+  locations, and the summed currency totals. Money is rendered with
+  `Intl.NumberFormat` so JPY shows as ¥, EUR as €, etc.
 - **Routes** — heroine / branch tracker with autocomplete from the VN's
   main / primary cast, completion checkboxes, and reorderable list
 - **Markdown notes** (GFM, tables, code blocks) for personal reviews
@@ -79,6 +94,12 @@ ingested, cached locally, and can be combined or compared per-field.
   appears only under the Publishers tab. Logo upload + average
   rating per role.
 - Character pages — metadata, traits, every VN they appear in
+- **Staff / seiyuu pages** (`/staff/[id]`) — every credit grouped by
+  role. The Voice section renders each VN as a full **VnCard**
+  (owned chip, VNDB / EGS external links) with the character
+  thumbnails the seiyuu voiced inline under the card. Tap a
+  character thumb to jump to `/character/[id]`. Makes "what does
+  Sumire Uesaka sound like in *this* role" a one-click lookup.
 - Tag & trait browsers — trait page has an "In my collection" toggle
 - Release listings per VN — package artwork, languages with mtl flag,
   voiced level, GTIN / catalog, all extlinks
@@ -116,6 +137,15 @@ ingested, cached locally, and can be combined or compared per-field.
   Retry-After).
 
 ### ErogameScape integration
+EGS is wired as a **first-class peer of Steam**: dedicated landing page,
+sync block, manage UI, and synthetic VN ids so EGS-only games coexist
+alongside VNDB-sourced ones across the whole app (library, lists,
+recommendations, shelf, dumped, stats).
+
+- **`/egs` page** mirrors `/steam` exactly — shows every EGS-linked VN
+  in your collection with its EGS median, EGS playtime, source
+  (auto-resolved via extlink vs fuzzy / manual / search), plus the
+  EGS sync block (pull user reviews / playtime in bulk).
 - Public SQL form at `sql_for_erogamer_form.php` — POSTs SQL, parses the
   returned HTML table. No API key needed.
 - Auto-resolve via VNDB release extlinks (every release's `extlinks` is
@@ -183,6 +213,14 @@ ingested, cached locally, and can be combined or compared per-field.
   failures don't break the browser fetch. Negative cache TTL of 1 h
   so a freshly-published cover surfaces within an hour; the global
   refresh busts the cache.
+- **Multi-source EGS cover picker** — the cover picker's EGS tab no
+  longer locks you into the resolver's first choice. It calls
+  `/api/egs-cover/<id>/candidates` and renders **every** known source
+  side-by-side (banner_url, linked VNDB poster, EGS `image.php`,
+  Suruga-ya, DMM, DLsite, Gyutto) as clickable tiles. Pick the
+  prettiest one and it's pinned as `custom_cover` (survives refresh
+  and global cache busts). "Use EGS auto" stays available for the
+  original priority-fallback behavior.
 - **Anticipated covers via VNDB** — `/upcoming?tab=anticipated`
   batches one VNDB call for every anticipated row carrying a
   `vndb_id`, then renders the high-quality VNDB poster directly.
@@ -232,6 +270,16 @@ ingested, cached locally, and can be combined or compared per-field.
 - EGS aggregates: matched count, average EGS median across the
   collection, sum of EGS playtimes, `total = mine + EGS`
 - Global VNDB counters
+
+### Dump tracking
+- **`/dumped` page** — dedicated management view for backup /
+  archival progress. Top: global stats grid (total editions, dumped
+  editions, fully-dumped VNs, completion %) with a progress bar.
+  Below: a card per VN showing its dumped-editions ratio (e.g.
+  *2 / 3*) and a mini progress bar, with fully-dumped VNs visually
+  flagged. Companion to the existing per-edition `is_dumped` flag
+  in `owned_release` — gives the same "how complete is my archive?"
+  signal as the editor / producer completion pages.
 
 ### Backup & migration
 - **Export**: full collection as JSON (versioned schema)

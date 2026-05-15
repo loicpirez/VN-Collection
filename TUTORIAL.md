@@ -100,7 +100,12 @@ Sections from top to bottom:
       thumbnail grid built from every screenshot + per-release
       artwork attached to this VN.
     - **VNDB** — revert to the upstream default.
-    - **EGS** — use the cover served by `/api/egs-cover/[id]`.
+    - **EGS** — pick from **every** cover source EGS knows about,
+      side-by-side: banner_url, the linked VNDB poster, EGS's own
+      `image.php`, plus shop covers (Suruga-ya / DMM / DLsite /
+      Gyutto). Click a tile to pin that exact source as your
+      custom cover — survives refresh. A separate "Use EGS auto"
+      button keeps the original priority-fallback behavior.
 6. **Pomodoro timer** + **Game log** — `SessionPanel` hosts both side
    by side. Start a 25-min reading session; on stop, prompt to merge
    the elapsed minutes into `playtime_minutes`. The Pomodoro publishes
@@ -250,6 +255,13 @@ Tabbed-style sections:
 - **Recent activity** — last 10 actions across the whole collection.
 - **Steam / EGS sync** — paste credentials, pull playtime + scores
   into local rows. Sync shows up as a tracked job in the download bar.
+  Dedicated landing pages live at `/steam` and `/egs` — same UX
+  pattern (manage links, see linked games at a glance). The
+  `/data` EGS section has "Open EGS" CTA that jumps to the
+  dedicated page.
+- **Dumped** — `/dumped` shows your archival-completion ratio
+  globally and per-VN (mini progress bars + fully-dumped chips).
+  Companion to the editor / producer completion pages.
 - **Selective full download** — checkbox picker with Select all /
   Select none / Invert. Pick which VNs to fan-out staff /
   characters / developers for. Rate-limited by the global throttle.
@@ -268,6 +280,10 @@ Tabbed-style sections:
 - `/staff/[id]` — production credits grouped by role + voice credits
   with character thumbs. **VA timeline heatmap** above the credit list
   charts credit count per year, with collection ownership highlighted.
+  The Voice section renders each VN as a full library-style card
+  (with owned-chip + VNDB / EGS external links) and embeds the
+  thumbnails of the **characters** this seiyuu voiced inline
+  underneath — one click on a face jumps to `/character/[id]`.
   On first visit the page auto-fetches the **full VNDB credit list** for
   this person (cached 30 days) and adds a "More credits (outside your
   collection)" section streamed in behind a skeleton.
@@ -320,7 +336,7 @@ dropdowns:
 - **Primary** — Library, Wishlist, Lists, Search
 - **Discover** — Upcoming, For you, Quotes
 - **Browse** — Producers, Series, Tags, Traits, Year, Labels
-- **Data & Stats** — Stats, Shelf, Steam, Data
+- **Data & Stats** — Stats, Shelf, Steam, EGS, Data
 
 On phones / narrow windows the whole nav collapses into a single
 hamburger sheet. The **closed-eye icon** (content-controls hub),
