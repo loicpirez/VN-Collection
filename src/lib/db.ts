@@ -293,6 +293,34 @@ function open(): Database.Database {
       updated_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_steam_link_appid ON steam_link(appid);
+
+    -- Physical shelf units: a named row × column grid the user lays out
+    -- in /shelf?view=layout. Each owned edition can occupy one slot.
+    CREATE TABLE IF NOT EXISTS shelf_unit (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT NOT NULL,
+      cols        INTEGER NOT NULL DEFAULT 8,
+      rows        INTEGER NOT NULL DEFAULT 4,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      created_at  INTEGER NOT NULL,
+      updated_at  INTEGER NOT NULL
+    );
+
+    -- Sparse placement table: a row exists only for occupied slots.
+    -- UNIQUE on (vn_id, release_id) enforces "one slot per edition";
+    -- the composite PK enforces "one edition per slot".
+    CREATE TABLE IF NOT EXISTS shelf_slot (
+      shelf_id   INTEGER NOT NULL REFERENCES shelf_unit(id) ON DELETE CASCADE,
+      row        INTEGER NOT NULL,
+      col        INTEGER NOT NULL,
+      vn_id      TEXT NOT NULL,
+      release_id TEXT NOT NULL,
+      placed_at  INTEGER NOT NULL,
+      PRIMARY KEY (shelf_id, row, col),
+      UNIQUE (vn_id, release_id),
+      FOREIGN KEY (vn_id, release_id) REFERENCES owned_release(vn_id, release_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_shelf_slot_item ON shelf_slot(vn_id, release_id);
   `);
 
   ensureColumn(db, 'vn', 'screenshots', 'TEXT');
@@ -2830,6 +2858,345 @@ export function getDumpSummary(): DumpSummary {
     fullyDumpedVns,
     editionPct,
   };
+}
+
+/**
+ * One row per user-defined physical shelf. `cols` × `rows` defines the
+ * 2-D grid the layout editor renders; placed editions live in
+ * `shelf_slot`. `order_index` controls the tab order on `/shelf`.
+ */
+export interface ShelfUnit {
+  id: number;
+  name: string;
+  cols: number;
+  rows: number;
+  order_index: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ShelfUnitWithCount extends ShelfUnit {
+  placed_count: number;
+}
+
+const SHELF_MIN = 1;
+const SHELF_MAX = 30;
+
+function clampShelfDim(n: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(SHELF_MIN, Math.min(SHELF_MAX, Math.floor(n)));
+}
+
+export function listShelves(): ShelfUnitWithCount[] {
+  return db
+    .prepare(`
+      SELECT u.*,
+             (SELECT COUNT(*) FROM shelf_slot s WHERE s.shelf_id = u.id) AS placed_count
+      FROM shelf_unit u
+      ORDER BY u.order_index ASC, u.id ASC
+    `)
+    .all() as ShelfUnitWithCount[];
+}
+
+export function getShelf(id: number): ShelfUnit | null {
+  const row = db.prepare('SELECT * FROM shelf_unit WHERE id = ?').get(id) as ShelfUnit | undefined;
+  return row ?? null;
+}
+
+export function createShelf(input: {
+  name: string;
+  cols?: number;
+  rows?: number;
+}): ShelfUnit {
+  const name = input.name.trim();
+  if (!name) throw new Error('shelf name required');
+  const cols = clampShelfDim(input.cols ?? 8, 8);
+  const rows = clampShelfDim(input.rows ?? 4, 4);
+  const now = Date.now();
+  const maxOrder = db.prepare('SELECT COALESCE(MAX(order_index), -1) AS o FROM shelf_unit').get() as { o: number };
+  const info = db
+    .prepare(
+      `INSERT INTO shelf_unit (name, cols, rows, order_index, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(name, cols, rows, maxOrder.o + 1, now, now);
+  return getShelf(Number(info.lastInsertRowid))!;
+}
+
+export function renameShelf(id: number, name: string): ShelfUnit | null {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('shelf name required');
+  const info = db
+    .prepare('UPDATE shelf_unit SET name = ?, updated_at = ? WHERE id = ?')
+    .run(trimmed, Date.now(), id);
+  return info.changes ? getShelf(id) : null;
+}
+
+export interface ShelfResizeResult {
+  shelf: ShelfUnit;
+  /** Slots that fell outside the new bounds and were sent back to the pool. */
+  evicted: Array<{ vn_id: string; release_id: string; row: number; col: number }>;
+}
+
+/**
+ * Resize a shelf. Slots that fall outside the new (cols × rows) bounds
+ * are evicted back to the unplaced pool — we surface them in the
+ * response so the UI can tell the user what moved. No silent data loss.
+ */
+export function resizeShelf(id: number, cols: number, rows: number): ShelfResizeResult | null {
+  const shelf = getShelf(id);
+  if (!shelf) return null;
+  const nextCols = clampShelfDim(cols, shelf.cols);
+  const nextRows = clampShelfDim(rows, shelf.rows);
+  const evicted = db
+    .prepare(
+      'SELECT vn_id, release_id, row, col FROM shelf_slot WHERE shelf_id = ? AND (row >= ? OR col >= ?)',
+    )
+    .all(id, nextRows, nextCols) as Array<{ vn_id: string; release_id: string; row: number; col: number }>;
+  const tx = db.transaction(() => {
+    db.prepare(
+      'DELETE FROM shelf_slot WHERE shelf_id = ? AND (row >= ? OR col >= ?)',
+    ).run(id, nextRows, nextCols);
+    db.prepare(
+      'UPDATE shelf_unit SET cols = ?, rows = ?, updated_at = ? WHERE id = ?',
+    ).run(nextCols, nextRows, Date.now(), id);
+  });
+  tx();
+  return { shelf: getShelf(id)!, evicted };
+}
+
+export function deleteShelf(id: number): boolean {
+  const info = db.prepare('DELETE FROM shelf_unit WHERE id = ?').run(id);
+  return info.changes > 0;
+}
+
+export function reorderShelves(orderedIds: number[]): void {
+  const upd = db.prepare('UPDATE shelf_unit SET order_index = ?, updated_at = ? WHERE id = ?');
+  const now = Date.now();
+  const tx = db.transaction(() => {
+    orderedIds.forEach((id, i) => upd.run(i, now, id));
+  });
+  tx();
+}
+
+export interface ShelfSlotEntry {
+  shelf_id: number;
+  row: number;
+  col: number;
+  vn_id: string;
+  release_id: string;
+  vn_title: string;
+  vn_image_thumb: string | null;
+  vn_image_url: string | null;
+  vn_local_image_thumb: string | null;
+  vn_image_sexual: number | null;
+  edition_label: string | null;
+  box_type: string;
+  condition: string | null;
+  dumped: boolean;
+}
+
+export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
+  const rows = db
+    .prepare(`
+      SELECT s.shelf_id, s.row, s.col, s.vn_id, s.release_id,
+             v.title          AS vn_title,
+             v.image_thumb    AS vn_image_thumb,
+             v.image_url      AS vn_image_url,
+             v.local_image_thumb AS vn_local_image_thumb,
+             v.image_sexual   AS vn_image_sexual,
+             o.edition_label  AS edition_label,
+             o.box_type       AS box_type,
+             o.condition      AS condition,
+             o.dumped         AS dumped
+      FROM shelf_slot s
+      JOIN owned_release o ON o.vn_id = s.vn_id AND o.release_id = s.release_id
+      JOIN vn v ON v.id = s.vn_id
+      WHERE s.shelf_id = ?
+    `)
+    .all(shelfId) as Array<Omit<ShelfSlotEntry, 'dumped' | 'box_type'> & { dumped: number | null; box_type: string | null }>;
+  return rows.map((r) => ({
+    ...r,
+    dumped: !!r.dumped,
+    box_type: r.box_type ?? 'none',
+  }));
+}
+
+/**
+ * The pool of owned editions that aren't yet placed on any shelf.
+ * Joined with VN display data so the layout editor can render rich
+ * cards without a second round-trip.
+ */
+export function listUnplacedOwnedReleases(): ShelfEntry[] {
+  const rows = db
+    .prepare(`
+      SELECT o.*,
+             v.title             AS vn_title,
+             v.image_thumb       AS vn_image_thumb,
+             v.image_url         AS vn_image_url,
+             v.local_image_thumb AS vn_local_image_thumb,
+             v.image_sexual      AS vn_image_sexual
+      FROM owned_release o
+      JOIN vn v ON v.id = o.vn_id
+      WHERE NOT EXISTS (
+        SELECT 1 FROM shelf_slot s
+        WHERE s.vn_id = o.vn_id AND s.release_id = o.release_id
+      )
+      ORDER BY v.title COLLATE NOCASE ASC
+    `)
+    .all() as Array<OwnedReleaseDbRow & {
+      vn_title: string;
+      vn_image_thumb: string | null;
+      vn_image_url: string | null;
+      vn_local_image_thumb: string | null;
+      vn_image_sexual: number | null;
+    }>;
+  return rows.map((r) => ({
+    ...mapOwnedReleaseRow(r),
+    vn_title: r.vn_title,
+    vn_image_thumb: r.vn_image_thumb,
+    vn_image_url: r.vn_image_url,
+    vn_local_image_thumb: r.vn_local_image_thumb,
+    vn_image_sexual: r.vn_image_sexual,
+  }));
+}
+
+export interface PlaceShelfItemInput {
+  shelfId: number;
+  row: number;
+  col: number;
+  vnId: string;
+  releaseId: string;
+}
+
+export interface PlaceShelfItemResult {
+  /** When the target slot was occupied AND the source had a prior slot, the previous tenant gets moved to the source slot — a swap. Otherwise this is null. */
+  swapped: { vn_id: string; release_id: string; row: number; col: number } | null;
+}
+
+/**
+ * Place an owned edition into a specific (row, col) slot on a shelf.
+ *
+ * - If the target slot is empty: removes any prior placement of the
+ *   item and inserts at (row, col).
+ * - If the target slot is occupied AND the moving item had a previous
+ *   slot on the SAME shelf: swap the two items (atomic).
+ * - If the target slot is occupied AND the moving item came from the
+ *   pool (or a different shelf): the occupant is evicted to the pool.
+ *
+ * Every branch runs in one transaction so the UI never sees a torn
+ * state. Throws if the slot is out of bounds for the shelf.
+ */
+export function placeShelfItem(input: PlaceShelfItemInput): PlaceShelfItemResult {
+  const shelf = getShelf(input.shelfId);
+  if (!shelf) throw new Error('shelf not found');
+  if (input.row < 0 || input.row >= shelf.rows) throw new Error('row out of bounds');
+  if (input.col < 0 || input.col >= shelf.cols) throw new Error('col out of bounds');
+
+  const owned = db
+    .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
+    .get(input.vnId, input.releaseId);
+  if (!owned) throw new Error('owned edition not found');
+
+  let swapped: PlaceShelfItemResult['swapped'] = null;
+  const tx = db.transaction(() => {
+    const prior = db
+      .prepare(
+        'SELECT shelf_id, row, col FROM shelf_slot WHERE vn_id = ? AND release_id = ?',
+      )
+      .get(input.vnId, input.releaseId) as
+      | { shelf_id: number; row: number; col: number }
+      | undefined;
+
+    const occupant = db
+      .prepare(
+        'SELECT vn_id, release_id FROM shelf_slot WHERE shelf_id = ? AND row = ? AND col = ?',
+      )
+      .get(input.shelfId, input.row, input.col) as
+      | { vn_id: string; release_id: string }
+      | undefined;
+
+    // Identical no-op (drag and drop onto the same slot).
+    if (
+      occupant &&
+      occupant.vn_id === input.vnId &&
+      occupant.release_id === input.releaseId
+    ) {
+      return;
+    }
+
+    // Always clear both ends first so the UNIQUE constraints don't
+    // refuse the inserts.
+    db.prepare(
+      'DELETE FROM shelf_slot WHERE shelf_id = ? AND row = ? AND col = ?',
+    ).run(input.shelfId, input.row, input.col);
+    db.prepare(
+      'DELETE FROM shelf_slot WHERE vn_id = ? AND release_id = ?',
+    ).run(input.vnId, input.releaseId);
+
+    db.prepare(
+      `INSERT INTO shelf_slot (shelf_id, row, col, vn_id, release_id, placed_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(
+      input.shelfId,
+      input.row,
+      input.col,
+      input.vnId,
+      input.releaseId,
+      Date.now(),
+    );
+
+    // Swap-back: if the moving item used to live on a slot AND the
+    // target had an occupant, drop the occupant into the now-empty
+    // source slot so nothing is evicted to the pool.
+    if (occupant && prior) {
+      db.prepare(
+        `INSERT INTO shelf_slot (shelf_id, row, col, vn_id, release_id, placed_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      ).run(
+        prior.shelf_id,
+        prior.row,
+        prior.col,
+        occupant.vn_id,
+        occupant.release_id,
+        Date.now(),
+      );
+      swapped = {
+        vn_id: occupant.vn_id,
+        release_id: occupant.release_id,
+        row: prior.row,
+        col: prior.col,
+      };
+    }
+  });
+  tx();
+  return { swapped };
+}
+
+/** Remove an edition's placement (returns it to the unplaced pool). */
+export function removeShelfPlacement(vnId: string, releaseId: string): boolean {
+  const info = db
+    .prepare('DELETE FROM shelf_slot WHERE vn_id = ? AND release_id = ?')
+    .run(vnId, releaseId);
+  return info.changes > 0;
+}
+
+/** Where (if anywhere) a specific edition currently lives. */
+export function getShelfPlacementForEdition(
+  vnId: string,
+  releaseId: string,
+): { shelf_id: number; shelf_name: string; row: number; col: number } | null {
+  const row = db
+    .prepare(`
+      SELECT s.shelf_id, u.name AS shelf_name, s.row, s.col
+      FROM shelf_slot s
+      JOIN shelf_unit u ON u.id = s.shelf_id
+      WHERE s.vn_id = ? AND s.release_id = ?
+    `)
+    .get(vnId, releaseId) as
+    | { shelf_id: number; shelf_name: string; row: number; col: number }
+    | undefined;
+  return row ?? null;
 }
 
 export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {

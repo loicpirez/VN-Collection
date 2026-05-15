@@ -1,13 +1,19 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, ArrowDown, Box, Coins, Layers, Library, Package } from 'lucide-react';
-import { listAllOwnedReleases, type ShelfEntry } from '@/lib/db';
+import { ArrowLeft, ArrowDown, Box, Coins, Layers, LayoutGrid, Library, Package } from 'lucide-react';
+import {
+  listAllOwnedReleases,
+  listShelves,
+  listUnplacedOwnedReleases,
+  type ShelfEntry,
+} from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { ShelfLayoutEditor } from '@/components/ShelfLayoutEditor';
 
 export const dynamic = 'force-dynamic';
 
-type ShelfView = 'release' | 'item';
+type ShelfView = 'release' | 'item' | 'layout';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -48,7 +54,8 @@ export default async function ShelfPage({
   const t = await getDict();
   const locale = await getLocale();
   const { view: viewRaw } = await searchParams;
-  const view: ShelfView = viewRaw === 'item' ? 'item' : 'release';
+  const view: ShelfView =
+    viewRaw === 'item' ? 'item' : viewRaw === 'layout' ? 'layout' : 'release';
   const items = listAllOwnedReleases();
 
   // Per-item view collapses multiple owned releases for the same VN
@@ -174,6 +181,13 @@ export default async function ShelfPage({
             >
               {t.shelf.viewItem}
             </TabLink>
+            <TabLink
+              href="/shelf?view=layout"
+              active={view === 'layout'}
+              icon={<LayoutGrid className="h-3.5 w-3.5" />}
+            >
+              {t.shelf.viewLayout}
+            </TabLink>
           </div>
 
           {view === 'release' &&
@@ -271,6 +285,21 @@ export default async function ShelfPage({
                 </section>
               );
             })}
+
+          {view === 'layout' && (
+            <>
+              <header className="mb-3 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+                <h2 className="inline-flex items-center gap-2 text-base font-bold">
+                  <LayoutGrid className="h-5 w-5 text-accent" aria-hidden /> {t.shelfLayout.title}
+                </h2>
+                <p className="mt-1 text-xs text-muted">{t.shelfLayout.subtitle}</p>
+              </header>
+              <ShelfLayoutEditor
+                initialShelves={listShelves()}
+                initialUnplaced={listUnplacedOwnedReleases()}
+              />
+            </>
+          )}
 
           {view === 'item' && (
             <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">

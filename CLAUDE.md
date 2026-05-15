@@ -180,6 +180,14 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET / PATCH / DELETE | `/api/lists/[id]` | List CRUD |
 | POST / DELETE | `/api/lists/[id]/items` | Add / remove / reorder list members |
 | POST | `/api/refresh/global` | Bust EGS cover cache + re-fetch page-level caches |
+| GET | `/api/shelves[?pool=1]` | List shelves; `?pool=1` also returns the unplaced editions |
+| POST | `/api/shelves` | Create a shelf `{name, cols?, rows?}` |
+| PATCH | `/api/shelves` | Reorder `{order: id[]}` |
+| GET | `/api/shelves/[id]` | Shelf + every placed slot (joined with VN + owned-release display data) |
+| PATCH | `/api/shelves/[id]` | Rename `{name}` and/or resize `{cols?, rows?}`. Resize returns `evicted[]` so the UI can warn |
+| DELETE | `/api/shelves/[id]` | Delete a shelf; slots cascade to the unplaced pool |
+| POST | `/api/shelves/[id]/slots` | Place an owned edition at `(row, col)` — atomic swap if both ends are slots |
+| DELETE | `/api/shelves/[id]/slots` | Return an edition to the unplaced pool |
 
 ---
 
@@ -322,6 +330,24 @@ response (CSV) in the shared `vndb_cache` table.
   early-return `[]` for any id not starting with `v` so server pages
   render cleanly for EGS-only entries.
 - `loadVn()` on `/vn/[id]` skips the VNDB refresh for `isEgsOnly(id)` VNs.
+
+### Shelf layout (`shelf_unit` + `shelf_slot`)
+
+- `shelf_unit` rows model named physical shelves with `(cols, rows)`
+  dimensions, clamped to `[1, 30]` server-side. `order_index` controls
+  tab order on `/shelf?view=layout`.
+- `shelf_slot` is sparse: a row exists only for occupied slots. The
+  PRIMARY KEY `(shelf_id, row, col)` enforces "one edition per slot";
+  the UNIQUE `(vn_id, release_id)` enforces "one slot per edition".
+- `placeShelfItem` runs the entire move/swap/evict logic inside a
+  single `db.transaction(...)` to avoid the half-state where the
+  UNIQUE constraint refuses an insert. Always go through that helper
+  — never write to `shelf_slot` directly.
+- Resizing through `resizeShelf` returns the evicted slot list (rows
+  outside the new bounds) so callers can surface "N editions moved
+  to unplaced" warnings. Slots are NOT silently lost.
+- Pool query (`listUnplacedOwnedReleases`) is a `NOT EXISTS` subquery
+  on `shelf_slot`; the index `idx_shelf_slot_item` keeps it fast.
 
 ### Synthetic release ids (`synthetic:<vnId>`)
 
@@ -673,6 +699,7 @@ New DB tables introduced by recent batches:
 | `reading_queue` | Reading queue | VNs the user wants to play next, distinct from the "Planning" status. Ordered manually. |
 | `reading_goal` | Yearly reading goal | One row per year. Progress ring against `countFinishedInYear`. |
 | `steam_link` | Steam playtime sync | VN ↔ Steam appid mapping with `source` ('auto' / 'manual') and last-synced minutes. Manual links are sticky. |
+| `shelf_unit` / `shelf_slot` | Drag-and-drop shelf layout | `shelf_unit` is the (cols × rows) grid metadata; `shelf_slot` is sparse — one row per occupied slot, with composite PK `(shelf_id, row, col)` and UNIQUE `(vn_id, release_id)`. All mutations go through `placeShelfItem` for atomic swap-or-evict semantics. |
 
 ## Not implemented (yet)
 

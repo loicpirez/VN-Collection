@@ -38,13 +38,24 @@ ingested, cached locally, and can be combined or compared per-field.
   (locations, currency, dumped state, shelf grouping) works the same
   way as for VNDB releases; the only difference is no clickable
   `/release/[id]` link.
-- **Shelf has per-release and per-VN tabs** — `/shelf` switches between
-  two views via `?view=release|item`. *Per-item* lists every owned
+- **Shelf has three views** — `/shelf` switches between three modes
+  via `?view=release|item|layout`. *Per-item* lists every owned
   edition (the original behavior — useful for "which copy is in box
   vs shelf"). *Per-VN* collapses multiple editions of the same VN
   into a single card with the edition count, the set of distinct
   locations, and the summed currency totals. Money is rendered with
   `Intl.NumberFormat` so JPY shows as ¥, EUR as €, etc.
+- **Drag-and-drop shelf layout** — `/shelf?view=layout` opens a
+  2-D grid editor where each cell is a physical slot. Create
+  multiple shelves ("Living room — left bookcase", "Office — top
+  shelf"), resize them in rows × columns at any time, then drag
+  editions from the **Unplaced** pool into specific slots to
+  reproduce your real-life arrangement. Drag from slot to slot to
+  move; drag onto an occupied slot to **swap** atomically; drag
+  back to the pool to unplace. Touch-friendly (long-press to drag),
+  keyboard-accessible (Space to pick up, arrows to move, Space to
+  drop), and optimistic — every action persists to `shelf_unit` /
+  `shelf_slot` with full rollback on error.
 - **Routes** — heroine / branch tracker with autocomplete from the VN's
   main / primary cast, completion checkboxes, and reorderable list
 - **Markdown notes** (GFM, tables, code blocks) for personal reviews
@@ -435,6 +446,8 @@ No state library. No auth. No tracking.
                               │ reading_queue          │
                               │ reading_goal           │
                               │ steam_link             │
+                              │ shelf_unit             │
+                              │ shelf_slot             │
                               │ vndb_cache             │
                               │ app_setting            │
                               └────────────────────────┘

@@ -778,7 +778,7 @@ Each card shows the cover, edition label, box type, condition,
 dumped flag, and `price_paid`. The header sums totals per currency
 and per location.
 
-Two view modes via `?view=release|item`:
+Three view modes via `?view=release|item|layout`:
 - **Per-item** (default) — every owned edition is its own card.
   Useful for "which copy is in box vs. shelf" workflows. Multi-tag
   physical locations render the secondary tags as a smaller line so
@@ -787,6 +787,51 @@ Two view modes via `?view=release|item`:
   single card with the edition count, the *set* of distinct
   locations, and per-currency totals summed across editions. Money
   is rendered with `Intl.NumberFormat` so JPY → ¥, EUR → €, USD → $.
+- **Layout** — drag-and-drop 2-D grid editor (see below).
+
+### Drag-and-drop shelf layout ✅
+`/shelf?view=layout` opens a fully interactive 2-D shelf simulator
+backed by `<ShelfLayoutEditor>` (client) +
+`/api/shelves` / `/api/shelves/[id]` / `/api/shelves/[id]/slots`
+(server). Models a real piece of furniture: a *shelf unit* is a
+named (cols × rows) grid, and each owned edition occupies at most
+one slot. Tables:
+
+```sql
+shelf_unit(id, name, cols, rows, order_index, created_at, updated_at)
+shelf_slot(shelf_id FK, row, col, vn_id, release_id, placed_at,
+           PRIMARY KEY(shelf_id, row, col),
+           UNIQUE(vn_id, release_id))  -- one slot per edition
+```
+
+UI sections:
+- **Shelf tabs** — one chip per shelf with `placed / capacity` count.
+  Active tab is highlighted. "New shelf" chip opens a name input.
+- **Toolbar** — resize buttons (− / + on Cols and on Rows, clamped
+  to 1–30), Rename (styled prompt), Delete (confirm dialog).
+- **Grid** — `(cols × rows)` droppable cells, each rendered as an
+  aspect-2/3 tile. Occupied cells show the cover, box-type chip,
+  dumped chip, and a hover-revealed VN-title link to `/vn/[id]`.
+  Empty cells show a faint "row · col" coordinate label.
+- **Unplaced pool** — owned editions not yet placed, rendered as a
+  responsive grid of draggable thumbnails.
+
+DnD model:
+- Pool tile → empty cell : place
+- Pool tile → occupied   : occupant evicted back to pool
+- Slot tile → empty cell : move (same or different shelf)
+- Slot tile → occupied   : atomic **swap** (no eviction)
+- Slot tile → pool       : remove placement
+
+Every action is optimistic — the UI patches state immediately,
+the request runs in the background, and any error rolls the patch
+back with a toast. Sensors registered: `PointerSensor` (6 px
+activation, so the link tap-through still works), `TouchSensor`
+(150 ms long-press), `KeyboardSensor` (Space + arrows).
+
+Resizing surfaces an "N editions evicted" warning if the new
+bounds are smaller than the current placements; evicted editions
+land back in the Unplaced pool, never silently lost.
 
 ### Synthetic releases for EGS-only VNs ✅
 VNs missing from VNDB's release index (`v.*` rows with no rows in

@@ -443,6 +443,30 @@ batch threads the distinction through every surface.
   section with a `Download` icon — earlier hidden visually
   because it lacked a header icon.
 
+### G.8 Drag-and-drop shelf layout
+
+- New tables `shelf_unit(id, name, cols, rows, …)` +
+  `shelf_slot(shelf_id, row, col, vn_id, release_id, placed_at)`
+  with UNIQUE on `(vn_id, release_id)` (one slot per edition) and
+  PK on `(shelf_id, row, col)` (one edition per slot).
+- DB helpers: `listShelves`, `getShelf`, `createShelf`,
+  `renameShelf`, `resizeShelf` (returns evicted set when shrinking),
+  `deleteShelf`, `reorderShelves`, `listShelfSlots`,
+  `listUnplacedOwnedReleases`, `placeShelfItem` (handles swap
+  semantics atomically), `removeShelfPlacement`,
+  `getShelfPlacementForEdition`.
+- API: `GET /api/shelves[?pool=1]`, `POST /api/shelves`,
+  `PATCH /api/shelves` (reorder), `GET /api/shelves/[id]`,
+  `PATCH /api/shelves/[id]` (rename / resize),
+  `DELETE /api/shelves/[id]`, `POST /api/shelves/[id]/slots`
+  (place / swap), `DELETE /api/shelves/[id]/slots` (unplace).
+- Third tab on `/shelf?view=layout` renders the new
+  `<ShelfLayoutEditor>` (client component). DnD via @dnd-kit:
+  Pointer (6 px), Touch (150 ms long-press), Keyboard sensors.
+  Optimistic state with rollback on error.
+- Tour step `shelfLayout` added; nav entry stays under `/shelf`
+  (the layout is a sub-view, not a separate route).
+
 ---
 
 ## Future / backlog

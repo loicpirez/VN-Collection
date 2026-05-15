@@ -23,7 +23,10 @@ const STEPS: Step[] = [
   { route: `/year?y=${new Date().getFullYear()}`, key: 'year' },
   { route: '/stats', key: 'stats' },
   { route: '/shelf', key: 'shelf' },
+  { route: '/shelf?view=layout', key: 'shelfLayout' },
   { route: '/steam', key: 'steam' },
+  { route: '/egs', key: 'egs' },
+  { route: '/dumped', key: 'dumped' },
   { route: '/data', key: 'data' },
   { route: '/', key: 'vnpage' },
 ];

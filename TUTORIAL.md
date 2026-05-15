@@ -262,6 +262,15 @@ Tabbed-style sections:
 - **Dumped** — `/dumped` shows your archival-completion ratio
   globally and per-VN (mini progress bars + fully-dumped chips).
   Companion to the editor / producer completion pages.
+- **Shelf layout (drag-and-drop)** — `/shelf?view=layout` is a
+  2-D grid editor. Create one or more shelves (give them a name
+  like "Living room — left bookcase"), set the size in columns ×
+  rows, then drag editions from the *Unplaced* pool into specific
+  slots to mirror your real physical setup. Drag from slot to slot
+  to move; drop onto an occupied slot to **swap** atomically;
+  drop back into the pool to unplace. Touch + keyboard friendly.
+  Resizing a shelf smaller surfaces an "N editions evicted"
+  warning and sends them safely to the pool — nothing lost.
 - **Selective full download** — checkbox picker with Select all /
   Select none / Invert. Pick which VNs to fan-out staff /
   characters / developers for. Rate-limited by the global throttle.
