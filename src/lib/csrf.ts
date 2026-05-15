@@ -39,23 +39,23 @@ export function csrfGuard(req: Request): NextResponse | null {
   // Multipart uploads carry an `Origin` header in every browser, so
   // we let them fall through to the Origin/Referer check below.
 
-  // Fetch metadata header (preferred when present).
+  // Fetch metadata header (preferred when present). `same-site`
+  // is intentionally NOT trusted — it permits any subdomain of the
+  // deployment's eTLD+1 to mutate state, which would matter on a
+  // shared-domain LAN deploy.
   const fetchSite = req.headers.get('sec-fetch-site');
   if (fetchSite) {
-    // `same-origin` and `same-site` are fine. `none` means the user
-    // navigated directly (e.g. via address bar) — also safe.
-    if (fetchSite === 'same-origin' || fetchSite === 'same-site' || fetchSite === 'none') {
-      return null;
-    }
+    if (fetchSite === 'same-origin' || fetchSite === 'none') return null;
     return NextResponse.json({ error: 'cross-site request denied' }, { status: 403 });
   }
 
   // Fallback for older clients: compare Origin/Referer to the
-  // request URL's origin.
+  // request URL's origin. `Origin: null` is rejected — sandboxed
+  // iframes and certain extension surfaces emit it, and the cost of
+  // declining them is far smaller than letting them mutate state.
   const expected = new URL(req.url).origin;
   const origin = req.headers.get('origin');
   if (origin) {
-    if (origin === 'null') return null; // browser extensions / sandboxed iframes
     if (origin === expected) return null;
     return NextResponse.json({ error: 'cross-site request denied' }, { status: 403 });
   }

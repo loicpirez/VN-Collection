@@ -62,18 +62,39 @@ function writeCached(key: string, url: string | null, ttl: number): void {
   `).run(key, JSON.stringify({ url }), now, now + ttl);
 }
 
+/**
+ * Follow up to 3 hops manually, re-checking the allowlist on every
+ * `Location:` header so a friendly CDN can't 302 us to a private IP
+ * or unrelated host.
+ */
+async function fetchWithSafeRedirects(initial: string, signal: AbortSignal, extraHeaders: Record<string, string> = {}): Promise<Response | null> {
+  let url = initial;
+  for (let hop = 0; hop < 4; hop++) {
+    if (!isAllowedTarget(url)) return null;
+    const res = await fetch(url, {
+      method: 'GET',
+      signal,
+      redirect: 'manual',
+      headers: { 'User-Agent': 'Mozilla/5.0 vn-collection/1.0', ...extraHeaders },
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get('location');
+      if (!loc) return res;
+      url = new URL(loc, url).toString();
+      continue;
+    }
+    return res;
+  }
+  return null;
+}
+
 /** Returns true only when the URL resolves to a real image (not an error page). */
 async function probeImage(url: string): Promise<boolean> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
-      method: 'GET',
-      signal: ctrl.signal,
-      redirect: 'follow',
-      headers: { Range: 'bytes=0-0' },
-    });
-    if (!res.ok) return false;
+    const res = await fetchWithSafeRedirects(url, ctrl.signal, { Range: 'bytes=0-0' });
+    if (!res || !res.ok) return false;
     const ct = (res.headers.get('content-type') ?? '').toLowerCase();
     return ct.startsWith('image/');
   } catch {
@@ -202,23 +223,13 @@ async function proxyImage(target: string, origin: string): Promise<Response> {
     return NextResponse.redirect(absolute, 302);
   }
   if (!isAllowedTarget(target)) {
-    // SSRF defense — never fetch arbitrary URLs server-side.
     return new NextResponse(null, { status: 403 });
   }
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 12_000);
-    const upstream = await fetch(target, {
-      method: 'GET',
-      signal: ctrl.signal,
-      // `manual` would be safer (re-check each Location header), but
-      // legitimate image CDNs use 302 to a same-origin variant; we
-      // accept the small redirect-chain risk and rely on host
-      // allowlist as the primary control.
-      redirect: 'follow',
-      headers: { 'User-Agent': 'Mozilla/5.0 vn-collection/1.0' },
-    }).finally(() => clearTimeout(timer));
-    if (!upstream.ok || !upstream.body) {
+    const upstream = await fetchWithSafeRedirects(target, ctrl.signal).finally(() => clearTimeout(timer));
+    if (!upstream || !upstream.ok || !upstream.body) {
       return new NextResponse(null, { status: 404 });
     }
     const ct = upstream.headers.get('content-type') ?? 'image/jpeg';

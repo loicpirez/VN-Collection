@@ -1,5 +1,6 @@
 import 'server-only';
 import { db } from './db';
+import { isAllowedHttpTarget } from './url-allowlist';
 
 /**
  * Lightweight HTML scraper for vndb.org pages, covering fields the
@@ -75,10 +76,13 @@ export async function fetchVndbWebHtml(path: string, opts: { force?: boolean } =
     if (cached) return cached.body;
   }
 
+  const target = `${VNDB_WEB}${path}`;
+  if (!isAllowedHttpTarget(target)) return null;
+
   await nextSlot();
   let html: string;
   try {
-    const res = await fetch(`${VNDB_WEB}${path}`, {
+    const res = await fetch(target, {
       headers: { 'User-Agent': 'vn-collection (local cache builder)' },
     });
     if (!res.ok) return null;

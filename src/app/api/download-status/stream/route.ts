@@ -28,6 +28,7 @@ function buildSnapshot(): string {
 export async function GET(req: Request) {
   const encoder = new TextEncoder();
   let aborted = false;
+  let cleanup: () => void = () => undefined;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -48,7 +49,7 @@ export async function GET(req: Request) {
         push(': keep-alive\n\n');
       }, 25_000);
 
-      const close = () => {
+      cleanup = () => {
         if (aborted) return;
         aborted = true;
         clearInterval(keepAlive);
@@ -60,10 +61,13 @@ export async function GET(req: Request) {
         }
       };
 
-      req.signal.addEventListener('abort', close);
+      req.signal.addEventListener('abort', cleanup);
     },
+    // Fired by Next.js / undici when the consumer cancels the stream
+    // without firing the request abort signal — make sure we still
+    // release the keep-alive timer and listener.
     cancel() {
-      aborted = true;
+      cleanup();
     },
   });
 

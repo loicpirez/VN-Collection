@@ -1,5 +1,6 @@
 import 'server-only';
 import { getAppSetting } from './db';
+import { isAllowedHttpTarget } from './url-allowlist';
 
 /**
  * Steam playtime sync — scaffolded. The runtime hits the public WebAPI
@@ -45,6 +46,9 @@ export async function fetchOwnedGames(): Promise<SteamPlaytime[]> {
   // status code surfaces. The fetch agent itself is presumed
   // trusted; downstream consumers see appid + minutes only.
   const url = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=${encodeURIComponent(cfg.apiKey)}&steamid=${encodeURIComponent(cfg.steamId)}&include_appinfo=1&format=json`;
+  if (!isAllowedHttpTarget(url)) {
+    throw new Error('Steam fetch blocked: host not on SSRF allowlist');
+  }
   let res: Response;
   try {
     res = await fetch(url, { cache: 'no-store' });

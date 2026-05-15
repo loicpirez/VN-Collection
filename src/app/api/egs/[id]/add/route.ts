@@ -7,7 +7,7 @@ import {
   type CollectionPatch,
 } from '@/lib/db';
 import type { Status } from '@/lib/types';
-import { fetchEgsGame, linkEgsToVn } from '@/lib/erogamescape';
+import { EgsUnreachable, fetchEgsGame, linkEgsToVn } from '@/lib/erogamescape';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -18,7 +18,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!Number.isInteger(egsId) || egsId <= 0) {
     return NextResponse.json({ error: 'invalid EGS id' }, { status: 400 });
   }
-  const game = await fetchEgsGame(egsId);
+  // Distinguish "EGS is unreachable" (502) from "lookup succeeded but
+  // returned zero rows" (404). `fetchEgsGame` previously collapsed both
+  // into `null`, which the route surfaced as a misleading 404 during
+  // transient network outages.
+  let game: Awaited<ReturnType<typeof fetchEgsGame>>;
+  try {
+    game = await fetchEgsGame(egsId);
+  } catch (e) {
+    if (e instanceof EgsUnreachable) {
+      return NextResponse.json({ error: `EGS ${e.kind}: ${e.message}` }, { status: 502 });
+    }
+    throw e;
+  }
   if (!game) {
     return NextResponse.json({ error: 'EGS game not found' }, { status: 404 });
   }

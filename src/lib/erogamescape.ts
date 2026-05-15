@@ -1,4 +1,5 @@
 import 'server-only';
+import { isAllowedHttpTarget } from './url-allowlist';
 import {
   clearEgsForVn,
   db,
@@ -73,6 +74,9 @@ interface CacheRow {
 function sanitizeForEgsLike(value: string): string {
   return value
     .replace(/[^\p{Letter}\p{Number}\p{Mark}\s.\-_]/gu, '')
+    // `_` is a single-character LIKE wildcard in Postgres. Escape it
+    // with `\` so a search for `egs_` doesn't over-match `egsX`.
+    .replace(/_/g, '\\_')
     .trim();
 }
 
@@ -131,6 +135,9 @@ export class EgsUnreachable extends Error {
 }
 
 async function fetchTable(sql: string): Promise<string[][]> {
+  if (!isAllowedHttpTarget(SQL_ENDPOINT)) {
+    throw new EgsUnreachable('blocked', 'host not on SSRF allowlist');
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   let res: Response;

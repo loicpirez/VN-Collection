@@ -23,7 +23,13 @@ export async function GET() {
     const suggestions = await computeSteamSuggestions(games);
     return NextResponse.json({ ok: true, suggestions });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 400 });
+    // `fetchOwnedGames` already strips the API key from its error
+    // messages. Wrap upstream messages once more to avoid leaking
+    // arbitrary header / network internals to the client.
+    const raw = (e as Error).message ?? 'unknown error';
+    const safe = raw.replace(/key=[^&\s]+/g, 'key=***');
+    console.error('steam sync failed:', raw);
+    return NextResponse.json({ ok: false, error: `Steam sync failed: ${safe}` }, { status: 400 });
   }
 }
 

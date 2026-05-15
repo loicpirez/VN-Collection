@@ -11,6 +11,21 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 /**
+ * `getAuthInfo` may throw when the VNDB token is missing or VNDB is
+ * unreachable. We swallow both into `null` so the rest of the
+ * refresh fan-out still runs. Named function instead of an inline
+ * `async () => { try { … } catch { return null; } }` so it's easy
+ * to spot during review.
+ */
+async function authInfoSafe(): Promise<unknown> {
+  try {
+    return await getAuthInfo();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * One-shot refresh of every page-level cache that isn't tied to a
  * specific VN. Triggered by the "Download all" flow and by the
  * <RefreshButton/> on browse / discovery pages so the user doesn't
@@ -59,7 +74,7 @@ export async function POST(req: NextRequest) {
     { name: 'EGS anticipated (top 100)', run: () => fetchEgsAnticipated(100) },
     { name: 'VNDB stats',                run: () => getGlobalStats() },
     { name: 'VNDB schema',                run: () => getSchema() },
-    { name: 'VNDB authinfo',              run: async () => { try { return await getAuthInfo(); } catch { return null; } } },
+    { name: 'VNDB authinfo',              run: authInfoSafe },
     { name: 'Upcoming · collection',      run: () => fetchUpcomingForCollection() },
     { name: 'Upcoming · all VNDB (top 200)', run: () => fetchAllUpcomingFromVndb(200) },
     // Re-populate the default tag/trait searches so the freshness chip

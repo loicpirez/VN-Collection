@@ -22,10 +22,12 @@ export const ALLOWED_HTTP_HOSTS: ReadonlySet<string> = new Set([
   't.vndb.org',
   'cdn.vndb.org',
   'api.vndb.org',
+  'vndb.org',
   // VNDB community mirror — accepted as the default `vndb_backup_url`.
   'api.yorhel.org',
   'erogamescape.dyndns.org',
   'erogamescape.org',
+  'api.steampowered.com',
   'pics.dmm.co.jp',
   'pics.dmm.com',
   'img.dlsite.jp',
