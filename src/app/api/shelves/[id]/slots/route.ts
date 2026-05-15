@@ -39,19 +39,33 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     release_id?: unknown;
   };
   if (
-    typeof body.row !== 'number' ||
-    typeof body.col !== 'number' ||
+    !Number.isInteger(body.row) ||
+    !Number.isInteger(body.col) ||
+    (body.row as number) < 0 ||
+    (body.col as number) < 0 ||
     typeof body.vn_id !== 'string' ||
-    typeof body.release_id !== 'string'
+    typeof body.release_id !== 'string' ||
+    body.vn_id.length === 0 ||
+    body.vn_id.length > 64 ||
+    body.release_id.length === 0 ||
+    body.release_id.length > 64
   ) {
     return NextResponse.json({ error: 'row/col/vn_id/release_id required' }, { status: 400 });
+  }
+  // release id must be either rNN or `synthetic:vNN`; the caller's vn
+  // id must match the synthetic suffix when present.
+  if (
+    !/^r\d+$/i.test(body.release_id) &&
+    body.release_id !== `synthetic:${body.vn_id}`
+  ) {
+    return NextResponse.json({ error: 'invalid release_id' }, { status: 400 });
   }
 
   try {
     const result = placeShelfItem({
       shelfId: sid,
-      row: body.row,
-      col: body.col,
+      row: body.row as number,
+      col: body.col as number,
       vnId: body.vn_id,
       releaseId: body.release_id,
     });

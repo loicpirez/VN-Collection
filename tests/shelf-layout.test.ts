@@ -149,6 +149,38 @@ describe('placeShelfItem', () => {
       placeShelfItem({ shelfId: shelf.id, row: 0, col: 0, vnId: 'v999', releaseId: 'r999' }),
     ).toThrow(/owned edition not found/);
   });
+
+  it('rejects non-integer row/col/shelfId', () => {
+    const shelf = createShelf({ name: 'A', cols: 2, rows: 2 });
+    ensureVnAndOwned('v1', 'r1');
+    expect(() =>
+      placeShelfItem({ shelfId: shelf.id, row: NaN, col: 0, vnId: 'v1', releaseId: 'r1' }),
+    ).toThrow(/integers/);
+    expect(() =>
+      placeShelfItem({ shelfId: shelf.id, row: 1.5, col: 0, vnId: 'v1', releaseId: 'r1' }),
+    ).toThrow(/integers/);
+    expect(() =>
+      placeShelfItem({ shelfId: NaN, row: 0, col: 0, vnId: 'v1', releaseId: 'r1' }),
+    ).toThrow(/integer/);
+  });
+
+  it('places a synthetic release id (used by EGS-only VNs)', () => {
+    const shelf = createShelf({ name: 'A', cols: 2, rows: 2 });
+    // Synthetic release ids contain a colon — the only release shape
+    // for VNs that have no VNDB release row. Regression test for the
+    // drag-id delimiter collision (DnD ids switched to `|`).
+    ensureVnAndOwned('v42', 'synthetic:v42');
+    placeShelfItem({
+      shelfId: shelf.id,
+      row: 0,
+      col: 1,
+      vnId: 'v42',
+      releaseId: 'synthetic:v42',
+    });
+    const slots = listShelfSlots(shelf.id);
+    expect(slots).toHaveLength(1);
+    expect(slots[0].release_id).toBe('synthetic:v42');
+  });
 });
 
 describe('resizeShelf', () => {

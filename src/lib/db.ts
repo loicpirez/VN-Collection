@@ -2890,11 +2890,16 @@ function clampShelfDim(n: number, fallback: number): number {
 }
 
 export function listShelves(): ShelfUnitWithCount[] {
+  // LEFT JOIN + GROUP BY avoids the per-row scalar subquery we had
+  // previously; a single index scan over `shelf_slot` covers every
+  // shelf's count.
   return db
     .prepare(`
-      SELECT u.*,
-             (SELECT COUNT(*) FROM shelf_slot s WHERE s.shelf_id = u.id) AS placed_count
+      SELECT u.id, u.name, u.cols, u.rows, u.order_index, u.created_at, u.updated_at,
+             COUNT(s.shelf_id) AS placed_count
       FROM shelf_unit u
+      LEFT JOIN shelf_slot s ON s.shelf_id = u.id
+      GROUP BY u.id
       ORDER BY u.order_index ASC, u.id ASC
     `)
     .all() as ShelfUnitWithCount[];
@@ -3090,6 +3095,13 @@ export interface PlaceShelfItemResult {
  * state. Throws if the slot is out of bounds for the shelf.
  */
 export function placeShelfItem(input: PlaceShelfItemInput): PlaceShelfItemResult {
+  // Defence against NaN / Infinity / floats. The route already
+  // narrows by `typeof === 'number'` but that lets NaN through; this
+  // is the last line before the values reach SQLite as PK columns.
+  if (!Number.isInteger(input.shelfId)) throw new Error('shelf id must be integer');
+  if (!Number.isInteger(input.row) || !Number.isInteger(input.col)) {
+    throw new Error('row/col must be integers');
+  }
   const shelf = getShelf(input.shelfId);
   if (!shelf) throw new Error('shelf not found');
   if (input.row < 0 || input.row >= shelf.rows) throw new Error('row out of bounds');
@@ -3206,6 +3218,49 @@ export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {
     .prepare('SELECT * FROM owned_release WHERE vn_id = ? ORDER BY added_at DESC')
     .all(vnId) as OwnedReleaseDbRow[];
   return rows.map(mapOwnedReleaseRow);
+}
+
+export interface OwnedReleaseWithShelf extends OwnedReleaseRow {
+  /** When the edition is placed on a shelf, this carries the
+   *  shelf id / display name / (row, col). null when unplaced. */
+  shelf: { id: number; name: string; row: number; col: number } | null;
+}
+
+/**
+ * Variant of `listOwnedReleasesForVn` that LEFT JOINs the shelf
+ * placement so the VN detail page can render a chip like
+ * "Living room — left bookcase · R2 · C5" next to each owned
+ * edition. One query, no N+1.
+ */
+export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithShelf[] {
+  const rows = db
+    .prepare(`
+      SELECT o.*,
+             s.shelf_id  AS shelf_id,
+             s.row       AS shelf_row,
+             s.col       AS shelf_col,
+             u.name      AS shelf_name
+      FROM owned_release o
+      LEFT JOIN shelf_slot s
+        ON s.vn_id = o.vn_id AND s.release_id = o.release_id
+      LEFT JOIN shelf_unit u
+        ON u.id = s.shelf_id
+      WHERE o.vn_id = ?
+      ORDER BY o.added_at DESC
+    `)
+    .all(vnId) as Array<OwnedReleaseDbRow & {
+      shelf_id: number | null;
+      shelf_row: number | null;
+      shelf_col: number | null;
+      shelf_name: string | null;
+    }>;
+  return rows.map((r) => ({
+    ...mapOwnedReleaseRow(r),
+    shelf:
+      r.shelf_id != null && r.shelf_row != null && r.shelf_col != null && r.shelf_name != null
+        ? { id: r.shelf_id, name: r.shelf_name, row: r.shelf_row, col: r.shelf_col }
+        : null,
+  }));
 }
 
 export function getOwnedRelease(vnId: string, releaseId: string): OwnedReleaseRow | null {

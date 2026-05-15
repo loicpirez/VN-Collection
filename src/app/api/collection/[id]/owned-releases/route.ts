@@ -3,7 +3,7 @@ import {
   isInCollection,
   isValidBoxType,
   isValidLocation,
-  listOwnedReleasesForVn,
+  listOwnedReleasesWithShelfForVn,
   markReleaseOwned,
   unmarkReleaseOwned,
   updateOwnedRelease,
@@ -94,7 +94,7 @@ function validateReleaseId(raw: string, vnId: string): { ok: boolean; normalized
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const owned = listOwnedReleasesForVn(id);
+  const owned = listOwnedReleasesWithShelfForVn(id);
   return NextResponse.json({ owned });
 }
 
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { patch, error } = pickPatch(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   markReleaseOwned(id, validation.normalized, patch);
-  return NextResponse.json({ owned: listOwnedReleasesForVn(id) });
+  return NextResponse.json({ owned: listOwnedReleasesWithShelfForVn(id) });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -119,7 +119,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { patch, error } = pickPatch(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   updateOwnedRelease(id, validation.normalized, patch);
-  return NextResponse.json({ owned: listOwnedReleasesForVn(id) });
+  return NextResponse.json({ owned: listOwnedReleasesWithShelfForVn(id) });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -128,5 +128,5 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const validation = validateReleaseId(req.nextUrl.searchParams.get('release_id') ?? '', id);
   if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
   unmarkReleaseOwned(id, validation.normalized);
-  return NextResponse.json({ owned: listOwnedReleasesForVn(id) });
+  return NextResponse.json({ owned: listOwnedReleasesWithShelfForVn(id) });
 }

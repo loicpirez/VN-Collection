@@ -129,7 +129,8 @@ export default async function EgsPage() {
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="ml-auto inline-flex items-center gap-0.5 text-muted hover:text-accent"
-                        aria-label="EGS"
+                        aria-label={t.egs.openOnEgs}
+                        title={t.egs.openOnEgs}
                       >
                         <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>

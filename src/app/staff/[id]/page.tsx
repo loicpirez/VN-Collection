@@ -185,7 +185,7 @@ export default async function StaffPage({
           <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
             {voice.map((credit) => (
               <li key={credit.vn.id}>
-                <VnCard vn={credit.vn}>
+                <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle}>
                   {/*
                     Each voiced character renders with a thumbnail
                     next to the name. The thumbnail uses the local
@@ -246,7 +246,7 @@ export default async function StaffPage({
               <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                 {g.credits.map((credit) => (
                   <li key={credit.vn.id}>
-                    <VnCard vn={credit.vn} />
+                    <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} />
                   </li>
                 ))}
               </ul>
@@ -279,6 +279,8 @@ function dedupeByVnId<T extends { vn: { id: string } }>(items: T[]): T[] {
 
 function VnCard({
   vn,
+  ownedLabel,
+  ownedTitle,
   children,
 }: {
   vn: {
@@ -294,6 +296,8 @@ function VnCard({
     rating: number | null;
     in_collection: boolean;
   };
+  ownedLabel: string;
+  ownedTitle: string;
   children?: React.ReactNode;
 }) {
   const year = vn.released?.slice(0, 4);
@@ -340,7 +344,7 @@ function VnCard({
         {vn.alttitle && vn.alttitle !== vn.title && (
           <div className="mt-0.5 line-clamp-1 text-[11px] text-muted">{vn.alttitle}</div>
         )}
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-muted">
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted">
           {ratingDisplay && (
             <span className="inline-flex items-center gap-0.5 text-accent">
               <Star className="h-3 w-3 fill-accent" /> {ratingDisplay}
@@ -350,9 +354,9 @@ function VnCard({
           {vn.in_collection && (
             <span
               className="inline-flex items-center gap-0.5 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent"
-              title="In your collection"
+              title={ownedTitle}
             >
-              ★ <span className="hidden sm:inline">owned</span>
+              <Star className="h-2.5 w-2.5 fill-accent" aria-hidden /> {ownedLabel}
             </span>
           )}
         </div>

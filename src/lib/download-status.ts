@@ -42,14 +42,23 @@ const MAX_LIVE_JOBS = 200;
 type Listener = () => void;
 const listeners = new Set<Listener>();
 
+// Coalesce bursts of mutations (e.g. hundreds of tickJob calls during
+// a bulk fan-out) into one notification per microtask, so SSE
+// subscribers don't serialize the whole jobs list on every increment.
+let pendingFlush = false;
 function emit(): void {
-  for (const l of listeners) {
-    try {
-      l();
-    } catch {
-      // Listener throws shouldn't break the producer.
+  if (pendingFlush) return;
+  pendingFlush = true;
+  queueMicrotask(() => {
+    pendingFlush = false;
+    for (const l of listeners) {
+      try {
+        l();
+      } catch {
+        // Listener throws shouldn't break the producer.
+      }
     }
-  }
+  });
 }
 
 export function subscribeStatus(listener: Listener): () => void {

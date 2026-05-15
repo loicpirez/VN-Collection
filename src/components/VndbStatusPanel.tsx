@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
@@ -230,13 +230,25 @@ function UlistDetailsEditor({
   const [finished, setFinished] = useState<string>(entry?.finished ?? '');
   const [notes, setNotes] = useState<string>(entry?.notes ?? '');
   const [saving, setSaving] = useState(false);
+  // Tracks whether the user has touched any field since the last save
+  // or initial mount. A parent re-fetch (label toggle, refresh button,
+  // anything that re-runs the panel's `load()`) MUST NOT clobber
+  // in-progress typing. Only sync from `entry` when the editor is
+  // clean.
+  const dirty = useRef(false);
 
   useEffect(() => {
+    if (dirty.current) return;
     setVote(entry?.vote != null ? (entry.vote / 10).toFixed(1) : '');
     setStarted(entry?.started ?? '');
     setFinished(entry?.finished ?? '');
     setNotes(entry?.notes ?? '');
   }, [entry?.vote, entry?.started, entry?.finished, entry?.notes]);
+
+  const markDirty = (setter: (v: string) => void) => (next: string) => {
+    dirty.current = true;
+    setter(next);
+  };
 
   async function save() {
     setSaving(true);
@@ -264,6 +276,7 @@ function UlistDetailsEditor({
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
       toast.success(t.toast.saved);
+      dirty.current = false;
       await onSaved();
     } catch (e) {
       toast.error((e as Error).message);
@@ -286,7 +299,7 @@ function UlistDetailsEditor({
             max={10}
             step={0.1}
             value={vote}
-            onChange={(e) => setVote(e.target.value)}
+            onChange={(e) => markDirty(setVote)(e.target.value)}
             placeholder="—"
             className="rounded border border-border bg-bg px-2 py-1"
           />
@@ -296,7 +309,7 @@ function UlistDetailsEditor({
           <input
             type="date"
             value={started || ''}
-            onChange={(e) => setStarted(e.target.value)}
+            onChange={(e) => markDirty(setStarted)(e.target.value)}
             className="rounded border border-border bg-bg px-2 py-1"
           />
         </label>
@@ -305,7 +318,7 @@ function UlistDetailsEditor({
           <input
             type="date"
             value={finished || ''}
-            onChange={(e) => setFinished(e.target.value)}
+            onChange={(e) => markDirty(setFinished)(e.target.value)}
             className="rounded border border-border bg-bg px-2 py-1"
           />
         </label>
@@ -313,7 +326,7 @@ function UlistDetailsEditor({
           <span className="text-[10px] uppercase tracking-wider text-muted">{t.vndbStatus.fieldNotes}</span>
           <textarea
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => markDirty(setNotes)(e.target.value)}
             rows={3}
             className="resize-y rounded border border-border bg-bg px-2 py-1"
           />

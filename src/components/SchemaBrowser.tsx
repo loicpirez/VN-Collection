@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
@@ -20,7 +20,15 @@ interface Props {
  */
 export function SchemaBrowser({ schema }: Props) {
   const t = useT();
+  const [rawQuery, setRawQuery] = useState('');
+  // 150 ms debounce — VNDB's schema is large and the recursive match
+  // walk runs on every keystroke. Debouncing keeps the input responsive
+  // without dropping inputs the user typed.
   const [query, setQuery] = useState('');
+  useEffect(() => {
+    const id = window.setTimeout(() => setQuery(rawQuery), 150);
+    return () => window.clearTimeout(id);
+  }, [rawQuery]);
   const trimmed = query.trim().toLowerCase();
 
   const topKeys = useMemo(() => {
@@ -28,14 +36,27 @@ export function SchemaBrowser({ schema }: Props) {
     return Object.keys(schema as Record<string, unknown>).sort();
   }, [schema]);
 
+  // One-shot walk that returns the set of node *paths* whose subtree
+  // contains a match. Drives both visibility ("render this node") and
+  // expansion ("auto-open this branch"). Built once per (schema,
+  // filter) pair, then read with O(1) lookups during render. This
+  // replaces the O(N²)-ish per-render `hasMatchingDescendant` calls.
+  const visiblePaths = useMemo<Set<string> | null>(() => {
+    if (!trimmed) return null;
+    if (!schema || typeof schema !== 'object') return null;
+    const set = new Set<string>();
+    walkSchema(schema, '', trimmed, set);
+    return set;
+  }, [schema, trimmed]);
+
   return (
     <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
       <label className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-bg px-2 py-1.5 text-sm">
         <Search className="h-4 w-4 text-muted" aria-hidden />
         <input
           type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={rawQuery}
+          onChange={(e) => setRawQuery(e.target.value)}
           placeholder={t.schemaPage.filterPlaceholder}
           className="flex-1 bg-transparent outline-none"
         />
@@ -50,8 +71,9 @@ export function SchemaBrowser({ schema }: Props) {
               k={k}
               v={(schema as Record<string, unknown>)[k]}
               depth={0}
+              path={k}
               filter={trimmed}
-              forceOpen={trimmed.length > 0 && matches(k, (schema as Record<string, unknown>)[k], trimmed)}
+              visiblePaths={visiblePaths}
             />
           ))}
         </ul>
@@ -60,27 +82,75 @@ export function SchemaBrowser({ schema }: Props) {
   );
 }
 
+/**
+ * DFS marker: visits every node once and writes any path that
+ * matches the filter (key or scalar value) into `out`. As it
+ * unwinds, every ancestor path of a match is also added so the
+ * tree-render can keep that branch open. Recursion depth is
+ * bounded by the actual data (no `depthBudget` hack); modern
+ * JS handles VNDB's schema fine.
+ */
+function walkSchema(v: unknown, path: string, filter: string, out: Set<string>): boolean {
+  if (v === null || v === undefined) return false;
+  if (typeof v !== 'object') {
+    if (matchesScalar(v, filter)) {
+      if (path) out.add(path);
+      return true;
+    }
+    return false;
+  }
+  const entries = Array.isArray(v)
+    ? v.map((item, i) => [String(i), item] as const)
+    : Object.entries(v as Record<string, unknown>);
+  let any = false;
+  for (const [k, child] of entries) {
+    const childPath = path ? `${path}.${k}` : k;
+    const keyMatched = k.toLowerCase().includes(filter);
+    if (keyMatched) out.add(childPath);
+    const childMatched = walkSchema(child, childPath, filter, out);
+    if (keyMatched || childMatched) {
+      any = true;
+      out.add(childPath);
+    }
+  }
+  if (any && path) out.add(path);
+  return any;
+}
+
+function matchesScalar(v: unknown, filter: string): boolean {
+  if (typeof v === 'string') return v.toLowerCase().includes(filter);
+  if (typeof v === 'number') return String(v).includes(filter);
+  return false;
+}
+
 function Node({
   k,
   v,
   depth,
+  path,
   filter,
-  forceOpen,
+  visiblePaths,
 }: {
   k: string;
   v: unknown;
   depth: number;
+  path: string;
   filter: string;
-  forceOpen: boolean;
+  visiblePaths: Set<string> | null;
 }) {
   const [openLocal, setOpenLocal] = useState(false);
-  const open = openLocal || forceOpen || depth === 0 && filter.length > 0;
+  const hasFilter = filter.length > 0;
+  // When filtering, the visiblePaths set tells us "this node has a
+  // descendant matching the filter" → auto-expand and stay rendered.
+  // Outside filtering, depth-0 nodes are still collapsed by default
+  // and the user toggles them.
+  const inMatchTree = hasFilter && visiblePaths?.has(path);
+  const open = openLocal || !!inMatchTree;
+
+  if (hasFilter && !inMatchTree) return null;
+
   const isObject = v !== null && typeof v === 'object';
   const indent = { paddingLeft: `${depth * 14}px` };
-
-  if (filter && !matches(k, v, filter) && !hasMatchingDescendant(v, filter, 4)) {
-    return null;
-  }
 
   if (!isObject) {
     return (
@@ -117,8 +187,9 @@ function Node({
               k={childK}
               v={childV}
               depth={depth + 1}
+              path={`${path}.${childK}`}
               filter={filter}
-              forceOpen={false}
+              visiblePaths={visiblePaths}
             />
           ))}
         </ul>
@@ -154,20 +225,3 @@ function highlight(s: string, q: string): React.ReactNode {
   );
 }
 
-function matches(k: string, v: unknown, filter: string): boolean {
-  if (k.toLowerCase().includes(filter)) return true;
-  if (typeof v === 'string') return v.toLowerCase().includes(filter);
-  if (typeof v === 'number') return String(v).includes(filter);
-  return false;
-}
-
-function hasMatchingDescendant(v: unknown, filter: string, depthBudget: number): boolean {
-  if (depthBudget <= 0) return false;
-  if (v === null || typeof v !== 'object') return false;
-  const entries = Array.isArray(v) ? v.entries() : Object.entries(v as Record<string, unknown>);
-  for (const [k, child] of entries) {
-    if (matches(String(k), child, filter)) return true;
-    if (hasMatchingDescendant(child, filter, depthBudget - 1)) return true;
-  }
-  return false;
-}

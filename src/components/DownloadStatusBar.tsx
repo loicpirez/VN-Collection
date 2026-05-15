@@ -243,7 +243,7 @@ export function DownloadStatusBar() {
               type="button"
               onClick={() => setOpen(false)}
               className="rounded text-muted hover:text-white"
-              aria-label="close"
+              aria-label={t.common.close}
             >
               <X className="h-3 w-3" />
             </button>

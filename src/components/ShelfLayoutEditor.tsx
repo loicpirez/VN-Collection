@@ -577,17 +577,21 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           </div>
           {activeShelf && (
             <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="hidden sm:inline-flex items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-muted">
+              <span className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-muted">
                 <Maximize2 className="h-3 w-3" aria-hidden /> {activeShelf.cols} × {activeShelf.rows}
               </span>
               <ResizeButton
                 label={t.shelfLayout.cols}
+                ariaInc={t.shelfLayout.incrementCols}
+                ariaDec={t.shelfLayout.decrementCols}
                 value={activeShelf.cols}
                 onChange={(d) => handleResize(d, 0)}
                 disabled={busy}
               />
               <ResizeButton
                 label={t.shelfLayout.rows}
+                ariaInc={t.shelfLayout.incrementRows}
+                ariaDec={t.shelfLayout.decrementRows}
                 value={activeShelf.rows}
                 onChange={(d) => handleResize(0, d)}
                 disabled={busy}
@@ -790,7 +794,7 @@ function DroppableCell({
   slot: ShelfSlotEntry | undefined;
   draggingFrom: DragSource | null;
 }) {
-  const id = `cell:${shelf.id}:${row}:${col}`;
+  const id = `cell|${shelf.id}|${row}|${col}`;
   const { isOver, setNodeRef } = useDroppable({ id });
   const isSource =
     draggingFrom?.kind === 'slot' &&
@@ -823,7 +827,9 @@ function DroppableCell({
 }
 
 function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
-  const id = `pool:${entry.vn_id}:${entry.release_id}`;
+  // Pipe-delimited because synthetic release ids contain a colon
+  // (`synthetic:vN`). Splitting on `:` would mis-parse them.
+  const id = `pool|${entry.vn_id}|${entry.release_id}`;
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
   return (
     <li
@@ -855,7 +861,9 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
 }
 
 function DraggableSlotItem({ slot }: { slot: ShelfSlotEntry }) {
-  const id = `slot:${slot.vn_id}:${slot.release_id}:${slot.shelf_id}:${slot.row}:${slot.col}`;
+  // Pipe-delimited so synthetic release ids (`synthetic:vN`) survive
+  // round-trip through parseDragId.
+  const id = `slot|${slot.vn_id}|${slot.release_id}|${slot.shelf_id}|${slot.row}|${slot.col}`;
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
   return (
     <div
@@ -888,7 +896,7 @@ function DraggableSlotItem({ slot }: { slot: ShelfSlotEntry }) {
         href={`/vn/${slot.vn_id}`}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/80 px-1 py-0.5 text-[9px] font-bold leading-tight text-white opacity-0 transition-opacity hover:text-accent group-hover/slot:opacity-100"
+        className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/85 px-1 py-0.5 text-[9px] font-bold leading-tight text-white opacity-100 transition-opacity hover:text-accent sm:opacity-0 sm:group-hover/slot:opacity-100"
       >
         {slot.vn_title}
       </Link>
@@ -938,11 +946,15 @@ function DragGhost({
 
 function ResizeButton({
   label,
+  ariaInc,
+  ariaDec,
   value,
   onChange,
   disabled,
 }: {
   label: string;
+  ariaInc: string;
+  ariaDec: string;
   value: number;
   onChange: (delta: number) => void;
   disabled: boolean;
@@ -954,7 +966,8 @@ function ResizeButton({
         type="button"
         onClick={() => onChange(-1)}
         disabled={disabled || value <= SHELF_MIN}
-        aria-label={`${label} -1`}
+        aria-label={ariaDec}
+        title={ariaDec}
         className="rounded p-0.5 hover:bg-bg-elev hover:text-white disabled:opacity-30"
       >
         <Minus className="h-3 w-3" aria-hidden />
@@ -964,7 +977,8 @@ function ResizeButton({
         type="button"
         onClick={() => onChange(1)}
         disabled={disabled || value >= SHELF_MAX}
-        aria-label={`${label} +1`}
+        aria-label={ariaInc}
+        title={ariaInc}
         className="rounded p-0.5 hover:bg-bg-elev hover:text-white disabled:opacity-30"
       >
         <Plus className="h-3 w-3" aria-hidden />
@@ -996,28 +1010,35 @@ function Legend() {
 }
 
 function parseDragId(id: string): DragSource | null {
-  if (id.startsWith('pool:')) {
-    const [, vnId, releaseId] = id.split(':');
+  if (id.startsWith('pool|')) {
+    const [, vnId, releaseId] = id.split('|');
     if (!vnId || !releaseId) return null;
     return { kind: 'pool', vn_id: vnId, release_id: releaseId };
   }
-  if (id.startsWith('slot:')) {
-    const [, vnId, releaseId, shelfId, row, col] = id.split(':');
+  if (id.startsWith('slot|')) {
+    const parts = id.split('|');
+    if (parts.length !== 6) return null;
+    const [, vnId, releaseId, shelfId, row, col] = parts;
+    const sid = Number(shelfId);
+    const r = Number(row);
+    const c = Number(col);
+    if (!vnId || !releaseId) return null;
+    if (!Number.isInteger(sid) || !Number.isInteger(r) || !Number.isInteger(c)) return null;
     return {
       kind: 'slot',
       vn_id: vnId,
       release_id: releaseId,
-      shelf_id: Number(shelfId),
-      row: Number(row),
-      col: Number(col),
+      shelf_id: sid,
+      row: r,
+      col: c,
     };
   }
   return null;
 }
 
 function parseCellId(id: string): { shelf_id: number; row: number; col: number } | null {
-  if (!id.startsWith('cell:')) return null;
-  const [, shelfId, row, col] = id.split(':');
+  if (!id.startsWith('cell|')) return null;
+  const [, shelfId, row, col] = id.split('|');
   const sid = Number(shelfId);
   const r = Number(row);
   const c = Number(col);

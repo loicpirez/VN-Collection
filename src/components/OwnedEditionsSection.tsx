@@ -44,6 +44,9 @@ interface OwnedEdition {
   purchase_place: string | null;
   dumped: boolean;
   added_at: number;
+  /** Populated server-side via `listOwnedReleasesWithShelfForVn`.
+   *  Null when the edition isn't placed on any /shelf?view=layout. */
+  shelf: { id: number; name: string; row: number; col: number } | null;
 }
 
 const CONDITIONS: { value: string; key: 'new' | 'used' | 'sealed' | 'opened' | 'damaged' }[] = [
@@ -394,6 +397,21 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
               </span>
             ))}
           </div>
+        </div>
+      )}
+      {edition.shelf && (
+        <div className="col-span-2 sm:col-span-3">
+          <Link
+            href={`/shelf?view=layout`}
+            className="inline-flex items-center gap-1 rounded border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/20"
+            title={t.inventory.shelfPlacementHint}
+          >
+            <Package className="h-3 w-3" aria-hidden /> {edition.shelf.name}
+            <span className="rounded bg-bg/40 px-1 text-[9px] font-bold tabular-nums">
+              {t.shelfLayout.rowLabel.replace('{n}', String(edition.shelf.row + 1))}·
+              {t.shelfLayout.colLabel.replace('{n}', String(edition.shelf.col + 1))}
+            </span>
+          </Link>
         </div>
       )}
       {edition.notes && (
