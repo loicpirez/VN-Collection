@@ -58,11 +58,19 @@ export default async function SimilarPage({
     .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
     .slice(0, 6);
 
+  // Parallelize the per-seed-tag VNDB queries. Sequential awaits
+  // stacked up to 6 × VNDB RTT before the page could paint; running
+  // them concurrently lets the throttle serialize them but cuts
+  // perceived latency. A single tag failure (network blip) no
+  // longer takes down the whole page — collected per-tag errors
+  // surface as a small warning banner below.
   const hits = new Map<string, SimilarHit>();
-  for (const tag of seedTags) {
-    try {
-      const results = await vndbAdvancedSearchRaw({
-        filters: ['and',
+  const tagFailures: string[] = [];
+  const perTag = await Promise.all(
+    seedTags.map((tag) =>
+      vndbAdvancedSearchRaw({
+        filters: [
+          'and',
           ['tag', '=', [tag.id, 1, 1.2]],
           ['votecount', '>=', 30],
           ['id', '!=', seed.id],
@@ -70,14 +78,20 @@ export default async function SimilarPage({
         sort: 'rating',
         reverse: true,
         results: 20,
-      });
-      for (const r of results) {
-        const cur = hits.get(r.id);
-        if (cur) cur.score += tag.rating ?? 1;
-        else hits.set(r.id, { ...r, score: tag.rating ?? 1 });
-      }
-    } catch {
-      // skip this tag — keep going
+      })
+        .then((results) => ({ tag, results }))
+        .catch((err) => {
+          tagFailures.push(tag.name || tag.id);
+          console.error(`[similar] seed ${tag.id} failed:`, (err as Error).message);
+          return { tag, results: [] as Awaited<ReturnType<typeof vndbAdvancedSearchRaw>> };
+        }),
+    ),
+  );
+  for (const { tag, results } of perTag) {
+    for (const r of results) {
+      const cur = hits.get(r.id);
+      if (cur) cur.score += tag.rating ?? 1;
+      else hits.set(r.id, { ...r, score: tag.rating ?? 1 });
     }
   }
   const results = Array.from(hits.values())
@@ -110,9 +124,15 @@ export default async function SimilarPage({
         )}
       </header>
 
+      {tagFailures.length > 0 && (
+        <div className="mb-4 rounded-md border border-status-on_hold/40 bg-status-on_hold/10 px-3 py-2 text-[11px] text-status-on_hold">
+          {t.similar.partialFailure.replace('{tags}', tagFailures.join(', '))}
+        </div>
+      )}
+
       {results.length === 0 ? (
         <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
-          {t.recommend.empty}
+          {t.similar.empty}
         </p>
       ) : (
         <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>

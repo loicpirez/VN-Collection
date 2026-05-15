@@ -148,9 +148,9 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           )}
           {voicedKey && (
             <div>
-              <dt className="text-[10px] uppercase tracking-wider text-muted">
+              <dt className="text-[11px] uppercase tracking-wider text-muted">
                 <Mic2 className="mr-1 inline h-3 w-3" />
-                Voiced
+                {t.releases.voicedLabel}
               </dt>
               <dd className="font-semibold">{t.releases[voicedKey]}</dd>
             </div>
@@ -212,7 +212,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
             )}
             {pub.length > 0 && (
               <div>
-                <span className="text-[10px] uppercase tracking-wider text-muted">Publishers</span>
+                <span className="text-[11px] uppercase tracking-wider text-muted">{t.detail.publishers}</span>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {pub.map((p) => (
                     <Link

@@ -92,17 +92,32 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<{ seeds
   // One filter per seed tag with votecount minimum + Bayesian rating sort.
   // VNDB's "tag" filter matches parent tags too, which gives us cluster recs
   // automatically without re-implementing the DAG client-side.
+  //
+  // Sequential await over `for (const seed of seeds)` used to make the
+  // page wait for `seeds.length` round-trips back-to-back (~6 × VNDB
+  // RTT). Parallelize via Promise.all — VNDB's per-second throttle
+  // will serialize them anyway, but on the wire we save the latency
+  // of stacking the JS awaits.
   const aggregate = new Map<string, Recommendation>();
-  for (const seed of seeds) {
-    const hits = await vndbAdvancedSearchRaw({
-      filters: ['and',
-        ['tag', '=', [seed.tagId, 1, 1.5]],
-        ['votecount', '>=', 50],
-      ],
-      sort: 'rating',
-      reverse: true,
-      results: 30,
-    });
+  const settled = await Promise.all(
+    seeds.map((seed) =>
+      vndbAdvancedSearchRaw({
+        filters: ['and', ['tag', '=', [seed.tagId, 1, 1.5]], ['votecount', '>=', 50]],
+        sort: 'rating',
+        reverse: true,
+        results: 30,
+      })
+        .then((hits) => ({ seed, hits }))
+        .catch((err) => {
+          // A single seed failure shouldn't disqualify the whole page.
+          // Log + return [] so the user still sees results from the
+          // healthy seeds.
+          console.error(`[recommend] seed ${seed.tagId} failed:`, (err as Error).message);
+          return { seed, hits: [] as Awaited<ReturnType<typeof vndbAdvancedSearchRaw>> };
+        }),
+    ),
+  );
+  for (const { seed, hits } of settled) {
     for (const h of hits) {
       if (owned.has(h.id)) continue;
       let entry = aggregate.get(h.id);

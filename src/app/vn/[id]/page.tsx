@@ -97,7 +97,7 @@ async function loadVn(id: string): Promise<{ vn: CollectionItem | null; error: s
     upsertVn(fresh);
     return { vn: getCollectionItem(id), error: null };
   } catch (e) {
-    const msg = (e as Error).message || 'fetch failed';
+    const msg = (e as Error).message || '';
     if (cached) return { vn: cached, error: null };
     return { vn: null, error: msg };
   }

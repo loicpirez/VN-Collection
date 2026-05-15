@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Award, Clock, Sparkles, Star } from 'lucide-react';
 import { getReadingGoal, yearReview } from '@/lib/db';
@@ -10,6 +11,16 @@ function pickYear(raw: string | undefined): number {
   const n = Number(raw);
   if (Number.isInteger(n) && n >= 1980 && n <= 2100) return n;
   return new Date().getFullYear();
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ y?: string }>;
+}): Promise<Metadata> {
+  const { y } = await searchParams;
+  const dict = await getDict();
+  return { title: dict.year.title.replace('{year}', String(pickYear(y))) };
 }
 
 export default async function YearPage({
@@ -40,15 +51,33 @@ export default async function YearPage({
           <p className="mt-1 text-sm text-muted">{t.year.subtitle}</p>
         </div>
         <div className="flex items-center gap-1 text-xs">
-          <Link href={navYear(-1)} className="btn">←</Link>
+          <Link
+            href={navYear(-1)}
+            className="btn"
+            aria-label={t.year.previousYear}
+            title={t.year.previousYear}
+          >
+            ←
+          </Link>
           <span className="rounded-md bg-bg-elev px-2 py-1 font-mono">{year}</span>
-          <Link href={navYear(+1)} className="btn">→</Link>
+          <Link
+            href={navYear(+1)}
+            className="btn"
+            aria-label={t.year.nextYear}
+            title={t.year.nextYear}
+          >
+            →
+          </Link>
         </div>
       </header>
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <Stat label={t.year.completed} value={String(review.completed)} icon={<Sparkles className="h-4 w-4" />} />
-        <Stat label={t.year.hours} value={`${review.hours}h`} icon={<Clock className="h-4 w-4" />} />
+        <Stat
+          label={t.year.hours}
+          value={`${review.hours}${t.year.hoursUnit}`}
+          icon={<Clock className="h-4 w-4" />}
+        />
         <Stat
           label={t.year.avgRating}
           value={review.avgUserRating != null ? (review.avgUserRating / 10).toFixed(1) : '—'}
