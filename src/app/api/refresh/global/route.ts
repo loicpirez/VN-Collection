@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { startJob, tickJob, finishJob, recordError } from '@/lib/download-status';
 import { fetchEgsAnticipated } from '@/lib/erogamescape';
 import { getGlobalStats, getAuthInfo, getSchema, searchTags, searchTraits } from '@/lib/vndb';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection } from '@/lib/upcoming';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,7 +20,12 @@ export const maxDuration = 300;
  * Each task is a separate job entry in the global download panel so
  * progress is visible alongside the per-VN fan-outs.
  */
-export async function POST() {
+export async function POST(req: NextRequest) {
+  // Destructive cache-bust + heavy fan-out — gate at the loopback /
+  // admin-token boundary so a LAN attacker can't denial-of-cache us.
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
+
   // First sweep: delete every cache row this refresh is supposed to
   // re-populate. Without this step the next call to getGlobalStats() /
   // fetchEgsAnticipated() / fetchAllUpcomingFromVndb() would just hit

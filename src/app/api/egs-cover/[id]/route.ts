@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { fetchEgsGame } from '@/lib/erogamescape';
+import { isAllowedHttpTarget as isAllowedTarget } from '@/lib/url-allowlist';
 
 /**
  * Cover resolver for EGS games. EGS records external-shop ids on each game
@@ -192,58 +193,8 @@ function shopUrl(raw: RawRow): string | null {
  * VNDB Kana API, EGS image proxies (DLsite, DMM, Gyutto, suruga-ya,
  * etc.). Everything else is rejected.
  */
-const ALLOWED_HOSTS = new Set([
-  's2.vndb.org',
-  's.vndb.org',
-  't.vndb.org',
-  'cdn.vndb.org',
-  'api.vndb.org',
-  'erogamescape.dyndns.org',
-  'erogamescape.org',
-  'pics.dmm.co.jp',
-  'pics.dmm.com',
-  'img.dlsite.jp',
-  // Suruga-ya uses .jp (the shopUrl helper constructs
-  // suruga-ya.jp). Earlier audit listed .com which would have
-  // blocked legitimate fetches.
-  'www.suruga-ya.jp',
-  'www.suruga-ya.com',
-  'gyutto.com',
-  'gyutto.jp',
-  'image.itch.zone',
-  'cdn.steamgriddb.com',
-  'shared.cloudflare.steamstatic.com',
-  'steamcdn-a.akamaihd.net',
-  'media.steampowered.com',
-  'cdn.akamai.steamstatic.com',
-  'lemmasoft.renai.us',
-]);
-
-/**
- * Reject literal private / loopback IPs that an attacker might
- * encode in the host (e.g. http://127.0.0.1.evil.com/...). The
- * fetch follows redirects, so even an allowed host could redirect
- * to a private IP — we re-check after each redirect would be ideal,
- * but the simpler win is to block requests targeting numeric hosts
- * outright since none of our legitimate sources use raw IPs.
- */
-function isAllowedTarget(target: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(target);
-  } catch {
-    return false;
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-  const host = url.hostname.toLowerCase();
-  // Reject IPv4 literals — none of our legitimate sources use them.
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return false;
-  // Reject IPv6 literals.
-  if (host.startsWith('[') || host.includes(':')) return false;
-  // Reject loopback and link-local hostnames.
-  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return false;
-  return ALLOWED_HOSTS.has(host);
-}
+// Allowlist + gate live in `lib/url-allowlist` so banner / cover /
+// downloadToBucket all share the same trusted-source set.
 
 async function proxyImage(target: string, origin: string): Promise<Response> {
   if (target.startsWith(`${origin}/`) || target.startsWith('/')) {

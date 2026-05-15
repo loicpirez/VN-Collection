@@ -2,6 +2,7 @@ import 'server-only';
 import { mkdir, writeFile, stat, readFile } from 'node:fs/promises';
 import { resolve, extname, basename, normalize } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 
 export const STORAGE_ROOT = resolve(process.cwd(), 'data', 'storage');
 export const STORAGE_DIRS = {
@@ -81,6 +82,13 @@ export async function downloadToBucket(
   bucket: StorageBucket,
   filenameHint: string,
 ): Promise<string> {
+  // SSRF guard — the URL is normally VNDB / EGS / Steam, but it can
+  // come from VNDB extlinks or an EGS shop id that an attacker can
+  // influence via /api/collection/import. Block everything not on
+  // the shared allowlist before we touch the network.
+  if (!isAllowedHttpTarget(url)) {
+    throw new Error(`download blocked by host allowlist: ${url}`);
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   let res: Response;

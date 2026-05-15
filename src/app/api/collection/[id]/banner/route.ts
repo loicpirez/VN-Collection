@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollectionItem, setBanner, setBannerPosition } from '@/lib/db';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
+import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -58,7 +59,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   } else if (source === 'custom_cover') {
     next = item.custom_cover || null;
   } else if (source === 'url' && value) {
-    if (!/^https?:\/\//i.test(value)) {
+    // SSRF guard — matches the cover route. Only known image hosts.
+    if (!isAllowedHttpTarget(value)) {
       return NextResponse.json({ error: 'invalid url' }, { status: 400 });
     }
     next = value;

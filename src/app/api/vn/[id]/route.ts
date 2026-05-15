@@ -11,6 +11,12 @@ const CACHE_MS = 24 * 3600 * 1000;
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  // Restrict to the two id shapes the rest of the app actually
+  // produces. Without this gate a caller could burn VNDB rate-limit
+  // budget by firing arbitrary strings at the upstream API.
+  if (!/^(v\d+|egs_\d+)$/i.test(id)) {
+    return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  }
   const cached = getCollectionItem(id);
   if (cached && cached.fetched_at && Date.now() - cached.fetched_at < CACHE_MS) {
     return NextResponse.json({ vn: cached, in_collection: !!cached.status });

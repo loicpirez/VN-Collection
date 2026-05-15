@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollectionItem, setCustomCover } from '@/lib/db';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
+import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -54,7 +55,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   let next: string | null = null;
   if (source === 'url' && value) {
-    if (!/^https?:\/\//i.test(value)) {
+    // SSRF guard: the URL ends up rendered as an <img src> back to
+    // the user AND (when proxied through /api/egs-cover) fetched
+    // server-side. Only allowlisted hosts survive — no loopback /
+    // private-IP / non-image hosts.
+    if (!isAllowedHttpTarget(value)) {
       return NextResponse.json({ error: 'invalid url' }, { status: 400 });
     }
     next = value;
