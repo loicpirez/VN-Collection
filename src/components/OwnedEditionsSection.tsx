@@ -300,7 +300,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
                         {!edition.release_id.startsWith('synthetic:') && (
                           <Link
                             href={`/release/${edition.release_id}`}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
+                            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
                             title={t.releases.viewDetails}
                           >
                             <Info className="h-3.5 w-3.5" />
@@ -309,7 +309,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
                         <button
                           type="button"
                           onClick={() => setEditingId(isEditing ? null : edition.release_id)}
-                          className={`inline-flex h-7 w-7 items-center justify-center rounded ${
+                          className={`tap-target inline-flex h-7 w-7 items-center justify-center rounded ${
                             isEditing ? 'bg-accent text-bg' : 'text-muted hover:bg-bg-elev hover:text-white'
                           }`}
                           title={t.common.edit}
@@ -320,7 +320,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
                           type="button"
                           onClick={() => removeEdition(edition.release_id)}
                           disabled={busy}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-status-dropped/10 hover:text-status-dropped"
+                          className="tap-target inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-status-dropped/10 hover:text-status-dropped"
                           title={t.common.delete}
                         >
                           <Trash2 className="h-3.5 w-3.5" />

@@ -126,7 +126,7 @@ export function ListMetaEditor({ list }: { list: List }) {
           type="button"
           onClick={() => setColor(null)}
           aria-label={t.lists.noColor}
-          className={`h-6 w-6 rounded ${color == null ? 'ring-2 ring-accent' : 'opacity-60 hover:opacity-100'}`}
+          className={`tap-target-tight h-6 w-6 rounded ${color == null ? 'ring-2 ring-accent' : 'opacity-60 hover:opacity-100'}`}
           style={{ background: 'linear-gradient(135deg, #475569 50%, #1e293b 50%)' }}
         />
         {PRESET_COLORS.map((c) => (
@@ -135,7 +135,7 @@ export function ListMetaEditor({ list }: { list: List }) {
             type="button"
             onClick={() => setColor(c)}
             aria-label={c}
-            className={`h-6 w-6 rounded ${color === c ? 'ring-2 ring-white' : 'opacity-60 hover:opacity-100'}`}
+            className={`tap-target-tight h-6 w-6 rounded ${color === c ? 'ring-2 ring-white' : 'opacity-60 hover:opacity-100'}`}
             style={{ backgroundColor: c }}
           />
         ))}

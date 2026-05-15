@@ -113,7 +113,7 @@ export async function GET(req: Request) {
         `UID:${uid(it.id, 'finish')}`,
         `DTSTAMP:${stamp}`,
         `DTSTART;VALUE=DATE:${finish}`,
-        `SUMMARY:${ics(`✓ Finished ${title}`)}`,
+        `SUMMARY:${ics(`Finished: ${title}`)}`,
         `DESCRIPTION:${ics(`Visual novel finished\\nRating: ${it.user_rating ?? '—'} / 100\\n${it.id}`)}`,
         'END:VEVENT',
       );

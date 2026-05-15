@@ -248,7 +248,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           }}
           title={t.wishlist.removeOne}
           aria-label={t.wishlist.removeOne}
-          className="absolute left-2 top-11 z-30 inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+          className="absolute left-2 top-11 z-30 tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
         >
           <X className="h-4 w-4" aria-hidden />
         </button>
@@ -458,7 +458,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
               const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
               openMenuAt(rect.right, rect.bottom);
             }}
-            className="absolute bottom-2 right-2 z-30 inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur hover:text-white sm:hidden"
+            className="absolute bottom-2 right-2 z-30 tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur hover:text-white sm:hidden"
           >
             <MoreVertical className="h-4 w-4" aria-hidden />
           </button>

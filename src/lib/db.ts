@@ -2372,7 +2372,25 @@ export interface AggregateStats {
   };
 }
 
+// 30-second in-process cache. The stats page renders once per
+// visit, but the cache layer kicks in when the user navigates
+// elsewhere and back (e.g. through the data hub) — 8 full-table
+// scans collapse to ~free for the next 30 seconds. Bust on writes
+// is unnecessary because the page already shows a Refresh button
+// that hits /api/refresh/global, which doesn't go through here.
+let aggregateStatsCache: { at: number; data: AggregateStats } | null = null;
+const AGGREGATE_STATS_TTL_MS = 30_000;
+
 export function getAggregateStats(): AggregateStats {
+  if (aggregateStatsCache && Date.now() - aggregateStatsCache.at < AGGREGATE_STATS_TTL_MS) {
+    return aggregateStatsCache.data;
+  }
+  const data = computeAggregateStats();
+  aggregateStatsCache = { at: Date.now(), data };
+  return data;
+}
+
+function computeAggregateStats(): AggregateStats {
   const ratingsRaw = db
     .prepare('SELECT user_rating FROM collection WHERE user_rating IS NOT NULL')
     .all() as { user_rating: number }[];

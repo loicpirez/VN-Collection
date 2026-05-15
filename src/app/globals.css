@@ -33,6 +33,46 @@
   .chip-active {
     @apply bg-accent border-accent text-bg hover:text-bg;
   }
+  /*
+   * Icon-only buttons get a 16-20px visual footprint to fit dense
+   * card layouts (favorite, lists, overflow, dismiss, etc.). On
+   * touch devices that's far below the 44×44 minimum recommended
+   * by WCAG / Apple HIG.
+   *
+   * `.tap-target` keeps the visual size unchanged but extends an
+   * invisible hit-area via a pseudo-element so the button is
+   * actually tappable on a phone or tablet. Apply on top of the
+   * existing `h-N w-N` class on any icon-only button that's not
+   * already at least 44 px tall.
+   */
+  .tap-target {
+    position: relative;
+  }
+  .tap-target::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+    border-radius: 12px;
+    pointer-events: auto;
+  }
+  /*
+   * Optional sibling: when an icon button lives inside a tight
+   * cluster (kbd-shortcuts dialog header, toast row) the
+   * `tap-target` overlay above would overlap with adjacent
+   * controls and steal touches. `.tap-target-tight` shrinks the
+   * extra area to 6 px each side — still gets to ~32 px which is
+   * better than the bare 20 px without trapping neighbors.
+   */
+  .tap-target-tight {
+    position: relative;
+  }
+  .tap-target-tight::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 8px;
+    pointer-events: auto;
+  }
 }
 
 /* Hide scrollbar in chip rows */

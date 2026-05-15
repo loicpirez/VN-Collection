@@ -76,7 +76,7 @@ export function TagInput({
                 e.stopPropagation();
                 remove(i);
               }}
-              className="-mr-1 inline-flex h-4 w-4 items-center justify-center rounded text-muted hover:bg-status-dropped hover:text-bg"
+              className="-mr-1 tap-target-tight inline-flex h-4 w-4 items-center justify-center rounded text-muted hover:bg-status-dropped hover:text-bg"
               aria-label={t.tagInput.removeTag.replace('{v}', v)}
             >
               <X className="h-3 w-3" />
