@@ -18,6 +18,7 @@ import { ensureLocalImagesForVn } from '@/lib/assets';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
+import { validateVnIdOr400 } from '@/lib/vn-id';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -118,20 +119,17 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   const item = getCollectionItem(id);
   if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
   return NextResponse.json({ item, in_collection: !!item.status });
 }
 
-// VN ids look like `v123` (VNDB) or `egs_456` (synthetic EGS-only).
-// Validate up front so a typo doesn't reach VNDB / EGS / the DB.
-const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
-
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!VN_ID_RE.test(id)) {
-    return NextResponse.json({ error: 'invalid VN id format' }, { status: 400 });
-  }
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   const wasInCollection = isInCollection(id);
   if (!getCollectionItem(id)) {
     try {
@@ -172,6 +170,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const { fields, error } = pickFields(body);
@@ -186,6 +186,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   // Fail loudly when the row isn't there: silent success was masking
   // stale optimistic-UI deletes and typo'd ids that would never tell
   // the caller anything was wrong.

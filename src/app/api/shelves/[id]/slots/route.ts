@@ -39,10 +39,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     release_id?: unknown;
   };
   if (
+    typeof body.row !== 'number' ||
+    typeof body.col !== 'number' ||
     !Number.isInteger(body.row) ||
     !Number.isInteger(body.col) ||
-    (body.row as number) < 0 ||
-    (body.col as number) < 0 ||
+    body.row < 0 ||
+    body.col < 0 ||
     typeof body.vn_id !== 'string' ||
     typeof body.release_id !== 'string' ||
     body.vn_id.length === 0 ||
@@ -64,8 +66,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const result = placeShelfItem({
       shelfId: sid,
-      row: body.row as number,
-      col: body.col as number,
+      row: body.row,
+      col: body.col,
       vnId: body.vn_id,
       releaseId: body.release_id,
     });
@@ -74,7 +76,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       swapped: result.swapped,
     });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    console.error('shelf slot place failed:', (e as Error).message);
+    return NextResponse.json({ error: 'shelf slot place failed' }, { status: 400 });
   }
 }
 

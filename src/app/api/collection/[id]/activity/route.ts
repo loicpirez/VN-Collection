@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addManualActivity, deleteActivity, isInCollection, listActivityForVn } from '@/lib/db';
+import { validateVnIdOr400 } from '@/lib/vn-id';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   return NextResponse.json({ entries: listActivityForVn(id, 100) });
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { text?: unknown; occurred_at?: unknown };
   if (typeof body.text !== 'string' || body.text.trim().length === 0) {
@@ -23,6 +28,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const eid = Number(req.nextUrl.searchParams.get('entry'));
   if (!Number.isInteger(eid) || eid <= 0) {

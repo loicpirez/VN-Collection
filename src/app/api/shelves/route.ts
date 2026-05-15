@@ -34,7 +34,11 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ shelf });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    // Avoid surfacing raw error message (could carry file paths /
+    // SQL fragments from db.ts validators). Log server-side, send
+    // a fixed string to the client.
+    console.error('shelf create failed:', (e as Error).message);
+    return NextResponse.json({ error: 'shelf create failed' }, { status: 400 });
   }
 }
 

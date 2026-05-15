@@ -6,6 +6,7 @@ import {
   listGameLogForVn,
   updateGameLogEntry,
 } from '@/lib/db';
+import { validateVnIdOr400 } from '@/lib/vn-id';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -23,12 +24,16 @@ export const runtime = 'nodejs';
  */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   return NextResponse.json({ entries: listGameLogForVn(id, 200) });
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as {
     note?: unknown;
@@ -53,6 +58,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as {
     id?: unknown;
@@ -82,6 +89,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const eid = Number(req.nextUrl.searchParams.get('entry'));
   if (!Number.isInteger(eid) || eid <= 0) {

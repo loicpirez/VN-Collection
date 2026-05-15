@@ -13,6 +13,7 @@ import { downloadFullRelationsForVn } from '@/lib/relations-full';
 import { scrapeProducersForVn } from '@/lib/scrape-producer-relations';
 import { scrapeTagDagForVn } from '@/lib/scrape-tag-dag';
 import { scrapeCharactersForVn } from '@/lib/scrape-character-instances';
+import { validateVnIdOr400 } from '@/lib/vn-id';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,6 +27,8 @@ interface EgsWarning {
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!getCollectionItem(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
 
   const refresh = req.nextUrl.searchParams.get('refresh') === 'true';

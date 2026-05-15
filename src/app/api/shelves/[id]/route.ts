@@ -56,7 +56,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     return NextResponse.json({ shelf: getShelf(sid), slots: listShelfSlots(sid) });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    console.error('shelf patch failed:', (e as Error).message);
+    return NextResponse.json({ error: 'shelf patch failed' }, { status: 400 });
   }
 }
 

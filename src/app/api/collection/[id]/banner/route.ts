@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollectionItem, setBanner, setBannerPosition } from '@/lib/db';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
+import { validateVnIdOr400 } from '@/lib/vn-id';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -23,6 +24,8 @@ const POSITION_RE = /^-?\d+(?:\.\d+)?%\s+-?\d+(?:\.\d+)?%$/;
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   const item = getCollectionItem(id);
   if (!item) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
 
@@ -81,6 +84,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!getCollectionItem(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { position?: string | null };
   if (!('position' in body)) return NextResponse.json({ error: 'missing position' }, { status: 400 });
@@ -94,6 +99,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!getCollectionItem(id)) {
     return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   }

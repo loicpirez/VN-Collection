@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStats, isValidStatus, listCollection, type ListOptions } from '@/lib/db';
+import { countListMembershipsByVn, getStats, isValidStatus, listCollection, type ListOptions } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   const yearMin = yearMinRaw ? Number(yearMinRaw) : undefined;
   const yearMax = yearMaxRaw ? Number(yearMaxRaw) : undefined;
 
-  const items = listCollection({
+  const raw = listCollection({
     status: status as ListOptions['status'],
     q,
     producer: producer || undefined,
@@ -62,5 +62,10 @@ export async function GET(req: NextRequest) {
     sort,
     order,
   });
+  // Annotate each row with its list-membership count once, here, so
+  // the library grid renders the ListsPicker badge correctly on first
+  // paint without needing a popover open per card.
+  const listCounts = countListMembershipsByVn();
+  const items = raw.map((it) => ({ ...it, list_count: listCounts.get(it.id) ?? 0 }));
   return NextResponse.json({ items, stats: getStats() });
 }

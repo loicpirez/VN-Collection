@@ -9,6 +9,7 @@ import {
   updateOwnedRelease,
   type OwnedReleasePatch,
 } from '@/lib/db';
+import { validateVnIdOr400 } from '@/lib/vn-id';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,6 +94,8 @@ function validateReleaseId(raw: string, vnId: string): { ok: boolean; normalized
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const owned = listOwnedReleasesWithShelfForVn(id);
   return NextResponse.json({ owned });
@@ -100,6 +103,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const validation = validateReleaseId(String(body.release_id ?? ''), id);
@@ -112,6 +117,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const validation = validateReleaseId(String(body.release_id ?? ''), id);
@@ -124,6 +131,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const validation = validateReleaseId(req.nextUrl.searchParams.get('release_id') ?? '', id);
   if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
