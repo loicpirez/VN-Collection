@@ -182,17 +182,46 @@ export default async function StaffPage({
             <Mic2 className="h-4 w-4 text-accent" /> {t.staff.voiceCredits}
             <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {voice.length}</span>
           </h2>
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
             {voice.map((credit) => (
               <li key={credit.vn.id}>
                 <VnCard vn={credit.vn}>
-                  <ul className="mt-2 space-y-1 text-[11px] text-muted">
+                  {/*
+                    Each voiced character renders with a thumbnail
+                    next to the name. The thumbnail uses the local
+                    mirror when available (populated by the
+                    "Download all" / per-VN fan-out) so the page
+                    works offline once the data is cached.
+                  */}
+                  <ul className="mt-2 space-y-1.5 text-[11px] text-muted">
                     {credit.characters.map((c) => (
-                      <li key={c.id} className="flex items-baseline justify-between gap-2">
-                        <Link href={`/character/${c.id}`} className="truncate font-semibold text-white/85 hover:text-accent">
-                          {c.name}
+                      <li key={c.id} className="flex items-start gap-2">
+                        <Link
+                          href={`/character/${c.id}`}
+                          className="block h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-bg-elev/40"
+                          aria-label={c.name}
+                        >
+                          <SafeImage
+                            src={c.image_url}
+                            localSrc={c.local_image}
+                            alt={c.name}
+                            className="h-full w-full"
+                          />
                         </Link>
-                        {c.note && <span className="shrink-0 text-[10px] opacity-70">{c.note}</span>}
+                        <div className="min-w-0 flex-1">
+                          <Link
+                            href={`/character/${c.id}`}
+                            className="line-clamp-1 font-semibold text-white/85 hover:text-accent"
+                          >
+                            {c.name}
+                          </Link>
+                          {c.original && c.original !== c.name && (
+                            <div className="line-clamp-1 text-[10px] text-muted/70">{c.original}</div>
+                          )}
+                          {c.note && (
+                            <div className="line-clamp-1 text-[10px] opacity-70">{c.note}</div>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -269,6 +298,9 @@ function VnCard({
 }) {
   const year = vn.released?.slice(0, 4);
   const ratingDisplay = vn.rating != null ? (vn.rating / 10).toFixed(1) : null;
+  // VNDB id format `vN` only — egs_* synthetic ids don't have a
+  // public VNDB page. Hide the external link in that case.
+  const vndbUrl = /^v\d+$/i.test(vn.id) ? `https://vndb.org/${vn.id}` : null;
   return (
     <div
       className={`flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors ${
@@ -285,16 +317,30 @@ function VnCard({
         />
       </Link>
       <div className="min-w-0 flex-1">
-        <Link
-          href={`/vn/${vn.id}`}
-          className="line-clamp-2 text-xs font-bold transition-colors hover:text-accent"
-        >
-          {vn.title}
-        </Link>
+        <div className="flex items-baseline gap-2">
+          <Link
+            href={`/vn/${vn.id}`}
+            className="line-clamp-2 flex-1 text-xs font-bold transition-colors hover:text-accent"
+          >
+            {vn.title}
+          </Link>
+          {vndbUrl && (
+            <a
+              href={vndbUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="VNDB"
+              title="VNDB"
+              className="shrink-0 text-muted hover:text-accent"
+            >
+              <ExternalLink className="h-3 w-3" aria-hidden />
+            </a>
+          )}
+        </div>
         {vn.alttitle && vn.alttitle !== vn.title && (
-          <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">{vn.alttitle}</div>
+          <div className="mt-0.5 line-clamp-1 text-[11px] text-muted">{vn.alttitle}</div>
         )}
-        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
+        <div className="mt-1 flex items-center gap-2 text-[11px] text-muted">
           {ratingDisplay && (
             <span className="inline-flex items-center gap-0.5 text-accent">
               <Star className="h-3 w-3 fill-accent" /> {ratingDisplay}
@@ -302,8 +348,11 @@ function VnCard({
           )}
           {year && <span>{year}</span>}
           {vn.in_collection && (
-            <span className="rounded bg-accent/15 px-1.5 text-[9px] font-bold uppercase tracking-wider text-accent">
-              ★
+            <span
+              className="inline-flex items-center gap-0.5 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent"
+              title="In your collection"
+            >
+              ★ <span className="hidden sm:inline">owned</span>
             </span>
           )}
         </div>

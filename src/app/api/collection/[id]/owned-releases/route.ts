@@ -75,6 +75,22 @@ function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; e
   return { patch };
 }
 
+/**
+ * Release ids accepted by the owned-release endpoints:
+ *   - `rNNN`           — VNDB release.
+ *   - `synthetic:vN`   — placeholder for VNs without a VNDB release
+ *                        (EGS-only entries, or releases not yet
+ *                        fan-out-downloaded). The vn_id half mirrors
+ *                        the route's :id segment, so a synthetic id
+ *                        can only ever be created for its own VN.
+ */
+function validateReleaseId(raw: string, vnId: string): { ok: boolean; normalized: string } {
+  const trimmed = raw.trim();
+  if (/^r\d+$/i.test(trimmed)) return { ok: true, normalized: trimmed.toLowerCase() };
+  if (trimmed === `synthetic:${vnId}`) return { ok: true, normalized: trimmed };
+  return { ok: false, normalized: trimmed };
+}
+
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
@@ -86,11 +102,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const releaseId = String(body.release_id ?? '').trim();
-  if (!/^r\d+$/i.test(releaseId)) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
+  const validation = validateReleaseId(String(body.release_id ?? ''), id);
+  if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
   const { patch, error } = pickPatch(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
-  markReleaseOwned(id, releaseId.toLowerCase(), patch);
+  markReleaseOwned(id, validation.normalized, patch);
   return NextResponse.json({ owned: listOwnedReleasesForVn(id) });
 }
 
@@ -98,19 +114,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { id } = await ctx.params;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const releaseId = String(body.release_id ?? '').trim();
-  if (!/^r\d+$/i.test(releaseId)) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
+  const validation = validateReleaseId(String(body.release_id ?? ''), id);
+  if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
   const { patch, error } = pickPatch(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
-  updateOwnedRelease(id, releaseId.toLowerCase(), patch);
+  updateOwnedRelease(id, validation.normalized, patch);
   return NextResponse.json({ owned: listOwnedReleasesForVn(id) });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const releaseId = (req.nextUrl.searchParams.get('release_id') ?? '').trim();
-  if (!/^r\d+$/i.test(releaseId)) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
-  unmarkReleaseOwned(id, releaseId.toLowerCase());
+  const validation = validateReleaseId(req.nextUrl.searchParams.get('release_id') ?? '', id);
+  if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
+  unmarkReleaseOwned(id, validation.normalized);
   return NextResponse.json({ owned: listOwnedReleasesForVn(id) });
 }

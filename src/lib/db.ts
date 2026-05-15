@@ -798,7 +798,21 @@ export interface StaffWorkCredit {
 
 export interface StaffVaCredit {
   vn: VnSummary;
-  characters: { id: string; name: string; original: string | null; image_url: string | null; credited_as: string; note: string | null }[];
+  characters: {
+    id: string;
+    name: string;
+    original: string | null;
+    /** Original CDN URL VNDB returned. */
+    image_url: string | null;
+    /**
+     * Local mirror under `data/storage/character/` (populated by
+     * `downloadCharacterImages` after a full /assets fan-out). When
+     * present, SafeImage prefers this over the remote URL.
+     */
+    local_image: string | null;
+    credited_as: string;
+    note: string | null;
+  }[];
 }
 
 export function getStaffProfileFromCredits(sid: string): StaffProfile | null {
@@ -860,11 +874,13 @@ export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boole
     SELECT
       v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual,
       v.local_image, v.local_image_thumb, v.released, v.rating,
-      va.c_id, va.c_name, va.c_original, va.c_image_url, va.va_name AS credited_as, va.note,
+      va.c_id, va.c_name, va.c_original, va.c_image_url, ci.local_path AS c_local_image,
+      va.va_name AS credited_as, va.note,
       CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_collection
     FROM vn_va_credit va
     JOIN vn v ON v.id = va.vn_id
     LEFT JOIN collection c ON c.vn_id = va.vn_id
+    LEFT JOIN character_image ci ON ci.char_id = va.c_id
     WHERE va.sid = ? ${where}
     ORDER BY v.released DESC NULLS LAST, v.title, va.c_name
   `).all(sid) as Array<{
@@ -872,7 +888,8 @@ export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boole
     image_url: string | null; image_thumb: string | null; image_sexual: number | null;
     local_image: string | null; local_image_thumb: string | null;
     released: string | null; rating: number | null;
-    c_id: string; c_name: string; c_original: string | null; c_image_url: string | null;
+    c_id: string; c_name: string; c_original: string | null;
+    c_image_url: string | null; c_local_image: string | null;
     credited_as: string; note: string | null;
     in_collection: number;
   }>;
@@ -892,8 +909,13 @@ export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boole
       map.set(r.id, entry);
     }
     entry.characters.push({
-      id: r.c_id, name: r.c_name, original: r.c_original, image_url: r.c_image_url,
-      credited_as: r.credited_as, note: r.note,
+      id: r.c_id,
+      name: r.c_name,
+      original: r.c_original,
+      image_url: r.c_image_url,
+      local_image: r.c_local_image,
+      credited_as: r.credited_as,
+      note: r.note,
     });
   }
   return Array.from(map.values());

@@ -97,6 +97,18 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
     return releases.filter((r) => !ownedSet.has(r.id));
   }, [releases, owned]);
 
+  // Synthetic release id for entries that don't have a VNDB release.
+  // Covers two cases:
+  //   1. EGS-only VNs (`egs_NNN`) — VNDB knows nothing, so the
+  //      releases list is permanently empty and the user could
+  //      never shelve them. We surface a single "EGS edition" slot.
+  //   2. VNDB VNs whose release data hasn't been downloaded yet —
+  //      same UX: a generic "Edition principale" placeholder so
+  //      the user can still record where they physically store it.
+  const syntheticReleaseId = `synthetic:${vnId}`;
+  const canAddSynthetic =
+    releases.length === 0 && !owned.some((o) => o.release_id === syntheticReleaseId);
+
   async function addEdition(releaseId: string) {
     setBusy(true);
     try {
@@ -176,7 +188,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
         <button
           type="button"
           onClick={() => setAdderOpen((v) => !v)}
-          disabled={busy || unownedReleases.length === 0}
+          disabled={busy || (unownedReleases.length === 0 && !canAddSynthetic)}
           className="btn"
           title={t.inventory.addEdition}
         >
@@ -184,12 +196,30 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
         </button>
       </header>
 
-      {adderOpen && unownedReleases.length > 0 && (
+      {adderOpen && (unownedReleases.length > 0 || canAddSynthetic) && (
         <div className="border-t border-border bg-bg-elev/30 px-4 py-3 sm:px-6">
           <p className="mb-2 text-[11px] uppercase tracking-wider text-muted">
-            {t.inventory.pickRelease}
+            {unownedReleases.length > 0 ? t.inventory.pickRelease : t.inventory.pickSynthetic}
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
+            {/*
+              Synthetic-edition tile: shown when VNDB has no release
+              data for this VN (EGS-only items, or VNs whose release
+              fan-out hasn't run yet). Lets the user record physical
+              storage / dump status / price without waiting for a
+              release id from VNDB.
+            */}
+            {canAddSynthetic && (
+              <button
+                type="button"
+                onClick={() => addEdition(syntheticReleaseId)}
+                disabled={busy}
+                className="flex flex-col gap-1 rounded-md border border-accent/50 bg-accent/5 p-2 text-left text-xs transition-colors hover:border-accent disabled:opacity-50"
+              >
+                <span className="line-clamp-2 font-semibold">{t.inventory.syntheticTitle}</span>
+                <span className="text-[11px] text-muted">{t.inventory.syntheticHint}</span>
+              </button>
+            )}
             {unownedReleases.slice(0, 30).map((r) => (
               <button
                 key={r.id}
@@ -199,7 +229,7 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
                 className="flex flex-col gap-1 rounded-md border border-border bg-bg-card p-2 text-left text-xs transition-colors hover:border-accent disabled:opacity-50"
               >
                 <span className="line-clamp-2 font-semibold">{r.title}</span>
-                <div className="flex flex-wrap gap-1 text-[10px] text-muted">
+                <div className="flex flex-wrap gap-1 text-[11px] text-muted">
                   {r.released && <span className="tabular-nums">{r.released}</span>}
                   {r.platforms.slice(0, 3).map((p) => (
                     <span key={p}>{p}</span>
@@ -238,12 +268,21 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <Link
-                          href={`/release/${edition.release_id}`}
-                          className="line-clamp-2 text-sm font-bold hover:text-accent"
-                        >
-                          {release?.title ?? edition.release_id}
-                        </Link>
+                        {/* Synthetic release ids have no VNDB
+                            /release/[id] target — render the title
+                            as plain text and skip the info link. */}
+                        {edition.release_id.startsWith('synthetic:') ? (
+                          <div className="line-clamp-2 text-sm font-bold">
+                            {t.inventory.syntheticTitle}
+                          </div>
+                        ) : (
+                          <Link
+                            href={`/release/${edition.release_id}`}
+                            className="line-clamp-2 text-sm font-bold hover:text-accent"
+                          >
+                            {release?.title ?? edition.release_id}
+                          </Link>
+                        )}
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
                           {release?.released && <span className="tabular-nums">{release.released}</span>}
                           {release?.languages.map((l) => (
@@ -255,13 +294,15 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        <Link
-                          href={`/release/${edition.release_id}`}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
-                          title={t.releases.viewDetails}
-                        >
-                          <Info className="h-3.5 w-3.5" />
-                        </Link>
+                        {!edition.release_id.startsWith('synthetic:') && (
+                          <Link
+                            href={`/release/${edition.release_id}`}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
+                            title={t.releases.viewDetails}
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </Link>
+                        )}
                         <button
                           type="button"
                           onClick={() => setEditingId(isEditing ? null : edition.release_id)}
