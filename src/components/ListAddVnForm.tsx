@@ -20,7 +20,7 @@ export function ListAddVnForm({ listId }: { listId: number }) {
     const trimmed = value.trim().toLowerCase();
     if (!trimmed || busy) return;
     if (!VN_ID.test(trimmed) && !EGS_ID.test(trimmed)) {
-      toast.error('v123 / egs_456');
+      toast.error(t.series.invalidListVnId);
       return;
     }
     setBusy(true);
@@ -47,6 +47,7 @@ export function ListAddVnForm({ listId }: { listId: number }) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="v123 / egs_456"
+        aria-label={t.series.addVn}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
         }}

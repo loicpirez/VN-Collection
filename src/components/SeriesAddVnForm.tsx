@@ -16,7 +16,7 @@ export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
     setError(null);
     const id = vnId.trim().toLowerCase();
     if (!/^v\d+$/.test(id)) {
-      setError('VN id must look like v17');
+      setError(t.series.invalidVnId);
       return;
     }
     setBusy(true);
@@ -44,9 +44,10 @@ export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
           placeholder="v11, v17…"
           value={vnId}
           onChange={(e) => setVnId(e.target.value)}
+          aria-label={t.series.addVn}
         />
         <button className="btn btn-primary" onClick={add} disabled={busy || pending || !vnId.trim()}>
-          <Plus className="h-4 w-4" /> {t.common.add}
+          <Plus className="h-4 w-4" aria-hidden /> {t.common.add}
         </button>
       </div>
       <p className="mt-1 text-[11px] text-muted">{t.series.addVnHint}</p>

@@ -21,18 +21,30 @@ function fmtBirthday(b: [number, number] | null): string | null {
   return `${d}/${String(m).padStart(2, '0')}`;
 }
 
-function sexLabel(s: [string | null, string | null] | null, idx: 0 | 1 = 0): string | null {
+function sexLabel(s: [string | null, string | null] | null, t: Awaited<ReturnType<typeof getDict>>, idx: 0 | 1 = 0): string | null {
   if (!s) return null;
   const v = s[idx];
-  const map: Record<string, string> = { m: '♂', f: '♀', b: '♂♀', n: '∅' };
-  return v == null ? null : (map[v] ?? v);
+  if (v == null) return null;
+  const map: Record<string, string> = {
+    m: t.characters.genderM,
+    f: t.characters.genderF,
+    b: `${t.characters.genderM} / ${t.characters.genderF}`,
+    n: t.common.none,
+  };
+  return map[v] ?? v;
 }
 
-function genderLabel(g: [string | null, string | null] | null, idx: 0 | 1 = 0): string | null {
+function genderLabel(g: [string | null, string | null] | null, t: Awaited<ReturnType<typeof getDict>>, idx: 0 | 1 = 0): string | null {
   if (!g) return null;
   const v = g[idx];
-  const map: Record<string, string> = { m: '♂', f: '♀', o: 'non-binary', a: 'ambiguous' };
-  return v == null ? null : (map[v] ?? v);
+  if (v == null) return null;
+  const map: Record<string, string> = {
+    m: t.characters.genderM,
+    f: t.characters.genderF,
+    o: t.characters.genderO,
+    a: t.characters.genderA,
+  };
+  return map[v] ?? v;
 }
 
 export default async function CharacterPage({
@@ -47,6 +59,10 @@ export default async function CharacterPage({
   try {
     char = await getCharacter(id);
   } catch {
+    // VNDB unreachable / throttled / payload malformed — fall through
+    // to `notFound()` below rather than 500ing. The user sees the
+    // same UX as "really doesn't exist", which is the right policy
+    // for a read-only detail page that can't recover client-side.
     char = null;
   }
   if (!char) notFound();
@@ -62,9 +78,9 @@ export default async function CharacterPage({
   if (char.blood_type) meta.push({ label: t.characters.bloodType, value: char.blood_type.toUpperCase() });
   const bday = fmtBirthday(char.birthday);
   if (bday) meta.push({ label: t.characters.birthday, value: bday });
-  const sexA = sexLabel(char.sex, 0);
+  const sexA = sexLabel(char.sex, t, 0);
   if (sexA) meta.push({ label: t.characters.sex, value: sexA });
-  const genderA = genderLabel(char.gender, 0);
+  const genderA = genderLabel(char.gender, t, 0);
   if (genderA) meta.push({ label: t.characters.gender, value: genderA });
 
   const sortedVns = [...char.vns].sort(
@@ -122,7 +138,7 @@ export default async function CharacterPage({
               rel="noopener noreferrer"
               className="btn"
             >
-              <ExternalLink className="h-4 w-4" /> VNDB ↗
+              <ExternalLink className="h-4 w-4" aria-hidden /> VNDB
             </a>
           </div>
         </div>

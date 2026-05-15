@@ -130,14 +130,14 @@ export function ImportPanel() {
             <CheckCircle2 className="h-4 w-4" aria-hidden /> {t.dataMgmt.importDone}
           </p>
           <ul className="mt-2 grid grid-cols-2 gap-1 text-muted">
-            <li>VN: <b className="text-white">{summary.data.vns_upserted}</b></li>
-            <li>Collection: <b className="text-white">{summary.data.collection_upserted}</b></li>
-            <li>Series: <b className="text-white">{summary.data.series_created}</b></li>
-            <li>Series-VN: <b className="text-white">{summary.data.series_links}</b></li>
+            <li>{t.dataMgmt.importCounts.vns}: <b className="text-white">{summary.data.vns_upserted}</b></li>
+            <li>{t.dataMgmt.importCounts.collection}: <b className="text-white">{summary.data.collection_upserted}</b></li>
+            <li>{t.dataMgmt.importCounts.series}: <b className="text-white">{summary.data.series_created}</b></li>
+            <li>{t.dataMgmt.importCounts.seriesVn}: <b className="text-white">{summary.data.series_links}</b></li>
           </ul>
           {summary.data.errors.length > 0 && (
             <details className="mt-2">
-              <summary className="cursor-pointer text-status-dropped">{summary.data.errors.length} errors</summary>
+              <summary className="cursor-pointer text-status-dropped">{summary.data.errors.length} {t.dataMgmt.importCounts.errors}</summary>
               <ul className="mt-1 max-h-32 overflow-y-auto text-[10px]">
                 {summary.data.errors.map((e, i) => <li key={i}>{e}</li>)}
               </ul>

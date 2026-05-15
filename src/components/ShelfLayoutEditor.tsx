@@ -40,6 +40,7 @@ import { useConfirm } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/ToastProvider';
 import { SkeletonBlock } from '@/components/Skeleton';
 import type { ShelfEntry, ShelfSlotEntry, ShelfUnitWithCount } from '@/lib/db';
+import { parseDragId, parseCellId, type DragSource } from '@/lib/drag-id';
 
 interface Props {
   initialShelves: ShelfUnitWithCount[];
@@ -50,10 +51,6 @@ interface LoadedShelfState {
   shelf: ShelfUnitWithCount;
   slots: ShelfSlotEntry[];
 }
-
-type DragSource =
-  | { kind: 'pool'; vn_id: string; release_id: string }
-  | { kind: 'slot'; vn_id: string; release_id: string; shelf_id: number; row: number; col: number };
 
 const POOL_DROPPABLE_ID = '__pool__';
 const SHELF_MIN = 1;
@@ -523,7 +520,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               disabled={shelves.length < 2}
               aria-label={t.shelfLayout.prevShelf}
               title={t.shelfLayout.prevShelf}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent disabled:opacity-30"
+              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden />
             </button>
@@ -537,7 +534,10 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                   key={s.id}
                   type="button"
                   role="tab"
+                  id={`shelf-tab-${s.id}`}
+                  aria-controls={`shelf-panel-${s.id}`}
                   aria-selected={s.id === activeId}
+                  tabIndex={s.id === activeId ? 0 : -1}
                   onClick={() => setActiveId(s.id)}
                   className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors ${
                     s.id === activeId
@@ -563,7 +563,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               disabled={shelves.length < 2}
               aria-label={t.shelfLayout.nextShelf}
               title={t.shelfLayout.nextShelf}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent disabled:opacity-30"
+              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4" aria-hidden />
             </button>
@@ -681,7 +681,10 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         )}
 
         <p className="mt-3 text-[11px] text-muted/80 sm:hidden">{t.shelfLayout.mobileHint}</p>
-        <Legend />
+        <Legend
+          used={activeShelf ? activeShelf.placed_count : undefined}
+          total={activeShelf ? activeShelf.cols * activeShelf.rows : undefined}
+        />
       </section>
 
       <section className="mt-5 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -742,7 +745,13 @@ function ShelfGrid({
   // "shelf fits on a phone". 64px works at any breakpoint;
   // overflow-x-auto guarantees wide shelves never break the layout.
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-bg-elev/20 p-2">
+    <div
+      className="scroll-fade-right overflow-x-auto rounded-lg border border-border bg-bg-elev/20 p-2"
+      role="tabpanel"
+      id={`shelf-panel-${shelf.id}`}
+      aria-labelledby={`shelf-tab-${shelf.id}`}
+      tabIndex={0}
+    >
       <div
         className="inline-grid gap-1.5"
         style={{
@@ -861,6 +870,7 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
 }
 
 function DraggableSlotItem({ slot }: { slot: ShelfSlotEntry }) {
+  const t = useT();
   // Pipe-delimited so synthetic release ids (`synthetic:vN`) survive
   // round-trip through parseDragId.
   const id = `slot|${slot.vn_id}|${slot.release_id}|${slot.shelf_id}|${slot.row}|${slot.col}`;
@@ -870,7 +880,9 @@ function DraggableSlotItem({ slot }: { slot: ShelfSlotEntry }) {
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      title={slot.vn_title}
+      title={`${slot.vn_title} — ${t.shelfLayout.placedAt
+        .replace('{row}', String(slot.row + 1))
+        .replace('{col}', String(slot.col + 1))}`}
       className={`group/slot relative h-full w-full cursor-grab touch-none select-none active:cursor-grabbing ${
         isDragging ? 'opacity-30' : ''
       }`}
@@ -884,7 +896,8 @@ function DraggableSlotItem({ slot }: { slot: ShelfSlotEntry }) {
       />
       {slot.box_type !== 'none' && (
         <span className="absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-bg/75 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted">
-          <Box className="h-2.5 w-2.5" aria-hidden /> {slot.box_type}
+          <Box className="h-2.5 w-2.5" aria-hidden />
+          {(t.boxTypes as Record<string, string>)[slot.box_type] ?? slot.box_type}
         </span>
       )}
       {slot.dumped && (
@@ -968,7 +981,7 @@ function ResizeButton({
         disabled={disabled || value <= SHELF_MIN}
         aria-label={ariaDec}
         title={ariaDec}
-        className="rounded p-0.5 hover:bg-bg-elev hover:text-white disabled:opacity-30"
+        className="tap-target-tight rounded p-0.5 hover:bg-bg-elev hover:text-white disabled:opacity-30"
       >
         <Minus className="h-3 w-3" aria-hidden />
       </button>
@@ -979,7 +992,7 @@ function ResizeButton({
         disabled={disabled || value >= SHELF_MAX}
         aria-label={ariaInc}
         title={ariaInc}
-        className="rounded p-0.5 hover:bg-bg-elev hover:text-white disabled:opacity-30"
+        className="tap-target-tight rounded p-0.5 hover:bg-bg-elev hover:text-white disabled:opacity-30"
       >
         <Plus className="h-3 w-3" aria-hidden />
       </button>
@@ -987,64 +1000,40 @@ function ResizeButton({
   );
 }
 
-function Legend() {
+function Legend({ used, total }: { used?: number; total?: number }) {
   const t = useT();
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-muted/70">
-      <span className="inline-flex items-center gap-1">
-        <span className="block h-3 w-3 rounded border border-border bg-bg-elev/40" />{' '}
-        {t.shelfLayout.legendOccupied}
-      </span>
-      <span className="inline-flex items-center gap-1">
-        <span className="block h-3 w-3 rounded border border-dashed border-border bg-bg-elev/15" />{' '}
-        {t.shelfLayout.legendEmpty}
-      </span>
-      <span className="inline-flex items-center gap-1 text-status-completed">
-        <ArrowDown className="h-3 w-3" aria-hidden /> {t.shelfLayout.legendDumped}
-      </span>
-      <span className="ml-auto inline-flex items-center gap-1 text-muted/60">
-        <Undo2 className="h-3 w-3" aria-hidden /> {t.shelfLayout.removeFromShelf}
-      </span>
+    <div className="mt-3">
+      <div className="mb-1 flex items-baseline justify-between gap-2 text-[10px] uppercase tracking-wider text-muted/60">
+        <span>{t.shelfLayout.legend}</span>
+        {typeof used === 'number' && typeof total === 'number' && (
+          <span className="normal-case tracking-normal">
+            {t.shelfLayout.capacityHint
+              .replace('{used}', String(used))
+              .replace('{total}', String(total))}
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted/70">
+        <span className="inline-flex items-center gap-1">
+          <span className="block h-3 w-3 rounded border border-border bg-bg-elev/40" />{' '}
+          {t.shelfLayout.legendOccupied}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="block h-3 w-3 rounded border border-dashed border-border bg-bg-elev/15" />{' '}
+          {t.shelfLayout.legendEmpty}
+        </span>
+        <span className="inline-flex items-center gap-1 text-status-completed">
+          <ArrowDown className="h-3 w-3" aria-hidden /> {t.shelfLayout.legendDumped}
+        </span>
+        <span className="ml-auto inline-flex items-center gap-1 text-muted/60">
+          <Undo2 className="h-3 w-3" aria-hidden /> {t.shelfLayout.removeFromShelf}
+        </span>
+      </div>
     </div>
   );
 }
 
-function parseDragId(id: string): DragSource | null {
-  if (id.startsWith('pool|')) {
-    const [, vnId, releaseId] = id.split('|');
-    if (!vnId || !releaseId) return null;
-    return { kind: 'pool', vn_id: vnId, release_id: releaseId };
-  }
-  if (id.startsWith('slot|')) {
-    const parts = id.split('|');
-    if (parts.length !== 6) return null;
-    const [, vnId, releaseId, shelfId, row, col] = parts;
-    const sid = Number(shelfId);
-    const r = Number(row);
-    const c = Number(col);
-    if (!vnId || !releaseId) return null;
-    if (!Number.isInteger(sid) || !Number.isInteger(r) || !Number.isInteger(c)) return null;
-    return {
-      kind: 'slot',
-      vn_id: vnId,
-      release_id: releaseId,
-      shelf_id: sid,
-      row: r,
-      col: c,
-    };
-  }
-  return null;
-}
-
-function parseCellId(id: string): { shelf_id: number; row: number; col: number } | null {
-  if (!id.startsWith('cell|')) return null;
-  const [, shelfId, row, col] = id.split('|');
-  const sid = Number(shelfId);
-  const r = Number(row);
-  const c = Number(col);
-  if (!Number.isInteger(sid) || !Number.isInteger(r) || !Number.isInteger(c)) return null;
-  return { shelf_id: sid, row: r, col: c };
-}
 
 function findEdition(
   src: DragSource,

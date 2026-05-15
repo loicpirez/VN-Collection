@@ -40,14 +40,14 @@ export function CharacterMetaClient({ char }: Props) {
       {sexDiffers && (
         <InlineSpoilerReveal
           label={t.characters.sexReal}
-          value={labelSex(sexB)}
+          value={labelSex(sexB, t)}
           autoReveal={level > 0}
         />
       )}
       {genderDiffers && (
         <InlineSpoilerReveal
           label={t.characters.genderReal}
-          value={labelGender(genderB)}
+          value={labelGender(genderB, t)}
           autoReveal={level > 0}
         />
       )}
@@ -57,7 +57,7 @@ export function CharacterMetaClient({ char }: Props) {
             <h3 className="text-xs font-bold uppercase tracking-widest text-muted">{t.characters.traits}</h3>
             <p className="text-[10px] text-muted">
               {t.spoiler.title}: {level === 0 ? t.spoiler.lvl0 : level === 1 ? t.spoiler.lvl1 : t.spoiler.lvl2}
-              {!showSexual && ' · -' + t.spoiler.showSexual}
+              {!showSexual && ` · ${t.spoiler.hideSexual}`}
             </p>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -124,13 +124,23 @@ function InlineSpoilerReveal({
   );
 }
 
-function labelSex(s: string | null): string | null {
+function labelSex(s: string | null, t: ReturnType<typeof useT>): string | null {
   if (!s) return null;
-  const map: Record<string, string> = { m: '♂', f: '♀', b: '♂♀', n: '∅' };
+  const map: Record<string, string> = {
+    m: t.characters.genderM,
+    f: t.characters.genderF,
+    b: `${t.characters.genderM} / ${t.characters.genderF}`,
+    n: t.common.none,
+  };
   return map[s] ?? s;
 }
-function labelGender(g: string | null): string | null {
+function labelGender(g: string | null, t: ReturnType<typeof useT>): string | null {
   if (!g) return null;
-  const map: Record<string, string> = { m: '♂', f: '♀', o: 'non-binary', a: 'ambiguous' };
+  const map: Record<string, string> = {
+    m: t.characters.genderM,
+    f: t.characters.genderF,
+    o: t.characters.genderO,
+    a: t.characters.genderA,
+  };
   return map[g] ?? g;
 }

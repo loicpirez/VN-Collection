@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowLeft, Mic, Users } from 'lucide-react';
 import { searchStaff } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
+import { languageDisplayName } from '@/lib/language-names';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
             name="q"
             defaultValue={query}
             placeholder={t.staffSearch.searchPlaceholder}
+            aria-label={t.staffSearch.searchPlaceholder}
             className="flex-1 min-w-[200px] rounded-lg border border-border bg-bg px-3 py-2 text-sm"
           />
           <label className="inline-flex items-center gap-1 text-xs text-muted">
@@ -98,8 +100,12 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
                     <p className="line-clamp-1 text-xs text-muted">{s.original}</p>
                   )}
                   <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted/80">
-                    {s.lang && <Chip>{s.lang}</Chip>}
-                    {s.gender && <Chip>{s.gender}</Chip>}
+                    {s.lang && <Chip>{languageDisplayName(s.lang)}</Chip>}
+                    {s.gender && (
+                      <Chip>
+                        {s.gender === 'm' ? t.staff.genderM : s.gender === 'f' ? t.staff.genderF : s.gender}
+                      </Chip>
+                    )}
                     {!s.ismain && (
                       <Chip>
                         <Mic className="mr-0.5 inline h-2.5 w-2.5" aria-hidden /> {t.staffSearch.aliasChip}
@@ -108,7 +114,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
                   </div>
                   {s.aliases && s.aliases.length > 1 && (
                     <p className="mt-1 line-clamp-1 text-[10px] text-muted/70">
-                      aka {s.aliases.slice(0, 3).map((a) => a.name).join(' · ')}
+                      {t.common.aka} {s.aliases.slice(0, 3).map((a) => a.name).join(' · ')}
                     </p>
                   )}
                 </Link>

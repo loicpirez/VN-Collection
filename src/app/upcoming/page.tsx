@@ -100,10 +100,10 @@ async function TabContent({ tab, t }: { tab: Tab; t: Dictionary }) {
     }
     if (tab === 'all') {
       const rows = await fetchAllUpcomingFromVndb(200);
-      return <ReleasesSection rows={rows} empty={t.upcoming.emptyAll} />;
+      return <ReleasesSection rows={rows} empty={t.upcoming.emptyAll} t={t} />;
     }
     const rows = await fetchUpcomingForCollection();
-    return <ReleasesSection rows={rows} empty={t.upcoming.empty} />;
+    return <ReleasesSection rows={rows} empty={t.upcoming.empty} t={t} />;
   } catch (e) {
     return (
       <div className="mb-4 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm text-status-dropped">
@@ -224,9 +224,11 @@ function loadLocalCovers(rows: UpcomingRelease[]): Map<string, LocalVnCover> {
 function ReleasesSection({
   rows,
   empty,
+  t,
 }: {
   rows: UpcomingRelease[];
   empty: string;
+  t: Dictionary;
 }) {
   if (rows.length === 0) {
     return (
@@ -283,9 +285,9 @@ function ReleasesSection({
                       ))}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-semibold">
-                      {r.patch && <span className="rounded bg-status-on_hold/25 px-1.5 py-0.5 text-status-on_hold">PATCH</span>}
-                      {r.freeware && <span className="rounded bg-accent-blue/25 px-1.5 py-0.5 text-accent-blue">FREEWARE</span>}
-                      {r.has_ero && <span className="rounded bg-status-dropped/25 px-1.5 py-0.5 text-status-dropped">18+</span>}
+                      {r.patch && <span className="rounded bg-status-on_hold/25 px-1.5 py-0.5 uppercase text-status-on_hold">{t.releases.patch}</span>}
+                      {r.freeware && <span className="rounded bg-accent-blue/25 px-1.5 py-0.5 uppercase text-accent-blue">{t.releases.freeware}</span>}
+                      {r.has_ero && <span className="rounded bg-status-dropped/25 px-1.5 py-0.5 uppercase text-status-dropped">{t.releases.hasEro}</span>}
                     </div>
                     <a
                       href={`https://vndb.org/${r.id}`}

@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { CloudDownload, Star } from 'lucide-react';
-import { isInCollection } from '@/lib/db';
+import { isInCollectionMany } from '@/lib/db';
 import { downloadFullStaffInfo, readStaffFullCache } from '@/lib/staff-full';
 import { getDict } from '@/lib/i18n/server';
+import { roleLabel } from '@/lib/staff-roles';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
 
@@ -37,6 +38,14 @@ export async function StaffExtraCredits({
 
   if (extraProduction.length === 0 && extraVoice.length === 0) return null;
 
+  // Single batched lookup for every credit's collection membership
+  // instead of N+1 single-row queries inside the render.
+  const allIds = [
+    ...extraProduction.map((c) => c.id),
+    ...extraVoice.map((c) => c.id),
+  ];
+  const inCollectionIds = isInCollectionMany(allIds);
+
   return (
     <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <h2 className="mb-1 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
@@ -54,7 +63,7 @@ export async function StaffExtraCredits({
               <li key={c.id}>
                 <ExternalVnCard
                   vn={{ id: c.id, title: c.title, alttitle: c.alttitle, released: c.released, rating: c.rating, image_url: c.image_url, image_thumb: c.image_thumb }}
-                  inCollection={isInCollection(c.id)}
+                  inCollection={inCollectionIds.has(c.id)}
                 >
                   <ul className="mt-2 space-y-1 text-[11px] text-muted">
                     {c.characters.map((ch) => (
@@ -80,10 +89,10 @@ export async function StaffExtraCredits({
               <li key={c.id}>
                 <ExternalVnCard
                   vn={{ id: c.id, title: c.title, alttitle: c.alttitle, released: c.released, rating: c.rating, image_url: c.image_url, image_thumb: c.image_thumb }}
-                  inCollection={isInCollection(c.id)}
+                  inCollection={inCollectionIds.has(c.id)}
                 >
                   <div className="mt-1 text-[10px] text-muted">
-                    {c.roles.map((r) => r.role).join(' · ')}
+                    {c.roles.map((r) => roleLabel(r.role, t.staff)).join(' · ')}
                   </div>
                 </ExternalVnCard>
               </li>

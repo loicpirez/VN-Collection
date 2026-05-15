@@ -53,6 +53,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
             name="q"
             defaultValue={query}
             placeholder={t.charactersSearch.searchPlaceholder}
+            aria-label={t.charactersSearch.searchPlaceholder}
             className="flex-1 min-w-[200px] rounded-lg border border-border bg-bg px-3 py-2 text-sm"
           />
           <label className="inline-flex items-center gap-1 text-xs text-muted">
@@ -111,7 +112,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                   )}
                   {c.aliases && c.aliases.length > 0 && (
                     <p className="line-clamp-1 text-[10px] text-muted/70">
-                      aka {c.aliases.slice(0, 2).join(' · ')}
+                      {t.common.aka} {c.aliases.slice(0, 2).join(' · ')}
                     </p>
                   )}
                 </Link>

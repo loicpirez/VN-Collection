@@ -123,13 +123,13 @@ export default async function StaffPage({
                   {gender === 'f' ? t.staff.genderF : gender === 'm' ? t.staff.genderM : gender}
                 </span>
               )}
-              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
+              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 lowercase">
                 <Users className="h-3 w-3" aria-hidden />
-                {production.length} {t.staff.vnCount} · {t.staff.productionCredits.toLowerCase()}
+                {production.length} {t.staff.vnCount} · {t.staff.productionCredits}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
+              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 lowercase">
                 <Mic2 className="h-3 w-3" aria-hidden />
-                {voice.length} {t.staff.vnCount} · {t.staff.voiceCredits.toLowerCase()}
+                {voice.length} {t.staff.vnCount} · {t.staff.voiceCredits}
               </span>
             </div>
             {aliases.length > 0 && (

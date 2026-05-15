@@ -25,6 +25,19 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: dict.egs.pageTitle };
 }
 
+function egsSourceLabel(source: string, t: Awaited<ReturnType<typeof getDict>>): string {
+  switch (source) {
+    case 'extlink':
+      return t.matchBadges.viaExtlink;
+    case 'search':
+      return t.matchBadges.viaSearch;
+    case 'manual':
+      return t.matchBadges.viaManual;
+    default:
+      return source;
+  }
+}
+
 /**
  * Page that mirrors `/steam` for EGS. Lists every EGS-linked VN with
  * its median rating and playtime, alongside the EGS-sync block (pull
@@ -112,7 +125,7 @@ export default async function EgsPage() {
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted">
                       EGS #{l.egs_id}
-                      {l.source && <span className="ml-1 text-[10px] opacity-70">· {l.source}</span>}
+                      {l.source && <span className="ml-1 text-[10px] opacity-70">· {egsSourceLabel(l.source, t)}</span>}
                     </p>
                     <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0 text-[11px] text-muted">
                       {l.median != null && (

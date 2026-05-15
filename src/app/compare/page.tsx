@@ -4,6 +4,7 @@ import { ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-reac
 import { db, getCollectionItem } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { formatMinutes } from '@/lib/format';
+import { roleLabel } from '@/lib/staff-roles';
 import { SafeImage } from '@/components/SafeImage';
 import { LangList } from '@/components/LangFlag';
 
@@ -200,7 +201,7 @@ export default async function ComparePage({
             />
             <SharedFacet
               label={t.compareView.common.staff}
-              values={sharedStaff.slice(0, 12).map((s) => `${s.name} (${s.role || '—'})`)}
+              values={sharedStaff.slice(0, 12).map((s) => `${s.name} (${s.role ? roleLabel(s.role, t.staff) : '—'})`)}
               extra={sharedStaff.length > 12 ? sharedStaff.length - 12 : null}
             />
           </div>

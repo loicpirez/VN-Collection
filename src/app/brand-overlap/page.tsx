@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowLeft, ArrowLeftRight, Mic2, Users } from 'lucide-react';
 import { findBrandStaffOverlap } from '@/lib/brand-overlap';
 import { getDict } from '@/lib/i18n/server';
+import { roleLabel } from '@/lib/staff-roles';
 import { BrandOverlapPicker } from '@/components/BrandOverlapPicker';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,16 @@ export const dynamic = 'force-dynamic';
 function parsePid(s: string | undefined): string | null {
   if (!s) return null;
   return /^p\d+$/i.test(s) ? s.toLowerCase() : null;
+}
+
+function formatRoles(roles: string[], t: Awaited<ReturnType<typeof getDict>>): string {
+  return roles
+    .map((r) => {
+      if (r === 'va') return t.characters.castLabel;
+      if (r.startsWith('va:')) return `${t.characters.castLabel}: ${r.slice(3)}`;
+      return roleLabel(r, t.staff);
+    })
+    .join(' / ');
 }
 
 export default async function BrandOverlapPage({
@@ -95,7 +106,9 @@ async function Result({ a, b }: { a: string; b: string }) {
                     {e.aCredits.slice(0, 4).map((c, i) => (
                       <li key={`${c.vn_id}-${i}`}>
                         <Link href={`/vn/${c.vn_id}`} className="hover:text-accent">{c.title}</Link>
-                        {c.role && <span className="ml-1 text-muted">· {c.role}</span>}
+                        {c.roles.length > 0 && (
+                          <span className="ml-1 text-muted">· {formatRoles(c.roles, t)}</span>
+                        )}
                       </li>
                     ))}
                     {e.aCredits.length > 4 && (
@@ -109,7 +122,9 @@ async function Result({ a, b }: { a: string; b: string }) {
                     {e.bCredits.slice(0, 4).map((c, i) => (
                       <li key={`${c.vn_id}-${i}`}>
                         <Link href={`/vn/${c.vn_id}`} className="hover:text-accent">{c.title}</Link>
-                        {c.role && <span className="ml-1 text-muted">· {c.role}</span>}
+                        {c.roles.length > 0 && (
+                          <span className="ml-1 text-muted">· {formatRoles(c.roles, t)}</span>
+                        )}
                       </li>
                     ))}
                     {e.bCredits.length > 4 && (

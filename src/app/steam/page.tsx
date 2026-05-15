@@ -249,7 +249,7 @@ export default function SteamSyncPage() {
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-1 text-sm font-bold">{s.vn_title}</p>
                         <p className="line-clamp-1 text-[11px] text-muted">
-                          {s.steam_name} · appid {s.steam_appid}
+                          {s.steam_name} · {t.steam.appidLabel} {s.steam_appid}
                         </p>
                       </div>
                       <span className="shrink-0 text-right text-[11px]">
@@ -349,7 +349,7 @@ export default function SteamSyncPage() {
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <span className="min-w-0 flex-1">
                     <span className="font-bold">{g.name}</span>
-                    <span className="ml-2 text-[10px] text-muted">appid {g.appid} · {fmt(g.minutes)}</span>
+                    <span className="ml-2 text-[10px] text-muted">{t.steam.appidLabel} {g.appid} · {fmt(g.minutes)}</span>
                   </span>
                 </div>
                 <div className="mt-2 flex items-start gap-2">

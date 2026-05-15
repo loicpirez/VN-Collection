@@ -64,7 +64,7 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
                   className="mt-1 inline-block text-[11px] text-muted hover:text-accent"
                   title={v.note ?? undefined}
                 >
-                  CV: <span className="font-semibold">{s.name}</span>
+                  {t.characters.castLabel}: <span className="font-semibold">{s.name}</span>
                   {s.original && s.original !== s.name && (
                     <span className="ml-1 opacity-70">{s.original}</span>
                   )}

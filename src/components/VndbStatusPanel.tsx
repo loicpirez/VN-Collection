@@ -197,7 +197,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
               {active && <CheckCircle2 className="h-3 w-3" aria-hidden />}
               {l.label}
               {l.private && (
-                <span className="text-[9px] uppercase tracking-wider opacity-60">priv</span>
+                <span className="text-[9px] uppercase tracking-wider opacity-60">{t.vndbStatus.privateBadge}</span>
               )}
             </button>
           );
@@ -295,6 +295,7 @@ function UlistDetailsEditor({
           <span className="text-[10px] uppercase tracking-wider text-muted">{t.vndbStatus.fieldVote}</span>
           <input
             type="number"
+            inputMode="decimal"
             min={1}
             max={10}
             step={0.1}

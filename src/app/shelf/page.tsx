@@ -46,6 +46,16 @@ function fmtMoneyLocale(amount: number | null, currency: string | null, locale: 
   return `${amount.toFixed(2)} ${cur}`.trim();
 }
 
+function boxTypeLabel(value: string, dict: Awaited<ReturnType<typeof getDict>>): string {
+  const k = value as keyof typeof dict.boxTypes;
+  return (dict.boxTypes as Record<string, string>)[k] ?? value;
+}
+
+function conditionLabel(value: string, dict: Awaited<ReturnType<typeof getDict>>): string {
+  const k = value as keyof typeof dict.inventory.conditions;
+  return (dict.inventory.conditions as Record<string, string>)[k] ?? value;
+}
+
 export default async function ShelfPage({
   searchParams,
 }: {
@@ -257,10 +267,10 @@ export default async function ShelfPage({
                             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted">
                               {e.box_type !== 'none' && (
                                 <span className="inline-flex items-center gap-0.5">
-                                  <Box className="h-2.5 w-2.5" /> {e.box_type}
+                                  <Box className="h-2.5 w-2.5" aria-hidden /> {boxTypeLabel(e.box_type, t)}
                                 </span>
                               )}
-                              {e.condition && <span>{e.condition}</span>}
+                              {e.condition && <span>{conditionLabel(e.condition, t)}</span>}
                               {e.price_paid != null && (
                                 <span className="text-accent">
                                   {fmtMoneyLocale(e.price_paid, e.currency, locale)}
