@@ -23,12 +23,17 @@ export async function GET() {
     const suggestions = await computeSteamSuggestions(games);
     return NextResponse.json({ ok: true, suggestions });
   } catch (e) {
-    // `fetchOwnedGames` already strips the API key from its error
-    // messages. Wrap upstream messages once more to avoid leaking
-    // arbitrary header / network internals to the client.
+    // Audit H1: log the MASKED message, not the raw one. The Steam
+    // resolver only masks `key=` inside its own typed errors; if any
+    // future code path throws an Error whose .message contains the
+    // request URL verbatim, the raw message would leak both the API
+    // key and the SteamID to the server log even though the client
+    // response is sanitized. Defence in depth: log `safe`, not `raw`.
     const raw = (e as Error).message ?? 'unknown error';
-    const safe = raw.replace(/key=[^&\s]+/g, 'key=***');
-    console.error('steam sync failed:', raw);
+    const safe = raw
+      .replace(/key=[^&\s]+/g, 'key=***')
+      .replace(/steamid=\d+/gi, 'steamid=***');
+    console.error('steam sync failed:', safe);
     return NextResponse.json({ ok: false, error: `Steam sync failed: ${safe}` }, { status: 400 });
   }
 }

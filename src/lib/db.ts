@@ -1687,6 +1687,25 @@ function tail4(s: string | null): string | null {
   return `…${trimmed.slice(-4)}`;
 }
 
+/**
+ * Build the audit-trail preview for a given setting key. For URL-shaped
+ * credentials (vndb_backup_url) `tail4` would store `…kana` for every
+ * host on the planet — useless if an attacker rewrites the URL. Store
+ * the hostname instead so the audit row remains diagnostic (audit M5).
+ */
+function settingAuditPreview(key: string, value: string | null): string | null {
+  if (!value) return null;
+  if (key === 'vndb_backup_url') {
+    try {
+      const u = new URL(value);
+      return u.hostname || tail4(value);
+    } catch {
+      return tail4(value);
+    }
+  }
+  return tail4(value);
+}
+
 export function setAppSetting(key: string, value: string | null): void {
   const wasAudited = AUDITED_SETTING_KEYS.has(key);
   const prior = wasAudited ? getAppSetting(key) : null;
@@ -1702,7 +1721,7 @@ export function setAppSetting(key: string, value: string | null): void {
     db.prepare(`
       INSERT INTO app_setting_audit (key, prior_preview, next_preview, changed_at)
       VALUES (?, ?, ?, ?)
-    `).run(key, tail4(prior), tail4(value), Date.now());
+    `).run(key, settingAuditPreview(key, prior), settingAuditPreview(key, value), Date.now());
   }
 }
 
@@ -5474,6 +5493,19 @@ export async function restoreFromSqliteFile(buffer: Buffer): Promise<SqliteResto
   ).all() as { name: string }[]).map((r) => r.name);
 
   const summary: SqliteRestoreSummary = { tables: [], skipped: [] };
+
+  // Audit H2: snapshot the audited credential / config previews BEFORE
+  // we DELETE FROM main.app_setting. A backup restore silently
+  // overwrites every audited setting (token, Steam key, backup URL);
+  // without this snapshot the swap would leave no trace in
+  // app_setting_audit because the audit table itself is also wiped in
+  // the same transaction. Write the snapshot rows in a fresh insert
+  // AFTER the restore commits so the source DB's audit log doesn't
+  // overwrite them.
+  const restoreSnapshot: Array<{ key: string; prior_preview: string | null }> = [];
+  for (const key of AUDITED_SETTING_KEYS) {
+    restoreSnapshot.push({ key, prior_preview: settingAuditPreview(key, getAppSetting(key)) });
+  }
   // TODO: prefer `better-sqlite3`'s `Database.prototype.serialize()` /
   // `.backup()` APIs over `ATTACH DATABASE '<path>'`. The string
   // interpolation below is currently safe because (a) `tmpPath` is
@@ -5527,6 +5559,29 @@ export async function restoreFromSqliteFile(buffer: Buffer): Promise<SqliteResto
     db.pragma(`foreign_keys = ${previousForeignKeys ? 'ON' : 'OFF'}`);
     await unlink(tmpPath).catch(() => undefined);
   }
+
+  // Audit H2 (continued): after the restore has committed, write the
+  // before/after snapshot rows so the credential swap leaves a trail.
+  // Done outside the restore transaction on purpose — if the restore
+  // rolls back, we don't pollute the audit log.
+  try {
+    const now = Date.now();
+    const ins = db.prepare(`
+      INSERT INTO app_setting_audit (key, prior_preview, next_preview, changed_at)
+      VALUES (?, ?, ?, ?)
+    `);
+    for (const snap of restoreSnapshot) {
+      const after = settingAuditPreview(snap.key, getAppSetting(snap.key));
+      if (snap.prior_preview !== after) {
+        // Tag the entry as a restore-driven swap so the user can spot
+        // it in the audit panel.
+        ins.run(`${snap.key} (restore)`, snap.prior_preview, after, now);
+      }
+    }
+  } catch {
+    // Audit-trail writes are best-effort; restore still succeeded.
+  }
+
   return summary;
 }
 
