@@ -160,8 +160,22 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
   if (!vn) {
     return (
       <div className="mx-auto max-w-2xl">
-        <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
-          <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        {/*
+          Back link — full-text on mobile so the affordance is
+          obvious (the user has no app chrome to fall back on),
+          icon-only chip at md+ so the desktop view doesn't waste
+          a full row of real estate above the hero. The label
+          stays in the aria-label + title for screen-reader users
+          on both breakpoints.
+        */}
+        <Link
+          href="/"
+          aria-label={t.nav.library}
+          title={t.nav.library}
+          className="mb-4 inline-flex items-center gap-1 rounded-md border border-transparent text-sm text-muted hover:text-white md:mb-2 md:border-border md:bg-bg-elev/30 md:px-1.5 md:py-1 md:text-[11px] md:opacity-70 md:hover:border-accent md:hover:opacity-100"
+        >
+          <ArrowLeft className="h-4 w-4 md:h-3 md:w-3" aria-hidden />
+          <span className="md:hidden">{t.nav.library}</span>
         </Link>
         <div className="rounded-2xl border border-status-dropped/40 bg-status-dropped/5 p-6">
           <h1 className="mb-2 text-xl font-bold text-status-dropped">{t.detail.notFoundTitle}</h1>
@@ -248,8 +262,20 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         localPoster={vn.local_image || vn.local_image_thumb}
         sexual={vn.image_sexual}
       />
-      <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+      {/*
+        Back link — full-text on mobile, icon-only chip on
+        desktop. The user reported that the wide "Ma
+        bibliothèque" link wasted desktop space above the hero.
+        See the not-found branch above for the matching pattern.
+      */}
+      <Link
+        href="/"
+        aria-label={t.nav.library}
+        title={t.nav.library}
+        className="mb-4 inline-flex items-center gap-1 rounded-md border border-transparent text-sm text-muted hover:text-white md:mb-2 md:border-border md:bg-bg-elev/30 md:px-1.5 md:py-1 md:text-[11px] md:opacity-70 md:hover:border-accent md:hover:opacity-100"
+      >
+        <ArrowLeft className="h-4 w-4 md:h-3 md:w-3" aria-hidden />
+        <span className="md:hidden">{t.nav.library}</span>
       </Link>
 
       <div className="relative overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card">
