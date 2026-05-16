@@ -16,6 +16,41 @@ type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'status';
 const SORT_KEYS: WishlistSort[] = ['added_desc', 'added_asc', 'title', 'rating_desc', 'released_desc', 'released_asc', 'length_desc'];
 const GROUP_KEYS: WishlistGroup[] = ['none', 'year', 'developer', 'language', 'status'];
 
+const PREFS_STORAGE_KEY = 'wishlist_defaults_v1';
+
+interface WishlistPrefs {
+  sort: WishlistSort;
+  group: WishlistGroup;
+  hideOwned: boolean;
+}
+
+function loadPrefs(): WishlistPrefs {
+  if (typeof window === 'undefined') {
+    return { sort: 'added_desc', group: 'none', hideOwned: true };
+  }
+  try {
+    const raw = localStorage.getItem(PREFS_STORAGE_KEY);
+    if (!raw) return { sort: 'added_desc', group: 'none', hideOwned: true };
+    const parsed = JSON.parse(raw) as Partial<WishlistPrefs>;
+    return {
+      sort: SORT_KEYS.includes(parsed.sort as WishlistSort) ? (parsed.sort as WishlistSort) : 'added_desc',
+      group: GROUP_KEYS.includes(parsed.group as WishlistGroup) ? (parsed.group as WishlistGroup) : 'none',
+      hideOwned: typeof parsed.hideOwned === 'boolean' ? parsed.hideOwned : true,
+    };
+  } catch {
+    return { sort: 'added_desc', group: 'none', hideOwned: true };
+  }
+}
+
+function persistPrefs(prefs: WishlistPrefs): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs));
+  } catch {
+    // localStorage may be full / unavailable; swallow.
+  }
+}
+
 interface WishlistItem {
   id: string;
   added: number;
@@ -88,13 +123,27 @@ export function WishlistClient() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const [hideOwned, setHideOwned] = useState(true);
+  // Seed `hideOwned`, `sort`, and `group` from localStorage so the
+  // user's preferred view is restored on every visit (audit/QA #13:
+  // wishlist prefs should auto-save like the rest of the app). The
+  // initialiser runs once on mount; subsequent setX calls below
+  // mirror to storage via the useEffect at the bottom of this hook
+  // chain.
+  const [hideOwned, setHideOwned] = useState<boolean>(() => loadPrefs().hideOwned);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
-  const [sort, setSort] = useState<WishlistSort>('added_desc');
-  const [group, setGroup] = useState<WishlistGroup>('none');
+  const [sort, setSort] = useState<WishlistSort>(() => loadPrefs().sort);
+  const [group, setGroup] = useState<WishlistGroup>(() => loadPrefs().group);
   const [removingId, setRemovingId] = useState<string | null>(null);
+
+  // Mirror durable prefs (sort, group, hideOwned) to localStorage on
+  // every change. `q`, `selectMode`, and `selected` stay session-only
+  // because they're transient search / multi-select state, not
+  // preferences.
+  useEffect(() => {
+    persistPrefs({ sort, group, hideOwned });
+  }, [sort, group, hideOwned]);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
