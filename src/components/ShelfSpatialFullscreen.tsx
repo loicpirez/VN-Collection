@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { Maximize2, Minimize2 } from 'lucide-react';
 
 interface FullscreenLabels {
@@ -9,29 +10,39 @@ interface FullscreenLabels {
 
 /**
  * Client wrapper that adds a fullscreen toggle to the read-only
- * spatial shelf view. The server renders the shelf grids; this
- * component only owns the fullscreen overlay state.
+ * spatial shelf view. The server renders the shelf grid; this
+ * component only owns the fullscreen overlay state and keyboard
+ * navigation between shelves.
  *
  * - Fullscreen uses `fixed inset-0 z-50` + `body { overflow: hidden }`
  *   so the underlying page can't scroll behind the overlay.
  * - `Escape` exits. The toggle button is also focusable.
  * - Focus is restored to the originating button when fullscreen
  *   closes.
- * - Keyboard nav between shelves: `ArrowLeft`/`ArrowRight` move the
- *   currently-focused shelf's anchor into view (`Element.scrollIntoView`).
- *   The shelf sections are siblings in document order so simple
- *   sibling traversal works.
+ * - The spatial view now renders ONE shelf at a time and the page
+ *   carries the active shelf in `?shelf=N`. ArrowLeft/Right (and
+ *   ArrowUp/Down or PageUp/PageDown) navigate the router to the
+ *   adjacent shelf URL, keeping the carousel buttons and the
+ *   keyboard in sync.
+ * - The keyboard handler is bound while fullscreen is open and
+ *   ALSO while the container has focus-within in normal mode, so
+ *   a desktop user holding focus can flip shelves quickly.
  */
 export function ShelfSpatialFullscreen({
   children,
   labels,
+  prevHref,
+  nextHref,
 }: {
   children: ReactNode;
   labels: FullscreenLabels;
+  prevHref: string | null;
+  nextHref: string | null;
 }) {
   const [fullscreen, setFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
 
   // Body-scroll lock + scroll-position restore.
   useEffect(() => {
@@ -62,46 +73,31 @@ export function ShelfSpatialFullscreen({
     }
   }, [fullscreen]);
 
-  // Keyboard arrow nav: scroll the next/previous shelf section into
-  // view. Operates on the container's <section> children which are
-  // the per-shelf blocks rendered by ShelfSpatialView.
+  // Keyboard arrow nav: route to the prev/next shelf URL. The page
+  // re-renders with the new active shelf (URL-driven state). Both
+  // horizontal and vertical arrows work since the user may instinctively
+  // press either when scanning shelves.
   const navigate = useCallback((direction: 1 | -1) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const sections = Array.from(container.querySelectorAll('section[aria-labelledby^="shelf-"]'));
-    if (sections.length === 0) return;
-    // Find the section currently nearest the viewport top.
-    const viewportTop = fullscreen ? 0 : (window.scrollY || 0);
-    let active = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < sections.length; i++) {
-      const rect = (sections[i] as HTMLElement).getBoundingClientRect();
-      const top = fullscreen ? rect.top : rect.top + window.scrollY;
-      const dist = Math.abs(top - viewportTop);
-      if (dist < bestDist) {
-        bestDist = dist;
-        active = i;
-      }
-    }
-    const target = sections[active + direction];
-    if (!target) return;
-    (target as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [fullscreen]);
+    const target = direction === 1 ? nextHref : prevHref;
+    if (target) router.push(target);
+  }, [nextHref, prevHref, router]);
 
   useEffect(() => {
-    if (!fullscreen) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+      // While typing in an input / textarea, leave the keys alone.
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement | null)?.isContentEditable) return;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown') {
         e.preventDefault();
         navigate(1);
-      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
         e.preventDefault();
         navigate(-1);
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [fullscreen, navigate]);
+  }, [navigate]);
 
   const shellClass = fullscreen
     ? 'fixed inset-0 z-50 overflow-auto bg-bg p-3 sm:p-6'

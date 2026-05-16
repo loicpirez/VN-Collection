@@ -1420,6 +1420,10 @@ export const dictionaries = {
       displayItemPrefix: 'Vitrine :',
       enterFullscreen: 'Plein écran',
       exitFullscreen: 'Quitter le plein écran',
+      shelfIndex: 'Étagère {current} sur {total}',
+      prevShelf: 'Étagère précédente',
+      nextShelf: 'Étagère suivante',
+      carouselLabel: 'Navigation entre étagères',
     },
     shelfLayout: {
       title: 'Plan de l\'étagère',
@@ -3352,6 +3356,10 @@ export const dictionaries = {
       displayItemPrefix: 'Display:',
       enterFullscreen: 'Fullscreen',
       exitFullscreen: 'Exit fullscreen',
+      shelfIndex: 'Shelf {current} of {total}',
+      prevShelf: 'Previous shelf',
+      nextShelf: 'Next shelf',
+      carouselLabel: 'Shelf carousel navigation',
     },
     shelfLayout: {
       title: 'Shelf layout',
@@ -5284,6 +5292,10 @@ export const dictionaries = {
       displayItemPrefix: 'ディスプレイ：',
       enterFullscreen: '全画面表示',
       exitFullscreen: '全画面を終了',
+      shelfIndex: '本棚 {current} / {total}',
+      prevShelf: '前の本棚',
+      nextShelf: '次の本棚',
+      carouselLabel: '本棚のページ送り',
     },
     shelfLayout: {
       title: '本棚レイアウト',

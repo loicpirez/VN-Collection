@@ -68,16 +68,24 @@ function conditionLabel(value: string, dict: Awaited<ReturnType<typeof getDict>>
 export default async function ShelfPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; shelf?: string }>;
 }) {
   const t = await getDict();
   const locale = await getLocale();
-  const { view: viewRaw } = await searchParams;
+  const { view: viewRaw, shelf: shelfRaw } = await searchParams;
   const view: ShelfView =
     viewRaw === 'item' ? 'item' :
     viewRaw === 'layout' ? 'layout' :
     viewRaw === 'release' ? 'release' :
     'spatial';
+  // 1-indexed active shelf for the spatial carousel. Validated in
+  // <ShelfSpatialView> against the actual shelf count, so we don't
+  // need a maximum here. Default 1.
+  const activeShelfNum = (() => {
+    if (!shelfRaw) return 1;
+    const n = Math.floor(Number(shelfRaw));
+    return Number.isFinite(n) && n >= 1 ? n : 1;
+  })();
   // We always need the flat owned-release list to compute the
   // header summary (`N éditions · N VN uniques · totals`). The
   // spatial view's GRID still reads shelf_unit/slot/display_slot
@@ -233,7 +241,7 @@ export default async function ShelfPage({
             </TabLink>
           </div>
 
-          {view === 'spatial' && <ShelfSpatialView />}
+          {view === 'spatial' && <ShelfSpatialView activeShelf={activeShelfNum} />}
 
           {view === 'release' &&
             sortedKeys.map((key) => {

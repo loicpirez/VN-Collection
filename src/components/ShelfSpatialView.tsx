@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Box, Layers, MapPin } from 'lucide-react';
+import { Box, ChevronLeft, ChevronRight, Layers, MapPin } from 'lucide-react';
 import {
   listShelves,
   listShelfDisplaySlots,
@@ -14,25 +14,39 @@ import { getDict } from '@/lib/i18n/server';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 /**
- * Read-only spatial visualization of every shelf.
+ * Read-only spatial visualization of ONE shelf at a time.
  *
- * Renders each `shelf_unit` as a visual grid (cols × rows) with the
+ * Renders the active `shelf_unit` (selected via `?shelf=<index>` on
+ * `/shelf`, 1-indexed) as a visual grid (cols × rows) with the
  * editor's same Top Display / Bottom Display / Between Rows
  * structure, but without ANY mutation control — no drag, no resize,
  * no rename, no add, no delete. Empty cells are dimmed but not
  * dashed-bordered so the page reads as a poster instead of an editor.
  *
- * Each placed card shows its cover, title (line-clamp), edition label
- * if any, and a small box-type chip. Clicking a card navigates to
- * `/vn/[id]`. The whole shelf can be opened in a fullscreen viewer
- * via the `<ShelfSpatialFullscreen>` client wrapper at the top of
- * the section.
+ * The view used to stack every shelf vertically on a single long
+ * page. The user wants a "vitrine" experience — one shelf, then
+ * Previous/Next to switch. The carousel-style controls live above
+ * the rendered shelf and surface "X / Y" so the user knows where
+ * they are.
+ *
+ * Each placed card shows its cover, title (line-clamp), edition
+ * label if any, and a small box-type chip. Clicking a card
+ * navigates to `/vn/[id]`. The active shelf can be opened in a
+ * fullscreen viewer via the `<ShelfSpatialFullscreen>` client
+ * wrapper at the top of the section, which also wires
+ * ArrowLeft/Right keys to move between shelves (URL-driven via
+ * pushState so the Next/Prev links and the keys stay in sync).
  *
  * Used as the DEFAULT view at `/shelf` so the read-only "browse my
  * physical collection" use-case is the first thing the user sees.
  * The editor lives at `/shelf?view=layout`.
  */
-export async function ShelfSpatialView() {
+export async function ShelfSpatialView({
+  activeShelf,
+}: {
+  /** 1-indexed; clamped at the page boundary. Defaults to 1. */
+  activeShelf?: number;
+}) {
   const t = await getDict();
   const shelves = listShelves();
   if (shelves.length === 0) {
@@ -49,14 +63,57 @@ export async function ShelfSpatialView() {
       </section>
     );
   }
+  const total = shelves.length;
+  const active = Math.max(1, Math.min(total, Math.floor(activeShelf ?? 1)));
+  const current = shelves[active - 1];
+  const prevHref = active > 1 ? `/shelf?shelf=${active - 1}` : null;
+  const nextHref = active < total ? `/shelf?shelf=${active + 1}` : null;
 
   return (
-    <ShelfSpatialFullscreen labels={t.shelfSpatial}>
-      <div className="space-y-6">
-        {shelves.map((shelf) => (
-          <ShelfBlock key={shelf.id} shelf={shelf} t={t} />
-        ))}
-      </div>
+    <ShelfSpatialFullscreen
+      labels={t.shelfSpatial}
+      prevHref={prevHref}
+      nextHref={nextHref}
+    >
+      <nav
+        className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-bg-card/60 px-3 py-2 text-xs"
+        aria-label={t.shelfSpatial.carouselLabel}
+      >
+        <span className="text-muted tabular-nums">
+          {t.shelfSpatial.shelfIndex
+            .replace('{current}', String(active))
+            .replace('{total}', String(total))}
+        </span>
+        <div className="inline-flex items-center gap-2">
+          {prevHref ? (
+            <Link
+              href={prevHref}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent"
+              aria-label={t.shelfSpatial.prevShelf}
+            >
+              <ChevronLeft className="h-3 w-3" aria-hidden /> {t.shelfSpatial.prevShelf}
+            </Link>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-muted opacity-40">
+              <ChevronLeft className="h-3 w-3" aria-hidden /> {t.shelfSpatial.prevShelf}
+            </span>
+          )}
+          {nextHref ? (
+            <Link
+              href={nextHref}
+              className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20"
+              aria-label={t.shelfSpatial.nextShelf}
+            >
+              {t.shelfSpatial.nextShelf} <ChevronRight className="h-3 w-3" aria-hidden />
+            </Link>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-muted opacity-40">
+              {t.shelfSpatial.nextShelf} <ChevronRight className="h-3 w-3" aria-hidden />
+            </span>
+          )}
+        </div>
+      </nav>
+      <ShelfBlock shelf={current} t={t} />
     </ShelfSpatialFullscreen>
   );
 }
