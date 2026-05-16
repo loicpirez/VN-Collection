@@ -101,6 +101,26 @@ function readCache<T>(key: string): T | null {
   }
 }
 
+/**
+ * Read the cache regardless of expiry. Returns `null` only when no row
+ * exists or the body is unparseable. Used by the page-style EGS
+ * fetchers so they can serve stale data + a `stale: true` flag when
+ * the remote SQL form is unreachable AND the cache holds a previously
+ * successful payload — the user keeps browsing instead of seeing a
+ * generic error block.
+ */
+function readExpiredCache<T>(key: string): { value: T; fetchedAt: number } | null {
+  const row = db
+    .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
+    .get(key) as { body: string; fetched_at: number } | undefined;
+  if (!row) return null;
+  try {
+    return { value: JSON.parse(row.body) as T, fetchedAt: row.fetched_at };
+  } catch {
+    return null;
+  }
+}
+
 function writeCache(key: string, value: unknown, ttlMs = CACHE_TTL_MS): void {
   const now = Date.now();
   db.prepare(`
@@ -950,6 +970,15 @@ export interface EgsAnticipatedPage {
   page: number;
   pageSize: number;
   hasMore: boolean;
+  /**
+   * True when the page was served from an EXPIRED cache because the
+   * EGS SQL form was unreachable on this request. Lets the UI render
+   * the cached rows + a "stale, last updated …" banner instead of
+   * the generic error block.
+   */
+  stale?: boolean;
+  /** Epoch-ms of the most recent successful fetch (when cached). */
+  fetchedAt?: number;
 }
 
 /**
@@ -993,7 +1022,27 @@ export async function fetchEgsAnticipatedPage(
     + `GROUP BY g.id, g.gamename, g.sellday, b.brandname, g.vndb `
     + `ORDER BY will_buy DESC LIMIT ${safeSize + 1} OFFSET ${offset}`;
 
-  const rawRows = await fetchTable(sql);
+  // Stale-while-error: when fetchTable throws (EgsUnreachable or any
+  // network failure), try to serve an EXPIRED cache row before
+  // surfacing the error. The user can keep browsing rows from the
+  // last successful refresh.
+  let rawRows: string[][];
+  try {
+    rawRows = await fetchTable(sql);
+  } catch (e) {
+    const stale = readExpiredCache<{ rows: EgsAnticipated[]; hasMore: boolean }>(cacheK);
+    if (stale && stale.value.rows.length > 0) {
+      return {
+        rows: applyManualEgsToVndb(stale.value.rows.map((r) => ({ ...r }))),
+        page: safePage,
+        pageSize: safeSize,
+        hasMore: stale.value.hasMore,
+        stale: true,
+        fetchedAt: stale.fetchedAt,
+      };
+    }
+    throw e;
+  }
   if (rawRows.length < 2) {
     return { rows: [], page: safePage, pageSize: safeSize, hasMore: false };
   }
@@ -1161,6 +1210,14 @@ export interface EgsTopRankedPage {
   page: number;
   pageSize: number;
   hasMore: boolean;
+  /**
+   * True when this page was served from an EXPIRED cache row because
+   * the EGS SQL form was unreachable on the current request. The UI
+   * should render the rows + a "stale" banner instead of an error.
+   */
+  stale?: boolean;
+  /** Epoch-ms of the most recent successful fetch (when cached). */
+  fetchedAt?: number;
 }
 
 /**
@@ -1209,7 +1266,25 @@ export async function fetchEgsTopRankedPage(
     `ORDER BY (COALESCE(g.median, g.median2) IS NULL), ` +
     `         COALESCE(g.median, g.median2) DESC, g.count2 DESC ` +
     `LIMIT ${safeSize + 1} OFFSET ${offset}`;
-  const rawRows = await fetchTable(sql);
+  // Stale-while-error: serve last successful payload (even if
+  // expired) when the SQL form is unreachable.
+  let rawRows: string[][];
+  try {
+    rawRows = await fetchTable(sql);
+  } catch (e) {
+    const stale = readExpiredCache<{ rows: EgsTopRanked[]; hasMore: boolean }>(cacheK);
+    if (stale && stale.value.rows.length > 0) {
+      return {
+        rows: applyManualEgsToVndb(stale.value.rows.map((r) => ({ ...r }))),
+        page: safePage,
+        pageSize: safeSize,
+        hasMore: stale.value.hasMore,
+        stale: true,
+        fetchedAt: stale.fetchedAt,
+      };
+    }
+    throw e;
+  }
   if (rawRows.length < 2) {
     return { rows: [], page: safePage, pageSize: safeSize, hasMore: false };
   }

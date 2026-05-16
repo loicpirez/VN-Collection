@@ -110,6 +110,10 @@ export const dictionaries = {
       anticipatedPaginationLabel: 'Pagination des attendus',
       prevPage: 'Précédent',
       nextPage: 'Suivant',
+      egsUnreachableTitle: 'EGS injoignable',
+      egsUnreachableHint: 'Le formulaire SQL public d\'ErogameScape n\'a pas répondu et aucune copie en cache n\'est disponible. Réessaie plus tard ou utilise « Tout rafraîchir ».',
+      staleNoticeTitle: 'Données en cache (EGS injoignable)',
+      staleNoticeBody: 'EGS n\'a pas répondu pour cette requête. Affichage de la dernière copie enregistrée (mis à jour : {when}).',
     },
     brandOverlap: {
       title: 'Croisement de studios',
@@ -2055,6 +2059,10 @@ export const dictionaries = {
       anticipatedPaginationLabel: 'Anticipated pagination',
       prevPage: 'Previous',
       nextPage: 'Next',
+      egsUnreachableTitle: 'EGS unreachable',
+      egsUnreachableHint: 'ErogameScape\'s public SQL form did not respond and no cached copy is available. Try again later or run "Refresh all".',
+      staleNoticeTitle: 'Cached data (EGS unreachable)',
+      staleNoticeBody: 'EGS did not respond for this request. Showing the last saved snapshot (last updated: {when}).',
     },
     brandOverlap: {
       title: 'Brand overlap',
@@ -4000,6 +4008,10 @@ export const dictionaries = {
       anticipatedPaginationLabel: '注目作のページ送り',
       prevPage: '前へ',
       nextPage: '次へ',
+      egsUnreachableTitle: 'EGS に接続できません',
+      egsUnreachableHint: 'ErogameScape の公開 SQL フォームから応答がなく、キャッシュも存在しません。時間を置いて再試行するか、「すべて更新」を実行してください。',
+      staleNoticeTitle: 'キャッシュデータ（EGS に接続できません）',
+      staleNoticeBody: 'EGS は今回応答しませんでした。最後に保存したスナップショットを表示中（最終更新: {when}）。',
     },
     brandOverlap: {
       title: 'スタジオ横断',

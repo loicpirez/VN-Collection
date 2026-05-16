@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, ExternalLink, Flame, Globe, Library as LibraryIcon } from 'lucide-react';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRelease } from '@/lib/upcoming';
-import { fetchEgsAnticipatedPage, type EgsAnticipated } from '@/lib/erogamescape';
+import { EgsUnreachable, fetchEgsAnticipatedPage, type EgsAnticipated } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
@@ -108,7 +108,10 @@ export default async function UpcomingPage({
 async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Dictionary }) {
   try {
     if (tab === 'anticipated') {
-      const { rows, hasMore } = await fetchEgsAnticipatedPage(page, ANTICIPATED_PAGE_SIZE);
+      const { rows, hasMore, stale, fetchedAt } = await fetchEgsAnticipatedPage(
+        page,
+        ANTICIPATED_PAGE_SIZE,
+      );
       // Most anticipated entries already carry a VNDB id (the card title
       // links there). Batch-fetch their cover URLs in a single VNDB call
       // so we can show the high-quality VNDB poster directly instead of
@@ -117,6 +120,9 @@ async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Diction
       const vndbCovers = await fetchVnCovers(vndbIds);
       return (
         <>
+          {stale && (
+            <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} />
+          )}
           <AnticipatedSection rows={rows} vndbCovers={vndbCovers} t={t} startRank={(page - 1) * ANTICIPATED_PAGE_SIZE} />
           <AnticipatedPaginator page={page} hasMore={hasMore} t={t} />
         </>
@@ -129,12 +135,41 @@ async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Diction
     const rows = await fetchUpcomingForCollection();
     return <ReleasesSection rows={rows} empty={t.upcoming.empty} t={t} />;
   } catch (e) {
+    // EGS unreachable AND no cached payload at all: actionable state.
+    if (e instanceof EgsUnreachable) {
+      return (
+        <div className="rounded-xl border border-status-on_hold/40 bg-status-on_hold/10 p-4 text-sm">
+          <p className="font-bold text-status-on_hold">{t.upcoming.egsUnreachableTitle}</p>
+          <p className="mt-1 text-[12px] text-muted">{t.upcoming.egsUnreachableHint}</p>
+        </div>
+      );
+    }
     return (
       <div className="mb-4 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm text-status-dropped">
         {(e as Error).message}
       </div>
     );
   }
+}
+
+function StaleEgsBanner({ fetchedAt, t }: { fetchedAt: number | null; t: Dictionary }) {
+  // Human-readable absolute timestamp (browser-local); the user can
+  // see when the cache was last refreshed and decide whether to
+  // trigger a Refresh.
+  const when = fetchedAt
+    ? new Date(fetchedAt).toLocaleString()
+    : '—';
+  return (
+    <div
+      className="mb-4 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-[12px] text-status-on_hold"
+      role="status"
+    >
+      <p className="font-semibold">{t.upcoming.staleNoticeTitle}</p>
+      <p className="mt-0.5 text-[11px] opacity-90">
+        {t.upcoming.staleNoticeBody.replace('{when}', when)}
+      </p>
+    </div>
+  );
 }
 
 /**
