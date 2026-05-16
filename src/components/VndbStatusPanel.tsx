@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
+import { DateInput } from './DateInput';
 import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 
@@ -307,20 +308,28 @@ function UlistDetailsEditor({
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-wider text-muted">{t.vndbStatus.fieldStarted}</span>
-          <input
-            type="date"
+          {/*
+            DateInput formats per the app's `useLocale()` (fr-FR / en-GB / ja-JP)
+            instead of inheriting the OS / browser locale that a raw
+            <input type="date"> uses — so a French-speaking user on a Japanese
+            OS no longer sees kanji-formatted dates in their VNDB list editor.
+            Value stays as ISO YYYY-MM-DD on the wire, which is what the VNDB
+            PATCH /ulist endpoint expects.
+          */}
+          <DateInput
             value={started || ''}
-            onChange={(e) => markDirty(setStarted)(e.target.value)}
-            className="rounded border border-border bg-bg px-2 py-1"
+            onChange={markDirty(setStarted)}
+            ariaLabel={t.vndbStatus.fieldStarted}
+            className="input"
           />
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-wider text-muted">{t.vndbStatus.fieldFinished}</span>
-          <input
-            type="date"
+          <DateInput
             value={finished || ''}
-            onChange={(e) => markDirty(setFinished)(e.target.value)}
-            className="rounded border border-border bg-bg px-2 py-1"
+            onChange={markDirty(setFinished)}
+            ariaLabel={t.vndbStatus.fieldFinished}
+            className="input"
           />
         </label>
         <label className="flex flex-col gap-1 sm:col-span-2">
