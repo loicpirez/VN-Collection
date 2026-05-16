@@ -18,6 +18,10 @@ data/*.db-journal
 data/*.db-wal
 data/*.db-shm
 data/storage/
+# legacy / archive copies of user data — never sync to source control
+data.old/
+data.old.*/
+data.*.bak/
 
 # os
 .DS_Store

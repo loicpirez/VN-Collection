@@ -2,9 +2,13 @@ import 'server-only';
 import { isAllowedHttpTarget } from './url-allowlist';
 import {
   clearEgsForVn,
+  clearVnEgsLink,
   db,
   getCollectionItem,
   getEgsForVn,
+  getVnEgsLink,
+  listAllEgsVnLinks,
+  setVnEgsLink,
   upsertEgsForVn,
   type EgsRow,
 } from './db';
@@ -498,7 +502,15 @@ function persistNoMatch(vnId: string): void {
 
 export interface ResolveResult {
   game: EgsGame | null;
-  source: 'extlink' | 'search' | null;
+  /**
+   * Source of the chosen EGS row.
+   *   'manual'        — user pinned this EGS id via the manual mapping UI
+   *   'manual-none'   — user explicitly said this VN has no EGS counterpart
+   *   'extlink'       — found via VNDB release extlinks
+   *   'search'        — found via name search fallback
+   *   null            — no match (and no manual signal either way)
+   */
+  source: 'manual' | 'manual-none' | 'extlink' | 'search' | null;
 }
 
 /**
@@ -506,15 +518,53 @@ export interface ResolveResult {
  * scans VNDB release extlinks (preferred) or falls back to a name search.
  * Persists the result in `egs_game` (including a `null` for "no match") so
  * cards/library/stats can read it without re-hitting EGS.
+ *
+ * Highest priority is the `vn_egs_link` manual mapping. If the user pinned
+ * an egs_id, we always return that (with `source: 'manual'`); if they
+ * explicitly unlinked (egs_id = NULL), we never re-auto-match and return
+ * `{ game: null, source: 'manual-none' }`. The user can clear that override
+ * via `DELETE /api/vn/[id]/erogamescape?manual=clear`.
  */
 export async function resolveEgsForVn(
   vnId: string,
   opts: { force?: boolean; allowSearch?: boolean } = {},
 ): Promise<ResolveResult> {
   const { force = false, allowSearch = true } = opts;
+
+  // Manual override beats everything else.
+  if (/^v\d+$/.test(vnId)) {
+    const manual = getVnEgsLink(vnId);
+    if (manual) {
+      if (manual.egs_id == null) {
+        return { game: null, source: 'manual-none' };
+      }
+      // Pinned to a specific EGS id — fetch (using existing cache).
+      const game = await fetchEgsGame(manual.egs_id, { force }).catch((e: unknown) => {
+        if (e instanceof EgsUnreachable) return null;
+        throw e;
+      });
+      if (game) {
+        persistGame(vnId, game, 'manual');
+        return { game, source: 'manual' };
+      }
+      // EGS unreachable but the user pinned this id; fall back to the cached
+      // egs_game row so the UI still surfaces the manual choice.
+      const cachedRow = getEgsForVn(vnId);
+      if (cachedRow?.egs_id != null) {
+        return { game: rowToGame(cachedRow), source: 'manual' };
+      }
+      return { game: null, source: 'manual' };
+    }
+  }
+
   const cached = getEgsForVn(vnId);
   if (cached && !force && Date.now() - cached.fetched_at < ROW_TTL_MS) {
-    return { game: rowToGame(cached), source: cached.source === 'manual' ? 'extlink' : cached.source };
+    return {
+      game: rowToGame(cached),
+      source: cached.source === 'manual'
+        ? 'manual'
+        : (cached.source === 'extlink' || cached.source === 'search' ? cached.source : null),
+    };
   }
 
   let egsId: number | null = null;
@@ -582,10 +632,9 @@ export async function resolveEgsForVn(
   // Auto-unmatching is too destructive — the data took effort to gather (EGS
   // playtime / scores) and the user can manually unlink if they really want.
   if (cached?.egs_id != null) {
-    // "manual" maps to "extlink" externally so the surfaced source stays narrow.
-    const fallbackSource: 'extlink' | 'search' | null = cached.source === 'manual'
-      ? 'extlink'
-      : cached.source ?? null;
+    const fallbackSource: 'manual' | 'extlink' | 'search' | null = cached.source === 'manual'
+      ? 'manual'
+      : (cached.source === 'extlink' || cached.source === 'search' ? cached.source : null);
     return { game: rowToGame(cached), source: fallbackSource };
   }
 
@@ -601,8 +650,27 @@ export async function resolveEgsForVn(
   return { game, source };
 }
 
-export function clearEgsCache(vnId: string): void {
+/**
+ * Clear the EGS cache row for a VN.
+ *
+ * @param vnId   real v\d+ id or synthetic egs_\d+ id
+ * @param mode   - 'auto' (default): drop the cache; auto-resolver re-runs.
+ *               - 'manual-none': drop the cache AND set vn_egs_link.egs_id = NULL
+ *                                 so the auto-resolver stops re-matching this VN.
+ *               - 'clear-manual': drop the cache AND remove any vn_egs_link row
+ *                                 so the auto-resolver gets a fresh shot.
+ */
+export function clearEgsCache(
+  vnId: string,
+  mode: 'auto' | 'manual-none' | 'clear-manual' = 'auto',
+): void {
   clearEgsForVn(vnId);
+  if (!/^v\d+$/.test(vnId)) return;
+  if (mode === 'manual-none') {
+    setVnEgsLink(vnId, null);
+  } else if (mode === 'clear-manual') {
+    clearVnEgsLink(vnId);
+  }
 }
 
 /** Best-effort name search when no VNDB extlink is available. Returns the top hit. */
@@ -700,7 +768,31 @@ export async function linkEgsToVn(vnId: string, egsId: number): Promise<EgsGame 
   const game = await fetchEgsGame(egsId);
   if (!game) return null;
   persistGame(vnId, game, 'manual');
+  // Pin the manual mapping at the override layer so cache refresh /
+  // re-auto-match can't silently undo the user's choice.
+  if (/^v\d+$/.test(vnId)) setVnEgsLink(vnId, egsId);
   return game;
+}
+
+/**
+ * Overlay the user's manual EGS->VNDB mapping onto a list of EGS-side rows
+ * (anticipated, top-ranked, /egs unlinked). Each row's `vndb_id` is replaced
+ * by the manual override when one exists. A NULL vndb_id from the override
+ * table means "user explicitly said no VNDB" — kept as-is so the UI can show
+ * the "unmapped (confirmed)" state instead of offering yet another map button.
+ */
+export function applyManualEgsToVndb<T extends { egs_id: number; vndb_id: string | null }>(
+  rows: T[],
+): T[] {
+  if (rows.length === 0) return rows;
+  const overrides = listAllEgsVnLinks();
+  if (overrides.size === 0) return rows;
+  for (const row of rows) {
+    if (overrides.has(row.egs_id)) {
+      row.vndb_id = overrides.get(row.egs_id) ?? null;
+    }
+  }
+  return rows;
 }
 
 /** One userreview row pulled from EGS for the configured username. */
@@ -806,7 +898,7 @@ export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]
   const safe = Math.min(200, Math.max(5, Math.floor(limit)));
   const cacheK = cacheKey('anticipated', String(safe));
   const cached = readCache<EgsAnticipated[]>(cacheK);
-  if (cached) return cached;
+  if (cached) return applyManualEgsToVndb(cached.map((r) => ({ ...r })));
 
   const sql = `SELECT g.id, g.gamename, g.sellday, b.brandname AS brand_name, g.vndb, `
     + `SUM(CASE WHEN ur.before_purchase_will = '0_必ず購入' THEN 1 ELSE 0 END) AS will_buy, `
@@ -848,7 +940,10 @@ export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]
     });
   }
   writeCache(cacheK, out, ANTICIPATED_TTL_MS);
-  return out;
+  // Apply manual EGS->VNDB overrides AFTER caching so cache invalidation
+  // doesn't have to bust on every override change. The override map is
+  // small (one row per user-chosen mapping) and cached SQLite-side.
+  return applyManualEgsToVndb(out.map((r) => ({ ...r })));
 }
 
 /** One row from the EGS top-ranked list (highest community median). */
@@ -896,7 +991,7 @@ export async function fetchEgsTopRanked(
   const safeMin = Math.max(1, Math.floor(minVotes));
   const cacheK = cacheKey('top-ranked', `${safeMin}:${safeLimit}`);
   const cached = readCache<EgsTopRanked[]>(cacheK);
-  if (cached) return cached;
+  if (cached) return applyManualEgsToVndb(cached.map((r) => ({ ...r })));
 
   const sql =
     `SELECT g.id, g.gamename, g.furigana, g.brandname AS brand_id, ` +
@@ -942,5 +1037,5 @@ export async function fetchEgsTopRanked(
     });
   }
   writeCache(cacheK, out, EGS_TOP_TTL_MS);
-  return out;
+  return applyManualEgsToVndb(out.map((r) => ({ ...r })));
 }

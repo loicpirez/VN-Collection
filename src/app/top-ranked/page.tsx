@@ -10,6 +10,7 @@ import { db, getCacheFreshness } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
+import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
@@ -313,15 +314,23 @@ function EgsSection({
                 {r.brand_name && (
                   <p className="mt-0.5 line-clamp-1 text-[10px] text-muted">{r.brand_name}</p>
                 )}
-                <a
-                  href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${r.egs_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent"
-                  aria-label={t.egs.openOnEgs}
-                >
-                  <ExternalLink className="h-3 w-3" aria-hidden /> EGS
-                </a>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <a
+                    href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${r.egs_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent"
+                    aria-label={t.egs.openOnEgs}
+                  >
+                    <ExternalLink className="h-3 w-3" aria-hidden /> EGS
+                  </a>
+                  <MapEgsToVndbButton
+                    egsId={r.egs_id}
+                    gamename={r.gamename}
+                    vndbId={r.vndb_id}
+                    variant="compact"
+                  />
+                </div>
               </div>
             </li>
           );

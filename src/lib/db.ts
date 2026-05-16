@@ -197,6 +197,32 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_vn_aspect_override_aspect
       ON vn_aspect_override(aspect_key);
 
+    -- Manual VN -> EGS link override. Sits ABOVE egs_game so that a
+    -- user-set link survives cache refresh, auto-rematch, and the
+    -- "no extlink found" path. NULL egs_id is allowed and is the
+    -- explicit "user said this VN has no EGS counterpart" signal so
+    -- the auto resolver does not keep trying to match it.
+    CREATE TABLE IF NOT EXISTS vn_egs_link (
+      vn_id      TEXT PRIMARY KEY REFERENCES vn(id) ON DELETE CASCADE,
+      egs_id     INTEGER,
+      note       TEXT,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_egs_link_egs ON vn_egs_link(egs_id);
+
+    -- Manual EGS -> VN link override. Used by /upcoming?tab=anticipated,
+    -- /top-ranked?tab=egs, and the /egs unlinked list so a user can
+    -- claim a VNDB id for an EGS row that does not yet exist locally,
+    -- without having to add the synthetic egs_NNN VN first. NULL vn_id
+    -- is the explicit "this EGS entry has no VNDB equivalent" signal.
+    CREATE TABLE IF NOT EXISTS egs_vn_link (
+      egs_id     INTEGER PRIMARY KEY,
+      vn_id      TEXT,
+      note       TEXT,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_egs_vn_link_vn ON egs_vn_link(vn_id);
+
     CREATE TABLE IF NOT EXISTS vn_route (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       vn_id          TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
@@ -1466,6 +1492,94 @@ export function setEgsLocalImage(vnId: string, localPath: string | null): void {
 
 export function clearEgsForVn(vnId: string): void {
   db.prepare('DELETE FROM egs_game WHERE vn_id = ?').run(vnId);
+}
+
+// -- Manual EGS <-> VNDB mapping ---------------------------------------------
+// Two tables, two directions, both kept narrow and reversible.
+//   vn_egs_link  — user pins a real v\d+ to a specific egs_id (or NULL to
+//                  say "this VN has no EGS counterpart")
+//   egs_vn_link  — user pins an egs_id to a real v\d+ (or NULL for "this EGS
+//                  has no VNDB counterpart"); used by /upcoming and
+//                  /top-ranked anticipated/EGS-top rows that don't have a
+//                  local synthetic VN yet.
+
+export interface VnEgsLink {
+  vn_id: string;
+  egs_id: number | null;
+  note: string | null;
+  updated_at: number;
+}
+
+export interface EgsVnLink {
+  egs_id: number;
+  vn_id: string | null;
+  note: string | null;
+  updated_at: number;
+}
+
+export function setVnEgsLink(vnId: string, egsId: number | null, note?: string | null): void {
+  if (!/^v\d+$/.test(vnId)) throw new Error('invalid vn id');
+  if (egsId !== null && (!Number.isInteger(egsId) || egsId <= 0)) {
+    throw new Error('invalid egs id');
+  }
+  db.prepare(
+    `INSERT INTO vn_egs_link (vn_id, egs_id, note, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(vn_id) DO UPDATE SET
+       egs_id = excluded.egs_id,
+       note = excluded.note,
+       updated_at = excluded.updated_at`,
+  ).run(vnId, egsId, note ?? null, Date.now());
+}
+
+export function getVnEgsLink(vnId: string): VnEgsLink | null {
+  const row = db
+    .prepare('SELECT vn_id, egs_id, note, updated_at FROM vn_egs_link WHERE vn_id = ?')
+    .get(vnId) as VnEgsLink | undefined;
+  return row ?? null;
+}
+
+export function clearVnEgsLink(vnId: string): void {
+  db.prepare('DELETE FROM vn_egs_link WHERE vn_id = ?').run(vnId);
+}
+
+export function setEgsVnLink(egsId: number, vnId: string | null, note?: string | null): void {
+  if (!Number.isInteger(egsId) || egsId <= 0) throw new Error('invalid egs id');
+  if (vnId !== null && !/^v\d+$/.test(vnId)) throw new Error('invalid vn id');
+  db.prepare(
+    `INSERT INTO egs_vn_link (egs_id, vn_id, note, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(egs_id) DO UPDATE SET
+       vn_id = excluded.vn_id,
+       note = excluded.note,
+       updated_at = excluded.updated_at`,
+  ).run(egsId, vnId, note ?? null, Date.now());
+}
+
+export function getEgsVnLink(egsId: number): EgsVnLink | null {
+  const row = db
+    .prepare('SELECT egs_id, vn_id, note, updated_at FROM egs_vn_link WHERE egs_id = ?')
+    .get(egsId) as EgsVnLink | undefined;
+  return row ?? null;
+}
+
+export function clearEgsVnLink(egsId: number): void {
+  db.prepare('DELETE FROM egs_vn_link WHERE egs_id = ?').run(egsId);
+}
+
+/**
+ * Returns a map of egs_id -> vn_id (NULL means "user explicitly said no VNDB
+ * match"). Used to overlay manual decisions on top of the EGS-side feeds
+ * (anticipated, top-ranked, /egs unlinked list) so the chosen mapping
+ * survives cache refreshes and is reversible without losing user intent.
+ */
+export function listAllEgsVnLinks(): Map<number, string | null> {
+  const rows = db
+    .prepare('SELECT egs_id, vn_id FROM egs_vn_link')
+    .all() as Array<{ egs_id: number; vn_id: string | null }>;
+  const out = new Map<number, string | null>();
+  for (const r of rows) out.set(r.egs_id, r.vn_id);
+  return out;
 }
 
 // Canonical definition lives in source-resolve.ts. Re-exported here so

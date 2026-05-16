@@ -10,6 +10,7 @@ import { db, getCacheFreshness } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid, SkeletonRows } from '@/components/Skeleton';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
+import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
@@ -380,7 +381,7 @@ function AnticipatedSection({
                     <span className="text-sm">{a.watching}</span>
                   </span>
                 </div>
-                <div className="flex flex-wrap gap-3 text-[11px]">
+                <div className="flex flex-wrap items-center gap-2 text-[11px]">
                   <a
                     href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${a.egs_id}`}
                     target="_blank"
@@ -399,6 +400,12 @@ function AnticipatedSection({
                       <ExternalLink className="h-3 w-3" /> VNDB
                     </a>
                   )}
+                  <MapEgsToVndbButton
+                    egsId={a.egs_id}
+                    gamename={a.gamename}
+                    vndbId={a.vndb_id}
+                    variant="compact"
+                  />
                 </div>
               </div>
             </li>
