@@ -945,6 +945,90 @@ export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]
   return applyManualEgsToVndb(out.map((r) => ({ ...r })));
 }
 
+export interface EgsAnticipatedPage {
+  rows: EgsAnticipated[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+/**
+ * Page-style cousin of fetchEgsAnticipated for user-facing
+ * pagination on /upcoming?tab=anticipated.
+ *
+ * EGS's anticipated SQL supports LIMIT/OFFSET cleanly. Each
+ * page is cached independently under
+ * `anticipated:p<page>:<size>`. `hasMore` is derived from a
+ * +1 probe row (we LIMIT pageSize+1 and trim).
+ *
+ * `pageSize` is clamped to [10, 100]; `page` to [1, 20]
+ * (5x100 = 500 rows of headroom, more than the user's
+ * realistic browse depth).
+ */
+export async function fetchEgsAnticipatedPage(
+  page = 1,
+  pageSize = 50,
+): Promise<EgsAnticipatedPage> {
+  const safeSize = Math.min(100, Math.max(10, Math.floor(pageSize)));
+  const safePage = Math.max(1, Math.min(20, Math.floor(page)));
+  const offset = (safePage - 1) * safeSize;
+  const cacheK = cacheKey('anticipated', `p${safePage}:${safeSize}`);
+  const cached = readCache<{ rows: EgsAnticipated[]; hasMore: boolean }>(cacheK);
+  if (cached && cached.rows.length > 0) {
+    return {
+      rows: applyManualEgsToVndb(cached.rows.map((r) => ({ ...r }))),
+      page: safePage,
+      pageSize: safeSize,
+      hasMore: cached.hasMore,
+    };
+  }
+
+  const sql = `SELECT g.id, g.gamename, g.sellday, b.brandname AS brand_name, g.vndb, `
+    + `SUM(CASE WHEN ur.before_purchase_will = '0_必ず購入' THEN 1 ELSE 0 END) AS will_buy, `
+    + `SUM(CASE WHEN ur.before_purchase_will = '多分購入' THEN 1 ELSE 0 END) AS probably, `
+    + `SUM(CASE WHEN ur.before_purchase_will = '様子見' THEN 1 ELSE 0 END) AS watching `
+    + `FROM gamelist g LEFT JOIN brandlist b ON g.brandname = b.id `
+    + `INNER JOIN userreview ur ON ur.game = g.id `
+    + `WHERE g.sellday > current_date AND g.sellday < current_date + 365 `
+    + `GROUP BY g.id, g.gamename, g.sellday, b.brandname, g.vndb `
+    + `ORDER BY will_buy DESC LIMIT ${safeSize + 1} OFFSET ${offset}`;
+
+  const rawRows = await fetchTable(sql);
+  if (rawRows.length < 2) {
+    return { rows: [], page: safePage, pageSize: safeSize, hasMore: false };
+  }
+  const header = rawRows[0].map((h) => h.trim());
+  const idx = (name: string): number => header.indexOf(name);
+  const parsed: EgsAnticipated[] = [];
+  for (let i = 1; i < rawRows.length; i++) {
+    const r = rawRows[i];
+    const id = toNumber(r[idx('id')]);
+    if (id == null) continue;
+    const vndb = r[idx('vndb')]?.trim() ?? '';
+    parsed.push({
+      egs_id: id,
+      gamename: r[idx('gamename')] ?? '',
+      brand_name: r[idx('brand_name')] || null,
+      sellday: r[idx('sellday')] ?? '',
+      vndb_id: /^v\d+$/.test(vndb) ? vndb : null,
+      will_buy: toNumber(r[idx('will_buy')]) ?? 0,
+      probably_buy: toNumber(r[idx('probably')]) ?? 0,
+      watching: toNumber(r[idx('watching')]) ?? 0,
+    });
+  }
+  const hasMore = parsed.length > safeSize;
+  const rows = parsed.slice(0, safeSize);
+  if (rows.length > 0) {
+    writeCache(cacheK, { rows, hasMore }, ANTICIPATED_TTL_MS);
+  }
+  return {
+    rows: applyManualEgsToVndb(rows.map((r) => ({ ...r }))),
+    page: safePage,
+    pageSize: safeSize,
+    hasMore,
+  };
+}
+
 /** One row from the EGS top-ranked list (highest community median). */
 export interface EgsTopRanked {
   egs_id: number;

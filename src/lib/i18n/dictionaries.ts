@@ -105,6 +105,10 @@ export const dictionaries = {
       tabAll: 'Toutes VNDB',
       emptyAll: 'Aucune sortie VNDB connue dans les 12 prochains mois.',
       emptyAnticipated: 'Pas encore d\'intentions d\'achat sur EGS pour les jeux à venir.',
+      anticipatedRankRange: 'Rangs {from}–{to}',
+      anticipatedPaginationLabel: 'Pagination des attendus',
+      prevPage: 'Précédent',
+      nextPage: 'Suivant',
     },
     brandOverlap: {
       title: 'Croisement de studios',
@@ -2041,6 +2045,10 @@ export const dictionaries = {
       tabAll: 'All VNDB',
       emptyAll: 'No upcoming VNDB releases recorded in the next 12 months.',
       emptyAnticipated: 'No purchase intent data on EGS for upcoming games yet.',
+      anticipatedRankRange: 'Ranks {from}–{to}',
+      anticipatedPaginationLabel: 'Anticipated pagination',
+      prevPage: 'Previous',
+      nextPage: 'Next',
     },
     brandOverlap: {
       title: 'Brand overlap',
@@ -3977,6 +3985,10 @@ export const dictionaries = {
       tabAll: 'VNDB 全部',
       emptyAll: 'VNDB の今後12ヶ月の発売予定が登録されていません。',
       emptyAnticipated: '発売予定のゲームについて EGS の購入予定がまだありません。',
+      anticipatedRankRange: 'ランク {from}–{to}',
+      anticipatedPaginationLabel: '注目作のページ送り',
+      prevPage: '前へ',
+      nextPage: '次へ',
     },
     brandOverlap: {
       title: 'スタジオ横断',

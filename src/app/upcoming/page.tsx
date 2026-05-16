@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CalendarRange, ExternalLink, Flame, Globe, Library as LibraryIcon } from 'lucide-react';
+import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, ExternalLink, Flame, Globe, Library as LibraryIcon } from 'lucide-react';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRelease } from '@/lib/upcoming';
-import { fetchEgsAnticipated, type EgsAnticipated } from '@/lib/erogamescape';
+import { fetchEgsAnticipatedPage, type EgsAnticipated } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
@@ -46,10 +46,24 @@ function groupByMonth(rels: UpcomingRelease[]): Map<string, UpcomingRelease[]> {
   return map;
 }
 
-export default async function UpcomingPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+const ANTICIPATED_PAGE_SIZE = 50;
+
+function parsePage(value: string | undefined): number {
+  if (!value) return 1;
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(20, n);
+}
+
+export default async function UpcomingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; page?: string }>;
+}) {
   const t = await getDict();
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, page: rawPage } = await searchParams;
   const tab = parseTab(rawTab);
+  const page = parsePage(rawPage);
   const lastUpdatedAt = getCacheFreshness(['% /release|%', '% /release:%', 'anticipated:%']);
 
   return (
@@ -84,24 +98,29 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Pro
         </nav>
       </header>
 
-      <Suspense key={tab} fallback={<UpcomingTabSkeleton tab={tab} />}>
-        <TabContent tab={tab} t={t} />
+      <Suspense key={`${tab}-${page}`} fallback={<UpcomingTabSkeleton tab={tab} />}>
+        <TabContent tab={tab} page={page} t={t} />
       </Suspense>
     </div>
   );
 }
 
-async function TabContent({ tab, t }: { tab: Tab; t: Dictionary }) {
+async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Dictionary }) {
   try {
     if (tab === 'anticipated') {
-      const rows = await fetchEgsAnticipated(100);
+      const { rows, hasMore } = await fetchEgsAnticipatedPage(page, ANTICIPATED_PAGE_SIZE);
       // Most anticipated entries already carry a VNDB id (the card title
       // links there). Batch-fetch their cover URLs in a single VNDB call
       // so we can show the high-quality VNDB poster directly instead of
       // bouncing through the EGS resolver / shop CDNs.
       const vndbIds = rows.map((r) => r.vndb_id).filter((v): v is string => !!v);
       const vndbCovers = await fetchVnCovers(vndbIds);
-      return <AnticipatedSection rows={rows} vndbCovers={vndbCovers} t={t} />;
+      return (
+        <>
+          <AnticipatedSection rows={rows} vndbCovers={vndbCovers} t={t} startRank={(page - 1) * ANTICIPATED_PAGE_SIZE} />
+          <AnticipatedPaginator page={page} hasMore={hasMore} t={t} />
+        </>
+      );
     }
     if (tab === 'all') {
       const rows = await fetchAllUpcomingFromVndb(200);
@@ -116,6 +135,67 @@ async function TabContent({ tab, t }: { tab: Tab; t: Dictionary }) {
       </div>
     );
   }
+}
+
+/**
+ * Page-range pagination for EGS Anticipated. EGS's SQL form
+ * supports LIMIT/OFFSET cleanly so deeper pages are real data,
+ * not a UI illusion. We expose 20 pages of headroom (1000 rows);
+ * the EGS pool of "next 365 days with at least one user vote"
+ * is realistically far smaller, so most users will hit a "no
+ * more" state long before that cap.
+ */
+function AnticipatedPaginator({
+  page,
+  hasMore,
+  t,
+}: {
+  page: number;
+  hasMore: boolean;
+  t: Dictionary;
+}) {
+  const startRank = (page - 1) * 50 + 1;
+  const endRank = page * 50;
+  const prevHref = `/upcoming?tab=anticipated${page > 2 ? `&page=${page - 1}` : ''}`;
+  const nextHref = `/upcoming?tab=anticipated&page=${page + 1}`;
+  return (
+    <nav
+      className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-bg-card/60 px-3 py-2 text-xs"
+      aria-label={t.upcoming.anticipatedPaginationLabel}
+    >
+      <span className="text-muted tabular-nums">
+        {t.upcoming.anticipatedRankRange
+          .replace('{from}', startRank.toLocaleString())
+          .replace('{to}', endRank.toLocaleString())}
+      </span>
+      <div className="inline-flex items-center gap-2">
+        {page > 1 ? (
+          <Link
+            href={prevHref}
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent"
+          >
+            <ChevronLeft className="h-3 w-3" aria-hidden /> {t.upcoming.prevPage}
+          </Link>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-muted opacity-40">
+            <ChevronLeft className="h-3 w-3" aria-hidden /> {t.upcoming.prevPage}
+          </span>
+        )}
+        {hasMore ? (
+          <Link
+            href={nextHref}
+            className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20"
+          >
+            {t.upcoming.nextPage} <ChevronRight className="h-3 w-3" aria-hidden />
+          </Link>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-muted opacity-40">
+            {t.upcoming.nextPage} <ChevronRight className="h-3 w-3" aria-hidden />
+          </span>
+        )}
+      </div>
+    </nav>
+  );
 }
 
 function UpcomingTabSkeleton({ tab }: { tab: Tab }) {
@@ -344,10 +424,12 @@ function AnticipatedSection({
   rows,
   vndbCovers,
   t,
+  startRank = 0,
 }: {
   rows: EgsAnticipated[];
   vndbCovers: Map<string, VndbCoverInfo>;
   t: Dictionary;
+  startRank?: number;
 }) {
   if (rows.length === 0) {
     return <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">{t.upcoming.emptyAnticipated}</p>;
@@ -400,8 +482,8 @@ function AnticipatedSection({
                 >
                   <SafeImage src={coverSrc} alt={a.gamename} sexual={coverSexual} className="h-full w-full" />
                 </Link>
-                <span className="absolute -left-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-accent text-xs font-bold text-bg shadow-card">
-                  {i + 1}
+                <span className="absolute -left-2 -top-2 flex h-8 min-w-8 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-bg shadow-card">
+                  {startRank + i + 1}
                 </span>
               </div>
               <div className="min-w-0 flex-1">
