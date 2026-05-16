@@ -566,7 +566,8 @@ plus:
 
 ### Per-page Refresh button + freshness chip ✅
 `RefreshPageButton` renders on the pages whose render genuinely
-depends on a remote cache: **`/upcoming`**, **`/tags`**, **`/traits`**.
+depends on a remote cache: **`/upcoming`**, **`/tags`**, **`/traits`**,
+and **`/top-ranked`**.
 The button:
 - Reads `lastUpdatedAt` server-side via `getCacheFreshness(patterns)`
   — `SELECT MAX(fetched_at) FROM vndb_cache WHERE cache_key LIKE …`.
@@ -921,6 +922,125 @@ you are in the list. Per-axis dim range: `1 ≤ x ≤ 200`. Tests
 in `tests/shelf-layout.test.ts` cover place / swap / resize /
 unplace semantics including the FK cascade.
 
+### Manual EGS ↔ VNDB mapping ✅
+Two override tables let the user pin a mapping that survives
+cache invalidation and auto-rematch:
+
+- **`vn_egs_link`** (VN → EGS): the user pins
+  `(vn_id → egs_id)` from `/vn/v\d+` via `<EgsPanel>`. A pinned
+  `NULL` records "this VN has no EGS counterpart" so the auto
+  resolver stops trying. Highest priority in
+  `resolveEgsForVn()`; survives cache refresh.
+- **`egs_vn_link`** (EGS → VNDB): symmetric pin from the EGS-side
+  feeds. Overlaid on top of every read of
+  `fetchEgsAnticipated()` / `fetchEgsTopRanked()` (incl. cache
+  hits) so the chosen mapping is visible immediately.
+
+UI invocations on every "missing relation" surface:
+- `/upcoming?tab=anticipated` rows missing `vndb_id` →
+  `<MapEgsToVndbButton variant="compact">`
+- `/top-ranked?tab=egs` rows missing `vndb_id` → same component
+- `/egs` "Not yet linked" section (new, paginated 50 + "+N more"
+  hint) → `<MapVnToEgsButton variant="compact">`
+- `/vn/v\d+` EgsPanel manual picker → already wired; now writes
+  the override layer so reset is sticky
+- `/vn/egs_NNN` still uses `<LinkToVndbButton>` to migrate the
+  whole synthetic row to a real `v\d+` id (heavyweight, distinct
+  flow — see `migrateVnId()` in `lib/db.ts`)
+
+Reset semantics: `DELETE /api/vn/[id]/erogamescape?mode=…` and
+`DELETE /api/egs/[id]/vndb` clear the override. `mode=auto`
+drops the cached row only; `mode=manual-none` pins the negative;
+`mode=clear-manual` removes the override entirely so the auto
+resolver gets a fresh shot.
+
+13 cases in `tests/egs-manual-mapping.test.ts` cover round-trip,
+upsert-on-conflict, validation, bulk overlay, and the no-override
+no-op path.
+
+### Card density slider ✅
+Shared `cardDensityPx` setting in `useDisplaySettings()` clamped
+to `[140, 320]` via `clampCardDensity()`. The value flows into a
+CSS custom property `--card-density-px` set on the document
+root: SSR seed from cookie (no flash-of-default-density on first
+paint), client mirror via `<CardDensityVarSetter>` on every
+change.
+
+Pages using the slider (each grid uses
+`minmax(var(--card-density-px, …px), 1fr)` so the column count
+follows the user's preference):
+
+- `/wishlist` — `<CardDensitySlider />` in toolbar
+- `/recommendations` — slider in chip row
+- `/top-ranked` — slider next to `RefreshPageButton`
+- `/upcoming` — slider next to `RefreshPageButton` (floor 280px)
+- `/dumped` — slider above tab grid (floor 280px)
+- `/similar` — slider above grid
+- `/egs` — slider on "Linked" section header (floor 260px)
+- `/producer/[id]` — VN grids
+- `/staff/[id]` — credit grid
+
+The Library on `/` keeps its dedicated dense toggle (controls
+gap + padding, distinct from column count). The Settings →
+Display tab carries the canonical slider alongside the other
+display preferences.
+
+### Home page layout: drag-reorder + library section ✅
+`home_section_layout_v1` (versioned JSON config) tracks both
+per-section visibility/collapse state AND the render order:
+
+```
+{
+  sections: {
+    'recently-viewed': { visible: true, collapsed: false },
+    'reading-queue':    { visible: true, collapsed: false },
+    anniversary:        { visible: true, collapsed: false },
+    library:            { visible: true, collapsed: false }
+  },
+  order: ['recently-viewed', 'reading-queue', 'anniversary', 'library']
+}
+```
+
+- `<HomeLayoutEditorTrigger />` renders a button at the top of
+  `/`. Click opens a dialog with dnd-kit (Pointer + Keyboard
+  sensors) for reordering and per-row eye toggles for
+  visibility. Each change PATCHes the API in real time and
+  fires `vn:home-layout-changed` so live strips re-sync.
+- `<HomeLibrarySection />` wraps `<LibraryClient />` in the
+  same hide / collapse / reorder shell as the other home
+  strips. Library can now be hidden, collapsed, and reordered
+  like every other section.
+- The validator accepts both the new shape AND the legacy v0
+  flat shape for backward compatibility — older payloads
+  upgrade transparently. Unknown ids are dropped from `order`,
+  missing ids appended to the tail.
+- Reset (in Settings → Home tab OR in the home-page editor
+  dialog) sends `PATCH /api/settings { home_section_layout_v1:
+  null }` to drop the override and fall back to defaults.
+
+9 cases in `tests/home-section-layout.test.ts` cover default
+fallback, v0/v1 shape detection, append-missing, drop-unknown,
+dedupe, typo-safe visibility, malformed JSON, round-trip.
+
+### Custom tag picker for /recommendations and /similar ✅
+Both pages now expose a shared `<TagPicker>` so the user can
+pin a seed-tag list explicitly. Auto-derivation still kicks in
+when no tags are pinned.
+
+- `<TagPicker>`: chip strip with remove (X) buttons + an
+  autocomplete input that hits `/api/tags?q=` (cached +
+  throttled VNDB search). Optional `category` prop scopes the
+  autocomplete to `cont` / `ero` / `tech`.
+- `<SeedTagControls>`: client wrapper that mirrors the picked
+  list into a URL search param (default `tags=g123,g456`) via
+  `router.replace(no-scroll)`. The page reads the param
+  server-side and passes `customTagIds` to `recommendVns()` /
+  similar lookup.
+- Both pages flip between auto-derivation hint and "custom
+  pinned" hint so the user always knows which mode is active.
+- Sibling URL params (`ero=1`, `vn=v123`) are preserved across
+  picker writes via the `preserveParams` option.
+
 ### Synthetic releases for EGS-only VNs ✅
 VNs missing from VNDB's release index (`v.*` rows with no rows in
 `POST /release`, plus every `egs_*` synthetic VN) can still be
@@ -1036,6 +1156,8 @@ filled.
 | `release_resolution_cache` | Normalized VNDB release resolutions | release_id PK, **vn_id (nullable, lazily filled)**, width, height, raw_resolution, aspect_key, fetched_at |
 | `owned_release_aspect_override` | Manual aspect/resolution corrections per owned edition | composite PK (vn_id, release_id); width, height, aspect_key, note, updated_at |
 | `vn_aspect_override` | VN-level manual aspect override (highest priority) | vn_id PK (FK→vn), aspect_key, note, updated_at |
+| `vn_egs_link` | Manual VN→EGS mapping override (sticky) | vn_id PK (FK→vn), egs_id (nullable: NULL = "no EGS"), note, updated_at |
+| `egs_vn_link` | Manual EGS→VNDB mapping override (overlaid on EGS-side feeds) | egs_id PK, vn_id (nullable: NULL = "no VNDB"), note, updated_at |
 | `staff_credit_index` | Derived index from `staff_full` cache | (sid, vn_id, is_va) — narrows brand-overlap scans before parsing JSON |
 | `character_vn_index` | Derived index from `char_full` cache | (character_id, vn_id) — narrows trait fan-out before parsing JSON |
 | `app_setting_audit` | Append-only audit log | id, key, prior_preview, next_preview, changed_at — last 4 chars only |

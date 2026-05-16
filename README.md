@@ -25,6 +25,15 @@ ingested, cached locally, and can be combined or compared per-field.
   with customizable sections below the immutable hero: reorder,
   hide/show, collapse/expand, save to `vn_detail_section_layout_v1`,
   and reset from Settings
+- **Home page is fully reorderable** — Recently viewed, Reading queue,
+  Today's anniversaries, and Library are four sections that the user
+  can drag-reorder, hide, or collapse via the "Customize home"
+  dialog. State is versioned in `home_section_layout_v1`.
+- **Shared card density slider** — a single setting
+  (`cardDensityPx`, clamped to `[140, 320]`) drives the column count
+  on every multi-VN grid: wishlist, recommendations, top-ranked,
+  upcoming, dumped, egs, similar, producer / staff credit lists.
+  Exposed both in Settings → Display and inline on each page.
 - Track per-VN: status (planning / playing / completed / on hold / dropped),
   personal rating (10–100), playtime, started / finished dates, favorite,
   "dumped" flag, free-form download URL
@@ -210,7 +219,24 @@ recommendations, shelf, dumped, stats).
   `collection.source_pref` JSON. VNDB stays the default for everything.
 - Combined rating `(VNDB + EGS) / 2` and summed playtime
   `mine + EGS median` shown on the VN page; aggregates on `/stats`.
-- No API key required — EGS exposes a public SQL form.
+- No API key required — EGS exposes a public SQL form. **EGS auth is
+  a uid, not a token** — the public profile id; settable from
+  Settings → Integrations → EGS.
+- **Manual EGS ↔ VNDB mapping** — every "missing relation" surface
+  carries a sticky override action:
+    - `/upcoming?tab=anticipated`, `/top-ranked?tab=egs`: EGS rows
+      missing a VNDB cross-link get a "Map to VNDB" button.
+    - `/egs` shows an unlinked-VN section listing the first 50 VNs
+      with no EGS counterpart, each with a "Map to EGS" button.
+    - VN-detail pages still expose the manual picker via
+      `<EgsPanel>`, and synthetic `egs_NNN` pages still expose
+      `<LinkToVndbButton>` for the heavyweight id migration.
+  The mapping survives cache refresh and auto-rematch (it lives in
+  `vn_egs_link` / `egs_vn_link`, not just the EGS cache row).
+- **Top-ranked** (`/top-ranked`) — two tabs (VNDB top, EGS top) with
+  a per-page Refresh button and freshness chip. The global refresh
+  busts both `% /vn:top-ranked:%` and `egs:top-ranked:%` caches so
+  the reload actually moves the data forward.
 
 ### Image management
 - **Auto-download on add**: cover + thumbnail + screenshots + every

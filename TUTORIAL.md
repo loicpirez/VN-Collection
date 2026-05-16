@@ -13,6 +13,13 @@ The shortcut overview below is also reachable in-app via `?`.
 
 You land on your collection grid.
 
+The **home page** is now four reorderable sections: Recently viewed,
+Reading queue, Today's anniversaries, and the Library itself. Click
+**Customize home** (top right) to drag-reorder them or hide any
+section. Hidden sections stay restorable from Settings → Home tab.
+The Library section can be collapsed or hidden too if you prefer the
+home page to feel lighter; restore it the same way.
+
 - **Status chips** at the top filter by Planning / Playing / Completed /
   On hold / Dropped.
 - **Filter row** below: free-text title search, language, year, tag,
@@ -25,6 +32,10 @@ You land on your collection grid.
   that switches to `sort=custom` and unlocks drag-to-reorder.
 - **Density toggle** (LayoutGrid icon) switches between comfortable and
   dense grid layouts.
+- **Card density slider** (in Settings → Display, also exposed in the
+  toolbar of every multi-VN listing page — wishlist, recommendations,
+  top-ranked, upcoming, dumped, EGS, similar) lets you set the
+  minimum tile width across every grid in one go.
 - **Random pick** (dice icon) jumps to a random entry from the current
   filter set.
 - **Bulk download** (cloud arrow) refreshes VNDB + EGS for every VN.
@@ -165,7 +176,18 @@ Default sections:
 ## 6. Discovery surfaces
 
 - `/recommendations` (`g r`) — tag-seeded picks weighted by your top
-  ratings. Toggle whether to include ero tags.
+  ratings. Toggle whether to include ero tags. The **seed tags** can
+  be edited directly: a chip-style picker below the toggle lets you
+  remove a seed or search VNDB for additional ones. The URL carries
+  `?tags=g123,g456` so you can share a hand-tuned recommendation
+  view. Clear all chips to fall back to auto-derivation.
+- `/top-ranked` (`g k`) — two tabs of community-ranked games:
+    1. **VNDB top** — highest-rated VNs across VNDB by user score,
+       filtered by minimum vote count.
+    2. **EGS top** — top games by EGS community median.
+  EGS rows missing a VNDB cross-link get a **"Map to VNDB"**
+  button that opens a search modal — the chosen mapping is sticky
+  and survives cache refresh.
 - `/upcoming` (`g u`) — three tabs of "what's next":
     1. **My collection** — future releases from developers already in
        your collection (default).
@@ -377,7 +399,7 @@ The top nav has four always-visible primary links plus three category
 dropdowns:
 
 - **Primary** — Library, Wishlist, Lists, Search
-- **Discover** — Upcoming, For you, Quotes
+- **Discover** — Upcoming, Top-ranked, For you, Quotes
 - **Browse** — Producers, Series, Tags, Traits, Characters, Staff, Year, Labels
 - **Data & Stats** — Stats, Shelf, Steam, EGS, Schema, Data
 
@@ -463,9 +485,9 @@ server — they just drain through the queue at the throttled pace.
 
 The Refresh button with the **Data Xh ago** chip lives on the pages
 whose render genuinely depends on a remote cache: **`/upcoming`**,
-**`/tags`**, **`/traits`**. Pages that compute from local SQL only
-(`/stats`, `/data`, `/producers`) intentionally don't show the chip —
-a freshness reading there would be meaningless.
+**`/tags`**, **`/traits`**, and **`/top-ranked`**. Pages that compute
+from local SQL only (`/stats`, `/data`, `/producers`) intentionally
+don't show the chip — a freshness reading there would be meaningless.
 
 The chip:
 - Reads the most-recent `fetched_at` from cache rows matching the

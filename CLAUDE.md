@@ -42,6 +42,46 @@ Always run it before declaring a change "done".
 
 ---
 
+## Safety rules (read before ANY commit)
+
+- **Package manager**: `yarn`, never `npm`. Both lockfiles exist for
+  legacy reasons but yarn is canonical. CI, smoke tests, and every
+  internal doc assume yarn.
+- **Commands you'll run**:
+    - `yarn dev`           — local dev server on :3000
+    - `yarn build`         — full TypeScript + Next.js validation
+    - `yarn typecheck`     — fast `tsc --noEmit` only
+    - `yarn test`          — Vitest single run
+    - `yarn test:watch`    — Vitest watch mode
+    - `yarn smoke`         — bash script that exercises every page
+                              and a few APIs (needs a running server)
+- **Never `git push`** unless the user explicitly asks. Never
+  `git push --force`, never `git reset --hard` without an explicit
+  ask. Never amend or rewrite commits the user already accepted.
+- **No `Co-Authored-By:` trailers** in commit messages. The user has
+  explicitly forbidden them. Don't add `🤖 Generated with Claude
+  Code` either.
+- **No real tokens in tests**. Vitest setup pins `DB_PATH` to a temp
+  directory; never paste a real VNDB token / Steam API key / EGS
+  username into a test fixture. Mock the upstream response and use
+  fake placeholders (`'fake-test-token-not-a-real-vndb-credential'`).
+- **`data.old/`** in the repo root is an untouched legacy backup.
+  Never read, edit, or `git add` anything under that directory.
+  `.gitignore` already excludes it; don't override.
+- **`git add -A` is dangerous** — it sweeps untracked dirs. Prefer
+  `git add <specific-files>` or `git add` with explicit paths. If
+  you must use `-A`, run `git status --short` first and confirm no
+  user-only data is being staged.
+- **Migrations are append-only**. Use `ensureColumn(db, table,
+  column, ddl)` for every new field; never `DROP TABLE`,
+  `ALTER TABLE … DROP COLUMN`, or any non-idempotent DDL.
+- **Credential previews never include the credential itself**.
+  Settings PATCH responses, audit-log rows, and error messages
+  must mask via `tail4` (token-shaped) or hostname (URL-shaped) —
+  see `settingAuditPreview` in `lib/db.ts`.
+
+---
+
 ## Repository layout
 
 ```
@@ -346,6 +386,22 @@ vn_aspect_override PK vn_id (FK→vn)
                   > vn.screenshots dims fallback > unknown. See
                   `deriveVnAspectKey(vnId)` in lib/db.ts.
 
+vn_egs_link      PK vn_id (FK→vn)
+                  egs_id (nullable; NULL means user pinned
+                  "no EGS counterpart"), note, updated_at
+                  — Manual VN→EGS override that beats the auto
+                  resolver. Survives cache invalidation.
+
+egs_vn_link      PK egs_id
+                  vn_id (nullable; NULL = pinned "no VNDB"),
+                  note, updated_at
+                  — Manual EGS→VNDB override. Used by EGS-side
+                  feeds (anticipated, top-ranked, /egs unlinked
+                  list) to overlay the user's chosen mapping on
+                  top of the native EGS payload, even on cache
+                  hits. No FK on `vn_id` so the user can pin a
+                  VNDB id that isn't yet in the local `vn` table.
+
 user_list        PK id (auto)
                   name, slug (UNIQUE), description, color, icon,
                   pinned BOOL, created_at, updated_at
@@ -452,6 +508,53 @@ response (CSV) in the shared `vndb_cache` table.
   are NOT silently lost.
 - Pool query (`listUnplacedOwnedReleases`) is a `NOT EXISTS` subquery
   across both `shelf_slot` and `shelf_display_slot`.
+- **Read-only vs editor mode**: `/shelf?view=release` (default) and
+  `/shelf?view=item` are server-rendered read-only views of every
+  owned edition, grouped by physical location — no drag, no client
+  state. `/shelf?view=layout` mounts the client
+  `<ShelfLayoutEditor>` which talks to `/api/shelves/*` for every
+  mutation. Same data, different surfaces.
+- **Pool item info popover**: each draggable tile in the unplaced
+  pool of `<ShelfLayoutEditor>` carries an `<Info>` button at top-
+  right that opens an absolute-positioned popover with release id,
+  condition, box type, physical location, price, acquired date,
+  dumped flag, plus "Open VN" / "Open release" links. The button
+  is keyboard- and touch-reachable (not hover-only). Click stops
+  propagation so dnd-kit's PointerSensor doesn't fire.
+
+### Manual EGS ↔ VNDB mapping
+
+Two override tables, both reversible, both keyed on a single id:
+
+- `vn_egs_link` — pins (`vn_id` → `egs_id`), or (`vn_id` → `NULL`)
+  to record "this VN has no EGS counterpart". Highest priority in
+  `resolveEgsForVn`; survives cache invalidation and auto-rematch.
+- `egs_vn_link` — pins (`egs_id` → `vn_id`), or (`egs_id` → `NULL`).
+  Used by EGS-side feeds (`fetchEgsAnticipated`,
+  `fetchEgsTopRanked`, /egs unlinked list) that overlay the user's
+  choice on top of native EGS data. The overlay runs even on cache
+  hits.
+
+API:
+  - `POST /api/vn/[id]/erogamescape` `{ egs_id }` — pin VN → EGS id.
+  - `DELETE /api/vn/[id]/erogamescape?mode=…` — `auto` (default),
+    `manual-none`, `clear-manual` modes control whether the
+    override layer is reset or pinned to "no counterpart".
+  - `GET/POST/DELETE /api/egs/[id]/vndb` — symmetric EGS → VNDB pin.
+
+UI: `<MapEgsToVndbButton>` and `<MapVnToEgsButton>` are the two
+shared modal pickers; both wrapped via `useDialogA11y` so Escape
+and focus restore work consistently. Surfaces:
+  - `/upcoming?tab=anticipated` rows missing `vndb_id`
+  - `/top-ranked?tab=egs` rows missing `vndb_id`
+  - `/egs` unlinked list (paginated, 50 rows + "+N more" hint)
+  - `/vn/v\d+` EgsPanel manual picker
+  - `/vn/egs_NNN` still uses the heavyweight `<LinkToVndbButton>`
+    that migrates the whole synthetic row to a real `v\d+` id.
+
+The lighter pinning model and the heavyweight id migration are
+intentionally separate — the user almost never wants the id
+migration from a listing page.
 
 ### Synthetic release ids (`synthetic:<vnId>`)
 
@@ -691,11 +794,89 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
   (localization houses), and the user's mental model distinguishes
   the roles.
 
+### EGS uses a uid, not a token
+
+- ErogameScape authentication for the public SQL form is a
+  **username (uid)**, not an API key. Stored at
+  `app_setting.egs_username`. No password, no bearer, no headers.
+- The Settings → Integrations tab carries the canonical input
+  (label / placeholder / hint / Clear). `<EgsSyncBlock>` on `/egs`
+  and `/data` reads the same setting; the two surfaces are
+  synchronised through the storage key, not by passing the value
+  around.
+- The uid is public (it appears in the user's profile URL). It
+  is NOT in `AUDITED_SETTING_KEYS` — no audit row needed.
+- Never call EGS a "token" in the UI; the EGS settings copy
+  always says "username (uid)".
+
+### Settings modal — eight tabs in a fixed order
+
+`SETTINGS_TABS` (`SettingsButton.tsx`):
+  1. `display` — image / title / card-density preferences
+  2. `content` — spoilers / NSFW threshold / sexual content
+  3. `library` — default sort / order / grouping
+  4. `home` — section visibility / reset (drag-reorder lives on
+     the home page itself via `<HomeLayoutEditorTrigger>`, but
+     the per-section visibility list is mirrored here)
+  5. `vn-page` — VN detail section visibility / collapse defaults
+  6. `account` — VNDB token (audited)
+  7. `integrations` — Steam API key + SteamID + EGS username
+  8. `automation` — backup URL / fan-out toggle / random-quote
+     source
+
+Each tab renders into a single panel block. ARIA tab semantics
+are partial — see the audit notes in `SettingsButton.tsx`. Don't
+add a second `{activeTab === '<id>' && (...)}` block for the same
+tab; the H6 audit found that pattern split panels in unexpected
+ways.
+
+### Versioned JSON config pattern
+
+Both `home_section_layout_v1` and `vn_detail_section_layout_v1`
+follow the same shape:
+
+  1. Constant `XXX_SECTION_IDS` array — canonical render order.
+  2. `validate<…>V1(input: unknown)` — coerces arbitrary input,
+     drops unknown ids, fills missing defaults, returns the full
+     default on garbage. Two-shape tolerant: accepts both the v0
+     flat form and the current `{ sections, order }` form.
+  3. `parse<…>V1(raw: string | null)` — wrapper that catches JSON
+     parse errors.
+  4. `XXX_LAYOUT_EVENT` constant — CustomEvent name dispatched
+     after a successful PATCH so siblings re-sync without a
+     full router.refresh.
+  5. `/api/settings` PATCH MERGES partial patches on top of the
+     persisted layout. The per-section menu sends
+     `{ sections: { [id]: state } }`; the drag-reorder sends
+     `{ order: [...] }`. The two paths never clobber each other.
+
+When adding a new versioned config, follow this shape exactly
+and bump the suffix (`_v2`, etc.) only on incompatible schema
+changes.
+
+### Card density
+
+- Shared `cardDensityPx` setting in `useDisplaySettings()` clamped
+  to `[140, 320]` via `clampCardDensity()`.
+- The value flows into a CSS variable `--card-density-px` set on
+  the document root by `<CardDensityVarSetter>` (client) + an
+  inline `<html style="--card-density-px:…">` in `layout.tsx`
+  (server seed from cookie, no flash of default density).
+- Every server-rendered listing grid uses
+  `minmax(var(--card-density-px, 220px), 1fr)` so changing the
+  slider doesn't require a page reload. Pages with wider cards
+  use `minmax(max(280px, var(--card-density-px, 280px)), 1fr)`
+  to clamp the floor.
+- The Library's `denseLibrary` boolean is separate from the
+  slider; it controls the grid's `gap` and card padding, not the
+  column count.
+
 ### Refresh button / freshness chip
 - `RefreshPageButton` is shown only on pages whose render genuinely
-  depends on a remote cache: `/upcoming`, `/tags`, `/traits`.
-  Local-only pages (`/stats`, `/data`, `/producers`) deliberately do
-  **not** show the chip — a freshness reading there is misleading.
+  depends on a remote cache: `/upcoming`, `/tags`, `/traits`,
+  `/top-ranked`. Local-only pages (`/stats`, `/data`, `/producers`)
+  deliberately do **not** show the chip — a freshness reading there
+  is misleading.
 - The button accepts `lastUpdatedAt`: omitted/undefined → no chip,
   `null` → "never" chip, number → relative time. Server passes the
   result of `getCacheFreshness(patterns)` which returns
