@@ -233,15 +233,67 @@ export function EditionInfoTrigger({
             <div>
               <span className="font-mono">{data.release_id}</span>
             </div>
-            {data.owned_platform && (
-              <div>
-                {t.form.ownedPlatform}:{' '}
-                <span className="text-white">{data.owned_platform.toUpperCase()}</span>
-                <span className="ml-1 rounded bg-accent/20 px-1 text-[9px] uppercase text-accent">
-                  {t.shelfLayout.ownedBadge}
-                </span>
-              </div>
-            )}
+            {/*
+              Platform row — strict priority chain spelled out so
+              the aggregate VN/release platforms list is NEVER shown
+              as "the owned platform". The user's manual QA flagged
+              the case where a multi-platform release without a pin
+              leaked all four platforms into the row labelled
+              "Platforms:".
+
+              Priority (matches Blocker 3 spec):
+                1. explicit owned_release.owned_platform           → show that
+                2. exact release has exactly one platform          → show that, with "release" badge
+                3. multi-platform release, owned_platform unset    → show "Platform not specified" + hint
+                4. release metadata missing                         → show "Unknown platform" hint
+            */}
+            {(() => {
+              if (data.owned_platform) {
+                return (
+                  <div>
+                    {t.form.ownedPlatform}:{' '}
+                    <span className="text-white">{data.owned_platform.toUpperCase()}</span>
+                    <span className="ml-1 rounded bg-accent/20 px-1 text-[9px] uppercase text-accent">
+                      {t.shelfLayout.ownedBadge}
+                    </span>
+                  </div>
+                );
+              }
+              if (data.rel_platforms.length === 1) {
+                return (
+                  <div>
+                    {t.form.ownedPlatform}:{' '}
+                    <span className="text-white">{data.rel_platforms[0].toUpperCase()}</span>
+                    <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
+                      {t.shelfLayout.releaseFieldBadge}
+                    </span>
+                  </div>
+                );
+              }
+              if (data.rel_platforms.length > 1) {
+                return (
+                  <div>
+                    {t.form.ownedPlatform}:{' '}
+                    <span className="text-status-on_hold">{t.form.ownedPlatformUnset}</span>
+                    <span
+                      className="ml-1 text-[10px] opacity-70"
+                      title={data.rel_platforms.join(' · ').toUpperCase()}
+                    >
+                      ({t.shelfLayout.releaseHasOptions.replace('{n}', String(data.rel_platforms.length))})
+                    </span>
+                  </div>
+                );
+              }
+              // Release metadata not materialized yet — never
+              // widen to vn_platforms here. The user can refresh
+              // the VN's releases or set owned_platform manually.
+              return (
+                <div>
+                  {t.form.ownedPlatform}:{' '}
+                  <span className="text-muted">{t.shelfLayout.platformUnknown}</span>
+                </div>
+              );
+            })()}
             {(() => {
               const released = data.rel_released ?? data.vn_released;
               if (!released) return null;
@@ -250,27 +302,6 @@ export function EditionInfoTrigger({
                   {t.detail.released}:{' '}
                   <span className="text-white tabular-nums">{released}</span>
                   {data.rel_released && (
-                    <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
-                      {t.shelfLayout.releaseFieldBadge}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
-            {(() => {
-              // Suppress the rel-aggregate row when owned_platform
-              // is set AND it's the single source of truth — but
-              // keep it when the release is multi-platform and the
-              // user hasn't picked one (so they see the available
-              // options).
-              if (data.owned_platform && data.rel_platforms.length === 1) return null;
-              const platforms = data.rel_platforms.length > 0 ? data.rel_platforms : data.vn_platforms;
-              if (platforms.length === 0) return null;
-              return (
-                <div>
-                  {t.detail.platforms}:{' '}
-                  <span className="text-white">{platforms.join(' · ').toUpperCase()}</span>
-                  {data.rel_platforms.length > 0 && (
                     <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
                       {t.shelfLayout.releaseFieldBadge}
                     </span>

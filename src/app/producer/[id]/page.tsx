@@ -99,8 +99,17 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
                 {producer.lang.toUpperCase()}
               </span>
             )}
+            {/*
+              Explicit label: the header counts only VN already in
+              the local collection that are credited to this producer
+              (either role). The detail section below ("VN crédités
+              sur VNDB") shows the full credited list with an
+              owned/total breakdown, so an ambiguous "0 VN" here
+              would contradict a "0/4 possédés" right below it.
+              Use a label that names the slice.
+            */}
             <span className="text-muted">
-              {ownedIds.size} {t.producers.vnCount}
+              {t.producers.ownedInCollection.replace('{n}', String(ownedIds.size))}
             </span>
           </div>
           {producer.aliases.length > 0 && (
