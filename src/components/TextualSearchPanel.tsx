@@ -34,11 +34,26 @@ const ICONS = {
  *
  * Debounces at 280ms to avoid flooding the API for every keystroke.
  */
-export function TextualSearchPanel({ query }: { query: string }) {
+export function TextualSearchPanel({
+  query,
+  mode = 'accordion',
+}: {
+  query: string;
+  /**
+   * 'accordion' (default): below-results collapsed accordion used
+   * when the user is browsing VNDB/EGS results — keeps the local
+   * notes / quotes a one-click reveal that never hijacks the
+   * remote results.
+   * 'standalone': /search?source=local — render expanded, show
+   * the empty/hero state when the query is short or zero hits
+   * exist, and never collapse.
+   */
+  mode?: 'accordion' | 'standalone';
+}) {
   const t = useT();
   const [hits, setHits] = useState<Hit[]>([]);
   const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(mode === 'standalone');
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -58,37 +73,53 @@ export function TextualSearchPanel({ query }: { query: string }) {
     return () => { alive = false; clearTimeout(timer); };
   }, [query]);
 
-  if (query.trim().length < 2) return null;
-  if (!loading && hits.length === 0) return null;
+  if (mode === 'accordion') {
+    if (query.trim().length < 2) return null;
+    if (!loading && hits.length === 0) return null;
+  } else {
+    if (query.trim().length < 2) {
+      return (
+        <div className="py-20 text-center">
+          <h2 className="mb-2 text-xl font-bold">{t.search.localHeroTitle}</h2>
+          <p className="text-muted">{t.search.localHeroSubtitle}</p>
+        </div>
+      );
+    }
+    if (!loading && hits.length === 0) {
+      return <div className="py-20 text-center text-muted">{t.textualSearch.empty}</div>;
+    }
+  }
 
   return (
-    <section className="mt-6 rounded-xl border border-border bg-bg-card/60">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left hover:bg-bg-card"
-      >
-        <span className="inline-flex items-center gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-muted">
-            {t.textualSearch.title}
-          </span>
-          {loading ? (
-            <span className="text-[10px] text-muted">· {t.common.loading}</span>
-          ) : (
-            <span className="rounded-full bg-bg-elev/50 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted">
-              {hits.length}
+    <section className={`${mode === 'standalone' ? '' : 'mt-6'} rounded-xl border border-border bg-bg-card/60`}>
+      {mode === 'accordion' && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left hover:bg-bg-card"
+        >
+          <span className="inline-flex items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-muted">
+              {t.textualSearch.title}
             </span>
+            {loading ? (
+              <span className="text-[10px] text-muted">· {t.common.loading}</span>
+            ) : (
+              <span className="rounded-full bg-bg-elev/50 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted">
+                {hits.length}
+              </span>
+            )}
+          </span>
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5 text-muted" aria-hidden />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-muted" aria-hidden />
           )}
-        </span>
-        {open ? (
-          <ChevronDown className="h-3.5 w-3.5 text-muted" aria-hidden />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 text-muted" aria-hidden />
-        )}
-      </button>
+        </button>
+      )}
       {open && (
-        <div className="border-t border-border px-3 pb-3 pt-2">
+        <div className={`${mode === 'standalone' ? '' : 'border-t border-border'} px-3 pb-3 pt-2`}>
           <p className="mb-2 text-[10px] text-muted/80">{t.textualSearch.hint}</p>
           <ul className="space-y-1.5">
             {hits.map((h, i) => {

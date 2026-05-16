@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronDown, ChevronUp, Database, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
+import { ChevronDown, ChevronUp, Database, FileText, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
 import { TextualSearchPanel } from './TextualSearchPanel';
@@ -9,7 +9,7 @@ import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import type { VndbSearchHit } from '@/lib/types';
 
-type SearchSource = 'vndb' | 'egs';
+type SearchSource = 'vndb' | 'egs' | 'local';
 
 interface EgsCandidate {
   id: number;
@@ -114,7 +114,15 @@ export function SearchClient() {
   const searchParams = useSearchParams();
   const initialAdv = useMemo(() => readAdvFromUrl(new URLSearchParams(searchParams.toString())), [searchParams]);
   const initialQ = searchParams.get('q') ?? '';
-  const initialSource: SearchSource = searchParams.get('src') === 'egs' ? 'egs' : 'vndb';
+  // URL parameter takes either `?source=` (new, canonical) or `?src=`
+  // (legacy short form). Accepts vndb / egs / local; anything else
+  // falls back to vndb.
+  const initialSource: SearchSource = (() => {
+    const raw = searchParams.get('source') ?? searchParams.get('src') ?? '';
+    if (raw === 'egs') return 'egs';
+    if (raw === 'local') return 'local';
+    return 'vndb';
+  })();
 
   const [source, setSource] = useState<SearchSource>(initialSource);
   const [q, setQ] = useState(initialQ);
@@ -150,7 +158,10 @@ export function SearchClient() {
     (nextQ: string, nextAdv: AdvParams, nextSource: SearchSource) => {
       const sp = new URLSearchParams();
       if (nextQ.trim()) sp.set('q', nextQ.trim());
-      if (nextSource === 'egs') sp.set('src', 'egs');
+      // Persist the source param under the canonical `source` name
+      // when the user is NOT on the default tab. Drop the legacy
+      // `src=…` form on next write so URLs stay short.
+      if (nextSource !== 'vndb') sp.set('source', nextSource);
       if (nextAdv.langs.length) sp.set('langs', nextAdv.langs.join(','));
       if (nextAdv.platforms.length) sp.set('platforms', nextAdv.platforms.join(','));
       if (nextAdv.lengthMin !== null) sp.set('lengthMin', String(nextAdv.lengthMin));
@@ -310,19 +321,27 @@ export function SearchClient() {
 
   return (
     <div>
-      <div className="mb-2 inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]">
+      <div
+        className="mb-2 inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]"
+        role="tablist"
+        aria-label={t.search.sourceTabsLabel}
+      >
         <button
           type="button"
+          role="tab"
+          aria-selected={source === 'vndb'}
           onClick={() => setSource('vndb')}
           className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
             source === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
           }`}
         >
           <Database className="h-3 w-3" aria-hidden />
-          VNDB
+          {t.search.tabVndb}
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={source === 'egs'}
           onClick={() => setSource('egs')}
           className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
             source === 'egs' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
@@ -330,7 +349,20 @@ export function SearchClient() {
           title={t.search.egsSourceHint}
         >
           <Sparkles className="h-3 w-3" aria-hidden />
-          ErogameScape
+          {t.search.tabEgs}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={source === 'local'}
+          onClick={() => setSource('local')}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
+            source === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+          }`}
+          title={t.search.localSourceHint}
+        >
+          <FileText className="h-3 w-3" aria-hidden />
+          {t.search.tabLocal}
         </button>
       </div>
       <div className="relative mb-3">
@@ -520,11 +552,19 @@ export function SearchClient() {
       )}
 
       {/*
-        Main results (VNDB / EGS) come first; the local notes /
-        quotes panel is moved below so the user's primary search
-        intent — find a VN on VNDB or EGS — is not hijacked.
+        Source-tabbed rendering. The user explicitly picks one of:
+          - 'vndb' — VN search via the VNDB Kana API
+          - 'egs'  — game search via the ErogameScape SQL form
+          - 'local' — free-text match across local notes / custom
+            synopses / cached quotes.
+        Each tab renders its OWN result body; we do NOT mix them
+        in the same vertical flow (the user reported the previous
+        "all sources in one column" approach as hijacking the
+        remote search experience).
       */}
-      {loading ? (
+      {source === 'local' ? (
+        <TextualSearchPanel query={q} mode="standalone" />
+      ) : loading ? (
         source === 'egs' ? <SkeletonRows count={6} /> : <SkeletonCardGrid count={18} />
       ) : !touched && !results.length && !egsResults.length ? (
         <div className="py-20 text-center">
@@ -587,8 +627,6 @@ export function SearchClient() {
           ))}
         </div>
       )}
-
-      <TextualSearchPanel query={q} />
     </div>
   );
 }
