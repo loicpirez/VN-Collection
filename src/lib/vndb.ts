@@ -1206,8 +1206,44 @@ export async function fetchAuthenticatedWishlist(): Promise<VndbUlistEntry[] | {
 }
 
 /**
+ * Add a VN to the user's VNDB wishlist (label 5). Uses PATCH+labels_set so
+ * any other labels (Playing, Finished, custom) already on the entry are
+ * preserved — VNDB upserts the entry on first call.
+ *
+ * Strictly a VNDB-side operation. **Never** writes to the local SQLite
+ * `collection` table. The local collection and the VNDB wishlist are
+ * separate concepts (see CoverQuickActions for the UI counterpart).
+ */
+export async function addToVndbWishlist(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
+  const token = readVndbToken();
+  if (!token) return { needsAuth: true };
+  if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
+  const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ labels_set: [5] }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
+  }
+  try {
+    invalidateByPath('POST /ulist');
+  } catch {
+    // ignore — cache invalidation failures are non-fatal
+  }
+  return { ok: true };
+}
+
+/**
  * Remove a VN from the user's VNDB wishlist (label 5). Uses PATCH+labels_unset
  * so any other labels the user attached to that VN survive.
+ *
+ * Strictly a VNDB-side operation. **Never** deletes the local SQLite
+ * `collection` row — that distinction is critical: a previous version of
+ * CoverQuickActions wired "remove from wishlist" to DELETE /api/collection
+ * and silently wiped owned editions / notes / status. The local collection
+ * and the VNDB wishlist are separate concepts.
  */
 export async function removeFromVndbWishlist(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
   const token = readVndbToken();
@@ -1221,6 +1257,11 @@ export async function removeFromVndbWishlist(vnId: string): Promise<{ ok: true }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
+  }
+  try {
+    invalidateByPath('POST /ulist');
+  } catch {
+    // ignore — cache invalidation failures are non-fatal
   }
   return { ok: true };
 }

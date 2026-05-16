@@ -504,7 +504,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <Download className="h-4 w-4" /> {t.form.downloadOpen}
                 </a>
               )}
-              <CoverQuickActions vnId={vn.id} inCollection={inCol} status={status} />
+              <CoverQuickActions vnId={vn.id} inCollection={inCol} />
               {inCol && (
                 <CoverSourcePicker
                   vnId={vn.id}
