@@ -1327,6 +1327,9 @@ export const dictionaries = {
     shelfLayout: {
       title: 'Plan de l\'étagère',
       subtitle: 'Glisse-dépose tes éditions pour reproduire la disposition réelle. Chaque case = un emplacement physique.',
+      poolItemDetails: 'Détails de l\'édition',
+      poolOpenVn: 'Voir le VN',
+      poolOpenRelease: 'Voir la sortie',
       fullscreen: 'Plein écran',
       exitFullscreen: 'Quitter le plein écran',
       frontDisplay: 'Présentation frontale',
@@ -3135,6 +3138,9 @@ export const dictionaries = {
     shelfLayout: {
       title: 'Shelf layout',
       subtitle: 'Drag and drop your editions to mirror the real-life shelf. One slot = one physical spot.',
+      poolItemDetails: 'Edition details',
+      poolOpenVn: 'Open VN',
+      poolOpenRelease: 'Open release',
       fullscreen: 'Fullscreen',
       exitFullscreen: 'Exit fullscreen',
       frontDisplay: 'Front display',
@@ -4943,6 +4949,9 @@ export const dictionaries = {
     shelfLayout: {
       title: '本棚レイアウト',
       subtitle: 'ドラッグ＆ドロップで実際の本棚を再現できます。1 マス＝1 つの収納スロット。',
+      poolItemDetails: 'エディション詳細',
+      poolOpenVn: 'VN を開く',
+      poolOpenRelease: 'リリースを開く',
       fullscreen: '全画面',
       exitFullscreen: '全画面を終了',
       frontDisplay: '表紙見せ展示',

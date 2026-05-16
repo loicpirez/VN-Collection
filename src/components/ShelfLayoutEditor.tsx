@@ -22,11 +22,15 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  CircleDollarSign,
   Edit3,
+  ExternalLink,
   GripVertical,
+  Info,
   Layers,
   LayoutGrid,
   Loader2,
+  MapPin,
   Maximize2,
   Minimize2,
   Minus,
@@ -1238,35 +1242,165 @@ function DraggableDisplayItem({ slot, shelfRows }: { slot: ShelfDisplaySlotEntry
 }
 
 function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
+  const t = useT();
   // Pipe-delimited because synthetic release ids contain a colon
   // (`synthetic:vN`). Splitting on `:` would mis-parse them.
   const id = `pool|${entry.vn_id}|${entry.release_id}`;
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
+  // Info popover state — keyboard- and touch-friendly alternative to a
+  // hover-only tooltip. Toggles a small overlay below/over the cover
+  // showing every owned-release field plus links to /vn / /release.
+  // The button + overlay stop pointer propagation so opening details
+  // doesn't initiate a drag.
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  const stop = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  };
+  const isSynthetic = entry.release_id.startsWith('synthetic:');
   return (
     <li
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      className={`group/poolitem relative flex cursor-grab touch-none select-none flex-col gap-1 overflow-hidden rounded-md border border-border bg-bg-elev/40 p-1.5 transition-colors hover:border-accent active:cursor-grabbing ${
+      ref={containerRef}
+      className={`group/poolitem relative flex flex-col gap-1 overflow-visible rounded-md border border-border bg-bg-elev/40 p-1.5 transition-colors hover:border-accent ${
         isDragging ? 'opacity-40' : ''
       }`}
     >
-      <div className="aspect-[2/3] w-full overflow-hidden rounded">
-        <SafeImage
-          src={entry.vn_image_url || entry.vn_image_thumb}
-          localSrc={entry.vn_local_image_thumb}
-          sexual={entry.vn_image_sexual}
-          alt={entry.vn_title}
-          className="h-full w-full"
-        />
+      {/* Drag surface — keeps the cover + title as the grab area but
+          leaves the overlay buttons free of the drag listeners. */}
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        className="cursor-grab touch-none select-none active:cursor-grabbing"
+      >
+        <div className="aspect-[2/3] w-full overflow-hidden rounded">
+          <SafeImage
+            src={entry.vn_image_url || entry.vn_image_thumb}
+            localSrc={entry.vn_local_image_thumb}
+            sexual={entry.vn_image_sexual}
+            alt={entry.vn_title}
+            className="h-full w-full"
+          />
+        </div>
+        <p className="mt-1 line-clamp-2 text-[10px] font-bold leading-tight">{entry.vn_title}</p>
+        {entry.edition_label && (
+          <p className="line-clamp-1 text-[10px] text-muted/80">{entry.edition_label}</p>
+        )}
       </div>
-      <p className="line-clamp-2 text-[10px] font-bold leading-tight">{entry.vn_title}</p>
-      {entry.edition_label && (
-        <p className="line-clamp-1 text-[10px] text-muted/80">{entry.edition_label}</p>
-      )}
-      <span className="absolute right-1 top-1 rounded bg-bg/70 p-0.5 text-muted opacity-0 transition-opacity group-hover/poolitem:opacity-100">
+      {/* Info button — focusable, keyboard / mobile reachable. */}
+      <button
+        type="button"
+        onPointerDown={stop}
+        onMouseDown={stop}
+        onClick={(e) => {
+          stop(e);
+          setOpen((v) => !v);
+        }}
+        aria-expanded={open}
+        aria-label={t.shelfLayout.poolItemDetails}
+        title={t.shelfLayout.poolItemDetails}
+        className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded bg-bg/80 text-muted hover:text-accent focus-visible:opacity-100 sm:opacity-0 sm:group-hover/poolitem:opacity-100"
+      >
+        <Info className="h-3 w-3" aria-hidden />
+      </button>
+      <span className="absolute right-7 top-1 rounded bg-bg/70 p-0.5 text-muted opacity-0 transition-opacity group-hover/poolitem:opacity-100">
         <GripVertical className="h-3 w-3" aria-hidden />
       </span>
+      {open && (
+        <div
+          role="dialog"
+          aria-label={t.shelfLayout.poolItemDetails}
+          onPointerDown={stop}
+          onMouseDown={stop}
+          className="absolute left-0 right-0 top-full z-30 mt-1 rounded-lg border border-border bg-bg-card p-2 text-[11px] shadow-card"
+        >
+          <p className="line-clamp-2 text-xs font-bold">{entry.vn_title}</p>
+          {entry.edition_label && (
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted">{entry.edition_label}</p>
+          )}
+          <dl className="mt-1 grid grid-cols-1 gap-x-2 gap-y-0.5 text-[10px] text-muted">
+            <div>
+              <span className="font-mono">{entry.release_id}</span>
+            </div>
+            {entry.condition && (
+              <div>
+                {t.inventory.condition}:{' '}
+                <span className="text-white">
+                  {(t.inventory.conditions as Record<string, string>)[entry.condition] ?? entry.condition}
+                </span>
+              </div>
+            )}
+            {entry.box_type !== 'none' && (
+              <div className="inline-flex items-center gap-1">
+                <Box className="h-2.5 w-2.5" aria-hidden />
+                {(t.boxTypes as Record<string, string>)[entry.box_type] ?? entry.box_type}
+              </div>
+            )}
+            {entry.physical_location.length > 0 && (
+              <div className="inline-flex items-center gap-1">
+                <MapPin className="h-2.5 w-2.5" aria-hidden />
+                <span className="text-white">{entry.physical_location.join(' · ')}</span>
+              </div>
+            )}
+            {entry.price_paid != null && (
+              <div className="inline-flex items-center gap-1 text-accent">
+                <CircleDollarSign className="h-2.5 w-2.5" aria-hidden />
+                {entry.price_paid.toLocaleString()} {entry.currency ?? ''}
+              </div>
+            )}
+            {entry.acquired_date && (
+              <div>
+                {t.inventory.acquired}: <span className="text-white">{entry.acquired_date}</span>
+              </div>
+            )}
+            {entry.dumped && (
+              <div className="text-status-completed">
+                <ArrowDown className="mr-0.5 inline h-2.5 w-2.5" aria-hidden />
+                {t.shelf.dumped}
+              </div>
+            )}
+          </dl>
+          <div className="mt-2 flex flex-wrap gap-1">
+            <Link
+              href={`/vn/${entry.vn_id}`}
+              onPointerDown={stop}
+              onMouseDown={stop}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+            >
+              <ExternalLink className="h-2.5 w-2.5" aria-hidden />
+              {t.shelfLayout.poolOpenVn}
+            </Link>
+            {!isSynthetic && (
+              <Link
+                href={`/release/${entry.release_id}`}
+                onPointerDown={stop}
+                onMouseDown={stop}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+              >
+                <ExternalLink className="h-2.5 w-2.5" aria-hidden />
+                {t.shelfLayout.poolOpenRelease}
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </li>
   );
 }
