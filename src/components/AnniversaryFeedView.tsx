@@ -19,6 +19,9 @@ interface Props {
   title: string;
   /** "{n}" placeholder template — substituted client-side per entry. */
   yearsAgoTemplate: string;
+  /** Copy shown when no anniversary matches today. Lets the user know
+   *  the section is wired and tells them what would populate it. */
+  emptyHint: string;
   entries: AnniversaryEntry[];
   initialState?: HomeSectionState;
 }
@@ -28,7 +31,7 @@ interface Props {
  * collapse state via `useHomeSection`; the parent server component
  * supplies the data so the DB read stays on the server.
  */
-export function AnniversaryFeedView({ title, yearsAgoTemplate, entries, initialState }: Props) {
+export function AnniversaryFeedView({ title, yearsAgoTemplate, emptyHint, entries, initialState }: Props) {
   const { state, busy, isHidden, isCollapsed, toggleCollapsed, hide } = useHomeSection(
     'anniversary',
     initialState,
@@ -40,6 +43,9 @@ export function AnniversaryFeedView({ title, yearsAgoTemplate, entries, initialS
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-accent">
           <CakeSlice className="h-3.5 w-3.5" aria-hidden /> {title}
+          {entries.length > 0 && (
+            <span className="text-[10px] font-normal text-accent/80">· {entries.length}</span>
+          )}
         </h3>
         <HomeSectionControls
           state={state}
@@ -49,34 +55,42 @@ export function AnniversaryFeedView({ title, yearsAgoTemplate, entries, initialS
         />
       </div>
       {!isCollapsed && (
-        <ul className="flex flex-wrap gap-2">
-          {entries.map((r) => (
-            <li key={r.id}>
-              <Link
-                href={`/vn/${r.id}`}
-                className="group flex items-center gap-2 rounded-md bg-bg-card/80 px-2 py-1 text-xs hover:bg-bg-card"
-              >
-                <div className="h-8 w-6 overflow-hidden rounded">
-                  <SafeImage
-                    src={r.image_url || r.image_thumb}
-                    localSrc={r.local_image_thumb}
-                    sexual={r.image_sexual}
-                    alt={r.title}
-                    className="h-full w-full"
-                  />
-                </div>
-                <span className="flex flex-col">
-                  <span className="line-clamp-1 max-w-[200px] font-semibold transition-colors group-hover:text-accent">
-                    {r.title}
+        entries.length === 0 ? (
+          // Explicit empty state — distinguishes "nothing today" from
+          // "feature broken" / "section hidden". Section controls
+          // above stay reachable so the user can still hide/collapse
+          // even on an empty day.
+          <p className="text-[11px] text-muted">{emptyHint}</p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {entries.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href={`/vn/${r.id}`}
+                  className="group flex items-center gap-2 rounded-md bg-bg-card/80 px-2 py-1 text-xs hover:bg-bg-card"
+                >
+                  <div className="h-8 w-6 overflow-hidden rounded">
+                    <SafeImage
+                      src={r.image_url || r.image_thumb}
+                      localSrc={r.local_image_thumb}
+                      sexual={r.image_sexual}
+                      alt={r.title}
+                      className="h-full w-full"
+                    />
+                  </div>
+                  <span className="flex flex-col">
+                    <span className="line-clamp-1 max-w-[200px] font-semibold transition-colors group-hover:text-accent">
+                      {r.title}
+                    </span>
+                    <span className="text-[10px] text-muted">
+                      {yearsAgoTemplate.replace('{n}', String(r.years))}
+                    </span>
                   </span>
-                  <span className="text-[10px] text-muted">
-                    {yearsAgoTemplate.replace('{n}', String(r.years))}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )
       )}
     </aside>
   );

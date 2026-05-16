@@ -1063,6 +1063,7 @@ export const dictionaries = {
     anniversary: {
       title: 'Anniversaires du jour',
       yearsAgo: 'il y a {n} an(s)',
+      emptyHint: 'Aucun VN de ta collection ne sort un anniversaire aujourd\'hui. Seules les sorties avec une date complète AAAA-MM-JJ peuvent matcher.',
     },
     similar: {
       title: 'Similaires',
@@ -2856,6 +2857,7 @@ export const dictionaries = {
     anniversary: {
       title: 'Today\'s anniversaries',
       yearsAgo: '{n} year(s) ago',
+      emptyHint: 'No VN in your collection has an anniversary today. Only entries with a full YYYY-MM-DD release date can match.',
     },
     similar: {
       title: 'Similar',
@@ -4649,6 +4651,7 @@ export const dictionaries = {
     anniversary: {
       title: '本日のアニバーサリー',
       yearsAgo: '{n} 年前',
+      emptyHint: 'コレクション内に今日が記念日の VN はありません。YYYY-MM-DD 形式で日付が完全な作品のみマッチします。',
     },
     similar: {
       title: '関連 VN',
