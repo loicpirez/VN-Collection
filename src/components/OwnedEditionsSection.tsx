@@ -115,27 +115,38 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
   const [adderOpen, setAdderOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (signal?: AbortSignal) => {
     try {
       const [o, r] = await Promise.all([
-        fetch(`/api/collection/${vnId}/owned-releases`, { cache: 'no-store' }).then((x) => x.json()),
-        fetch(`/api/vn/${vnId}/releases`).then((x) => x.json()),
+        fetch(`/api/collection/${vnId}/owned-releases`, { cache: 'no-store', signal }).then((x) => x.json()),
+        fetch(`/api/vn/${vnId}/releases`, { signal }).then((x) => x.json()),
       ]);
+      if (signal?.aborted) return;
       setOwned((o.owned ?? []) as OwnedEdition[]);
       setReleases((r.releases ?? []) as VndbRelease[]);
-    } catch {
+    } catch (e) {
+      if ((e as Error).name === 'AbortError' || signal?.aborted) return;
       // ignore — section is optional
     }
   }, [vnId]);
 
   useEffect(() => {
-    let alive = true;
+    const ctrl = new AbortController();
     setLoading(true);
-    reload().finally(() => alive && setLoading(false));
-    fetch('/api/places').then((r) => r.json()).then((d) => alive && setKnownPlaces(d.places ?? [])).catch(() => {});
-    return () => {
-      alive = false;
-    };
+    reload(ctrl.signal).finally(() => {
+      if (!ctrl.signal.aborted) setLoading(false);
+    });
+    fetch('/api/places', { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!ctrl.signal.aborted) setKnownPlaces(d.places ?? []);
+      })
+      .catch((e) => {
+        if ((e as Error).name !== 'AbortError') {
+          // optional suggestions
+        }
+      });
+    return () => ctrl.abort();
   }, [reload]);
 
   // Re-fetch whenever any other component (ReleasesSection's per-row

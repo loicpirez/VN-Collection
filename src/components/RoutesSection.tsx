@@ -29,36 +29,39 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const [characters, setCharacters] = useState<VndbCharacter[]>([]);
   const [, startTransition] = useTransition();
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (signal?: AbortSignal) => {
     if (!inCollection) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/routes`);
+      const r = await fetch(`/api/collection/${vnId}/routes`, { signal });
       if (!r.ok) return;
       const d = (await r.json()) as { routes: RouteRow[] };
+      if (signal?.aborted) return;
       setRoutes(d.routes);
-    } catch {
+    } catch (e) {
+      if ((e as Error).name === 'AbortError' || signal?.aborted) return;
       // ignore
     }
   }, [vnId, inCollection]);
 
   useEffect(() => {
-    reload();
+    const ctrl = new AbortController();
+    reload(ctrl.signal);
+    return () => ctrl.abort();
   }, [reload]);
 
   useEffect(() => {
     if (!inCollection) return;
-    let alive = true;
-    fetch(`/api/vn/${vnId}/characters`)
+    const ctrl = new AbortController();
+    fetch(`/api/vn/${vnId}/characters`, { signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { characters: VndbCharacter[] } | null) => {
-        if (alive && d) setCharacters(d.characters);
+        if (!ctrl.signal.aborted && d) setCharacters(d.characters);
       })
-      .catch(() => {
+      .catch((e) => {
+        if ((e as Error).name === 'AbortError') return;
         // ignore — autocomplete is optional
       });
-    return () => {
-      alive = false;
-    };
+    return () => ctrl.abort();
   }, [vnId, inCollection]);
 
   const usedNames = useMemo(

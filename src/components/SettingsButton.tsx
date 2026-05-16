@@ -693,7 +693,14 @@ function HomeLayoutPanel({
   onChange: (next: Partial<HomeSectionLayoutV1>) => void;
 }) {
   const t = useT();
+  const [draft, setDraft] = useState(layout);
+
+  useEffect(() => {
+    setDraft(layout);
+  }, [layout]);
+
   function persist(id: HomeSectionId, next: HomeSectionState) {
+    setDraft((cur) => ({ ...cur, [id]: next }));
     onChange({ [id]: next });
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
@@ -701,14 +708,14 @@ function HomeLayoutPanel({
       );
     }
   }
-  const hiddenCount = HOME_SECTION_IDS.filter((id) => !layout[id].visible).length;
+  const hiddenCount = HOME_SECTION_IDS.filter((id) => !draft[id].visible).length;
   return (
     <div className="mt-6 border-t border-border pt-5">
       <h3 className="mb-1 text-sm font-bold">{t.homeSections.title}</h3>
       <p className="mb-3 text-[11px] text-muted">{t.homeSections.desc}</p>
       <ul className="space-y-2">
         {HOME_SECTION_IDS.map((id) => {
-          const state = layout[id];
+          const state = draft[id];
           return (
             <li
               key={id}
@@ -762,24 +769,32 @@ function VnLayoutPanel({
   onReset: () => void;
 }) {
   const t = useT();
+  const [draft, setDraft] = useState(layout);
+
+  useEffect(() => {
+    setDraft(layout);
+  }, [layout]);
 
   function patch(id: VnSectionId, partial: Partial<VnSectionState>) {
-    const nextLayout: VnDetailLayoutV1 = {
-      order: layout.order,
-      sections: {
-        ...layout.sections,
-        [id]: { ...layout.sections[id], ...partial },
-      },
-    };
-    onSave(nextLayout);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent(VN_LAYOUT_EVENT, { detail: { layout: nextLayout } }),
-      );
-    }
+    setDraft((cur) => {
+      const nextLayout: VnDetailLayoutV1 = {
+        order: cur.order,
+        sections: {
+          ...cur.sections,
+          [id]: { ...cur.sections[id], ...partial },
+        },
+      };
+      onSave(nextLayout);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent(VN_LAYOUT_EVENT, { detail: { layout: nextLayout } }),
+        );
+      }
+      return nextLayout;
+    });
   }
 
-  const hiddenCount = VN_SECTION_IDS.filter((id) => !layout.sections[id].visible).length;
+  const hiddenCount = VN_SECTION_IDS.filter((id) => !draft.sections[id].visible).length;
 
   return (
     <div className="space-y-3">
@@ -797,8 +812,8 @@ function VnLayoutPanel({
         </button>
       </div>
       <ul className="space-y-1.5">
-        {layout.order.map((id) => {
-          const state = layout.sections[id];
+        {draft.order.map((id) => {
+          const state = draft.sections[id];
           return (
             <li
               key={id}

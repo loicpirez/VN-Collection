@@ -79,16 +79,18 @@ export function EgsPanel({
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(
-    async (force = false) => {
+    async (force = false, signal?: AbortSignal) => {
       try {
         const url = `/api/vn/${vnId}/erogamescape${force ? '?refresh=1' : ''}`;
-        const r = await fetch(url, { cache: 'no-store' });
+        const r = await fetch(url, { cache: 'no-store', signal });
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
         const d = (await r.json()) as { game: EgsGame | null; source: Source };
+        if (signal?.aborted) return;
         setGame(d.game);
         setSource(d.source);
         setError(null);
       } catch (e) {
+        if ((e as Error).name === 'AbortError' || signal?.aborted) return;
         setError((e as Error).message);
       }
     },
@@ -98,8 +100,12 @@ export function EgsPanel({
   useEffect(() => {
     // Only auto-fetch when the server didn't pre-hydrate us.
     if (initialGame !== null || initialSource !== null) return;
+    const ctrl = new AbortController();
     setLoading(true);
-    load().finally(() => setLoading(false));
+    load(false, ctrl.signal).finally(() => {
+      if (!ctrl.signal.aborted) setLoading(false);
+    });
+    return () => ctrl.abort();
   }, [load, initialGame, initialSource]);
 
   async function onRefresh() {

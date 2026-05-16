@@ -1,5 +1,5 @@
 'use client';
-import { memo, useRef, useState, useTransition } from 'react';
+import { memo, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, MoreVertical, Package, Plus, Sparkles, X } from 'lucide-react';
@@ -125,6 +125,8 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
       longPressTimer.current = null;
     }
   }
+
+  useEffect(() => () => clearLongPress(), []);
 
   // Swallow the click that follows a fired long-press — otherwise the
   // outer <Link> navigates away the moment the menu opens.

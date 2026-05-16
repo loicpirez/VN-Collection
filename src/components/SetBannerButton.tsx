@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImageUp, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -20,6 +20,11 @@ export function SetBannerButton({ vnId, value, source = 'path', className = '' }
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (doneTimer.current) clearTimeout(doneTimer.current);
+  }, []);
 
   async function set(e: React.MouseEvent) {
     e.preventDefault();
@@ -38,7 +43,8 @@ export function SetBannerButton({ vnId, value, source = 'path', className = '' }
       }
       setDone(true);
       startTransition(() => router.refresh());
-      setTimeout(() => setDone(false), 1500);
+      if (doneTimer.current) clearTimeout(doneTimer.current);
+      doneTimer.current = setTimeout(() => setDone(false), 1500);
     } catch (err) {
       setError((err as Error).message);
     } finally {

@@ -47,20 +47,26 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   const [pendingLabel, setPendingLabel] = useState<number | null>(null);
   const [pendingClear, setPendingClear] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const r = await fetch(`/api/vn/${vnId}/vndb-status`, { cache: 'no-store' });
+      const r = await fetch(`/api/vn/${vnId}/vndb-status`, { cache: 'no-store', signal });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
       const d = (await r.json()) as State & { needsAuth?: boolean };
+      if (signal?.aborted) return;
       setState({ entry: d.entry, labels: d.labels ?? [], needsAuth: !!d.needsAuth });
-    } catch {
+    } catch (e) {
+      if ((e as Error).name === 'AbortError' || signal?.aborted) return;
       // Silent — panel just hides itself if VNDB is unreachable.
     }
   }, [vnId, t.common.error]);
 
   useEffect(() => {
+    const ctrl = new AbortController();
     setLoading(true);
-    load().finally(() => setLoading(false));
+    load(ctrl.signal).finally(() => {
+      if (!ctrl.signal.aborted) setLoading(false);
+    });
+    return () => ctrl.abort();
   }, [load]);
 
   if (loading) {
@@ -147,7 +153,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
           </a>
           <button
             type="button"
-            onClick={load}
+            onClick={() => void load()}
             className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
             title={t.vndbStatus.refresh}
           >

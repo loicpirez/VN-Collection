@@ -201,7 +201,7 @@ export function SearchClient() {
         setError((e as Error).message);
         setResults([]);
       } finally {
-        setLoading(false);
+        if (!ctrl.signal.aborted) setLoading(false);
       }
     }, 350);
     return () => {
@@ -239,7 +239,7 @@ export function SearchClient() {
         setError((e as Error).message);
         setEgsResults([]);
       } finally {
-        setLoading(false);
+        if (!ctrl.signal.aborted) setLoading(false);
       }
     }, 350);
     return () => {

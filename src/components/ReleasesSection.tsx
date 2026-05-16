@@ -71,20 +71,25 @@ export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; 
     return () => ac.abort();
   }, [open, vnId, releases, t.common.error]);
 
-  const refreshOwned = useCallback(async () => {
+  const refreshOwned = useCallback(async (signal?: AbortSignal) => {
     if (!inCollection) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/owned-releases`);
+      const r = await fetch(`/api/collection/${vnId}/owned-releases`, { signal });
       if (!r.ok) return;
       const d = (await r.json()) as { owned: OwnedEntry[] };
+      if (signal?.aborted) return;
       setOwned(new Set(d.owned.map((o) => o.release_id)));
-    } catch {
+    } catch (e) {
+      if ((e as Error).name === 'AbortError' || signal?.aborted) return;
       // ignore
     }
   }, [vnId, inCollection]);
 
   useEffect(() => {
-    if (open) refreshOwned();
+    if (!open) return undefined;
+    const ctrl = new AbortController();
+    refreshOwned(ctrl.signal);
+    return () => ctrl.abort();
   }, [open, refreshOwned]);
 
   // Keep the local "owned" set in sync with mutations coming from
