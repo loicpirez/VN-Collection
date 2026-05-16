@@ -76,17 +76,27 @@ export function LibraryClient() {
   const urlYearMax = searchParams.get('yearMax') ?? '';
   const urlDumped = searchParams.get('dumped') ?? '';
   const urlQ = searchParams.get('q') ?? '';
-  // The default sort is configurable in Settings; we load it once and use it
-  // as the fallback when the URL has no `sort` param.
+  // Default sort, order, and grouping are configurable in Settings; we
+  // load them once and use them as fallbacks when the URL has no
+  // matching param. URL params ALWAYS win — these defaults only apply
+  // when the user lands on `/` with no query string.
   const [defaultSort, setDefaultSort] = useState<SortKey>('updated_at');
+  const [defaultOrder, setDefaultOrder] = useState<'asc' | 'desc'>('desc');
+  const [defaultGroup, setDefaultGroup] = useState<GroupKey>('none');
   useEffect(() => {
     let alive = true;
     fetch('/api/settings', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { default_sort?: string } | null) => {
+      .then((d: { default_sort?: string; default_order?: string; default_group?: string } | null) => {
         if (!alive || !d) return;
         if ((SORT_KEYS as readonly string[]).includes(d.default_sort ?? '')) {
           setDefaultSort(d.default_sort as SortKey);
+        }
+        if (d.default_order === 'asc' || d.default_order === 'desc') {
+          setDefaultOrder(d.default_order);
+        }
+        if ((GROUP_KEYS as readonly string[]).includes(d.default_group ?? '')) {
+          setDefaultGroup(d.default_group as GroupKey);
         }
       })
       .catch(() => {});
@@ -98,10 +108,13 @@ export function LibraryClient() {
   const sort: SortKey = urlSort && (SORT_KEYS as readonly string[]).includes(urlSort)
     ? (urlSort as SortKey)
     : defaultSort;
-  const order: 'asc' | 'desc' = searchParams.get('order') === 'asc' ? 'asc' : 'desc';
-  const group: GroupKey = (GROUP_KEYS as readonly string[]).includes(searchParams.get('group') ?? '')
-    ? (searchParams.get('group') as GroupKey)
-    : 'none';
+  const urlOrder = searchParams.get('order');
+  const order: 'asc' | 'desc' =
+    urlOrder === 'asc' || urlOrder === 'desc' ? urlOrder : defaultOrder;
+  const urlGroup = searchParams.get('group');
+  const group: GroupKey = urlGroup && (GROUP_KEYS as readonly string[]).includes(urlGroup)
+    ? (urlGroup as GroupKey)
+    : defaultGroup;
 
   // Local input state for the search box, debounced to URL.
   const [qInput, setQInput] = useState(urlQ);

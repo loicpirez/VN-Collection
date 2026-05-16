@@ -21,10 +21,14 @@ type SortKey =
   | 'combined_playtime'
   | 'released'
   | 'producer'
+  | 'publisher'
   | 'egs_rating'
   | 'combined_rating'
   | 'custom';
 
+// Mirrors LibraryClient.tsx SORT_KEYS — keep these aligned with the
+// route's VALID_SORTS too. Previously `publisher` was missing from this
+// list (only) so the Settings dropdown silently dropped the option.
 const SORT_KEYS: SortKey[] = [
   'updated_at',
   'added_at',
@@ -37,15 +41,21 @@ const SORT_KEYS: SortKey[] = [
   'combined_playtime',
   'released',
   'producer',
+  'publisher',
   'egs_rating',
   'combined_rating',
   'custom',
 ];
 
+type GroupKey = 'none' | 'status' | 'producer' | 'publisher' | 'tag' | 'series';
+const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series'];
+
 interface ServerSettings {
   vndb_token: { hasToken: boolean; preview: string | null; envFallback: boolean };
   random_quote_source: 'all' | 'mine';
   default_sort: SortKey;
+  default_order?: 'asc' | 'desc';
+  default_group?: GroupKey;
   vndb_writeback?: boolean;
   vndb_backup_enabled?: boolean;
   vndb_backup_url?: string;
@@ -91,6 +101,8 @@ export function SettingsButton() {
       vndb_token: string | null;
       random_quote_source: 'all' | 'mine';
       default_sort: SortKey;
+      default_order: 'asc' | 'desc';
+      default_group: GroupKey;
       vndb_writeback: boolean;
       vndb_backup_enabled: boolean;
       vndb_backup_url: string | null;
@@ -487,19 +499,51 @@ export function SettingsButton() {
                 </div>
 
                 <div className="mt-6 border-t border-border pt-5">
-                  <h3 className="mb-1 text-sm font-bold">{t.settings.defaultSortTitle}</h3>
-                  <p className="mb-3 text-[11px] text-muted">{t.settings.defaultSortDesc}</p>
-                  <select
-                    className="input w-full"
-                    value={server?.default_sort ?? 'updated_at'}
-                    onChange={(e) => saveServer({ default_sort: e.target.value as SortKey })}
-                  >
-                    {SORT_KEYS.map((k) => (
-                      <option key={k} value={k}>
-                        {t.library.sort[k]}
-                      </option>
-                    ))}
-                  </select>
+                  <h3 className="mb-1 text-sm font-bold">{t.settings.libraryDefaultsTitle}</h3>
+                  <p className="mb-3 text-[11px] text-muted">{t.settings.libraryDefaultsDesc}</p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-muted">{t.settings.defaultSortTitle}</span>
+                      <select
+                        className="input w-full"
+                        value={server?.default_sort ?? 'updated_at'}
+                        onChange={(e) => saveServer({ default_sort: e.target.value as SortKey })}
+                      >
+                        {SORT_KEYS.map((k) => (
+                          <option key={k} value={k}>
+                            {t.library.sort[k]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-muted">{t.settings.defaultOrderTitle}</span>
+                      <select
+                        className="input w-full"
+                        value={server?.default_order ?? 'desc'}
+                        onChange={(e) => saveServer({ default_order: e.target.value as 'asc' | 'desc' })}
+                      >
+                        <option value="desc">{t.library.sortDesc}</option>
+                        <option value="asc">{t.library.sortAsc}</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-muted">{t.settings.defaultGroupTitle}</span>
+                      <select
+                        className="input w-full"
+                        value={server?.default_group ?? 'none'}
+                        onChange={(e) => saveServer({ default_group: e.target.value as GroupKey })}
+                      >
+                        <option value="none">{t.library.groupNone}</option>
+                        <option value="status">{t.library.groupStatus}</option>
+                        <option value="producer">{t.library.groupDeveloper}</option>
+                        <option value="publisher">{t.library.groupPublisher}</option>
+                        <option value="tag">{t.library.groupTag}</option>
+                        <option value="series">{t.library.groupSeries}</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p className="mt-2 text-[10px] text-muted">{t.settings.libraryDefaultsUrlHint}</p>
                 </div>
 
                 <div className="mt-6 flex justify-between">

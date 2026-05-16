@@ -9,6 +9,8 @@ const SAFE_KEYS = new Set([
   'vndb_token',
   'random_quote_source',
   'default_sort',
+  'default_order',
+  'default_group',
   'vndb_writeback',
   'vndb_backup_url',
   'vndb_backup_enabled',
@@ -20,6 +22,10 @@ const SAFE_KEYS = new Set([
 
 const DEFAULT_VNDB_BACKUP_URL = 'https://api.yorhel.org/kana';
 
+// Mirror the validation surfaces of `LibraryClient.tsx` and
+// `/api/collection`. `publisher` lived in those two but was missing here
+// — the bug only surfaced when a user tried to persist publisher as the
+// default sort and the PATCH route rejected it silently.
 const VALID_SORTS = new Set([
   'updated_at',
   'added_at',
@@ -32,10 +38,14 @@ const VALID_SORTS = new Set([
   'combined_playtime',
   'released',
   'producer',
+  'publisher',
   'egs_rating',
   'combined_rating',
   'custom',
 ]);
+
+const VALID_GROUPS = new Set(['none', 'status', 'producer', 'publisher', 'tag', 'series']);
+const VALID_ORDERS = new Set(['asc', 'desc']);
 
 function maskToken(value: string | null): { hasToken: boolean; preview: string | null; envFallback: boolean } {
   const envFallback = !!process.env.VNDB_TOKEN;
@@ -56,6 +66,8 @@ export async function GET(req: Request) {
     vndb_token: maskToken(tokenRow),
     random_quote_source: getAppSetting('random_quote_source') ?? 'all',
     default_sort: getAppSetting('default_sort') ?? 'updated_at',
+    default_order: getAppSetting('default_order') ?? 'desc',
+    default_group: getAppSetting('default_group') ?? 'none',
     vndb_writeback: getAppSetting('vndb_writeback') === '1',
     vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
     vndb_backup_url: getAppSetting('vndb_backup_url') ?? DEFAULT_VNDB_BACKUP_URL,
@@ -109,6 +121,20 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: `default_sort must be one of: ${[...VALID_SORTS].join(', ')}` }, { status: 400 });
     }
     setAppSetting('default_sort', v);
+  }
+  if ('default_order' in body) {
+    const v = body.default_order;
+    if (typeof v !== 'string' || !VALID_ORDERS.has(v)) {
+      return NextResponse.json({ error: `default_order must be one of: ${[...VALID_ORDERS].join(', ')}` }, { status: 400 });
+    }
+    setAppSetting('default_order', v);
+  }
+  if ('default_group' in body) {
+    const v = body.default_group;
+    if (typeof v !== 'string' || !VALID_GROUPS.has(v)) {
+      return NextResponse.json({ error: `default_group must be one of: ${[...VALID_GROUPS].join(', ')}` }, { status: 400 });
+    }
+    setAppSetting('default_group', v);
   }
   if ('vndb_writeback' in body) {
     // Strict boolean check — previously any truthy value (including
