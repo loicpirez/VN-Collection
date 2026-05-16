@@ -3,10 +3,12 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Box, ChevronRight, Download, ExternalLink, Globe, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
 import {
+  deriveVnAspectKey,
   getAppSetting,
   getCollectionItem,
   getEgsForVn,
   getSourcePref,
+  getVnAspectOverride,
   isEgsOnly,
   isInCollection,
   isInCollectionMany,
@@ -14,6 +16,7 @@ import {
   listGameLogForVn,
   listListsForVn,
   listSeries,
+  materializeReleaseAspectsForVn,
   upsertVn,
 } from '@/lib/db';
 import { parseVnDetailLayoutV1 } from '@/lib/vn-detail-layout';
@@ -715,10 +718,36 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         // Aspect-ratio control is meaningful for any VN (in collection
         // or not) — surfaces the derived ratio and lets the user pin
         // a manual override that beats everything else.
-        sections.push({
-          id: 'aspect-override',
-          node: <AspectOverrideControl vnId={vn.id} />,
-        });
+        {
+          // SSR-pre-derive so the AspectOverrideControl paints
+          // the right value on first frame instead of flashing
+          // "Auto · unknown" while the client fetch is in flight.
+          // Also materialize from any cached VNDB release payload
+          // so a VN whose only signal is the release resolution
+          // ([1280, 720] → 16:9) gets a populated cache before
+          // we derive — matches the user's QA on Gals Fiction.
+          // /^v\d+$/ guard avoids running on synthetic egs_NNN
+          // VNs (no VNDB release data to materialize from).
+          if (/^v\d+$/.test(vn.id)) {
+            materializeReleaseAspectsForVn(vn.id);
+          }
+          const initialOverride = /^v\d+$/.test(vn.id) ? getVnAspectOverride(vn.id) : null;
+          const initialDerived = deriveVnAspectKey(vn.id);
+          sections.push({
+            id: 'aspect-override',
+            node: (
+              <AspectOverrideControl
+                vnId={vn.id}
+                initialDerived={initialDerived}
+                initialOverride={
+                  initialOverride
+                    ? { aspect_key: initialOverride.aspect_key, note: initialOverride.note }
+                    : null
+                }
+              />
+            ),
+          });
+        }
         if (inCol) {
           sections.push({ id: 'tag-overlap', node: <TagCoOccurrence vnId={vn.id} /> });
           sections.push({

@@ -2860,6 +2860,75 @@ function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {
  * page for. The synthetic row never conflicts with a real release
  * id (real ids look like `r\d+` or `synthetic:vN`).
  */
+/**
+ * Idempotent best-effort populator for `release_resolution_cache`
+ * keyed on a SINGLE vn_id. Used by the VN page to pre-derive the
+ * aspect ratio before mounting <AspectOverrideControl> so the
+ * client doesn't flash "Auto · unknown" on first visit before the
+ * lazy ReleasesSection fetches data.
+ *
+ * Strategy: scan `vndb_cache` for any cached `POST /release` response
+ * whose results include this VN, extract `resolution` per release,
+ * upsert into `release_resolution_cache` with `vn_id` set. Cheap —
+ * the cache table is small and indexed by key.
+ *
+ * If no cached release data exists for the VN, this is a no-op and
+ * the user will still get the screenshots fallback (or unknown).
+ * The lazy ReleasesSection will populate the cache on first fetch
+ * and a subsequent page render will pick it up.
+ */
+export function materializeReleaseAspectsForVn(vnId: string): void {
+  if (!/^v\d+$/.test(vnId)) return;
+  // Short-circuit when this VN already has any non-unknown signal
+  // — no point scanning the cache when we already know the answer.
+  const existing = db
+    .prepare(
+      `SELECT 1 FROM release_resolution_cache WHERE vn_id = ? AND aspect_key <> 'unknown' LIMIT 1`,
+    )
+    .get(vnId);
+  if (existing) return;
+  // Walk every cached `POST /release` payload looking for this VN.
+  const rows = db
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE '% /release|%' LIMIT 200`)
+    .all() as Array<{ body: string }>;
+  let wrote = 0;
+  for (const row of rows) {
+    let parsed: { results?: unknown[] } | null = null;
+    try {
+      parsed = JSON.parse(row.body) as { results?: unknown[] };
+    } catch {
+      continue;
+    }
+    if (!parsed?.results || !Array.isArray(parsed.results)) continue;
+    for (const r of parsed.results) {
+      if (!r || typeof r !== 'object') continue;
+      const rel = r as {
+        id?: unknown;
+        resolution?: unknown;
+        vns?: Array<{ id?: unknown }>;
+      };
+      if (typeof rel.id !== 'string' || !/^r\d+$/i.test(rel.id)) continue;
+      // Match if any vn in the release.vns array equals our vnId.
+      const linkedToThisVn =
+        Array.isArray(rel.vns) && rel.vns.some((v) => v && typeof v.id === 'string' && v.id === vnId);
+      if (!linkedToThisVn) continue;
+      // The resolution field is shaped [w, h] | string | null on VNDB.
+      // upsertReleaseResolutionCache normalises everything.
+      try {
+        upsertReleaseResolutionCache({
+          releaseId: rel.id.toLowerCase(),
+          resolution: rel.resolution,
+          vnId,
+        });
+        wrote += 1;
+      } catch {
+        // Schema error / malformed input — keep scanning.
+      }
+    }
+  }
+  void wrote;
+}
+
 export function materializeAspectForCollectionVns(vnIds: string[]): void {
   if (vnIds.length === 0) return;
   // Only materialize VNs that don't already have an aspect signal —

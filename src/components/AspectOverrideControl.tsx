@@ -15,12 +15,30 @@ import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
  * game is obviously 16:9 (or the cached resolution is wrong for the
  * common edition the user actually plays).
  */
-export function AspectOverrideControl({ vnId }: { vnId: string }) {
+export function AspectOverrideControl({
+  vnId,
+  initialDerived,
+  initialOverride,
+}: {
+  vnId: string;
+  /**
+   * SSR-pre-derived aspect, passed from the VN page so the control
+   * paints the right value on first frame instead of flashing
+   * "Auto · unknown" while the client fetch is in flight.
+   */
+  initialDerived?: AspectKey;
+  initialOverride?: { aspect_key: AspectKey; note: string | null } | null;
+}) {
   const t = useT();
   const toast = useToast();
-  const [override, setOverride] = useState<{ aspect_key: AspectKey; note: string | null } | null>(null);
-  const [derived, setDerived] = useState<AspectKey>('unknown');
-  const [loading, setLoading] = useState(true);
+  const [override, setOverride] = useState<{ aspect_key: AspectKey; note: string | null } | null>(
+    initialOverride ?? null,
+  );
+  const [derived, setDerived] = useState<AspectKey>(initialDerived ?? 'unknown');
+  // Skip the initial loading flash when the server already gave us
+  // a derived value. Re-fetch on mount anyway so manual overrides
+  // saved in a different tab / earlier session show up.
+  const [loading, setLoading] = useState(initialDerived === undefined);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {

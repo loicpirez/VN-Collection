@@ -20,9 +20,11 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 import {
   addToCollection,
+  deriveVnAspectKey,
   listCollection,
   listShelves,
   materializeAspectForCollectionVns,
+  materializeReleaseAspectsForVn,
   setVnAspectOverride,
   upsertReleaseResolutionCache,
 } from '@/lib/db';
@@ -149,5 +151,97 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
       .prepare(`SELECT * FROM release_resolution_cache WHERE release_id = 'screenshot:v90007'`)
       .all();
     expect(synthetic.length).toBe(0);
+  });
+
+  it('materializeReleaseAspectsForVn populates rc from cached VNDB release payloads', () => {
+    // Reproduces the user's Gals Fiction QA: a VN whose only
+    // aspect signal lives in a cached `POST /release` response
+    // body that ReleasesSection fetched on an earlier visit.
+    // The VN page must pre-derive 16:9 SSR-side instead of
+    // flashing 'unknown' while the client-side fetch is pending.
+    seedVn('v90008');
+    addToCollection('v90008', {});
+    // Seed a cached POST /release payload that includes a
+    // release linked to v90008 with resolution [1280, 720].
+    const cacheKey = 'POST /release|POST|cafefacefacecafe';
+    db.prepare(
+      `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at)
+       VALUES (?, ?, ?, ?)`,
+    ).run(
+      cacheKey,
+      JSON.stringify({
+        results: [
+          {
+            id: 'r90008',
+            resolution: [1280, 720],
+            vns: [{ id: 'v90008' }],
+          },
+        ],
+      }),
+      Date.now(),
+      Date.now() + 3600 * 1000,
+    );
+    // Before materialize: derived = unknown (cache + override
+    // empty, screenshots empty).
+    expect(deriveVnAspectKey('v90008')).toBe('unknown');
+    materializeReleaseAspectsForVn('v90008');
+    // After materialize: the release cache row was written and
+    // deriveVnAspectKey now finds it via the vn-bound branch.
+    expect(deriveVnAspectKey('v90008')).toBe('16:9');
+    // Library filter also matches now.
+    const items = listCollection({ aspect: '16:9' });
+    expect(items.map((i) => i.id)).toContain('v90008');
+  });
+
+  it('materializeReleaseAspectsForVn does NOT change derivation when a manual VN override exists', () => {
+    seedVn('v90009');
+    addToCollection('v90009', {});
+    setVnAspectOverride({ vnId: 'v90009', aspectKey: '21:9' });
+    // Seed a 1280x720 cache entry.
+    db.prepare(
+      `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at)
+       VALUES (?, ?, ?, ?)`,
+    ).run(
+      'POST /release|POST|9009',
+      JSON.stringify({ results: [{ id: 'r90009', resolution: [1280, 720], vns: [{ id: 'v90009' }] }] }),
+      Date.now(),
+      Date.now() + 3600 * 1000,
+    );
+    materializeReleaseAspectsForVn('v90009');
+    // The release cache may or may not have been written
+    // (materializer is idempotent + best-effort). The contract
+    // the user cares about is: manual override beats cache.
+    expect(deriveVnAspectKey('v90009')).toBe('21:9');
+    // Library filter still only matches the override bucket.
+    expect(listCollection({ aspect: '21:9' }).map((i) => i.id)).toContain('v90009');
+    expect(listCollection({ aspect: '16:9' }).map((i) => i.id)).not.toContain('v90009');
+  });
+
+  it('materializeReleaseAspectsForVn short-circuits when the VN already has a non-unknown rc row', () => {
+    seedVn('v90010');
+    addToCollection('v90010', {});
+    // Seed an existing non-unknown rc row.
+    upsertReleaseResolutionCache({
+      releaseId: 'r90010-existing',
+      vnId: 'v90010',
+      resolution: '1920x1080',
+    });
+    // Seed a cached payload for an UNRELATED release id pointing
+    // at v90010; materializer should NOT touch it because the
+    // VN already has a signal.
+    db.prepare(
+      `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at)
+       VALUES (?, ?, ?, ?)`,
+    ).run(
+      'POST /release|POST|9010',
+      JSON.stringify({ results: [{ id: 'r90010-new', resolution: [800, 600], vns: [{ id: 'v90010' }] }] }),
+      Date.now(),
+      Date.now() + 3600 * 1000,
+    );
+    materializeReleaseAspectsForVn('v90010');
+    const newRow = db
+      .prepare(`SELECT aspect_key FROM release_resolution_cache WHERE release_id = 'r90010-new'`)
+      .all();
+    expect(newRow.length).toBe(0);
   });
 });
