@@ -1248,12 +1248,24 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
   const id = `pool|${entry.vn_id}|${entry.release_id}`;
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
   // Info popover state — keyboard- and touch-friendly alternative to a
-  // hover-only tooltip. Toggles a small overlay below/over the cover
+  // hover-only tooltip. Toggles a small overlay below/above the cover
   // showing every owned-release field plus links to /vn / /release.
   // The button + overlay stop pointer propagation so opening details
   // doesn't initiate a drag.
   const [open, setOpen] = useState(false);
+  // Viewport-collision detection for the popover. The pool is rendered
+  // below the shelf grid so a tile near the bottom of the page would
+  // otherwise pop a panel into the void. We measure the tile + popover
+  // on open, flip up when there isn't enough space below, and shift
+  // horizontally if the panel would clip the right viewport edge.
+  // Width-class is chosen so the panel always reaches ~240px, instead
+  // of inheriting the 120px tile column width.
+  const [placement, setPlacement] = useState<{
+    vertical: 'below' | 'above';
+    horizontal: 'left' | 'right';
+  }>({ vertical: 'below', horizontal: 'left' });
   const containerRef = useRef<HTMLLIElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     function onDoc(e: MouseEvent) {
@@ -1267,6 +1279,46 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
     return () => {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  // Measure-and-flip — runs each time the popover opens. Render with a
+  // best-guess placement first (below + left), then on the next frame
+  // re-measure against the actual popover height and the viewport. The
+  // popover stays in the same paint cycle (no visible jump) because
+  // the second update happens inside the same useEffect tick before
+  // browser layout commits to screen on most desktops; on slower
+  // mobile devices a brief flicker is acceptable.
+  useEffect(() => {
+    if (!open) return;
+    if (typeof window === 'undefined') return;
+    const tile = containerRef.current;
+    const popover = popoverRef.current;
+    if (!tile || !popover) return;
+    const compute = () => {
+      const tileRect = tile.getBoundingClientRect();
+      const popHeight = popover.offsetHeight;
+      const popWidth = popover.offsetWidth;
+      const viewportH = window.innerHeight;
+      const viewportW = window.innerWidth;
+      const spaceBelow = viewportH - tileRect.bottom;
+      const spaceAbove = tileRect.top;
+      const vertical: 'below' | 'above' =
+        spaceBelow < popHeight + 12 && spaceAbove > spaceBelow ? 'above' : 'below';
+      // Horizontal: when the popover anchored to `left` would overflow
+      // the viewport (tile is in a right-edge column), anchor to
+      // `right` instead so the popover grows leftward from the tile.
+      const spaceRight = viewportW - tileRect.left;
+      const horizontal: 'left' | 'right' = spaceRight < popWidth + 12 ? 'right' : 'left';
+      setPlacement({ vertical, horizontal });
+    };
+    compute();
+    // Recompute on scroll / resize so the panel doesn't end up clipped
+    // after the page moves. Passive listeners — popover stays open.
+    window.addEventListener('scroll', compute, { passive: true });
+    window.addEventListener('resize', compute);
+    return () => {
+      window.removeEventListener('scroll', compute);
+      window.removeEventListener('resize', compute);
     };
   }, [open]);
   const stop = (e: React.SyntheticEvent) => {
@@ -1323,11 +1375,22 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
       </span>
       {open && (
         <div
+          ref={popoverRef}
           role="dialog"
           aria-label={t.shelfLayout.poolItemDetails}
           onPointerDown={stop}
           onMouseDown={stop}
-          className="absolute left-0 right-0 top-full z-30 mt-1 rounded-lg border border-border bg-bg-card p-2 text-[11px] shadow-card"
+          // Width: `w-max max-w-[260px]` so the popover detaches from
+          // the 120px column and grows to fit its content. `min-w` is
+          // a floor so very-narrow tiles still get a usable layout.
+          // Placement: `top-full mt-1` (below the tile) by default,
+          // flipped to `bottom-full mb-1` when measure-and-flip says
+          // there's no space below. Horizontal: `left-0` by default,
+          // flipped to `right-0` when the popover would clip past the
+          // right viewport edge.
+          className={`absolute z-30 w-max min-w-[160px] max-w-[260px] rounded-lg border border-border bg-bg-card p-2 text-[11px] shadow-card ${
+            placement.vertical === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'
+          } ${placement.horizontal === 'right' ? 'right-0' : 'left-0'}`}
         >
           <p className="line-clamp-2 text-xs font-bold">{entry.vn_title}</p>
           {entry.edition_label && (
