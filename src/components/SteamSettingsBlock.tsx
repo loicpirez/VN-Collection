@@ -70,21 +70,40 @@ export function SteamSettingsBlock() {
     : t.settings.steamKeyPlaceholder;
 
   return (
-    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-      <input
-        type="text"
-        className="input"
-        placeholder={placeholder}
-        value={key}
-        onChange={(e) => setKey(e.target.value)}
-      />
-      <input
-        type="text"
-        className="input"
-        placeholder={t.settings.steamIdPlaceholder}
-        value={steamId}
-        onChange={(e) => setSteamId(e.target.value)}
-      />
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] font-semibold text-muted">{t.settings.steamApiKeyLabel}</span>
+        <input
+          type="password"
+          className="input"
+          placeholder={placeholder}
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          autoComplete="off"
+          aria-label={t.settings.steamApiKeyLabel}
+          aria-describedby="steam-api-key-hint"
+        />
+        <span id="steam-api-key-hint" className="text-[10px] text-muted">
+          {t.settings.steamApiKeyHint}
+        </span>
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] font-semibold text-muted">{t.settings.steamIdLabel}</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          className="input"
+          placeholder={t.settings.steamIdPlaceholder}
+          value={steamId}
+          onChange={(e) => setSteamId(e.target.value)}
+          aria-label={t.settings.steamIdLabel}
+          aria-describedby="steam-id-hint"
+        />
+        <span id="steam-id-hint" className="text-[10px] text-muted">
+          {t.settings.steamIdHint}
+        </span>
+      </label>
       <button
         type="button"
         onClick={save}

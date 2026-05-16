@@ -540,28 +540,41 @@ export function SettingsButton() {
                   <div>
                     <h3 className="mb-1 text-sm font-bold">{t.settings.steamTitle}</h3>
                     <p className="mb-3 text-[11px] text-muted">{t.settings.steamDesc}</p>
-                    <div className="space-y-2">
-                      <input
-                        type="text"
-                        defaultValue={server?.steam_api_key?.preview ?? ''}
-                        placeholder={server?.steam_api_key?.hasKey ? server.steam_api_key.preview ?? '' : t.settings.steamKeyPlaceholder}
-                        onBlur={(e) => {
-                          const v = e.target.value.trim();
-                          // Don't save if user didn't change it (placeholder is mask)
-                          if (v && !v.startsWith('…')) saveServer({ steam_api_key: v });
-                        }}
-                        className="input w-full"
-                      />
-                      <input
-                        type="text"
-                        defaultValue={server?.steam_id ?? ''}
-                        placeholder={t.settings.steamIdPlaceholder}
-                        onBlur={(e) => {
-                          const v = e.target.value.trim();
-                          if (v !== (server?.steam_id ?? '')) saveServer({ steam_id: v || null });
-                        }}
-                        className="input w-full"
-                      />
+                    <div className="space-y-3">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] font-semibold text-muted">{t.settings.steamApiKeyLabel}</span>
+                        <input
+                          type="password"
+                          autoComplete="off"
+                          defaultValue={server?.steam_api_key?.preview ?? ''}
+                          placeholder={server?.steam_api_key?.hasKey ? server.steam_api_key.preview ?? '' : t.settings.steamKeyPlaceholder}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            // Don't save if user didn't change it (placeholder is mask)
+                            if (v && !v.startsWith('…')) saveServer({ steam_api_key: v });
+                          }}
+                          aria-label={t.settings.steamApiKeyLabel}
+                          className="input w-full"
+                        />
+                        <span className="text-[10px] text-muted">{t.settings.steamApiKeyHint}</span>
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] font-semibold text-muted">{t.settings.steamIdLabel}</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          defaultValue={server?.steam_id ?? ''}
+                          placeholder={t.settings.steamIdPlaceholder}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v !== (server?.steam_id ?? '')) saveServer({ steam_id: v || null });
+                          }}
+                          aria-label={t.settings.steamIdLabel}
+                          className="input w-full"
+                        />
+                        <span className="text-[10px] text-muted">{t.settings.steamIdHint}</span>
+                      </label>
                     </div>
                   </div>
                 </div>
