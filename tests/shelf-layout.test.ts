@@ -7,6 +7,7 @@ import {
   createShelf,
   deleteShelf,
   getShelfPlacementForEdition,
+  listAllOwnedReleases,
   listShelfDisplaySlots,
   listShelfSlots,
   listShelves,
@@ -357,5 +358,29 @@ describe('front-display slots', () => {
     expect(resized?.evicted.map((e) => e.vn_id).sort()).toEqual(['v1', 'v2']);
     expect(listShelfDisplaySlots(shelf.id)).toEqual([]);
     expect(listUnplacedOwnedReleases().map((u) => u.vn_id).sort()).toEqual(['v1', 'v2']);
+  });
+
+  it('listAllOwnedReleases counts placed editions for the /shelf header', () => {
+    // Regression: the /shelf page header summary reads
+    // `items.length` and `itemBuckets.size` from
+    // listAllOwnedReleases() across every view. A previous
+    // optimisation early-returned [] in spatial view, which
+    // made the user-visible counter say "0 éditions · 0 VN
+    // uniques" even when editions were placed on shelves.
+    // The header must show the real counts regardless of view.
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    ensureVnAndOwned('v1', 'r2', 'v1'); // same VN, second edition
+    ensureVnAndOwned('v2', 'r3');
+    placeShelfItem({ shelfId: shelf.id, row: 0, col: 0, vnId: 'v1', releaseId: 'r1' });
+    placeShelfItem({ shelfId: shelf.id, row: 0, col: 1, vnId: 'v2', releaseId: 'r3' });
+    // v1/r2 stays in the unplaced pool.
+    const all = listAllOwnedReleases();
+    expect(all).toHaveLength(3);
+    expect(new Set(all.map((e) => e.vn_id))).toEqual(new Set(['v1', 'v2']));
+    // The placed-vs-unplaced split is internal — the header
+    // counter is meant to be a holistic "you own N editions"
+    // number that does not vanish when the user is on the
+    // spatial view.
   });
 });

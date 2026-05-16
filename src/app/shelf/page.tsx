@@ -78,12 +78,16 @@ export default async function ShelfPage({
     viewRaw === 'layout' ? 'layout' :
     viewRaw === 'release' ? 'release' :
     'spatial';
-  // Only load the flat owned-release list when one of the flat
-  // views is requested. The spatial view reads shelf_unit/slot/
-  // display_slot tables; loading every owned_release on every
-  // shelf page render is wasteful and was the most expensive
-  // query on /shelf before this split.
-  const items = view === 'release' || view === 'item' ? listAllOwnedReleases() : [];
+  // We always need the flat owned-release list to compute the
+  // header summary (`N éditions · N VN uniques · totals`). The
+  // spatial view's GRID still reads shelf_unit/slot/display_slot
+  // tables directly — `items` here is only used for the header
+  // counts and the flat release/item views. The earlier "only
+  // load when view is release|item" optimisation was incorrect:
+  // it made the spatial-view header always show '0 éditions ·
+  // 0 VN uniques' even when the user had owned editions placed
+  // on shelves, which the user reported as a regression.
+  const items = listAllOwnedReleases();
 
   // Per-item view collapses multiple owned releases for the same VN
   // into one card. The card surfaces "N editions" so the user keeps
@@ -191,11 +195,12 @@ export default async function ShelfPage({
         <>
           {/*
             Tab toggle: per-edition (default) vs per-VN aggregate.
-            Per-edition is what the user usually wants when they're
-            counting copies / inventory ("J'ai 2 boxes de Saya no
-            Uta sur 3 étagères"). Per-VN collapses those into "1 VN
-            with 2 editions" so the user can see at a glance how
-            many distinct titles they own physically.
+            Per-edition is what the user usually wants when they
+            are counting copies / inventory (e.g. "I own 2 boxed
+            editions of this VN across 3 shelves"). Per-VN
+            collapses those into "1 VN with 2 editions" so the
+            user can see at a glance how many distinct titles
+            they own physically.
           */}
           <div className="mb-4 inline-flex flex-wrap rounded-xl border border-border bg-bg-card p-1 text-sm">
             <TabLink
