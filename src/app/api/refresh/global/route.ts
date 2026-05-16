@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { startJob, tickJob, finishJob, recordError } from '@/lib/download-status';
-import { fetchEgsAnticipated } from '@/lib/erogamescape';
+import { startJob, tickJob, finishJob, recordError, setJobCurrent } from '@/lib/download-status';
+import { fetchEgsAnticipated, fetchEgsTopRanked } from '@/lib/erogamescape';
 import { getGlobalStats, getAuthInfo, getSchema, searchTags, searchTraits } from '@/lib/vndb';
+import { fetchVndbTopRanked } from '@/lib/top-ranked';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection } from '@/lib/upcoming';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
     "DELETE FROM vndb_cache WHERE " +
     "cache_key LIKE 'egs:cover-resolved:%' OR " +
     "cache_key LIKE 'anticipated:%' OR " +
+    "cache_key LIKE 'egs:top-ranked:%' OR " +
     "cache_key LIKE '% /stats|%' OR " +
     "cache_key LIKE '% /schema|%' OR " +
     "cache_key LIKE '% /authinfo|%' OR " +
@@ -67,11 +69,19 @@ export async function POST(req: NextRequest) {
     "cache_key LIKE '% /release:upcoming-all|%' OR " +
     "cache_key LIKE '% /producer|%' OR " +
     "cache_key LIKE '% /tag|%' OR " +
-    "cache_key LIKE '% /trait|%'",
+    "cache_key LIKE '% /trait|%' OR " +
+    "cache_key LIKE '% /vn:top-ranked:%'",
   );
+  // Each task has a stable `name` plus the existing run() closure.
+  // The name is broadcast through `setJobCurrent` so the
+  // DownloadStatusBar's "Now: …" hint shows precisely what is being
+  // fetched (previous behavior was just "cache-refresh · Global
+  // refresh" with no detail, which the user reported as opaque).
   const tasks: Array<{ name: string; run: () => Promise<unknown> }> = [
     { name: 'Cache rows (bust)', run: async () => { bust.run(); } },
     { name: 'EGS anticipated (top 100)', run: () => fetchEgsAnticipated(100) },
+    { name: 'EGS top-ranked (top 100)',  run: () => fetchEgsTopRanked(100) },
+    { name: 'VNDB top-ranked (top 100)', run: () => fetchVndbTopRanked(100) },
     { name: 'VNDB stats',                run: () => getGlobalStats() },
     { name: 'VNDB schema',                run: () => getSchema() },
     { name: 'VNDB authinfo',              run: authInfoSafe },
@@ -93,6 +103,7 @@ export async function POST(req: NextRequest) {
   let done = 0;
   let failed = 0;
   for (const t of tasks) {
+    setJobCurrent(job.id, t.name);
     try {
       await t.run();
       done++;
