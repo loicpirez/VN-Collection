@@ -4,6 +4,7 @@ import { ArrowLeft, Eye, EyeOff, Lightbulb, Sparkles, Star } from 'lucide-react'
 import { recommendVns } from '@/lib/recommend';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -117,6 +118,7 @@ export default async function RecommendationsPage({
             )}
             {includeEro ? t.recommend.eroIncluded : t.recommend.eroExcluded}
           </Link>
+          <CardDensitySlider />
         </div>
       </header>
 
@@ -133,7 +135,7 @@ export default async function RecommendationsPage({
       )}
 
       {results.length > 0 && (
-        <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+        <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-density-px, 220px), 1fr))' }}>
           {results.map((r) => {
             const year = r.released?.slice(0, 4);
             const rating = r.rating != null ? (r.rating / 10).toFixed(1) : null;

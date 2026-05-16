@@ -9,7 +9,13 @@ import { GroupedNav } from '@/components/MoreNavMenu';
 import { DownloadStatusBar } from '@/components/DownloadStatusBar';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
-import { DisplaySettingsProvider, type DisplaySettings } from '@/lib/settings/client';
+import {
+  CARD_DENSITY_MAX,
+  CARD_DENSITY_MIN,
+  DisplaySettingsProvider,
+  type DisplaySettings,
+} from '@/lib/settings/client';
+import { CardDensityVarSetter } from '@/components/CardDensityVarSetter';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { SettingsButton } from '@/components/SettingsButton';
 import { SpoilerToggle } from '@/components/SpoilerToggle';
@@ -66,11 +72,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const locale = await getLocale();
   const dict = await getDict();
   const initialSettings = await readInitialDisplaySettings();
+  // Seed the CSS custom property server-side so the first paint already
+  // honours the user's saved card density. Clamped to the same bounds as
+  // the slider so a tampered cookie can't blow up the grid.
+  const seedDensity = (() => {
+    const raw = initialSettings?.cardDensityPx;
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) return 220;
+    return Math.max(CARD_DENSITY_MIN, Math.min(CARD_DENSITY_MAX, Math.round(raw)));
+  })();
   return (
-    <html lang={locale}>
+    <html lang={locale} style={{ ['--card-density-px' as never]: `${seedDensity}px` }}>
       <body className="min-h-screen bg-bg text-white">
         <I18nProvider locale={locale} dict={dict}>
           <DisplaySettingsProvider initial={initialSettings}>
+            <CardDensityVarSetter />
             <ToastProvider>
               <ConfirmProvider>
                 {/*

@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { MapVnToEgsButton } from '@/components/MapVnToEgsButton';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { SafeImage } from '@/components/SafeImage';
 
 export const dynamic = 'force-dynamic';
@@ -145,13 +146,16 @@ export default async function EgsPage() {
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h2 className="mb-3 text-base font-bold">{t.egs.linkedListTitle}</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-bold">{t.egs.linkedListTitle}</h2>
+          <CardDensitySlider />
+        </div>
         {links.length === 0 ? (
           <p className="text-sm text-muted">{t.egs.linkedEmpty}</p>
         ) : (
           <ul
             className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(max(260px, var(--card-density-px, 260px)), 1fr))' }}
           >
             {links.map((l) => (
               <li
@@ -224,7 +228,7 @@ export default async function EgsPage() {
           <p className="mb-3 text-xs text-muted">{t.egs.unlinkedListHint}</p>
           <ul
             className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(max(260px, var(--card-density-px, 260px)), 1fr))' }}
           >
             {unlinkedRows.map((u) => (
               <li

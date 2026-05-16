@@ -5,6 +5,7 @@ import { getCollectionItem } from '@/lib/db';
 import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 
 export const dynamic = 'force-dynamic';
 
@@ -145,12 +146,16 @@ export default async function SimilarPage({
         </div>
       )}
 
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <CardDensitySlider />
+      </div>
+
       {results.length === 0 ? (
         <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
           {t.similar.empty}
         </p>
       ) : (
-        <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+        <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-density-px, 220px), 1fr))' }}>
           {results.map((r) => {
             const year = r.released?.slice(0, 4);
             const rating = r.rating != null ? (r.rating / 10).toFixed(1) : null;

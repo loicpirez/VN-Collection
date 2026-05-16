@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Download, Eye, EyeOff, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
+import { CardDensitySlider } from './CardDensitySlider';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import {
@@ -311,25 +312,32 @@ export function SettingsButton() {
                 </nav>
 
                 {activeTab === 'display' && (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Toggle
-                      label={t.settings.hideImages}
-                      description={t.settings.hideImagesDesc}
-                      value={settings.hideImages}
-                      onChange={(v) => set('hideImages', v)}
-                    />
-                    <Toggle
-                      label={t.settings.preferLocal}
-                      description={t.settings.preferLocalDesc}
-                      value={settings.preferLocalImages}
-                      onChange={(v) => set('preferLocalImages', v)}
-                    />
-                    <Toggle
-                      label={t.settings.preferNativeTitle}
-                      description={t.settings.preferNativeTitleDesc}
-                      value={settings.preferNativeTitle}
-                      onChange={(v) => set('preferNativeTitle', v)}
-                    />
+                  <div className="space-y-5">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Toggle
+                        label={t.settings.hideImages}
+                        description={t.settings.hideImagesDesc}
+                        value={settings.hideImages}
+                        onChange={(v) => set('hideImages', v)}
+                      />
+                      <Toggle
+                        label={t.settings.preferLocal}
+                        description={t.settings.preferLocalDesc}
+                        value={settings.preferLocalImages}
+                        onChange={(v) => set('preferLocalImages', v)}
+                      />
+                      <Toggle
+                        label={t.settings.preferNativeTitle}
+                        description={t.settings.preferNativeTitleDesc}
+                        value={settings.preferNativeTitle}
+                        onChange={(v) => set('preferNativeTitle', v)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
+                      <span className="text-sm font-semibold">{t.settings.cardDensityTitle}</span>
+                      <span className="text-[11px] text-muted">{t.settings.cardDensityDesc}</span>
+                      <CardDensitySlider className="mt-1 self-start" />
+                    </div>
                   </div>
                 )}
 

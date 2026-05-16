@@ -227,6 +227,11 @@ export const dictionaries = {
       pageNotFound: 'Page introuvable',
       pageNotFoundHint: "Ce que tu cherches n'existe pas ou plus.",
     },
+    cardDensity: {
+      label: 'Densité',
+      denser: 'Plus dense',
+      larger: 'Plus grand',
+    },
     errorBoundary: {
       title: 'Quelque chose a planté.',
       body: 'Une erreur inattendue est survenue. Réessaie ; si ça persiste, ouvre la console pour voir la trace.',
@@ -694,6 +699,8 @@ export const dictionaries = {
       egsUsernamePlaceholder: 'p. ex. masaki01',
       egsUsernameHint: 'Identifiant public, présent dans l\'URL de ton profil EGS. Lettres / chiffres / underscore uniquement.',
       egsUsernameReset: 'Effacer',
+      cardDensityTitle: 'Densité des cartes',
+      cardDensityDesc: 'Largeur minimale des vignettes sur les pages multi-VN (Wishlist, For you, Top, Upcoming, Dumped, EGS, Similaires…). Plus petit = plus de colonnes.',
       randomQuoteTitle: 'Citation aléatoire',
       randomQuoteDesc: 'Choisir la source de la citation aléatoire affichée dans le footer.',
       randomQuoteAll: 'Toute VNDB',
@@ -2082,6 +2089,11 @@ export const dictionaries = {
       pageNotFound: 'Page not found',
       pageNotFoundHint: "What you're looking for doesn't exist (anymore).",
     },
+    cardDensity: {
+      label: 'Density',
+      denser: 'Denser',
+      larger: 'Larger',
+    },
     errorBoundary: {
       title: 'Something broke.',
       body: 'The page hit an unexpected error. Try again; if it persists, open the console for the stack.',
@@ -2549,6 +2561,8 @@ export const dictionaries = {
       egsUsernamePlaceholder: 'e.g. masaki01',
       egsUsernameHint: 'Public id that appears in your EGS profile URL. Letters / digits / underscore only.',
       egsUsernameReset: 'Clear',
+      cardDensityTitle: 'Card density',
+      cardDensityDesc: 'Minimum tile width on multi-VN pages (Wishlist, For you, Top-ranked, Upcoming, Dumped, EGS, Similar…). Smaller = more columns.',
       randomQuoteTitle: 'Random quote',
       randomQuoteDesc: 'Pick the source of the random quote shown in the footer.',
       randomQuoteAll: 'All VNDB',
@@ -3937,6 +3951,11 @@ export const dictionaries = {
       pageNotFound: 'ページが見つかりません',
       pageNotFoundHint: 'お探しのページは存在しないか、削除されています。',
     },
+    cardDensity: {
+      label: '密度',
+      denser: '高密度',
+      larger: '大きく',
+    },
     errorBoundary: {
       title: '問題が発生しました。',
       body: '予期しないエラーが発生しました。もう一度お試しください。続く場合はコンソールでスタックを確認してください。',
@@ -4404,6 +4423,8 @@ export const dictionaries = {
       egsUsernamePlaceholder: '例: masaki01',
       egsUsernameHint: 'EGS プロフィール URL に含まれる公開 ID。英数字とアンダースコアのみ。',
       egsUsernameReset: '消去',
+      cardDensityTitle: 'カード密度',
+      cardDensityDesc: 'マルチ VN ページ（ウィッシュリスト、おすすめ、ランキング、近日発売、対応済み、EGS、類似など）でのカード最小幅。小さいほど列数が増えます。',
       randomQuoteTitle: 'ランダム名台詞',
       randomQuoteDesc: 'フッターに表示するランダム名台詞のソースを選択。',
       randomQuoteAll: 'VNDB 全体',

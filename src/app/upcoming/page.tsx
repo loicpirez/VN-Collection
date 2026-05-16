@@ -11,6 +11,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid, SkeletonRows } from '@/components/Skeleton';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
@@ -65,7 +66,10 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Pro
             </h1>
             <p className="mt-1 text-sm text-muted">{t.upcoming.subtitle}</p>
           </div>
-          <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
+          <div className="flex items-center gap-2">
+            <CardDensitySlider />
+            <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
+          </div>
         </div>
         <nav className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
           <TabLink href="/upcoming" active={tab === 'collection'} icon={<LibraryIcon className="h-3.5 w-3.5" />}>
@@ -245,7 +249,7 @@ function ReleasesSection({
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {month} · <span className="opacity-70">{rels.length}</span>
           </h2>
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(max(280px, var(--card-density-px, 280px)), 1fr))' }}>
             {rels.map((r) => (
               <li key={r.id}>
                 <div className="flex gap-3 rounded-lg border border-border bg-bg-elev/30 p-3">

@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
+import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
+import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
 
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc';
@@ -75,6 +77,7 @@ export function WishlistClient() {
   const t = useT();
   const toast = useToast();
   const { confirm } = useConfirm();
+  const { settings } = useDisplaySettings();
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   // Gate the empty-state copy so it never renders before the first successful
@@ -327,6 +330,7 @@ export function WishlistClient() {
               />
               {t.wishlist.hideOwned}
             </label>
+            <CardDensitySlider />
             <button
               type="button"
               onClick={onRefresh}
@@ -366,7 +370,10 @@ export function WishlistClient() {
                   {g.key} <span className="ml-1 opacity-70">· {g.items.length}</span>
                 </h2>
               )}
-              <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              <div
+                className="grid gap-5"
+                style={{ gridTemplateColumns: cardGridColumns(settings.cardDensityPx) }}
+              >
                 {g.items.map((it) => (
                   <VnCard
                     key={it.id}

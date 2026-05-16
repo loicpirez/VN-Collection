@@ -23,6 +23,13 @@ export interface DisplaySettings {
   /** Library grid density: false = comfortable (default), true = dense. */
   denseLibrary: boolean;
   /**
+   * Min cell width in px for the shared multi-VN card grids on /wishlist,
+   * /recommendations, /top-ranked, /upcoming, /dumped, /egs, /similar, etc.
+   * Clamped to [140, 320]. Smaller value -> more columns -> denser display.
+   * Mobile viewports cap their own columns via CSS regardless of this pref.
+   */
+  cardDensityPx: number;
+  /**
    * Spoiler level shown by default across the app.
    *   0 = none (default — like VNDB out of the box)
    *   1 = minor spoilers
@@ -42,9 +49,18 @@ const DEFAULTS: DisplaySettings = {
   preferNativeTitle: false,
   hideSexual: false,
   denseLibrary: false,
+  cardDensityPx: 220,
   spoilerLevel: 0,
   showSexualTraits: false,
 };
+
+/** Clamp helper exported so callers (Settings, slider) share the same bounds. */
+export const CARD_DENSITY_MIN = 140;
+export const CARD_DENSITY_MAX = 320;
+export function clampCardDensity(px: number): number {
+  if (!Number.isFinite(px)) return 220;
+  return Math.max(CARD_DENSITY_MIN, Math.min(CARD_DENSITY_MAX, Math.round(px)));
+}
 
 const STORAGE_KEY = 'vn_display_settings_v1';
 

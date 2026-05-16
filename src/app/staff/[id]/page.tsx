@@ -271,7 +271,7 @@ export default async function StaffPage({
               <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
                 {t.staff[ROLE_KEY[g.role]]}
               </h3>
-              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-density-px, 220px), 1fr))' }}>
                 {g.credits.map((credit) => (
                   <li key={credit.vn.id}>
                     <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} />

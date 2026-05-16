@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowDown, CheckCircle2, HardDriveDownload, MinusCircle, XCi
 import { getDumpSummary, listDumpStatus } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 
 export const dynamic = 'force-dynamic';
 
@@ -140,6 +141,9 @@ export default async function DumpedPage({
               );
             })}
           </nav>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <CardDensitySlider />
+          </div>
 
           {filtered.length === 0 ? (
             <p className="rounded-lg border border-border bg-bg-card p-6 text-center text-sm text-muted">
@@ -148,7 +152,7 @@ export default async function DumpedPage({
           ) : (
             <ul
               className="grid gap-3"
-              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(max(280px, var(--card-density-px, 280px)), 1fr))' }}
             >
               {filtered.map((e) => {
                 const fullyDumped =

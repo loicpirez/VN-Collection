@@ -11,6 +11,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
@@ -53,7 +54,10 @@ export default async function TopRankedPage({
             </h1>
             <p className="mt-1 text-sm text-muted">{t.topRanked.subtitle}</p>
           </div>
-          <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
+          <div className="flex items-center gap-2">
+            <CardDensitySlider />
+            <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
+          </div>
         </div>
         <nav
           className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
@@ -177,7 +181,7 @@ function VndbSection({ rows, t }: { rows: VndbTopRanked[]; t: Dictionary }) {
     <section className="rounded-xl border border-border bg-bg-card p-3 sm:p-5">
       <ol
         className="grid gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-density-px, 220px), 1fr))' }}
       >
         {rows.map((v, i) => (
           <li
@@ -249,7 +253,7 @@ function EgsSection({
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-3 sm:p-5">
       <ol
         className="grid gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-density-px, 220px), 1fr))' }}
       >
         {rows.map((r, i) => {
           const vndbCover = r.vndb_id ? covers.get(r.vndb_id) ?? null : null;
