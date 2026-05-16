@@ -140,15 +140,15 @@ function ShelfBlock({ shelf, t }: { shelf: ShelfUnitWithCount; t: Dictionary }) 
 
   return (
     <section
-      className="rounded-2xl border border-border bg-bg-card p-3 sm:p-5"
+      className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6"
       aria-labelledby={`shelf-${shelf.id}-name`}
     >
-      <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+      <header className="mb-5 flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-3">
         <div className="min-w-0 flex-1">
-          <h2 id={`shelf-${shelf.id}-name`} className="text-base font-bold">
+          <h2 id={`shelf-${shelf.id}-name`} className="text-lg font-bold">
             {shelf.name || t.shelfSpatial.untitled}
           </h2>
-          <p className="text-[11px] text-muted">
+          <p className="mt-1 text-[11px] text-muted">
             {shelf.cols} × {shelf.rows} ·{' '}
             {t.shelfSpatial.filledCount
               .replace('{filled}', String(filledCells))
@@ -164,34 +164,44 @@ function ShelfBlock({ shelf, t }: { shelf: ShelfUnitWithCount; t: Dictionary }) 
         </div>
       </header>
 
-      <div className="space-y-1.5 overflow-x-auto">
-        {/* Top display row (after_row = 0) */}
+      {/*
+        Tighter inter-row spacing inside the back-row grid (the rows
+        physically sit shelf-on-shelf), looser spacing around the
+        display layers so each one reads as a separate section. The
+        outer `space-y-4` separates Top Display / shelf rows /
+        Bottom Display blocks; the inner `space-y-1.5` keeps each
+        row of cells flush against the next.
+      */}
+      <div className="space-y-4 overflow-x-auto">
+        {/* Top display row (after_row = 0) — renders nothing if empty. */}
         <DisplayRow
           row={displayByAfterRow.get(0) ?? []}
           cols={shelf.cols}
           label={t.shelfSpatial.topDisplay}
           t={t}
         />
-        {Array.from({ length: shelf.rows }).map((_, row) => (
-          <div key={row}>
-            <ShelfRow row={row} cols={shelf.cols} cellMap={cellMap} t={t} />
-            {/* Display row that sits between this row and the next.
-                after_row = row + 1; the last one (= shelf.rows) is
-                the bottom display and renders separately below. */}
-            {row < shelf.rows - 1 && (
-              <DisplayRow
-                row={displayByAfterRow.get(row + 1) ?? []}
-                cols={shelf.cols}
-                label={t.shelfSpatial.betweenRow
-                  .replace('{above}', String(row + 1))
-                  .replace('{below}', String(row + 2))}
-                t={t}
-                between
-              />
-            )}
-          </div>
-        ))}
-        {/* Bottom display row (after_row = shelf.rows) */}
+        <div className="space-y-2">
+          {Array.from({ length: shelf.rows }).map((_, row) => (
+            <div key={row}>
+              <ShelfRow row={row} cols={shelf.cols} cellMap={cellMap} t={t} />
+              {/* Display row that sits between this row and the next.
+                  after_row = row + 1; the last one (= shelf.rows) is
+                  the bottom display and renders separately below. */}
+              {row < shelf.rows - 1 && (
+                <DisplayRow
+                  row={displayByAfterRow.get(row + 1) ?? []}
+                  cols={shelf.cols}
+                  label={t.shelfSpatial.betweenRow
+                    .replace('{above}', String(row + 1))
+                    .replace('{below}', String(row + 2))}
+                  t={t}
+                  between
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        {/* Bottom display row (after_row = shelf.rows). */}
         <DisplayRow
           row={displayByAfterRow.get(shelf.rows) ?? []}
           cols={shelf.cols}
