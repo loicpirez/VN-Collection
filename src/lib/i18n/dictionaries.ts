@@ -278,6 +278,7 @@ export const dictionaries = {
       fanDiscHint: 'Cette entrée est un fan disc — elle a une relation « Original game » avec un autre VN.',
       moreFilters: {
         title: 'Filtres avancés',
+        flagsTitle: 'Indicateurs binaires',
         hint: 'Clic = uniquement OUI · re-clic = uniquement NON · re-clic = inactif',
         cycleHint: 'Clic pour basculer : inactif → oui → non → inactif',
         matchVndb: 'Présent sur VNDB',
@@ -2202,6 +2203,7 @@ export const dictionaries = {
       fanDiscHint: 'This entry is a fan disc — it has an "Original game" relation pointing to another VN.',
       moreFilters: {
         title: 'Advanced filters',
+        flagsTitle: 'Boolean flags',
         hint: 'Click = only YES · click again = only NO · click again = off',
         cycleHint: 'Click to cycle: off → yes → no → off',
         matchVndb: 'Has VNDB entry',
@@ -4126,6 +4128,7 @@ export const dictionaries = {
       fanDiscHint: '本作はファンディスクです — 他の VN との「原作」関係を持っています。',
       moreFilters: {
         title: '詳細フィルター',
+        flagsTitle: 'フラグ',
         hint: 'クリック = 一致のみ · 再クリック = 不一致のみ · 再クリック = 解除',
         cycleHint: 'クリックで切替: 解除 → 一致のみ → 不一致のみ → 解除',
         matchVndb: 'VNDB に登録あり',

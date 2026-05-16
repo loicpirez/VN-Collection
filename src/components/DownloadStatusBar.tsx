@@ -289,15 +289,23 @@ export function DownloadStatusBar() {
                   <div className="flex items-baseline justify-between gap-2 text-[11px]">
                     <span className="inline-flex min-w-0 items-center gap-1 truncate font-semibold">
                       {stateIcon}
-                      {labelKind(j.kind)} · {j.label}
+                      {/*
+                        While the job is running, the CURRENT TASK is
+                        the most informative thing on the bar (e.g.
+                        "EGS top-ranked (top 100)" instead of generic
+                        "Caches · Global refresh"). Promote it to the
+                        main line; fall back to the job label when no
+                        current_item is set (queue tail / finished).
+                      */}
+                      {!finished && j.current_item ? j.current_item : `${labelKind(j.kind)} · ${j.label}`}
                     </span>
                     <span className="shrink-0 text-[10px] text-muted">
                       {j.done}/{j.total}
                     </span>
                   </div>
                   {!finished && j.current_item && (
-                    <div className="mt-0.5 truncate text-[10px] text-muted/90" title={j.current_item}>
-                      {t.downloadStatus.currentItem.replace('{item}', j.current_item)}
+                    <div className="mt-0.5 truncate text-[10px] text-muted/90" title={`${labelKind(j.kind)} · ${j.label}`}>
+                      {labelKind(j.kind)} · {j.label}
                     </div>
                   )}
                   <div

@@ -878,9 +878,11 @@ type FilterKey =
   | 'is_nukige';
 
 /**
- * Collapsible panel of tri-state filter checkboxes (off / only-yes / only-no).
- * Click cycles the value; each filter persists in the URL so the state
- * survives navigation. Filters read from URL params on render in LibraryClient.
+ * Inline tri-state flag panel. Always rendered (no inner collapse)
+ * — this lives inside the parent `<AdvancedFiltersDrawer>` so it
+ * doesn't need its own collapse toggle. Having two nested "Filtres
+ * avancés" controls (the outer drawer + the inner MoreFilters
+ * collapse) was the duplicate-Filters bug the user flagged.
  */
 function MoreFilters({
   values,
@@ -893,7 +895,6 @@ function MoreFilters({
   onReset: () => void;
   t: ReturnType<typeof useT>;
 }) {
-  const [open, setOpen] = useState(false);
   const FILTERS: { key: FilterKey; label: string }[] = [
     { key: 'match_vndb', label: t.library.moreFilters.matchVndb },
     { key: 'match_egs', label: t.library.moreFilters.matchEgs },
@@ -910,66 +911,50 @@ function MoreFilters({
   const activeCount = FILTERS.filter((f) => values[f.key] === '1' || values[f.key] === '0').length;
 
   return (
-    <div className="mt-3 rounded-lg border border-border bg-bg-card/40">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-3 py-2 text-xs uppercase tracking-wider text-muted hover:text-white"
-      >
-        <span className="inline-flex items-center gap-2">
-          <Filter className="h-3 w-3" aria-hidden />
-          {t.library.moreFilters.title}
-          {activeCount > 0 && (
-            <span className="rounded-full bg-accent/20 px-1.5 text-[10px] font-bold text-accent">
-              {activeCount}
-            </span>
-          )}
-        </span>
-        <ChevronDown
-          className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`}
-          aria-hidden
-        />
-      </button>
-      {open && (
-        <div className="border-t border-border px-3 py-3">
-          <p className="mb-2 text-[10px] text-muted/80">{t.library.moreFilters.hint}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {FILTERS.map(({ key, label }) => {
-              const v = values[key];
-              const active = v === '1' || v === '0';
-              const tone = v === '1' ? 'yes' : v === '0' ? 'no' : 'off';
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onCycle(key)}
-                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
-                    tone === 'yes'
-                      ? 'border-status-completed bg-status-completed/15 text-status-completed'
-                      : tone === 'no'
-                        ? 'border-status-dropped bg-status-dropped/15 text-status-dropped'
-                        : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-                  }`}
-                  title={t.library.moreFilters.cycleHint}
-                >
-                  <span className="inline-flex items-center justify-center" aria-hidden>
-                    {tone === 'yes' ? <Check className="h-3 w-3" /> : tone === 'no' ? <X className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
-                  </span>
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          {activeCount > 0 && (
+    <div className="mt-3 rounded-lg border border-border bg-bg-card/40 p-3">
+      <p className="mb-2 text-[10px] uppercase tracking-wider text-muted">
+        {t.library.moreFilters.flagsTitle}
+        {activeCount > 0 && (
+          <span className="ml-2 rounded-full bg-accent/20 px-1.5 text-[10px] font-bold normal-case text-accent">
+            {activeCount}
+          </span>
+        )}
+      </p>
+      <p className="mb-2 text-[10px] text-muted/80">{t.library.moreFilters.hint}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {FILTERS.map(({ key, label }) => {
+          const v = values[key];
+          const tone = v === '1' ? 'yes' : v === '0' ? 'no' : 'off';
+          return (
             <button
+              key={key}
               type="button"
-              onClick={onReset}
-              className="mt-3 text-[10px] text-muted hover:text-status-dropped"
+              onClick={() => onCycle(key)}
+              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+                tone === 'yes'
+                  ? 'border-status-completed bg-status-completed/15 text-status-completed'
+                  : tone === 'no'
+                    ? 'border-status-dropped bg-status-dropped/15 text-status-dropped'
+                    : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+              }`}
+              title={t.library.moreFilters.cycleHint}
             >
-              {t.library.moreFilters.resetAll}
+              <span className="inline-flex items-center justify-center" aria-hidden>
+                {tone === 'yes' ? <Check className="h-3 w-3" /> : tone === 'no' ? <X className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+              </span>
+              {label}
             </button>
-          )}
-        </div>
+          );
+        })}
+      </div>
+      {activeCount > 0 && (
+        <button
+          type="button"
+          onClick={onReset}
+          className="mt-3 text-[10px] text-muted hover:text-status-dropped"
+        >
+          {t.library.moreFilters.resetAll}
+        </button>
       )}
     </div>
   );

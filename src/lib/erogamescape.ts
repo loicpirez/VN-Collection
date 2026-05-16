@@ -897,8 +897,12 @@ const ANTICIPATED_TTL_MS = 12 * 3600 * 1000;
 export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]> {
   const safe = Math.min(200, Math.max(5, Math.floor(limit)));
   const cacheK = cacheKey('anticipated', String(safe));
+  // Skip the cache when it stored a previous EMPTY result (same
+  // pattern as fetchEgsTopRanked above).
   const cached = readCache<EgsAnticipated[]>(cacheK);
-  if (cached) return applyManualEgsToVndb(cached.map((r) => ({ ...r })));
+  if (cached && cached.length > 0) {
+    return applyManualEgsToVndb(cached.map((r) => ({ ...r })));
+  }
 
   const sql = `SELECT g.id, g.gamename, g.sellday, b.brandname AS brand_name, g.vndb, `
     + `SUM(CASE WHEN ur.before_purchase_will = '0_必ず購入' THEN 1 ELSE 0 END) AS will_buy, `
@@ -910,12 +914,9 @@ export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]
     + `GROUP BY g.id, g.gamename, g.sellday, b.brandname, g.vndb `
     + `ORDER BY will_buy DESC LIMIT ${safe}`;
 
-  // Same policy as fetchEgsTopRanked: don't swallow EgsUnreachable.
-  // Callers can wrap in a try/catch and render an actionable error
-  // state. Genuine 0-row responses still cache negatives normally.
   const rows = await fetchTable(sql);
   if (rows.length < 2) {
-    writeCache(cacheK, [], ANTICIPATED_TTL_MS);
+    // Don't cache zero rows — see fetchEgsTopRanked.
     return [];
   }
   const header = rows[0].map((h) => h.trim());
@@ -988,25 +989,54 @@ export async function fetchEgsTopRanked(
   const safeLimit = Math.min(300, Math.max(10, Math.floor(limit)));
   const safeMin = Math.max(1, Math.floor(minVotes));
   const cacheK = cacheKey('top-ranked', `${safeMin}:${safeLimit}`);
+  // Skip the cache when it stored a previous EMPTY result. Older
+  // versions of this function had a `catch { return [] }` that
+  // wrote an empty array on EgsUnreachable, then served the empty
+  // for 12h. That looked to users like "the ranking is empty"
+  // when the real cause was a transient network failure. Now an
+  // empty cached array just triggers a fresh fetch. A genuine
+  // non-empty cache hit still short-circuits as before.
   const cached = readCache<EgsTopRanked[]>(cacheK);
-  if (cached) return applyManualEgsToVndb(cached.map((r) => ({ ...r })));
+  if (cached && cached.length > 0) {
+    return applyManualEgsToVndb(cached.map((r) => ({ ...r })));
+  }
 
+  // IMPORTANT EGS schema gotcha (root cause of the "EGS ranking
+  // shows no rows" QA bug, discovered 2026-05-16 by querying
+  // information_schema):
+  // - gamelist.median2 used to be the canonical median rating column.
+  // - EGS now populates the plain `median` column instead;
+  //   `median2` exists in the schema but every row is NULL/empty.
+  // - SELECT median2 FROM gamelist LIMIT 3 returns 3 rows with
+  //   empty <td>s. WHERE median2 IS NOT NULL returns zero rows.
+  // - SELECT median, average2, count2 FROM gamelist WHERE count2
+  //   >= 5 returns the expected ranking.
+  // - average2 + count2 + max2 + min2 are still populated.
+  // Both `median` and `median2` may appear on the same form depending
+  // on when columns were last refreshed. The 0-rows symptom is
+  // specifically about `median2`. We now SELECT both, prefer
+  // `median` (the active column), and fall back to `median2` if a
+  // future EGS migration ever flips back.
   const sql =
     `SELECT g.id, g.gamename, g.furigana, g.brandname AS brand_id, ` +
-    `b.brandname AS brand_name, g.median2, g.average2, g.count2, ` +
+    `b.brandname AS brand_name, g.median, g.median2, g.average2, g.count2, ` +
     `g.sellday, g.banner_url, g.okazu, g.erogame, g.vndb ` +
     `FROM gamelist g LEFT JOIN brandlist b ON g.brandname = b.id ` +
-    `WHERE g.count2 >= ${safeMin} AND g.median2 IS NOT NULL ` +
-    `ORDER BY (g.median2 IS NULL), g.median2 DESC, g.count2 DESC ` +
+    `WHERE g.count2 >= ${safeMin} ` +
+    `  AND COALESCE(g.median, g.median2) IS NOT NULL ` +
+    `ORDER BY (COALESCE(g.median, g.median2) IS NULL), ` +
+    `         COALESCE(g.median, g.median2) DESC, g.count2 DESC ` +
     `LIMIT ${safeLimit}`;
 
   // Surface EgsUnreachable to the caller so the UI can render an
   // actionable error state (try Refresh / check network) instead of
-  // a generic "empty" message. A clean 0-row response still maps to
-  // an empty array (cached negative).
+  // a generic "empty" message.
   const rows = await fetchTable(sql);
   if (rows.length < 2) {
-    writeCache(cacheK, [], EGS_TOP_TTL_MS);
+    // Don't cache a true 0-row response either — same reasoning:
+    // EGS occasionally returns 0 rows when the server is under
+    // load; pinning that for 12h is worse than re-fetching on the
+    // next request.
     return [];
   }
   const header = rows[0].map((h) => h.trim());
@@ -1017,13 +1047,18 @@ export async function fetchEgsTopRanked(
     const id = toNumber(r[idx('id')]);
     if (id == null) continue;
     const vndb = (r[idx('vndb')] ?? '').trim();
+    // Prefer the `median` column (currently populated); fall back to
+    // `median2` for forward-compat if EGS ever flips back. See the
+    // comment on the SQL above for the schema gotcha.
+    const medianActive = toNumber(r[idx('median')]);
+    const median2Legacy = toNumber(r[idx('median2')]);
     out.push({
       egs_id: id,
       gamename: r[idx('gamename')] ?? '',
       furigana: r[idx('furigana')] || null,
       brand_id: toNumber(r[idx('brand_id')]),
       brand_name: r[idx('brand_name')] || null,
-      median: toNumber(r[idx('median2')]),
+      median: medianActive ?? median2Legacy,
       average: toNumber(r[idx('average2')]),
       count: toNumber(r[idx('count2')]),
       sellday: r[idx('sellday')] || null,
