@@ -1,5 +1,5 @@
 'use client';
-import { Fragment, useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -321,14 +321,22 @@ function SectionWrapper({
   ]);
 
   if (HAS_INTERNAL_COLLAPSE.has(id) || !state.collapsedByDefault) {
-    return <Fragment>{node}</Fragment>;
+    // `id="section-<id>"` lets the identity metadata row link to
+    // each section (e.g. "#section-aspect-override").
+    return (
+      <section id={`section-${id}`} className="scroll-mt-24">
+        {node}
+      </section>
+    );
   }
   // Wrap non-internal-collapse sections so the user-saved "collapsed
   // by default" preference takes effect.
   return (
-    <CollapsibleSection label={label} expandLabel={expandLabel} collapseLabel={collapseLabel}>
-      {node}
-    </CollapsibleSection>
+    <section id={`section-${id}`} className="scroll-mt-24">
+      <CollapsibleSection label={label} expandLabel={expandLabel} collapseLabel={collapseLabel}>
+        {node}
+      </CollapsibleSection>
+    </section>
   );
 }
 

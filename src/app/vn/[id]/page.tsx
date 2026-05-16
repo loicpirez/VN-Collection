@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Box, ChevronRight, Download, ExternalLink, Globe, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
 import {
+  deriveVnAspectDisplay,
   deriveVnAspectKey,
   getAppSetting,
   getCollectionItem,
@@ -153,6 +154,13 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
   const inCol = isInCollection(id);
   const allSeries = listSeries();
   const listsForThisVn = listListsForVn(id);
+  // Aspect ratio: materialize from cached VNDB release payloads ONCE,
+  // here, before any aspect-aware component renders. Both the
+  // identity metadata row AND the AspectOverrideControl below read
+  // the same derived state — they MUST agree.
+  if (/^v\d+$/.test(vn.id)) {
+    materializeReleaseAspectsForVn(vn.id);
+  }
   const status = (vn.status as Status | undefined) ?? null;
   const ratingNum = vn.rating != null ? (vn.rating / 10).toFixed(1) : '—';
   // Per-field source preference (VNDB / EGS / Custom) — pulled per-VN, defaults to Auto.
@@ -387,6 +395,56 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   <dd className="font-semibold">{vn.platforms.slice(0, 10).join(', ')}</dd>
                 </div>
               )}
+              {/*
+                Aspect ratio / resolution in the main identity metadata
+                — uses the same `deriveVnAspectDisplay` source of truth
+                as the Library filter and the AspectOverrideControl
+                lower on the page. The materializer call earlier in
+                this render ensured release_resolution_cache has
+                already been populated from cached VNDB release
+                payloads, so we don't flash an "unknown" state for
+                VNs whose only signal is in the cached `POST /release`
+                response body.
+              */}
+              {(() => {
+                const aspectDisplay = /^v\d+$/.test(vn.id)
+                  ? deriveVnAspectDisplay(vn.id)
+                  : { aspect: 'unknown' as const, aspects: [], width: null, height: null, source: 'unknown' as const };
+                const isUnknown = aspectDisplay.aspect === 'unknown';
+                const sourceLabel =
+                  aspectDisplay.source === 'manual' ? t.detail.aspectSourceManual
+                  : aspectDisplay.source === 'edition' ? t.detail.aspectSourceEdition
+                  : aspectDisplay.source === 'release' ? t.detail.aspectSourceRelease
+                  : aspectDisplay.source === 'screenshot' ? t.detail.aspectSourceScreenshot
+                  : null;
+                const allAspects = aspectDisplay.aspects.length > 0
+                  ? aspectDisplay.aspects.join(' · ')
+                  : t.aspect.keys.unknown;
+                return (
+                  <div className="col-span-2 sm:col-span-3">
+                    <dt className="label">{t.detail.aspectLabel}</dt>
+                    <dd className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <a
+                        href="#section-aspect-override"
+                        className={`font-semibold transition-colors hover:text-accent ${isUnknown ? 'text-muted' : 'text-white'}`}
+                        title={t.detail.aspectScrollHint}
+                      >
+                        {allAspects}
+                      </a>
+                      {aspectDisplay.width != null && aspectDisplay.height != null && (
+                        <span className="text-xs font-mono text-muted">
+                          · {aspectDisplay.width}×{aspectDisplay.height}
+                        </span>
+                      )}
+                      {sourceLabel && (
+                        <span className="rounded-md border border-border bg-bg-elev/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">
+                          {sourceLabel}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                );
+              })()}
               {(vn.developers?.length || egsRow?.brand_name) && (
                 <div className="col-span-2 sm:col-span-3">
                   <BrandCompare
@@ -723,14 +781,10 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           // the right value on first frame instead of flashing
           // "Auto · unknown" while the client fetch is in flight.
           // Also materialize from any cached VNDB release payload
-          // so a VN whose only signal is the release resolution
-          // ([1280, 720] → 16:9) gets a populated cache before
-          // we derive — matches the user's QA on Gals Fiction.
-          // /^v\d+$/ guard avoids running on synthetic egs_NNN
-          // VNs (no VNDB release data to materialize from).
-          if (/^v\d+$/.test(vn.id)) {
-            materializeReleaseAspectsForVn(vn.id);
-          }
+          // Materialization already ran near the top of this
+          // render (see materializeReleaseAspectsForVn invocation
+          // above the identity metadata block). Both surfaces use
+          // the same derived data.
           const initialOverride = /^v\d+$/.test(vn.id) ? getVnAspectOverride(vn.id) : null;
           const initialDerived = deriveVnAspectKey(vn.id);
           sections.push({

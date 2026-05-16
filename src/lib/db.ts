@@ -4311,6 +4311,140 @@ export function deriveVnAspectKey(vnId: string): AspectKey {
   return 'unknown';
 }
 
+/** Source label that lives next to the derived aspect on the VN
+ *  metadata row — tells the user WHY we picked that bucket. */
+export type VnAspectSource =
+  | 'manual'       // vn_aspect_override
+  | 'edition'      // owned_release_aspect_override
+  | 'release'      // release_resolution_cache via owned_release or vn_id
+  | 'screenshot'   // vn.screenshots dims fallback (materialized into rc)
+  | 'unknown';
+
+export interface VnAspectDisplay {
+  /** Primary aspect bucket. */
+  aspect: AspectKey;
+  /** Every distinct non-unknown bucket the VN matches (manual override
+   *  collapses this to a single entry). Used by the metadata row when a
+   *  VN has multiple resolutions across its releases. */
+  aspects: AspectKey[];
+  /** A representative width × height for the primary aspect. Pulled
+   *  from the first matching cache row. Null when the primary aspect
+   *  was decided by a manual override (no resolution to show) OR when
+   *  the source is unknown / a synthetic screenshot row without
+   *  width / height. */
+  width: number | null;
+  height: number | null;
+  source: VnAspectSource;
+}
+
+/**
+ * Richer version of `deriveVnAspectKey` for the VN page's main
+ * identity metadata row. Returns the primary aspect, every distinct
+ * aspect the VN matches across releases, a representative resolution,
+ * and the derivation source so the UI can render
+ *   "Format: 16:9 · 1280×720"
+ * with a subtle source pill ("manual override" / "release resolution"
+ * / "screenshots fallback").
+ *
+ * Same priority chain as `deriveVnAspectKey` — same source of truth
+ * as the Library filter and the AspectOverrideControl.
+ */
+export function deriveVnAspectDisplay(vnId: string): VnAspectDisplay {
+  // 1. Manual VN-level override (always exclusive).
+  const manual = getVnAspectOverride(vnId);
+  if (manual && manual.aspect_key !== 'unknown') {
+    return {
+      aspect: manual.aspect_key,
+      aspects: [manual.aspect_key],
+      width: null,
+      height: null,
+      source: 'manual',
+    };
+  }
+
+  // 2. Owned-release per-edition override (no resolution stored
+  //    directly here — we pull dims from rc if available).
+  const editionOverride = db
+    .prepare(
+      `SELECT ao.aspect_key, ao.width, ao.height
+       FROM owned_release_aspect_override ao
+       WHERE ao.vn_id = ?
+         AND ao.aspect_key IS NOT NULL AND ao.aspect_key <> 'unknown'
+       LIMIT 1`,
+    )
+    .get(vnId) as { aspect_key: string; width: number | null; height: number | null } | undefined;
+  if (editionOverride && isAspectKey(editionOverride.aspect_key)) {
+    return {
+      aspect: editionOverride.aspect_key,
+      aspects: [editionOverride.aspect_key],
+      width: editionOverride.width,
+      height: editionOverride.height,
+      source: 'edition',
+    };
+  }
+
+  // 3. release_resolution_cache — either via owned_release join or
+  //    via the vn_id column. Group by aspect_key, pick the most
+  //    common, surface width × height from the first row of the
+  //    chosen bucket.
+  const rcRows = db
+    .prepare(
+      `SELECT rc.aspect_key, rc.width, rc.height, rc.release_id
+       FROM release_resolution_cache rc
+       WHERE (
+         rc.vn_id = ?
+         OR EXISTS (
+           SELECT 1 FROM owned_release o
+           WHERE o.vn_id = ? AND o.release_id = rc.release_id
+         )
+       )
+         AND rc.aspect_key IS NOT NULL
+         AND rc.aspect_key <> 'unknown'`,
+    )
+    .all(vnId, vnId) as Array<{
+      aspect_key: string;
+      width: number | null;
+      height: number | null;
+      release_id: string;
+    }>;
+  if (rcRows.length > 0) {
+    const counts = new Map<AspectKey, number>();
+    const firstByAspect = new Map<AspectKey, { width: number | null; height: number | null; releaseId: string }>();
+    let screenshotOnly = true;
+    for (const r of rcRows) {
+      if (!isAspectKey(r.aspect_key) || r.aspect_key === 'unknown') continue;
+      counts.set(r.aspect_key, (counts.get(r.aspect_key) ?? 0) + 1);
+      if (!firstByAspect.has(r.aspect_key)) {
+        firstByAspect.set(r.aspect_key, { width: r.width, height: r.height, releaseId: r.release_id });
+      }
+      if (!r.release_id.startsWith('screenshot:')) screenshotOnly = false;
+    }
+    let primary: AspectKey = 'unknown';
+    let primaryCount = 0;
+    for (const [k, n] of counts) {
+      if (n > primaryCount) {
+        primary = k;
+        primaryCount = n;
+      }
+    }
+    if (primary !== 'unknown') {
+      const aspects = Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([k]) => k);
+      const dim = firstByAspect.get(primary);
+      return {
+        aspect: primary,
+        aspects,
+        width: dim?.width ?? null,
+        height: dim?.height ?? null,
+        source: screenshotOnly ? 'screenshot' : 'release',
+      };
+    }
+  }
+
+  return { aspect: 'unknown', aspects: [], width: null, height: null, source: 'unknown' };
+}
+
 export function setOwnedReleaseAspectOverride(input: {
   vnId: string;
   releaseId: string;
