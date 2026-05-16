@@ -360,6 +360,59 @@ describe('front-display slots', () => {
     expect(listUnplacedOwnedReleases().map((u) => u.vn_id).sort()).toEqual(['v1', 'v2']);
   });
 
+  it('listUnplacedOwnedReleases returns one entry per distinct (vn_id, release_id)', () => {
+    // Regression: a user with two owned editions of the same VN
+    // must see two pool cards, each tied to its own release_id.
+    // The popover then reads release-specific fields off the
+    // entry — no "all editions" aggregation. We seed two editions
+    // with different release ids + distinguishing fields and
+    // assert the helper returns each as a separate entry that
+    // carries its own platform/release/etc fields.
+    const shelf = createShelf({ name: 'A', cols: 2, rows: 2 });
+    // Seed the VN with platforms + languages + released so the
+    // ShelfEntry shape includes the popover's release-side fields.
+    db.prepare(
+      `INSERT OR REPLACE INTO vn (id, title, platforms, languages, released, fetched_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run('v90201', 'v90201', JSON.stringify(['win']), JSON.stringify(['ja']), '2024-01-15', Date.now());
+    // Two distinct owned editions with different release ids.
+    db.prepare(
+      `INSERT INTO owned_release
+         (vn_id, release_id, edition_label, condition, box_type,
+          physical_location, dumped, added_at)
+       VALUES
+         (?, ?, ?, ?, ?, ?, ?, ?),
+         (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      'v90201', 'r902011', 'Box', 'sealed', 'large',  JSON.stringify(['Shelf A']), 0, Date.now(),
+      'v90201', 'r902012', 'DL',  'good',   'none',   JSON.stringify([]),          1, Date.now(),
+    );
+    void shelf;
+    const unplaced = listUnplacedOwnedReleases().filter((e) => e.vn_id === 'v90201');
+    expect(unplaced).toHaveLength(2);
+    const byReleaseId = new Map(unplaced.map((e) => [e.release_id, e]));
+    const a = byReleaseId.get('r902011')!;
+    const b = byReleaseId.get('r902012')!;
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    // Each entry carries its OWN release-side fields, not an aggregate.
+    expect(a.edition_label).toBe('Box');
+    expect(a.condition).toBe('sealed');
+    expect(a.box_type).toBe('large');
+    expect(a.physical_location).toEqual(['Shelf A']);
+    expect(a.dumped).toBe(false);
+    expect(b.edition_label).toBe('DL');
+    expect(b.condition).toBe('good');
+    expect(b.box_type).toBe('none');
+    expect(b.physical_location).toEqual([]);
+    expect(b.dumped).toBe(true);
+    // VN-side fields are shared (they really are VN-level on VNDB).
+    expect(a.vn_platforms).toEqual(['win']);
+    expect(b.vn_platforms).toEqual(['win']);
+    expect(a.vn_languages).toEqual(['ja']);
+    expect(a.vn_released).toBe('2024-01-15');
+  });
+
   it('listAllOwnedReleases counts placed editions for the /shelf header', () => {
     // Regression: the /shelf page header summary reads
     // `items.length` and `itemBuckets.size` from

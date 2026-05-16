@@ -1364,9 +1364,29 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
           />
         </div>
         <p className="mt-1 line-clamp-2 text-[10px] font-bold leading-tight">{entry.vn_title}</p>
-        {entry.edition_label && (
-          <p className="line-clamp-1 text-[10px] text-muted/80">{entry.edition_label}</p>
-        )}
+        {/*
+          Distinguisher line: when the user has two editions of the
+          same VN in the pool, both cards used to render the bare
+          VN title. The pool key is `vn_id:release_id` so React
+          mounts them as distinct cards, but the FACE looked
+          identical. Surface the most-specific user-entered hint
+          (edition_label → physical_location → box_type → release
+          id short form) so the two cards read differently at a
+          glance, without needing to open the info popover.
+        */}
+        {(() => {
+          const distinguisher =
+            entry.edition_label ??
+            (entry.physical_location.length > 0 ? entry.physical_location[0] : null) ??
+            (entry.box_type !== 'none' ? entry.box_type : null) ??
+            (entry.release_id.startsWith('synthetic:') ? null : entry.release_id);
+          if (!distinguisher) return null;
+          return (
+            <p className="line-clamp-1 text-[10px] text-muted/80" title={entry.release_id}>
+              {distinguisher}
+            </p>
+          );
+        })()}
       </div>
       {/* Info button — focusable, keyboard / mobile reachable. */}
       <button
