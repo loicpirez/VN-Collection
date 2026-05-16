@@ -197,7 +197,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string | null })
       title={item.label}
       aria-label={item.label}
       aria-current={active ? 'page' : undefined}
-      className={`tap-target inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors 2xl:px-3 ${
+      className={`tap-target inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors xl:px-2.5 ${
         active
           ? 'bg-accent/15 text-accent hover:bg-accent/20'
           : 'text-muted hover:bg-bg-card hover:text-white'
@@ -211,7 +211,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string | null })
           "Découvrir" / "Données & Stats" + the right-side controls
           (Spoiler / Settings / Language). The aria-label + title
           attributes preserve a11y + tooltips while icons are alone. */}
-      <span className="hidden 2xl:inline">{item.label}</span>
+      <span className="hidden xl:inline">{item.label}</span>
     </Link>
   );
 }
@@ -274,7 +274,7 @@ function NavGroup({
         aria-controls={menuId}
         aria-label={label}
         title={label}
-        className={`tap-target inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors 2xl:gap-1.5 2xl:px-3 ${
+        className={`tap-target inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors xl:gap-1.5 xl:px-2.5 ${
           active
             ? 'bg-accent/15 text-accent hover:bg-accent/20'
             : 'text-muted hover:bg-bg-card hover:text-white'
@@ -284,7 +284,7 @@ function NavGroup({
         {/* Group label hidden md→xl-1, shown only at 2xl+ (1536px)
             to match the NavLink primary-nav breakpoint and avoid
             French overflow on laptop displays. */}
-        <span className="hidden 2xl:inline">{label}</span>
+        <span className="hidden xl:inline">{label}</span>
         <ChevronDown className="h-3 w-3" aria-hidden />
       </button>
       {open && (

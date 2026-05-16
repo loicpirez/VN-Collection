@@ -421,7 +421,14 @@ export function LibraryClient() {
 
   return (
     <div>
-      <div className="scroll-fade-right mb-4 flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
+      {/*
+        Status chips row. Wraps cleanly on narrow viewports + French
+        labels — no horizontal scroll. The previous horizontal-scroll
+        treatment caused chips like "Pour plus tard" / "Terminés" to
+        run off the right edge under "Ma bibliothèque" and required
+        the user to scroll the row, which they reported as overflow.
+      */}
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
         <button
           className={`chip whitespace-nowrap ${!status ? 'chip-active' : ''}`}
           onClick={() => setParam('status', null)}
@@ -1208,6 +1215,15 @@ function AdvancedFiltersDrawer({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  // Open the drawer when something elsewhere on the toolbar asks
+  // for it — currently the SavedFilters empty popover dispatches
+  // `vn:open-advanced-filters` so its empty state remains
+  // actionable instead of looking like a no-op click.
+  useEffect(() => {
+    function handle() { setOpen(true); }
+    window.addEventListener('vn:open-advanced-filters', handle);
+    return () => window.removeEventListener('vn:open-advanced-filters', handle);
+  }, []);
   return (
     <>
       <button

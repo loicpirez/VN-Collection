@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Bookmark, BookmarkPlus, ChevronDown, Loader2, Pin, X } from 'lucide-react';
+import { Bookmark, BookmarkPlus, ChevronDown, Filter as FilterIcon, Loader2, Pin, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
@@ -133,7 +133,33 @@ export function SavedFilters() {
           className="absolute left-0 top-full z-30 mt-1 w-[min(92vw,18rem)] rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card"
         >
           {filters.length === 0 ? (
-            <p className="px-1 py-1 text-muted">{t.savedFilters.popoverEmpty}</p>
+            <div className="space-y-2 px-1 py-1">
+              <p className="text-muted">{t.savedFilters.popoverEmpty}</p>
+              {!currentKey && (
+                <>
+                  <p className="text-[10px] text-muted/70">
+                    {t.savedFilters.openDrawerHint}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      // Ask the toolbar to open the Advanced filters
+                      // drawer. The drawer listens for this event so
+                      // the user lands directly on the filter UI
+                      // instead of seeing this empty-popover dead end.
+                      window.dispatchEvent(
+                        new CustomEvent('vn:open-advanced-filters'),
+                      );
+                    }}
+                    className="flex w-full items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 text-accent hover:bg-accent/20"
+                  >
+                    <FilterIcon className="h-3 w-3" />
+                    {t.savedFilters.openDrawerCta}
+                  </button>
+                </>
+              )}
+            </div>
           ) : (
             <ul className="mb-2 space-y-0.5">
               {filters.map((f) => {
