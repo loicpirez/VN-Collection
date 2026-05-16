@@ -84,7 +84,11 @@ export async function POST(req: NextRequest) {
     { name: 'Traits · default search',    run: () => searchTraits('', { results: 60 }) },
   ];
 
-  const job = startJob('vndb-pull', 'Global refresh', tasks.length, null);
+  // Tagged `cache-refresh` (not `vndb-pull`) because this fan-out also
+  // refreshes EGS / page-level caches — calling it a "VNDB Pull" was
+  // confusing on /upcoming?tab=anticipated, where the user only sees EGS
+  // data being updated.
+  const job = startJob('cache-refresh', 'Global refresh', tasks.length, null);
 
   let done = 0;
   let failed = 0;

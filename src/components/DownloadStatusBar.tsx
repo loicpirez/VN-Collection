@@ -10,7 +10,15 @@ interface JobError {
 
 interface Job {
   id: string;
-  kind: 'staff' | 'characters' | 'producers' | 'vndb-pull' | 'egs-sync' | 'vn-fetch';
+  // Mirrors lib/download-status.ts `JobKind`. Keep in sync.
+  kind:
+    | 'staff'
+    | 'characters'
+    | 'producers'
+    | 'vndb-pull'
+    | 'egs-sync'
+    | 'vn-fetch'
+    | 'cache-refresh';
   vn_id: string | null;
   label: string;
   total: number;

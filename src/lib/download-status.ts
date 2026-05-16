@@ -11,7 +11,18 @@ import 'server-only';
  * downloading and notice when something goes wrong.
  */
 
-export type JobKind = 'staff' | 'characters' | 'producers' | 'vndb-pull' | 'egs-sync' | 'vn-fetch';
+export type JobKind =
+  | 'staff'
+  | 'characters'
+  | 'producers'
+  | 'vndb-pull'
+  | 'egs-sync'
+  | 'vn-fetch'
+  // `cache-refresh` covers the global refresh fan-out, which busts &
+  // re-fetches a mix of VNDB AND EGS caches (anticipated, upcoming, stats,
+  // tags, traits, ...). Tagging it as `vndb-pull` was misleading on
+  // /upcoming?tab=anticipated where the user only sees EGS content.
+  | 'cache-refresh';
 
 export interface DownloadJob {
   id: string;
