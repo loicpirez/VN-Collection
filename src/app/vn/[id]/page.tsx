@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Box, ChevronRight, Download, ExternalLink, Globe, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
@@ -86,33 +87,63 @@ function fmtMinutes(m: number | null | undefined): string {
   return formatMinutes(m, { fallback: '—', emptyValue: 'strict_positive' });
 }
 
-async function loadVn(id: string): Promise<{ vn: CollectionItem | null; error: string | null }> {
-  const cached = getCollectionItem(id);
-  // EGS-only synthetic VNs aren't on VNDB — always serve from cache.
-  if (isEgsOnly(id)) {
-    return { vn: cached, error: null };
-  }
-  if (cached && Date.now() - cached.fetched_at < CACHE_MS) return { vn: cached, error: null };
-  try {
-    const fresh = await getVn(id);
-    if (!fresh) {
-      if (cached) return { vn: cached, error: null };
-      return { vn: null, error: `VNDB returned no result for ${id}` };
+/**
+ * Resolve a VN id to its on-screen detail data.
+ *
+ * Wrapped with React.cache so `generateMetadata` and the page
+ * body share one fetch per request. Without this, the metadata
+ * pre-pass would fall back to the raw VN id ("v12345") whenever
+ * the user opened a VN that wasn't yet in the local `vn` table —
+ * notably any VNDB-linked entry surfaced from an external feed
+ * (EGS top-ranked map links, recommendations of non-collection
+ * VNs, etc.). Opening such a link used to render
+ *   <title>v12345 · VN Collection</title>
+ * while the page body itself showed the correct title, which the
+ * user reported as the "vn(id) - VN Collection" bug.
+ *
+ * The function never auto-adds the VN to the user's collection —
+ * `upsertVn` writes to the `vn` cache table only. Membership in
+ * `collection` stays under the user's explicit control.
+ */
+const loadVn = cache(
+  async (id: string): Promise<{ vn: CollectionItem | null; error: string | null }> => {
+    const cached = getCollectionItem(id);
+    // EGS-only synthetic VNs aren't on VNDB — always serve from cache.
+    if (isEgsOnly(id)) {
+      return { vn: cached, error: null };
     }
-    upsertVn(fresh);
-    return { vn: getCollectionItem(id), error: null };
-  } catch (e) {
-    const msg = (e as Error).message || '';
-    if (cached) return { vn: cached, error: null };
-    return { vn: null, error: msg };
-  }
-}
+    if (cached && Date.now() - cached.fetched_at < CACHE_MS) return { vn: cached, error: null };
+    try {
+      const fresh = await getVn(id);
+      if (!fresh) {
+        if (cached) return { vn: cached, error: null };
+        return { vn: null, error: `VNDB returned no result for ${id}` };
+      }
+      upsertVn(fresh);
+      return { vn: getCollectionItem(id), error: null };
+    } catch (e) {
+      const msg = (e as Error).message || '';
+      if (cached) return { vn: cached, error: null };
+      return { vn: null, error: msg };
+    }
+  },
+);
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id: rawId } = await params;
   const id = decodeURIComponent(rawId).replace(/^egs:/, 'egs_');
-  const local = getCollectionItem(id);
-  const title = local?.title ?? id;
+  // Sanity-check id shape; on garbage we fall through to the raw
+  // string fallback rather than triggering the cache(...) path
+  // that may hit VNDB with a malformed id.
+  if (!/^(v\d+|egs_\d+)$/i.test(id)) {
+    return { title: id };
+  }
+  // Share the same resolved VN row with the page body via
+  // React.cache. For a VN already cached in `vn`, this returns
+  // the row immediately; for a not-yet-seen VNDB id we fetch
+  // and upsert ONCE per request.
+  const { vn } = await loadVn(id);
+  const title = vn?.title ?? `VN ${id}`;
   return { title };
 }
 
