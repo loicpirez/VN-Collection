@@ -10,6 +10,7 @@ import {
   CalendarRange,
   ChevronDown,
   Compass,
+  Crown,
   Database,
   FileCode2,
   Gamepad2,
@@ -77,6 +78,7 @@ export function GroupedNav() {
 
   const discover: NavItem[] = [
     { href: '/upcoming', label: t.nav.upcoming, icon: CalendarRange },
+    { href: '/top-ranked', label: t.nav.topRanked, icon: Crown },
     { href: '/recommendations', label: t.nav.recommend, icon: Wand2 },
     { href: '/quotes', label: t.nav.quotes, icon: Quote },
   ];

@@ -850,3 +850,97 @@ export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]
   writeCache(cacheK, out, ANTICIPATED_TTL_MS);
   return out;
 }
+
+/** One row from the EGS top-ranked list (highest community median). */
+export interface EgsTopRanked {
+  egs_id: number;
+  gamename: string;
+  furigana: string | null;
+  brand_id: number | null;
+  brand_name: string | null;
+  /** Community median rating, 0–100 (EGS stores it as an integer). */
+  median: number | null;
+  average: number | null;
+  /** Number of reviewers who scored the game — sanity threshold. */
+  count: number | null;
+  sellday: string | null;
+  banner_url: string | null;
+  okazu: boolean;
+  erogame: boolean;
+  /** Cross-link to VNDB if EGS records one; useful for /vn/[id] links. */
+  vndb_id: string | null;
+}
+
+/** Default minimum reviewer count for EGS top-ranked. Single-reviewer
+ *  10/10s look noisy on a chart; this trims them out. Lower than VNDB
+ *  because EGS has fewer reviewers per game. */
+export const EGS_TOP_MIN_VOTES = 5;
+
+const EGS_TOP_TTL_MS = 12 * 3600 * 1000;
+
+/**
+ * Top-rated EGS games by community median. Filtered by minimum
+ * reviewer count to keep dōjin one-shots from dominating. Uses the
+ * same SQL form + caching infra as `fetchEgsAnticipated`; the cache
+ * key includes both `minVotes` and `limit` so concurrent calls with
+ * different thresholds don't share rows.
+ *
+ * Postgres on the EGS form rejects explicit `NULLS LAST`; the
+ * `(col IS NULL)` workaround sorts nulls last manually.
+ */
+export async function fetchEgsTopRanked(
+  limit = 100,
+  minVotes: number = EGS_TOP_MIN_VOTES,
+): Promise<EgsTopRanked[]> {
+  const safeLimit = Math.min(300, Math.max(10, Math.floor(limit)));
+  const safeMin = Math.max(1, Math.floor(minVotes));
+  const cacheK = cacheKey('top-ranked', `${safeMin}:${safeLimit}`);
+  const cached = readCache<EgsTopRanked[]>(cacheK);
+  if (cached) return cached;
+
+  const sql =
+    `SELECT g.id, g.gamename, g.furigana, g.brandname AS brand_id, ` +
+    `b.brandname AS brand_name, g.median2, g.average2, g.count2, ` +
+    `g.sellday, g.banner_url, g.okazu, g.erogame, g.vndb ` +
+    `FROM gamelist g LEFT JOIN brandlist b ON g.brandname = b.id ` +
+    `WHERE g.count2 >= ${safeMin} AND g.median2 IS NOT NULL ` +
+    `ORDER BY (g.median2 IS NULL), g.median2 DESC, g.count2 DESC ` +
+    `LIMIT ${safeLimit}`;
+
+  let rows: string[][];
+  try {
+    rows = await fetchTable(sql);
+  } catch {
+    return [];
+  }
+  if (rows.length < 2) {
+    writeCache(cacheK, [], EGS_TOP_TTL_MS);
+    return [];
+  }
+  const header = rows[0].map((h) => h.trim());
+  const idx = (name: string): number => header.indexOf(name);
+  const out: EgsTopRanked[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const id = toNumber(r[idx('id')]);
+    if (id == null) continue;
+    const vndb = (r[idx('vndb')] ?? '').trim();
+    out.push({
+      egs_id: id,
+      gamename: r[idx('gamename')] ?? '',
+      furigana: r[idx('furigana')] || null,
+      brand_id: toNumber(r[idx('brand_id')]),
+      brand_name: r[idx('brand_name')] || null,
+      median: toNumber(r[idx('median2')]),
+      average: toNumber(r[idx('average2')]),
+      count: toNumber(r[idx('count2')]),
+      sellday: r[idx('sellday')] || null,
+      banner_url: r[idx('banner_url')] || null,
+      okazu: toBool(r[idx('okazu')]) === true,
+      erogame: toBool(r[idx('erogame')]) === true,
+      vndb_id: /^v\d+$/.test(vndb) ? vndb : null,
+    });
+  }
+  writeCache(cacheK, out, EGS_TOP_TTL_MS);
+  return out;
+}
