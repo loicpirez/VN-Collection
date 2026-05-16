@@ -77,8 +77,15 @@ export function LibraryClient() {
   const urlYearMin = searchParams.get('yearMin') ?? '';
   const urlYearMax = searchParams.get('yearMax') ?? '';
   const urlDumped = searchParams.get('dumped') ?? '';
+  // Multi-select aspect. URL state encoded as comma-separated:
+  // `?aspect=4:3,16:9`. Back-compat with the prior single-value URL.
   const urlAspectRaw = searchParams.get('aspect');
-  const urlAspect: AspectKey | '' = isAspectKey(urlAspectRaw) ? urlAspectRaw : '';
+  const urlAspectSet: AspectKey[] = (urlAspectRaw ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => isAspectKey(s)) as AspectKey[];
+  // Single-aspect convenience for chip rendering + old-style callers.
+  const urlAspect: AspectKey | '' = urlAspectSet[0] ?? '';
   const urlQ = searchParams.get('q') ?? '';
   // Default sort, order, and grouping are configurable in Settings; we
   // load them once and use them as fallbacks when the URL has no
@@ -243,7 +250,7 @@ export function LibraryClient() {
     if (urlYearMin) params.set('yearMin', urlYearMin);
     if (urlYearMax) params.set('yearMax', urlYearMax);
     if (urlDumped === '1' || urlDumped === '0') params.set('dumped', urlDumped);
-    if (urlAspect) params.set('aspect', urlAspect);
+    if (urlAspectSet.length > 0) params.set('aspect', urlAspectSet.join(','));
     if (urlQ) params.set('q', urlQ);
     params.set('sort', sort);
     params.set('order', order);
@@ -267,7 +274,9 @@ export function LibraryClient() {
       alive = false;
       ctrl.abort();
     };
-  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlDumped, urlAspect, urlQ, sort, order, refreshKey, t.common.error]);
+    // join the multi-select aspect set for a stable string identity
+    // so changing 4:3 ↔ 16:9 re-fetches.
+  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlDumped, urlAspectSet.join(','), urlQ, sort, order, refreshKey, t.common.error]);
 
   function clearAll() {
     router.replace('/', { scroll: false });
@@ -280,7 +289,7 @@ export function LibraryClient() {
   );
   const totalH = Math.round(stats.playtime_minutes / 60);
   const hasFilters =
-    !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlYearMin || !!urlYearMax || !!urlAspect || urlDumped === '1' || urlDumped === '0';
+    !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlYearMin || !!urlYearMax || urlAspectSet.length > 0 || urlDumped === '1' || urlDumped === '0';
   const yearLabel = urlYearMin && urlYearMax
     ? urlYearMin === urlYearMax
       ? urlYearMin
@@ -322,7 +331,7 @@ export function LibraryClient() {
     (producer ? 1 : 0) +
     (publisher ? 1 : 0) +
     (seriesId ? 1 : 0) +
-    (urlAspect ? 1 : 0) +
+    (urlAspectSet.length > 0 ? 1 : 0) +
     (urlDumped ? 1 : 0) +
     (urlYearMin || urlYearMax ? 1 : 0) +
     (urlMatchVndb ? 1 : 0) +
@@ -490,21 +499,41 @@ export function LibraryClient() {
                 <option key={s.id} value={String(s.id)}>{s.name}</option>
               ))}
             </select>
-            <label className="flex items-center gap-2 rounded-md border border-border bg-bg-elev/40 px-2 py-1.5 text-xs">
-              <LayoutGrid className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="shrink-0 text-muted">{t.library.filterAspect}</span>
-              <select
-                className="ml-auto bg-transparent text-xs font-semibold outline-none"
-                value={urlAspect}
-                onChange={(e) => setParam('aspect', e.target.value || null)}
-                aria-label={t.library.filterAspect}
-              >
-                <option value="">{t.library.all}</option>
-                {ASPECT_KEYS.map((k) => (
-                  <option key={k} value={k}>{t.aspect.keys[k]}</option>
-                ))}
-              </select>
-            </label>
+            {/* Multi-select aspect filter. User can pick any
+                combination of 4:3 / 16:9 / 16:10 / 21:9 / other /
+                unknown. A VN matches if ANY selected aspect
+                applies to it. URL: ?aspect=4:3,16:9. */}
+            <div className="col-span-2 flex flex-col gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1.5 sm:col-span-3">
+              <div className="inline-flex items-center gap-1.5 text-xs text-muted">
+                <LayoutGrid className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{t.library.filterAspect}</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {ASPECT_KEYS.map((k) => {
+                  const active = urlAspectSet.includes(k);
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => {
+                        const next = active
+                          ? urlAspectSet.filter((x) => x !== k)
+                          : [...urlAspectSet, k];
+                        setParam('aspect', next.length > 0 ? next.join(',') : null);
+                      }}
+                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] transition-colors ${
+                        active
+                          ? 'border-accent bg-accent/15 text-accent'
+                          : 'border-border bg-bg-card/40 text-muted hover:border-accent hover:text-accent'
+                      }`}
+                    >
+                      {t.aspect.keys[k]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -628,14 +657,18 @@ export function LibraryClient() {
               t={t}
             />
           )}
-          {urlAspect && (
+          {urlAspectSet.map((k) => (
             <FilterChip
+              key={`aspect-${k}`}
               icon={<LayoutGrid className="h-3 w-3" aria-hidden />}
-              label={t.aspect.keys[urlAspect as AspectKey]}
-              onClear={() => setParam('aspect', null)}
+              label={t.aspect.keys[k]}
+              onClear={() => {
+                const next = urlAspectSet.filter((x) => x !== k);
+                setParam('aspect', next.length > 0 ? next.join(',') : null);
+              }}
               t={t}
             />
-          )}
+          ))}
           {urlDumped && (
             <FilterChip
               icon={<HardDriveDownload className="h-3 w-3" aria-hidden />}

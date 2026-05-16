@@ -2511,7 +2511,14 @@ export interface ListOptions {
   yearMin?: number;
   yearMax?: number;
   dumped?: boolean;
+  /** Single aspect filter (back-compat). Use `aspects` for multi-select. */
   aspect?: AspectKey;
+  /** Multi-select aspect filter. Matches a VN if any of the supplied
+   *  aspects applies to it. `aspect` and `aspects` are merged
+   *  (one-of semantics) — but the manual-VN-override exclusivity
+   *  still wins as before. Unknown is allowed and matches the
+   *  "no signal" bucket. */
+  aspects?: readonly AspectKey[];
   /** Limit the result to these VN ids only. Empty array → no rows. */
   vnIds?: readonly string[];
   sort?:
@@ -2545,6 +2552,7 @@ export function listCollection({
   yearMax,
   dumped,
   aspect,
+  aspects,
   vnIds,
   sort = 'updated_at',
   order = 'desc',
@@ -2656,7 +2664,15 @@ export function listCollection({
     where.push('c.dumped = ?');
     params.push(dumped ? 1 : 0);
   }
-  if (aspect && aspect !== 'unknown') {
+  // Aspect filter — supports BOTH legacy single `aspect` and the
+  // multi-select `aspects` array. Combined into one deduped set;
+  // a VN matches if ANY selected aspect applies.
+  const aspectSet = new Set<AspectKey>();
+  if (aspect) aspectSet.add(aspect);
+  if (aspects) for (const a of aspects) aspectSet.add(a);
+  const wantUnknown = aspectSet.delete('unknown');
+  const nonUnknown = Array.from(aspectSet);
+  if (nonUnknown.length > 0 || wantUnknown) {
     // Aspect match priority (highest to lowest):
     //   1. VN-level manual override (vn_aspect_override) — EXCLUSIVE.
     //      When this row exists, the lower-priority signals are
@@ -2664,65 +2680,74 @@ export function listCollection({
     //      match ?aspect=16:9 even if its release cache or
     //      screenshots fallback derived 16:9.
     //   2. Owned-edition per-release override (owned_release_aspect_override)
-    //   3. Cached release resolution joined via owned_release (user owns it)
+    //   3. Cached release resolution joined via owned_release
     //   4. Cached release resolution bound directly to the VN
-    //      (release_resolution_cache.vn_id — populated whenever the
-    //      releases endpoint, /release/[id], or the screenshots-
-    //      materializer wrote a synthetic 'screenshot:<vnId>' row)
+    //      (release_resolution_cache.vn_id)
     // The OR-chain at level 2-4 is only consulted when level 1
-    // doesn't have a row, enforced by `NOT EXISTS (vn_aspect_override
-    // WHERE …)` on the lower branches.
-    where.push(`(
-      EXISTS (
-        SELECT 1 FROM vn_aspect_override vo
-        WHERE vo.vn_id = c.vn_id AND vo.aspect_key = ?
-      )
-      OR (
+    // doesn't have a row.
+    //
+    // Multi-select: for each branch we use IN (?, ?, …) over the
+    // selected non-unknown buckets. Unknown gets its own OR branch
+    // that matches when NO signal at all exists for the VN.
+    const branches: string[] = [];
+    if (nonUnknown.length > 0) {
+      const ph = nonUnknown.map(() => '?').join(',');
+      branches.push(`(
+        EXISTS (
+          SELECT 1 FROM vn_aspect_override vo
+          WHERE vo.vn_id = c.vn_id AND vo.aspect_key IN (${ph})
+        )
+        OR (
+          NOT EXISTS (
+            SELECT 1 FROM vn_aspect_override vo
+            WHERE vo.vn_id = c.vn_id AND vo.aspect_key <> 'unknown'
+          )
+          AND (
+            EXISTS (
+              SELECT 1
+              FROM owned_release o
+              LEFT JOIN owned_release_aspect_override ao
+                ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+              LEFT JOIN release_resolution_cache rc
+                ON rc.release_id = o.release_id
+              WHERE o.vn_id = c.vn_id
+                AND COALESCE(ao.aspect_key, rc.aspect_key) IN (${ph})
+            )
+            OR EXISTS (
+              SELECT 1 FROM release_resolution_cache rc
+              WHERE rc.vn_id = c.vn_id AND rc.aspect_key IN (${ph})
+            )
+          )
+        )
+      )`);
+      // Three IN clauses use the same set — push the values three
+      // times.
+      params.push(...nonUnknown, ...nonUnknown, ...nonUnknown);
+    }
+    if (wantUnknown) {
+      branches.push(`(
         NOT EXISTS (
           SELECT 1 FROM vn_aspect_override vo
           WHERE vo.vn_id = c.vn_id AND vo.aspect_key <> 'unknown'
         )
-        AND (
-          EXISTS (
-            SELECT 1
-            FROM owned_release o
-            LEFT JOIN owned_release_aspect_override ao
-              ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
-            LEFT JOIN release_resolution_cache rc
-              ON rc.release_id = o.release_id
-            WHERE o.vn_id = c.vn_id
-              AND COALESCE(ao.aspect_key, rc.aspect_key) = ?
-          )
-          OR EXISTS (
-            SELECT 1 FROM release_resolution_cache rc
-            WHERE rc.vn_id = c.vn_id AND rc.aspect_key = ?
-          )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM owned_release o
+          LEFT JOIN owned_release_aspect_override ao
+            ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+          LEFT JOIN release_resolution_cache rc
+            ON rc.release_id = o.release_id
+          WHERE o.vn_id = c.vn_id
+            AND COALESCE(ao.aspect_key, rc.aspect_key) IS NOT NULL
+            AND COALESCE(ao.aspect_key, rc.aspect_key) <> 'unknown'
         )
-      )
-    )`);
-    params.push(aspect, aspect, aspect);
-  } else if (aspect === 'unknown') {
-    where.push(`
-      NOT EXISTS (
-        SELECT 1 FROM vn_aspect_override vo
-        WHERE vo.vn_id = c.vn_id AND vo.aspect_key <> 'unknown'
-      )
-      AND NOT EXISTS (
-        SELECT 1
-        FROM owned_release o
-        LEFT JOIN owned_release_aspect_override ao
-          ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
-        LEFT JOIN release_resolution_cache rc
-          ON rc.release_id = o.release_id
-        WHERE o.vn_id = c.vn_id
-          AND COALESCE(ao.aspect_key, rc.aspect_key) IS NOT NULL
-          AND COALESCE(ao.aspect_key, rc.aspect_key) <> 'unknown'
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM release_resolution_cache rc
-        WHERE rc.vn_id = c.vn_id AND rc.aspect_key <> 'unknown'
-      )
-    `);
+        AND NOT EXISTS (
+          SELECT 1 FROM release_resolution_cache rc
+          WHERE rc.vn_id = c.vn_id AND rc.aspect_key <> 'unknown'
+        )
+      )`);
+    }
+    where.push(`(${branches.join(' OR ')})`);
   }
   if (vnIds && vnIds.length > 0) {
     const placeholders = vnIds.map(() => '?').join(',');

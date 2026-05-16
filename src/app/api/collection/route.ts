@@ -45,13 +45,27 @@ export async function GET(req: NextRequest) {
   const sortRaw = sp.get('sort') ?? 'updated_at';
   const orderRaw = sp.get('order') ?? 'desc';
   const dumpedRaw = sp.get('dumped');
-  const aspectRaw = sp.get('aspect');
+  // ?aspect supports comma-separated multi-select (e.g.
+  // ?aspect=4:3,16:9). Repeated params (sp.getAll) are also
+  // honoured so URL builders can choose either convention.
+  const aspectRawList = sp
+    .getAll('aspect')
+    .flatMap((v) => v.split(','))
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  // Legacy single-value form (back-compat with bookmarks).
+  const aspectRaw = aspectRawList[0] ?? null;
+  const aspectValid = aspectRawList.filter(isAspectKey);
+  const aspectInvalid = aspectRawList.filter((v) => !isAspectKey(v));
 
   if (status && !isValidStatus(status)) {
     return NextResponse.json({ error: 'invalid status' }, { status: 400 });
   }
-  if (aspectRaw && !isAspectKey(aspectRaw)) {
-    return NextResponse.json({ error: 'invalid aspect' }, { status: 400 });
+  if (aspectInvalid.length > 0) {
+    return NextResponse.json(
+      { error: `invalid aspect: ${aspectInvalid.join(', ')}` },
+      { status: 400 },
+    );
   }
   const sort = (VALID_SORTS as string[]).includes(sortRaw)
     ? (sortRaw as ListOptions['sort'])
@@ -73,7 +87,7 @@ export async function GET(req: NextRequest) {
   // filtering/grouping by aspect (cheap full-collection scan + a
   // small INSERT batch on first run). For non-aspect requests we
   // skip the work entirely.
-  const requestsAspect = isAspectKey(aspectRaw) || sp.get('group') === 'aspect';
+  const requestsAspect = aspectValid.length > 0 || sp.get('group') === 'aspect';
   if (requestsAspect) {
     const allVnIds = (
       db.prepare('SELECT vn_id FROM collection').all() as Array<{ vn_id: string }>
@@ -105,7 +119,11 @@ export async function GET(req: NextRequest) {
     yearMin: yearMin && Number.isFinite(yearMin) ? yearMin : undefined,
     yearMax: yearMax && Number.isFinite(yearMax) ? yearMax : undefined,
     dumped: dumpedRaw === '1' ? true : dumpedRaw === '0' ? false : undefined,
-    aspect: isAspectKey(aspectRaw) ? aspectRaw : undefined,
+    // Multi-select aspect filter — `aspect` stays for back-compat
+    // (first item from the list), `aspects` carries the full set
+    // when the user picks more than one.
+    aspect: aspectValid.length === 1 ? aspectValid[0] : undefined,
+    aspects: aspectValid.length > 1 ? aspectValid : undefined,
     sort,
     order,
   });

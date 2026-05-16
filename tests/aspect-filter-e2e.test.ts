@@ -217,6 +217,36 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
     expect(listCollection({ aspect: '16:9' }).map((i) => i.id)).not.toContain('v90009');
   });
 
+  it('multi-select aspect filter matches a VN by ANY of the selected aspects', () => {
+    seedVn('v90011');
+    seedVn('v90012');
+    seedVn('v90013');
+    addToCollection('v90011', {});
+    addToCollection('v90012', {});
+    addToCollection('v90013', {});
+    setVnAspectOverride({ vnId: 'v90011', aspectKey: '4:3' });
+    setVnAspectOverride({ vnId: 'v90012', aspectKey: '16:9' });
+    setVnAspectOverride({ vnId: 'v90013', aspectKey: '21:9' });
+    const out = listCollection({ aspects: ['4:3', '16:9'] });
+    const ids = out.map((i) => i.id);
+    expect(ids).toContain('v90011');
+    expect(ids).toContain('v90012');
+    expect(ids).not.toContain('v90013');
+  });
+
+  it('multi-select including unknown matches both aspect-pinned and unknown VNs', () => {
+    seedVn('v90014');
+    seedVn('v90015');
+    addToCollection('v90014', {});
+    addToCollection('v90015', {});
+    setVnAspectOverride({ vnId: 'v90014', aspectKey: '16:9' });
+    // v90015 has no signal → unknown.
+    const out = listCollection({ aspects: ['16:9', 'unknown'] });
+    const ids = out.map((i) => i.id);
+    expect(ids).toContain('v90014');
+    expect(ids).toContain('v90015');
+  });
+
   it('materializeReleaseAspectsForVn short-circuits when the VN already has a non-unknown rc row', () => {
     seedVn('v90010');
     addToCollection('v90010', {});
