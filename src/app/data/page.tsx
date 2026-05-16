@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Activity, BookMarked, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, HardDriveDownload, KeyRound, QrCode, Settings2, Sparkles } from 'lucide-react';
+import { Activity, BookMarked, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, HardDriveDownload, KeyRound, QrCode, Sparkles } from 'lucide-react';
 import { getDbStatus } from '@/lib/db';
 import { getAuthInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
@@ -9,6 +9,7 @@ import { DataMaintenance } from '@/components/DataMaintenance';
 import { DropImport } from '@/components/DropImport';
 import { RunTourButton } from '@/components/RunTourButton';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
+import { OpenSettingsButton } from '@/components/OpenSettingsButton';
 import { RecentActivityStrip } from '@/components/RecentActivityStrip';
 import { SelectiveFullDownload } from '@/components/SelectiveFullDownload';
 
@@ -166,17 +167,7 @@ export default async function DataPage() {
             should be operational (status / actions), not a
             second home for settings.
           */}
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('vn:open-settings', { detail: { tab: 'integrations' } }));
-              }
-            }}
-            className="btn"
-          >
-            <Settings2 className="h-4 w-4" aria-hidden /> {t.dataMgmt.integrationsLink}
-          </button>
+          <OpenSettingsButton tab="integrations" label={t.dataMgmt.integrationsLink} />
         </div>
       </section>
 
@@ -189,17 +180,7 @@ export default async function DataPage() {
           <Link href="/egs" className="btn">
             <Sparkles className="h-4 w-4" aria-hidden /> {t.egs.open}
           </Link>
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('vn:open-settings', { detail: { tab: 'integrations' } }));
-              }
-            }}
-            className="btn"
-          >
-            <Settings2 className="h-4 w-4" aria-hidden /> {t.dataMgmt.integrationsLink}
-          </button>
+          <OpenSettingsButton tab="integrations" label={t.dataMgmt.integrationsLink} />
         </div>
         {/* EgsSyncBlock is kept here because it's an ACTION (pull
             EGS user reviews, apply playtime), not a setting.
