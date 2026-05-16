@@ -68,6 +68,9 @@ export const dictionaries = {
       eroExcluded: 'Tags érotiques masqués',
       eroIncludedHint: 'Clique pour exclure les tags érotiques des suggestions.',
       eroExcludedHint: 'Clique pour inclure les tags érotiques (nukige etc.).',
+      seedsLabel: 'Tags de référence',
+      seedsHint: 'Auto-déduits de tes VN les mieux notés. Ajoute ou retire un tag pour modeler les suggestions.',
+      seedsHintCustom: 'Tags choisis manuellement — les suggestions sortent uniquement de ces tags. Tout effacer revient à l\'auto-déduction.',
     },
     topRanked: {
       title: 'Top-ranked',
@@ -231,6 +234,12 @@ export const dictionaries = {
       label: 'Densité',
       denser: 'Plus dense',
       larger: 'Plus grand',
+    },
+    tagPicker: {
+      empty: 'Aucun tag sélectionné — les suggestions partiront des tags les plus présents dans tes VN bien notés.',
+      searchPlaceholder: 'Chercher un tag VNDB…',
+      remove: 'Retirer {name}',
+      clearAll: 'Tout effacer',
     },
     errorBoundary: {
       title: 'Quelque chose a planté.',
@@ -1123,6 +1132,7 @@ export const dictionaries = {
       moreLink: 'Plus comme ce VN',
       empty: 'Aucun VN similaire trouvé. Essaie une autre graine.',
       partialFailure: 'Quelques recherches ont échoué ({tags}). Les résultats sont peut-être incomplets.',
+      seedsAutoHint: 'Auto-déduits des tags les plus pertinents du VN. Ajoute ou retire un tag pour modeler les similaires.',
     },
     pomodoro: {
       label: 'Session',
@@ -1930,6 +1940,9 @@ export const dictionaries = {
       eroExcluded: 'Ero tags hidden',
       eroIncludedHint: 'Click to exclude ero tags from the suggestions.',
       eroExcludedHint: 'Click to include ero tags (nukige etc.).',
+      seedsLabel: 'Seed tags',
+      seedsHint: 'Auto-derived from your highest-rated VNs. Add or remove a tag to steer the suggestions.',
+      seedsHintCustom: 'Hand-picked seeds — suggestions come from these tags only. Clear all to fall back to auto-derivation.',
     },
     topRanked: {
       title: 'Top-ranked',
@@ -2093,6 +2106,12 @@ export const dictionaries = {
       label: 'Density',
       denser: 'Denser',
       larger: 'Larger',
+    },
+    tagPicker: {
+      empty: 'No tags picked — seeds will be derived from the most-used tags in your highest-rated VNs.',
+      searchPlaceholder: 'Search a VNDB tag…',
+      remove: 'Remove {name}',
+      clearAll: 'Clear all',
     },
     errorBoundary: {
       title: 'Something broke.',
@@ -2985,6 +3004,7 @@ export const dictionaries = {
       moreLink: 'More like this',
       empty: 'No similar VNs found. Try another seed.',
       partialFailure: 'Some searches failed ({tags}). Results may be incomplete.',
+      seedsAutoHint: 'Auto-derived from the seed VN\'s top tags. Add or remove a tag to steer the matches.',
     },
     pomodoro: {
       label: 'Session',
@@ -3792,6 +3812,9 @@ export const dictionaries = {
       eroExcluded: 'エロタグを除外中',
       eroIncludedHint: 'クリックするとエロタグを除外します。',
       eroExcludedHint: 'クリックするとエロタグも含めます（ヌキゲ等）。',
+      seedsLabel: 'シードタグ',
+      seedsHint: '評価が高い VN から自動抽出。タグを追加・削除して候補を調整できます。',
+      seedsHintCustom: '手動選択中 — 候補はこれらのタグのみから生成されます。すべてクリアすると自動抽出に戻ります。',
     },
     topRanked: {
       title: 'トップランク',
@@ -3955,6 +3978,12 @@ export const dictionaries = {
       label: '密度',
       denser: '高密度',
       larger: '大きく',
+    },
+    tagPicker: {
+      empty: 'タグ未選択 — 評価が高い VN のタグから自動的にシードを生成します。',
+      searchPlaceholder: 'VNDB タグを検索…',
+      remove: '{name} を削除',
+      clearAll: 'すべてクリア',
     },
     errorBoundary: {
       title: '問題が発生しました。',
@@ -4847,6 +4876,7 @@ export const dictionaries = {
       moreLink: 'もっと見る',
       empty: '類似する VN が見つかりませんでした。別のシードを試してください。',
       partialFailure: '一部の検索に失敗しました（{tags}）。結果は不完全な可能性があります。',
+      seedsAutoHint: '元 VN の主要タグから自動抽出。タグを追加・削除して類似度を調整できます。',
     },
     pomodoro: {
       label: 'セッション',

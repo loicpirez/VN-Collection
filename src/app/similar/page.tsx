@@ -6,6 +6,7 @@ import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { SeedTagControls } from '@/components/SeedTagControls';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,9 +40,9 @@ interface SimilarHit {
 export default async function SimilarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vn?: string }>;
+  searchParams: Promise<{ vn?: string; tags?: string }>;
 }) {
-  const { vn: seedId } = await searchParams;
+  const { vn: seedId, tags: rawTags } = await searchParams;
   const t = await getDict();
   if (!seedId || !/^(v\d+|egs_\d+)$/i.test(seedId)) {
     return (
@@ -69,10 +70,28 @@ export default async function SimilarPage({
     );
   }
 
-  const seedTags = (seed.tags ?? [])
+  // URL-pinned seed override (?tags=g123,g456). Bypasses the auto
+  // top-6 derivation from the seed VN's own tag list. Bad ids are
+  // silently dropped so a tampered URL doesn't blow up the page.
+  const customTagIds = (rawTags ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => /^g\d+$/.test(s));
+  const usingCustomSeeds = customTagIds.length > 0;
+
+  const autoSeedTags = (seed.tags ?? [])
     .filter((tg) => tg.spoiler === 0 && tg.category !== 'ero')
     .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
     .slice(0, 6);
+
+  // When custom seeds are pinned, look up their names from the seed
+  // VN's tag list when possible (so chips render the real name);
+  // otherwise fall back to the id itself.
+  const allSeedNames = new Map<string, { id: string; name: string; rating?: number }>();
+  for (const tg of seed.tags ?? []) allSeedNames.set(tg.id, { id: tg.id, name: tg.name, rating: tg.rating ?? undefined });
+  const seedTags = usingCustomSeeds
+    ? customTagIds.map((id) => allSeedNames.get(id) ?? { id, name: id })
+    : autoSeedTags;
 
   // Parallelize the per-seed-tag VNDB queries. Sequential awaits
   // stacked up to 6 × VNDB RTT before the page could paint; running
@@ -138,6 +157,15 @@ export default async function SimilarPage({
             ))}
           </div>
         )}
+        <div className="mt-3">
+          <SeedTagControls
+            initial={seedTags.map((tag) => ({ id: tag.id, name: tag.name }))}
+            paramName="tags"
+            preserveParams={['vn']}
+            label={t.recommend.seedsLabel}
+            hint={usingCustomSeeds ? t.recommend.seedsHintCustom : t.similar.seedsAutoHint}
+          />
+        </div>
       </header>
 
       {tagFailures.length > 0 && (

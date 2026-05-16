@@ -5,6 +5,7 @@ import { recommendVns } from '@/lib/recommend';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { SeedTagControls } from '@/components/SeedTagControls';
 import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -17,17 +18,30 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RecommendationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ero?: string }>;
+  searchParams: Promise<{ ero?: string; tags?: string }>;
 }) {
-  const { ero } = await searchParams;
+  const { ero, tags: rawTags } = await searchParams;
   const includeEro = ero === '1';
   const t = await getDict();
+
+  // ?tags=g123,g456 pins the seed list; bypasses the auto-derivation.
+  // Bad entries (anything that doesn't match `g\d+`) are silently
+  // dropped so a tampered URL can't blow up the recommender.
+  const customTagIds = (rawTags ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => /^g\d+$/i.test(s))
+    .map((s) => s.toLowerCase());
+  const usingCustomSeeds = customTagIds.length > 0;
 
   let seeds: Awaited<ReturnType<typeof recommendVns>>['seeds'] = [];
   let results: Awaited<ReturnType<typeof recommendVns>>['results'] = [];
   let error: string | null = null;
   try {
-    const r = await recommendVns({ includeEro });
+    const r = await recommendVns({
+      includeEro,
+      customTagIds: usingCustomSeeds ? customTagIds : undefined,
+    });
     seeds = r.seeds;
     results = r.results;
   } catch (e) {
@@ -119,6 +133,19 @@ export default async function RecommendationsPage({
             {includeEro ? t.recommend.eroIncluded : t.recommend.eroExcluded}
           </Link>
           <CardDensitySlider />
+        </div>
+        <div className="mt-3">
+          <SeedTagControls
+            initial={seeds.map((s) => ({ id: s.tagId, name: s.name, weight: s.weight }))}
+            paramName="tags"
+            preserveParams={['ero']}
+            label={t.recommend.seedsLabel}
+            hint={
+              usingCustomSeeds
+                ? t.recommend.seedsHintCustom
+                : t.recommend.seedsHint
+            }
+          />
         </div>
       </header>
 

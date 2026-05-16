@@ -42,10 +42,45 @@ export interface RecommendOptions {
   tagLimit?: number;
   resultLimit?: number;
   includeEro?: boolean;
+  /**
+   * When non-empty, BYPASS the auto-derivation from top-rated VNs and use
+   * exactly these tag ids as seeds (uniform weight). Lets the user pin a
+   * custom seed list from the URL (?tags=g123,g456) without losing the
+   * "Why these?" panel — it still shows the chosen tags as the seeds.
+   */
+  customTagIds?: string[];
 }
 
 export async function recommendVns(opts: RecommendOptions = {}): Promise<{ seeds: RecommendationSeed[]; results: Recommendation[] }> {
-  const { seedLimit = 10, tagLimit = 6, resultLimit = 24, includeEro = false } = opts;
+  const { seedLimit = 10, tagLimit = 6, resultLimit = 24, includeEro = false, customTagIds } = opts;
+
+  // Custom seeds: bypass the auto-derivation and use exactly these ids.
+  // Display names come from the in-process tag cache; falls back to the
+  // raw id if VNDB hasn't been fetched yet (rare; the picker only emits
+  // ids it already saw).
+  if (customTagIds && customTagIds.length > 0) {
+    const rows = db
+      .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE '% /tag|%' LIMIT 20`)
+      .all() as Array<{ body: string }>;
+    const nameLookup = new Map<string, string>();
+    for (const row of rows) {
+      try {
+        const parsed = JSON.parse(row.body) as { results?: Array<{ id: string; name: string }> };
+        for (const tag of parsed.results ?? []) {
+          if (!nameLookup.has(tag.id) && tag.name) nameLookup.set(tag.id, tag.name);
+        }
+      } catch {
+        // ignore malformed cache entries
+      }
+    }
+    const customSeeds: RecommendationSeed[] = customTagIds.map((id) => ({
+      tagId: id,
+      name: nameLookup.get(id) ?? id,
+      weight: 1,
+    }));
+    const customResults = await runRecommendForSeeds(customSeeds, resultLimit);
+    return { seeds: customSeeds, results: customResults };
+  }
 
   // Compute weighted seed tags from the user's top-rated collection entries.
   const rows = db
@@ -83,6 +118,21 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<{ seeds
     .slice(0, tagLimit);
   if (seeds.length === 0) return { seeds: [], results: [] };
 
+  const results = await runRecommendForSeeds(seeds, resultLimit);
+  return { seeds, results };
+}
+
+/**
+ * Given a seed-tag set, fan out to VNDB once per seed (parallel,
+ * throttled), aggregate the hits weighted by each seed, and return the
+ * top `resultLimit`. Used by both the auto-derived path and the
+ * user-custom override path.
+ */
+async function runRecommendForSeeds(
+  seeds: RecommendationSeed[],
+  resultLimit: number,
+): Promise<Recommendation[]> {
+  if (seeds.length === 0) return [];
   // Exclude VNs already in collection or wishlist (the existing wishlist
   // helper would re-resolve VNDB; we keep this offline and join client-side).
   const owned = new Set(
@@ -92,12 +142,6 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<{ seeds
   // One filter per seed tag with votecount minimum + Bayesian rating sort.
   // VNDB's "tag" filter matches parent tags too, which gives us cluster recs
   // automatically without re-implementing the DAG client-side.
-  //
-  // Sequential await over `for (const seed of seeds)` used to make the
-  // page wait for `seeds.length` round-trips back-to-back (~6 × VNDB
-  // RTT). Parallelize via Promise.all — VNDB's per-second throttle
-  // will serialize them anyway, but on the wire we save the latency
-  // of stacking the JS awaits.
   const aggregate = new Map<string, Recommendation>();
   const settled = await Promise.all(
     seeds.map((seed) =>
@@ -110,8 +154,6 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<{ seeds
         .then((hits) => ({ seed, hits }))
         .catch((err) => {
           // A single seed failure shouldn't disqualify the whole page.
-          // Log + return [] so the user still sees results from the
-          // healthy seeds.
           console.error(`[recommend] seed ${seed.tagId} failed:`, (err as Error).message);
           return { seed, hits: [] as Awaited<ReturnType<typeof vndbAdvancedSearchRaw>> };
         }),
@@ -144,8 +186,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<{ seeds
     }
   }
 
-  const results = Array.from(aggregate.values())
+  return Array.from(aggregate.values())
     .sort((a, b) => b.score - a.score || (b.rating ?? 0) - (a.rating ?? 0))
     .slice(0, resultLimit);
-  return { seeds, results };
 }
