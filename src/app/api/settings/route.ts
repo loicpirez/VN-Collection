@@ -5,6 +5,10 @@ import {
   parseHomeSectionLayoutV1,
   validateHomeSectionLayoutV1,
 } from '@/lib/home-section-layout';
+import {
+  parseVnDetailLayoutV1,
+  validateVnDetailLayoutV1,
+} from '@/lib/vn-detail-layout';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -16,6 +20,7 @@ const SAFE_KEYS = new Set([
   'default_order',
   'default_group',
   'home_section_layout_v1',
+  'vn_detail_section_layout_v1',
   'vndb_writeback',
   'vndb_backup_url',
   'vndb_backup_enabled',
@@ -74,6 +79,7 @@ export async function GET(req: Request) {
     default_order: getAppSetting('default_order') ?? 'desc',
     default_group: getAppSetting('default_group') ?? 'none',
     home_section_layout_v1: parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1')),
+    vn_detail_section_layout_v1: parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1')),
     vndb_writeback: getAppSetting('vndb_writeback') === '1',
     vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
     vndb_backup_url: getAppSetting('vndb_backup_url') ?? DEFAULT_VNDB_BACKUP_URL,
@@ -155,6 +161,23 @@ export async function PATCH(req: NextRequest) {
     } else {
       return NextResponse.json(
         { error: 'home_section_layout_v1 must be an object or null' },
+        { status: 400 },
+      );
+    }
+  }
+  if ('vn_detail_section_layout_v1' in body) {
+    const v = body.vn_detail_section_layout_v1;
+    if (v == null) {
+      // Reset-to-default: drop the row so the parser falls back.
+      setAppSetting('vn_detail_section_layout_v1', null);
+    } else if (typeof v === 'object' && !Array.isArray(v)) {
+      // Round-trip through the validator so unknown ids / bogus values
+      // never persist to app_setting.
+      const normalized = validateVnDetailLayoutV1(v);
+      setAppSetting('vn_detail_section_layout_v1', JSON.stringify(normalized));
+    } else {
+      return NextResponse.json(
+        { error: 'vn_detail_section_layout_v1 must be an object or null' },
         { status: 400 },
       );
     }
