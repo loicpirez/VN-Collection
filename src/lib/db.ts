@@ -2658,32 +2658,46 @@ export function listCollection({
   }
   if (aspect && aspect !== 'unknown') {
     // Aspect match priority (highest to lowest):
-    //   1. VN-level manual override (vn_aspect_override)
+    //   1. VN-level manual override (vn_aspect_override) — EXCLUSIVE.
+    //      When this row exists, the lower-priority signals are
+    //      ignored. So a VN whose manual override says 4:3 will NOT
+    //      match ?aspect=16:9 even if its release cache or
+    //      screenshots fallback derived 16:9.
     //   2. Owned-edition per-release override (owned_release_aspect_override)
     //   3. Cached release resolution joined via owned_release (user owns it)
     //   4. Cached release resolution bound directly to the VN
     //      (release_resolution_cache.vn_id — populated whenever the
-    //      releases endpoint or the /release page was visited)
-    // Each branch is short-circuited by COALESCE, so the highest-
-    // priority hit decides the match.
+    //      releases endpoint, /release/[id], or the screenshots-
+    //      materializer wrote a synthetic 'screenshot:<vnId>' row)
+    // The OR-chain at level 2-4 is only consulted when level 1
+    // doesn't have a row, enforced by `NOT EXISTS (vn_aspect_override
+    // WHERE …)` on the lower branches.
     where.push(`(
       EXISTS (
         SELECT 1 FROM vn_aspect_override vo
         WHERE vo.vn_id = c.vn_id AND vo.aspect_key = ?
       )
-      OR EXISTS (
-        SELECT 1
-        FROM owned_release o
-        LEFT JOIN owned_release_aspect_override ao
-          ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
-        LEFT JOIN release_resolution_cache rc
-          ON rc.release_id = o.release_id
-        WHERE o.vn_id = c.vn_id
-          AND COALESCE(ao.aspect_key, rc.aspect_key) = ?
-      )
-      OR EXISTS (
-        SELECT 1 FROM release_resolution_cache rc
-        WHERE rc.vn_id = c.vn_id AND rc.aspect_key = ?
+      OR (
+        NOT EXISTS (
+          SELECT 1 FROM vn_aspect_override vo
+          WHERE vo.vn_id = c.vn_id AND vo.aspect_key <> 'unknown'
+        )
+        AND (
+          EXISTS (
+            SELECT 1
+            FROM owned_release o
+            LEFT JOIN owned_release_aspect_override ao
+              ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+            LEFT JOIN release_resolution_cache rc
+              ON rc.release_id = o.release_id
+            WHERE o.vn_id = c.vn_id
+              AND COALESCE(ao.aspect_key, rc.aspect_key) = ?
+          )
+          OR EXISTS (
+            SELECT 1 FROM release_resolution_cache rc
+            WHERE rc.vn_id = c.vn_id AND rc.aspect_key = ?
+          )
+        )
       )
     )`);
     params.push(aspect, aspect, aspect);
@@ -2769,7 +2783,22 @@ function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {
   const map = new Map<string, Set<AspectKey>>();
   if (vnIds.length === 0) return new Map();
   const placeholders = vnIds.map(() => '?').join(',');
-  const rows = db
+  // Source 1: VN-level manual override (highest priority — replaces
+  // every other signal for that VN when present).
+  const manualRows = db
+    .prepare(
+      `SELECT vn_id, aspect_key FROM vn_aspect_override WHERE vn_id IN (${placeholders})`,
+    )
+    .all(...vnIds) as Array<{ vn_id: string; aspect_key: string | null }>;
+  const manualByVn = new Map<string, AspectKey>();
+  for (const r of manualRows) {
+    if (isAspectKey(r.aspect_key) && r.aspect_key !== 'unknown') {
+      manualByVn.set(r.vn_id, r.aspect_key);
+    }
+  }
+  // Source 2: owned_release joined with per-edition override (highest
+  // for non-manual VNs) and the resolution cache.
+  const ownedRows = db
     .prepare(`
       SELECT o.vn_id, COALESCE(ao.aspect_key, rc.aspect_key) AS aspect_key
       FROM owned_release o
@@ -2780,16 +2809,137 @@ function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {
       WHERE o.vn_id IN (${placeholders})
     `)
     .all(...vnIds) as Array<{ vn_id: string; aspect_key: string | null }>;
-  for (const row of rows) {
-    const key = isAspectKey(row.aspect_key) && row.aspect_key !== 'unknown'
-      ? row.aspect_key
-      : null;
-    if (!key) continue;
-    const set = map.get(row.vn_id) ?? new Set<AspectKey>();
+  // Source 3: release_resolution_cache rows bound directly to the VN
+  // (populated lazily from /vn/[id] and /release/[id] visits and now
+  // also from `materializeAspectForCollectionVns` below).
+  const cacheVnRows = db
+    .prepare(
+      `SELECT vn_id, aspect_key FROM release_resolution_cache
+       WHERE vn_id IN (${placeholders})`,
+    )
+    .all(...vnIds) as Array<{ vn_id: string; aspect_key: string | null }>;
+
+  function addKey(vnId: string, raw: string | null): void {
+    const key = isAspectKey(raw) && raw !== 'unknown' ? raw : null;
+    if (!key) return;
+    const set = map.get(vnId) ?? new Set<AspectKey>();
     set.add(key);
-    map.set(row.vn_id, set);
+    map.set(vnId, set);
+  }
+
+  // Manual VN override wins outright: when present, it's the ONLY
+  // aspect key we surface for that VN so chip / group / filter
+  // semantics agree.
+  for (const [vnId, key] of manualByVn) {
+    map.set(vnId, new Set([key]));
+  }
+  for (const r of ownedRows) {
+    if (manualByVn.has(r.vn_id)) continue;
+    addKey(r.vn_id, r.aspect_key);
+  }
+  for (const r of cacheVnRows) {
+    if (manualByVn.has(r.vn_id)) continue;
+    addKey(r.vn_id, r.aspect_key);
   }
   return new Map(Array.from(map.entries()).map(([vnId, keys]) => [vnId, Array.from(keys).sort()]));
+}
+
+/**
+ * Materialize the screenshots-fallback aspect into
+ * `release_resolution_cache` for every collection VN that lacks any
+ * other aspect signal. Writes a synthetic cache row keyed on
+ * `release_id = 'screenshot:<vnId>'` so:
+ *   - The library aspect filter's existing EXISTS branch 3
+ *     (rc.vn_id = c.vn_id) sees it.
+ *   - `listAspectKeysForVns` Source 3 sees it.
+ *   - Repeat calls short-circuit on `fetched_at` so we don't
+ *     re-derive on every page load.
+ *
+ * Called from `/api/collection` so the filter and the aspect-group
+ * grouping work even for VNs the user has never visited a release
+ * page for. The synthetic row never conflicts with a real release
+ * id (real ids look like `r\d+` or `synthetic:vN`).
+ */
+export function materializeAspectForCollectionVns(vnIds: string[]): void {
+  if (vnIds.length === 0) return;
+  // Only materialize VNs that don't already have an aspect signal —
+  // either a manual override, an owned-release cached aspect, or a
+  // vn-bound cache row with a non-unknown value.
+  const placeholders = vnIds.map(() => '?').join(',');
+  const hasSignal = new Set(
+    (
+      db
+        .prepare(
+          `SELECT v.id AS vn_id FROM vn v
+           WHERE v.id IN (${placeholders}) AND (
+             EXISTS (SELECT 1 FROM vn_aspect_override vo
+                     WHERE vo.vn_id = v.id AND vo.aspect_key <> 'unknown')
+             OR EXISTS (
+               SELECT 1 FROM owned_release o
+               LEFT JOIN owned_release_aspect_override ao
+                 ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+               LEFT JOIN release_resolution_cache rc
+                 ON rc.release_id = o.release_id
+               WHERE o.vn_id = v.id
+                 AND COALESCE(ao.aspect_key, rc.aspect_key) IS NOT NULL
+                 AND COALESCE(ao.aspect_key, rc.aspect_key) <> 'unknown'
+             )
+             OR EXISTS (SELECT 1 FROM release_resolution_cache rc
+                        WHERE rc.vn_id = v.id AND rc.aspect_key <> 'unknown')
+           )`,
+        )
+        .all(...vnIds) as Array<{ vn_id: string }>
+    ).map((r) => r.vn_id),
+  );
+  const missing = vnIds.filter((id) => !hasSignal.has(id));
+  if (missing.length === 0) return;
+  // Pull screenshots JSON for the missing VNs in a single query.
+  const missingPlaceholders = missing.map(() => '?').join(',');
+  const screenshotRows = db
+    .prepare(
+      `SELECT id, screenshots FROM vn WHERE id IN (${missingPlaceholders}) AND screenshots IS NOT NULL`,
+    )
+    .all(...missing) as Array<{ id: string; screenshots: string }>;
+  const now = Date.now();
+  const upsert = db.prepare(`
+    INSERT INTO release_resolution_cache
+      (release_id, vn_id, width, height, raw_resolution, aspect_key, fetched_at)
+    VALUES (?, ?, NULL, NULL, NULL, ?, ?)
+    ON CONFLICT(release_id) DO UPDATE SET
+      vn_id = excluded.vn_id,
+      aspect_key = excluded.aspect_key,
+      fetched_at = excluded.fetched_at
+  `);
+  const tx = db.transaction(() => {
+    for (const row of screenshotRows) {
+      let shots: Array<{ dims?: [number, number] }> = [];
+      try {
+        shots = JSON.parse(row.screenshots) as Array<{ dims?: [number, number] }>;
+      } catch {
+        continue;
+      }
+      const tally = new Map<AspectKey, number>();
+      for (const s of shots) {
+        if (!Array.isArray(s.dims)) continue;
+        const [w, h] = s.dims;
+        if (typeof w !== 'number' || typeof h !== 'number' || w <= 0 || h <= 0) continue;
+        const key = aspectKeyForResolution(w, h);
+        if (key === 'unknown') continue;
+        tally.set(key, (tally.get(key) ?? 0) + 1);
+      }
+      let best: AspectKey | null = null;
+      let bestN = 0;
+      for (const [key, n] of tally) {
+        if (n > bestN) {
+          best = key;
+          bestN = n;
+        }
+      }
+      if (!best) continue;
+      upsert.run(`screenshot:${row.id}`, row.id, best, now);
+    }
+  });
+  tx();
 }
 
 export function getCollectionItem(vnId: string): CollectionItem | null {

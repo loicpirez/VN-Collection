@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { countListMembershipsByVn, getStats, isValidStatus, listCollection, type ListOptions } from '@/lib/db';
+import {
+  countListMembershipsByVn,
+  db,
+  getStats,
+  isValidStatus,
+  listCollection,
+  materializeAspectForCollectionVns,
+  type ListOptions,
+} from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
 
 export const dynamic = 'force-dynamic';
@@ -52,6 +60,25 @@ export async function GET(req: NextRequest) {
 
   const yearMin = yearMinRaw ? Number(yearMinRaw) : undefined;
   const yearMax = yearMaxRaw ? Number(yearMaxRaw) : undefined;
+
+  // Aspect-ratio filtering/grouping needs every collection VN to
+  // carry SOME aspect signal — the SQL filter EXISTS chain in
+  // listCollection cannot reach into vn.screenshots JSON. Materialize
+  // the screenshots-fallback aspect into release_resolution_cache as
+  // synthetic rows so the filter / group / card-chip surfaces agree.
+  // This is a no-op for VNs that already have a manual override / an
+  // owned-release cached resolution / a vn-bound rc row. Runs once
+  // per /api/collection call only when the user is actively
+  // filtering/grouping by aspect (cheap full-collection scan + a
+  // small INSERT batch on first run). For non-aspect requests we
+  // skip the work entirely.
+  const requestsAspect = isAspectKey(aspectRaw) || sp.get('group') === 'aspect';
+  if (requestsAspect) {
+    const allVnIds = (
+      db.prepare('SELECT vn_id FROM collection').all() as Array<{ vn_id: string }>
+    ).map((r) => r.vn_id);
+    materializeAspectForCollectionVns(allVnIds);
+  }
 
   const raw = listCollection({
     status: status as ListOptions['status'],
