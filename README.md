@@ -577,3 +577,15 @@ See [CLAUDE.md](CLAUDE.md) for the developer / agent guide
 Personal use. Data fetched from VNDB is subject to the
 [VNDB Data License](https://vndb.org/d17). ErogameScape data is
 public; cite the project if you redistribute.
+
+---
+
+## Data, media and compliance
+
+VN Collection is a self-hosted personal library manager. It does not include, distribute, or host visual novel game files, patches, cracks, or bundled media assets.
+
+Metadata is fetched from public sources such as VNDB and ErogameScape for local personal use. Users are responsible for respecting each source's terms, licenses, and rate limits.
+
+Downloaded covers, screenshots, and release artwork are stored only in the user's local instance and are not included in this repository, npm package, or future releases.
+
+Adult/R18 metadata may be present depending on the user's own collection and enabled sources. The app provides content controls such as hiding all images, blurring R18 imagery, hiding sexual images, and NSFW thresholds.
