@@ -249,7 +249,20 @@ function ReleasesSection({
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {month} · <span className="opacity-70">{rels.length}</span>
           </h2>
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(max(280px, var(--card-density-px, 280px)), 1fr))' }}>
+          {/*
+            Density-responsive grid: column min is the slider value
+            (with min(100%, …) so mobile doesn't overflow). The
+            inner cover scales via clamp() so the cover grows
+            alongside the card width instead of staying at a fixed
+            h-24 w-16. The 280px floor in the grid template stays
+            because these cards carry text that needs room — but
+            the inner cover ignores that floor and follows the
+            slider directly.
+          */}
+          <ul
+            className="grid gap-3"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(280px, var(--card-density-px, 280px))), 1fr))' }}
+          >
             {rels.map((r) => (
               <li key={r.id}>
                 <div className="flex gap-3 rounded-lg border border-border bg-bg-elev/30 p-3">
@@ -261,7 +274,14 @@ function ReleasesSection({
                     const finalLocal = local?.local || local?.local_thumb || null;
                     const finalSexual = v.image?.sexual ?? local?.sexual ?? null;
                     return (
-                      <Link href={`/vn/${v.id}`} className="block h-24 w-16 shrink-0 overflow-hidden rounded">
+                      <Link
+                        href={`/vn/${v.id}`}
+                        className="block shrink-0 overflow-hidden rounded"
+                        style={{
+                          width: 'clamp(80px, calc(var(--card-density-px, 220px) * 0.34), 180px)',
+                          aspectRatio: '2 / 3',
+                        }}
+                      >
                         <SafeImage
                           src={finalRemote}
                           localSrc={finalLocal}

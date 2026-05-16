@@ -180,9 +180,13 @@ export default async function ShelfPage({
       </header>
 
       {items.length === 0 ? (
-        <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">
-          {t.shelf.empty}
-        </p>
+        <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+          <p className="text-sm font-semibold">{t.shelf.empty}</p>
+          <p className="mt-2 text-[12px] text-muted">{t.shelf.emptyHint}</p>
+          <Link href="/" className="mt-3 inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent hover:bg-accent/20">
+            <ArrowLeft className="h-3 w-3" aria-hidden /> {t.nav.library}
+          </Link>
+        </div>
       ) : (
         <>
           {/*

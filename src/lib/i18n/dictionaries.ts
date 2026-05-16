@@ -1370,7 +1370,8 @@ export const dictionaries = {
       viewItem: 'Par VN',
       viewLayout: 'Plan de l\'étagère',
       editionsForVn: '{n} éditions',
-      empty: 'Aucune édition possédée — ajoute-en depuis la fiche d\'un VN.',
+      empty: 'Aucune édition possédée.',
+      emptyHint: 'Cette vue affiche les éditions physiques/numériques que tu possèdes — pas tous les VN de ta bibliothèque. Ouvre la fiche d\'un VN et clique sur « Mes éditions » pour en ajouter (emplacement physique, condition, prix, état dumpé…).',
       dumped: 'dumpé',
     },
     charactersSearch: {
@@ -1401,7 +1402,7 @@ export const dictionaries = {
     },
     shelfSpatial: {
       empty: 'Aucune étagère configurée.',
-      emptyHint: 'Ouvre le plan d\'étagère pour créer ta première étagère et y placer tes éditions.',
+      emptyHint: 'L\'étagère affiche tes éditions possédées (« Mes éditions »), pas tous les VN de ta bibliothèque. Crée une étagère et place-y tes éditions depuis la fiche d\'un VN > Mes éditions.',
       openEditor: 'Ouvrir le plan d\'étagère',
       untitled: 'Étagère sans nom',
       filledCount: '{filled} / {total} emplacements occupés',
@@ -3295,7 +3296,8 @@ export const dictionaries = {
       viewItem: 'By VN',
       viewLayout: 'Layout',
       editionsForVn: '{n} editions',
-      empty: 'No owned editions yet — add some from a VN detail page.',
+      empty: 'No owned editions yet.',
+      emptyHint: 'This view shows physical/digital editions you own — NOT every VN in your collection. Open a VN page and click "My editions" to add one (physical location, condition, price, dumped flag…).',
       dumped: 'dumped',
     },
     charactersSearch: {
@@ -3326,7 +3328,7 @@ export const dictionaries = {
     },
     shelfSpatial: {
       empty: 'No shelves configured yet.',
-      emptyHint: 'Open the layout editor to create your first shelf and place editions on it.',
+      emptyHint: 'The shelf displays OWNED editions (the items you have physically), not every VN in your collection. Create a shelf and place editions on it from any VN page > My editions.',
       openEditor: 'Open shelf layout',
       untitled: 'Untitled shelf',
       filledCount: '{filled} / {total} cells filled',
@@ -5220,7 +5222,8 @@ export const dictionaries = {
       viewItem: 'VN 別',
       viewLayout: 'レイアウト',
       editionsForVn: '{n} エディション',
-      empty: '所有エディションがありません — VN 詳細ページから追加してください。',
+      empty: '所有エディションがありません。',
+      emptyHint: 'このビューはコレクション全体ではなく、所有している物理/デジタル版（My editions）を表示します。VN ページを開いて「My editions」から所有版を追加してください（保管場所、状態、価格、ダンプ済フラグなど）。',
       dumped: 'ダンプ済み',
     },
     charactersSearch: {
@@ -5251,7 +5254,7 @@ export const dictionaries = {
     },
     shelfSpatial: {
       empty: 'まだ本棚が設定されていません。',
-      emptyHint: 'レイアウトエディタを開いて最初の本棚を作成し、エディションを配置してみましょう。',
+      emptyHint: '本棚にはコレクション全体ではなく「所有版（My editions）」が表示されます。VN ページの「My editions」から所有版を追加し、レイアウトに配置してください。',
       openEditor: 'レイアウトを開く',
       untitled: '無題の本棚',
       filledCount: '{filled} / {total} スロット使用中',
