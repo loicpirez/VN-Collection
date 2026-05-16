@@ -1264,6 +1264,11 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
     vertical: 'below' | 'above';
     horizontal: 'left' | 'right';
   }>({ vertical: 'below', horizontal: 'left' });
+  // `placed` flips to true on the same tick the popover finishes its
+  // first measure-and-flip. Until then the panel is `visibility:
+  // hidden` so the user never sees the brief mis-position the
+  // measure-then-flip dance used to flash.
+  const [placed, setPlaced] = useState(false);
   const containerRef = useRef<HTMLLIElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1289,7 +1294,10 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
   // browser layout commits to screen on most desktops; on slower
   // mobile devices a brief flicker is acceptable.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setPlaced(false);
+      return;
+    }
     if (typeof window === 'undefined') return;
     const tile = containerRef.current;
     const popover = popoverRef.current;
@@ -1310,13 +1318,19 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
       const spaceRight = viewportW - tileRect.left;
       const horizontal: 'left' | 'right' = spaceRight < popWidth + 12 ? 'right' : 'left';
       setPlacement({ vertical, horizontal });
+      setPlaced(true);
     };
-    compute();
+    // Compute on the next frame so we get a real offsetHeight /
+    // offsetWidth after the popover has actually rendered to the DOM
+    // (running compute() synchronously here returns 0 for the
+    // dimensions, which led to the brief bottom-flash QA observed).
+    const raf = requestAnimationFrame(compute);
     // Recompute on scroll / resize so the panel doesn't end up clipped
     // after the page moves. Passive listeners — popover stays open.
     window.addEventListener('scroll', compute, { passive: true });
     window.addEventListener('resize', compute);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener('scroll', compute);
       window.removeEventListener('resize', compute);
     };
@@ -1388,9 +1402,12 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
           // there's no space below. Horizontal: `left-0` by default,
           // flipped to `right-0` when the popover would clip past the
           // right viewport edge.
-          className={`absolute z-30 w-max min-w-[160px] max-w-[260px] rounded-lg border border-border bg-bg-card p-2 text-[11px] shadow-card ${
+          // Visibility is gated on `placed`: hidden until the first
+          // measure-and-flip completes so the user never sees the
+          // brief wrong-placement frame.
+          className={`absolute z-30 w-max min-w-[200px] max-w-[280px] rounded-lg border border-border bg-bg-card p-2 text-[11px] shadow-card ${
             placement.vertical === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'
-          } ${placement.horizontal === 'right' ? 'right-0' : 'left-0'}`}
+          } ${placement.horizontal === 'right' ? 'right-0' : 'left-0'} ${placed ? 'visible opacity-100' : 'invisible opacity-0'}`}
         >
           <p className="line-clamp-2 text-xs font-bold">{entry.vn_title}</p>
           {entry.edition_label && (
@@ -1400,6 +1417,24 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
             <div>
               <span className="font-mono">{entry.release_id}</span>
             </div>
+            {entry.vn_released && (
+              <div>
+                {t.detail.released}:{' '}
+                <span className="text-white tabular-nums">{entry.vn_released}</span>
+              </div>
+            )}
+            {entry.vn_platforms.length > 0 && (
+              <div>
+                {t.detail.platforms}:{' '}
+                <span className="text-white">{entry.vn_platforms.join(' · ').toUpperCase()}</span>
+              </div>
+            )}
+            {entry.vn_languages.length > 0 && (
+              <div>
+                {t.detail.languages}:{' '}
+                <span className="text-white">{entry.vn_languages.join(' · ').toUpperCase()}</span>
+              </div>
+            )}
             {entry.condition && (
               <div>
                 {t.inventory.condition}:{' '}
@@ -1706,6 +1741,13 @@ function shelfDisplayToShelfEntry(slot: ShelfDisplaySlotEntry): ShelfEntry {
     vn_image_url: slot.vn_image_url,
     vn_local_image_thumb: slot.vn_local_image_thumb,
     vn_image_sexual: slot.vn_image_sexual,
+    // Slot/display entries don't carry the full VN metadata
+    // (they're optimized for grid rendering); the synthesizer that
+    // calls this helper only needs the cover and labels. Surface
+    // empty arrays so the popover gracefully omits the rows.
+    vn_platforms: [],
+    vn_languages: [],
+    vn_released: null,
   };
 }
 
@@ -1729,5 +1771,8 @@ function shelfSlotToShelfEntry(slot: ShelfSlotEntry): ShelfEntry {
     vn_image_url: slot.vn_image_url,
     vn_local_image_thumb: slot.vn_local_image_thumb,
     vn_image_sexual: slot.vn_image_sexual,
+    vn_platforms: [],
+    vn_languages: [],
+    vn_released: null,
   };
 }

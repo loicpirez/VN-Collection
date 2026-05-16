@@ -3479,6 +3479,25 @@ export interface ShelfEntry extends OwnedReleaseRow {
   vn_image_url: string | null;
   vn_local_image_thumb: string | null;
   vn_image_sexual: number | null;
+  /**
+   * Display-time metadata that the pool/info popover (and any
+   * other shelf-edition surface) needs alongside the VN cover.
+   * Pulled by JOIN; may be empty arrays / null when VNDB has
+   * not (yet) populated those fields on the cached VN row.
+   */
+  vn_platforms: string[];
+  vn_languages: string[];
+  vn_released: string | null;
+}
+
+function parseJsonArrayField(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -3502,7 +3521,10 @@ export function listAllOwnedReleases(): ShelfEntry[] {
              v.image_thumb AS vn_image_thumb,
              v.image_url AS vn_image_url,
              v.local_image_thumb AS vn_local_image_thumb,
-             v.image_sexual AS vn_image_sexual
+             v.image_sexual AS vn_image_sexual,
+             v.platforms AS vn_platforms,
+             v.languages AS vn_languages,
+             v.released AS vn_released
       FROM owned_release o
       JOIN vn v ON v.id = o.vn_id
       ORDER BY v.title COLLATE NOCASE ASC
@@ -3514,6 +3536,9 @@ export function listAllOwnedReleases(): ShelfEntry[] {
       vn_image_url: string | null;
       vn_local_image_thumb: string | null;
       vn_image_sexual: number | null;
+      vn_platforms: string | null;
+      vn_languages: string | null;
+      vn_released: string | null;
     }>;
   return rows.map((r) => ({
     ...mapOwnedReleaseRow(r),
@@ -3522,6 +3547,9 @@ export function listAllOwnedReleases(): ShelfEntry[] {
     vn_image_url: r.vn_image_url,
     vn_local_image_thumb: r.vn_local_image_thumb,
     vn_image_sexual: r.vn_image_sexual,
+    vn_platforms: parseJsonArrayField(r.vn_platforms),
+    vn_languages: parseJsonArrayField(r.vn_languages),
+    vn_released: r.vn_released,
   }));
 }
 
@@ -3849,7 +3877,10 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
              v.image_thumb       AS vn_image_thumb,
              v.image_url         AS vn_image_url,
              v.local_image_thumb AS vn_local_image_thumb,
-             v.image_sexual      AS vn_image_sexual
+             v.image_sexual      AS vn_image_sexual,
+             v.platforms         AS vn_platforms,
+             v.languages         AS vn_languages,
+             v.released          AS vn_released
       FROM owned_release o
       JOIN vn v ON v.id = o.vn_id
       WHERE NOT EXISTS (
@@ -3867,6 +3898,9 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
       vn_image_url: string | null;
       vn_local_image_thumb: string | null;
       vn_image_sexual: number | null;
+      vn_platforms: string | null;
+      vn_languages: string | null;
+      vn_released: string | null;
     }>;
   return rows.map((r) => ({
     ...mapOwnedReleaseRow(r),
@@ -3875,6 +3909,9 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
     vn_image_url: r.vn_image_url,
     vn_local_image_thumb: r.vn_local_image_thumb,
     vn_image_sexual: r.vn_image_sexual,
+    vn_platforms: parseJsonArrayField(r.vn_platforms),
+    vn_languages: parseJsonArrayField(r.vn_languages),
+    vn_released: r.vn_released,
   }));
 }
 
