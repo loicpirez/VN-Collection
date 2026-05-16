@@ -80,6 +80,7 @@ interface ServerSettings {
   vndb_fanout?: boolean;
   steam_api_key?: { hasKey: boolean; preview: string | null };
   steam_id?: string;
+  egs_username?: string;
 }
 
 const SETTINGS_TABS = [
@@ -536,8 +537,8 @@ export function SettingsButton() {
                 )}
 
                 {activeTab === 'integrations' && (
-                <div className="space-y-5">
-                  <div>
+                <div className="space-y-6">
+                  <section>
                     <h3 className="mb-1 text-sm font-bold">{t.settings.steamTitle}</h3>
                     <p className="mb-3 text-[11px] text-muted">{t.settings.steamDesc}</p>
                     <div className="space-y-3">
@@ -576,31 +577,64 @@ export function SettingsButton() {
                         <span className="text-[10px] text-muted">{t.settings.steamIdHint}</span>
                       </label>
                     </div>
-                  </div>
-                </div>
-                )}
+                  </section>
 
-                {activeTab === 'integrations' && (
-                <div className="mt-6 border-t border-border pt-5">
-                  <h3 className="mb-1 text-sm font-bold">{t.settings.randomQuoteTitle}</h3>
-                  <p className="mb-3 text-[11px] text-muted">{t.settings.randomQuoteDesc}</p>
-                  <div className="inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]">
-                    {(['all', 'mine'] as const).map((opt) => {
-                      const active = server?.random_quote_source === opt || (!server && opt === 'all');
-                      return (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() => saveServer({ random_quote_source: opt })}
-                          className={`rounded px-2 py-1 transition-colors ${
-                            active ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
-                          }`}
-                        >
-                          {opt === 'all' ? t.settings.randomQuoteAll : t.settings.randomQuoteMine}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <section className="border-t border-border pt-5">
+                    <h3 className="mb-1 text-sm font-bold">{t.settings.egsTitle}</h3>
+                    <p className="mb-3 text-[11px] text-muted">{t.settings.egsDesc}</p>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-muted">{t.settings.egsUsernameLabel}</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          autoComplete="username"
+                          inputMode="text"
+                          pattern="[A-Za-z0-9_]{1,32}"
+                          defaultValue={server?.egs_username ?? ''}
+                          placeholder={t.settings.egsUsernamePlaceholder}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v !== (server?.egs_username ?? '')) saveServer({ egs_username: v || null });
+                          }}
+                          aria-label={t.settings.egsUsernameLabel}
+                          className="input flex-1"
+                        />
+                        {server?.egs_username && (
+                          <button
+                            type="button"
+                            onClick={() => saveServer({ egs_username: null })}
+                            className="rounded-md border border-border px-2 py-1.5 text-[10px] text-muted hover:border-status-dropped hover:text-status-dropped"
+                            title={t.settings.egsUsernameReset}
+                          >
+                            {t.settings.egsUsernameReset}
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted">{t.settings.egsUsernameHint}</span>
+                    </label>
+                  </section>
+
+                  <section className="border-t border-border pt-5">
+                    <h3 className="mb-1 text-sm font-bold">{t.settings.randomQuoteTitle}</h3>
+                    <p className="mb-3 text-[11px] text-muted">{t.settings.randomQuoteDesc}</p>
+                    <div className="inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]">
+                      {(['all', 'mine'] as const).map((opt) => {
+                        const active = server?.random_quote_source === opt || (!server && opt === 'all');
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => saveServer({ random_quote_source: opt })}
+                            className={`rounded px-2 py-1 transition-colors ${
+                              active ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+                            }`}
+                          >
+                            {opt === 'all' ? t.settings.randomQuoteAll : t.settings.randomQuoteMine}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
                 </div>
                 )}
 
