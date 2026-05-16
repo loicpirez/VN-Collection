@@ -591,6 +591,53 @@ function open(): Database.Database {
   // Free text — pairs with `acquired_date` for full provenance.
   ensureColumn(db, 'owned_release', 'purchase_place', 'TEXT');
   ensureColumn(db, 'owned_release', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
+  // Per-edition platform. A single VNDB release row often covers
+  // multiple platforms (e.g. one row may list WIN / PS4 / PSV / SWI);
+  // the user owns ONE physical SKU. Without this column the shelf
+  // popover and pool-card face widen to the full set, which is
+  // misleading. Stored as the lowercase VNDB platform code (e.g.
+  // "win", "ps4") to match release_meta_cache.platforms entries
+  // exactly. NULL means "not specified yet" — surfaced in the UI
+  // for multi-platform releases until the user picks one. Auto-set
+  // on read when the underlying release has exactly one platform
+  // (see backfill helper below + Layer C inside
+  // materializeReleaseMetaForVn).
+  ensureColumn(db, 'owned_release', 'owned_platform', 'TEXT');
+
+  // One-shot backfill: every owned_release row whose linked release
+  // has exactly ONE platform in release_meta_cache auto-fills with
+  // that singleton. Multi-platform releases stay NULL so the user
+  // picks them explicitly in the UI. Marker-gated so the migration
+  // runs once per DB; new owned_release rows are handled at write
+  // time by markReleaseOwned, and freshly-materialized rows are
+  // handled inside materializeReleaseMetaForVn.
+  const ownedPlatformBackfilled = (db
+    .prepare(`SELECT value FROM app_setting WHERE key = 'owned_platform_backfill_v1'`)
+    .get() as { value: string | null } | undefined)?.value;
+  if (ownedPlatformBackfilled !== '1') {
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE owned_release
+        SET owned_platform = (
+          SELECT json_extract(rm.platforms, '$[0]')
+          FROM release_meta_cache rm
+          WHERE rm.release_id = owned_release.release_id
+            AND json_valid(rm.platforms)
+            AND json_array_length(rm.platforms) = 1
+        )
+        WHERE owned_platform IS NULL
+          AND EXISTS (
+            SELECT 1 FROM release_meta_cache rm
+            WHERE rm.release_id = owned_release.release_id
+              AND json_valid(rm.platforms)
+              AND json_array_length(rm.platforms) = 1
+          )
+      `).run();
+      db.prepare(
+        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('owned_platform_backfill_v1', '1')`,
+      ).run();
+    })();
+  }
 
   // Richer EGS payload — added incrementally, all nullable so old rows are fine.
   ensureColumn(db, 'egs_game', 'gamename_furigana', 'TEXT');
@@ -3168,6 +3215,29 @@ export function materializeReleaseMetaForVn(vnId: string): void {
       }
     }
   }
+  // Layer C autofill — after materializing release_meta_cache rows
+  // for this VN, retroactively fill any owned_release row whose
+  // release just gained a singleton platform list. Idempotent.
+  // This is what makes the platform chip populate "for free" once
+  // the user opens /vn/[id] and the release fan-out has run.
+  db.prepare(`
+    UPDATE owned_release
+    SET owned_platform = (
+      SELECT json_extract(rm.platforms, '$[0]')
+      FROM release_meta_cache rm
+      WHERE rm.release_id = owned_release.release_id
+        AND json_valid(rm.platforms)
+        AND json_array_length(rm.platforms) = 1
+    )
+    WHERE vn_id = ?
+      AND owned_platform IS NULL
+      AND EXISTS (
+        SELECT 1 FROM release_meta_cache rm
+        WHERE rm.release_id = owned_release.release_id
+          AND json_valid(rm.platforms)
+          AND json_array_length(rm.platforms) = 1
+      )
+  `).run(vnId);
 }
 
 export function materializeAspectForCollectionVns(vnIds: string[]): void {
@@ -3651,6 +3721,15 @@ export interface OwnedReleaseRow {
   price_paid: number | null;
   currency: string | null;
   acquired_date: string | null;
+  /**
+   * The exact platform the user physically owns for this edition.
+   * Lowercase VNDB platform code (e.g. "win", "ps4"). NULL means
+   * "not specified yet" — surfaced when the underlying VNDB release
+   * row lists multiple platforms and the user hasn't picked one.
+   * Auto-set to the singleton when the release has exactly one
+   * platform.
+   */
+  owned_platform: string | null;
   dumped: boolean;
   added_at: number;
 }
@@ -3667,6 +3746,7 @@ interface OwnedReleaseDbRow {
   price_paid: number | null;
   currency: string | null;
   acquired_date: string | null;
+  owned_platform: string | null;
   dumped: number | null;
   added_at: number;
 }
@@ -3684,6 +3764,7 @@ function mapOwnedReleaseRow(r: OwnedReleaseDbRow): OwnedReleaseRow {
     price_paid: r.price_paid,
     currency: r.currency,
     acquired_date: r.acquired_date,
+    owned_platform: r.owned_platform,
     dumped: !!r.dumped,
     added_at: r.added_at,
   };
@@ -4189,6 +4270,18 @@ export interface ShelfSlotEntry {
   edition_label: string | null;
   box_type: BoxType;
   condition: string | null;
+  /** Per-edition platform the user owns (lowercase VNDB code), if set. */
+  owned_platform: string | null;
+  /** VN-aggregate fallback (every platform across all releases). */
+  vn_platforms: string[];
+  vn_languages: string[];
+  vn_released: string | null;
+  /** Release-level metadata for the exact owned edition. */
+  rel_title: string | null;
+  rel_platforms: string[];
+  rel_languages: string[];
+  rel_released: string | null;
+  rel_resolution: string | null;
   dumped: boolean;
 }
 
@@ -4196,25 +4289,79 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
   const rows = db
     .prepare(`
       SELECT s.shelf_id, s.row, s.col, s.vn_id, s.release_id,
-             v.title          AS vn_title,
-             v.image_thumb    AS vn_image_thumb,
-             v.image_url      AS vn_image_url,
+             v.title             AS vn_title,
+             v.image_thumb       AS vn_image_thumb,
+             v.image_url         AS vn_image_url,
              v.local_image_thumb AS vn_local_image_thumb,
-             v.image_sexual   AS vn_image_sexual,
-             o.edition_label  AS edition_label,
-             o.box_type       AS box_type,
-             o.condition      AS condition,
-             o.dumped         AS dumped
+             v.image_sexual      AS vn_image_sexual,
+             v.platforms         AS vn_platforms,
+             v.languages         AS vn_languages,
+             v.released          AS vn_released,
+             o.edition_label     AS edition_label,
+             o.box_type          AS box_type,
+             o.condition         AS condition,
+             o.owned_platform    AS owned_platform,
+             o.dumped            AS dumped,
+             rm.title       AS rel_title,
+             rm.platforms   AS rel_platforms,
+             rm.languages   AS rel_languages,
+             rm.released    AS rel_released,
+             rm.resolution  AS rel_resolution
       FROM shelf_slot s
       JOIN owned_release o ON o.vn_id = s.vn_id AND o.release_id = s.release_id
       JOIN vn v ON v.id = s.vn_id
+      LEFT JOIN release_meta_cache rm ON rm.release_id = s.release_id
       WHERE s.shelf_id = ?
     `)
-    .all(shelfId) as Array<Omit<ShelfSlotEntry, 'dumped' | 'box_type'> & { dumped: number | null; box_type: string | null }>;
+    .all(shelfId) as Array<{
+      shelf_id: number;
+      row: number;
+      col: number;
+      vn_id: string;
+      release_id: string;
+      vn_title: string;
+      vn_image_thumb: string | null;
+      vn_image_url: string | null;
+      vn_local_image_thumb: string | null;
+      vn_image_sexual: number | null;
+      vn_platforms: string | null;
+      vn_languages: string | null;
+      vn_released: string | null;
+      edition_label: string | null;
+      box_type: string | null;
+      condition: string | null;
+      owned_platform: string | null;
+      dumped: number | null;
+      rel_title: string | null;
+      rel_platforms: string | null;
+      rel_languages: string | null;
+      rel_released: string | null;
+      rel_resolution: string | null;
+    }>;
   return rows.map((r) => ({
-    ...r,
-    dumped: !!r.dumped,
+    shelf_id: r.shelf_id,
+    row: r.row,
+    col: r.col,
+    vn_id: r.vn_id,
+    release_id: r.release_id,
+    vn_title: r.vn_title,
+    vn_image_thumb: r.vn_image_thumb,
+    vn_image_url: r.vn_image_url,
+    vn_local_image_thumb: r.vn_local_image_thumb,
+    vn_image_sexual: r.vn_image_sexual,
+    edition_label: r.edition_label,
     box_type: (r.box_type ?? 'none') as BoxType,
+    condition: r.condition,
+    owned_platform: r.owned_platform,
+    vn_platforms: parseJsonArrayField(r.vn_platforms),
+    vn_languages: parseJsonArrayField(r.vn_languages),
+    vn_released: r.vn_released,
+    rel_title: r.rel_title,
+    rel_platforms: parseJsonArrayField(r.rel_platforms),
+    rel_languages: parseLanguagesField(r.rel_languages),
+    rel_released: r.rel_released,
+    rel_resolution: r.rel_resolution,
+    dumped: !!r.dumped,
   }));
 }
 
@@ -4471,6 +4618,15 @@ export interface ShelfDisplaySlotEntry {
   edition_label: string | null;
   box_type: BoxType;
   condition: string | null;
+  owned_platform: string | null;
+  vn_platforms: string[];
+  vn_languages: string[];
+  vn_released: string | null;
+  rel_title: string | null;
+  rel_platforms: string[];
+  rel_languages: string[];
+  rel_released: string | null;
+  rel_resolution: string | null;
   dumped: boolean;
 }
 
@@ -4481,26 +4637,82 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
   const rows = db
     .prepare(`
       SELECT d.shelf_id, d.after_row, d.position, d.vn_id, d.release_id, d.placed_at,
-             v.title          AS vn_title,
-             v.image_thumb    AS vn_image_thumb,
-             v.image_url      AS vn_image_url,
+             v.title             AS vn_title,
+             v.image_thumb       AS vn_image_thumb,
+             v.image_url         AS vn_image_url,
              v.local_image_thumb AS vn_local_image_thumb,
-             v.image_sexual   AS vn_image_sexual,
-             o.edition_label  AS edition_label,
-             o.box_type       AS box_type,
-             o.condition      AS condition,
-             o.dumped         AS dumped
+             v.image_sexual      AS vn_image_sexual,
+             v.platforms         AS vn_platforms,
+             v.languages         AS vn_languages,
+             v.released          AS vn_released,
+             o.edition_label     AS edition_label,
+             o.box_type          AS box_type,
+             o.condition         AS condition,
+             o.owned_platform    AS owned_platform,
+             o.dumped            AS dumped,
+             rm.title       AS rel_title,
+             rm.platforms   AS rel_platforms,
+             rm.languages   AS rel_languages,
+             rm.released    AS rel_released,
+             rm.resolution  AS rel_resolution
       FROM shelf_display_slot d
       JOIN owned_release o ON o.vn_id = d.vn_id AND o.release_id = d.release_id
       JOIN vn v ON v.id = d.vn_id
+      LEFT JOIN release_meta_cache rm ON rm.release_id = d.release_id
       WHERE d.shelf_id = ?
       ORDER BY d.after_row ASC, d.position ASC
     `)
-    .all(shelfId) as Array<Omit<ShelfDisplaySlotEntry, 'dumped' | 'box_type'> & { dumped: number | null; box_type: string | null }>;
+    .all(shelfId) as Array<{
+      shelf_id: number;
+      after_row: number;
+      position: number;
+      vn_id: string;
+      release_id: string;
+      placed_at: number;
+      vn_title: string;
+      vn_image_thumb: string | null;
+      vn_image_url: string | null;
+      vn_local_image_thumb: string | null;
+      vn_image_sexual: number | null;
+      vn_platforms: string | null;
+      vn_languages: string | null;
+      vn_released: string | null;
+      edition_label: string | null;
+      box_type: string | null;
+      condition: string | null;
+      owned_platform: string | null;
+      dumped: number | null;
+      rel_title: string | null;
+      rel_platforms: string | null;
+      rel_languages: string | null;
+      rel_released: string | null;
+      rel_resolution: string | null;
+    }>;
   return rows.map((r) => ({
-    ...r,
-    dumped: !!r.dumped,
+    shelf_id: r.shelf_id,
+    after_row: r.after_row,
+    position: r.position,
+    vn_id: r.vn_id,
+    release_id: r.release_id,
+    placed_at: r.placed_at,
+    vn_title: r.vn_title,
+    vn_image_thumb: r.vn_image_thumb,
+    vn_image_url: r.vn_image_url,
+    vn_local_image_thumb: r.vn_local_image_thumb,
+    vn_image_sexual: r.vn_image_sexual,
+    edition_label: r.edition_label,
     box_type: (r.box_type ?? 'none') as BoxType,
+    condition: r.condition,
+    owned_platform: r.owned_platform,
+    vn_platforms: parseJsonArrayField(r.vn_platforms),
+    vn_languages: parseJsonArrayField(r.vn_languages),
+    vn_released: r.vn_released,
+    rel_title: r.rel_title,
+    rel_platforms: parseJsonArrayField(r.rel_platforms),
+    rel_languages: parseLanguagesField(r.rel_languages),
+    rel_released: r.rel_released,
+    rel_resolution: r.rel_resolution,
+    dumped: !!r.dumped,
   }));
 }
 
@@ -4983,6 +5195,14 @@ export interface OwnedReleaseWithShelf extends OwnedReleaseRow {
     | { kind: 'display'; id: number; name: string; afterRow: number; position: number }
     | null;
   aspect: ReleaseAspectInfo;
+  /**
+   * Release-level platforms list (lowercase VNDB codes) joined from
+   * release_meta_cache. Used by the OwnedEditionsSection picker to
+   * render a per-edition select. Empty when the release is
+   * synthetic OR the VNDB POST /release payload has not been
+   * materialized for this VN yet.
+   */
+  rel_platforms: string[];
 }
 
 /**
@@ -5010,7 +5230,8 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
              rc.width    AS cache_width,
              rc.height   AS cache_height,
              rc.raw_resolution AS cache_raw,
-             rc.aspect_key AS cache_aspect
+             rc.aspect_key AS cache_aspect,
+             rm.platforms AS rel_platforms
       FROM owned_release o
       LEFT JOIN shelf_slot s
         ON s.vn_id = o.vn_id AND s.release_id = o.release_id
@@ -5024,6 +5245,8 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
         ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
       LEFT JOIN release_resolution_cache rc
         ON rc.release_id = o.release_id
+      LEFT JOIN release_meta_cache rm
+        ON rm.release_id = o.release_id
       WHERE o.vn_id = ?
       ORDER BY o.added_at DESC
     `)
@@ -5044,9 +5267,11 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
       cache_height: number | null;
       cache_raw: string | null;
       cache_aspect: string | null;
+      rel_platforms: string | null;
     }>;
   return rows.map((r) => ({
     ...mapOwnedReleaseRow(r),
+    rel_platforms: parseJsonArrayField(r.rel_platforms),
     shelf:
       r.shelf_id != null && r.shelf_row != null && r.shelf_col != null && r.shelf_name != null
         ? { kind: 'cell', id: r.shelf_id, name: r.shelf_name, row: r.shelf_row, col: r.shelf_col }
@@ -5110,6 +5335,12 @@ export interface OwnedReleasePatch {
   acquired_date?: string | null;
   /** Free-form: shop name, URL, second-hand vendor, etc. */
   purchase_place?: string | null;
+  /**
+   * Lowercase VNDB platform code, or null to clear. Validated at
+   * the API layer ({@link OwnedReleasePatch} consumers in
+   * `/api/collection/[id]/owned-releases/route.ts`).
+   */
+  owned_platform?: string | null;
   dumped?: boolean;
 }
 
@@ -5130,9 +5361,9 @@ export function markReleaseOwned(
     INSERT INTO owned_release (
       vn_id, release_id, notes, location, physical_location, box_type,
       edition_label, condition, price_paid, currency, acquired_date,
-      purchase_place, dumped, added_at
+      purchase_place, owned_platform, dumped, added_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     vnId,
     releaseId,
@@ -5146,9 +5377,34 @@ export function markReleaseOwned(
     patch.currency ?? null,
     patch.acquired_date ?? null,
     patch.purchase_place ?? null,
+    patch.owned_platform ?? null,
     patch.dumped ? 1 : 0,
     now,
   );
+  // Layer B autofill — when the caller did not pass an explicit
+  // owned_platform AND the linked release has exactly one platform
+  // in release_meta_cache, inherit that singleton automatically.
+  // Idempotent: the WHERE-clause skips rows that already have a
+  // non-NULL owned_platform (e.g. when the patch explicitly set it).
+  if (patch.owned_platform == null) {
+    db.prepare(`
+      UPDATE owned_release
+      SET owned_platform = (
+        SELECT json_extract(rm.platforms, '$[0]')
+        FROM release_meta_cache rm
+        WHERE rm.release_id = owned_release.release_id
+          AND json_valid(rm.platforms)
+          AND json_array_length(rm.platforms) = 1
+      )
+      WHERE vn_id = ? AND release_id = ? AND owned_platform IS NULL
+        AND EXISTS (
+          SELECT 1 FROM release_meta_cache rm
+          WHERE rm.release_id = owned_release.release_id
+            AND json_valid(rm.platforms)
+            AND json_array_length(rm.platforms) = 1
+        )
+    `).run(vnId, releaseId);
+  }
 }
 
 export function updateOwnedRelease(
@@ -5169,6 +5425,7 @@ export function updateOwnedRelease(
     currency: (v) => v,
     acquired_date: (v) => v,
     purchase_place: (v) => v,
+    owned_platform: (v) => v,
     dumped: (v) => (v ? 1 : 0),
   };
   for (const key of Object.keys(map) as (keyof typeof map)[]) {

@@ -47,6 +47,19 @@ interface OwnedEdition {
   currency: string | null;
   acquired_date: string | null;
   purchase_place: string | null;
+  /**
+   * Lowercase VNDB platform code the user physically owns for this
+   * edition. NULL when the underlying release is multi-platform AND
+   * the user has not picked one yet. Populated automatically via
+   * release_meta_cache when the release has exactly one platform.
+   */
+  owned_platform: string | null;
+  /**
+   * Release-level platforms list joined server-side from
+   * `release_meta_cache`. Drives the per-edition platform picker:
+   * empty → free-text input, length=1 → auto-locked, length>1 → select.
+   */
+  rel_platforms: string[];
   dumped: boolean;
   added_at: number;
   /** Populated server-side via `listOwnedReleasesWithShelfForVn`.
@@ -413,11 +426,31 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
   const price = edition.price_paid != null && edition.price_paid > 0
     ? `${edition.price_paid.toLocaleString()} ${edition.currency ?? ''}`.trim()
     : null;
+  const platformMultiAvailable = (edition.rel_platforms?.length ?? 0) > 1;
 
   return (
     <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] sm:grid-cols-3">
       {edition.edition_label && (
         <Field icon={<Sparkles className="h-3 w-3" />} label={t.form.editionLabel} value={edition.edition_label} />
+      )}
+      {edition.owned_platform && (
+        <Field
+          icon={<Tag className="h-3 w-3" />}
+          label={t.form.ownedPlatform}
+          value={edition.owned_platform.toUpperCase()}
+        />
+      )}
+      {!edition.owned_platform && platformMultiAvailable && (
+        // Warn the user that this multi-platform release has no
+        // physical-SKU pick yet — until they choose one in the
+        // editor, the shelf popover will widen to the full set
+        // (which is what the user complained about).
+        <Field
+          icon={<Tag className="h-3 w-3" />}
+          label={t.form.ownedPlatform}
+          value={t.form.ownedPlatformUnset}
+          valueClassName="text-status-on_hold"
+        />
       )}
       {edition.location !== 'unknown' && (
         <Field icon={<Home className="h-3 w-3" />} label={t.form.location} value={t.locations[edition.location]} />
@@ -534,6 +567,15 @@ function EditionEditor({
   const [dumped, setDumped] = useState<boolean>(edition.dumped);
   const [places, setPlaces] = useState<string[]>(edition.physical_location);
   const [notes, setNotes] = useState<string>(edition.notes ?? '');
+  // Per-edition platform picker state. The release_meta_cache list
+  // dictates the picker shape:
+  //   - 0 platforms → free-text input (synthetic releases / EGS).
+  //   - 1 platform  → locked label (auto-set via Layer A/B/C backfill).
+  //   - 2+         → select dropdown so the user picks the exact
+  //                  physical SKU they own (the user-reported bug
+  //                  for r65069 etc.).
+  const releasePlatforms = edition.rel_platforms ?? [];
+  const [ownedPlatform, setOwnedPlatform] = useState<string>(edition.owned_platform ?? '');
   const [aspectWidth, setAspectWidth] = useState<string>(
     edition.aspect?.source === 'manual' && edition.aspect.width ? String(edition.aspect.width) : '',
   );
@@ -555,6 +597,13 @@ function EditionEditor({
       (height !== null && (!Number.isInteger(height) || height <= 0))) return;
     onSave({
       edition_label: editionLabel.trim() || null,
+      // Single-platform release auto-locks to its sole entry so the
+      // user can't accidentally save an empty value (which would
+      // re-enable the misleading "all four platforms" popover).
+      owned_platform:
+        releasePlatforms.length === 1
+          ? releasePlatforms[0]
+          : ownedPlatform.trim().toLowerCase() || null,
       location,
       box_type: boxType as BoxType,
       condition: (condition || null) as OwnedEdition['condition'],
@@ -586,6 +635,35 @@ function EditionEditor({
           onChange={(e) => setEditionLabel(e.target.value)}
           maxLength={200}
         />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="label">{t.form.ownedPlatform}</span>
+        {releasePlatforms.length === 0 ? (
+          <input
+            className="input"
+            type="text"
+            value={ownedPlatform}
+            onChange={(e) => setOwnedPlatform(e.target.value.toLowerCase())}
+            placeholder="win, ps4, swi…"
+            maxLength={16}
+          />
+        ) : releasePlatforms.length === 1 ? (
+          <div className="input flex items-center justify-between gap-2 bg-bg-elev/40 text-muted">
+            <span className="uppercase text-white">{releasePlatforms[0]}</span>
+            <span className="text-[10px]">{t.form.ownedPlatformLocked}</span>
+          </div>
+        ) : (
+          <select
+            className="input"
+            value={ownedPlatform}
+            onChange={(e) => setOwnedPlatform(e.target.value)}
+          >
+            <option value="">{t.form.ownedPlatformUnset}</option>
+            {releasePlatforms.map((p) => (
+              <option key={p} value={p}>{p.toUpperCase()}</option>
+            ))}
+          </select>
+        )}
       </label>
       <label className="flex flex-col gap-1">
         <span className="label">{t.form.location}</span>

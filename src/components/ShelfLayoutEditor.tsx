@@ -277,6 +277,20 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           edition_label: ed.edition_label,
           box_type: ed.box_type as ShelfSlotEntry['box_type'],
           condition: ed.condition,
+          // Optimistic snapshot — server response on next refetch
+          // will fill in the joined release_meta_cache fields. We
+          // forward what we have from the source pool/slot/display
+          // entry so the EditionInfoPopover keeps its data while
+          // the drag-end refetch is in flight.
+          owned_platform: ed.owned_platform ?? null,
+          vn_platforms: ed.vn_platforms ?? [],
+          vn_languages: ed.vn_languages ?? [],
+          vn_released: ed.vn_released ?? null,
+          rel_title: ed.rel_title ?? null,
+          rel_platforms: ed.rel_platforms ?? [],
+          rel_languages: ed.rel_languages ?? [],
+          rel_released: ed.rel_released ?? null,
+          rel_resolution: ed.rel_resolution ?? null,
           dumped: ed.dumped,
         });
         return next;
@@ -375,6 +389,17 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             edition_label: ed.edition_label,
             box_type: ed.box_type as ShelfDisplaySlotEntry['box_type'],
             condition: ed.condition,
+            // Mirror the slot-placement optimistic forward — see the
+            // sibling call site above for the rationale.
+            owned_platform: ed.owned_platform ?? null,
+            vn_platforms: ed.vn_platforms ?? [],
+            vn_languages: ed.vn_languages ?? [],
+            vn_released: ed.vn_released ?? null,
+            rel_title: ed.rel_title ?? null,
+            rel_platforms: ed.rel_platforms ?? [],
+            rel_languages: ed.rel_languages ?? [],
+            rel_released: ed.rel_released ?? null,
+            rel_resolution: ed.rel_resolution ?? null,
             dumped: ed.dumped,
           });
           return next;
@@ -1375,8 +1400,14 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
           glance, without needing to open the info popover.
         */}
         {(() => {
+          // owned_platform (when set) is the most useful single
+          // distinguisher for multi-platform releases — exactly the
+          // axis the user complained about ("WIN · PS4 · PSV · SWI"
+          // shown for a WIN-only SKU). It slots between
+          // edition_label (most user-specific) and physical_location.
           const distinguisher =
             entry.edition_label ??
+            (entry.owned_platform ? entry.owned_platform.toUpperCase() : null) ??
             (entry.physical_location.length > 0 ? entry.physical_location[0] : null) ??
             (entry.box_type !== 'none' ? entry.box_type : null) ??
             (entry.release_id.startsWith('synthetic:') ? null : entry.release_id);
@@ -1755,6 +1786,21 @@ function findEdition(
   box_type: ShelfEntry['box_type'];
   condition: string | null;
   dumped: boolean;
+  // Optional release/owned metadata. All three sources
+  // (ShelfSlotEntry / ShelfDisplaySlotEntry / ShelfEntry) now
+  // carry these — the synthetic pool path provided by
+  // `synthesizePoolEntryFromEdge` may not. The optional shape
+  // lets the caller forward what's available and fall back to
+  // safe defaults otherwise.
+  owned_platform?: string | null;
+  vn_platforms?: string[];
+  vn_languages?: string[];
+  vn_released?: string | null;
+  rel_title?: string | null;
+  rel_platforms?: string[];
+  rel_languages?: string[];
+  rel_released?: string | null;
+  rel_resolution?: string | null;
 } | null {
   if (src.kind === 'slot') {
     const slot = slots.find(
@@ -1800,6 +1846,7 @@ function shelfDisplayToShelfEntry(slot: ShelfDisplaySlotEntry): ShelfEntry {
     price_paid: null,
     currency: null,
     acquired_date: null,
+    owned_platform: slot.owned_platform,
     dumped: slot.dumped,
     added_at: 0,
     vn_title: slot.vn_title,
@@ -1807,18 +1854,19 @@ function shelfDisplayToShelfEntry(slot: ShelfDisplaySlotEntry): ShelfEntry {
     vn_image_url: slot.vn_image_url,
     vn_local_image_thumb: slot.vn_local_image_thumb,
     vn_image_sexual: slot.vn_image_sexual,
-    // Slot/display entries don't carry the full VN metadata
-    // (they're optimized for grid rendering); the synthesizer that
-    // calls this helper only needs the cover and labels. Surface
-    // empty arrays so the popover gracefully omits the rows.
-    vn_platforms: [],
-    vn_languages: [],
-    vn_released: null,
-    rel_title: null,
-    rel_platforms: [],
-    rel_languages: [],
-    rel_released: null,
-    rel_resolution: null,
+    // Forward the joined VN-aggregate + release-level metadata that
+    // listShelfDisplaySlots now provides via LEFT JOIN against
+    // release_meta_cache. The synthesizer is the data bridge for
+    // EditionInfoPopover, so empty arrays would hide the platforms
+    // section even when the cache has the data.
+    vn_platforms: slot.vn_platforms,
+    vn_languages: slot.vn_languages,
+    vn_released: slot.vn_released,
+    rel_title: slot.rel_title,
+    rel_platforms: slot.rel_platforms,
+    rel_languages: slot.rel_languages,
+    rel_released: slot.rel_released,
+    rel_resolution: slot.rel_resolution,
     rel_minage: null,
     rel_patch: false,
     rel_freeware: false,
@@ -1840,6 +1888,7 @@ function shelfSlotToShelfEntry(slot: ShelfSlotEntry): ShelfEntry {
     price_paid: null,
     currency: null,
     acquired_date: null,
+    owned_platform: slot.owned_platform,
     dumped: slot.dumped,
     added_at: 0,
     vn_title: slot.vn_title,
@@ -1847,14 +1896,14 @@ function shelfSlotToShelfEntry(slot: ShelfSlotEntry): ShelfEntry {
     vn_image_url: slot.vn_image_url,
     vn_local_image_thumb: slot.vn_local_image_thumb,
     vn_image_sexual: slot.vn_image_sexual,
-    vn_platforms: [],
-    vn_languages: [],
-    vn_released: null,
-    rel_title: null,
-    rel_platforms: [],
-    rel_languages: [],
-    rel_released: null,
-    rel_resolution: null,
+    vn_platforms: slot.vn_platforms,
+    vn_languages: slot.vn_languages,
+    vn_released: slot.vn_released,
+    rel_title: slot.rel_title,
+    rel_platforms: slot.rel_platforms,
+    rel_languages: slot.rel_languages,
+    rel_released: slot.rel_released,
+    rel_resolution: slot.rel_resolution,
     rel_minage: null,
     rel_patch: false,
     rel_freeware: false,

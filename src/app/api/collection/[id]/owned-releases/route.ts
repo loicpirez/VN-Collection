@@ -59,6 +59,19 @@ function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; e
     else if (typeof v === 'string' && v.trim().length > 0) patch.purchase_place = v.trim().slice(0, 200);
     else return { patch, error: 'invalid purchase_place' };
   }
+  if ('owned_platform' in body) {
+    const v = body.owned_platform;
+    if (v === null || v === '') patch.owned_platform = null;
+    else if (typeof v === 'string' && /^[a-z0-9]{1,16}$/i.test(v.trim())) {
+      // Lowercase to match release_meta_cache.platforms entries
+      // exactly. VNDB occasionally adds new platform codes (xss,
+      // xbo, swi…) so we trust the format check rather than
+      // hardcoding a whitelist.
+      patch.owned_platform = v.trim().toLowerCase();
+    } else {
+      return { patch, error: 'invalid owned_platform' };
+    }
+  }
   if ('dumped' in body) patch.dumped = !!body.dumped;
   if ('physical_location' in body) {
     const v = body.physical_location;
