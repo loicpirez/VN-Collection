@@ -193,8 +193,8 @@ export default async function EgsPage() {
                     </p>
                     <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0 text-[11px] text-muted">
                       {l.median != null && (
-                        <span className="text-accent">
-                          <Star className="mr-0.5 inline h-3 w-3 fill-accent" aria-hidden /> {(l.median / 100).toFixed(2)}
+                        <span className="text-accent" title={`${l.median}/100`}>
+                          <Star className="mr-0.5 inline h-3 w-3 fill-accent" aria-hidden /> {l.median}/100
                         </span>
                       )}
                       {l.playtime_minutes != null && l.playtime_minutes > 0 && (

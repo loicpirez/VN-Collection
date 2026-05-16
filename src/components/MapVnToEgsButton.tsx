@@ -279,7 +279,7 @@ export function MapVnToEgsButton({
                     <div className="flex flex-wrap gap-x-2 text-[10px] text-muted">
                       <span className="font-mono">EGS #{c.id}</span>
                       {c.sellday && <span>{c.sellday}</span>}
-                      {c.median != null && <span>{(c.median / 100).toFixed(2)}</span>}
+                      {c.median != null && <span>{c.median}/100</span>}
                       {c.count != null && <span>{c.count} votes</span>}
                     </div>
                   </div>

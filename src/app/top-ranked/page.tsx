@@ -420,8 +420,20 @@ function EgsSection({
                 )}
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
                   {r.median != null && (
-                    <span className="inline-flex items-center gap-0.5 text-accent">
-                      <Star className="h-3 w-3 fill-accent" aria-hidden /> {(r.median / 100).toFixed(2)}
+                    <span
+                      className="inline-flex items-center gap-0.5 text-accent"
+                      title={`${t.egs.section} · ${t.egs.median}: ${r.median}/100`}
+                    >
+                      {/*
+                        EGS median is stored on a 0-100 scale (raw).
+                        Earlier this surface divided by 100, surfacing
+                        scores like "0.90" with a star icon — visually
+                        ambiguous with a 0.0-1.0 normalized score.
+                        The canonical convention used elsewhere (VnCard,
+                        /stats) is "<n>/100"; matching it removes the
+                        misleading 0.<x> display.
+                      */}
+                      <Star className="h-3 w-3 fill-accent" aria-hidden /> {r.median}/100
                     </span>
                   )}
                   {r.count != null && (
