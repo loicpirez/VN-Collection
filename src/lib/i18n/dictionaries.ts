@@ -365,6 +365,10 @@ export const dictionaries = {
       customSortReset: 'Réinitialiser l\'ordre',
       customSortEnter: 'Réordonner',
       customSortExit: 'Terminer',
+      toolbarOptions: 'Options',
+      toolbarOptionsLabel: 'Options de la barre d\'outils',
+      saveCurrentPreset: 'Enregistrer ce préréglage',
+      resetFilters: 'Réinitialiser les filtres',
     },
     search: {
       placeholder: 'Rechercher un Visual Novel sur VNDB (titre, ou ID v17…)',
@@ -2325,6 +2329,10 @@ export const dictionaries = {
       customSortReset: 'Reset order',
       customSortEnter: 'Reorder',
       customSortExit: 'Done',
+      toolbarOptions: 'Options',
+      toolbarOptionsLabel: 'Library toolbar options',
+      saveCurrentPreset: 'Save current filter as preset',
+      resetFilters: 'Reset filters',
     },
     search: {
       placeholder: 'Search a Visual Novel on VNDB (title, or ID v17…)',
@@ -4285,6 +4293,10 @@ export const dictionaries = {
       customSortReset: '順序をリセット',
       customSortEnter: '並べ替え',
       customSortExit: '完了',
+      toolbarOptions: '操作',
+      toolbarOptionsLabel: 'ライブラリ ツールバーの操作',
+      saveCurrentPreset: '現在のフィルターを保存',
+      resetFilters: 'フィルターをリセット',
     },
     search: {
       placeholder: 'VNDB を検索（タイトルまたは ID v17…）',

@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Eye, EyeOff, GripVertical, LayoutTemplate, RotateCcw, X } from 'lucide-react';
+import { Eye, EyeOff, GripVertical, RotateCcw, X } from 'lucide-react';
 import {
   HOME_LAYOUT_EVENT,
   HOME_SECTION_IDS,
@@ -30,13 +30,26 @@ import { useToast } from './ToastProvider';
 import { useDialogA11y } from './Dialog';
 
 /**
- * Button + dialog that lets the user reorder every home strip via drag-
- * and-drop and toggle visibility per section. The reorder cascades
- * through `home_section_layout_v1.order`; the visibility toggle lives
- * here too so users have one canonical place to manage the home page.
+ * Custom event name dispatched by sibling components to open the
+ * home-layout editor dialog. Multiple call sites can request the
+ * dialog (LibraryClient's Options menu, Settings → Home tab CTA,
+ * keyboard shortcut, etc.) without rendering a redundant trigger
+ * button each.
+ */
+export const HOME_LAYOUT_OPEN_EVENT = 'vn:open-home-layout';
+
+/**
+ * Always-mounted dialog that lets the user reorder every home strip
+ * via drag-and-drop and toggle visibility per section. The reorder
+ * cascades through `home_section_layout_v1.order`; the visibility
+ * toggle lives here too so users have one canonical place to manage
+ * the home page.
  *
- * Mirrors the VnDetailLayout editor's UX so the two layout systems feel
- * symmetric.
+ * Previously paired with a standalone floating icon at the top of
+ * the home page. The user reported that as detached and dominant;
+ * the trigger is now consumed via a CustomEvent (HOME_LAYOUT_OPEN_EVENT)
+ * dispatched from the Library toolbar's Options menu and from the
+ * Settings → Home tab.
  */
 export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV1 }) {
   const t = useT();
@@ -50,6 +63,18 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
   const titleId = useId();
 
   useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
+
+  // Listen for cross-component open requests. Any sibling can fire
+  // `window.dispatchEvent(new CustomEvent('vn:open-home-layout'))`
+  // and this dialog flips open. Closing flips back; the local
+  // `open` state is the canonical truth.
+  useEffect(() => {
+    function onOpen() {
+      setOpen(true);
+    }
+    window.addEventListener(HOME_LAYOUT_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(HOME_LAYOUT_OPEN_EVENT, onOpen);
+  }, []);
 
   // Reset local state when the dialog re-opens (in case settings changed
   // elsewhere while it was closed).
@@ -124,25 +149,13 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
   return (
     <>
       {/*
-        Compact icon-only trigger. Previous renderings used a wide
-        button with the full label above every section, which the user
-        reported as "detached and visually awkward". The control is
-        now an unobtrusive icon button anchored to the top-right of
-        the page; the text label survives via `aria-label` + `title`
-        for tooltips, and the modal that opens still shows the full
-        label as its heading.
+        No standalone page-level trigger anymore — the user explicitly
+        rejected the floating icon. The dialog opens via:
+          - window.dispatchEvent(new CustomEvent('vn:open-home-layout'))
+          - dispatched from LibraryClient's "Options" menu, the
+            Settings → Home tab, and any future call site.
+        Keep the dialog markup mounted so it can flip open instantly.
       */}
-      <div className="mb-2 flex justify-end">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label={t.homeLayout.openEditor}
-          title={t.homeLayout.openEditor}
-          className="tap-target-tight inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-bg-card/40 text-muted hover:border-accent hover:text-accent"
-        >
-          <LayoutTemplate className="h-4 w-4" aria-hidden />
-        </button>
-      </div>
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur"

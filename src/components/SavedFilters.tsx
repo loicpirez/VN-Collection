@@ -14,12 +14,26 @@ interface Filter {
 }
 
 /**
+ * CustomEvent name dispatched by sibling toolbar components
+ * (LibraryActionsMenu) to open this popover without rendering an
+ * additional visible trigger. Optional `detail.action === 'save'`
+ * also flips the popover into name-input mode so the user lands
+ * directly on the save-preset affordance.
+ */
+export const SAVED_FILTERS_OPEN_EVENT = 'vn:open-saved-filters';
+
+/**
  * Saved filter combos surfaced as a popover behind a single toolbar button —
  * the inline chip row took up a full row at the top of the library, which
  * the user flagged as wasteful. Active filter (when the URL matches one of
  * the saved presets) shows in the button label so it's still discoverable.
+ *
+ * `triggerHidden`: visually hides the trigger button (still tab-stoppable
+ * for keyboard users), so the popover can be opened exclusively via the
+ * SAVED_FILTERS_OPEN_EVENT bus from the Library "Options" menu. The
+ * popover itself remains visible when open.
  */
-export function SavedFilters() {
+export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolean } = {}) {
   const t = useT();
   const router = useRouter();
   const sp = useSearchParams();
@@ -34,6 +48,25 @@ export function SavedFilters() {
 
   useEffect(() => {
     load();
+  }, []);
+
+  // Remote open: any sibling can dispatch
+  // `window.dispatchEvent(new CustomEvent('vn:open-saved-filters'))`
+  // (with optional `detail: { action: 'save' }`) and we flip open.
+  // Used by the Library toolbar's compact Options menu so we have a
+  // single canonical SavedFilters surface even though the user spec
+  // hides the standalone trigger.
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const detail = (e as CustomEvent).detail as { action?: 'save' } | undefined;
+      setOpen(true);
+      if (detail?.action === 'save') {
+        setDraftName('');
+        setNameOpen(true);
+      }
+    }
+    window.addEventListener(SAVED_FILTERS_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(SAVED_FILTERS_OPEN_EVENT, onOpen);
   }, []);
 
   useEffect(() => {
@@ -115,9 +148,13 @@ export function SavedFilters() {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-controls={popoverId}
-        className={`tap-target inline-flex items-center gap-1.5 rounded-md border bg-bg-elev/40 px-2 py-1 text-[11px] ${
-          active ? 'border-accent text-accent' : 'border-border text-muted hover:border-accent hover:text-accent'
-        }`}
+        className={
+          triggerHidden
+            ? 'sr-only'
+            : `tap-target inline-flex items-center gap-1.5 rounded-md border bg-bg-elev/40 px-2 py-1 text-[11px] ${
+                active ? 'border-accent text-accent' : 'border-border text-muted hover:border-accent hover:text-accent'
+              }`
+        }
         title={t.savedFilters.title}
       >
         <Bookmark className="h-3 w-3" aria-hidden />

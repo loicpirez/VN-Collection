@@ -2,7 +2,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Calendar, Check, CheckSquare, ChevronDown, Circle, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, Check, CheckSquare, ChevronDown, Circle, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { toCardData } from './cardData';
 import { SkeletonCardGrid } from './Skeleton';
@@ -11,7 +11,8 @@ import { BulkDownloadButton } from './BulkDownloadButton';
 import { BulkActionBar } from './BulkActionBar';
 import { SortableGrid } from './SortableGrid';
 import { RandomPickButton } from './RandomPickButton';
-import { SavedFilters } from './SavedFilters';
+import { SAVED_FILTERS_OPEN_EVENT, SavedFilters } from './SavedFilters';
+import { HOME_LAYOUT_OPEN_EVENT } from './HomeLayoutEditorTrigger';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -468,8 +469,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             <span className="ml-1 opacity-70">{counts[s] ?? 0}</span>
           </button>
         ))}
-        <span className="ml-auto" />
-        <SavedFilters />
       </div>
 
       {/*
@@ -630,6 +629,24 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             t={t}
           />
         </AdvancedFiltersDrawer>
+        {/*
+          Compact Options/Actions menu. Per the user's two-level
+          toolbar spec, the status/search row must collapse
+          Préréglages + Mise en page de l'accueil + Save preset +
+          Reset filters into a single ⋯ surface — no standalone
+          Préréglages chip and no floating "Mise en page de
+          l'accueil" icon at the top of the home page. The
+          SavedFilters sibling below mounts with `triggerHidden`
+          so the popover triggered via the SAVED_FILTERS_OPEN_EVENT
+          bus stays reachable, while the visible toolbar shows
+          only chips + search + Filtres + Options.
+        */}
+        <LibraryActionsMenu
+          hasFilters={hasFilters}
+          onResetFilters={clearAll}
+          t={t}
+        />
+        <SavedFilters triggerHidden />
       </div>
 
       {/* Active-filter chip strip — only renders when something is
@@ -1307,6 +1324,159 @@ function FilterChip({
       {icon}
       <span className="max-w-[160px] truncate">{label}</span>
       <X className="h-2.5 w-2.5 opacity-70" aria-hidden />
+    </button>
+  );
+}
+
+/**
+ * Compact ⋯ Options/Actions menu on the Library search row.
+ *
+ * Per the user's two-level toolbar spec, the search row carries
+ * status chips + search + Filtres + Options — and nothing else.
+ * The Options menu is the single canonical surface for:
+ *   - Préréglages (opens the SavedFilters popover via the
+ *     SAVED_FILTERS_OPEN_EVENT bus)
+ *   - Enregistrer le préréglage actuel (same bus, with
+ *     `detail.action = 'save'` so SavedFilters flips into name-
+ *     input mode)
+ *   - Mise en page de l'accueil (opens the HomeLayoutEditor
+ *     dialog via HOME_LAYOUT_OPEN_EVENT — replaces the rejected
+ *     floating icon at the top of `/`)
+ *   - Réinitialiser les filtres (calls clearAll, disabled when
+ *     no filters are active so the menu item never looks like
+ *     a live affordance against empty state)
+ *
+ * All four items dispatch CustomEvents instead of accepting
+ * inline callbacks where the upstream surface (SavedFilters
+ * popover, HomeLayoutEditor dialog) already owns its own state —
+ * the bus is the documented "Versioned JSON config pattern"
+ * convention in CLAUDE.md.
+ */
+function LibraryActionsMenu({
+  hasFilters,
+  onResetFilters,
+  t,
+}: {
+  hasFilters: boolean;
+  onResetFilters: () => void;
+  t: ReturnType<typeof useT>;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function outside(e: MouseEvent) {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function escape(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    window.addEventListener('mousedown', outside);
+    window.addEventListener('keydown', escape);
+    return () => {
+      window.removeEventListener('mousedown', outside);
+      window.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+
+  function dispatch(name: string, detail?: unknown) {
+    window.dispatchEvent(
+      detail !== undefined
+        ? new CustomEvent(name, { detail })
+        : new CustomEvent(name),
+    );
+  }
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={t.library.toolbarOptionsLabel}
+        title={t.library.toolbarOptionsLabel}
+        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+          open
+            ? 'border-accent bg-accent/10 text-accent'
+            : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+        }`}
+      >
+        <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
+        <span>{t.library.toolbarOptions}</span>
+        <ChevronDown
+          className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label={t.library.toolbarOptionsLabel}
+          className="absolute right-0 top-full z-30 mt-1 w-[min(92vw,16rem)] rounded-lg border border-border bg-bg-card p-1 text-xs shadow-card"
+        >
+          <LibraryActionsMenuItem
+            icon={<Bookmark className="h-3.5 w-3.5" aria-hidden />}
+            label={t.savedFilters.title}
+            onClick={() => {
+              setOpen(false);
+              dispatch(SAVED_FILTERS_OPEN_EVENT);
+            }}
+          />
+          <LibraryActionsMenuItem
+            icon={<BookmarkPlus className="h-3.5 w-3.5" aria-hidden />}
+            label={t.library.saveCurrentPreset}
+            onClick={() => {
+              setOpen(false);
+              dispatch(SAVED_FILTERS_OPEN_EVENT, { action: 'save' });
+            }}
+          />
+          <LibraryActionsMenuItem
+            icon={<LayoutTemplate className="h-3.5 w-3.5" aria-hidden />}
+            label={t.homeLayout.openEditor}
+            onClick={() => {
+              setOpen(false);
+              dispatch(HOME_LAYOUT_OPEN_EVENT);
+            }}
+          />
+          <div className="my-1 border-t border-border/60" aria-hidden />
+          <LibraryActionsMenuItem
+            icon={<FilterX className="h-3.5 w-3.5" aria-hidden />}
+            label={t.library.resetFilters}
+            onClick={() => {
+              setOpen(false);
+              onResetFilters();
+            }}
+            disabled={!hasFilters}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LibraryActionsMenuItem({
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-white/90 hover:bg-bg-elev hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-white/90"
+    >
+      <span className="text-muted">{icon}</span>
+      <span className="flex-1 truncate">{label}</span>
     </button>
   );
 }
