@@ -94,12 +94,12 @@ export async function GET(req: NextRequest) {
     ).map((r) => r.vn_id);
     // STEP 1: pull aspect from cached VNDB release payloads (per
     // VN, idempotent + short-circuits). The Library was the
-    // surface where the user observed Hajimete Doushi (800x600
-    // → 4:3) and Gals Fiction (1280x720 → 16:9) sitting in the
-    // Unknown bucket — release_resolution_cache was empty
-    // because /api/vn/[id]/releases had never been invoked for
-    // those VNs from the Library page. Materializing here makes
-    // the Library agree with the VN detail page.
+    // surface where the user observed VNs with 800x600 (→ 4:3)
+    // and 1280x720 (→ 16:9) releases sitting in the Unknown
+    // bucket — release_resolution_cache was empty because
+    // /api/vn/[id]/releases had never been invoked for those
+    // VNs from the Library page. Materializing here makes the
+    // Library agree with the VN detail page.
     for (const id of allVnIds) {
       if (/^v\d+$/.test(id)) materializeReleaseAspectsForVn(id);
     }

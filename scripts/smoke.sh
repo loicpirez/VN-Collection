@@ -6,10 +6,9 @@
 #   PORT=4000 scripts/smoke.sh   # against a custom port
 #
 # Real ids are derived from the local DB so the smoke survives
-# arbitrary user data. Fallback ids point at VNDB-canonical entries
-# (Ever17 / Studio e.go!) so a fresh empty DB also passes — provided
-# VNDB is reachable (otherwise those routes 404, not 500, which is
-# correct).
+# arbitrary user data. Fallback ids point at stable VNDB-canonical
+# numeric ids so a fresh empty DB also passes — provided VNDB is
+# reachable (otherwise those routes 404, not 500, which is correct).
 #
 # This is intentionally simple: hit the routes, check HTTP status,
 # eyeball that a few API endpoints return non-empty JSON. The dev
@@ -54,8 +53,8 @@ fi
 if [ -z "${VN_ID:-}" ] && command -v sqlite3 >/dev/null 2>&1 && [ -f "$DB_PATH" ]; then
   VN_ID=$(sqlite3 "$DB_PATH" "SELECT id FROM vn WHERE id LIKE 'v%' LIMIT 1" 2>/dev/null || true)
 fi
-PRODUCER_ID="${PRODUCER_ID:-p17}"   # Studio e.go! — VNDB-canonical
-VN_ID="${VN_ID:-v17}"               # Ever17 — VNDB-canonical
+PRODUCER_ID="${PRODUCER_ID:-p17}"   # stable VNDB-canonical producer id
+VN_ID="${VN_ID:-v17}"               # stable VNDB-canonical VN id
 
 echo "Pages:"
 check_route /

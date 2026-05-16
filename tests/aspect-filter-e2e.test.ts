@@ -154,11 +154,11 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
   });
 
   it('materializeReleaseAspectsForVn populates rc from cached VNDB release payloads', () => {
-    // Reproduces the user's Gals Fiction QA: a VN whose only
-    // aspect signal lives in a cached `POST /release` response
-    // body that ReleasesSection fetched on an earlier visit.
-    // The VN page must pre-derive 16:9 SSR-side instead of
-    // flashing 'unknown' while the client-side fetch is pending.
+    // Reproduces a user-reported case: a VN whose only aspect
+    // signal lives in a cached `POST /release` response body that
+    // ReleasesSection fetched on an earlier visit. The VN page
+    // must pre-derive 16:9 SSR-side instead of flashing 'unknown'
+    // while the client-side fetch is pending.
     seedVn('v90008');
     addToCollection('v90008', {});
     // Seed a cached POST /release payload that includes a

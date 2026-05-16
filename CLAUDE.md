@@ -716,7 +716,7 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 5. Add i18n keys.
 
 ### Caching gotchas
-- TTL is **per request body** — search for "fate" caches separately from "ever17".
+- TTL is **per request body** — two different search queries cache separately even if they hit the same VNDB endpoint.
 - After a write that changes the VNDB-side data (you wouldn't be doing that —
   we are read-only on VNDB), invalidate via `invalidateVnCache(id)` or
   `invalidateByPath('POST /vn')`.

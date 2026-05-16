@@ -384,9 +384,9 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
 /**
  * EGS stores all playtime values in HOURS, not minutes. This bit me — the
  * column name doesn't disclose the unit and the values look fine as minutes
- * for short games. Verified empirically:
- *   - v55797 Gals Fiction: VNDB length_minutes=750 (12h30m), EGS=11 → 11h ≈ 12h ✓
- *   - v4327 KaRaKaN: EGS=2 → 2h (plausible for a short fan disc)
+ * for short games. Verified empirically against two sample VNs:
+ *   - 12.5h game: VNDB length_minutes=750 (12h30m), EGS=11 → 11h ≈ 12h ✓
+ *   - 2h fan disc: EGS=2 → 2h ✓
  * Multiply at fetch so the rest of the codebase keeps thinking in minutes.
  */
 function egsHoursToMinutes(v: string | null | undefined): number | null {
