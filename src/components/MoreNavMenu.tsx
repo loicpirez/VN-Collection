@@ -69,10 +69,16 @@ export function GroupedNav() {
   // i18n labels live here so they update under the same render cycle as the
   // rest of the layout — duplicating into a static const would force a full
   // reload to translate.
+  // Primary nav: kept TIGHT so the French labels fit at lg. We dropped
+  // /lists out of primary into Discover — wishlist + search are the
+  // truly daily-use entries, and the FR string "Liste de souhaits"
+  // is already a wide label so we avoid stacking another similarly-
+  // named entry next to it. Lists are one extra click away in
+  // Discover but every NavGroup item is also surfaced in the mobile
+  // sheet for parity.
   const primary: NavItem[] = [
     { href: '/', label: t.nav.library, icon: Library, exact: true },
     { href: '/wishlist', label: t.nav.wishlist, icon: Heart },
-    { href: '/lists', label: t.nav.lists, icon: ListChecks },
     { href: '/search', label: t.nav.search, icon: SearchIcon },
   ];
 
@@ -81,6 +87,7 @@ export function GroupedNav() {
     { href: '/top-ranked', label: t.nav.topRanked, icon: Crown },
     { href: '/recommendations', label: t.nav.recommend, icon: Wand2 },
     { href: '/quotes', label: t.nav.quotes, icon: Quote },
+    { href: '/lists', label: t.nav.lists, icon: ListChecks },
   ];
 
   const browse: NavItem[] = [
@@ -190,18 +197,20 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string | null })
       title={item.label}
       aria-label={item.label}
       aria-current={active ? 'page' : undefined}
-      className={`tap-target inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors lg:px-3 ${
+      className={`tap-target inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors xl:px-3 ${
         active
           ? 'bg-accent/15 text-accent hover:bg-accent/20'
           : 'text-muted hover:bg-bg-card hover:text-white'
       }`}
     >
       <item.icon className="h-4 w-4" aria-hidden />
-      {/* Text label collapses to icon-only between md (768) and lg (1024)
-          so the longest FR strings (Bibliothèque, Personnages, Rechercher)
-          don't push the right-side controls onto a second row. The
-          aria-label + title keep a11y + tooltips intact. */}
-      <span className="hidden lg:inline">{item.label}</span>
+      {/* Text label collapses to icon-only from md (768px) through
+          lg (1024px) and xl (1280px) is the threshold where the full
+          French / English / Japanese labels finally have room
+          without pushing the right-side controls onto a second row
+          or overlapping. The aria-label + title attributes preserve
+          a11y + tooltips while icons are alone. */}
+      <span className="hidden xl:inline">{item.label}</span>
     </Link>
   );
 }
@@ -264,16 +273,16 @@ function NavGroup({
         aria-controls={menuId}
         aria-label={label}
         title={label}
-        className={`tap-target inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors lg:gap-1.5 lg:px-3 ${
+        className={`tap-target inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors xl:gap-1.5 xl:px-3 ${
           active
             ? 'bg-accent/15 text-accent hover:bg-accent/20'
             : 'text-muted hover:bg-bg-card hover:text-white'
         }`}
       >
         {Icon && <Icon className="h-4 w-4" aria-hidden />}
-        {/* Group label is hidden at md so the icon + chevron survives on
-            their own; full text returns at lg. */}
-        <span className="hidden lg:inline">{label}</span>
+        {/* Group label hidden md-lg-xl-1280, full text at xl+ to
+            match the French label budget on primary nav. */}
+        <span className="hidden xl:inline">{label}</span>
         <ChevronDown className="h-3 w-3" aria-hidden />
       </button>
       {open && (
