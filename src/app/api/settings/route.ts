@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppSetting, setAppSetting } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import {
+  parseHomeSectionLayoutV1,
+  validateHomeSectionLayoutV1,
+} from '@/lib/home-section-layout';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,6 +15,7 @@ const SAFE_KEYS = new Set([
   'default_sort',
   'default_order',
   'default_group',
+  'home_section_layout_v1',
   'vndb_writeback',
   'vndb_backup_url',
   'vndb_backup_enabled',
@@ -68,6 +73,7 @@ export async function GET(req: Request) {
     default_sort: getAppSetting('default_sort') ?? 'updated_at',
     default_order: getAppSetting('default_order') ?? 'desc',
     default_group: getAppSetting('default_group') ?? 'none',
+    home_section_layout_v1: parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1')),
     vndb_writeback: getAppSetting('vndb_writeback') === '1',
     vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
     vndb_backup_url: getAppSetting('vndb_backup_url') ?? DEFAULT_VNDB_BACKUP_URL,
@@ -135,6 +141,23 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: `default_group must be one of: ${[...VALID_GROUPS].join(', ')}` }, { status: 400 });
     }
     setAppSetting('default_group', v);
+  }
+  if ('home_section_layout_v1' in body) {
+    const v = body.home_section_layout_v1;
+    if (v == null) {
+      // Reset to defaults.
+      setAppSetting('home_section_layout_v1', null);
+    } else if (typeof v === 'object' && !Array.isArray(v)) {
+      // validateHomeSectionLayoutV1 silently drops bad fields; we round-trip
+      // through it so the persisted JSON is normalized and small.
+      const normalized = validateHomeSectionLayoutV1(v);
+      setAppSetting('home_section_layout_v1', JSON.stringify(normalized));
+    } else {
+      return NextResponse.json(
+        { error: 'home_section_layout_v1 must be an object or null' },
+        { status: 400 },
+      );
+    }
   }
   if ('vndb_writeback' in body) {
     // Strict boolean check — previously any truthy value (including

@@ -4,10 +4,18 @@ import Link from 'next/link';
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Download, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
+import { ArrowRight, Download, Eye, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import {
+  DEFAULT_HOME_LAYOUT,
+  HOME_LAYOUT_EVENT,
+  HOME_SECTION_IDS,
+  type HomeSectionId,
+  type HomeSectionLayoutV1,
+  type HomeSectionState,
+} from '@/lib/home-section-layout';
 
 type SortKey =
   | 'updated_at'
@@ -56,6 +64,7 @@ interface ServerSettings {
   default_sort: SortKey;
   default_order?: 'asc' | 'desc';
   default_group?: GroupKey;
+  home_section_layout_v1?: HomeSectionLayoutV1;
   vndb_writeback?: boolean;
   vndb_backup_enabled?: boolean;
   vndb_backup_url?: string;
@@ -103,6 +112,7 @@ export function SettingsButton() {
       default_sort: SortKey;
       default_order: 'asc' | 'desc';
       default_group: GroupKey;
+      home_section_layout_v1: Partial<HomeSectionLayoutV1> | null;
       vndb_writeback: boolean;
       vndb_backup_enabled: boolean;
       vndb_backup_url: string | null;
@@ -546,6 +556,11 @@ export function SettingsButton() {
                   <p className="mt-2 text-[10px] text-muted">{t.settings.libraryDefaultsUrlHint}</p>
                 </div>
 
+                <HomeLayoutPanel
+                  layout={server?.home_section_layout_v1 ?? DEFAULT_HOME_LAYOUT}
+                  onChange={(next) => saveServer({ home_section_layout_v1: next })}
+                />
+
                 <div className="mt-6 flex justify-between">
                   <button type="button" className="btn" onClick={reset}>
                     {t.settings.reset}
@@ -560,6 +575,75 @@ export function SettingsButton() {
           )
         : null}
     </>
+  );
+}
+
+/**
+ * Manage home-page section visibility from inside the Settings modal.
+ * Mirrors the per-strip "..." menu but with a flat list so the user
+ * can restore sections they previously hid (when the strip is gone
+ * from the home page the "..." menu is gone too).
+ *
+ * Each toggle issues an optimistic PATCH to /api/settings — same
+ * envelope shape as the per-strip menu — and broadcasts a
+ * `vn:home-layout-changed` event so live strips update without a
+ * router.refresh().
+ */
+function HomeLayoutPanel({
+  layout,
+  onChange,
+}: {
+  layout: HomeSectionLayoutV1;
+  onChange: (next: Partial<HomeSectionLayoutV1>) => void;
+}) {
+  const t = useT();
+  function persist(id: HomeSectionId, next: HomeSectionState) {
+    onChange({ [id]: next });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent(HOME_LAYOUT_EVENT, { detail: { [id]: next } }),
+      );
+    }
+  }
+  const hiddenCount = HOME_SECTION_IDS.filter((id) => !layout[id].visible).length;
+  return (
+    <div className="mt-6 border-t border-border pt-5">
+      <h3 className="mb-1 text-sm font-bold">{t.homeSections.title}</h3>
+      <p className="mb-3 text-[11px] text-muted">{t.homeSections.desc}</p>
+      <ul className="space-y-2">
+        {HOME_SECTION_IDS.map((id) => {
+          const state = layout[id];
+          return (
+            <li
+              key={id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 text-xs"
+            >
+              <span className={state.visible ? 'text-white' : 'text-muted'}>
+                {t.homeSections.sectionLabels[id]}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => persist(id, { ...state, visible: !state.visible })}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
+                    state.visible
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-border text-muted hover:border-accent hover:text-accent'
+                  }`}
+                  aria-pressed={state.visible}
+                >
+                  <Eye className="h-3 w-3" aria-hidden />
+                  {state.visible ? t.homeSections.show : t.homeSections.hide}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {hiddenCount === 0 && (
+        <p className="mt-2 text-[10px] text-muted">{t.homeSections.hiddenNoneHint}</p>
+      )}
+    </div>
   );
 }
 
