@@ -23,9 +23,10 @@ const SERIES_RELATIONS = new Set(['seq', 'preq', 'set', 'fan', 'alt', 'orig']);
  * series-strength relations (`seq` / `preq` / `set` / `fan` / `alt` / `orig`).
  * Returns every reachable VN we have a `vn` row for, in discovery order.
  *
- * VNDB stores relations per-VN one hop deep; "Ai Kiss 1" doesn't directly
- * list "Ai Kiss 3", but "Ai Kiss 2" links both. Walking transitively
- * surfaces the full chain so the series picker can offer the whole family.
+ * VNDB stores relations per-VN one hop deep; the first volume of a
+ * series doesn't directly list the third volume, but the second volume
+ * links both. Walking transitively surfaces the full chain so the
+ * series picker can offer the whole family.
  *
  * Excludes the seed itself from the returned list.
  */

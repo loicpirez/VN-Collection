@@ -1338,8 +1338,8 @@ export interface CharacterSibling {
  * Other character records (different c_id) that share the same display name
  * as `charId`. VNDB tracks recurring cast inconsistently — sometimes one
  * character id is reused across every VN in a series, sometimes each VN
- * gets its own id for the same person (e.g. "Saegusa Hinata" in Ai Kiss 1
- * vs Ai Kiss 3 might be c11994 + c89053). This surfaces those sibling
+ * gets its own id for the same person (e.g. the same character in
+ * volumes 1 and 3 of a series may be c11994 + c89053). This surfaces those sibling
  * pages so the user can navigate between them.
  *
  * Pulls from vn_va_credit (covers every owned VN's voice cast). Filters to
@@ -2279,7 +2279,7 @@ export function deleteActivity(id: number): void {
  * "Game log" entries — free-form timestamped notes attached to a VN.
  * Distinct from `vn_activity` (which records state changes); the game
  * log is what the user types during/after a session (impressions,
- * route choices, "Saber dies in chapter 4", etc.).
+ * route choices, plot beats, character fates, etc.).
  *
  * `session_minutes` is optional — set by the Pomodoro integration so
  * the UI can show "logged 23m into a session".

@@ -355,7 +355,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           // Show only the primary developer name with a "+N" suffix
           // when there are more — comma-joining the whole list got
           // truncated to the first ~6 visible characters on dense
-          // grids, which was useless ("Type-Moon..." or worse).
+          // grids, which was useless (a clipped studio name or worse).
           const names = data.developers.map((d) => d.name).filter(Boolean);
           const primary = names[0];
           const extra = names.length - 1;
@@ -376,9 +376,8 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           // Publishers that are ALSO developers are dropped — they're
           // already represented in the developer chip above. Showing
           // them twice would just waste a row on every self-published
-          // studio (Type-Moon, Key, …). Dedup normalises trim + case
-          // because VNDB occasionally returns names with trailing
-          // whitespace ("Type-Moon ").
+          // studio. Dedup normalises trim + case because VNDB
+          // occasionally returns names with trailing whitespace.
           if (!data.publishers || data.publishers.length === 0) return null;
           const norm = (s: string) => s.trim().toLowerCase();
           const devIds = new Set((data.developers ?? []).map((d) => d.id).filter(Boolean));

@@ -21,8 +21,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   addVnToSeries(sid, vnId, baseIndex);
 
   // `expand` walks the seed's full series-relation graph and joins every
-  // related VN the user already owns. Lets the user add e.g. "Ai Kiss 1 → 2
-  // → 3" in one click instead of three.
+  // related VN the user already owns. Lets the user add e.g. volume
+  // 1 → 2 → 3 of a series in one click instead of three.
   const added: string[] = [vnId];
   if (body.expand) {
     const related = walkSeriesRelations(vnId);

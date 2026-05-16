@@ -90,9 +90,10 @@ export default async function CharacterPage({
   // user has fetched). VNDB doesn't expose per-VN voiced data on the
   // character endpoint, so we don't try to cross-reference unowned VNs.
   const vas = getVasForCharacter(id);
-  // Other VNDB character records with the SAME display name — covers the
-  // case where VNDB editors split a recurring character (e.g. Aikiss 1's
-  // Saegusa Hinata at c11994 vs Aikiss 3's at c89053).
+  // Other VNDB character records with the SAME display name — covers
+  // the case where VNDB editors split a recurring character across
+  // volumes of a series (e.g. the same protagonist may carry
+  // different character ids in volume 1 vs volume 3).
   const siblings = findCharacterSiblings(id);
   // vndb.org HTML scrape — provides character "instances" and the full
   // per-VN voice-actor map that the Kana API doesn't expose.

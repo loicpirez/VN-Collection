@@ -14,8 +14,8 @@ export const runtime = 'nodejs';
 /**
  * Game log — timestamped free-form notes scoped to a VN. Separate from
  * the activity log (which records state changes); this is where the
- * user writes "Saber dies in chapter 4" or "started Ayaka's route"
- * with the time it happened.
+ * user writes plot beats / route progress ("started heroine A's
+ * route", "chapter 4 finished") with the time they happened.
  *
  * GET    → { entries }
  * POST   { note, logged_at?, session_minutes? } → { entry }
