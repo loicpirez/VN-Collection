@@ -883,10 +883,34 @@ size and places the whole layout in a full-viewport overlay.
 ### Aspect ratio / resolution tracking ✅
 VNDB release `resolution` is normalized into
 `release_resolution_cache` with buckets `4:3`, `16:9`, `16:10`,
-`21:9`, `other`, and `unknown`. Per-owned-edition corrections live
-in `owned_release_aspect_override`, taking precedence over the VNDB
-cache. Library URL state supports `?aspect=16:9` and `group=aspect`;
-the My editions editor can set a manual width/height or bucket.
+`21:9`, `other`, and `unknown`. The cache row now also stores the
+release's VN id (filled lazily as the user visits `/vn/[id]` or
+`/release/[id]`) so the library aspect filter can match VNs even
+without an owned edition for the release.
+
+Aspect resolution priority (highest first):
+1. **VN-level manual override** — `vn_aspect_override` row set
+   through `<AspectOverrideControl>` on the VN page or
+   `PATCH /api/vn/[id]/aspect`. Highest priority; the user can pin
+   any bucket regardless of what VNDB or screenshots suggest.
+2. **Per-owned-edition override** —
+   `owned_release_aspect_override`, set from the My editions
+   editor when a single edition has a different physical aspect.
+3. **Cached release resolution** — `release_resolution_cache`,
+   either via `owned_release` join (the user owns it) or via the
+   new `vn_id` column (the release was browsed).
+4. **VN screenshots fallback** — `deriveVnAspectKey(vnId)` reads
+   `vn.screenshots[*].dims`, tallies the buckets, and picks the
+   most common one. Lets aspect filtering work for VNs whose
+   VNDB releases have no `resolution` field but whose screenshots
+   are sized.
+5. Falls back to `unknown`.
+
+Library URL state supports `?aspect=16:9` and `group=aspect`; the
+filter EXISTS query covers all four signal sources. The VN page
+exposes the manual override via the `aspect-override` section in
+the VN-detail layout (reorderable like every other below-the-card
+section).
 
 Multi-shelf navigation ("Pokémon box" pattern): each shelf can
 independently have its own (cols × rows) size, and the user can
@@ -1009,8 +1033,9 @@ filled.
 | `shelf_unit` | One per "real shelf" the user models | id, name, cols, rows, order_index, created_at, updated_at |
 | `shelf_slot` | Sparse placement table (one row per occupied cell) | composite PK (shelf_id, row, col); UNIQUE(vn_id, release_id); FK on (vn_id, release_id) cascades from owned_release |
 | `shelf_display_slot` | Face-out / front-display shelf slots | composite PK (shelf_id, after_row, position); UNIQUE(vn_id, release_id); FK on (vn_id, release_id) cascades from owned_release |
-| `release_resolution_cache` | Normalized VNDB release resolutions | release_id PK, width, height, raw_resolution, aspect_key, fetched_at |
-| `owned_release_aspect_override` | Manual aspect/resolution corrections | composite PK (vn_id, release_id); width, height, aspect_key, note, updated_at |
+| `release_resolution_cache` | Normalized VNDB release resolutions | release_id PK, **vn_id (nullable, lazily filled)**, width, height, raw_resolution, aspect_key, fetched_at |
+| `owned_release_aspect_override` | Manual aspect/resolution corrections per owned edition | composite PK (vn_id, release_id); width, height, aspect_key, note, updated_at |
+| `vn_aspect_override` | VN-level manual aspect override (highest priority) | vn_id PK (FK→vn), aspect_key, note, updated_at |
 | `staff_credit_index` | Derived index from `staff_full` cache | (sid, vn_id, is_va) — narrows brand-overlap scans before parsing JSON |
 | `character_vn_index` | Derived index from `char_full` cache | (character_id, vn_id) — narrows trait fan-out before parsing JSON |
 | `app_setting_audit` | Append-only audit log | id, key, prior_preview, next_preview, changed_at — last 4 chars only |

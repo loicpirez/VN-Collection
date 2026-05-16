@@ -330,10 +330,21 @@ shelf_display_slot PK (shelf_id, after_row, position)
                   All writes go through `placeShelfDisplayItem`.
 
 release_resolution_cache PK release_id
+                  vn_id (nullable, lazily filled by upsertReleaseResolutionCache
+                          so aspect filters can match a VN without owned_release),
                   width, height, raw_resolution, aspect_key, fetched_at
 
 owned_release_aspect_override PK (vn_id, release_id)
                   width, height, aspect_key, note, updated_at
+                  — per-edition manual override
+
+vn_aspect_override PK vn_id (FK→vn)
+                  aspect_key, note, updated_at
+                  — VN-level manual override. Highest priority in the
+                  derivation chain: vn_aspect_override > per-edition
+                  override > release_resolution_cache (owned or vn-bound)
+                  > vn.screenshots dims fallback > unknown. See
+                  `deriveVnAspectKey(vnId)` in lib/db.ts.
 
 user_list        PK id (auto)
                   name, slug (UNIQUE), description, color, icon,

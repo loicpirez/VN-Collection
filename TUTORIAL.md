@@ -286,8 +286,21 @@ Tabbed-style sections:
   stands/risers; one edition can still live in only one place.
 - **Aspect ratio** — VNDB release resolutions are normalized into
   4:3 / 16:9 / 16:10 / 21:9 / other / unknown. The library can
-  filter/group by aspect, and **My editions** lets you manually
-  override the resolution/aspect when VNDB data is missing or wrong.
+  filter (`?aspect=…`) and group (`group=aspect`) by aspect.
+  Detection chain (highest priority first):
+  1. **VN-level manual override** — open a VN page, find the
+     **Aspect ratio** section (drag/hide like any other VN
+     section), pin one of the 5 buckets, or clear to fall back to
+     auto detection.
+  2. **Per-edition override** — set from the My editions editor
+     when one physical edition has a different aspect.
+  3. **Cached release resolution** — populated lazily when you
+     open `/vn/[id]` or `/release/[id]`; binds the release id back
+     to its VN so the filter works for VNs you don't own yet.
+  4. **VN screenshots fallback** — if VNDB has no usable release
+     resolution, the most common ratio across `vn.screenshots[*].
+     dims` is used.
+  When everything fails the VN sits in the `unknown` bucket.
 - **Selective full download** — checkbox picker with Select all /
   Select none / Invert. Pick which VNs to fan-out staff /
   characters / developers for. Rate-limited by the global throttle.
