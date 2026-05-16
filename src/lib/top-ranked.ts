@@ -87,3 +87,54 @@ export async function fetchVndbTopRanked(
   }
   return Array.from(aggregate.values()).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
 }
+
+export interface VndbTopRankedPage {
+  rows: VndbTopRanked[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+/**
+ * Page-style cousin of fetchVndbTopRanked for the user-facing
+ * pagination on /top-ranked. Returns rows for a single page
+ * (1-indexed) plus a `hasMore` hint derived from VNDB's `more`
+ * response field — used to enable/disable the "next" control on
+ * the UI without an extra round trip.
+ *
+ * `pageSize` is clamped to [10, 100] (VNDB's per-request cap).
+ * VNDB's `page` parameter is 1-indexed and returns rows
+ * `(page-1)*pageSize..page*pageSize-1`.
+ */
+export async function fetchVndbTopRankedPage(
+  page = 1,
+  pageSize = 50,
+  minVotes: number = VNDB_TOP_MIN_VOTES,
+): Promise<VndbTopRankedPage> {
+  const safeSize = Math.min(100, Math.max(10, Math.floor(pageSize)));
+  const safePage = Math.max(1, Math.floor(page));
+  const body = {
+    filters: ['votecount', '>=', minVotes],
+    fields: VNDB_TOP_FIELDS,
+    sort: 'rating',
+    reverse: true,
+    results: safeSize,
+    page: safePage,
+  };
+  const r = await cachedFetch<VndbResponse<VndbTopRanked>>(
+    `${VNDB_API}/vn`,
+    {
+      __pathTag: `POST /vn:top-ranked:${minVotes}:p${safePage}:${safeSize}`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    { ttlMs: TTL.vnSearch },
+  );
+  return {
+    rows: r.data.results,
+    page: safePage,
+    pageSize: safeSize,
+    hasMore: !!r.data.more,
+  };
+}

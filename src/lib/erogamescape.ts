@@ -1071,3 +1071,100 @@ export async function fetchEgsTopRanked(
   writeCache(cacheK, out, EGS_TOP_TTL_MS);
   return applyManualEgsToVndb(out.map((r) => ({ ...r })));
 }
+
+export interface EgsTopRankedPage {
+  rows: EgsTopRanked[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+/**
+ * Page-style cousin of fetchEgsTopRanked for the user-facing
+ * pagination on /top-ranked. EGS supports OFFSET, so each page
+ * goes straight to the SQL form with its own cache key.
+ *
+ * Returns `pageSize` rows for the requested 1-indexed page, plus a
+ * `hasMore` boolean derived from a +1 probe row (we LIMIT
+ * pageSize+1 and trim).
+ *
+ * `pageSize` is clamped to [10, 100] for parity with VNDB; EGS
+ * itself imposes no per-request cap but the same shape is easier
+ * for the UI to render.
+ */
+export async function fetchEgsTopRankedPage(
+  page = 1,
+  pageSize = 50,
+  minVotes: number = EGS_TOP_MIN_VOTES,
+): Promise<EgsTopRankedPage> {
+  const safeSize = Math.min(100, Math.max(10, Math.floor(pageSize)));
+  const safePage = Math.max(1, Math.floor(page));
+  const safeMin = Math.max(1, Math.floor(minVotes));
+  const offset = (safePage - 1) * safeSize;
+  const cacheK = cacheKey('top-ranked', `${safeMin}:p${safePage}:${safeSize}`);
+  const cached = readCache<{ rows: EgsTopRanked[]; hasMore: boolean }>(cacheK);
+  if (cached && cached.rows.length > 0) {
+    return {
+      rows: applyManualEgsToVndb(cached.rows.map((r) => ({ ...r }))),
+      page: safePage,
+      pageSize: safeSize,
+      hasMore: cached.hasMore,
+    };
+  }
+  // SQL: same column set as the bulk fetcher, with explicit
+  // LIMIT/OFFSET so EGS does the slicing. Pull +1 row so we can
+  // tell the user whether a Next page exists without a second
+  // round-trip.
+  const sql =
+    `SELECT g.id, g.gamename, g.furigana, g.brandname AS brand_id, ` +
+    `b.brandname AS brand_name, g.median, g.median2, g.average2, g.count2, ` +
+    `g.sellday, g.banner_url, g.okazu, g.erogame, g.vndb ` +
+    `FROM gamelist g LEFT JOIN brandlist b ON g.brandname = b.id ` +
+    `WHERE g.count2 >= ${safeMin} ` +
+    `  AND COALESCE(g.median, g.median2) IS NOT NULL ` +
+    `ORDER BY (COALESCE(g.median, g.median2) IS NULL), ` +
+    `         COALESCE(g.median, g.median2) DESC, g.count2 DESC ` +
+    `LIMIT ${safeSize + 1} OFFSET ${offset}`;
+  const rawRows = await fetchTable(sql);
+  if (rawRows.length < 2) {
+    return { rows: [], page: safePage, pageSize: safeSize, hasMore: false };
+  }
+  const header = rawRows[0].map((h) => h.trim());
+  const idx = (name: string): number => header.indexOf(name);
+  const parsed: EgsTopRanked[] = [];
+  for (let i = 1; i < rawRows.length; i++) {
+    const r = rawRows[i];
+    const id = toNumber(r[idx('id')]);
+    if (id == null) continue;
+    const vndb = (r[idx('vndb')] ?? '').trim();
+    const medianActive = toNumber(r[idx('median')]);
+    const median2Legacy = toNumber(r[idx('median2')]);
+    parsed.push({
+      egs_id: id,
+      gamename: r[idx('gamename')] ?? '',
+      furigana: r[idx('furigana')] || null,
+      brand_id: toNumber(r[idx('brand_id')]),
+      brand_name: r[idx('brand_name')] || null,
+      median: medianActive ?? median2Legacy,
+      average: toNumber(r[idx('average2')]),
+      count: toNumber(r[idx('count2')]),
+      sellday: r[idx('sellday')] || null,
+      banner_url: r[idx('banner_url')] || null,
+      okazu: toBool(r[idx('okazu')]) === true,
+      erogame: toBool(r[idx('erogame')]) === true,
+      vndb_id: /^v\d+$/.test(vndb) ? vndb : null,
+    });
+  }
+  const hasMore = parsed.length > safeSize;
+  const rows = parsed.slice(0, safeSize);
+  // Don't cache zero rows (same reasoning as fetchEgsTopRanked).
+  if (rows.length > 0) {
+    writeCache(cacheK, { rows, hasMore }, EGS_TOP_TTL_MS);
+  }
+  return {
+    rows: applyManualEgsToVndb(rows.map((r) => ({ ...r }))),
+    page: safePage,
+    pageSize: safeSize,
+    hasMore,
+  };
+}

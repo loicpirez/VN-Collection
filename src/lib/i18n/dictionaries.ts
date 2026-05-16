@@ -86,6 +86,10 @@ export const dictionaries = {
       egsUnreachableTitle: 'EGS injoignable',
       egsUnreachableHint: 'Le formulaire SQL public d\'ErogameScape n\'a pas répondu. Vérifie ta connexion réseau ou réessaie plus tard. Si le problème persiste, regarde si erogamescape.dyndns.org répond depuis ton navigateur.',
       voteCount: '{n} votes',
+      rankRange: 'Rangs {from}–{to}',
+      prevPage: 'Précédent',
+      nextPage: 'Suivant',
+      paginationLabel: 'Pagination du classement',
     },
     upcoming: {
       title: 'Sorties à venir',
@@ -2014,6 +2018,10 @@ export const dictionaries = {
       egsUnreachableTitle: 'EGS unreachable',
       egsUnreachableHint: 'ErogameScape\'s public SQL form did not respond. Check your network, or try again later. If the problem persists, see if erogamescape.dyndns.org loads in your browser.',
       voteCount: '{n} votes',
+      rankRange: 'Ranks {from}–{to}',
+      prevPage: 'Previous',
+      nextPage: 'Next',
+      paginationLabel: 'Ranking pagination',
     },
     upcoming: {
       title: 'Upcoming releases',
@@ -3942,6 +3950,10 @@ export const dictionaries = {
       egsUnreachableTitle: 'EGS に接続できません',
       egsUnreachableHint: 'ErogameScape の公開 SQL フォームから応答がありませんでした。ネットワーク接続を確認するか、時間を置いて再試行してください。erogamescape.dyndns.org がブラウザで開けるか確認してください。',
       voteCount: '{n} 票',
+      rankRange: 'ランク {from}–{to}',
+      prevPage: '前へ',
+      nextPage: '次へ',
+      paginationLabel: 'ランキングのページ送り',
     },
     upcoming: {
       title: '発売予定',

@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Library as LibraryIcon, Sparkles, Star, Trophy } from 'lucide-react';
-import { fetchVndbTopRanked, VNDB_TOP_MIN_VOTES, type VndbTopRanked } from '@/lib/top-ranked';
-import { fetchEgsTopRanked, EGS_TOP_MIN_VOTES, EgsUnreachable, type EgsTopRanked } from '@/lib/erogamescape';
+import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Library as LibraryIcon, Sparkles, Star, Trophy } from 'lucide-react';
+import { fetchVndbTopRankedPage, VNDB_TOP_MIN_VOTES, type VndbTopRanked } from '@/lib/top-ranked';
+import { fetchEgsTopRankedPage, EGS_TOP_MIN_VOTES, EgsUnreachable, type EgsTopRanked } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
@@ -23,18 +23,31 @@ export async function generateMetadata(): Promise<Metadata> {
 
 type Tab = 'vndb' | 'egs';
 
+const PAGE_SIZE = 50;
+
 function parseTab(value: string | undefined): Tab {
   return value === 'egs' ? 'egs' : 'vndb';
+}
+
+function parsePage(value: string | undefined): number {
+  // Clamp to [1, 20]. VNDB's `votecount >= 50` tail goes well past
+  // 1000 entries; EGS even further. 20 pages × 50 = 1000 rows of
+  // headroom; the user can cap there. Default to page 1 on garbage.
+  if (!value) return 1;
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(20, n);
 }
 
 export default async function TopRankedPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string }>;
 }) {
   const t = await getDict();
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, page: rawPage } = await searchParams;
   const tab = parseTab(rawTab);
+  const page = parsePage(rawPage);
   const lastUpdatedAt = getCacheFreshness([
     '% /vn:top-ranked:%',
     'egs:top-ranked:%',
@@ -86,17 +99,17 @@ export default async function TopRankedPage({
         </p>
       </header>
 
-      <Suspense key={tab} fallback={<SkeletonCardGrid count={12} />}>
-        <TabContent tab={tab} t={t} />
+      <Suspense key={`${tab}-${page}`} fallback={<SkeletonCardGrid count={12} />}>
+        <TabContent tab={tab} page={page} t={t} />
       </Suspense>
     </div>
   );
 }
 
-async function TabContent({ tab, t }: { tab: Tab; t: Dictionary }) {
+async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Dictionary }) {
   try {
     if (tab === 'egs') {
-      const rows = await fetchEgsTopRanked(100);
+      const { rows, hasMore } = await fetchEgsTopRankedPage(page, PAGE_SIZE);
       if (rows.length === 0) {
         return <EmptyState message={t.topRanked.emptyEgs} hint={t.topRanked.emptyEgsHint} />;
       }
@@ -109,13 +122,23 @@ async function TabContent({ tab, t }: { tab: Tab; t: Dictionary }) {
       // here and the row itself surfaces a Map-to-VNDB action.
       const vndbIds = rows.map((r) => r.vndb_id).filter((v): v is string => !!v);
       const covers = vndbIds.length > 0 ? await fetchVnCovers(vndbIds) : new Map<string, VndbCoverInfo>();
-      return <EgsSection rows={rows} covers={covers} t={t} />;
+      return (
+        <>
+          <EgsSection rows={rows} covers={covers} t={t} startRank={(page - 1) * PAGE_SIZE} />
+          <Paginator tab={tab} page={page} hasMore={hasMore} t={t} />
+        </>
+      );
     }
-    const rows = await fetchVndbTopRanked(100);
+    const { rows, hasMore } = await fetchVndbTopRankedPage(page, PAGE_SIZE);
     if (rows.length === 0) {
       return <EmptyState message={t.topRanked.emptyVndb} />;
     }
-    return <VndbSection rows={rows} t={t} />;
+    return (
+      <>
+        <VndbSection rows={rows} t={t} startRank={(page - 1) * PAGE_SIZE} />
+        <Paginator tab={tab} page={page} hasMore={hasMore} t={t} />
+      </>
+    );
   } catch (e) {
     // Differentiate "EGS unreachable" (network / form down / 5xx) from
     // generic errors. The unreachable case is the user's actionable
@@ -145,6 +168,67 @@ function EmptyState({ message, hint }: { message: string; hint?: string }) {
       <p>{message}</p>
       {hint && <p className="mt-2 text-[11px] opacity-80">{hint}</p>}
     </div>
+  );
+}
+
+/**
+ * Page-range pagination control. Shows the current rank range
+ * (e.g. "Rangs 51–100") + a Previous / Next pair. URLs preserve
+ * the tab so the user can navigate without losing context.
+ */
+function Paginator({
+  tab,
+  page,
+  hasMore,
+  t,
+}: {
+  tab: Tab;
+  page: number;
+  hasMore: boolean;
+  t: Dictionary;
+}) {
+  const startRank = (page - 1) * PAGE_SIZE + 1;
+  const endRank = page * PAGE_SIZE;
+  const baseQs = tab === 'egs' ? 'tab=egs' : 'tab=vndb';
+  const prevHref = `/top-ranked?${baseQs}${page > 2 ? `&page=${page - 1}` : ''}`;
+  const nextHref = `/top-ranked?${baseQs}&page=${page + 1}`;
+  return (
+    <nav
+      className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-bg-card/60 px-3 py-2 text-xs"
+      aria-label={t.topRanked.paginationLabel}
+    >
+      <span className="text-muted tabular-nums">
+        {t.topRanked.rankRange
+          .replace('{from}', startRank.toLocaleString())
+          .replace('{to}', endRank.toLocaleString())}
+      </span>
+      <div className="inline-flex items-center gap-2">
+        {page > 1 ? (
+          <Link
+            href={prevHref}
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent"
+          >
+            <ChevronLeft className="h-3 w-3" aria-hidden /> {t.topRanked.prevPage}
+          </Link>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-muted opacity-40">
+            <ChevronLeft className="h-3 w-3" aria-hidden /> {t.topRanked.prevPage}
+          </span>
+        )}
+        {hasMore ? (
+          <Link
+            href={nextHref}
+            className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20"
+          >
+            {t.topRanked.nextPage} <ChevronRight className="h-3 w-3" aria-hidden />
+          </Link>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-muted opacity-40">
+            {t.topRanked.nextPage} <ChevronRight className="h-3 w-3" aria-hidden />
+          </span>
+        )}
+      </div>
+    </nav>
   );
 }
 
@@ -180,7 +264,7 @@ function TabLink({
  * because we already mirror cached VN metadata; if the VN isn't in
  * the local DB yet, /vn/[id] auto-fetches on first visit.
  */
-function VndbSection({ rows, t }: { rows: VndbTopRanked[]; t: Dictionary }) {
+function VndbSection({ rows, t, startRank = 0 }: { rows: VndbTopRanked[]; t: Dictionary; startRank?: number }) {
   // Overlay locally-mirrored covers when we have them (sharper than
   // VNDB's hosted thumbnail). Same trick the /upcoming page uses.
   const ids = rows.map((r) => r.id);
@@ -200,17 +284,24 @@ function VndbSection({ rows, t }: { rows: VndbTopRanked[]; t: Dictionary }) {
     <section className="rounded-xl border border-border bg-bg-card p-3 sm:p-5">
       <ol
         className="grid gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(260px, var(--card-density-px, 260px))), 1fr))' }}
       >
         {rows.map((v, i) => (
           <li
             key={v.id}
-            className="group flex gap-2 rounded-lg border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
+            className="group flex gap-3 rounded-lg border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
           >
             <Link
               href={`/vn/${v.id}`}
-              className="relative block h-28 w-20 shrink-0 overflow-hidden rounded"
+              className="relative block shrink-0 overflow-hidden rounded"
               aria-label={v.title}
+              style={{
+                // Cover scales with the density slider so a wider
+                // card gets a proportionally larger cover — no more
+                // h-28 w-20 fixed thumbnail inside a 340px column.
+                width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
+                aspectRatio: '2 / 3',
+              }}
             >
               <SafeImage
                 src={v.image?.thumbnail ?? v.image?.url ?? null}
@@ -219,8 +310,8 @@ function VndbSection({ rows, t }: { rows: VndbTopRanked[]; t: Dictionary }) {
                 alt={v.title}
                 className="h-full w-full"
               />
-              <span className="absolute -left-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-bg shadow-card">
-                {i + 1}
+              <span className="absolute -left-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-bg shadow-card">
+                {startRank + i + 1}
               </span>
             </Link>
             <div className="min-w-0 flex-1 text-[11px]">
@@ -263,16 +354,18 @@ function EgsSection({
   rows,
   covers,
   t,
+  startRank = 0,
 }: {
   rows: EgsTopRanked[];
   covers: Map<string, VndbCoverInfo>;
   t: Dictionary;
+  startRank?: number;
 }) {
   return (
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-3 sm:p-5">
       <ol
         className="grid gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(260px, var(--card-density-px, 260px))), 1fr))' }}
       >
         {rows.map((r, i) => {
           const vndbCover = r.vndb_id ? covers.get(r.vndb_id) ?? null : null;
@@ -292,13 +385,17 @@ function EgsSection({
           return (
             <li
               key={r.egs_id}
-              className="group flex gap-2 rounded-lg border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
+              className="group flex gap-3 rounded-lg border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
             >
               <Link
                 href={href}
                 {...linkProps}
-                className="relative block h-28 w-20 shrink-0 overflow-hidden rounded"
+                className="relative block shrink-0 overflow-hidden rounded"
                 aria-label={r.gamename}
+                style={{
+                  width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
+                  aspectRatio: '2 / 3',
+                }}
               >
                 <SafeImage
                   src={coverSrc}
@@ -306,8 +403,8 @@ function EgsSection({
                   alt={r.gamename}
                   className="h-full w-full"
                 />
-                <span className="absolute -left-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-bg shadow-card">
-                  {i + 1}
+                <span className="absolute -left-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-bg shadow-card">
+                  {startRank + i + 1}
                 </span>
               </Link>
               <div className="min-w-0 flex-1 text-[11px]">
