@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Download, Eye, EyeOff, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
+import { ArrowRight, Check, Download, Eye, EyeOff, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { CardDensitySlider } from './CardDensitySlider';
 import { useT } from '@/lib/i18n/client';
@@ -551,16 +551,37 @@ export function SettingsButton() {
                     <p className="mb-3 text-[11px] text-muted">{t.settings.steamDesc}</p>
                     <div className="space-y-3">
                       <label className="flex flex-col gap-1">
-                        <span className="text-[11px] font-semibold text-muted">{t.settings.steamApiKeyLabel}</span>
+                        <span className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-muted">
+                          <span>{t.settings.steamApiKeyLabel}</span>
+                          {server?.steam_api_key?.hasKey && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-status-completed/40 bg-status-completed/10 px-2 py-0.5 text-[10px] font-bold text-status-completed">
+                              <Check className="h-2.5 w-2.5" aria-hidden />
+                              {t.settings.credentialSaved}
+                            </span>
+                          )}
+                          {server?.steam_api_key?.hasKey && (
+                            <button
+                              type="button"
+                              onClick={() => saveServer({ steam_api_key: null })}
+                              className="text-[10px] text-muted underline-offset-2 hover:text-status-dropped hover:underline"
+                              title={t.settings.credentialClear}
+                            >
+                              {t.settings.credentialClear}
+                            </button>
+                          )}
+                        </span>
                         <input
                           type="password"
                           autoComplete="off"
-                          defaultValue={server?.steam_api_key?.preview ?? ''}
-                          placeholder={server?.steam_api_key?.hasKey ? server.steam_api_key.preview ?? '' : t.settings.steamKeyPlaceholder}
+                          // We never display the raw key. The masked
+                          // "saved" badge above the input tells the
+                          // user a key is stored. The input itself
+                          // stays empty so they can replace it.
+                          defaultValue=""
+                          placeholder={server?.steam_api_key?.hasKey ? t.settings.credentialStoredPlaceholder : t.settings.steamKeyPlaceholder}
                           onBlur={(e) => {
                             const v = e.target.value.trim();
-                            // Don't save if user didn't change it (placeholder is mask)
-                            if (v && !v.startsWith('…')) saveServer({ steam_api_key: v });
+                            if (v) saveServer({ steam_api_key: v });
                           }}
                           aria-label={t.settings.steamApiKeyLabel}
                           className="input w-full"
@@ -591,7 +612,15 @@ export function SettingsButton() {
                     <h3 className="mb-1 text-sm font-bold">{t.settings.egsTitle}</h3>
                     <p className="mb-3 text-[11px] text-muted">{t.settings.egsDesc}</p>
                     <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-semibold text-muted">{t.settings.egsUsernameLabel}</span>
+                      <span className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-muted">
+                        <span>{t.settings.egsUsernameLabel}</span>
+                        {server?.egs_username && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-status-completed/40 bg-status-completed/10 px-2 py-0.5 text-[10px] font-bold text-status-completed">
+                            <Check className="h-2.5 w-2.5" aria-hidden />
+                            {server.egs_username}
+                          </span>
+                        )}
+                      </span>
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
