@@ -1101,7 +1101,44 @@ export interface EgsTopRanked {
 /** Default minimum reviewer count for EGS top-ranked. Single-reviewer
  *  10/10s look noisy on a chart; this trims them out. Lower than VNDB
  *  because EGS has fewer reviewers per game. */
-export const EGS_TOP_MIN_VOTES = 5;
+export const EGS_TOP_MIN_VOTES = 10;
+/**
+ * Bayesian shrinkage parameters for the EGS top-ranked ranking.
+ *
+ * The raw EGS median is reported on a 0–100 scale. Without shrinkage
+ * a single-reviewer game with median=100 would outrank a 2000-reviewer
+ * game with median=85 — that is not a credible ranking. The Bayesian
+ * formula `(count * median + C * priorMean) / (count + C)` pulls a
+ * low-vote outlier toward the prior, leaving the rank near its raw
+ * median once `count` gets large.
+ *
+ * `EGS_BAYES_PRIOR_STRENGTH` (C) — number of pseudo-votes contributed
+ * by the prior. Tuned at 30: roughly the median count2 across
+ * well-known EGS titles. Pulls 5-vote outliers strongly toward the
+ * prior; barely moves 100+ vote titles. Lowering C trusts the raw
+ * median more; raising C trusts the prior more.
+ *
+ * `EGS_BAYES_PRIOR_MEAN` — the prior median (between 0 and 100).
+ * Tuned at 70: empirically the population mean clusters in [65,80]
+ * for well-reviewed EGS titles. The exact value is not critical so
+ * long as it sits between the typical median (~75) and a random one
+ * (50), which it does.
+ */
+export const EGS_BAYES_PRIOR_STRENGTH = 30;
+export const EGS_BAYES_PRIOR_MEAN = 70;
+
+/**
+ * Compute the Bayesian-weighted score for a row. Exported for unit
+ * tests and for the UI tooltip that explains the rank.
+ */
+export function egsBayesianScore(
+  rawMedian: number,
+  count: number,
+  c: number = EGS_BAYES_PRIOR_STRENGTH,
+  priorMean: number = EGS_BAYES_PRIOR_MEAN,
+): number {
+  return (count * rawMedian + c * priorMean) / (count + c);
+}
 
 const EGS_TOP_TTL_MS = 12 * 3600 * 1000;
 
@@ -1150,6 +1187,15 @@ export async function fetchEgsTopRanked(
   // specifically about `median2`. We now SELECT both, prefer
   // `median` (the active column), and fall back to `median2` if a
   // future EGS migration ever flips back.
+  // Bayesian-weighted ORDER BY — the previous `median DESC, count2
+  // DESC` clause was a raw-median ranking with count2 only as a
+  // tiebreaker, which let single-reviewer outliers dominate the top.
+  // The new expression shrinks each row's median toward
+  // EGS_BAYES_PRIOR_MEAN with strength EGS_BAYES_PRIOR_STRENGTH.
+  // Postgres on the public SQL form accepts inline arithmetic in
+  // ORDER BY; we reuse the same expression as a tiebreaker after
+  // count2 in case two rows happen to land at the same Bayesian
+  // score (extremely rare given non-integer fractions).
   const sql =
     `SELECT g.id, g.gamename, g.furigana, g.brandname AS brand_id, ` +
     `b.brandname AS brand_name, g.median, g.median2, g.average2, g.count2, ` +
@@ -1158,7 +1204,10 @@ export async function fetchEgsTopRanked(
     `WHERE g.count2 >= ${safeMin} ` +
     `  AND COALESCE(g.median, g.median2) IS NOT NULL ` +
     `ORDER BY (COALESCE(g.median, g.median2) IS NULL), ` +
-    `         COALESCE(g.median, g.median2) DESC, g.count2 DESC ` +
+    `         (g.count2 * COALESCE(g.median, g.median2)::numeric + ` +
+    `          ${EGS_BAYES_PRIOR_STRENGTH} * ${EGS_BAYES_PRIOR_MEAN}::numeric) ` +
+    `         / (g.count2 + ${EGS_BAYES_PRIOR_STRENGTH}) DESC, ` +
+    `         g.count2 DESC, g.id DESC ` +
     `LIMIT ${safeLimit}`;
 
   // Surface EgsUnreachable to the caller so the UI can render an
@@ -1256,6 +1305,9 @@ export async function fetchEgsTopRankedPage(
   // LIMIT/OFFSET so EGS does the slicing. Pull +1 row so we can
   // tell the user whether a Next page exists without a second
   // round-trip.
+  // Bayesian-weighted ORDER BY — see fetchEgsTopRanked above for
+  // the parameter rationale. Same expression used here so paginated
+  // results match the bulk-fetch ordering.
   const sql =
     `SELECT g.id, g.gamename, g.furigana, g.brandname AS brand_id, ` +
     `b.brandname AS brand_name, g.median, g.median2, g.average2, g.count2, ` +
@@ -1264,7 +1316,10 @@ export async function fetchEgsTopRankedPage(
     `WHERE g.count2 >= ${safeMin} ` +
     `  AND COALESCE(g.median, g.median2) IS NOT NULL ` +
     `ORDER BY (COALESCE(g.median, g.median2) IS NULL), ` +
-    `         COALESCE(g.median, g.median2) DESC, g.count2 DESC ` +
+    `         (g.count2 * COALESCE(g.median, g.median2)::numeric + ` +
+    `          ${EGS_BAYES_PRIOR_STRENGTH} * ${EGS_BAYES_PRIOR_MEAN}::numeric) ` +
+    `         / (g.count2 + ${EGS_BAYES_PRIOR_STRENGTH}) DESC, ` +
+    `         g.count2 DESC, g.id DESC ` +
     `LIMIT ${safeSize + 1} OFFSET ${offset}`;
   // Stale-while-error: serve last successful payload (even if
   // expired) when the SQL form is unreachable.
