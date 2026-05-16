@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Activity, BookMarked, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, HardDriveDownload, KeyRound, QrCode, Sparkles } from 'lucide-react';
+import { Activity, BookMarked, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, HardDriveDownload, KeyRound, QrCode, Settings2, Sparkles } from 'lucide-react';
 import { getDbStatus } from '@/lib/db';
 import { getAuthInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
@@ -8,7 +8,6 @@ import { ImportPanel } from '@/components/ImportPanel';
 import { DataMaintenance } from '@/components/DataMaintenance';
 import { DropImport } from '@/components/DropImport';
 import { RunTourButton } from '@/components/RunTourButton';
-import { SteamSettingsBlock } from '@/components/SteamSettingsBlock';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { RecentActivityStrip } from '@/components/RecentActivityStrip';
 import { SelectiveFullDownload } from '@/components/SelectiveFullDownload';
@@ -155,10 +154,30 @@ export default async function DataPage() {
           <Gamepad2 className="h-4 w-4 text-accent" aria-hidden /> {t.steam.title}
         </h2>
         <p className="mb-3 text-xs text-muted">{t.steam.subtitle}</p>
-        <Link href="/steam" className="btn">
-          <Gamepad2 className="h-4 w-4" aria-hidden /> {t.steam.open}
-        </Link>
-        <SteamSettingsBlock />
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/steam" className="btn">
+            <Gamepad2 className="h-4 w-4" aria-hidden /> {t.steam.open}
+          </Link>
+          {/*
+            Steam credential CONFIG (api key + SteamID) lives in
+            Settings → Integrations now. This section keeps the
+            entry point + a callout link. The inline form was
+            removed in commit <this one> to fix the IA — /data
+            should be operational (status / actions), not a
+            second home for settings.
+          */}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('vn:open-settings', { detail: { tab: 'integrations' } }));
+              }
+            }}
+            className="btn"
+          >
+            <Settings2 className="h-4 w-4" aria-hidden /> {t.dataMgmt.integrationsLink}
+          </button>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -166,9 +185,26 @@ export default async function DataPage() {
           <Sparkles className="h-4 w-4 text-accent" aria-hidden /> {t.egsSync.title}
         </h2>
         <p className="mb-3 text-xs text-muted">{t.egsSync.subtitle}</p>
-        <Link href="/egs" className="btn mb-3 inline-flex">
-          <Sparkles className="h-4 w-4" aria-hidden /> {t.egs.open}
-        </Link>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Link href="/egs" className="btn">
+            <Sparkles className="h-4 w-4" aria-hidden /> {t.egs.open}
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('vn:open-settings', { detail: { tab: 'integrations' } }));
+              }
+            }}
+            className="btn"
+          >
+            <Settings2 className="h-4 w-4" aria-hidden /> {t.dataMgmt.integrationsLink}
+          </button>
+        </div>
+        {/* EgsSyncBlock is kept here because it's an ACTION (pull
+            EGS user reviews, apply playtime), not a setting.
+            Credential config (EGS uid) lives in Settings →
+            Integrations. */}
         <EgsSyncBlock />
       </section>
 

@@ -221,10 +221,16 @@ export function SettingsButton() {
   }, []);
 
   // External "open me" trigger (dispatched by SpoilerToggle's
-  // "Open full settings" button so the user can drill from the
-  // eye popover into the canonical settings modal).
+  // "Open full settings" button and by /data's "Manage in
+  // Settings → Integrations" callout buttons).
+  // Optional `event.detail.tab` selects a specific tab on open
+  // so the callout from /data lands directly on `integrations`.
   useEffect(() => {
-    function onOpen() {
+    function onOpen(e: Event) {
+      const detail = (e as CustomEvent<{ tab?: SettingsTab }>).detail;
+      if (detail?.tab && (SETTINGS_TABS as readonly string[]).includes(detail.tab)) {
+        setActiveTab(detail.tab);
+      }
       setOpen(true);
     }
     window.addEventListener('vn:open-settings', onOpen);
