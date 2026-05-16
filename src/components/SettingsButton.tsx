@@ -713,8 +713,13 @@ export function SettingsButton() {
                 )}
 
                 <div className="mt-6 flex justify-between">
-                  <button type="button" className="btn" onClick={reset}>
-                    {t.settings.reset}
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={reset}
+                    title={t.settings.resetDisplayHint}
+                  >
+                    {t.settings.resetDisplay}
                   </button>
                   <button type="button" className="btn btn-primary" onClick={() => setOpen(false)}>
                     {t.common.close}
@@ -801,6 +806,29 @@ function HomeLayoutPanel({
       {hiddenCount === 0 && (
         <p className="mt-2 text-[10px] text-muted">{t.homeSections.hiddenNoneHint}</p>
       )}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+        <p className="text-[10px] text-muted">{t.homeSections.resetHint}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(DEFAULT_HOME_LAYOUT);
+            // Calling onChange with null is interpreted by the parent
+            // as a "drop the row" intent; the route will treat that as
+            // a reset.
+            onChange({ sections: DEFAULT_HOME_LAYOUT.sections, order: DEFAULT_HOME_LAYOUT.order });
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent(HOME_LAYOUT_EVENT, { detail: { reset: true } }),
+              );
+            }
+          }}
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/30 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+          title={t.homeSections.resetHint}
+        >
+          <Settings2 className="h-3 w-3" aria-hidden />
+          {t.homeSections.reset}
+        </button>
+      </div>
     </div>
   );
 }
