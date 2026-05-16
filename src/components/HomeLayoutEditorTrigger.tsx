@@ -123,15 +123,24 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
 
   return (
     <>
+      {/*
+        Compact icon-only trigger. Previous renderings used a wide
+        button with the full label above every section, which the user
+        reported as "detached and visually awkward". The control is
+        now an unobtrusive icon button anchored to the top-right of
+        the page; the text label survives via `aria-label` + `title`
+        for tooltips, and the modal that opens still shows the full
+        label as its heading.
+      */}
       <div className="mb-2 flex justify-end">
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+          aria-label={t.homeLayout.openEditor}
           title={t.homeLayout.openEditor}
+          className="tap-target-tight inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-bg-card/40 text-muted hover:border-accent hover:text-accent"
         >
-          <LayoutTemplate className="h-3 w-3" aria-hidden />
-          <span>{t.homeLayout.openEditor}</span>
+          <LayoutTemplate className="h-4 w-4" aria-hidden />
         </button>
       </div>
       {open && (
