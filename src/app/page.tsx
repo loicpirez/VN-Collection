@@ -3,8 +3,10 @@ import { LibraryClient } from '@/components/LibraryClient';
 import { RecentlyViewedStrip } from '@/components/RecentlyViewedStrip';
 import { AnniversaryFeed } from '@/components/AnniversaryFeed';
 import { ReadingQueueStrip } from '@/components/ReadingQueueStrip';
+import { HomeLibrarySection } from '@/components/HomeLibrarySection';
+import { HomeLayoutEditorTrigger } from '@/components/HomeLayoutEditorTrigger';
 import { getAppSetting } from '@/lib/db';
-import { parseHomeSectionLayoutV1 } from '@/lib/home-section-layout';
+import { parseHomeSectionLayoutV1, type HomeSectionId } from '@/lib/home-section-layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,12 +16,23 @@ export default function HomePage() {
   // header writes mutations back via PATCH /api/settings and triggers
   // a router.refresh() so the next paint reflects the change.
   const layout = parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1'));
+  // Map every section id to its renderable element so the order array
+  // can drive the page composition. Library is a registered section so
+  // the user can hide / collapse / reorder it like every other strip.
+  const sectionRenderers: Record<HomeSectionId, React.ReactNode> = {
+    'recently-viewed': (
+      <RecentlyViewedStrip initialState={layout.sections['recently-viewed']} />
+    ),
+    'reading-queue': <ReadingQueueStrip initialState={layout.sections['reading-queue']} />,
+    anniversary: <AnniversaryFeed initialState={layout.sections.anniversary} />,
+    library: <HomeLibrarySection initialState={layout.sections.library} />,
+  };
   return (
     <Suspense>
-      <RecentlyViewedStrip initialState={layout['recently-viewed']} />
-      <ReadingQueueStrip initialState={layout['reading-queue']} />
-      <AnniversaryFeed initialState={layout.anniversary} />
-      <LibraryClient />
+      <HomeLayoutEditorTrigger layout={layout} />
+      {layout.order.map((id) => (
+        <div key={id}>{sectionRenderers[id]}</div>
+      ))}
     </Suspense>
   );
 }

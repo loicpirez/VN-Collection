@@ -140,7 +140,7 @@ export function SettingsButton() {
       default_sort: SortKey;
       default_order: 'asc' | 'desc';
       default_group: GroupKey;
-      home_section_layout_v1: Partial<HomeSectionLayoutV1> | null;
+      home_section_layout_v1: { sections?: Partial<HomeSectionLayoutV1['sections']>; order?: HomeSectionLayoutV1['order'] } | null;
       vn_detail_section_layout_v1: VnDetailLayoutV1 | null;
       vndb_writeback: boolean;
       vndb_backup_enabled: boolean;
@@ -745,7 +745,7 @@ function HomeLayoutPanel({
   onChange,
 }: {
   layout: HomeSectionLayoutV1;
-  onChange: (next: Partial<HomeSectionLayoutV1>) => void;
+  onChange: (next: { sections?: Partial<HomeSectionLayoutV1['sections']>; order?: HomeSectionLayoutV1['order'] }) => void;
 }) {
   const t = useT();
   const [draft, setDraft] = useState(layout);
@@ -755,22 +755,22 @@ function HomeLayoutPanel({
   }, [layout]);
 
   function persist(id: HomeSectionId, next: HomeSectionState) {
-    setDraft((cur) => ({ ...cur, [id]: next }));
-    onChange({ [id]: next });
+    setDraft((cur) => ({ ...cur, sections: { ...cur.sections, [id]: next } }));
+    onChange({ sections: { [id]: next } });
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
-        new CustomEvent(HOME_LAYOUT_EVENT, { detail: { [id]: next } }),
+        new CustomEvent(HOME_LAYOUT_EVENT, { detail: { sections: { [id]: next } } }),
       );
     }
   }
-  const hiddenCount = HOME_SECTION_IDS.filter((id) => !draft[id].visible).length;
+  const hiddenCount = HOME_SECTION_IDS.filter((id) => !draft.sections[id].visible).length;
   return (
     <div className="mt-6 border-t border-border pt-5">
       <h3 className="mb-1 text-sm font-bold">{t.homeSections.title}</h3>
       <p className="mb-3 text-[11px] text-muted">{t.homeSections.desc}</p>
       <ul className="space-y-2">
         {HOME_SECTION_IDS.map((id) => {
-          const state = draft[id];
+          const state = draft.sections[id];
           return (
             <li
               key={id}

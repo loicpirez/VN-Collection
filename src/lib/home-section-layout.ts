@@ -17,6 +17,7 @@ export const HOME_SECTION_IDS = [
   'recently-viewed',
   'reading-queue',
   'anniversary',
+  'library',
 ] as const;
 
 export type HomeSectionId = (typeof HOME_SECTION_IDS)[number];
@@ -28,12 +29,21 @@ export interface HomeSectionState {
   collapsed: boolean;
 }
 
-export type HomeSectionLayoutV1 = Record<HomeSectionId, HomeSectionState>;
+export interface HomeSectionLayoutV1 {
+  /** Per-section state keyed by section id. */
+  sections: Record<HomeSectionId, HomeSectionState>;
+  /** Render order — first id renders first. */
+  order: HomeSectionId[];
+}
 
 export const DEFAULT_HOME_LAYOUT: HomeSectionLayoutV1 = {
-  'recently-viewed': { visible: true, collapsed: false },
-  'reading-queue': { visible: true, collapsed: false },
-  anniversary: { visible: true, collapsed: false },
+  sections: {
+    'recently-viewed': { visible: true, collapsed: false },
+    'reading-queue': { visible: true, collapsed: false },
+    anniversary: { visible: true, collapsed: false },
+    library: { visible: true, collapsed: false },
+  },
+  order: ['recently-viewed', 'reading-queue', 'anniversary', 'library'],
 };
 
 /**
@@ -42,28 +52,63 @@ export const DEFAULT_HOME_LAYOUT: HomeSectionLayoutV1 = {
  * any unparseable / corrupted input — important because the JSON lives
  * in `app_setting`, which is user-editable via the future settings
  * import path.
+ *
+ * Two shapes are accepted for back-compat with the v0 layout that was
+ * shipped before the `order` field existed:
+ *   1. v0 shape: { 'recently-viewed': {...}, 'reading-queue': {...}, … }
+ *      — sections-only, no order; rebuild order from HOME_SECTION_IDS.
+ *   2. v1 shape: { sections: {...}, order: [...] }
+ *      — current canonical shape.
  */
 export function validateHomeSectionLayoutV1(input: unknown): HomeSectionLayoutV1 {
   const out: HomeSectionLayoutV1 = {
-    'recently-viewed': { ...DEFAULT_HOME_LAYOUT['recently-viewed'] },
-    'reading-queue': { ...DEFAULT_HOME_LAYOUT['reading-queue'] },
-    anniversary: { ...DEFAULT_HOME_LAYOUT.anniversary },
+    sections: {
+      'recently-viewed': { ...DEFAULT_HOME_LAYOUT.sections['recently-viewed'] },
+      'reading-queue': { ...DEFAULT_HOME_LAYOUT.sections['reading-queue'] },
+      anniversary: { ...DEFAULT_HOME_LAYOUT.sections.anniversary },
+      library: { ...DEFAULT_HOME_LAYOUT.sections.library },
+    },
+    order: [...DEFAULT_HOME_LAYOUT.order],
   };
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return out;
   }
   const obj = input as Record<string, unknown>;
+  // Detect shape: if `sections` is an object we're on v1; else assume
+  // the old flat layout where each key is a section id.
+  const sectionsBlob = (typeof obj.sections === 'object' && obj.sections !== null && !Array.isArray(obj.sections))
+    ? (obj.sections as Record<string, unknown>)
+    : obj;
   for (const id of HOME_SECTION_IDS) {
-    const raw = obj[id];
+    const raw = sectionsBlob[id];
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
     const s = raw as Record<string, unknown>;
-    out[id] = {
+    out.sections[id] = {
       // Default to visible when the field is missing or unset; only an
       // explicit `false` hides a section so a typo can't blank the home
       // page.
       visible: s.visible !== false,
       collapsed: s.collapsed === true,
     };
+  }
+  // Order: keep ids that are known, dedupe, append missing ids from the
+  // canonical order. Unknown ids are silently dropped — same forward-
+  // compat rule the validator already uses elsewhere.
+  if (Array.isArray(obj.order)) {
+    const seen = new Set<HomeSectionId>();
+    const cleaned: HomeSectionId[] = [];
+    for (const candidate of obj.order) {
+      if (typeof candidate !== 'string') continue;
+      if (!(HOME_SECTION_IDS as readonly string[]).includes(candidate)) continue;
+      const id = candidate as HomeSectionId;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      cleaned.push(id);
+    }
+    for (const id of HOME_SECTION_IDS) {
+      if (!seen.has(id)) cleaned.push(id);
+    }
+    out.order = cleaned;
   }
   return out;
 }

@@ -154,9 +154,24 @@ export async function PATCH(req: NextRequest) {
       // Reset to defaults.
       setAppSetting('home_section_layout_v1', null);
     } else if (typeof v === 'object' && !Array.isArray(v)) {
-      // validateHomeSectionLayoutV1 silently drops bad fields; we round-trip
-      // through it so the persisted JSON is normalized and small.
-      const normalized = validateHomeSectionLayoutV1(v);
+      // Partial patches are merged on top of the persisted layout so a
+      // single section's hide/collapse doesn't clobber the order array
+      // or sibling sections. The per-strip menu only sends
+      // `{ sections: { [id]: state } }`; the drag-reorder handler only
+      // sends `{ order: [...] }`. Full payloads are accepted too for
+      // import/reset paths.
+      const current = parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1'));
+      const patch = v as Record<string, unknown>;
+      const merged: unknown = {
+        sections: {
+          ...current.sections,
+          ...(typeof patch.sections === 'object' && patch.sections !== null
+            ? (patch.sections as Record<string, unknown>)
+            : {}),
+        },
+        order: Array.isArray(patch.order) ? patch.order : current.order,
+      };
+      const normalized = validateHomeSectionLayoutV1(merged);
       setAppSetting('home_section_layout_v1', JSON.stringify(normalized));
     } else {
       return NextResponse.json(

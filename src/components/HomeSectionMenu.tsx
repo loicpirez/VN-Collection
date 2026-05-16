@@ -26,7 +26,7 @@ export function useHomeSection(id: HomeSectionId, initialState?: HomeSectionStat
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [state, setState] = useState<HomeSectionState>(
-    initialState ?? DEFAULT_HOME_LAYOUT[id],
+    initialState ?? DEFAULT_HOME_LAYOUT.sections[id],
   );
   const [busy, setBusy] = useState(false);
 
@@ -34,9 +34,9 @@ export function useHomeSection(id: HomeSectionId, initialState?: HomeSectionStat
   // a hidden section, another strip's menu, ...).
   useEffect(() => {
     function onChange(e: Event) {
-      const detail = (e as CustomEvent<Partial<Record<HomeSectionId, HomeSectionState>>>).detail;
+      const detail = (e as CustomEvent<{ sections?: Partial<Record<HomeSectionId, HomeSectionState>> }>).detail;
       if (!detail) return;
-      const next = detail[id];
+      const next = detail.sections?.[id];
       if (next) setState(next);
     }
     window.addEventListener(HOME_LAYOUT_EVENT, onChange);
@@ -49,14 +49,19 @@ export function useHomeSection(id: HomeSectionId, initialState?: HomeSectionStat
       setBusy(true);
       setState(next); // optimistic
       try {
+        // Patch only this section's state; the server validator merges
+        // the partial layout against the persisted layout so other
+        // sections + the order array stay intact.
         const r = await fetch('/api/settings', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ home_section_layout_v1: { [id]: next } }),
+          body: JSON.stringify({
+            home_section_layout_v1: { sections: { [id]: next } },
+          }),
         });
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
         window.dispatchEvent(
-          new CustomEvent(HOME_LAYOUT_EVENT, { detail: { [id]: next } }),
+          new CustomEvent(HOME_LAYOUT_EVENT, { detail: { sections: { [id]: next } } }),
         );
         startTransition(() => router.refresh());
       } catch (e) {
