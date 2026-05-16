@@ -519,8 +519,11 @@ export function SearchClient() {
         </div>
       )}
 
-      <TextualSearchPanel query={q} />
-
+      {/*
+        Main results (VNDB / EGS) come first; the local notes /
+        quotes panel is moved below so the user's primary search
+        intent — find a VN on VNDB or EGS — is not hijacked.
+      */}
       {loading ? (
         source === 'egs' ? <SkeletonRows count={6} /> : <SkeletonCardGrid count={18} />
       ) : !touched && !results.length && !egsResults.length ? (
@@ -584,6 +587,8 @@ export function SearchClient() {
           ))}
         </div>
       )}
+
+      <TextualSearchPanel query={q} />
     </div>
   );
 }

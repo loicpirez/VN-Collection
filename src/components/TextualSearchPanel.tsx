@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FileText, MessageSquareQuote, Quote } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, MessageSquareQuote, Quote } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 interface Hit {
@@ -18,10 +18,19 @@ const ICONS = {
 };
 
 /**
- * Free-text search across local-only fields: personal notes, the user's
- * custom synopsis override, and cached VN quotes. Surfaced inside the
- * Search page as a collapsible block — so a query that doesn't match a
- * VN title still has a chance to find a result from the user's own data.
+ * Free-text search across LOCAL-ONLY fields: the user's personal
+ * notes, custom synopsis overrides, and cached VN quotes.
+ *
+ * Renders BELOW the main VNDB/EGS results as a collapsed accordion.
+ * The user's mental model when typing in the search bar is "find
+ * me a VN on VNDB"; this panel is a secondary affordance for when
+ * the user types text they wrote into their notes. Previous
+ * rendering put it ABOVE the main results with full row dump,
+ * which the user reported as hijacking the search experience.
+ *
+ * Collapsed-by-default: shows a single line with the hit count and
+ * a chevron. Click to expand the rows. If there are no hits, the
+ * component renders nothing.
  *
  * Debounces at 280ms to avoid flooding the API for every keystroke.
  */
@@ -29,6 +38,7 @@ export function TextualSearchPanel({ query }: { query: string }) {
   const t = useT();
   const [hits, setHits] = useState<Hit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -52,38 +62,62 @@ export function TextualSearchPanel({ query }: { query: string }) {
   if (!loading && hits.length === 0) return null;
 
   return (
-    <section className="mb-6 rounded-xl border border-border bg-bg-card p-4">
-      <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-        {t.textualSearch.title}
-        {loading && <span className="text-[10px] font-normal">· {t.common.loading}</span>}
-      </h3>
-      <p className="mb-3 text-[11px] text-muted">{t.textualSearch.hint}</p>
-      <ul className="space-y-1.5">
-        {hits.map((h, i) => {
-          const Icon = ICONS[h.source];
-          return (
-            <li key={`${h.vn_id}:${h.source}:${i}`}>
-              <Link
-                href={`/vn/${h.vn_id}`}
-                className="group flex gap-2 rounded-md border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
-              >
-                <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="line-clamp-1 text-xs font-bold transition-colors group-hover:text-accent">
-                      {h.title}
-                    </span>
-                    <span className="shrink-0 text-[9px] uppercase tracking-wider text-muted">
-                      {t.textualSearch.source[h.source]}
-                    </span>
-                  </div>
-                  <p className="line-clamp-2 text-[11px] text-muted">{h.snippet}</p>
-                </div>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+    <section className="mt-6 rounded-xl border border-border bg-bg-card/60">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left hover:bg-bg-card"
+      >
+        <span className="inline-flex items-center gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-muted">
+            {t.textualSearch.title}
+          </span>
+          {loading ? (
+            <span className="text-[10px] text-muted">· {t.common.loading}</span>
+          ) : (
+            <span className="rounded-full bg-bg-elev/50 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted">
+              {hits.length}
+            </span>
+          )}
+        </span>
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5 text-muted" aria-hidden />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 text-muted" aria-hidden />
+        )}
+      </button>
+      {open && (
+        <div className="border-t border-border px-3 pb-3 pt-2">
+          <p className="mb-2 text-[10px] text-muted/80">{t.textualSearch.hint}</p>
+          <ul className="space-y-1.5">
+            {hits.map((h, i) => {
+              const Icon = ICONS[h.source];
+              return (
+                <li key={`${h.vn_id}:${h.source}:${i}`}>
+                  <Link
+                    href={`/vn/${h.vn_id}`}
+                    className="group flex gap-2 rounded-md border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
+                  >
+                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="line-clamp-1 text-xs font-bold transition-colors group-hover:text-accent">
+                          {h.title}
+                        </span>
+                        <span className="shrink-0 text-[9px] uppercase tracking-wider text-muted">
+                          {t.textualSearch.source[h.source]}
+                        </span>
+                      </div>
+                      <p className="line-clamp-2 text-[11px] text-muted">{h.snippet}</p>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

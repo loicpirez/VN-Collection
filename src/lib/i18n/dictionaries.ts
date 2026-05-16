@@ -1281,8 +1281,8 @@ export const dictionaries = {
       open: 'Étiquettes QR',
     },
     textualSearch: {
-      title: 'Dans tes notes et citations',
-      hint: 'Cherche dans tes notes perso, synopsis perso et citations sauvegardées.',
+      title: 'Dans tes notes et citations (local)',
+      hint: 'Recherche dans tes notes personnelles, synopsis perso et citations sauvegardées — séparé des résultats VNDB / EGS.',
       source: {
         notes: 'Notes',
         custom_description: 'Synopsis perso',
@@ -3221,8 +3221,8 @@ export const dictionaries = {
       open: 'QR labels',
     },
     textualSearch: {
-      title: 'In your notes and quotes',
-      hint: 'Search your personal notes, custom synopses and saved quotes.',
+      title: 'In your notes and quotes (local)',
+      hint: 'Search your personal notes, custom synopses and saved quotes — separate from VNDB / EGS results.',
       source: {
         notes: 'Notes',
         custom_description: 'Custom synopsis',
@@ -5161,8 +5161,8 @@ export const dictionaries = {
       open: 'QR ラベル',
     },
     textualSearch: {
-      title: 'メモ・名言から検索',
-      hint: '自分のメモ、カスタムあらすじ、保存した名言を検索。',
+      title: 'メモ・名言から検索（ローカル）',
+      hint: '自分のメモ、カスタムあらすじ、保存した名言を検索（VNDB / EGS とは別）。',
       source: {
         notes: 'メモ',
         custom_description: 'マイあらすじ',
