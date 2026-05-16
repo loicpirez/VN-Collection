@@ -77,7 +77,7 @@ interface ServerSettings {
   vn_detail_section_layout_v1?: VnDetailLayoutV1;
   vndb_writeback?: boolean;
   vndb_backup_enabled?: boolean;
-  vndb_backup_url?: string;
+  vndb_backup_url?: { hasUrl: boolean; host: string | null; isDefault: boolean };
   vndb_fanout?: boolean;
   steam_api_key?: { hasKey: boolean; preview: string | null };
   steam_id?: string;
@@ -511,20 +511,48 @@ export function SettingsButton() {
                     <span className="flex-1">
                       <span className="font-bold">{t.settings.vndbBackupTitle}</span>
                       <span className="block text-[10px] text-muted">{t.settings.vndbBackupDesc}</span>
+                      {/*
+                        Mask-aware editor. The GET response now
+                        returns `{ hasUrl, host, isDefault }`
+                        instead of echoing the raw URL — so the
+                        editor starts empty (with a hostname-only
+                        placeholder) and the user types a fresh
+                        URL to replace. Clearing the field PATCHes
+                        `null`, which falls back to the default
+                        VNDB host.
+                      */}
                       <input
                         type="url"
                         inputMode="url"
-                        defaultValue={server?.vndb_backup_url ?? ''}
-                        placeholder="https://api.yorhel.org/kana"
+                        defaultValue=""
+                        placeholder={
+                          server?.vndb_backup_url?.host
+                            ? `${server.vndb_backup_url.host}${
+                                server.vndb_backup_url.isDefault ? ' · default' : ''
+                              }`
+                            : 'https://api.yorhel.org/kana'
+                        }
                         aria-label={t.settings.vndbBackupTitle}
                         onBlur={(e) => {
                           const v = e.target.value.trim();
-                          if (v !== (server?.vndb_backup_url ?? '')) {
-                            saveServer({ vndb_backup_url: v || null });
+                          // Empty submit = clear (falls back to default).
+                          // Non-empty submit = replace.
+                          if (v) {
+                            saveServer({ vndb_backup_url: v });
+                          } else if (server?.vndb_backup_url?.hasUrl) {
+                            saveServer({ vndb_backup_url: null });
                           }
                         }}
                         className="input mt-2 w-full"
                       />
+                      {server?.vndb_backup_url?.host && (
+                        <span className="mt-1 block text-[10px] text-muted/80">
+                          {t.settings.vndbBackupCurrentHost.replace('{host}', server.vndb_backup_url.host)}
+                          {server.vndb_backup_url.isDefault
+                            ? ` (${t.settings.vndbBackupDefaultSuffix})`
+                            : ''}
+                        </span>
+                      )}
                     </span>
                   </label>
 

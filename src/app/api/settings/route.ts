@@ -64,6 +64,31 @@ function maskToken(value: string | null): { hasToken: boolean; preview: string |
   return { hasToken: true, preview: `…${tail}`, envFallback };
 }
 
+/**
+ * Mask a backup URL for GET responses. Returns a hostname-only preview
+ * so the user can confirm "what host am I currently routing through"
+ * without echoing query strings, paths, or any embedded credentials.
+ * The raw URL still lives in the DB; the editor UI uses the preview
+ * plus a separate write path (PATCH) to replace the value. This
+ * mirrors Steam's mask pattern: presence + minimal identifier, never
+ * the full secret-shaped value.
+ */
+function maskBackupUrl(value: string | null): {
+  hasUrl: boolean;
+  host: string | null;
+  isDefault: boolean;
+} {
+  const effective = value ?? DEFAULT_VNDB_BACKUP_URL;
+  const isDefault = !value || value === DEFAULT_VNDB_BACKUP_URL;
+  let host: string | null = null;
+  try {
+    host = new URL(effective).host;
+  } catch {
+    host = null;
+  }
+  return { hasUrl: !!value, host, isDefault };
+}
+
 export async function GET(req: Request) {
   // Settings hold the VNDB token, Steam API key, EGS username, and
   // backup URL. The GET path returns masked previews but still
@@ -82,7 +107,11 @@ export async function GET(req: Request) {
     vn_detail_section_layout_v1: parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1')),
     vndb_writeback: getAppSetting('vndb_writeback') === '1',
     vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
-    vndb_backup_url: getAppSetting('vndb_backup_url') ?? DEFAULT_VNDB_BACKUP_URL,
+    // Mask: never echo the raw URL on GET (it can contain auth
+    // tokens, query strings, or proxy paths the user pasted without
+    // realizing). The UI uses `host` to display "currently routing
+    // through <host>" and PATCHes the full URL when the user edits.
+    vndb_backup_url: maskBackupUrl(getAppSetting('vndb_backup_url')),
     // No more last-4 preview of the Steam API key — confirming
     // possession of a specific key by an attacker is information
     // disclosure. UI gets a boolean only.
