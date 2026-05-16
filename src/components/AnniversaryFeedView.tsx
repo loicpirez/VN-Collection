@@ -37,6 +37,14 @@ export function AnniversaryFeedView({ title, yearsAgoTemplate, emptyHint, entrie
     initialState,
   );
   if (isHidden) return null;
+  // Auto-hide on days with no anniversaries so the section doesn't
+  // sit there saying "Nothing today" and contribute to the dead
+  // space at the top of the home page. The section is still
+  // reachable from the home-layout editor (it stays in the
+  // registered order), so discoverability is preserved without
+  // the empty-state visual noise. Mirrors `RecentlyViewedStrip`
+  // and `ReadingQueueStrip`, both of which already auto-hide.
+  if (entries.length === 0) return null;
 
   return (
     <aside className="mb-4 rounded-xl border border-accent/30 bg-accent/5 p-3">
@@ -54,43 +62,43 @@ export function AnniversaryFeedView({ title, yearsAgoTemplate, emptyHint, entrie
           onHide={hide}
         />
       </div>
+      {/*
+        emptyHint is intentionally unused now — the early return
+        above skips the section entirely when there are no
+        anniversaries, so this template branch only renders the
+        populated list. Keep the prop in the signature so the
+        server component can keep its placeholder copy in i18n
+        without a type-system handshake change.
+      */}
       {!isCollapsed && (
-        entries.length === 0 ? (
-          // Explicit empty state — distinguishes "nothing today" from
-          // "feature broken" / "section hidden". Section controls
-          // above stay reachable so the user can still hide/collapse
-          // even on an empty day.
-          <p className="text-[11px] text-muted">{emptyHint}</p>
-        ) : (
-          <ul className="flex flex-wrap gap-2">
-            {entries.map((r) => (
-              <li key={r.id}>
-                <Link
-                  href={`/vn/${r.id}`}
-                  className="group flex items-center gap-2 rounded-md bg-bg-card/80 px-2 py-1 text-xs hover:bg-bg-card"
-                >
-                  <div className="h-8 w-6 overflow-hidden rounded">
-                    <SafeImage
-                      src={r.image_url || r.image_thumb}
-                      localSrc={r.local_image_thumb}
-                      sexual={r.image_sexual}
-                      alt={r.title}
-                      className="h-full w-full"
-                    />
-                  </div>
-                  <span className="flex flex-col">
-                    <span className="line-clamp-1 max-w-[200px] font-semibold transition-colors group-hover:text-accent">
-                      {r.title}
-                    </span>
-                    <span className="text-[10px] text-muted">
-                      {yearsAgoTemplate.replace('{n}', String(r.years))}
-                    </span>
+        <ul className="flex flex-wrap gap-2">
+          {entries.map((r) => (
+            <li key={r.id}>
+              <Link
+                href={`/vn/${r.id}`}
+                className="group flex items-center gap-2 rounded-md bg-bg-card/80 px-2 py-1 text-xs hover:bg-bg-card"
+              >
+                <div className="h-8 w-6 overflow-hidden rounded">
+                  <SafeImage
+                    src={r.image_url || r.image_thumb}
+                    localSrc={r.local_image_thumb}
+                    sexual={r.image_sexual}
+                    alt={r.title}
+                    className="h-full w-full"
+                  />
+                </div>
+                <span className="flex flex-col">
+                  <span className="line-clamp-1 max-w-[200px] font-semibold transition-colors group-hover:text-accent">
+                    {r.title}
                   </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )
+                  <span className="text-[10px] text-muted">
+                    {yearsAgoTemplate.replace('{n}', String(r.years))}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </aside>
   );

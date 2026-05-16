@@ -36,13 +36,27 @@ export function HomeLibraryControlsSection({
   );
   if (isHidden) return null;
   return (
-    <section className="mt-8" aria-labelledby="home-library-controls-heading">
-      <header className="mb-2 flex items-center justify-between gap-2">
+    // mt-2 (was mt-8) — the preceding strip already declares mb-4,
+    // so a generous mt-8 stacked under that produced ~50px of dead
+    // space before the user reached the first Library control.
+    // The library is the page's primary content, not a tertiary
+    // strip; treat it as part of the natural flow.
+    <section className="mt-2" aria-labelledby="home-library-controls-heading">
+      <header className="mb-3 flex items-center justify-between gap-2">
+        {/*
+          Promoted from text-xs/uppercase/muted to a proper section
+          heading. The earlier "uppercase eyebrow" weight was
+          indistinguishable from the strip headings above (Reading
+          queue, Anniversary) and made the page look like a
+          uniform stack of equally-weighted blocks. Use the canonical
+          Library title and an Ma bibliothèque framing to anchor the
+          page.
+        */}
         <h2
           id="home-library-controls-heading"
-          className="text-xs font-bold uppercase tracking-widest text-muted"
+          className="text-base font-bold text-white"
         >
-          {t.homeSections.libraryControlsTitle}
+          {t.homeSections.libraryTitle}
         </h2>
         <HomeSectionControls
           state={state}
@@ -61,28 +75,31 @@ export function HomeLibraryGridSection({
 }: {
   initialState?: HomeSectionState;
 }) {
-  const t = useT();
   const { state, busy, isHidden, isCollapsed, toggleCollapsed, hide } = useHomeSection(
     'library-grid',
     initialState,
   );
   if (isHidden) return null;
   return (
-    <section className="mt-4" aria-labelledby="home-library-grid-heading">
-      <header className="mb-2 flex items-center justify-between gap-2">
-        <h2
-          id="home-library-grid-heading"
-          className="text-xs font-bold uppercase tracking-widest text-muted"
-        >
-          {t.homeSections.libraryGridTitle}
-        </h2>
+    // mt-3 (was mt-4) — sits directly under the controls section,
+    // forming a visually-cohesive Library block. The eyebrow h2 +
+    // duplicate chevron+menu have been removed so the toolbar and
+    // grid look like one product surface. The grid still gets its
+    // own chevron + menu (collapsed by default = false from the
+    // versioned layout config) so a power user can hide only the
+    // grid when working through filter combinations.
+    <section className="mt-3" aria-label="library-grid">
+      {/* Discrete inline controls — top-right, dim by default,
+          full opacity on hover. No banner heading: the controls-
+          section heading above already says "Ma bibliothèque". */}
+      <div className="mb-2 flex items-center justify-end opacity-60 transition-opacity hover:opacity-100">
         <HomeSectionControls
           state={state}
           busy={busy}
           onCollapseToggle={toggleCollapsed}
           onHide={hide}
         />
-      </header>
+      </div>
       {!isCollapsed && <LibraryClient mode="grid-only" />}
     </section>
   );
