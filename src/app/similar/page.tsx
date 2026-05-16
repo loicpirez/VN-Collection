@@ -47,7 +47,7 @@ export default async function SimilarPage({
   if (!seedId || !/^(v\d+|egs_\d+)$/i.test(seedId)) {
     return (
       <div className="mx-auto max-w-4xl">
-        <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+        <Link href="/" className="mb-4 inline-flex items-center gap-1 rounded-md border border-transparent text-sm text-muted hover:text-white md:mb-2 md:border-border md:bg-bg-elev/30 md:px-1.5 md:py-1 md:text-[11px] md:opacity-70 md:hover:border-accent md:hover:opacity-100">
           <ArrowLeft className="h-4 w-4" /> {t.nav.library}
         </Link>
         <p className="rounded-xl border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm">
@@ -60,7 +60,7 @@ export default async function SimilarPage({
   if (!seed) {
     return (
       <div className="mx-auto max-w-4xl">
-        <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+        <Link href="/" className="mb-4 inline-flex items-center gap-1 rounded-md border border-transparent text-sm text-muted hover:text-white md:mb-2 md:border-border md:bg-bg-elev/30 md:px-1.5 md:py-1 md:text-[11px] md:opacity-70 md:hover:border-accent md:hover:opacity-100">
           <ArrowLeft className="h-4 w-4" /> {t.nav.library}
         </Link>
         <p className="rounded-xl border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm">
@@ -135,7 +135,7 @@ export default async function SimilarPage({
 
   return (
     <div className="mx-auto max-w-6xl">
-      <Link href={`/vn/${seed.id}`} className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+      <Link href={`/vn/${seed.id}`} className="mb-4 inline-flex items-center gap-1 rounded-md border border-transparent text-sm text-muted hover:text-white md:mb-2 md:border-border md:bg-bg-elev/30 md:px-1.5 md:py-1 md:text-[11px] md:opacity-70 md:hover:border-accent md:hover:opacity-100">
         <ArrowLeft className="h-4 w-4" /> {seed.title}
       </Link>
 

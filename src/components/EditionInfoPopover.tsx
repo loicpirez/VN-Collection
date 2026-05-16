@@ -137,15 +137,22 @@ export function EditionInfoTrigger({
       return;
     }
     if (typeof window === 'undefined') return;
-    // We measure against the button — it has a real bounding rect
-    // anchored to the parent tile's top-right by default. The
-    // popover positions relative to the same parent so this gives
-    // a stable anchor without needing a separate wrapping div.
-    const tile = buttonRef.current;
+    // CRITICAL: measure against the same element the popover
+    // anchors against. The popover uses `absolute` with
+    // `top-full`/`bottom-full` + `left-0`/`right-0`, which resolves
+    // relative to the nearest positioned ancestor (`offsetParent`).
+    // Measuring against the small `h-6 w-6` button silently
+    // overestimates the space below because the popover actually
+    // paints at parent.bottom, not button.bottom — that was the
+    // root cause of the bottom-overflow regression: a tile near
+    // the bottom of the page had ~80px below the button but only
+    // ~10px below the parent tile, so the flip never triggered.
+    const button = buttonRef.current;
     const popover = popoverRef.current;
-    if (!tile || !popover) return;
+    if (!button || !popover) return;
+    const anchor = (button.offsetParent as HTMLElement | null) ?? button;
     const compute = () => {
-      const tileRect = tile.getBoundingClientRect();
+      const tileRect = anchor.getBoundingClientRect();
       const popHeight = popover.offsetHeight;
       const popWidth = popover.offsetWidth;
       const viewportH = window.innerHeight;

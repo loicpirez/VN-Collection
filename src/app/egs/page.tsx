@@ -117,7 +117,7 @@ export default async function EgsPage() {
     <div className="mx-auto max-w-6xl">
       <Link
         href="/data"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white"
+        className="mb-4 inline-flex items-center gap-1 rounded-md border border-transparent text-sm text-muted hover:text-white md:mb-2 md:border-border md:bg-bg-elev/30 md:px-1.5 md:py-1 md:text-[11px] md:opacity-70 md:hover:border-accent md:hover:opacity-100"
       >
         <ArrowLeft className="h-4 w-4" /> {t.nav.data}
       </Link>
