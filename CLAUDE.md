@@ -78,7 +78,25 @@ Always run it before declaring a change "done".
 - **Credential previews never include the credential itself**.
   Settings PATCH responses, audit-log rows, and error messages
   must mask via `tail4` (token-shaped) or hostname (URL-shaped) —
-  see `settingAuditPreview` in `lib/db.ts`.
+  see `settingAuditPreview` in `lib/db.ts`. `/api/settings` GET
+  returns `{ hasKey/hasToken/hasUrl: boolean, preview/host: …,
+  isDefault?: boolean }` for every sensitive key. The raw value
+  is never echoed even on localhost-gated routes — the gate
+  reduces blast radius but does not replace masking. Tests live
+  in `tests/settings-backup-url-mask.test.ts`.
+- **Commit message hygiene**: no personal / user-referential
+  phrasing. "The user reported", "user wanted", "user QA",
+  "Loïc's collection" are all forbidden in commit subjects and
+  bodies; use neutral product wording ("manual QA flagged",
+  "the spec requires", "the operator can…"). The same rule
+  applies to source comments, JSDoc, tests, and docs. Real VN /
+  game / studio / character names are also forbidden across all
+  of these surfaces — use placeholders ("heroine A", "Studio X",
+  synthetic ids like `v9xxxx`). Local commits can be rewritten
+  with `git filter-branch --msg-filter` (see
+  `/tmp/rewrite-commit-msgs.py` for the canonical sed-style
+  transformations); pushed commits cannot be force-pushed unless
+  explicitly authorized.
 
 ---
 
