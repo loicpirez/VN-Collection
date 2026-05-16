@@ -255,6 +255,7 @@ export const dictionaries = {
       label: 'Densité',
       denser: 'Plus dense',
       larger: 'Plus grand',
+      reset: 'Réinitialiser la densité',
     },
     tagPicker: {
       empty: 'Aucun tag sélectionné — les suggestions partiront des tags les plus présents dans tes VN bien notés.',
@@ -2229,6 +2230,7 @@ export const dictionaries = {
       label: 'Density',
       denser: 'Denser',
       larger: 'Larger',
+      reset: 'Reset density',
     },
     tagPicker: {
       empty: 'No tags picked — seeds will be derived from the most-used tags in your highest-rated VNs.',
@@ -4203,6 +4205,7 @@ export const dictionaries = {
       label: '密度',
       denser: '高密度',
       larger: '大きく',
+      reset: '密度をリセット',
     },
     tagPicker: {
       empty: 'タグ未選択 — 評価が高い VN のタグから自動的にシードを生成します。',

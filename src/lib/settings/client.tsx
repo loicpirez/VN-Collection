@@ -67,8 +67,15 @@ const DEFAULTS: DisplaySettings = {
  *   only barely different from default 220 (1200/220 = 5.45). */
 export const CARD_DENSITY_MIN = 120;
 export const CARD_DENSITY_MAX = 480;
+/**
+ * Project-wide default the slider Reset button restores. Matches the
+ * fallback value baked into every listing-grid template
+ * (`var(--card-density-px, 220px)`) so a freshly-reset slider keeps
+ * the grids on their canonical column count.
+ */
+export const CARD_DENSITY_DEFAULT = 220;
 export function clampCardDensity(px: number): number {
-  if (!Number.isFinite(px)) return 220;
+  if (!Number.isFinite(px)) return CARD_DENSITY_DEFAULT;
   return Math.max(CARD_DENSITY_MIN, Math.min(CARD_DENSITY_MAX, Math.round(px)));
 }
 

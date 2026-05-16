@@ -11,6 +11,7 @@ import { getDict, getLocale } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { ShelfLayoutEditor } from '@/components/ShelfLayoutEditor';
 import { ShelfSpatialView } from '@/components/ShelfSpatialView';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 
 export const dynamic = 'force-dynamic';
 
@@ -172,22 +173,36 @@ export default async function ShelfPage({
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-          <Library className="h-6 w-6 text-accent" /> {t.shelf.title}
-        </h1>
-        <p className="mt-1 text-sm text-muted">{t.shelf.subtitle}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted">
-          <span>
-            {items.length} {t.shelf.editionsCount}
-          </span>
-          <span>
-            · {itemBuckets.size} {t.shelf.uniqueVnCount}
-          </span>
-          {Object.entries(totals).map(([cur, total]) => (
-            <span key={cur} className="inline-flex items-center gap-1">
-              <Coins className="h-3 w-3 text-accent" /> {fmtMoneyLocale(total, cur === '?' ? null : cur, locale)}
-            </span>
-          ))}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
+              <Library className="h-6 w-6 text-accent" /> {t.shelf.title}
+            </h1>
+            <p className="mt-1 text-sm text-muted">{t.shelf.subtitle}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted">
+              <span>
+                {items.length} {t.shelf.editionsCount}
+              </span>
+              <span>
+                · {itemBuckets.size} {t.shelf.uniqueVnCount}
+              </span>
+              {Object.entries(totals).map(([cur, total]) => (
+                <span key={cur} className="inline-flex items-center gap-1">
+                  <Coins className="h-3 w-3 text-accent" /> {fmtMoneyLocale(total, cur === '?' ? null : cur, locale)}
+                </span>
+              ))}
+            </div>
+          </div>
+          {/*
+            Density slider — controls release / item-view row cards.
+            Spatial / layout views own their own placement geometry
+            and ignore the slider, but it's harmless when irrelevant
+            and mounting it consistently keeps the header layout
+            stable across the four view modes.
+          */}
+          <div className="shrink-0">
+            <CardDensitySlider />
+          </div>
         </div>
       </header>
 

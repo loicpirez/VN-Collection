@@ -8,6 +8,7 @@ import { getProducer as fetchProducer } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
 import { ProducerLogoUpload } from '@/components/ProducerLogoUpload';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { ProducerVnsSections } from '@/components/ProducerVnsSections';
 import { readScrapedProducerInfo } from '@/lib/scrape-producer-relations';
@@ -127,8 +128,12 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
         </div>
       </header>
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <ProducerLogoUpload producerId={producer.id} hasLogo={!!producer.logo_path} />
+        {/* Density slider — controls every VN grid below (dev + pub
+            credit sections). Mounting on /producer/[id] closes the
+            "missing slider on detail pages" consistency gap. */}
+        <CardDensitySlider />
       </div>
 
       {producer.description && (

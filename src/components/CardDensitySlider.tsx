@@ -1,7 +1,8 @@
 'use client';
 import { useId } from 'react';
-import { LayoutGrid, Maximize2, Minimize2 } from 'lucide-react';
+import { LayoutGrid, Maximize2, Minimize2, RotateCcw } from 'lucide-react';
 import {
+  CARD_DENSITY_DEFAULT,
   CARD_DENSITY_MAX,
   CARD_DENSITY_MIN,
   clampCardDensity,
@@ -70,6 +71,23 @@ export function CardDensitySlider({ className = '' }: { className?: string }) {
       <span className="ml-0.5 w-9 text-right text-[10px] tabular-nums text-muted">
         {value}px
       </span>
+      {/*
+        Reset to the project-wide default (CARD_DENSITY_DEFAULT in
+        settings/client.tsx). Disabled when already at default so the
+        affordance reads as "press to undo my change" rather than a
+        live button that does nothing. Closes the "Reset density to
+        default" gap the user flagged as missing from every page.
+      */}
+      <button
+        type="button"
+        onClick={() => set('cardDensityPx', CARD_DENSITY_DEFAULT)}
+        disabled={value === CARD_DENSITY_DEFAULT}
+        aria-label={t.cardDensity.reset}
+        title={t.cardDensity.reset}
+        className="tap-target-tight rounded p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
+      >
+        <RotateCcw className="h-3 w-3" aria-hidden />
+      </button>
     </div>
   );
 }

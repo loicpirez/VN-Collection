@@ -6,6 +6,7 @@ import { getCharacterImages, listInCollectionVnIds } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { stripVndbMarkup } from '@/components/VndbMarkup';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,14 +73,18 @@ export default async function TraitPage({
               </p>
             )}
           </div>
-          <a
-            href={`https://vndb.org/${trait.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn shrink-0"
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden /> VNDB
-          </a>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {/* Density slider controls the character grid below. */}
+            <CardDensitySlider />
+            <a
+              href={`https://vndb.org/${trait.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn"
+            >
+              <ExternalLink className="h-4 w-4" aria-hidden /> VNDB
+            </a>
+          </div>
         </div>
       </header>
 

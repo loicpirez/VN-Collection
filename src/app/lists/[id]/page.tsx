@@ -13,6 +13,7 @@ import { VnCard, type CardData } from '@/components/VnCard';
 import { ListMetaEditor } from '@/components/ListMetaEditor';
 import { ListRemoveVn } from '@/components/ListRemoveVn';
 import { ListAddVnForm } from '@/components/ListAddVnForm';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 import type { Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -135,7 +136,11 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
               {(items.length === 1 ? t.lists.vnCountSingular : t.lists.vnCount).replace('{n}', String(items.length))}
             </div>
           </div>
-          <ListMetaEditor list={list} />
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {/* Density slider — controls the VN grid below. */}
+            <CardDensitySlider />
+            <ListMetaEditor list={list} />
+          </div>
         </div>
       </header>
 

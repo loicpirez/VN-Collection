@@ -6,6 +6,7 @@ import { findCharacterSiblings, getVasForCharacter } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { readScrapedCharacterInfo } from '@/lib/scrape-character-instances';
 
@@ -132,7 +133,7 @@ export default async function CharacterPage({
             </dl>
           )}
 
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <a
               href={`https://vndb.org/${char.id}`}
               target="_blank"
@@ -141,6 +142,10 @@ export default async function CharacterPage({
             >
               <ExternalLink className="h-4 w-4" aria-hidden /> VNDB
             </a>
+            {/* Density slider controls the "appears in" + sibling
+                VN grids below. Mounted in the header for parity
+                with /staff/[id] and /producer/[id]. */}
+            <CardDensitySlider />
           </div>
         </div>
       </div>

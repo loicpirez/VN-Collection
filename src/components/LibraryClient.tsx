@@ -767,7 +767,13 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           title={t.library.customSortHint}
         >
           <GripVertical className="h-4 w-4" />
-          {sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
+          {/* Hide the long FR label below lg to keep the toolbar
+              from wrapping into a 3-row stack. The icon + title
+              still convey the action; the title attribute carries
+              the help text for screen readers. */}
+          <span className="hidden lg:inline">
+            {sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
+          </span>
         </button>
         <label className="flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupBy}</span>
@@ -804,7 +810,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             className={`btn ${settings.denseLibrary ? 'btn-primary' : ''}`}
             title={t.library.denseToggle}
           >
-            <LayoutGrid className="h-4 w-4" /> {settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
+            <LayoutGrid className="h-4 w-4" />
+            <span className="hidden lg:inline">
+              {settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
+            </span>
           </button>
           <div className="flex gap-6 text-sm text-muted">
             <span><b className="text-white">{stats.total}</b> {t.library.stats.vnCount}</span>
@@ -820,7 +829,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               className={`btn ${selectMode ? 'btn-primary' : ''}`}
               title={t.bulkEdit.toggleSelectMode}
             >
-              <CheckSquare className="h-4 w-4" /> {selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
+              <CheckSquare className="h-4 w-4" />
+              <span className="hidden lg:inline">
+                {selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
+              </span>
             </button>
           )}
           {visibleItems.length > 0 && (

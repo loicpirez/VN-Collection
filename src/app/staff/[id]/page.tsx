@@ -12,6 +12,7 @@ import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
 import { readStaffFullCache } from '@/lib/staff-full';
 import { VndbMarkup } from '@/components/VndbMarkup';
@@ -169,6 +170,12 @@ export default async function StaffPage({
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start">
+            {/* Density slider mounted in the header so the user can
+                resize the VN grids below without scrolling back up.
+                Matches the convention used on every other listing
+                surface (/wishlist, /recommendations, /top-ranked,
+                /upcoming, /dumped, /egs, /similar). */}
+            <CardDensitySlider />
             <StaffDownloadButton sid={id} />
             <a
               href={`https://vndb.org/${id}`}
