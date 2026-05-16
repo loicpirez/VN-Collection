@@ -91,6 +91,8 @@ export const dictionaries = {
       prevPage: 'Précédent',
       nextPage: 'Suivant',
       paginationLabel: 'Pagination du classement',
+      staleNoticeTitle: 'Données en cache (EGS injoignable)',
+      staleNoticeBody: 'EGS n\'a pas répondu pour cette requête. Affichage de la dernière copie enregistrée (mis à jour : {when}).',
     },
     upcoming: {
       title: 'Sorties à venir',
@@ -2048,6 +2050,8 @@ export const dictionaries = {
       prevPage: 'Previous',
       nextPage: 'Next',
       paginationLabel: 'Ranking pagination',
+      staleNoticeTitle: 'Cached data (EGS unreachable)',
+      staleNoticeBody: 'EGS did not respond for this request. Showing the last saved snapshot (last updated: {when}).',
     },
     upcoming: {
       title: 'Upcoming releases',
@@ -4005,6 +4009,8 @@ export const dictionaries = {
       prevPage: '前へ',
       nextPage: '次へ',
       paginationLabel: 'ランキングのページ送り',
+      staleNoticeTitle: 'キャッシュデータ（EGS に接続できません）',
+      staleNoticeBody: 'EGS は今回応答しませんでした。最後に保存したスナップショットを表示中（最終更新: {when}）。',
     },
     upcoming: {
       title: '発売予定',

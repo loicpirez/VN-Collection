@@ -109,7 +109,7 @@ export default async function TopRankedPage({
 async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Dictionary }) {
   try {
     if (tab === 'egs') {
-      const { rows, hasMore } = await fetchEgsTopRankedPage(page, PAGE_SIZE);
+      const { rows, hasMore, stale, fetchedAt } = await fetchEgsTopRankedPage(page, PAGE_SIZE);
       if (rows.length === 0) {
         return <EmptyState message={t.topRanked.emptyEgs} hint={t.topRanked.emptyEgsHint} />;
       }
@@ -124,6 +124,7 @@ async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Diction
       const covers = vndbIds.length > 0 ? await fetchVnCovers(vndbIds) : new Map<string, VndbCoverInfo>();
       return (
         <>
+          {stale && <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} />}
           <EgsSection rows={rows} covers={covers} t={t} startRank={(page - 1) * PAGE_SIZE} />
           <Paginator tab={tab} page={page} hasMore={hasMore} t={t} />
         </>
@@ -160,6 +161,28 @@ async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Diction
       </div>
     );
   }
+}
+
+/**
+ * Banner shown above the rows when fetchEgsTopRankedPage returned
+ * the last successful payload from an EXPIRED cache because the
+ * EGS SQL form was unreachable for this request. The user keeps
+ * seeing the rows + a "stale, last updated …" notice instead of
+ * a generic error block.
+ */
+function StaleEgsBanner({ fetchedAt, t }: { fetchedAt: number | null; t: Dictionary }) {
+  const when = fetchedAt ? new Date(fetchedAt).toLocaleString() : '—';
+  return (
+    <div
+      className="mb-4 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-[12px] text-status-on_hold"
+      role="status"
+    >
+      <p className="font-semibold">{t.topRanked.staleNoticeTitle}</p>
+      <p className="mt-0.5 text-[11px] opacity-90">
+        {t.topRanked.staleNoticeBody.replace('{when}', when)}
+      </p>
+    </div>
+  );
 }
 
 function EmptyState({ message, hint }: { message: string; hint?: string }) {
