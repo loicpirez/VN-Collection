@@ -38,6 +38,38 @@ const DEFAULT_ORDER: Record<SortKey, SortOrder> = {
 };
 
 /**
+ * Optional filter context passed in by callers that already know what the
+ * user is looking at — typically the library page, where the user's
+ * current URL filters narrow the candidate list before they pick. When
+ * omitted, the picker shows the full collection (legacy /data behaviour).
+ */
+export interface SelectiveDownloadFilters {
+  status?: string;
+  producer?: string;
+  publisher?: string;
+  series?: string;
+  tag?: string;
+  place?: string;
+  yearMin?: string;
+  yearMax?: string;
+  dumped?: string;
+  q?: string;
+}
+
+interface Props {
+  /**
+   * Pre-narrow the candidate list to match a parent's URL filters. The
+   * server-side /api/collection endpoint already validates each param, so
+   * we just forward them as-is.
+   */
+  defaultFilters?: SelectiveDownloadFilters;
+  /** Pre-check a subset of VN ids when the modal opens. */
+  defaultSelected?: Set<string>;
+  /** Fired after a successful POST /api/collection/full-download. */
+  onSubmitDone?: (queuedCount: number) => void;
+}
+
+/**
  * Selective full-download UI. Lists every VN in the collection with a
  * checkbox; the user picks which VNs to fan-out staff / characters /
  * developers for. Select-all / select-none / invert helpers + a text
@@ -47,25 +79,47 @@ const DEFAULT_ORDER: Record<SortKey, SortOrder> = {
  * Rate-control is handled by lib/vndb-throttle.ts (1 req/s + per-request
  * Retry-After + soft 3-in-60s circuit) — picking 200 VNs is safe, it
  * just takes longer to drain through the queue.
+ *
+ * Two render contexts:
+ *   - /data page: rendered inline with no props (loads the full
+ *     collection so the user can scope the operation themselves).
+ *   - / library page: rendered inside <Dialog> by BulkDownloadButton
+ *     with `defaultFilters` from the current URL, so the picker already
+ *     matches what the user can see in the grid behind the modal.
  */
-export function SelectiveFullDownload() {
+export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmitDone }: Props = {}) {
   const t = useT();
   const toast = useToast();
   const [rows, setRows] = useState<CollectionRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(defaultSelected ?? []));
   const [filter, setFilter] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('title');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [submitting, setSubmitting] = useState(false);
 
+  // Stringify filters so the load callback only re-fires when the actual
+  // values change, not on every parent re-render that recreates the
+  // filters object identity.
+  const filtersKey = useMemo(
+    () => JSON.stringify(defaultFilters ?? {}),
+    [defaultFilters],
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Always pull title-sorted from the API; we sort client-side so the
-      // user can flip keys without a round trip. No status param = all
-      // VNs in the collection regardless of status.
-      const r = await fetch('/api/collection?sort=title', { cache: 'no-store' });
+      // Build query string from defaultFilters; /api/collection validates
+      // each param, so we don't filter here. `sort=title` keeps the
+      // initial order deterministic regardless of the user's library
+      // sort — they re-sort client-side below if needed.
+      const params = new URLSearchParams({ sort: 'title' });
+      if (defaultFilters) {
+        for (const [k, v] of Object.entries(defaultFilters)) {
+          if (v && typeof v === 'string') params.set(k, v);
+        }
+      }
+      const r = await fetch(`/api/collection?${params.toString()}`, { cache: 'no-store' });
       if (!r.ok) throw new Error(await r.text());
       const data = (await r.json()) as { items?: CollectionRow[] };
       const list = (data.items ?? []).filter((it) => /^v\d+$/i.test(it.id));
@@ -75,7 +129,8 @@ export function SelectiveFullDownload() {
     } finally {
       setLoading(false);
     }
-  }, [t.common.error, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey, t.common.error, toast]);
 
   function setSort(next: SortKey) {
     if (next === sortKey) {
@@ -192,8 +247,10 @@ export function SelectiveFullDownload() {
       });
       if (!r.ok) throw new Error(await r.text());
       const data = (await r.json()) as { queued?: number };
-      toast.success(t.selectiveFullDownload.queued.replace('{n}', String(data.queued ?? 0)));
+      const queued = data.queued ?? 0;
+      toast.success(t.selectiveFullDownload.queued.replace('{n}', String(queued)));
       setPicked(new Set());
+      onSubmitDone?.(queued);
     } catch (e) {
       toast.error((e as Error).message || t.common.error);
     } finally {
@@ -263,7 +320,10 @@ export function SelectiveFullDownload() {
       {loading ? (
         <p className="text-xs text-muted">{t.common.loading}</p>
       ) : (
-        <ul className="max-h-72 overflow-y-auto rounded-md border border-border bg-bg-elev/30">
+        // Min height keeps the toolbar from "popping" when the user
+        // narrows the filter to nothing; max height adapts to the viewport
+        // so the picker stays usable inside a Dialog on small screens.
+        <ul className="max-h-[min(28rem,55vh)] min-h-32 overflow-y-auto rounded-md border border-border bg-bg-elev/30">
           {sorted.length === 0 ? (
             <li className="p-3 text-xs text-muted">{t.selectiveFullDownload.empty}</li>
           ) : (

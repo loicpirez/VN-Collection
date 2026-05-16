@@ -1494,6 +1494,9 @@ export const dictionaries = {
       missingHint: 'Compare avec les données locales et ne télécharge que ce qui manque (rapide).',
       full: 'Re-télécharger tout',
       fullHint: 'Re-rapatrie VNDB + EGS + images pour chaque entrée (lent, utile pour rafraîchir).',
+      selective: 'Téléchargement sélectif…',
+      selectiveHint: 'Choisis précisément les VN dont tu veux le staff / les personnages / les studios complets.',
+      selectivePrefilledHint: 'Les filtres de ta bibliothèque sont pré-appliqués — adapte la sélection puis lance.',
       egsWarning: {
         network: 'EGS injoignable (réseau)',
         server: 'EGS répond en erreur (5xx)',
@@ -3135,6 +3138,9 @@ export const dictionaries = {
       missingHint: 'Compares against the local store and only fetches what is missing (fast).',
       full: 'Full re-download',
       fullHint: 'Re-fetches VNDB + EGS + images for every entry (slow, useful to refresh stale data).',
+      selective: 'Selective download…',
+      selectiveHint: 'Hand-pick which VNs get the full staff / character / studio pull.',
+      selectivePrefilledHint: 'Your library filters are pre-applied — refine the selection, then run.',
       egsWarning: {
         network: 'EGS unreachable (network)',
         server: 'EGS server error (5xx)',
@@ -4776,6 +4782,9 @@ export const dictionaries = {
       missingHint: 'ローカルと比較して欠落しているデータだけ取得します（高速）。',
       full: '全件再取得',
       fullHint: 'VNDB と EGS の全データ・画像を再取得します（遅い、最新化したい時用）。',
+      selective: '選択して取得…',
+      selectiveHint: 'スタッフ・キャラ・スタジオを完全取得する VN を個別に選びます。',
+      selectivePrefilledHint: 'ライブラリの絞り込み条件が反映されています。必要に応じて調整して実行してください。',
       egsWarning: {
         network: 'EGS に接続できません（ネットワーク）',
         server: 'EGS サーバーエラー（5xx）',

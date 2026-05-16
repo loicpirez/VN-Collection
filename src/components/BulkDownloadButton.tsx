@@ -1,8 +1,24 @@
 'use client';
-import { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { CloudDownload, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { CheckSquare, CloudDownload, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { Dialog } from './Dialog';
+import { SelectiveFullDownload, type SelectiveDownloadFilters } from './SelectiveFullDownload';
+
+/** URL params the selective-download modal forwards to /api/collection. */
+const FORWARDED_PARAMS = [
+  'status',
+  'producer',
+  'publisher',
+  'series',
+  'tag',
+  'place',
+  'yearMin',
+  'yearMax',
+  'dumped',
+  'q',
+] as const;
 
 /**
  * Module-scope stop handler. The component is a singleton in
@@ -32,6 +48,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
   const t = useT();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const onLibrary = pathname === '/';
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(0);
@@ -44,6 +61,21 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [activeMode, setActiveMode] = useState<'missing' | 'full'>('missing');
+  const [selectiveOpen, setSelectiveOpen] = useState(false);
+
+  // Pull the user's current library URL filters so the modal pre-narrows
+  // to what's visible on screen. Outside the library page the dropdown is
+  // still reachable from /data but we don't have filter context there, so
+  // we just hand over an empty object.
+  const selectiveFilters = useMemo<SelectiveDownloadFilters | undefined>(() => {
+    if (!onLibrary) return undefined;
+    const out: SelectiveDownloadFilters = {};
+    for (const key of FORWARDED_PARAMS) {
+      const v = searchParams.get(key);
+      if (v) out[key] = v;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }, [onLibrary, searchParams]);
 
   async function runItems(items: { id: string; title: string }[], full: boolean) {
     setRunning(true);
@@ -202,9 +234,44 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
               </span>
               <span className="text-[10px] text-muted">{t.bulk.fullHint}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPickerOpen(false);
+                setSelectiveOpen(true);
+              }}
+              className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
+            >
+              <span className="inline-flex items-center gap-1 font-bold">
+                <CheckSquare className="h-3.5 w-3.5 text-accent" />
+                {t.bulk.selective}
+              </span>
+              <span className="text-[10px] text-muted">{t.bulk.selectiveHint}</span>
+            </button>
           </div>
         )}
       </div>
+
+      <Dialog
+        open={selectiveOpen}
+        onClose={() => setSelectiveOpen(false)}
+        title={t.selectiveFullDownload.title}
+        description={
+          onLibrary && selectiveFilters
+            ? t.bulk.selectivePrefilledHint
+            : t.selectiveFullDownload.subtitle
+        }
+        panelClassName="max-w-3xl p-4 sm:p-6"
+      >
+        <SelectiveFullDownload
+          defaultFilters={selectiveFilters}
+          onSubmitDone={() => {
+            // Close on success so the progress lands on the
+            // DownloadStatusBar without the modal hiding it.
+            setSelectiveOpen(false);
+          }}
+        />
+      </Dialog>
 
       {onLibrary && (running || finished || aborted || error) && (
         <div className="fixed bottom-12 left-1/2 z-30 w-[min(92vw,420px)] -translate-x-1/2 rounded-xl border border-border bg-bg-card p-4 shadow-card">
