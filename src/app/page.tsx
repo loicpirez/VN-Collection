@@ -3,7 +3,7 @@ import { LibraryClient } from '@/components/LibraryClient';
 import { RecentlyViewedStrip } from '@/components/RecentlyViewedStrip';
 import { AnniversaryFeed } from '@/components/AnniversaryFeed';
 import { ReadingQueueStrip } from '@/components/ReadingQueueStrip';
-import { HomeLibrarySection } from '@/components/HomeLibrarySection';
+import { HomeLibraryControlsSection, HomeLibraryGridSection } from '@/components/HomeLibrarySection';
 import { HomeLayoutEditorTrigger } from '@/components/HomeLayoutEditorTrigger';
 import { getAppSetting } from '@/lib/db';
 import { parseHomeSectionLayoutV1, type HomeSectionId } from '@/lib/home-section-layout';
@@ -25,7 +25,12 @@ export default function HomePage() {
     ),
     'reading-queue': <ReadingQueueStrip initialState={layout.sections['reading-queue']} />,
     anniversary: <AnniversaryFeed initialState={layout.sections.anniversary} />,
-    library: <HomeLibrarySection initialState={layout.sections.library} />,
+    'library-controls': (
+      <HomeLibraryControlsSection initialState={layout.sections['library-controls']} />
+    ),
+    'library-grid': (
+      <HomeLibraryGridSection initialState={layout.sections['library-grid']} />
+    ),
   };
   return (
     <Suspense>

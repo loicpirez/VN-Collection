@@ -60,7 +60,27 @@ const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag'
 
 const Q_DEBOUNCE_MS = 300;
 
-export function LibraryClient() {
+/**
+ * Render mode for the Library client.
+ *  - 'full' (default): standalone /library page — render both the
+ *    toolbar (chips/search/filters/sort/group/density/actions)
+ *    and the VN grid.
+ *  - 'controls-only': the home-page "Library · filters & sort"
+ *    section. Renders the toolbar only; the grid is hidden so the
+ *    sibling section can host it independently.
+ *  - 'grid-only': the home-page "Library · grid" section. Renders
+ *    the grid only; the toolbar is hidden.
+ *
+ * URL state (status / search / sort / group / filters / density) is
+ * shared because both modes derive from `useSearchParams`; changing
+ * a filter in the controls section re-renders the grid section
+ * immediately via the URL.
+ */
+export type LibraryClientMode = 'full' | 'controls-only' | 'grid-only';
+
+export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = {}) {
+  const showControls = mode !== 'grid-only';
+  const showGrid = mode !== 'controls-only';
   const t = useT();
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -421,6 +441,8 @@ export function LibraryClient() {
 
   return (
     <div>
+      {showControls && (
+        <>
       {/*
         Status chips row. Wraps cleanly on narrow viewports + French
         labels — no horizontal scroll. The previous horizontal-scroll
@@ -790,14 +812,16 @@ export function LibraryClient() {
           {stats.total > 0 && <BulkDownloadButton onItemDone={() => setRefreshKey((k) => k + 1)} />}
         </div>
       </div>
+        </>
+      )}
 
-      {error && (
+      {showGrid && error && (
         <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
           {error}
         </div>
       )}
 
-      {loading || !hasLoadedOnce ? (
+      {showGrid && (loading || !hasLoadedOnce ? (
         <SkeletonCardGrid count={24} />
       ) : items.length === 0 ? (
         <div className="py-20 text-center">
@@ -891,9 +915,9 @@ export function LibraryClient() {
             </div>
           )}
         </>
-      )}
+      ))}
 
-      {selectMode && selected.size > 0 && (
+      {showGrid && selectMode && selected.size > 0 && (
         <BulkActionBar
           selectedIds={Array.from(selected)}
           onClear={clearSelection}
