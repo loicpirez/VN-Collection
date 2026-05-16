@@ -39,9 +39,20 @@ function fmtRes(r: VndbRelease['resolution']): string | null {
 
 interface OwnedEntry { release_id: string }
 
-export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; inCollection?: boolean }) {
+export function ReleasesSection({
+  vnId,
+  inCollection = false,
+  initialOpen = false,
+}: {
+  vnId: string;
+  inCollection?: boolean;
+  /** First-paint open state — driven by the VN layout's
+   *  `collapsedByDefault` so the user's preference actually flips
+   *  the chevron on initial render. */
+  initialOpen?: boolean;
+}) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [releases, setReleases] = useState<VndbRelease[] | null>(null);
   const [owned, setOwned] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);

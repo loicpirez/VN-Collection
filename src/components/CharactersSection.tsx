@@ -18,9 +18,22 @@ function ageString(ch: VndbCharacter, t: ReturnType<typeof useT>): string[] {
   return out;
 }
 
-export function CharactersSection({ vnId }: { vnId: string }) {
+export function CharactersSection({
+  vnId,
+  initialOpen = false,
+}: {
+  vnId: string;
+  /**
+   * Initial open/closed state. The VN-detail layout host passes
+   * `!collapsedByDefault` so the user's "collapsed by default"
+   * preference actually flips the section's first paint. Falls
+   * back to closed so the heavy character fetch stays lazy when
+   * the prop is omitted.
+   */
+  initialOpen?: boolean;
+}) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [chars, setChars] = useState<VndbCharacter[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

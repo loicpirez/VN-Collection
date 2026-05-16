@@ -607,6 +607,15 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         appear in the host's `sections` map and are skipped.
       */}
       {(() => {
+        // Read the layout once so we can both pass the canonical
+        // config to the host AND thread `collapsedByDefault` into the
+        // three sections that own their own `<details>` chevron. Without
+        // this, unticking "collapsed by default" had no effect on
+        // Characters / Releases / Quotes — they hard-coded
+        // useState(false).
+        const layout = parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1'));
+        const sectionOpens = (id: keyof typeof layout.sections): boolean =>
+          !layout.sections[id].collapsedByDefault;
         const sections: VnDetailSection[] = [];
         if (inCol && vn.notes) {
           sections.push({
@@ -692,7 +701,10 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
           ),
         });
         sections.push({ id: 'egs-details', node: <EgsRichDetails vnId={vn.id} /> });
-        sections.push({ id: 'characters', node: <CharactersSection vnId={vn.id} /> });
+        sections.push({
+          id: 'characters',
+          node: <CharactersSection vnId={vn.id} initialOpen={sectionOpens('characters')} />,
+        });
         if ((vn.va ?? []).length > 0) {
           sections.push({ id: 'cast', node: <CastSection va={vn.va ?? []} /> });
         }
@@ -727,8 +739,20 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
             ),
           });
         }
-        sections.push({ id: 'releases', node: <ReleasesSection vnId={vn.id} inCollection={inCol} /> });
-        sections.push({ id: 'quotes', node: <QuotesSection vnId={vn.id} /> });
+        sections.push({
+          id: 'releases',
+          node: (
+            <ReleasesSection
+              vnId={vn.id}
+              inCollection={inCol}
+              initialOpen={sectionOpens('releases')}
+            />
+          ),
+        });
+        sections.push({
+          id: 'quotes',
+          node: <QuotesSection vnId={vn.id} initialOpen={sectionOpens('quotes')} />,
+        });
         if (inCol) {
           sections.push({
             id: 'cover-banner-tools',
@@ -747,7 +771,7 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         return (
           <VnDetailLayout
             vnId={vn.id}
-            initialLayout={parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1'))}
+            initialLayout={layout}
             sections={sections}
           />
         );

@@ -5,9 +5,18 @@ import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import type { VndbQuote } from '@/lib/vndb-types';
 
-export function QuotesSection({ vnId }: { vnId: string }) {
+export function QuotesSection({
+  vnId,
+  initialOpen = false,
+}: {
+  vnId: string;
+  /** First-paint open state — wired to the VN layout host's
+   *  `collapsedByDefault` so unticking the setting actually opens
+   *  the section on initial render. */
+  initialOpen?: boolean;
+}) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [quotes, setQuotes] = useState<VndbQuote[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
