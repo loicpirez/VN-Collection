@@ -68,6 +68,21 @@ export default async function EgsPage() {
 
   const matched = links.length;
 
+  // Surface how many collection VNs have NO EGS link at all so the user
+  // knows the page isn't claiming completeness when it shows N entries.
+  // Counts every collection VN where either `egs_game` has no row at
+  // all, or has a row with `source IS NULL` (probed, no match found).
+  const unmatched = (
+    db
+      .prepare(`
+        SELECT COUNT(*) AS n FROM collection c
+        WHERE NOT EXISTS (
+          SELECT 1 FROM egs_game e WHERE e.vn_id = c.vn_id AND e.source IS NOT NULL
+        )
+      `)
+      .get() as { n: number }
+  ).n;
+
   return (
     <div className="mx-auto max-w-6xl">
       <Link
@@ -84,6 +99,11 @@ export default async function EgsPage() {
         <p className="mt-1 text-sm text-muted">{t.egs.pageSubtitle}</p>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted">
           <span>{matched} {t.egs.linkedCount}</span>
+          {unmatched > 0 && (
+            <span className="rounded-full border border-status-on_hold/40 bg-status-on_hold/10 px-2 py-0.5 text-status-on_hold">
+              {t.egs.unlinkedCount.replace('{n}', String(unmatched))}
+            </span>
+          )}
         </div>
       </header>
 
@@ -105,10 +125,21 @@ export default async function EgsPage() {
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}
           >
             {links.map((l) => (
-              <li key={l.vn_id}>
+              <li
+                key={l.vn_id}
+                className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors focus-within:border-accent hover:border-accent"
+              >
+                {/* The whole row used to be a single Next <Link> with an
+                    external EGS <a> nested inside — invalid HTML (nested
+                    <a>) that hydrates with a React warning and made the
+                    external link unreliable. Refactored: the row is a
+                    plain <li>; the cover + title is one Link, the
+                    external chip is a sibling <a>. Both interactives are
+                    keyboard-reachable independently. */}
                 <Link
                   href={`/vn/${l.vn_id}`}
-                  className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
+                  className="flex min-w-0 flex-1 items-start gap-3"
+                  aria-label={l.vn_title}
                 >
                   <div className="h-20 w-14 shrink-0 overflow-hidden rounded">
                     <SafeImage
@@ -136,20 +167,19 @@ export default async function EgsPage() {
                       {l.playtime_minutes != null && l.playtime_minutes > 0 && (
                         <span>{Math.round(l.playtime_minutes / 60)} {t.year.hoursUnit}</span>
                       )}
-                      <a
-                        href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${l.egs_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="ml-auto inline-flex items-center gap-0.5 text-muted hover:text-accent"
-                        aria-label={t.egs.openOnEgs}
-                        title={t.egs.openOnEgs}
-                      >
-                        <ExternalLink className="h-3 w-3" aria-hidden />
-                      </a>
                     </div>
                   </div>
                 </Link>
+                <a
+                  href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${l.egs_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tap-target-tight self-start inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-accent"
+                  aria-label={t.egs.openOnEgs}
+                  title={t.egs.openOnEgs}
+                >
+                  <ExternalLink className="h-3 w-3" aria-hidden />
+                </a>
               </li>
             ))}
           </ul>
