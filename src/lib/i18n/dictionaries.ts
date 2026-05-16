@@ -307,7 +307,8 @@ export const dictionaries = {
       filterDumpedYes: 'Dumpé',
       filterDumpedNo: 'Pas dumpé',
       filterDumpedAll: 'Filtrer par statut de dump (clic = dumpé → pas dumpé → tous)',
-      clearFilters: 'Réinitialiser',
+      clearFilters: 'Tout effacer',
+      advancedFilters: 'Filtres avancés',
       stats: {
         vnCount: 'VN',
         playedHours: 'joué',
@@ -2223,7 +2224,8 @@ export const dictionaries = {
       filterDumpedYes: 'Dumped',
       filterDumpedNo: 'Not dumped',
       filterDumpedAll: 'Filter by dump status (click cycles dumped → not dumped → all)',
-      clearFilters: 'Reset',
+      clearFilters: 'Clear all',
+      advancedFilters: 'Advanced filters',
       stats: {
         vnCount: 'VN',
         playedHours: 'played',
@@ -4139,7 +4141,8 @@ export const dictionaries = {
       filterDumpedYes: 'ダンプ済み',
       filterDumpedNo: '未ダンプ',
       filterDumpedAll: 'ダンプ状態で絞り込み（クリックで「ダンプ済み → 未ダンプ → すべて」）',
-      clearFilters: 'リセット',
+      clearFilters: 'すべてクリア',
+      advancedFilters: '詳細フィルター',
       stats: {
         vnCount: '本',
         playedHours: 'プレイ',

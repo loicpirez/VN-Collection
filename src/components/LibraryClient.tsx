@@ -314,6 +314,29 @@ export function LibraryClient() {
   const urlIsNsfw = searchParams.get('is_nsfw');
   const urlIsNukige = searchParams.get('is_nukige');
 
+  // Count of filters that live inside the Advanced drawer (used for
+  // the chip-badge on the drawer toggle so the user knows the drawer
+  // is hiding active filters). Placed AFTER all url-state reads so
+  // every flag is defined before counting.
+  const advancedFilterCount =
+    (producer ? 1 : 0) +
+    (publisher ? 1 : 0) +
+    (seriesId ? 1 : 0) +
+    (urlAspect ? 1 : 0) +
+    (urlDumped ? 1 : 0) +
+    (urlYearMin || urlYearMax ? 1 : 0) +
+    (urlMatchVndb ? 1 : 0) +
+    (urlMatchEgs ? 1 : 0) +
+    (urlOnlyEgsOnly ? 1 : 0) +
+    (urlFanDisc ? 1 : 0) +
+    (urlIsFavorite ? 1 : 0) +
+    (urlHasNotes ? 1 : 0) +
+    (urlHasCustomCover ? 1 : 0) +
+    (urlHasBanner ? 1 : 0) +
+    (urlHasReleased ? 1 : 0) +
+    (urlIsNsfw ? 1 : 0) +
+    (urlIsNukige ? 1 : 0);
+
   function ternaryMatches(want: string | null, actual: boolean): boolean {
     if (want === '1') return actual === true;
     if (want === '0') return actual === false;
@@ -411,175 +434,227 @@ export function LibraryClient() {
         <SavedFilters />
       </div>
 
-      <div className="mb-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            data-vn-search
-            className="input w-auto min-w-[180px]"
-            placeholder={t.library.filterPlaceholder}
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
-          />
-          <select
-            className="input w-auto"
-            value={producer}
-            onChange={(e) => setParam('producer', e.target.value || null)}
-            aria-label={t.library.filterByDeveloper}
-          >
-            <option value="">{t.library.filterByDeveloper}</option>
-            {producers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} · {p.vn_count}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input w-auto"
-            value={publisher}
-            onChange={(e) => setParam('publisher', e.target.value || null)}
-            aria-label={t.library.filterByPublisher}
-          >
-            <option value="">{t.library.filterByPublisher}</option>
-            {publishers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} · {p.vn_count}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input w-auto"
-            value={seriesId}
-            onChange={(e) => setParam('series', e.target.value || null)}
-            aria-label={t.library.filterBySeries}
-          >
-            <option value="">{t.library.filterBySeries}</option>
-            {series.map((s) => (
-              <option key={s.id} value={String(s.id)}>{s.name}</option>
-            ))}
-          </select>
-          {urlTag && (
-            <button
-              type="button"
-              onClick={() => setParam('tag', null)}
-              className="chip chip-active inline-flex items-center gap-1.5"
-              title={t.library.filterByTag}
-            >
-              <TagsIcon className="h-3.5 w-3.5" />
-              <span className="max-w-[180px] truncate">{tagName ?? urlTag}</span>
-              <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />
-            </button>
-          )}
-          {urlPlace && (
-            <button
-              type="button"
-              onClick={() => setParam('place', null)}
-              className="chip chip-active inline-flex items-center gap-1.5"
-              title={t.library.filterByPlace}
-            >
-              <Home className="h-3.5 w-3.5" />
-              <span className="max-w-[180px] truncate">{urlPlace}</span>
-              <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />
-            </button>
-          )}
-          {yearLabel && (
-            <button
-              type="button"
-              onClick={clearYear}
-              className="chip chip-active inline-flex items-center gap-1.5"
-              title={t.library.filterByYear}
-            >
-              <Calendar className="h-3.5 w-3.5" />
-              <span>{yearLabel}</span>
-              <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />
-            </button>
-          )}
-          <label className="chip inline-flex items-center gap-1.5 whitespace-nowrap">
-            <LayoutGrid className="h-3.5 w-3.5" />
-            <span>{t.library.filterAspect}</span>
+      {/*
+        Compact toolbar (single row at md+): search + Advanced
+        filters button. Active filter chips render below — only
+        when there are filters worth showing — so the toolbar
+        doesn't waste vertical space when no filters are active.
+      */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          data-vn-search
+          className="input min-w-[180px] flex-1"
+          placeholder={t.library.filterPlaceholder}
+          value={qInput}
+          onChange={(e) => setQInput(e.target.value)}
+        />
+        <AdvancedFiltersDrawer
+          activeCount={advancedFilterCount}
+          t={t}
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <select
-              className="bg-transparent text-xs font-semibold outline-none"
-              value={urlAspect}
-              onChange={(e) => setParam('aspect', e.target.value || null)}
-              aria-label={t.library.filterAspect}
+              className="input w-full"
+              value={producer}
+              onChange={(e) => setParam('producer', e.target.value || null)}
+              aria-label={t.library.filterByDeveloper}
             >
-              <option value="">{t.library.all}</option>
-              {ASPECT_KEYS.map((k) => (
-                <option key={k} value={k}>{t.aspect.keys[k]}</option>
+              <option value="">{t.library.filterByDeveloper}</option>
+              {producers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {p.vn_count}
+                </option>
               ))}
             </select>
-          </label>
+            <select
+              className="input w-full"
+              value={publisher}
+              onChange={(e) => setParam('publisher', e.target.value || null)}
+              aria-label={t.library.filterByPublisher}
+            >
+              <option value="">{t.library.filterByPublisher}</option>
+              {publishers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {p.vn_count}
+                </option>
+              ))}
+            </select>
+            <select
+              className="input w-full"
+              value={seriesId}
+              onChange={(e) => setParam('series', e.target.value || null)}
+              aria-label={t.library.filterBySeries}
+            >
+              <option value="">{t.library.filterBySeries}</option>
+              {series.map((s) => (
+                <option key={s.id} value={String(s.id)}>{s.name}</option>
+              ))}
+            </select>
+            <label className="flex items-center gap-2 rounded-md border border-border bg-bg-elev/40 px-2 py-1.5 text-xs">
+              <LayoutGrid className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="shrink-0 text-muted">{t.library.filterAspect}</span>
+              <select
+                className="ml-auto bg-transparent text-xs font-semibold outline-none"
+                value={urlAspect}
+                onChange={(e) => setParam('aspect', e.target.value || null)}
+                aria-label={t.library.filterAspect}
+              >
+                <option value="">{t.library.all}</option>
+                {ASPECT_KEYS.map((k) => (
+                  <option key={k} value={k}>{t.aspect.keys[k]}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                const next = urlDumped === '1' ? '0' : urlDumped === '0' ? null : '1';
+                setParam('dumped', next);
+              }}
+              className={`flex items-center gap-2 rounded-md border bg-bg-elev/40 px-2 py-1.5 text-xs ${
+                urlDumped ? 'border-accent text-accent' : 'border-border text-muted'
+              }`}
+              title={
+                urlDumped === '1'
+                  ? t.library.filterDumpedYes
+                  : urlDumped === '0'
+                    ? t.library.filterDumpedNo
+                    : t.library.filterDumpedAll
+              }
+            >
+              <HardDriveDownload className="h-3.5 w-3.5" aria-hidden />
+              <span>
+                {urlDumped === '1'
+                  ? t.library.filterDumpedYes
+                  : urlDumped === '0'
+                    ? t.library.filterDumpedNo
+                    : t.library.filterDumped}
+              </span>
+            </button>
+          </div>
+          <MoreFilters
+            values={{
+              match_vndb: urlMatchVndb,
+              match_egs: urlMatchEgs,
+              only_egs_only: urlOnlyEgsOnly,
+              fan_disc: urlFanDisc,
+              has_notes: urlHasNotes,
+              has_custom_cover: urlHasCustomCover,
+              has_banner: urlHasBanner,
+              is_favorite: urlIsFavorite,
+              has_released: urlHasReleased,
+              is_nsfw: urlIsNsfw,
+              is_nukige: urlIsNukige,
+            }}
+            onCycle={(key) => {
+              const cur = searchParams.get(key);
+              const next = cur === '1' ? '0' : cur === '0' ? null : '1';
+              setParam(key, next);
+            }}
+            onReset={() => {
+              const keys = [
+                'match_vndb',
+                'match_egs',
+                'only_egs_only',
+                'fan_disc',
+                'has_notes',
+                'has_custom_cover',
+                'has_banner',
+                'is_favorite',
+                'has_released',
+                'is_nsfw',
+                'is_nukige',
+              ];
+              replaceParams((sp) => {
+                for (const k of keys) sp.delete(k);
+              });
+            }}
+            t={t}
+          />
+        </AdvancedFiltersDrawer>
+      </div>
+
+      {/* Active-filter chip strip — only renders when something is
+          active, so it doesn't waste vertical space in the default
+          state. Each chip removes one filter; Clear all wipes them
+          in one shot. */}
+      {hasFilters && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          {producer && (
+            <FilterChip
+              icon={<TagsIcon className="h-3 w-3" aria-hidden />}
+              label={producers.find((p) => p.id === producer)?.name ?? producer}
+              onClear={() => setParam('producer', null)}
+              t={t}
+            />
+          )}
+          {publisher && (
+            <FilterChip
+              icon={<TagsIcon className="h-3 w-3" aria-hidden />}
+              label={publishers.find((p) => p.id === publisher)?.name ?? publisher}
+              onClear={() => setParam('publisher', null)}
+              t={t}
+            />
+          )}
+          {seriesId && (
+            <FilterChip
+              icon={<TagsIcon className="h-3 w-3" aria-hidden />}
+              label={series.find((s) => String(s.id) === seriesId)?.name ?? seriesId}
+              onClear={() => setParam('series', null)}
+              t={t}
+            />
+          )}
+          {urlTag && (
+            <FilterChip
+              icon={<TagsIcon className="h-3 w-3" aria-hidden />}
+              label={tagName ?? urlTag}
+              onClear={() => setParam('tag', null)}
+              t={t}
+            />
+          )}
+          {urlPlace && (
+            <FilterChip
+              icon={<Home className="h-3 w-3" aria-hidden />}
+              label={urlPlace}
+              onClear={() => setParam('place', null)}
+              t={t}
+            />
+          )}
+          {yearLabel && (
+            <FilterChip
+              icon={<Calendar className="h-3 w-3" aria-hidden />}
+              label={yearLabel}
+              onClear={clearYear}
+              t={t}
+            />
+          )}
+          {urlAspect && (
+            <FilterChip
+              icon={<LayoutGrid className="h-3 w-3" aria-hidden />}
+              label={t.aspect.keys[urlAspect as AspectKey]}
+              onClear={() => setParam('aspect', null)}
+              t={t}
+            />
+          )}
+          {urlDumped && (
+            <FilterChip
+              icon={<HardDriveDownload className="h-3 w-3" aria-hidden />}
+              label={urlDumped === '1' ? t.library.filterDumpedYes : t.library.filterDumpedNo}
+              onClear={() => setParam('dumped', null)}
+              t={t}
+            />
+          )}
           <button
             type="button"
-            onClick={() => {
-              const next = urlDumped === '1' ? '0' : urlDumped === '0' ? null : '1';
-              setParam('dumped', next);
-            }}
-            className={`chip inline-flex items-center gap-1.5 whitespace-nowrap ${urlDumped ? 'chip-active' : ''}`}
-            title={
-              urlDumped === '1'
-                ? t.library.filterDumpedYes
-                : urlDumped === '0'
-                  ? t.library.filterDumpedNo
-                  : t.library.filterDumpedAll
-            }
+            className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted hover:text-status-dropped"
+            onClick={clearAll}
+            title={t.library.clearFilters}
           >
-            <HardDriveDownload className="h-3.5 w-3.5" />
-            <span>
-              {urlDumped === '1'
-                ? t.library.filterDumpedYes
-                : urlDumped === '0'
-                  ? t.library.filterDumpedNo
-                  : t.library.filterDumped}
-            </span>
-            {urlDumped && <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />}
+            <FilterX className="h-3.5 w-3.5" aria-hidden />
+            {t.library.clearFilters}
           </button>
-          {hasFilters && (
-            <button className="btn" onClick={clearAll} aria-label={t.library.clearFilters}>
-              <FilterX className="h-4 w-4" /> {t.library.clearFilters}
-            </button>
-          )}
         </div>
-
-        <MoreFilters
-          values={{
-            match_vndb: urlMatchVndb,
-            match_egs: urlMatchEgs,
-            only_egs_only: urlOnlyEgsOnly,
-            fan_disc: urlFanDisc,
-            has_notes: urlHasNotes,
-            has_custom_cover: urlHasCustomCover,
-            has_banner: urlHasBanner,
-            is_favorite: urlIsFavorite,
-            has_released: urlHasReleased,
-            is_nsfw: urlIsNsfw,
-            is_nukige: urlIsNukige,
-          }}
-          onCycle={(key) => {
-            const cur = searchParams.get(key);
-            const next = cur === '1' ? '0' : cur === '0' ? null : '1';
-            setParam(key, next);
-          }}
-          onReset={() => {
-            const keys = [
-              'match_vndb',
-              'match_egs',
-              'only_egs_only',
-              'fan_disc',
-              'has_notes',
-              'has_custom_cover',
-              'has_banner',
-              'is_favorite',
-              'has_released',
-              'is_nsfw',
-              'is_nukige',
-            ];
-            replaceParams((sp) => {
-              for (const k of keys) sp.delete(k);
-            });
-          }}
-          t={t}
-        />
-      </div>
+      )}
 
       <div className="mb-6 flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
         <label className="flex items-center gap-2">
@@ -1096,4 +1171,84 @@ function groupItems(
     groups.push(other);
   }
   return groups;
+}
+
+/**
+ * Collapsible drawer for the long tail of library filters
+ * (developer / publisher / series / aspect / dumped / tri-state
+ * MoreFilters). Closed by default so the primary toolbar stays
+ * compact. The button badge surfaces the active count so the user
+ * knows the drawer is hiding live filters.
+ */
+function AdvancedFiltersDrawer({
+  activeCount,
+  t,
+  children,
+}: {
+  activeCount: number;
+  t: ReturnType<typeof useT>;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+          activeCount > 0
+            ? 'border-accent bg-accent/10 text-accent'
+            : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+        }`}
+      >
+        <Filter className="h-3.5 w-3.5" aria-hidden />
+        <span>{t.library.advancedFilters}</span>
+        {activeCount > 0 && (
+          <span className="rounded-full bg-accent/30 px-1.5 text-[10px] font-bold">
+            {activeCount}
+          </span>
+        )}
+        <ChevronDown
+          className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <div className="mt-2 w-full space-y-3 rounded-lg border border-border bg-bg-card/60 p-3">
+          {children}
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * Removable active-filter chip. Renders below the toolbar so the
+ * user can see at a glance which filters are live without having
+ * to open the drawer.
+ */
+function FilterChip({
+  icon,
+  label,
+  onClear,
+  t,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClear: () => void;
+  t: ReturnType<typeof useT>;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClear}
+      className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] text-accent hover:border-status-dropped hover:bg-status-dropped/10 hover:text-status-dropped"
+      title={t.library.clearFilters}
+    >
+      {icon}
+      <span className="max-w-[160px] truncate">{label}</span>
+      <X className="h-2.5 w-2.5 opacity-70" aria-hidden />
+    </button>
+  );
 }
