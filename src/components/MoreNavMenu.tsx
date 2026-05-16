@@ -2,17 +2,20 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useDialogA11y } from './Dialog';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   Award,
   BarChart3,
   Bookmark,
   CalendarRange,
   ChevronDown,
-  Cog,
+  Compass,
   Database,
   FileCode2,
+  Gamepad2,
   Globe,
   Heart,
+  LayoutGrid,
   Library,
   ListChecks,
   type LucideIcon,
@@ -34,30 +37,39 @@ interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  /**
+   * Optional href matcher for active state. Defaults to startsWith(href)
+   * — used by Library since its href "/" would otherwise match every
+   * route. When set, the link is active only when the pathname is
+   * exactly this value.
+   */
+  exact?: boolean;
 }
 
 /**
  * Top-level navigation. Built as a grouped, responsive layout:
  *
- *   ▸ Desktop (≥ md): three primary always-visible links (Library / Wishlist /
- *     Search) plus three category dropdowns (Discover / Browse / Insights)
- *     that collect the secondary destinations. No more "More" catch-all bin.
- *   ▸ Mobile (< md): a single hamburger button slides open a sheet that lists
- *     everything grouped by category.
+ *   ▸ Mobile (< md): single hamburger → right-slide sheet, grouped flat list.
+ *   ▸ md – lg (768 – 1023): icon-only primary links + grouped dropdowns
+ *     identified by icon + chevron. Tooltips and aria-labels preserve a11y.
+ *     Keeps FR labels (Bibliothèque, Personnages, Rechercher) from
+ *     overflowing the header on the most-used breakpoint.
+ *   ▸ lg+ (≥ 1024): icon + label primary + icon + label + chevron groups.
  *
- * Categories are stable so the structure is predictable: top-level always
- * means "core daily-use", dropdowns always mean "infrequent destinations
- * grouped by purpose".
+ * Active route gets an accent background plus `aria-current="page"` so
+ * screen readers and the visual layer agree. The "More" catch-all bin
+ * is gone — every item lives in a named category.
  */
 export function GroupedNav() {
   const t = useT();
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // i18n labels live here so they update under the same render cycle as the
   // rest of the layout — duplicating into a static const would force a full
   // reload to translate.
   const primary: NavItem[] = [
-    { href: '/', label: t.nav.library, icon: Library },
+    { href: '/', label: t.nav.library, icon: Library, exact: true },
     { href: '/wishlist', label: t.nav.wishlist, icon: Heart },
     { href: '/lists', label: t.nav.lists, icon: ListChecks },
     { href: '/search', label: t.nav.search, icon: SearchIcon },
@@ -80,24 +92,55 @@ export function GroupedNav() {
     { href: '/labels', label: t.nav.labels, icon: Tag },
   ];
 
+  // /shelf used to share the Library icon, which was visually
+  // identical to the home link — replaced with LayoutGrid (a more
+  // shelf-like grid metaphor). /egs used to share Sparkles with
+  // /traits — Gamepad2 disambiguates it as a games database.
   const insights: NavItem[] = [
     { href: '/stats', label: t.nav.stats, icon: BarChart3 },
-    { href: '/shelf', label: t.nav.shelf, icon: Library },
+    { href: '/shelf', label: t.nav.shelf, icon: LayoutGrid },
     { href: '/steam', label: t.nav.steam, icon: Globe },
-    { href: '/egs', label: t.nav.egs, icon: Sparkles },
+    { href: '/egs', label: t.nav.egs, icon: Gamepad2 },
     { href: '/schema', label: t.nav.schema, icon: FileCode2 },
     { href: '/data', label: t.nav.data, icon: Database },
   ];
 
+  // Active when any item in the group matches the current route — the
+  // dropdown trigger lights up so the user knows roughly where they are
+  // even though the destination is inside a collapsed menu.
+  const groupActive = (items: NavItem[]) =>
+    items.some((item) => isActive(pathname, item));
+
   return (
     <>
-      <nav className="hidden flex-wrap items-center gap-1 md:flex">
+      <nav
+        className="hidden flex-wrap items-center gap-0.5 md:flex lg:gap-1"
+        aria-label={t.nav.openMenu}
+      >
         {primary.map((item) => (
-          <NavLink key={item.href} {...item} />
+          <NavLink key={item.href} item={item} pathname={pathname} />
         ))}
-        <NavGroup label={t.nav.groupDiscover} items={discover} />
-        <NavGroup label={t.nav.groupBrowse} items={browse} />
-        <NavGroup label={t.nav.groupInsights} items={insights} icon={Cog} />
+        <NavGroup
+          label={t.nav.groupDiscover}
+          items={discover}
+          icon={Compass}
+          pathname={pathname}
+          active={groupActive(discover)}
+        />
+        <NavGroup
+          label={t.nav.groupBrowse}
+          items={browse}
+          icon={Tags}
+          pathname={pathname}
+          active={groupActive(browse)}
+        />
+        <NavGroup
+          label={t.nav.groupInsights}
+          items={insights}
+          icon={BarChart3}
+          pathname={pathname}
+          active={groupActive(insights)}
+        />
       </nav>
       <button
         type="button"
@@ -113,11 +156,12 @@ export function GroupedNav() {
         <MobileSheet
           onClose={() => setMobileOpen(false)}
           t={t}
+          pathname={pathname}
           groups={[
-            { title: t.nav.groupPrimary, items: primary },
-            { title: t.nav.groupDiscover, items: discover },
-            { title: t.nav.groupBrowse, items: browse },
-            { title: t.nav.groupInsights, items: insights },
+            { title: t.nav.groupPrimary, icon: Library, items: primary },
+            { title: t.nav.groupDiscover, icon: Compass, items: discover },
+            { title: t.nav.groupBrowse, icon: Tags, items: browse },
+            { title: t.nav.groupInsights, icon: BarChart3, items: insights },
           ]}
         />
       )}
@@ -125,19 +169,54 @@ export function GroupedNav() {
   );
 }
 
-function NavLink({ href, label, icon: Icon }: NavItem) {
+function isActive(pathname: string | null, item: NavItem): boolean {
+  if (!pathname) return false;
+  // Strip any query / hash before comparing.
+  const path = pathname.split('?')[0].split('#')[0];
+  if (item.exact) return path === item.href;
+  // Strip query from the item's href too (e.g. /year?y=2026 → /year).
+  const itemPath = item.href.split('?')[0];
+  if (itemPath === '/') return path === '/';
+  return path === itemPath || path.startsWith(`${itemPath}/`);
+}
+
+function NavLink({ item, pathname }: { item: NavItem; pathname: string | null }) {
+  const active = isActive(pathname, item);
   return (
     <Link
-      href={href}
-      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-bg-card hover:text-white"
+      href={item.href}
+      title={item.label}
+      aria-label={item.label}
+      aria-current={active ? 'page' : undefined}
+      className={`tap-target inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors lg:px-3 ${
+        active
+          ? 'bg-accent/15 text-accent hover:bg-accent/20'
+          : 'text-muted hover:bg-bg-card hover:text-white'
+      }`}
     >
-      <Icon className="h-4 w-4" aria-hidden />
-      {label}
+      <item.icon className="h-4 w-4" aria-hidden />
+      {/* Text label collapses to icon-only between md (768) and lg (1024)
+          so the longest FR strings (Bibliothèque, Personnages, Rechercher)
+          don't push the right-side controls onto a second row. The
+          aria-label + title keep a11y + tooltips intact. */}
+      <span className="hidden lg:inline">{item.label}</span>
     </Link>
   );
 }
 
-function NavGroup({ label, items, icon: Icon }: { label: string; items: NavItem[]; icon?: LucideIcon }) {
+function NavGroup({
+  label,
+  items,
+  icon: Icon,
+  pathname,
+  active,
+}: {
+  label: string;
+  items: NavItem[];
+  icon?: LucideIcon;
+  pathname: string | null;
+  active: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -153,16 +232,16 @@ function NavGroup({ label, items, icon: Icon }: { label: string; items: NavItem[
         return;
       }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
-      const items = Array.from(
+      const menuItems = Array.from(
         ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
       );
-      if (items.length === 0) return;
-      const idx = items.indexOf(document.activeElement as HTMLElement);
+      if (menuItems.length === 0) return;
+      const idx = menuItems.indexOf(document.activeElement as HTMLElement);
       let next: HTMLElement | undefined;
-      if (e.key === 'Home') next = items[0];
-      else if (e.key === 'End') next = items[items.length - 1];
-      else if (e.key === 'ArrowDown') next = items[(idx + 1 + items.length) % items.length] ?? items[0];
-      else next = items[(idx - 1 + items.length) % items.length] ?? items[items.length - 1];
+      if (e.key === 'Home') next = menuItems[0];
+      else if (e.key === 'End') next = menuItems[menuItems.length - 1];
+      else if (e.key === 'ArrowDown') next = menuItems[(idx + 1 + menuItems.length) % menuItems.length] ?? menuItems[0];
+      else next = menuItems[(idx - 1 + menuItems.length) % menuItems.length] ?? menuItems[menuItems.length - 1];
       e.preventDefault();
       next?.focus();
     }
@@ -181,10 +260,18 @@ function NavGroup({ label, items, icon: Icon }: { label: string; items: NavItem[
         aria-expanded={open}
         aria-haspopup="menu"
         aria-controls={menuId}
-        className="tap-target inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-bg-card hover:text-white"
+        aria-label={label}
+        title={label}
+        className={`tap-target inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors lg:gap-1.5 lg:px-3 ${
+          active
+            ? 'bg-accent/15 text-accent hover:bg-accent/20'
+            : 'text-muted hover:bg-bg-card hover:text-white'
+        }`}
       >
         {Icon && <Icon className="h-4 w-4" aria-hidden />}
-        {label}
+        {/* Group label is hidden at md so the icon + chevron survives on
+            their own; full text returns at lg. */}
+        <span className="hidden lg:inline">{label}</span>
         <ChevronDown className="h-3 w-3" aria-hidden />
       </button>
       {open && (
@@ -194,18 +281,26 @@ function NavGroup({ label, items, icon: Icon }: { label: string; items: NavItem[
           aria-label={label}
           className="absolute left-0 top-full z-40 mt-1 w-56 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
         >
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className="tap-target flex items-center gap-2 rounded-md px-2 py-1.5 text-muted hover:bg-bg-elev hover:text-white"
-            >
-              <item.icon className="h-4 w-4" aria-hidden />
-              {item.label}
-            </Link>
-          ))}
+          {items.map((item) => {
+            const itemActive = isActive(pathname, item);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                aria-current={itemActive ? 'page' : undefined}
+                className={`tap-target flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
+                  itemActive
+                    ? 'bg-accent/15 text-accent font-semibold'
+                    : 'text-muted hover:bg-bg-elev hover:text-white'
+                }`}
+              >
+                <item.icon className="h-4 w-4" aria-hidden />
+                {item.label}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
@@ -215,10 +310,12 @@ function NavGroup({ label, items, icon: Icon }: { label: string; items: NavItem[
 function MobileSheet({
   onClose,
   groups,
+  pathname,
   t,
 }: {
   onClose: () => void;
-  groups: { title: string; items: NavItem[] }[];
+  groups: { title: string; icon: LucideIcon; items: NavItem[] }[];
+  pathname: string | null;
   t: ReturnType<typeof useT>;
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -249,20 +346,31 @@ function MobileSheet({
           </button>
         </div>
         <div className="px-2 py-2 text-sm">
-          {groups.map((g) => (
-            <div key={g.title} className="mb-3">
-              <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-muted/80">{g.title}</div>
-              {g.items.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className="flex items-center gap-2 rounded-md px-2 py-2 text-muted hover:bg-bg-elev hover:text-white"
-                >
-                  <item.icon className="h-4 w-4" aria-hidden />
-                  {item.label}
-                </Link>
-              ))}
+          {groups.map((g, gi) => (
+            <div key={g.title} className={gi > 0 ? 'mt-3 border-t border-border/60 pt-3' : 'mb-3'}>
+              <div className="px-2 pb-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted/80">
+                <g.icon className="h-3 w-3" aria-hidden />
+                {g.title}
+              </div>
+              {g.items.map((item) => {
+                const active = isActive(pathname, item);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onClose}
+                    aria-current={active ? 'page' : undefined}
+                    className={`flex items-center gap-2 rounded-md px-2 py-2 transition-colors ${
+                      active
+                        ? 'bg-accent/15 text-accent border-l-2 border-accent'
+                        : 'text-muted hover:bg-bg-elev hover:text-white'
+                    }`}
+                  >
+                    <item.icon className="h-4 w-4" aria-hidden />
+                    {item.label}
+                  </Link>
+                );
+              })}
             </div>
           ))}
         </div>
