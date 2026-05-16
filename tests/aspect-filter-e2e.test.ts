@@ -274,4 +274,48 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
       .all();
     expect(newRow.length).toBe(0);
   });
+
+  it('VN with cached 1280x720 release, no owned edition, no override: in 16:9 and NOT in unknown', () => {
+    // Reproduces the user-reported regression class:
+    // - VN is in the collection
+    // - VN has zero owned_release rows
+    // - VN has no manual aspect override
+    // - VN has cached VNDB release payloads with resolution
+    //   1280x720 in vndb_cache
+    // The materializer must populate release_resolution_cache
+    // with a vn-bound row so that:
+    //   ?aspect=16:9 INCLUDES the VN
+    //   ?aspect=unknown EXCLUDES the VN
+    // before the user ever opens the Releases section.
+    seedVn('v90016');
+    addToCollection('v90016', {});
+    db.prepare(
+      `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at)
+       VALUES (?, ?, ?, ?)`,
+    ).run(
+      'POST /release|POST|90016aspecthex',
+      JSON.stringify({
+        results: [
+          { id: 'r900161', resolution: [1280, 720], vns: [{ id: 'v90016' }] },
+          { id: 'r900162', resolution: [1280, 720], vns: [{ id: 'v90016' }] },
+        ],
+      }),
+      Date.now(),
+      Date.now() + 3600 * 1000,
+    );
+    // Before materialize: derivation cannot reach the cache.
+    expect(deriveVnAspectKey('v90016')).toBe('unknown');
+    expect(listCollection({ aspect: 'unknown' }).map((i) => i.id)).toContain('v90016');
+    // After materialize: 16:9 wins; unknown filter no longer includes.
+    materializeReleaseAspectsForVn('v90016');
+    expect(deriveVnAspectKey('v90016')).toBe('16:9');
+    const sixteenNine = listCollection({ aspect: '16:9' }).map((i) => i.id);
+    const unknown = listCollection({ aspect: 'unknown' }).map((i) => i.id);
+    expect(sixteenNine).toContain('v90016');
+    expect(unknown).not.toContain('v90016');
+    // Card chip surfaces the derived aspect, not 'unknown'.
+    const card = listCollection({ aspect: '16:9' }).find((i) => i.id === 'v90016');
+    expect(card?.aspect_keys).toContain('16:9');
+    expect(card?.aspect_keys).not.toContain('unknown');
+  });
 });
