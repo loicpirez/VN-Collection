@@ -7,6 +7,7 @@ import {
   listCollection,
   materializeAspectForCollectionVns,
   materializeReleaseAspectsForVn,
+  materializeReleaseMetaForVn,
   type ListOptions,
 } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
@@ -101,7 +102,10 @@ export async function GET(req: NextRequest) {
     // VNs from the Library page. Materializing here makes the
     // Library agree with the VN detail page.
     for (const id of allVnIds) {
-      if (/^v\d+$/.test(id)) materializeReleaseAspectsForVn(id);
+      if (/^v\d+$/.test(id)) {
+        materializeReleaseAspectsForVn(id);
+        materializeReleaseMetaForVn(id);
+      }
     }
     // STEP 2: screenshots fallback for VNs that still have no
     // signal after step 1.

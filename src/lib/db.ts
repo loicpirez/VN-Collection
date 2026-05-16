@@ -180,6 +180,41 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_release_resolution_cache_aspect
       ON release_resolution_cache(aspect_key);
 
+    -- Per-release metadata harvested from cached VNDB POST /release
+    -- payloads. release-resolution-cache only stored aspect data;
+    -- this table holds everything else the shelf-edition popovers
+    -- need to display the EXACT owned edition (instead of widening
+    -- to the VN's aggregate platforms / languages / release date).
+    -- All JSON columns are nullable arrays/objects mirroring the
+    -- shape returned by POST /release on api.vndb.org.
+    CREATE TABLE IF NOT EXISTS release_meta_cache (
+      release_id  TEXT PRIMARY KEY,
+      vn_id       TEXT,
+      title       TEXT,
+      alttitle    TEXT,
+      platforms   TEXT,
+      languages   TEXT,
+      released    TEXT,
+      minage      INTEGER,
+      patch       INTEGER NOT NULL DEFAULT 0,
+      freeware    INTEGER NOT NULL DEFAULT 0,
+      uncensored  INTEGER,
+      official    INTEGER NOT NULL DEFAULT 1,
+      has_ero     INTEGER NOT NULL DEFAULT 0,
+      voiced      INTEGER,
+      engine      TEXT,
+      notes       TEXT,
+      gtin        TEXT,
+      catalog     TEXT,
+      resolution  TEXT,
+      media       TEXT,
+      producers   TEXT,
+      extlinks    TEXT,
+      fetched_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_release_meta_cache_vn
+      ON release_meta_cache(vn_id);
+
     CREATE TABLE IF NOT EXISTS owned_release_aspect_override (
       vn_id      TEXT NOT NULL,
       release_id TEXT NOT NULL,
@@ -2954,6 +2989,187 @@ export function materializeReleaseAspectsForVn(vnId: string): void {
   void wrote;
 }
 
+/**
+ * Per-release metadata shape persisted in `release_meta_cache`. Every
+ * field is nullable so the popover can show the parts VNDB knows
+ * about and gracefully omit the rest.
+ */
+export interface ReleaseMetaRow {
+  release_id: string;
+  vn_id: string | null;
+  title: string | null;
+  alttitle: string | null;
+  platforms: string[];
+  languages: Array<{ lang: string; title?: string; latin?: string | null; mtl?: boolean; main?: boolean }>;
+  released: string | null;
+  minage: number | null;
+  patch: boolean;
+  freeware: boolean;
+  uncensored: boolean | null;
+  official: boolean;
+  has_ero: boolean;
+  voiced: number | null;
+  engine: string | null;
+  notes: string | null;
+  gtin: string | null;
+  catalog: string | null;
+  resolution: string | null;
+}
+
+function parseJsonField<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    const v = JSON.parse(raw);
+    return v as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function getReleaseMeta(releaseId: string): ReleaseMetaRow | null {
+  const row = db
+    .prepare(
+      `SELECT * FROM release_meta_cache WHERE release_id = ?`,
+    )
+    .get(releaseId) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  return {
+    release_id: row.release_id as string,
+    vn_id: (row.vn_id as string | null) ?? null,
+    title: (row.title as string | null) ?? null,
+    alttitle: (row.alttitle as string | null) ?? null,
+    platforms: parseJsonField<string[]>(row.platforms as string | null, []),
+    languages: parseJsonField<ReleaseMetaRow['languages']>(row.languages as string | null, []),
+    released: (row.released as string | null) ?? null,
+    minage: (row.minage as number | null) ?? null,
+    patch: !!row.patch,
+    freeware: !!row.freeware,
+    uncensored: row.uncensored == null ? null : !!row.uncensored,
+    official: !!row.official,
+    has_ero: !!row.has_ero,
+    voiced: (row.voiced as number | null) ?? null,
+    engine: (row.engine as string | null) ?? null,
+    notes: (row.notes as string | null) ?? null,
+    gtin: (row.gtin as string | null) ?? null,
+    catalog: (row.catalog as string | null) ?? null,
+    resolution: (row.resolution as string | null) ?? null,
+  };
+}
+
+/**
+ * Harvest per-release metadata from every cached `POST /release`
+ * payload that mentions `vnId`. Idempotent + best-effort: any
+ * release row that throws while inserting is skipped silently so
+ * one bad payload doesn't poison the rest.
+ *
+ * The shape mirrors `materializeReleaseAspectsForVn` so the two
+ * helpers can be called back-to-back; the resolution aspect lives
+ * in release_resolution_cache and richer per-release metadata in
+ * release_meta_cache. They MAY duplicate `resolution` because the
+ * derived aspect-key requires structured parsing.
+ */
+export function materializeReleaseMetaForVn(vnId: string): void {
+  if (!/^v\d+$/.test(vnId)) return;
+  const rows = db
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE '% /release|%' LIMIT 200`)
+    .all() as Array<{ body: string }>;
+  const now = Date.now();
+  const upsert = db.prepare(`
+    INSERT INTO release_meta_cache (
+      release_id, vn_id, title, alttitle, platforms, languages, released,
+      minage, patch, freeware, uncensored, official, has_ero, voiced,
+      engine, notes, gtin, catalog, resolution, media, producers, extlinks,
+      fetched_at
+    ) VALUES (
+      @release_id, @vn_id, @title, @alttitle, @platforms, @languages, @released,
+      @minage, @patch, @freeware, @uncensored, @official, @has_ero, @voiced,
+      @engine, @notes, @gtin, @catalog, @resolution, @media, @producers, @extlinks,
+      @fetched_at
+    )
+    ON CONFLICT(release_id) DO UPDATE SET
+      vn_id = excluded.vn_id,
+      title = excluded.title,
+      alttitle = excluded.alttitle,
+      platforms = excluded.platforms,
+      languages = excluded.languages,
+      released = excluded.released,
+      minage = excluded.minage,
+      patch = excluded.patch,
+      freeware = excluded.freeware,
+      uncensored = excluded.uncensored,
+      official = excluded.official,
+      has_ero = excluded.has_ero,
+      voiced = excluded.voiced,
+      engine = excluded.engine,
+      notes = excluded.notes,
+      gtin = excluded.gtin,
+      catalog = excluded.catalog,
+      resolution = excluded.resolution,
+      media = excluded.media,
+      producers = excluded.producers,
+      extlinks = excluded.extlinks,
+      fetched_at = excluded.fetched_at
+  `);
+  for (const row of rows) {
+    let parsed: { results?: unknown[] } | null = null;
+    try {
+      parsed = JSON.parse(row.body) as { results?: unknown[] };
+    } catch {
+      continue;
+    }
+    if (!parsed?.results || !Array.isArray(parsed.results)) continue;
+    for (const r of parsed.results) {
+      if (!r || typeof r !== 'object') continue;
+      const rel = r as Record<string, unknown>;
+      const id = rel.id;
+      if (typeof id !== 'string' || !/^r\d+$/i.test(id)) continue;
+      const vns = Array.isArray(rel.vns) ? (rel.vns as Array<{ id?: unknown }>) : [];
+      const linked = vns.some((v) => v && typeof v.id === 'string' && v.id === vnId);
+      if (!linked) continue;
+      try {
+        const platforms = Array.isArray(rel.platforms)
+          ? (rel.platforms as unknown[]).filter((x): x is string => typeof x === 'string')
+          : [];
+        const languages = Array.isArray(rel.languages) ? rel.languages : [];
+        // Resolution is shape [w,h] | string | null on VNDB.
+        let resolution: string | null = null;
+        if (typeof rel.resolution === 'string') resolution = rel.resolution;
+        else if (Array.isArray(rel.resolution) && rel.resolution.length === 2) {
+          const [w, h] = rel.resolution as [unknown, unknown];
+          if (typeof w === 'number' && typeof h === 'number') resolution = `${w}x${h}`;
+        }
+        upsert.run({
+          release_id: id.toLowerCase(),
+          vn_id: vnId,
+          title: typeof rel.title === 'string' ? rel.title : null,
+          alttitle: typeof rel.alttitle === 'string' ? rel.alttitle : null,
+          platforms: JSON.stringify(platforms),
+          languages: JSON.stringify(languages),
+          released: typeof rel.released === 'string' ? rel.released : null,
+          minage: typeof rel.minage === 'number' ? rel.minage : null,
+          patch: rel.patch ? 1 : 0,
+          freeware: rel.freeware ? 1 : 0,
+          uncensored: rel.uncensored == null ? null : rel.uncensored ? 1 : 0,
+          official: rel.official === false ? 0 : 1,
+          has_ero: rel.has_ero ? 1 : 0,
+          voiced: typeof rel.voiced === 'number' ? rel.voiced : null,
+          engine: typeof rel.engine === 'string' ? rel.engine : null,
+          notes: typeof rel.notes === 'string' ? rel.notes : null,
+          gtin: typeof rel.gtin === 'string' ? rel.gtin : null,
+          catalog: typeof rel.catalog === 'string' ? rel.catalog : null,
+          resolution,
+          media: JSON.stringify(Array.isArray(rel.media) ? rel.media : []),
+          producers: JSON.stringify(Array.isArray(rel.producers) ? rel.producers : []),
+          extlinks: JSON.stringify(Array.isArray(rel.extlinks) ? rel.extlinks : []),
+          fetched_at: now,
+        });
+      } catch {
+        // Schema/SQL/JSON failure — skip this row but keep scanning.
+      }
+    }
+  }
+}
+
 export function materializeAspectForCollectionVns(vnIds: string[]): void {
   if (vnIds.length === 0) return;
   // Only materialize VNs that don't already have an aspect signal —
@@ -3480,14 +3696,35 @@ export interface ShelfEntry extends OwnedReleaseRow {
   vn_local_image_thumb: string | null;
   vn_image_sexual: number | null;
   /**
-   * Display-time metadata that the pool/info popover (and any
-   * other shelf-edition surface) needs alongside the VN cover.
-   * Pulled by JOIN; may be empty arrays / null when VNDB has
-   * not (yet) populated those fields on the cached VN row.
+   * VN-LEVEL aggregate metadata (every platform/language across all
+   * releases of the VN). Kept as a fallback for synthetic-id rows
+   * and for releases that haven't been harvested into
+   * release_meta_cache yet.
    */
   vn_platforms: string[];
   vn_languages: string[];
   vn_released: string | null;
+  /**
+   * RELEASE-LEVEL metadata for the exact owned edition this row
+   * represents. Populated by the LEFT JOIN against
+   * release_meta_cache; null when the release is synthetic OR the
+   * VNDB POST /release payload has not been materialized yet.
+   *
+   * UI consumers MUST prefer rel_* over vn_* when rel_* is set,
+   * because the user owns ONE edition (e.g. WIN only) — widening
+   * to the VN's aggregate platforms (WIN / PS4 / PSV / SWI) would
+   * mis-describe the physical/digital item they're shelving.
+   */
+  rel_title: string | null;
+  rel_platforms: string[];
+  rel_languages: string[];
+  rel_released: string | null;
+  rel_resolution: string | null;
+  rel_minage: number | null;
+  rel_patch: boolean;
+  rel_freeware: boolean;
+  rel_official: boolean;
+  rel_has_ero: boolean;
 }
 
 function parseJsonArrayField(raw: string | null | undefined): string[] {
@@ -3498,6 +3735,89 @@ function parseJsonArrayField(raw: string | null | undefined): string[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * Decode the `release_meta_cache.languages` JSON column into a
+ * flat string[] of language codes. The cached payload is the
+ * VNDB shape `[{lang, title, latin, mtl, main}, …]`; the popover
+ * only needs the lang codes.
+ */
+function parseLanguagesField(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    const out: string[] = [];
+    for (const entry of v) {
+      if (entry && typeof entry === 'object' && typeof (entry as { lang?: unknown }).lang === 'string') {
+        out.push((entry as { lang: string }).lang);
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Columns selected from `release_meta_cache` via LEFT JOIN by the
+ * shelf-edition helpers below. Pulled together for re-use across
+ * the three helpers (listAllOwnedReleases, listUnplacedOwnedReleases,
+ * listShelfSlots, listShelfDisplaySlots).
+ */
+const RELEASE_META_JOIN_SELECT = `
+  rm.title       AS rel_title,
+  rm.platforms   AS rel_platforms,
+  rm.languages   AS rel_languages,
+  rm.released    AS rel_released,
+  rm.resolution  AS rel_resolution,
+  rm.minage      AS rel_minage,
+  rm.patch       AS rel_patch,
+  rm.freeware    AS rel_freeware,
+  rm.official    AS rel_official,
+  rm.has_ero     AS rel_has_ero
+`;
+
+interface ReleaseMetaJoinRow {
+  rel_title: string | null;
+  rel_platforms: string | null;
+  rel_languages: string | null;
+  rel_released: string | null;
+  rel_resolution: string | null;
+  rel_minage: number | null;
+  rel_patch: number | null;
+  rel_freeware: number | null;
+  rel_official: number | null;
+  rel_has_ero: number | null;
+}
+
+function unpackReleaseMetaJoin(r: ReleaseMetaJoinRow): {
+  rel_title: string | null;
+  rel_platforms: string[];
+  rel_languages: string[];
+  rel_released: string | null;
+  rel_resolution: string | null;
+  rel_minage: number | null;
+  rel_patch: boolean;
+  rel_freeware: boolean;
+  rel_official: boolean;
+  rel_has_ero: boolean;
+} {
+  return {
+    rel_title: r.rel_title,
+    rel_platforms: parseJsonArrayField(r.rel_platforms),
+    rel_languages: parseLanguagesField(r.rel_languages),
+    rel_released: r.rel_released,
+    rel_resolution: r.rel_resolution,
+    rel_minage: r.rel_minage,
+    rel_patch: !!r.rel_patch,
+    rel_freeware: !!r.rel_freeware,
+    // SQL DEFAULT 1 — fall back to true when the column is null
+    // (means the row hasn't been materialized; assume official).
+    rel_official: r.rel_official == null ? true : !!r.rel_official,
+    rel_has_ero: !!r.rel_has_ero,
+  };
 }
 
 /**
@@ -3524,13 +3844,15 @@ export function listAllOwnedReleases(): ShelfEntry[] {
              v.image_sexual AS vn_image_sexual,
              v.platforms AS vn_platforms,
              v.languages AS vn_languages,
-             v.released AS vn_released
+             v.released AS vn_released,
+             ${RELEASE_META_JOIN_SELECT}
       FROM owned_release o
       JOIN vn v ON v.id = o.vn_id
+      LEFT JOIN release_meta_cache rm ON rm.release_id = o.release_id
       ORDER BY v.title COLLATE NOCASE ASC
       LIMIT ?
     `)
-    .all(LIST_ALL_OWNED_RELEASES_LIMIT) as Array<OwnedReleaseDbRow & {
+    .all(LIST_ALL_OWNED_RELEASES_LIMIT) as Array<OwnedReleaseDbRow & ReleaseMetaJoinRow & {
       vn_title: string;
       vn_image_thumb: string | null;
       vn_image_url: string | null;
@@ -3550,6 +3872,7 @@ export function listAllOwnedReleases(): ShelfEntry[] {
     vn_platforms: parseJsonArrayField(r.vn_platforms),
     vn_languages: parseJsonArrayField(r.vn_languages),
     vn_released: r.vn_released,
+    ...unpackReleaseMetaJoin(r),
   }));
 }
 
@@ -3911,9 +4234,11 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
              v.image_sexual      AS vn_image_sexual,
              v.platforms         AS vn_platforms,
              v.languages         AS vn_languages,
-             v.released          AS vn_released
+             v.released          AS vn_released,
+             ${RELEASE_META_JOIN_SELECT}
       FROM owned_release o
       JOIN vn v ON v.id = o.vn_id
+      LEFT JOIN release_meta_cache rm ON rm.release_id = o.release_id
       WHERE NOT EXISTS (
         SELECT 1 FROM shelf_slot s
         WHERE s.vn_id = o.vn_id AND s.release_id = o.release_id
@@ -3923,7 +4248,7 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
       )
       ORDER BY v.title COLLATE NOCASE ASC
     `)
-    .all() as Array<OwnedReleaseDbRow & {
+    .all() as Array<OwnedReleaseDbRow & ReleaseMetaJoinRow & {
       vn_title: string;
       vn_image_thumb: string | null;
       vn_image_url: string | null;
@@ -3943,6 +4268,7 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
     vn_platforms: parseJsonArrayField(r.vn_platforms),
     vn_languages: parseJsonArrayField(r.vn_languages),
     vn_released: r.vn_released,
+    ...unpackReleaseMetaJoin(r),
   }));
 }
 

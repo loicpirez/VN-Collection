@@ -1430,29 +1430,75 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
           } ${placement.horizontal === 'right' ? 'right-0' : 'left-0'} ${placed ? 'visible opacity-100' : 'invisible opacity-0'}`}
         >
           <p className="line-clamp-2 text-xs font-bold">{entry.vn_title}</p>
+          {entry.rel_title && entry.rel_title !== entry.vn_title && (
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted">{entry.rel_title}</p>
+          )}
           {entry.edition_label && (
             <p className="mt-0.5 line-clamp-1 text-[11px] text-muted">{entry.edition_label}</p>
           )}
+          {/*
+            Prefer RELEASE-level metadata (rel_*) when materialized;
+            fall back to the VN-level aggregate (vn_*) only when the
+            user's release has not been harvested into
+            release_meta_cache yet (synthetic id, or the
+            ReleasesSection has never been opened for this VN).
+            This is the fix for the "WIN · PS4 · PSV · SWI" QA bug:
+            we no longer widen to all-platforms-of-the-VN when the
+            user owns a single edition.
+          */}
           <dl className="mt-1 grid grid-cols-1 gap-x-2 gap-y-0.5 text-[10px] text-muted">
             <div>
               <span className="font-mono">{entry.release_id}</span>
             </div>
-            {entry.vn_released && (
+            {(() => {
+              const released = entry.rel_released ?? entry.vn_released;
+              if (!released) return null;
+              return (
+                <div>
+                  {t.detail.released}:{' '}
+                  <span className="text-white tabular-nums">{released}</span>
+                  {entry.rel_released && (
+                    <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
+                      {t.shelfLayout.releaseFieldBadge}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+            {(() => {
+              const platforms = entry.rel_platforms.length > 0 ? entry.rel_platforms : entry.vn_platforms;
+              if (platforms.length === 0) return null;
+              return (
+                <div>
+                  {t.detail.platforms}:{' '}
+                  <span className="text-white">{platforms.join(' · ').toUpperCase()}</span>
+                  {entry.rel_platforms.length > 0 && (
+                    <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
+                      {t.shelfLayout.releaseFieldBadge}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+            {(() => {
+              const langs = entry.rel_languages.length > 0 ? entry.rel_languages : entry.vn_languages;
+              if (langs.length === 0) return null;
+              return (
+                <div>
+                  {t.detail.languages}:{' '}
+                  <span className="text-white">{langs.join(' · ').toUpperCase()}</span>
+                  {entry.rel_languages.length > 0 && (
+                    <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
+                      {t.shelfLayout.releaseFieldBadge}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+            {entry.rel_resolution && (
               <div>
-                {t.detail.released}:{' '}
-                <span className="text-white tabular-nums">{entry.vn_released}</span>
-              </div>
-            )}
-            {entry.vn_platforms.length > 0 && (
-              <div>
-                {t.detail.platforms}:{' '}
-                <span className="text-white">{entry.vn_platforms.join(' · ').toUpperCase()}</span>
-              </div>
-            )}
-            {entry.vn_languages.length > 0 && (
-              <div>
-                {t.detail.languages}:{' '}
-                <span className="text-white">{entry.vn_languages.join(' · ').toUpperCase()}</span>
+                {t.detail.aspectLabel}:{' '}
+                <span className="text-white tabular-nums">{entry.rel_resolution}</span>
               </div>
             )}
             {entry.condition && (
@@ -1768,6 +1814,16 @@ function shelfDisplayToShelfEntry(slot: ShelfDisplaySlotEntry): ShelfEntry {
     vn_platforms: [],
     vn_languages: [],
     vn_released: null,
+    rel_title: null,
+    rel_platforms: [],
+    rel_languages: [],
+    rel_released: null,
+    rel_resolution: null,
+    rel_minage: null,
+    rel_patch: false,
+    rel_freeware: false,
+    rel_official: true,
+    rel_has_ero: false,
   };
 }
 
@@ -1794,5 +1850,15 @@ function shelfSlotToShelfEntry(slot: ShelfSlotEntry): ShelfEntry {
     vn_platforms: [],
     vn_languages: [],
     vn_released: null,
+    rel_title: null,
+    rel_platforms: [],
+    rel_languages: [],
+    rel_released: null,
+    rel_resolution: null,
+    rel_minage: null,
+    rel_patch: false,
+    rel_freeware: false,
+    rel_official: true,
+    rel_has_ero: false,
   };
 }

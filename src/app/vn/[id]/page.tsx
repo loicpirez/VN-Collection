@@ -19,6 +19,7 @@ import {
   listListsForVn,
   listSeries,
   materializeReleaseAspectsForVn,
+  materializeReleaseMetaForVn,
   upsertVn,
 } from '@/lib/db';
 import { parseVnDetailLayoutV1 } from '@/lib/vn-detail-layout';
@@ -191,6 +192,12 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
   // the same derived state — they MUST agree.
   if (/^v\d+$/.test(vn.id)) {
     materializeReleaseAspectsForVn(vn.id);
+    // Harvest the rest of the per-release metadata (platforms,
+    // languages, release date, GTIN, …) from cached POST /release
+    // payloads so the shelf editor's edition popovers stop widening
+    // to VN-aggregate platforms. Idempotent + cheap once the cache
+    // exists.
+    materializeReleaseMetaForVn(vn.id);
   }
   const status = (vn.status as Status | undefined) ?? null;
   const ratingNum = vn.rating != null ? (vn.rating / 10).toFixed(1) : '—';
