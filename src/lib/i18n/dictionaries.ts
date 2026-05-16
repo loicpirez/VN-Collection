@@ -1211,6 +1211,14 @@ export const dictionaries = {
       percent: 'Avancement',
       allDone: 'tout dumpé',
       empty: "Aucune édition possédée pour l'instant — ajoute-en depuis la fiche d'un VN, puis active « dumped » par édition.",
+      tabsLabel: 'Filtrer par statut de dump',
+      tabs: {
+        all: 'Tous',
+        complete: 'Complets',
+        partial: 'Partiels',
+        none: 'Non dumpés',
+      },
+      tabEmpty: 'Aucun VN dans cet onglet.',
     },
     shelf: {
       title: 'Étagère',
@@ -2893,6 +2901,14 @@ export const dictionaries = {
       percent: 'Progress',
       allDone: 'all dumped',
       empty: 'No owned editions yet — add some from a VN detail page, then flag "dumped" per edition.',
+      tabsLabel: 'Filter by dump status',
+      tabs: {
+        all: 'All',
+        complete: 'Dumped',
+        partial: 'Partial',
+        none: 'Not dumped',
+      },
+      tabEmpty: 'No VNs in this tab.',
     },
     shelf: {
       title: 'Shelf',
@@ -4575,6 +4591,14 @@ export const dictionaries = {
       percent: '進捗',
       allDone: 'すべて済',
       empty: '所有エディションがまだありません — VN 詳細ページから追加し、エディション単位で「ダンプ済」を切り替えてください。',
+      tabsLabel: 'ダンプ状態で絞り込み',
+      tabs: {
+        all: 'すべて',
+        complete: 'ダンプ済',
+        partial: '一部のみ',
+        none: '未ダンプ',
+      },
+      tabEmpty: 'このタブには VN がありません。',
     },
     shelf: {
       title: '本棚',
