@@ -508,12 +508,37 @@ response (CSV) in the shared `vndb_cache` table.
   are NOT silently lost.
 - Pool query (`listUnplacedOwnedReleases`) is a `NOT EXISTS` subquery
   across both `shelf_slot` and `shelf_display_slot`.
-- **Read-only vs editor mode**: `/shelf?view=release` (default) and
-  `/shelf?view=item` are server-rendered read-only views of every
-  owned edition, grouped by physical location — no drag, no client
-  state. `/shelf?view=layout` mounts the client
-  `<ShelfLayoutEditor>` which talks to `/api/shelves/*` for every
-  mutation. Same data, different surfaces.
+- **Four view modes, one route**:
+  - `/shelf` (= `?view=spatial`, **default**): server-rendered
+    spatial visualization of every `shelf_unit` as a visual grid
+    (cols × rows) with Top Display (`after_row = 0`), Bottom
+    Display (`after_row = rows`), and Between-Row displays
+    (`after_row = 1..rows-1`). NO drag, NO mutation control —
+    "browse your physical layout" mode. Includes a fullscreen
+    toggle (body-scroll-lock + Escape + focus restore + ArrowUp/
+    Down navigation between sections).
+  - `/shelf?view=release`: server-rendered read-only flat grid
+    of every owned edition, grouped by primary
+    `owned_release.physical_location` text tag. Useful for
+    power users who track free-form location tags separate from
+    the spatial layout.
+  - `/shelf?view=item`: server-rendered read-only flat grid
+    bucketed by VN (one card per VN even with multiple owned
+    editions).
+  - `/shelf?view=layout`: client-mounted `<ShelfLayoutEditor>`
+    (drag/resize/rename/delete/add). The only surface with
+    mutation controls.
+
+  `<ShelfSpatialView>` reads `listShelves` + `listShelfSlots(id)`
+  + `listShelfDisplaySlots(id)`. `<ShelfSpatialFullscreen>` is
+  the client wrapper that owns the fullscreen toggle.
+
+  Schema: `shelf_display_slot.after_row` semantics —
+  `after_row = 0` is the row that visually sits ABOVE every
+  cell row (rendered as "Top display"). `after_row = N` (where
+  N = `shelf.rows`) is the row that sits BELOW the last cell
+  row (rendered as "Bottom display"). Values 1..rows-1 are
+  Between-row displays (rendered as "Between row X and Y").
 - **Pool item info popover**: each draggable tile in the unplaced
   pool of `<ShelfLayoutEditor>` carries an `<Info>` button at top-
   right that opens an absolute-positioned popover with release id,
@@ -819,16 +844,24 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
      the home page itself via `<HomeLayoutEditorTrigger>`, but
      the per-section visibility list is mirrored here)
   5. `vn-page` — VN detail section visibility / collapse defaults
-  6. `account` — VNDB token (audited)
-  7. `integrations` — Steam API key + SteamID + EGS username
-  8. `automation` — backup URL / fan-out toggle / random-quote
-     source
+  6. `account` — VNDB token (audited) + writeback toggle +
+     status pull + backup URL
+  7. `integrations` — Steam API key + SteamID + EGS username +
+     random-quote source toggle
+  8. `automation` — fan-out toggle only
 
 Each tab renders into a single panel block. ARIA tab semantics
 are partial — see the audit notes in `SettingsButton.tsx`. Don't
 add a second `{activeTab === '<id>' && (...)}` block for the same
 tab; the H6 audit found that pattern split panels in unexpected
 ways.
+
+External callouts can deep-link directly to a specific tab by
+dispatching `vn:open-settings { tab: 'integrations' }` via
+`window.dispatchEvent(new CustomEvent(...))`. The Settings modal
+listens for the event, validates the tab id against
+`SETTINGS_TABS`, and pre-selects it on open. Used by `/data`'s
+"Manage in Settings → Integrations" callout links.
 
 ### Versioned JSON config pattern
 
@@ -854,29 +887,175 @@ When adding a new versioned config, follow this shape exactly
 and bump the suffix (`_v2`, etc.) only on incompatible schema
 changes.
 
+### Library toolbar convention (two-level model)
+
+The Library page (`src/components/LibraryClient.tsx`) follows a
+compact two-level toolbar pattern. Future agents should NOT
+expand everything back into a single visible row.
+
+Always-visible primary toolbar (one row at md+):
+  - search input
+  - `<AdvancedFiltersDrawer>` toggle with active-count badge
+
+Active filter chips (render only when any are live):
+  - one chip per active filter (producer, publisher, series,
+    tag, place, year, aspect, dumped), each removable on click
+  - a `Clear all` action on the right
+
+Below: Sort + order + reorder + group + density + main actions.
+
+Inside `<AdvancedFiltersDrawer>` (collapsed by default):
+  - developer / publisher / series selects (3-col grid)
+  - aspect ratio + dumped chips
+  - tri-state `<MoreFilters>` list (match VNDB, match EGS,
+    fan disc, favourite, etc.)
+
+The badge on the drawer toggle shows the active hidden filter
+count so the user knows the drawer is hiding live filters.
+Adding a new filter? Default it to the drawer, NOT the always-
+visible row. Only status chips + search + sort + group + density
++ primary actions are first-class. If you must surface a filter
+above the drawer (e.g. very-frequently-used), document the
+reasoning in the commit message.
+
+URL-state, default sort/order/group, and clear semantics are
+unchanged by this layout convention.
+
 ### Card density
 
 - Shared `cardDensityPx` setting in `useDisplaySettings()` clamped
-  to `[140, 320]` via `clampCardDensity()`.
+  to `[120, 480]` via `clampCardDensity()`. Range widened from the
+  original `[140, 320]` so the user can genuinely get ~2 cards per
+  row at the high end.
 - The value flows into a CSS variable `--card-density-px` set on
   the document root by `<CardDensityVarSetter>` (client) + an
   inline `<html style="--card-density-px:…">` in `layout.tsx`
   (server seed from cookie, no flash of default density).
 - Every server-rendered listing grid uses
-  `minmax(var(--card-density-px, 220px), 1fr)` so changing the
-  slider doesn't require a page reload. Pages with wider cards
-  use `minmax(max(280px, var(--card-density-px, 280px)), 1fr)`
-  to clamp the floor.
+  `minmax(min(100%, var(--card-density-px, 220px)), 1fr)` so
+  changing the slider doesn't require a page reload AND a slider
+  value larger than the viewport doesn't force a horizontal
+  scroll on mobile. The `min(100%, …)` envelope is mandatory —
+  without it, slider=480 on a 360px phone forces overflow.
+- **Card content must scale with column width.** Every card uses
+  `aspect-[2/3] w-full` (or equivalent) on the cover image so a
+  wider column produces a proportionally larger cover. The
+  failure mode this prevents: wide column + tiny fixed-size
+  cover + huge empty whitespace. /upcoming and /top-ranked row
+  cards scale their cover via `width: clamp(96px,
+  calc(var(--card-density-px) * 0.38), 200px)`.
 - The Library's `denseLibrary` boolean is separate from the
-  slider; it controls the grid's `gap` and card padding, not the
-  column count.
+  slider; it multiplies the column min by 0.72 in dense mode so
+  the same slider value yields more columns + a tighter gap.
+  Other pages don't have a denseLibrary equivalent.
+- **`max(280px, var(--card-density-px, 280px))` floors are
+  forbidden** — they prevent the slider from doing anything
+  below the floor. Use the slider value directly. Pages that
+  need a text-density floor should apply it at the grid template
+  level instead (e.g. `minmax(min(100%, max(320px,
+  var(--card-density-px, 320px))), 1fr)` is OK because the
+  floor is part of the grid contract, not a hard slider veto).
+
+### Navbar responsive + i18n convention
+
+`<GroupedNav>` (`src/components/MoreNavMenu.tsx`) renders the
+top-of-page nav. Future agents MUST preserve these breakpoints:
+
+  - **md (768px) → xl-1 (1279px): icons only.** Labels are
+    `hidden xl:inline`. Every NavLink / NavGroup carries
+    `aria-label` + `title` so screen readers + tooltips work.
+  - **xl (1280px+): icons + text.** Below xl the longest French
+    strings ("Bibliothèque", "Wishlist", "Rechercher",
+    "Découvrir", "Parcourir", "Données & Stats") collide with
+    the right-side controls (Spoiler / Settings / Language).
+  - **md and below: hidden, replaced by a Menu button + sheet.**
+
+Primary nav slot is reserved for the 3 daily-use entries —
+Library, Wishlist, Search. /lists lives in the Discover menu.
+Anything else goes in a NavGroup. Don't add a fifth primary
+without measuring the FR overflow at xl-1.
+
+Mobile sheet (`<MobileSheet>`) duplicates every entry so mobile
+users still see Lists prominently in the Primary group.
+
+### URL state vs durable defaults
+
+The app uses two layers for view preferences:
+
+  - **URL state** (search params) for SHAREABLE / TRANSIENT
+    state: filters, sort, group, status chip, search query,
+    aspect, dumped, year range, manual tag pin. The URL is the
+    source of truth on every page load; the user can copy/paste
+    a library URL to share a specific view.
+  - **Persisted defaults** for DURABLE / repeated preferences:
+    `default_sort` / `default_order` / `default_group`,
+    `cardDensityPx`, `denseLibrary`, `home_section_layout_v1`,
+    `vn_detail_section_layout_v1`, `wishlist_defaults_v1`.
+
+**Rule: URL state ALWAYS wins.** Persisted defaults only apply
+on a clean URL with no matching param. A one-off search the
+user typed into the box does NOT become a durable default; only
+explicit `set('cardDensityPx', n)` / `set('denseLibrary', b)` /
+PATCH-`/api/settings { default_sort: 'rating' }` writes update
+the defaults.
+
+When adding a new view preference:
+  1. Decide whether it's shareable (URL state) or durable
+     (persisted setting). Search queries → URL. Card density
+     → persisted. Sort choice → BOTH (URL takes priority but
+     the default is persisted).
+  2. URL state goes through `setParam(key, value)` /
+     `replaceParams(fn)` (see `LibraryClient.tsx`).
+  3. Persisted state goes through `useDisplaySettings().set` or
+     `PATCH /api/settings`.
+  4. Never mix the two for the same value — pick one storage.
+
+### Manual QA checklist
+
+After non-trivial changes, walk through these in the browser
+(EN + FR + JA + a mobile viewport):
+
+  - `/` — Library:
+    - Status chips filter; advanced filters drawer opens/closes
+    - Active filter chips render under the toolbar, X removes
+    - Search debounces to URL
+    - Sort + order + group work
+    - Density slider changes column count AND cover size
+    - Drag-to-reorder via sort=custom
+  - `/wishlist` — sort/group/hideOwned persist across reloads
+  - `/recommendations` — seed tag picker round-trips through URL
+  - `/similar?vn=v17` — same
+  - `/top-ranked?tab=vndb` — VNDB section renders
+  - `/top-ranked?tab=egs` — either renders rows OR shows the
+    EGS-unreachable actionable error
+  - `/upcoming?tab=anticipated` — EGS rows without vndb_id get
+    a Map-to-VNDB button
+  - `/egs` — linked + unlinked sections both render; manual
+    mapping action opens a modal
+  - `/shelf` — default view = spatial (Top/Bottom/Between
+    display rows visible, no edit controls)
+  - `/shelf?view=layout` — editor mode (drag works; pool item
+    info popover flips above on viewport collision)
+  - `/vn/[v…]` — section layout drag/hide/collapse; Aspect
+    override; Similar tag picker
+  - `/data` — only operational sections (no inline credential
+    forms)
+  - Settings modal: Display / Content / Library / Home /
+    VN-page / Account / Integrations / Automation, including
+    the deep-link from /data's "Manage in Settings →
+    Integrations" button.
+  - Mobile (≤ 640px): navbar is a Menu sheet, density slider
+    accessible, advanced filter drawer fits, no horizontal
+    scroll on any listing grid.
 
 ### Refresh button / freshness chip
 - `RefreshPageButton` is shown only on pages whose render genuinely
-  depends on a remote cache: `/upcoming`, `/tags`, `/traits`,
-  `/top-ranked`. Local-only pages (`/stats`, `/data`, `/producers`)
+  depends on a remote cache: `/upcoming`, `/top-ranked`. Local-only
+  pages (`/stats`, `/data`, `/producers`, `/tags`, `/traits`)
   deliberately do **not** show the chip — a freshness reading there
-  is misleading.
+  is misleading. (`/tags` + `/traits` were briefly mentioned in old
+  docs but never actually wired with `RefreshPageButton`; the audit
+  caught the mismatch.)
 - The button accepts `lastUpdatedAt`: omitted/undefined → no chip,
   `null` → "never" chip, number → relative time. Server passes the
   result of `getCacheFreshness(patterns)` which returns

@@ -50,13 +50,18 @@ ingested, cached locally, and can be combined or compared per-field.
   (locations, currency, dumped state, shelf grouping) works the same
   way as for VNDB releases; the only difference is no clickable
   `/release/[id]` link.
-- **Shelf has three views** — `/shelf` switches between three modes
-  via `?view=release|item|layout`. *Per-item* lists every owned
-  edition (the original behavior — useful for "which copy is in box
-  vs shelf"). *Per-VN* collapses multiple editions of the same VN
-  into a single card with the edition count, the set of distinct
-  locations, and the summed currency totals. Money is rendered with
-  `Intl.NumberFormat` so JPY shows as ¥, EUR as €, etc.
+- **Shelf has four views** — `/shelf` switches between four modes
+  via `?view=spatial|release|item|layout`. *Spatial* (default,
+  server-rendered) renders every shelf as a visual grid with Top
+  Display / Bottom Display / Between-Row displays — no drag, no
+  edit controls, with a fullscreen toggle for browsing. *By
+  edition* (`view=release`) lists every owned edition grouped by
+  primary `physical_location` text tag — useful for "which copy is
+  in box vs shelf". *By VN* (`view=item`) collapses multiple
+  editions of the same VN into a single card with the edition
+  count, set of distinct locations, and summed currency totals
+  (`Intl.NumberFormat`-formatted per currency). *Layout*
+  (`view=layout`) is the drag-and-drop editor.
 - **Drag-and-drop shelf layout** — `/shelf?view=layout` opens a
   2-D grid editor where each cell is a physical slot. Create
   multiple shelves ("Living room — left bookcase", "Office — top
@@ -299,11 +304,12 @@ recommendations, shelf, dumped, stats).
   prune expired, clear all)
 - **Per-page Refresh button** with a **Data Xh ago** chip on the
   pages whose render genuinely depends on a remote cache —
-  `/upcoming`, `/tags`, `/traits`. (Pages backed by purely-local SQL
-  — `/stats`, `/data`, `/producers` — don't show the chip because a
-  freshness reading there would be meaningless.) The chip reads the
-  freshest `fetched_at` from cache rows matching the page's LIKE
-  patterns and renders a tiered relative time (minute / hour / day /
+  `/upcoming` and `/top-ranked`. (Pages backed by purely-local SQL
+  — `/stats`, `/data`, `/producers`, `/tags`, `/traits` — don't show
+  the chip because a freshness reading there would be meaningless.)
+  The chip reads the freshest `fetched_at` from cache rows matching
+  the page's LIKE patterns and renders a tiered relative time
+  (minute / hour / day /
   week / month / year), ticking every 30 s.
 - Clicking Refresh runs `/api/refresh/global`: **busts** the relevant
   cache rows first (EGS cover resolver, anticipated, VNDB stats /

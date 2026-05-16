@@ -70,7 +70,7 @@ above the filter bar so you can jump between common views ("ja completed
 ≥85", "wishlist fully translated", "nukige to dump") in one click.
 
 ### Dense view toggle ✅
-Compact 5-column layout sharing the same card data, switchable from the
+Compact density-responsive layout sharing the same card data, switchable from the
 toolbar. Useful for users with very large libraries.
 
 ### Multi-select + comparison ✅
@@ -566,8 +566,8 @@ plus:
 
 ### Per-page Refresh button + freshness chip ✅
 `RefreshPageButton` renders on the pages whose render genuinely
-depends on a remote cache: **`/upcoming`**, **`/tags`**, **`/traits`**,
-and **`/top-ranked`**.
+depends on a remote cache: **`/upcoming`** and **`/top-ranked`**.
+(`/tags` and `/traits` are local-only and don't use the chip.)
 The button:
 - Reads `lastUpdatedAt` server-side via `getCacheFreshness(patterns)`
   — `SELECT MAX(fetched_at) FROM vndb_cache WHERE cache_key LIKE …`.

@@ -1,6 +1,6 @@
 # Tutorial — a 5-minute tour of the app
 
-Written for someone who just cloned the repo and hit `npm run dev`. Pair
+Written for someone who just cloned the repo and hit `yarn dev`. Pair
 with the in-app guided tour (auto-opens on first visit; rerun anytime
 from `/data → Tour`). For the full feature catalogue see
 [FEATURES.md](FEATURES.md).
@@ -484,10 +484,10 @@ server — they just drain through the queue at the throttled pace.
 ### Per-page Refresh + freshness chip
 
 The Refresh button with the **Data Xh ago** chip lives on the pages
-whose render genuinely depends on a remote cache: **`/upcoming`**,
-**`/tags`**, **`/traits`**, and **`/top-ranked`**. Pages that compute
-from local SQL only (`/stats`, `/data`, `/producers`) intentionally
-don't show the chip — a freshness reading there would be meaningless.
+whose render genuinely depends on a remote cache: **`/upcoming`** and
+**`/top-ranked`**. Pages that compute from local SQL only (`/stats`,
+`/data`, `/producers`, `/tags`, `/traits`) intentionally don't show
+the chip — a freshness reading there would be meaningless.
 
 The chip:
 - Reads the most-recent `fetched_at` from cache rows matching the
