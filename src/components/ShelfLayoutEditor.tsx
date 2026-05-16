@@ -22,15 +22,11 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  CircleDollarSign,
   Edit3,
-  ExternalLink,
   GripVertical,
-  Info,
   Layers,
   LayoutGrid,
   Loader2,
-  MapPin,
   Maximize2,
   Minimize2,
   Minus,
@@ -44,6 +40,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/ToastProvider';
 import { SkeletonBlock } from '@/components/Skeleton';
+import { EditionInfoTrigger, type EditionInfoPopoverData } from '@/components/EditionInfoPopover';
 import type { ShelfDisplaySlotEntry, ShelfEntry, ShelfSlotEntry, ShelfUnitWithCount } from '@/lib/db';
 import { parseDisplayCellId, parseDragId, parseCellId, type DragSource } from '@/lib/drag-id';
 
@@ -1231,29 +1228,42 @@ function DraggableDisplayItem({ slot, shelfRows }: { slot: ShelfDisplaySlotEntry
           .replace('{b}', String(slot.after_row + 1));
   return (
     <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
       title={`${slot.vn_title} — ${label} · ${slot.position + 1}`}
-      className={`group/display relative h-full w-full cursor-grab touch-none select-none active:cursor-grabbing ${
+      className={`group/display relative h-full w-full overflow-visible ${
         isDragging ? 'opacity-30' : ''
       }`}
     >
-      <SafeImage
-        src={slot.vn_image_url || slot.vn_image_thumb}
-        localSrc={slot.vn_local_image_thumb}
-        sexual={slot.vn_image_sexual}
-        alt={slot.vn_title}
-        className="h-full w-full"
-      />
-      <span className="absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-accent/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-bg">
+      {/* Drag surface — covers the cover image only so the overlay
+          chips + Info button stay clickable without initiating a
+          drag. */}
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        className="absolute inset-0 cursor-grab touch-none select-none active:cursor-grabbing"
+      >
+        <SafeImage
+          src={slot.vn_image_url || slot.vn_image_thumb}
+          localSrc={slot.vn_local_image_thumb}
+          sexual={slot.vn_image_sexual}
+          alt={slot.vn_title}
+          className="h-full w-full"
+        />
+      </div>
+      <span className="pointer-events-none absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-accent/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-bg">
         <Layers className="h-2.5 w-2.5" aria-hidden />
       </span>
       {slot.dumped && (
-        <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded bg-status-completed/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-bg">
+        <span className="pointer-events-none absolute right-7 top-1 inline-flex items-center gap-0.5 rounded bg-status-completed/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-bg">
           <ArrowDown className="h-2.5 w-2.5" aria-hidden />
         </span>
       )}
+      <EditionInfoTrigger
+        data={displaySlotToPopoverData(slot)}
+        buttonPositionClassName="absolute right-1 top-1"
+        groupHoverHidden
+        groupHoverScope="group/display"
+      />
       <Link
         href={`/vn/${slot.vn_id}`}
         onClick={(e) => e.stopPropagation()}
@@ -1267,99 +1277,24 @@ function DraggableDisplayItem({ slot, shelfRows }: { slot: ShelfDisplaySlotEntry
 }
 
 function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
-  const t = useT();
   // Pipe-delimited because synthetic release ids contain a colon
   // (`synthetic:vN`). Splitting on `:` would mis-parse them.
   const id = `pool|${entry.vn_id}|${entry.release_id}`;
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
-  // Info popover state — keyboard- and touch-friendly alternative to a
-  // hover-only tooltip. Toggles a small overlay below/above the cover
-  // showing every owned-release field plus links to /vn / /release.
-  // The button + overlay stop pointer propagation so opening details
-  // doesn't initiate a drag.
-  const [open, setOpen] = useState(false);
+  // Info popover is delegated to the shared `<EditionInfoTrigger>`.
+  // The collision detection + measure-and-flip dance lives there,
+  // so the pool / placed-cell / front-display tiles all share one
+  // tested implementation. Pool tile leaves the Info button always
+  // visible (vs. the cell/display tiles which reveal it on hover)
+  // because the unplaced pool grid is the most discoverability-
+  // sensitive surface — the user is scanning for a specific edition,
+  // and a hidden affordance defeats that scan.
   // Viewport-collision detection for the popover. The pool is rendered
   // below the shelf grid so a tile near the bottom of the page would
   // otherwise pop a panel into the void. We measure the tile + popover
   // on open, flip up when there isn't enough space below, and shift
   // horizontally if the panel would clip the right viewport edge.
-  // Width-class is chosen so the panel always reaches ~240px, instead
-  // of inheriting the 120px tile column width.
-  const [placement, setPlacement] = useState<{
-    vertical: 'below' | 'above';
-    horizontal: 'left' | 'right';
-  }>({ vertical: 'below', horizontal: 'left' });
-  // `placed` flips to true on the same tick the popover finishes its
-  // first measure-and-flip. Until then the panel is `visibility:
-  // hidden` so the user never sees the brief mis-position the
-  // measure-then-flip dance used to flash.
-  const [placed, setPlaced] = useState(false);
   const containerRef = useRef<HTMLLIElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-  // Measure-and-flip — runs each time the popover opens. Render with a
-  // best-guess placement first (below + left), then on the next frame
-  // re-measure against the actual popover height and the viewport. The
-  // popover stays in the same paint cycle (no visible jump) because
-  // the second update happens inside the same useEffect tick before
-  // browser layout commits to screen on most desktops; on slower
-  // mobile devices a brief flicker is acceptable.
-  useEffect(() => {
-    if (!open) {
-      setPlaced(false);
-      return;
-    }
-    if (typeof window === 'undefined') return;
-    const tile = containerRef.current;
-    const popover = popoverRef.current;
-    if (!tile || !popover) return;
-    const compute = () => {
-      const tileRect = tile.getBoundingClientRect();
-      const popHeight = popover.offsetHeight;
-      const popWidth = popover.offsetWidth;
-      const viewportH = window.innerHeight;
-      const viewportW = window.innerWidth;
-      const spaceBelow = viewportH - tileRect.bottom;
-      const spaceAbove = tileRect.top;
-      const vertical: 'below' | 'above' =
-        spaceBelow < popHeight + 12 && spaceAbove > spaceBelow ? 'above' : 'below';
-      // Horizontal: when the popover anchored to `left` would overflow
-      // the viewport (tile is in a right-edge column), anchor to
-      // `right` instead so the popover grows leftward from the tile.
-      const spaceRight = viewportW - tileRect.left;
-      const horizontal: 'left' | 'right' = spaceRight < popWidth + 12 ? 'right' : 'left';
-      setPlacement({ vertical, horizontal });
-      setPlaced(true);
-    };
-    // Compute on the next frame so we get a real offsetHeight /
-    // offsetWidth after the popover has actually rendered to the DOM
-    // (running compute() synchronously here returns 0 for the
-    // dimensions, which led to the brief bottom-flash QA observed).
-    const raf = requestAnimationFrame(compute);
-    // Recompute on scroll / resize so the panel doesn't end up clipped
-    // after the page moves. Passive listeners — popover stays open.
-    window.addEventListener('scroll', compute, { passive: true });
-    window.addEventListener('resize', compute);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('scroll', compute);
-      window.removeEventListener('resize', compute);
-    };
-  }, [open]);
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
   };
@@ -1419,183 +1354,16 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
           );
         })()}
       </div>
-      {/* Info button — focusable, keyboard / mobile reachable. */}
-      <button
-        type="button"
-        onPointerDown={stop}
-        onMouseDown={stop}
-        onClick={(e) => {
-          stop(e);
-          setOpen((v) => !v);
-        }}
-        aria-expanded={open}
-        aria-label={t.shelfLayout.poolItemDetails}
-        title={t.shelfLayout.poolItemDetails}
-        className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded bg-bg/80 text-muted hover:text-accent focus-visible:opacity-100 sm:opacity-0 sm:group-hover/poolitem:opacity-100"
-      >
-        <Info className="h-3 w-3" aria-hidden />
-      </button>
+      {/* Shared Info button + popover. Always-visible (no
+          group-hover gate) because the pool grid is the user's
+          primary "find a specific edition" surface. */}
+      <EditionInfoTrigger
+        data={shelfEntryToPopoverData(entry)}
+        buttonPositionClassName="absolute right-1 top-1"
+      />
       <span className="absolute right-7 top-1 rounded bg-bg/70 p-0.5 text-muted opacity-0 transition-opacity group-hover/poolitem:opacity-100">
         <GripVertical className="h-3 w-3" aria-hidden />
       </span>
-      {open && (
-        <div
-          ref={popoverRef}
-          role="dialog"
-          aria-label={t.shelfLayout.poolItemDetails}
-          onPointerDown={stop}
-          onMouseDown={stop}
-          // Width: `w-max max-w-[260px]` so the popover detaches from
-          // the 120px column and grows to fit its content. `min-w` is
-          // a floor so very-narrow tiles still get a usable layout.
-          // Placement: `top-full mt-1` (below the tile) by default,
-          // flipped to `bottom-full mb-1` when measure-and-flip says
-          // there's no space below. Horizontal: `left-0` by default,
-          // flipped to `right-0` when the popover would clip past the
-          // right viewport edge.
-          // Visibility is gated on `placed`: hidden until the first
-          // measure-and-flip completes so the user never sees the
-          // brief wrong-placement frame.
-          className={`absolute z-30 w-max min-w-[200px] max-w-[280px] rounded-lg border border-border bg-bg-card p-2 text-[11px] shadow-card ${
-            placement.vertical === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'
-          } ${placement.horizontal === 'right' ? 'right-0' : 'left-0'} ${placed ? 'visible opacity-100' : 'invisible opacity-0'}`}
-        >
-          <p className="line-clamp-2 text-xs font-bold">{entry.vn_title}</p>
-          {entry.rel_title && entry.rel_title !== entry.vn_title && (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted">{entry.rel_title}</p>
-          )}
-          {entry.edition_label && (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted">{entry.edition_label}</p>
-          )}
-          {/*
-            Prefer RELEASE-level metadata (rel_*) when materialized;
-            fall back to the VN-level aggregate (vn_*) only when the
-            user's release has not been harvested into
-            release_meta_cache yet (synthetic id, or the
-            ReleasesSection has never been opened for this VN).
-            This is the fix for the "WIN · PS4 · PSV · SWI" QA bug:
-            we no longer widen to all-platforms-of-the-VN when the
-            user owns a single edition.
-          */}
-          <dl className="mt-1 grid grid-cols-1 gap-x-2 gap-y-0.5 text-[10px] text-muted">
-            <div>
-              <span className="font-mono">{entry.release_id}</span>
-            </div>
-            {(() => {
-              const released = entry.rel_released ?? entry.vn_released;
-              if (!released) return null;
-              return (
-                <div>
-                  {t.detail.released}:{' '}
-                  <span className="text-white tabular-nums">{released}</span>
-                  {entry.rel_released && (
-                    <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
-                      {t.shelfLayout.releaseFieldBadge}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
-            {(() => {
-              const platforms = entry.rel_platforms.length > 0 ? entry.rel_platforms : entry.vn_platforms;
-              if (platforms.length === 0) return null;
-              return (
-                <div>
-                  {t.detail.platforms}:{' '}
-                  <span className="text-white">{platforms.join(' · ').toUpperCase()}</span>
-                  {entry.rel_platforms.length > 0 && (
-                    <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
-                      {t.shelfLayout.releaseFieldBadge}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
-            {(() => {
-              const langs = entry.rel_languages.length > 0 ? entry.rel_languages : entry.vn_languages;
-              if (langs.length === 0) return null;
-              return (
-                <div>
-                  {t.detail.languages}:{' '}
-                  <span className="text-white">{langs.join(' · ').toUpperCase()}</span>
-                  {entry.rel_languages.length > 0 && (
-                    <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
-                      {t.shelfLayout.releaseFieldBadge}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
-            {entry.rel_resolution && (
-              <div>
-                {t.detail.aspectLabel}:{' '}
-                <span className="text-white tabular-nums">{entry.rel_resolution}</span>
-              </div>
-            )}
-            {entry.condition && (
-              <div>
-                {t.inventory.condition}:{' '}
-                <span className="text-white">
-                  {(t.inventory.conditions as Record<string, string>)[entry.condition] ?? entry.condition}
-                </span>
-              </div>
-            )}
-            {entry.box_type !== 'none' && (
-              <div className="inline-flex items-center gap-1">
-                <Box className="h-2.5 w-2.5" aria-hidden />
-                {(t.boxTypes as Record<string, string>)[entry.box_type] ?? entry.box_type}
-              </div>
-            )}
-            {entry.physical_location.length > 0 && (
-              <div className="inline-flex items-center gap-1">
-                <MapPin className="h-2.5 w-2.5" aria-hidden />
-                <span className="text-white">{entry.physical_location.join(' · ')}</span>
-              </div>
-            )}
-            {entry.price_paid != null && (
-              <div className="inline-flex items-center gap-1 text-accent">
-                <CircleDollarSign className="h-2.5 w-2.5" aria-hidden />
-                {entry.price_paid.toLocaleString()} {entry.currency ?? ''}
-              </div>
-            )}
-            {entry.acquired_date && (
-              <div>
-                {t.inventory.acquired}: <span className="text-white">{entry.acquired_date}</span>
-              </div>
-            )}
-            {entry.dumped && (
-              <div className="text-status-completed">
-                <ArrowDown className="mr-0.5 inline h-2.5 w-2.5" aria-hidden />
-                {t.shelf.dumped}
-              </div>
-            )}
-          </dl>
-          <div className="mt-2 flex flex-wrap gap-1">
-            <Link
-              href={`/vn/${entry.vn_id}`}
-              onPointerDown={stop}
-              onMouseDown={stop}
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
-            >
-              <ExternalLink className="h-2.5 w-2.5" aria-hidden />
-              {t.shelfLayout.poolOpenVn}
-            </Link>
-            {!isSynthetic && (
-              <Link
-                href={`/release/${entry.release_id}`}
-                onPointerDown={stop}
-                onMouseDown={stop}
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
-              >
-                <ExternalLink className="h-2.5 w-2.5" aria-hidden />
-                {t.shelfLayout.poolOpenRelease}
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
     </li>
   );
 }
@@ -1608,34 +1376,46 @@ function DraggableSlotItem({ slot }: { slot: ShelfSlotEntry }) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
   return (
     <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
       title={`${slot.vn_title} — ${t.shelfLayout.placedAt
         .replace('{row}', String(slot.row + 1))
         .replace('{col}', String(slot.col + 1))}`}
-      className={`group/slot relative h-full w-full cursor-grab touch-none select-none active:cursor-grabbing ${
+      className={`group/slot relative h-full w-full overflow-visible ${
         isDragging ? 'opacity-30' : ''
       }`}
     >
-      <SafeImage
-        src={slot.vn_image_url || slot.vn_image_thumb}
-        localSrc={slot.vn_local_image_thumb}
-        sexual={slot.vn_image_sexual}
-        alt={slot.vn_title}
-        className="h-full w-full"
-      />
+      {/* Drag surface — covers the cover image only so the Info
+          button + Link + chips stay independently clickable. */}
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        className="absolute inset-0 cursor-grab touch-none select-none active:cursor-grabbing"
+      >
+        <SafeImage
+          src={slot.vn_image_url || slot.vn_image_thumb}
+          localSrc={slot.vn_local_image_thumb}
+          sexual={slot.vn_image_sexual}
+          alt={slot.vn_title}
+          className="h-full w-full"
+        />
+      </div>
       {slot.box_type !== 'none' && (
-        <span className="absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-bg/75 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted">
+        <span className="pointer-events-none absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-bg/75 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted">
           <Box className="h-2.5 w-2.5" aria-hidden />
           {(t.boxTypes as Record<string, string>)[slot.box_type] ?? slot.box_type}
         </span>
       )}
       {slot.dumped && (
-        <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded bg-status-completed/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-bg">
+        <span className="pointer-events-none absolute right-7 top-1 inline-flex items-center gap-0.5 rounded bg-status-completed/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-bg">
           <ArrowDown className="h-2.5 w-2.5" aria-hidden />
         </span>
       )}
+      <EditionInfoTrigger
+        data={shelfSlotToPopoverData(slot)}
+        buttonPositionClassName="absolute right-1 top-1"
+        groupHoverHidden
+        groupHoverScope="group/slot"
+      />
       <Link
         href={`/vn/${slot.vn_id}`}
         onClick={(e) => e.stopPropagation()}
@@ -1831,6 +1611,110 @@ function findEdition(
     };
   }
   return null;
+}
+
+/**
+ * Project a ShelfEntry (= owned_release joined with VN + release_meta_cache)
+ * onto the EditionInfoPopover data shape. Strict subset; the popover
+ * component owns its own rendering + collision logic, so the helper
+ * just maps fields one-for-one.
+ */
+function shelfEntryToPopoverData(entry: ShelfEntry): EditionInfoPopoverData {
+  return {
+    vn_id: entry.vn_id,
+    release_id: entry.release_id,
+    vn_title: entry.vn_title,
+    vn_image_thumb: entry.vn_image_thumb,
+    vn_image_url: entry.vn_image_url,
+    vn_local_image_thumb: entry.vn_local_image_thumb,
+    vn_image_sexual: entry.vn_image_sexual,
+    owned_platform: entry.owned_platform,
+    edition_label: entry.edition_label,
+    box_type: entry.box_type,
+    condition: entry.condition,
+    physical_location: entry.physical_location,
+    price_paid: entry.price_paid,
+    currency: entry.currency,
+    acquired_date: entry.acquired_date,
+    dumped: entry.dumped,
+    vn_platforms: entry.vn_platforms,
+    vn_languages: entry.vn_languages,
+    vn_released: entry.vn_released,
+    rel_title: entry.rel_title,
+    rel_platforms: entry.rel_platforms,
+    rel_languages: entry.rel_languages,
+    rel_released: entry.rel_released,
+    rel_resolution: entry.rel_resolution,
+  };
+}
+
+/**
+ * Same projection for placed-cell entries. Surfaces the same per-
+ * edition + release-level info the pool popover does — the user
+ * complaint that placed slots had no info popover is fixed by
+ * mounting the shared trigger here.
+ */
+function shelfSlotToPopoverData(slot: ShelfSlotEntry): EditionInfoPopoverData {
+  return {
+    vn_id: slot.vn_id,
+    release_id: slot.release_id,
+    vn_title: slot.vn_title,
+    vn_image_thumb: slot.vn_image_thumb,
+    vn_image_url: slot.vn_image_url,
+    vn_local_image_thumb: slot.vn_local_image_thumb,
+    vn_image_sexual: slot.vn_image_sexual,
+    owned_platform: slot.owned_platform,
+    edition_label: slot.edition_label,
+    box_type: slot.box_type,
+    condition: slot.condition,
+    // Slot entries don't carry physical_location / price / acquired_date
+    // (those are owned_release fields, but the slot query only joins
+    // the display-critical subset). Surface empty / null so the popover
+    // hides those rows.
+    physical_location: [],
+    price_paid: null,
+    currency: null,
+    acquired_date: null,
+    dumped: slot.dumped,
+    vn_platforms: slot.vn_platforms,
+    vn_languages: slot.vn_languages,
+    vn_released: slot.vn_released,
+    rel_title: slot.rel_title,
+    rel_platforms: slot.rel_platforms,
+    rel_languages: slot.rel_languages,
+    rel_released: slot.rel_released,
+    rel_resolution: slot.rel_resolution,
+  };
+}
+
+/** Same shape as shelfSlotToPopoverData — front-display rows. */
+function displaySlotToPopoverData(slot: ShelfDisplaySlotEntry): EditionInfoPopoverData {
+  return {
+    vn_id: slot.vn_id,
+    release_id: slot.release_id,
+    vn_title: slot.vn_title,
+    vn_image_thumb: slot.vn_image_thumb,
+    vn_image_url: slot.vn_image_url,
+    vn_local_image_thumb: slot.vn_local_image_thumb,
+    vn_image_sexual: slot.vn_image_sexual,
+    owned_platform: slot.owned_platform,
+    edition_label: slot.edition_label,
+    box_type: slot.box_type,
+    condition: slot.condition,
+    physical_location: [],
+    price_paid: null,
+    currency: null,
+    acquired_date: null,
+    dumped: slot.dumped,
+    vn_platforms: slot.vn_platforms,
+    vn_languages: slot.vn_languages,
+    vn_released: slot.vn_released,
+    rel_title: slot.rel_title,
+    rel_platforms: slot.rel_platforms,
+    rel_languages: slot.rel_languages,
+    rel_released: slot.rel_released,
+    rel_resolution: slot.rel_resolution,
+  };
 }
 
 function shelfDisplayToShelfEntry(slot: ShelfDisplaySlotEntry): ShelfEntry {
