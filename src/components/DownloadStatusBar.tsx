@@ -23,6 +23,7 @@ interface Job {
   label: string;
   total: number;
   done: number;
+  current_item?: string | null;
   errors: JobError[];
   started_at: number;
   finished_at: number | null;
@@ -294,6 +295,11 @@ export function DownloadStatusBar() {
                       {j.done}/{j.total}
                     </span>
                   </div>
+                  {!finished && j.current_item && (
+                    <div className="mt-0.5 truncate text-[10px] text-muted/90" title={j.current_item}>
+                      {t.downloadStatus.currentItem.replace('{item}', j.current_item)}
+                    </div>
+                  )}
                   <div
                     role="progressbar"
                     aria-valuenow={j.done}

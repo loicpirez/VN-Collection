@@ -31,6 +31,14 @@ export interface DownloadJob {
   label: string;
   total: number;
   done: number;
+  /**
+   * Short identifier of the item currently being fetched, e.g. a staff
+   * id `s1234` or a character id `c5678`. Surfaced in the
+   * DownloadStatusBar so the user sees exactly what's downloading
+   * instead of only "Staff for v123 (3/12)". Cleared when the job
+   * finishes.
+   */
+  current_item?: string | null;
   errors: { item: string; message: string }[];
   started_at: number;
   finished_at: number | null;
@@ -124,6 +132,7 @@ export function startJob(kind: JobKind, label: string, total: number, vnId: stri
     label,
     total,
     done: 0,
+    current_item: null,
     errors: [],
     started_at: Date.now(),
     finished_at: null,
@@ -137,6 +146,20 @@ export function tickJob(jobId: string, by = 1): void {
   const j = jobs.get(jobId);
   if (!j) return;
   j.done = Math.min(j.total, j.done + by);
+  emit();
+}
+
+/**
+ * Update the "what's downloading right now" hint for a job. Called by
+ * each fan-out helper at the start of its per-item iteration so the
+ * status bar can surface the specific staff / character / producer id
+ * (or human label) currently in flight, not just the per-VN summary.
+ * Pass `null` to clear the hint without finishing the job.
+ */
+export function setJobCurrent(jobId: string, item: string | null): void {
+  const j = jobs.get(jobId);
+  if (!j) return;
+  j.current_item = item;
   emit();
 }
 
@@ -156,6 +179,9 @@ export function finishJob(jobId: string): void {
   // If we never ticked but total > 0, mark as complete so the UI doesn't
   // appear stuck on partial progress.
   if (j.done < j.total) j.done = j.total;
+  // Clear the in-flight hint — the job is done, nothing is being
+  // downloaded right now even if a stale label survived.
+  j.current_item = null;
   emit();
 }
 

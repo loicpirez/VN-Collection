@@ -1,7 +1,7 @@
 import 'server-only';
 import { db, getAppSetting } from './db';
 import { fetchStaffVnList, fetchVaVnList, getStaff, type StaffVnCredit, type StaffVaCredit, type VndbStaff } from './vndb';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -130,6 +130,10 @@ export async function downloadFullStaffForVn(vnId: string, opts: { force?: boole
   // at 1 req/sec, so internal concurrency just bloats the in-flight queue
   // without speeding anything up.
   for (const sid of stale) {
+    // Surface the specific staff id in the DownloadStatusBar so the
+    // user sees what's actually downloading right now rather than only
+    // "Staff for v123 (3/12)".
+    setJobCurrent(job.id, sid);
     try {
       await downloadFullStaffInfo(sid);
       downloaded += 1;

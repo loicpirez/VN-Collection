@@ -3,7 +3,7 @@ import type { Status } from './types';
 import { getCollectionItem, updateCollection } from './db';
 import { fetchUlistByLabel, getAuthInfo } from './vndb';
 import { throttledFetch } from './vndb-throttle';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 
 /**
  * Two-way sync between local status and VNDB list labels.
@@ -146,6 +146,7 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
   // precedence at the end.
   const labels: Record<string, number[]> = {};
   for (const labelId of Object.values(VNDB_LABELS)) {
+    setJobCurrent(job.id, `label ${labelId}`);
     try {
       for (let page = 1; page <= 50; page++) {
         const r = await fetchUlistByLabel(auth.id, labelId, { results: 100, page });

@@ -1,7 +1,7 @@
 import 'server-only';
 import { db, getAppSetting, upsertVn } from './db';
 import { getVn } from './vndb';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -46,6 +46,7 @@ export async function downloadFullRelationsForVn(
   const job = startJob('vndb-pull', `Relations for ${vnId}`, stale.length, vnId);
   let downloaded = 0;
   for (const r of stale) {
+    setJobCurrent(job.id, r.id);
     try {
       const fresh = await getVn(r.id);
       if (fresh) {

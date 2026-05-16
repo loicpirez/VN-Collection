@@ -1,7 +1,7 @@
 import 'server-only';
 import { db, getAppSetting } from './db';
 import { getCharacter, type VndbCharacter } from './vndb';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 
 function fanoutEnabled(): boolean {
   return getAppSetting('vndb_fanout') !== '0';
@@ -105,6 +105,9 @@ export async function downloadFullCharForVn(vnId: string, opts: { force?: boolea
 
   let downloaded = 0;
   for (const cid of stale) {
+    // Show which character is in flight so the user can correlate
+    // progress with the per-character VNDB calls.
+    setJobCurrent(job.id, cid);
     try {
       await downloadFullCharacterInfo(cid);
       downloaded += 1;

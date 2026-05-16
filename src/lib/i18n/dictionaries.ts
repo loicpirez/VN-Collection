@@ -106,6 +106,7 @@ export const dictionaries = {
       kindRunning: 'En cours',
       kindDone: 'Terminé',
       kindError: 'Erreur',
+      currentItem: 'En cours : {item}',
     },
     recentActivity: {
       title: 'Activité récente',
@@ -1772,6 +1773,7 @@ export const dictionaries = {
       kindRunning: 'Running',
       kindDone: 'Done',
       kindError: 'Error',
+      currentItem: 'Now: {item}',
     },
     recentActivity: {
       title: 'Recent activity',
@@ -3438,6 +3440,7 @@ export const dictionaries = {
       kindRunning: '実行中',
       kindDone: '完了',
       kindError: 'エラー',
+      currentItem: '実行中: {item}',
     },
     recentActivity: {
       title: '最近のアクティビティ',

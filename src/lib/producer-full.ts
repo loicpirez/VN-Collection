@@ -1,7 +1,7 @@
 import 'server-only';
 import { db, getAppSetting } from './db';
 import { fetchProducerCompletion } from './producer-completion';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -54,6 +54,8 @@ export async function downloadFullProducerForVn(vnId: string, opts: { force?: bo
 
   let downloaded = 0;
   for (const pid of stale) {
+    // Surface the specific producer id currently in flight.
+    setJobCurrent(job.id, pid);
     try {
       await fetchProducerCompletion(pid);
       downloaded += 1;
