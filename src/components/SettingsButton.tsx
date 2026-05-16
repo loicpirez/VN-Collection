@@ -63,8 +63,8 @@ const SORT_KEYS: SortKey[] = [
   'custom',
 ];
 
-type GroupKey = 'none' | 'status' | 'producer' | 'publisher' | 'tag' | 'series';
-const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series'];
+type GroupKey = 'none' | 'status' | 'producer' | 'publisher' | 'tag' | 'series' | 'aspect';
+const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series', 'aspect'];
 
 interface ServerSettings {
   vndb_token: { hasToken: boolean; preview: string | null; envFallback: boolean };
@@ -634,6 +634,7 @@ export function SettingsButton() {
                         <option value="publisher">{t.library.groupPublisher}</option>
                         <option value="tag">{t.library.groupTag}</option>
                         <option value="series">{t.library.groupSeries}</option>
+                        <option value="aspect">{t.library.groupAspect}</option>
                       </select>
                     </label>
                   </div>

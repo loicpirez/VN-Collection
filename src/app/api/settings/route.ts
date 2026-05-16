@@ -54,7 +54,7 @@ const VALID_SORTS = new Set([
   'custom',
 ]);
 
-const VALID_GROUPS = new Set(['none', 'status', 'producer', 'publisher', 'tag', 'series']);
+const VALID_GROUPS = new Set(['none', 'status', 'producer', 'publisher', 'tag', 'series', 'aspect']);
 const VALID_ORDERS = new Set(['asc', 'desc']);
 
 function maskToken(value: string | null): { hasToken: boolean; preview: string | null; envFallback: boolean } {

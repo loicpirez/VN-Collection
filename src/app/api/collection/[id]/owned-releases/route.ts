@@ -5,10 +5,12 @@ import {
   isValidLocation,
   listOwnedReleasesWithShelfForVn,
   markReleaseOwned,
+  setOwnedReleaseAspectOverride,
   unmarkReleaseOwned,
   updateOwnedRelease,
   type OwnedReleasePatch,
 } from '@/lib/db';
+import { isAspectKey } from '@/lib/aspect-ratio';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 
 export const dynamic = 'force-dynamic';
@@ -126,6 +128,28 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { patch, error } = pickPatch(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   updateOwnedRelease(id, validation.normalized, patch);
+  if ('aspect_override' in body) {
+    const v = body.aspect_override;
+    if (v == null) {
+      setOwnedReleaseAspectOverride({ vnId: id, releaseId: validation.normalized, aspectKey: 'unknown' });
+    } else if (typeof v === 'object') {
+      const obj = v as Record<string, unknown>;
+      const width = typeof obj.width === 'number' ? obj.width : null;
+      const height = typeof obj.height === 'number' ? obj.height : null;
+      const aspectKey = isAspectKey(obj.aspect_key) ? obj.aspect_key : null;
+      const note = typeof obj.note === 'string' ? obj.note : null;
+      setOwnedReleaseAspectOverride({
+        vnId: id,
+        releaseId: validation.normalized,
+        width,
+        height,
+        aspectKey,
+        note,
+      });
+    } else {
+      return NextResponse.json({ error: 'invalid aspect_override' }, { status: 400 });
+    }
+  }
   return NextResponse.json({ owned: listOwnedReleasesWithShelfForVn(id) });
 }
 

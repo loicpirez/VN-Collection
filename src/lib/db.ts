@@ -24,6 +24,12 @@ import {
   type Status,
 } from './types';
 import { pushStatusToVndb } from './vndb-sync';
+import {
+  aspectKeyForResolution,
+  isAspectKey,
+  parseResolutionValue,
+  type AspectKey,
+} from './aspect-ratio';
 
 /**
  * Lazy resolution of the SQLite path. Both absolute and `cwd`-
@@ -149,6 +155,31 @@ function open(): Database.Database {
       PRIMARY KEY (vn_id, release_id)
     );
     CREATE INDEX IF NOT EXISTS idx_owned_release_release ON owned_release(release_id);
+
+    CREATE TABLE IF NOT EXISTS release_resolution_cache (
+      release_id     TEXT PRIMARY KEY,
+      width          INTEGER,
+      height         INTEGER,
+      raw_resolution TEXT,
+      aspect_key     TEXT NOT NULL DEFAULT 'unknown',
+      fetched_at     INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_release_resolution_cache_aspect
+      ON release_resolution_cache(aspect_key);
+
+    CREATE TABLE IF NOT EXISTS owned_release_aspect_override (
+      vn_id      TEXT NOT NULL,
+      release_id TEXT NOT NULL,
+      width      INTEGER,
+      height     INTEGER,
+      aspect_key TEXT NOT NULL,
+      note       TEXT,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (vn_id, release_id),
+      FOREIGN KEY (vn_id, release_id) REFERENCES owned_release(vn_id, release_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_owned_release_aspect_override_aspect
+      ON owned_release_aspect_override(aspect_key);
 
     CREATE TABLE IF NOT EXISTS vn_route (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2310,6 +2341,7 @@ export interface ListOptions {
   yearMin?: number;
   yearMax?: number;
   dumped?: boolean;
+  aspect?: AspectKey;
   /** Limit the result to these VN ids only. Empty array → no rows. */
   vnIds?: readonly string[];
   sort?:
@@ -2342,6 +2374,7 @@ export function listCollection({
   yearMin,
   yearMax,
   dumped,
+  aspect,
   vnIds,
   sort = 'updated_at',
   order = 'desc',
@@ -2453,6 +2486,35 @@ export function listCollection({
     where.push('c.dumped = ?');
     params.push(dumped ? 1 : 0);
   }
+  if (aspect && aspect !== 'unknown') {
+    where.push(`
+      EXISTS (
+        SELECT 1
+        FROM owned_release o
+        LEFT JOIN owned_release_aspect_override ao
+          ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+        LEFT JOIN release_resolution_cache rc
+          ON rc.release_id = o.release_id
+        WHERE o.vn_id = c.vn_id
+          AND COALESCE(ao.aspect_key, rc.aspect_key) = ?
+      )
+    `);
+    params.push(aspect);
+  } else if (aspect === 'unknown') {
+    where.push(`
+      NOT EXISTS (
+        SELECT 1
+        FROM owned_release o
+        LEFT JOIN owned_release_aspect_override ao
+          ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+        LEFT JOIN release_resolution_cache rc
+          ON rc.release_id = o.release_id
+        WHERE o.vn_id = c.vn_id
+          AND COALESCE(ao.aspect_key, rc.aspect_key) IS NOT NULL
+          AND COALESCE(ao.aspect_key, rc.aspect_key) <> 'unknown'
+      )
+    `);
+  }
   if (vnIds && vnIds.length > 0) {
     const placeholders = vnIds.map(() => '?').join(',');
     where.push(`v.id IN (${placeholders})`);
@@ -2487,8 +2549,10 @@ export function listCollection({
   // (`listSeriesForVn(item.id)` inside the loop). For a library of
   // 500 VNs that meant 500 extra round-trips per page load.
   const seriesMap = listSeriesForVnsMany(ids);
+  const aspectMap = listAspectKeysForVns(ids);
   for (const item of items) {
     item.series = seriesMap.get(item.id) ?? [];
+    item.aspect_keys = aspectMap.get(item.id) ?? ['unknown'];
     const egs = egsMap.get(item.id);
     item.egs = egs
       ? {
@@ -2504,6 +2568,33 @@ export function listCollection({
       : null;
   }
   return items;
+}
+
+function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {
+  const map = new Map<string, Set<AspectKey>>();
+  if (vnIds.length === 0) return new Map();
+  const placeholders = vnIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(`
+      SELECT o.vn_id, COALESCE(ao.aspect_key, rc.aspect_key) AS aspect_key
+      FROM owned_release o
+      LEFT JOIN owned_release_aspect_override ao
+        ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+      LEFT JOIN release_resolution_cache rc
+        ON rc.release_id = o.release_id
+      WHERE o.vn_id IN (${placeholders})
+    `)
+    .all(...vnIds) as Array<{ vn_id: string; aspect_key: string | null }>;
+  for (const row of rows) {
+    const key = isAspectKey(row.aspect_key) && row.aspect_key !== 'unknown'
+      ? row.aspect_key
+      : null;
+    if (!key) continue;
+    const set = map.get(row.vn_id) ?? new Set<AspectKey>();
+    set.add(key);
+    map.set(row.vn_id, set);
+  }
+  return new Map(Array.from(map.entries()).map(([vnId, keys]) => [vnId, Array.from(keys).sort()]));
 }
 
 export function getCollectionItem(vnId: string): CollectionItem | null {
@@ -3646,6 +3737,154 @@ export function removeShelfDisplayPlacement(vnId: string, releaseId: string): bo
   return info.changes > 0;
 }
 
+export interface ReleaseAspectInfo {
+  width: number | null;
+  height: number | null;
+  raw_resolution: string | null;
+  aspect_key: AspectKey;
+  source: 'manual' | 'vndb' | 'unknown';
+  note: string | null;
+}
+
+export function upsertReleaseResolutionCache(input: {
+  releaseId: string;
+  resolution: unknown;
+  fetchedAt?: number;
+}): void {
+  const parsed = parseResolutionValue(input.resolution);
+  const raw =
+    typeof input.resolution === 'string'
+      ? input.resolution
+      : parsed
+        ? `${parsed.width}x${parsed.height}`
+        : input.resolution == null
+          ? null
+          : JSON.stringify(input.resolution);
+  const aspect = parsed ? aspectKeyForResolution(parsed.width, parsed.height) : 'unknown';
+  db.prepare(
+    `INSERT INTO release_resolution_cache
+       (release_id, width, height, raw_resolution, aspect_key, fetched_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(release_id) DO UPDATE SET
+       width = excluded.width,
+       height = excluded.height,
+       raw_resolution = excluded.raw_resolution,
+       aspect_key = excluded.aspect_key,
+       fetched_at = excluded.fetched_at`,
+  ).run(
+    input.releaseId,
+    parsed?.width ?? null,
+    parsed?.height ?? null,
+    raw,
+    aspect,
+    input.fetchedAt ?? Date.now(),
+  );
+}
+
+export function setOwnedReleaseAspectOverride(input: {
+  vnId: string;
+  releaseId: string;
+  width?: number | null;
+  height?: number | null;
+  aspectKey?: AspectKey | null;
+  note?: string | null;
+}): void {
+  const owned = db
+    .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
+    .get(input.vnId, input.releaseId);
+  if (!owned) throw new Error('owned edition not found');
+  const hasResolution =
+    typeof input.width === 'number' &&
+    typeof input.height === 'number' &&
+    input.width > 0 &&
+    input.height > 0;
+  const aspect = hasResolution
+    ? aspectKeyForResolution(input.width!, input.height!)
+    : input.aspectKey && isAspectKey(input.aspectKey)
+      ? input.aspectKey
+      : null;
+  if (!aspect || aspect === 'unknown') {
+    db.prepare(
+      'DELETE FROM owned_release_aspect_override WHERE vn_id = ? AND release_id = ?',
+    ).run(input.vnId, input.releaseId);
+    return;
+  }
+  db.prepare(
+    `INSERT INTO owned_release_aspect_override
+       (vn_id, release_id, width, height, aspect_key, note, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(vn_id, release_id) DO UPDATE SET
+       width = excluded.width,
+       height = excluded.height,
+       aspect_key = excluded.aspect_key,
+       note = excluded.note,
+       updated_at = excluded.updated_at`,
+  ).run(
+    input.vnId,
+    input.releaseId,
+    hasResolution ? Math.round(input.width!) : null,
+    hasResolution ? Math.round(input.height!) : null,
+    aspect,
+    input.note?.trim() || null,
+    Date.now(),
+  );
+}
+
+export function getOwnedReleaseAspectInfo(vnId: string, releaseId: string): ReleaseAspectInfo {
+  const row = db
+    .prepare(`
+      SELECT
+        ao.width AS override_width,
+        ao.height AS override_height,
+        ao.aspect_key AS override_aspect,
+        ao.note AS override_note,
+        rc.width AS cache_width,
+        rc.height AS cache_height,
+        rc.raw_resolution AS cache_raw,
+        rc.aspect_key AS cache_aspect
+      FROM owned_release o
+      LEFT JOIN owned_release_aspect_override ao
+        ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+      LEFT JOIN release_resolution_cache rc
+        ON rc.release_id = o.release_id
+      WHERE o.vn_id = ? AND o.release_id = ?
+    `)
+    .get(vnId, releaseId) as
+    | {
+        override_width: number | null;
+        override_height: number | null;
+        override_aspect: string | null;
+        override_note: string | null;
+        cache_width: number | null;
+        cache_height: number | null;
+        cache_raw: string | null;
+        cache_aspect: string | null;
+      }
+    | undefined;
+  if (!row) return { width: null, height: null, raw_resolution: null, aspect_key: 'unknown', source: 'unknown', note: null };
+  if (isAspectKey(row.override_aspect)) {
+    return {
+      width: row.override_width,
+      height: row.override_height,
+      raw_resolution: null,
+      aspect_key: row.override_aspect,
+      source: 'manual',
+      note: row.override_note,
+    };
+  }
+  if (isAspectKey(row.cache_aspect) && row.cache_aspect !== 'unknown') {
+    return {
+      width: row.cache_width,
+      height: row.cache_height,
+      raw_resolution: row.cache_raw,
+      aspect_key: row.cache_aspect,
+      source: 'vndb',
+      note: null,
+    };
+  }
+  return { width: null, height: null, raw_resolution: row.cache_raw, aspect_key: 'unknown', source: 'unknown', note: null };
+}
+
 export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {
   const rows = db
     .prepare('SELECT * FROM owned_release WHERE vn_id = ? ORDER BY added_at DESC')
@@ -3660,6 +3899,7 @@ export interface OwnedReleaseWithShelf extends OwnedReleaseRow {
     | { kind: 'cell'; id: number; name: string; row: number; col: number }
     | { kind: 'display'; id: number; name: string; afterRow: number; position: number }
     | null;
+  aspect: ReleaseAspectInfo;
 }
 
 /**
@@ -3679,7 +3919,15 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
              d.shelf_id  AS display_shelf_id,
              d.after_row AS display_after_row,
              d.position  AS display_position,
-             du.name     AS display_shelf_name
+             du.name     AS display_shelf_name,
+             ao.width    AS override_width,
+             ao.height   AS override_height,
+             ao.aspect_key AS override_aspect,
+             ao.note     AS override_note,
+             rc.width    AS cache_width,
+             rc.height   AS cache_height,
+             rc.raw_resolution AS cache_raw,
+             rc.aspect_key AS cache_aspect
       FROM owned_release o
       LEFT JOIN shelf_slot s
         ON s.vn_id = o.vn_id AND s.release_id = o.release_id
@@ -3689,6 +3937,10 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
         ON d.vn_id = o.vn_id AND d.release_id = o.release_id
       LEFT JOIN shelf_unit du
         ON du.id = d.shelf_id
+      LEFT JOIN owned_release_aspect_override ao
+        ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+      LEFT JOIN release_resolution_cache rc
+        ON rc.release_id = o.release_id
       WHERE o.vn_id = ?
       ORDER BY o.added_at DESC
     `)
@@ -3701,6 +3953,14 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
       display_after_row: number | null;
       display_position: number | null;
       display_shelf_name: string | null;
+      override_width: number | null;
+      override_height: number | null;
+      override_aspect: string | null;
+      override_note: string | null;
+      cache_width: number | null;
+      cache_height: number | null;
+      cache_raw: string | null;
+      cache_aspect: string | null;
     }>;
   return rows.map((r) => ({
     ...mapOwnedReleaseRow(r),
@@ -3719,6 +3979,32 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
               position: r.display_position,
             }
           : null,
+    aspect: isAspectKey(r.override_aspect)
+      ? {
+          width: r.override_width,
+          height: r.override_height,
+          raw_resolution: null,
+          aspect_key: r.override_aspect,
+          source: 'manual',
+          note: r.override_note,
+        }
+      : isAspectKey(r.cache_aspect) && r.cache_aspect !== 'unknown'
+        ? {
+            width: r.cache_width,
+            height: r.cache_height,
+            raw_resolution: r.cache_raw,
+            aspect_key: r.cache_aspect,
+            source: 'vndb',
+            note: null,
+          }
+        : {
+            width: null,
+            height: null,
+            raw_resolution: r.cache_raw,
+            aspect_key: 'unknown',
+            source: 'unknown',
+            note: null,
+          },
   }));
 }
 

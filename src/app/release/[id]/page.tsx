@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Boxes, ExternalLink, Globe, Languages, Mic2, Package, Shield } from 'lucide-react';
 import { getRelease, type VndbRelease } from '@/lib/vndb';
-import { getCollectionItem, getOwnedRelease, isInCollection } from '@/lib/db';
+import { getCollectionItem, getOwnedRelease, isInCollection, upsertReleaseResolutionCache } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { LangFlag } from '@/components/LangFlag';
@@ -46,6 +46,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
     error = (e as Error).message;
   }
   if (!release) notFound();
+  upsertReleaseResolutionCache({ releaseId: release.id, resolution: release.resolution });
 
   const voicedKey = release.voiced && VOICED_KEY[release.voiced] ? VOICED_KEY[release.voiced] : null;
   const flags: { label: string; tone?: 'good' | 'warn' }[] = [];

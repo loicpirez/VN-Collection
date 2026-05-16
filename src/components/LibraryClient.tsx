@@ -18,6 +18,7 @@ import { useConfirm } from './ConfirmDialog';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
 import type { CollectionItem, ProducerStat, SeriesRow, Stats } from '@/lib/types';
+import { ASPECT_KEYS, isAspectKey, type AspectKey } from '@/lib/aspect-ratio';
 
 type SortKey =
   | 'updated_at'
@@ -53,8 +54,8 @@ const SORT_KEYS: SortKey[] = [
   'custom',
 ];
 
-type GroupKey = 'none' | 'tag' | 'producer' | 'publisher' | 'status' | 'series';
-const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series'];
+type GroupKey = 'none' | 'tag' | 'producer' | 'publisher' | 'status' | 'series' | 'aspect';
+const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series', 'aspect'];
 
 const Q_DEBOUNCE_MS = 300;
 
@@ -75,6 +76,8 @@ export function LibraryClient() {
   const urlYearMin = searchParams.get('yearMin') ?? '';
   const urlYearMax = searchParams.get('yearMax') ?? '';
   const urlDumped = searchParams.get('dumped') ?? '';
+  const urlAspectRaw = searchParams.get('aspect');
+  const urlAspect: AspectKey | '' = isAspectKey(urlAspectRaw) ? urlAspectRaw : '';
   const urlQ = searchParams.get('q') ?? '';
   // Default sort, order, and grouping are configurable in Settings; we
   // load them once and use them as fallbacks when the URL has no
@@ -239,6 +242,7 @@ export function LibraryClient() {
     if (urlYearMin) params.set('yearMin', urlYearMin);
     if (urlYearMax) params.set('yearMax', urlYearMax);
     if (urlDumped === '1' || urlDumped === '0') params.set('dumped', urlDumped);
+    if (urlAspect) params.set('aspect', urlAspect);
     if (urlQ) params.set('q', urlQ);
     params.set('sort', sort);
     params.set('order', order);
@@ -262,7 +266,7 @@ export function LibraryClient() {
       alive = false;
       ctrl.abort();
     };
-  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlDumped, urlQ, sort, order, refreshKey, t.common.error]);
+  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlDumped, urlAspect, urlQ, sort, order, refreshKey, t.common.error]);
 
   function clearAll() {
     router.replace('/', { scroll: false });
@@ -275,7 +279,7 @@ export function LibraryClient() {
   );
   const totalH = Math.round(stats.playtime_minutes / 60);
   const hasFilters =
-    !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlYearMin || !!urlYearMax || urlDumped === '1' || urlDumped === '0';
+    !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlYearMin || !!urlYearMax || !!urlAspect || urlDumped === '1' || urlDumped === '0';
   const yearLabel = urlYearMin && urlYearMax
     ? urlYearMin === urlYearMax
       ? urlYearMin
@@ -488,6 +492,21 @@ export function LibraryClient() {
               <X className="h-3 w-3 opacity-70 hover:opacity-100" aria-hidden />
             </button>
           )}
+          <label className="chip inline-flex items-center gap-1.5 whitespace-nowrap">
+            <LayoutGrid className="h-3.5 w-3.5" />
+            <span>{t.library.filterAspect}</span>
+            <select
+              className="bg-transparent text-xs font-semibold outline-none"
+              value={urlAspect}
+              onChange={(e) => setParam('aspect', e.target.value || null)}
+              aria-label={t.library.filterAspect}
+            >
+              <option value="">{t.library.all}</option>
+              {ASPECT_KEYS.map((k) => (
+                <option key={k} value={k}>{t.aspect.keys[k]}</option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             onClick={() => {
@@ -615,6 +634,8 @@ export function LibraryClient() {
                   ? t.library.groupPublisher
                   : g === 'series'
                   ? t.library.groupSeries
+                  : g === 'aspect'
+                  ? t.library.groupAspect
                   : t.library.groupStatus}
               </option>
             ))}
@@ -1014,6 +1035,13 @@ function groupItems(
           map.get(k)!.items.push(it);
         }
       }
+    } else if (group === 'aspect') {
+      const aspects: AspectKey[] = it.aspect_keys && it.aspect_keys.length > 0 ? it.aspect_keys : ['unknown'];
+      for (const aspect of aspects) {
+        const label = t.aspect.keys[aspect];
+        if (!map.has(aspect)) map.set(aspect, { key: aspect, label, items: [] });
+        map.get(aspect)!.items.push(it);
+      }
     } else if (group === 'tag') {
       const tags = (it.tags ?? []).filter((t) => t.spoiler === 0).slice(0, 3);
       if (tags.length === 0) {
@@ -1043,7 +1071,8 @@ function groupItems(
     (group === 'producer' && sort === 'producer') ||
     (group === 'publisher' && sort === 'publisher') ||
     group === 'series' ||
-    group === 'tag';
+    group === 'tag' ||
+    group === 'aspect';
   if (sortAlphabetical) {
     groups.sort((a, b) => a.label.localeCompare(b.label));
     if (order === 'desc') groups.reverse();

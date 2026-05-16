@@ -168,6 +168,8 @@ export type CollectionItem = VnRow &
   Partial<CollectionFields> & {
     series?: SeriesLite[];
     egs?: EgsLite | null;
+    /** Release/game resolution aspect buckets from owned editions. */
+    aspect_keys?: Array<'4:3' | '16:9' | '16:10' | '21:9' | 'other' | 'unknown'>;
     /** Number of personal lists this VN is currently a member of. */
     list_count?: number;
   };

@@ -31,6 +31,7 @@ import {
 } from './ReleaseOwnedToggle';
 import { useT } from '@/lib/i18n/client';
 import { BOX_TYPES, LOCATIONS, type BoxType, type Location } from '@/lib/types';
+import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
 import type { VndbRelease } from '@/lib/vndb-types';
 
 interface OwnedEdition {
@@ -54,6 +55,14 @@ interface OwnedEdition {
     | { kind: 'cell'; id: number; name: string; row: number; col: number }
     | { kind: 'display'; id: number; name: string; afterRow: number; position: number }
     | null;
+  aspect: {
+    width: number | null;
+    height: number | null;
+    raw_resolution: string | null;
+    aspect_key: AspectKey;
+    source: 'manual' | 'vndb' | 'unknown';
+    note: string | null;
+  };
 }
 
 const CONDITIONS: { value: string; key: 'new' | 'used' | 'sealed' | 'opened' | 'damaged' }[] = [
@@ -65,6 +74,15 @@ const CONDITIONS: { value: string; key: 'new' | 'used' | 'sealed' | 'opened' | '
 ];
 
 const COMMON_CURRENCIES = ['JPY', 'EUR', 'USD', 'GBP', 'CNY', 'KRW'];
+
+type AspectOverridePatch =
+  | {
+      width: number | null;
+      height: number | null;
+      aspect_key: AspectKey | null;
+      note?: string | null;
+    }
+  | null;
 
 /**
  * Parent VN identity used to fall back when a release has no
@@ -203,7 +221,10 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
     }
   }
 
-  async function saveEdition(releaseId: string, patch: Partial<OwnedEdition>) {
+  async function saveEdition(
+    releaseId: string,
+    patch: Partial<OwnedEdition> & { aspect_override?: AspectOverridePatch },
+  ) {
     setBusy(true);
     try {
       const r = await fetch(`/api/collection/${vnId}/owned-releases`, {
@@ -439,6 +460,13 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
           </Link>
         </div>
       )}
+      {edition.aspect?.aspect_key && edition.aspect.aspect_key !== 'unknown' && (
+        <Field
+          icon={<Info className="h-3 w-3" />}
+          label={t.aspect.label}
+          value={`${edition.aspect.width && edition.aspect.height ? `${edition.aspect.width}×${edition.aspect.height} · ` : ''}${t.aspect.keys[edition.aspect.aspect_key]} (${edition.aspect.source === 'manual' ? t.aspect.manual : t.aspect.vndb})`}
+        />
+      )}
       {edition.notes && (
         <div className="col-span-2 sm:col-span-3 mt-1 whitespace-pre-wrap text-[11px] text-muted">
           {edition.notes}
@@ -480,7 +508,7 @@ function EditionEditor({
   edition: OwnedEdition;
   knownPlaces: string[];
   busy: boolean;
-  onSave: (patch: Partial<OwnedEdition>) => void;
+  onSave: (patch: Partial<OwnedEdition> & { aspect_override?: AspectOverridePatch }) => void;
   onCancel: () => void;
 }) {
   const t = useT();
@@ -495,10 +523,25 @@ function EditionEditor({
   const [dumped, setDumped] = useState<boolean>(edition.dumped);
   const [places, setPlaces] = useState<string[]>(edition.physical_location);
   const [notes, setNotes] = useState<string>(edition.notes ?? '');
+  const [aspectWidth, setAspectWidth] = useState<string>(
+    edition.aspect?.source === 'manual' && edition.aspect.width ? String(edition.aspect.width) : '',
+  );
+  const [aspectHeight, setAspectHeight] = useState<string>(
+    edition.aspect?.source === 'manual' && edition.aspect.height ? String(edition.aspect.height) : '',
+  );
+  const [aspectKey, setAspectKey] = useState<AspectKey | ''>(
+    edition.aspect?.source === 'manual' && edition.aspect.aspect_key !== 'unknown'
+      ? edition.aspect.aspect_key
+      : '',
+  );
 
   function submit() {
     const price = pricePaid.trim() === '' ? null : Number(pricePaid);
     if (price !== null && (Number.isNaN(price) || price < 0)) return;
+    const width = aspectWidth.trim() === '' ? null : Number(aspectWidth);
+    const height = aspectHeight.trim() === '' ? null : Number(aspectHeight);
+    if ((width !== null && (!Number.isInteger(width) || width <= 0)) ||
+      (height !== null && (!Number.isInteger(height) || height <= 0))) return;
     onSave({
       edition_label: editionLabel.trim() || null,
       location,
@@ -511,6 +554,12 @@ function EditionEditor({
       dumped,
       physical_location: places,
       notes: notes || null,
+      aspect_override:
+        width && height
+          ? { width, height, aspect_key: null }
+          : aspectKey
+            ? { width: null, height: null, aspect_key: aspectKey }
+            : null,
     });
   }
 
@@ -606,6 +655,51 @@ function EditionEditor({
         />
         <span className="label leading-tight">{t.form.dumped}</span>
       </label>
+      <div className="grid gap-2 rounded-lg border border-border bg-bg-elev/25 p-3 sm:col-span-2 sm:grid-cols-3">
+        <div className="sm:col-span-3">
+          <span className="label">{t.aspect.overrideTitle}</span>
+          <p className="mt-0.5 text-[11px] text-muted">
+            {edition.aspect?.source === 'vndb' && edition.aspect.width && edition.aspect.height
+              ? t.aspect.vndbDetected
+                  .replace('{resolution}', `${edition.aspect.width}×${edition.aspect.height}`)
+                  .replace('{aspect}', t.aspect.keys[edition.aspect.aspect_key])
+              : t.aspect.overrideHint}
+          </p>
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="label">{t.aspect.width}</span>
+          <input
+            className="input"
+            type="number"
+            min={1}
+            step={1}
+            value={aspectWidth}
+            onChange={(e) => setAspectWidth(e.target.value)}
+            placeholder="1280"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="label">{t.aspect.height}</span>
+          <input
+            className="input"
+            type="number"
+            min={1}
+            step={1}
+            value={aspectHeight}
+            onChange={(e) => setAspectHeight(e.target.value)}
+            placeholder="720"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="label">{t.aspect.bucket}</span>
+          <select className="input" value={aspectKey} onChange={(e) => setAspectKey(e.target.value as AspectKey | '')}>
+            <option value="">{t.aspect.auto}</option>
+            {ASPECT_KEYS.filter((k) => k !== 'unknown').map((k) => (
+              <option key={k} value={k}>{t.aspect.keys[k]}</option>
+            ))}
+          </select>
+        </label>
+      </div>
       <div className="flex flex-col gap-1 sm:col-span-2">
         <span className="label">{t.form.physicalLocation}</span>
         <TagInput

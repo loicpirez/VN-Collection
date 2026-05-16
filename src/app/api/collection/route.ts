@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { countListMembershipsByVn, getStats, isValidStatus, listCollection, type ListOptions } from '@/lib/db';
+import { isAspectKey } from '@/lib/aspect-ratio';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,9 +36,13 @@ export async function GET(req: NextRequest) {
   const sortRaw = sp.get('sort') ?? 'updated_at';
   const orderRaw = sp.get('order') ?? 'desc';
   const dumpedRaw = sp.get('dumped');
+  const aspectRaw = sp.get('aspect');
 
   if (status && !isValidStatus(status)) {
     return NextResponse.json({ error: 'invalid status' }, { status: 400 });
+  }
+  if (aspectRaw && !isAspectKey(aspectRaw)) {
+    return NextResponse.json({ error: 'invalid aspect' }, { status: 400 });
   }
   const sort = (VALID_SORTS as string[]).includes(sortRaw)
     ? (sortRaw as ListOptions['sort'])
@@ -59,6 +64,7 @@ export async function GET(req: NextRequest) {
     yearMin: yearMin && Number.isFinite(yearMin) ? yearMin : undefined,
     yearMax: yearMax && Number.isFinite(yearMax) ? yearMax : undefined,
     dumped: dumpedRaw === '1' ? true : dumpedRaw === '0' ? false : undefined,
+    aspect: isAspectKey(aspectRaw) ? aspectRaw : undefined,
     sort,
     order,
   });
