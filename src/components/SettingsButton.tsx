@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Download, Eye, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
+import { ArrowRight, Download, Eye, EyeOff, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
@@ -16,6 +16,14 @@ import {
   type HomeSectionLayoutV1,
   type HomeSectionState,
 } from '@/lib/home-section-layout';
+import {
+  VN_LAYOUT_EVENT,
+  VN_SECTION_IDS,
+  defaultVnDetailLayoutV1,
+  type VnDetailLayoutV1,
+  type VnSectionId,
+  type VnSectionState,
+} from '@/lib/vn-detail-layout';
 
 type SortKey =
   | 'updated_at'
@@ -65,6 +73,7 @@ interface ServerSettings {
   default_order?: 'asc' | 'desc';
   default_group?: GroupKey;
   home_section_layout_v1?: HomeSectionLayoutV1;
+  vn_detail_section_layout_v1?: VnDetailLayoutV1;
   vndb_writeback?: boolean;
   vndb_backup_enabled?: boolean;
   vndb_backup_url?: string;
@@ -72,6 +81,18 @@ interface ServerSettings {
   steam_api_key?: { hasKey: boolean; preview: string | null };
   steam_id?: string;
 }
+
+const SETTINGS_TABS = [
+  'display',
+  'content',
+  'library',
+  'home',
+  'vn-page',
+  'account',
+  'integrations',
+  'automation',
+] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export function SettingsButton() {
   const t = useT();
@@ -87,6 +108,11 @@ export function SettingsButton() {
   const [server, setServer] = useState<ServerSettings | null>(null);
   const [tokenInput, setTokenInput] = useState('');
   const [savingToken, setSavingToken] = useState(false);
+  // Active tab inside the modal. We deliberately don't persist this to
+  // URL or storage — the user almost always re-enters the modal via
+  // the gear icon (or "All settings…" from the spoiler popover) on a
+  // specific concern and the freshest landing is Display.
+  const [activeTab, setActiveTab] = useState<SettingsTab>('display');
 
   const loadServer = useCallback(async () => {
     try {
@@ -113,6 +139,7 @@ export function SettingsButton() {
       default_order: 'asc' | 'desc';
       default_group: GroupKey;
       home_section_layout_v1: Partial<HomeSectionLayoutV1> | null;
+      vn_detail_section_layout_v1: VnDetailLayoutV1 | null;
       vndb_writeback: boolean;
       vndb_backup_enabled: boolean;
       vndb_backup_url: string | null;
@@ -246,56 +273,98 @@ export function SettingsButton() {
                   <X className="h-4 w-4" aria-hidden />
                 </button>
                 <h2 id={titleId} className="mb-1 text-lg font-bold">{t.settings.title}</h2>
-                <p className="mb-5 text-xs text-muted">{t.settings.subtitle}</p>
+                <p className="mb-4 text-xs text-muted">{t.settings.subtitle}</p>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Toggle
-                    label={t.settings.hideImages}
-                    description={t.settings.hideImagesDesc}
-                    value={settings.hideImages}
-                    onChange={(v) => set('hideImages', v)}
-                  />
-                  <Toggle
-                    label={t.settings.blurR18}
-                    description={t.settings.blurR18Desc}
-                    value={settings.blurR18}
-                    onChange={(v) => set('blurR18', v)}
-                  />
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm font-semibold">{t.settings.nsfwThreshold}</span>
-                    <span className="text-[11px] text-muted">{t.settings.nsfwThresholdDesc}</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={2}
-                      step={0.1}
-                      value={settings.nsfwThreshold}
-                      onChange={(e) => set('nsfwThreshold', Number(e.target.value))}
-                      className="accent-accent"
+                {/*
+                  Tab strip — replaces the previous long scroll of
+                  "section / divider / section". Tabs group settings
+                  by concern (Display / Content / Library / Home /
+                  VN page / Account / Integrations / Automation). The
+                  active tab gets the accent background and
+                  aria-selected so screen readers track the change.
+                */}
+                <nav
+                  role="tablist"
+                  aria-label={t.settings.tabsLabel}
+                  className="mb-5 flex flex-wrap gap-1 rounded-lg border border-border bg-bg-elev/30 p-1"
+                >
+                  {SETTINGS_TABS.map((tab) => {
+                    const active = activeTab === tab;
+                    return (
+                      <button
+                        key={tab}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        onClick={() => setActiveTab(tab)}
+                        className={`tap-target-tight inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
+                          active
+                            ? 'bg-accent text-bg'
+                            : 'text-muted hover:text-white'
+                        }`}
+                      >
+                        {t.settings.tabs[tab]}
+                      </button>
+                    );
+                  })}
+                </nav>
+
+                {activeTab === 'display' && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Toggle
+                      label={t.settings.hideImages}
+                      description={t.settings.hideImagesDesc}
+                      value={settings.hideImages}
+                      onChange={(v) => set('hideImages', v)}
                     />
-                    <span className="text-xs text-muted">{settings.nsfwThreshold.toFixed(1)} / 2.0</span>
-                  </label>
-                  <Toggle
-                    label={t.settings.preferLocal}
-                    description={t.settings.preferLocalDesc}
-                    value={settings.preferLocalImages}
-                    onChange={(v) => set('preferLocalImages', v)}
-                  />
-                  <Toggle
-                    label={t.settings.preferNativeTitle}
-                    description={t.settings.preferNativeTitleDesc}
-                    value={settings.preferNativeTitle}
-                    onChange={(v) => set('preferNativeTitle', v)}
-                  />
-                  <Toggle
-                    label={t.settings.hideSexual}
-                    description={t.settings.hideSexualDesc}
-                    value={settings.hideSexual}
-                    onChange={(v) => set('hideSexual', v)}
-                  />
-                </div>
+                    <Toggle
+                      label={t.settings.preferLocal}
+                      description={t.settings.preferLocalDesc}
+                      value={settings.preferLocalImages}
+                      onChange={(v) => set('preferLocalImages', v)}
+                    />
+                    <Toggle
+                      label={t.settings.preferNativeTitle}
+                      description={t.settings.preferNativeTitleDesc}
+                      value={settings.preferNativeTitle}
+                      onChange={(v) => set('preferNativeTitle', v)}
+                    />
+                  </div>
+                )}
 
-                <div className="mt-6 border-t border-border pt-5">
+                {activeTab === 'content' && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Toggle
+                      label={t.settings.blurR18}
+                      description={t.settings.blurR18Desc}
+                      value={settings.blurR18}
+                      onChange={(v) => set('blurR18', v)}
+                    />
+                    <Toggle
+                      label={t.settings.hideSexual}
+                      description={t.settings.hideSexualDesc}
+                      value={settings.hideSexual}
+                      onChange={(v) => set('hideSexual', v)}
+                    />
+                    <label className="md:col-span-2 flex flex-col gap-1 rounded-lg border border-border bg-bg-elev/50 p-3">
+                      <span className="text-sm font-semibold">{t.settings.nsfwThreshold}</span>
+                      <span className="text-[11px] text-muted">{t.settings.nsfwThresholdDesc}</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={2}
+                        step={0.1}
+                        value={settings.nsfwThreshold}
+                        onChange={(e) => set('nsfwThreshold', Number(e.target.value))}
+                        className="accent-accent"
+                      />
+                      <span className="text-xs text-muted">{settings.nsfwThreshold.toFixed(1)} / 2.0</span>
+                    </label>
+                  </div>
+                )}
+
+                {activeTab === 'account' && (
+                <div className="space-y-4">
                   <h3 className="mb-1 inline-flex items-center gap-2 text-sm font-bold">
                     <KeyRound className="h-4 w-4 text-accent" aria-hidden />
                     {t.settings.vndbTokenTitle}
@@ -444,7 +513,14 @@ export function SettingsButton() {
                     </span>
                   </label>
 
-                  <label className="mt-3 flex items-start gap-2 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
+                </div>
+                )}
+
+                {activeTab === 'automation' && (
+                <div className="space-y-3">
+                  <h3 className="mb-1 text-sm font-bold">{t.settings.automationTitle}</h3>
+                  <p className="mb-3 text-[11px] text-muted">{t.settings.automationDesc}</p>
+                  <label className="flex items-start gap-2 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
                     <input
                       type="checkbox"
                       checked={server?.vndb_fanout !== false}
@@ -457,35 +533,41 @@ export function SettingsButton() {
                     </span>
                   </label>
                 </div>
+                )}
 
-                <div className="mt-6 border-t border-border pt-5">
-                  <h3 className="mb-1 text-sm font-bold">{t.settings.steamTitle}</h3>
-                  <p className="mb-3 text-[11px] text-muted">{t.settings.steamDesc}</p>
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      defaultValue={server?.steam_api_key?.preview ?? ''}
-                      placeholder={server?.steam_api_key?.hasKey ? server.steam_api_key.preview ?? '' : t.settings.steamKeyPlaceholder}
-                      onBlur={(e) => {
-                        const v = e.target.value.trim();
-                        // Don't save if user didn't change it (placeholder is mask)
-                        if (v && !v.startsWith('…')) saveServer({ steam_api_key: v });
-                      }}
-                      className="input w-full"
-                    />
-                    <input
-                      type="text"
-                      defaultValue={server?.steam_id ?? ''}
-                      placeholder={t.settings.steamIdPlaceholder}
-                      onBlur={(e) => {
-                        const v = e.target.value.trim();
-                        if (v !== (server?.steam_id ?? '')) saveServer({ steam_id: v || null });
-                      }}
-                      className="input w-full"
-                    />
+                {activeTab === 'integrations' && (
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="mb-1 text-sm font-bold">{t.settings.steamTitle}</h3>
+                    <p className="mb-3 text-[11px] text-muted">{t.settings.steamDesc}</p>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        defaultValue={server?.steam_api_key?.preview ?? ''}
+                        placeholder={server?.steam_api_key?.hasKey ? server.steam_api_key.preview ?? '' : t.settings.steamKeyPlaceholder}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          // Don't save if user didn't change it (placeholder is mask)
+                          if (v && !v.startsWith('…')) saveServer({ steam_api_key: v });
+                        }}
+                        className="input w-full"
+                      />
+                      <input
+                        type="text"
+                        defaultValue={server?.steam_id ?? ''}
+                        placeholder={t.settings.steamIdPlaceholder}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v !== (server?.steam_id ?? '')) saveServer({ steam_id: v || null });
+                        }}
+                        className="input w-full"
+                      />
+                    </div>
                   </div>
                 </div>
+                )}
 
+                {activeTab === 'integrations' && (
                 <div className="mt-6 border-t border-border pt-5">
                   <h3 className="mb-1 text-sm font-bold">{t.settings.randomQuoteTitle}</h3>
                   <p className="mb-3 text-[11px] text-muted">{t.settings.randomQuoteDesc}</p>
@@ -507,8 +589,10 @@ export function SettingsButton() {
                     })}
                   </div>
                 </div>
+                )}
 
-                <div className="mt-6 border-t border-border pt-5">
+                {activeTab === 'library' && (
+                <div className="space-y-2">
                   <h3 className="mb-1 text-sm font-bold">{t.settings.libraryDefaultsTitle}</h3>
                   <p className="mb-3 text-[11px] text-muted">{t.settings.libraryDefaultsDesc}</p>
                   <div className="grid gap-3 sm:grid-cols-3">
@@ -555,11 +639,22 @@ export function SettingsButton() {
                   </div>
                   <p className="mt-2 text-[10px] text-muted">{t.settings.libraryDefaultsUrlHint}</p>
                 </div>
+                )}
 
-                <HomeLayoutPanel
-                  layout={server?.home_section_layout_v1 ?? DEFAULT_HOME_LAYOUT}
-                  onChange={(next) => saveServer({ home_section_layout_v1: next })}
-                />
+                {activeTab === 'home' && (
+                  <HomeLayoutPanel
+                    layout={server?.home_section_layout_v1 ?? DEFAULT_HOME_LAYOUT}
+                    onChange={(next) => saveServer({ home_section_layout_v1: next })}
+                  />
+                )}
+
+                {activeTab === 'vn-page' && (
+                  <VnLayoutPanel
+                    layout={server?.vn_detail_section_layout_v1 ?? defaultVnDetailLayoutV1()}
+                    onSave={(next) => saveServer({ vn_detail_section_layout_v1: next })}
+                    onReset={() => saveServer({ vn_detail_section_layout_v1: null })}
+                  />
+                )}
 
                 <div className="mt-6 flex justify-between">
                   <button type="button" className="btn" onClick={reset}>
@@ -642,6 +737,105 @@ function HomeLayoutPanel({
       </ul>
       {hiddenCount === 0 && (
         <p className="mt-2 text-[10px] text-muted">{t.homeSections.hiddenNoneHint}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Manage VN-page section visibility / collapse defaults from the
+ * Settings modal. Same shape as HomeLayoutPanel: a flat list of every
+ * registered section with show/hide + collapsed-by-default toggles
+ * and a "Reset to defaults" button. Saves the whole layout in one
+ * PATCH so the user's reorder (done from the VN page itself) isn't
+ * clobbered by toggling visibility here — we read the current order
+ * back and write it whole.
+ */
+function VnLayoutPanel({
+  layout,
+  onSave,
+  onReset,
+}: {
+  layout: VnDetailLayoutV1;
+  onSave: (next: VnDetailLayoutV1) => void;
+  onReset: () => void;
+}) {
+  const t = useT();
+
+  function patch(id: VnSectionId, partial: Partial<VnSectionState>) {
+    const nextLayout: VnDetailLayoutV1 = {
+      order: layout.order,
+      sections: {
+        ...layout.sections,
+        [id]: { ...layout.sections[id], ...partial },
+      },
+    };
+    onSave(nextLayout);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent(VN_LAYOUT_EVENT, { detail: { layout: nextLayout } }),
+      );
+    }
+  }
+
+  const hiddenCount = VN_SECTION_IDS.filter((id) => !layout.sections[id].visible).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="mb-1 text-sm font-bold">{t.vnLayout.restoreTitle}</h3>
+          <p className="text-[11px] text-muted">{t.vnLayout.restoreDesc}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onReset}
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold"
+        >
+          {t.vnLayout.reset}
+        </button>
+      </div>
+      <ul className="space-y-1.5">
+        {layout.order.map((id) => {
+          const state = layout.sections[id];
+          return (
+            <li
+              key={id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-elev/40 px-2.5 py-1.5 text-xs"
+            >
+              <span className={state.visible ? 'text-white' : 'text-muted'}>
+                {t.vnLayout.sectionLabels[id]}
+              </span>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-muted">
+                  <input
+                    type="checkbox"
+                    checked={state.collapsedByDefault}
+                    onChange={(e) => patch(id, { collapsedByDefault: e.target.checked })}
+                    className="h-3 w-3 accent-accent"
+                  />
+                  {t.vnLayout.collapseByDefault}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => patch(id, { visible: !state.visible })}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
+                    state.visible
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-border text-muted hover:border-accent hover:text-accent'
+                  }`}
+                  aria-pressed={state.visible}
+                >
+                  {state.visible ? <Eye className="h-3 w-3" aria-hidden /> : <EyeOff className="h-3 w-3" aria-hidden />}
+                  {state.visible ? t.vnLayout.hide : t.vnLayout.show}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {hiddenCount === 0 && (
+        <p className="text-[10px] text-muted">{t.vnLayout.hiddenNoneHint}</p>
       )}
     </div>
   );
