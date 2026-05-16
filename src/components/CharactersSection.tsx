@@ -27,20 +27,30 @@ export function CharactersSection({ vnId }: { vnId: string }) {
 
   useEffect(() => {
     if (!open || chars !== null) return;
-    let alive = true;
+    // AbortController instead of an `alive` flag — cancels the
+    // pending fetch when the user navigates away mid-load instead of
+    // letting the response complete and accumulate ghost state on
+    // unmounted components (the "opening many VN pages crashes"
+    // pattern).
+    const ac = new AbortController();
     setLoading(true);
     setError(null);
-    fetch(`/api/vn/${vnId}/characters`)
+    fetch(`/api/vn/${vnId}/characters`, { signal: ac.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
         return r.json();
       })
-      .then((d: { characters: VndbCharacter[] }) => alive && setChars(d.characters))
-      .catch((e: Error) => alive && setError(e.message))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
+      .then((d: { characters: VndbCharacter[] }) => {
+        if (!ac.signal.aborted) setChars(d.characters);
+      })
+      .catch((e: Error) => {
+        if (e.name === 'AbortError' || ac.signal.aborted) return;
+        setError(e.message);
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false);
+      });
+    return () => ac.abort();
   }, [open, vnId, chars, t.common.error]);
 
   const sorted = chars

@@ -50,20 +50,25 @@ export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; 
 
   useEffect(() => {
     if (!open || releases !== null) return;
-    let alive = true;
+    const ac = new AbortController();
     setLoading(true);
     setError(null);
-    fetch(`/api/vn/${vnId}/releases`)
+    fetch(`/api/vn/${vnId}/releases`, { signal: ac.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
         return r.json();
       })
-      .then((d: { releases: VndbRelease[] }) => alive && setReleases(d.releases))
-      .catch((e: Error) => alive && setError(e.message))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
+      .then((d: { releases: VndbRelease[] }) => {
+        if (!ac.signal.aborted) setReleases(d.releases);
+      })
+      .catch((e: Error) => {
+        if (e.name === 'AbortError' || ac.signal.aborted) return;
+        setError(e.message);
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false);
+      });
+    return () => ac.abort();
   }, [open, vnId, releases, t.common.error]);
 
   const refreshOwned = useCallback(async () => {

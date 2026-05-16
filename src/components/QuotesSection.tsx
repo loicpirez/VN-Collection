@@ -14,20 +14,25 @@ export function QuotesSection({ vnId }: { vnId: string }) {
 
   useEffect(() => {
     if (!open || quotes !== null) return;
-    let alive = true;
+    const ac = new AbortController();
     setLoading(true);
     setError(null);
-    fetch(`/api/vn/${vnId}/quotes`)
+    fetch(`/api/vn/${vnId}/quotes`, { signal: ac.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
         return r.json();
       })
-      .then((d: { quotes: VndbQuote[] }) => alive && setQuotes(d.quotes))
-      .catch((e: Error) => alive && setError(e.message))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
+      .then((d: { quotes: VndbQuote[] }) => {
+        if (!ac.signal.aborted) setQuotes(d.quotes);
+      })
+      .catch((e: Error) => {
+        if (e.name === 'AbortError' || ac.signal.aborted) return;
+        setError(e.message);
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false);
+      });
+    return () => ac.abort();
   }, [open, vnId, quotes, t.common.error]);
 
   return (
