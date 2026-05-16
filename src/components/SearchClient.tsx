@@ -5,7 +5,9 @@ import { ChevronDown, ChevronUp, Database, FileText, Loader2, Plus, Search, Slid
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
 import { TextualSearchPanel } from './TextualSearchPanel';
+import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
 import { useToast } from './ToastProvider';
+import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
 import type { VndbSearchHit } from '@/lib/types';
 
@@ -617,16 +619,39 @@ export function SearchClient() {
       ) : results.length === 0 ? (
         <div className="py-20 text-center text-muted">{t.search.noResults}</div>
       ) : (
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {results.map((r) => (
-            <VnCard
-              key={r.id}
-              enableAdd
-              data={searchCardData(r)}
-            />
-          ))}
-        </div>
+        <>
+          {/* Density slider mirrors the affordance shipped on
+              /wishlist, /recommendations, /top-ranked, /upcoming,
+              /dumped, /egs. /search was the only card-grid surface
+              that previously hard-coded `grid-cols-2..xl:grid-cols-6`
+              and ignored the global density pref. */}
+          <div className="mb-3 flex justify-end">
+            <CardDensitySlider />
+          </div>
+          <SearchResultsGrid results={results} />
+        </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Density-aware grid for /search VN cards. Mirrors the pattern used
+ * by every other card-grid surface: `repeat(auto-fill, minmax(min(100%,
+ * Npx), 1fr))` driven by the shared `cardDensityPx` pref, so the
+ * slider on the toolbar above changes the column count + cover size
+ * without a page reload.
+ */
+function SearchResultsGrid({ results }: { results: VndbSearchHit[] }) {
+  const { settings } = useDisplaySettings();
+  const gridStyle: React.CSSProperties = {
+    gridTemplateColumns: cardGridColumns(settings.cardDensityPx),
+  };
+  return (
+    <div className="grid gap-5" style={gridStyle}>
+      {results.map((r) => (
+        <VnCard key={r.id} enableAdd data={searchCardData(r)} />
+      ))}
     </div>
   );
 }
