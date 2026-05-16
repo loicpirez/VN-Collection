@@ -168,7 +168,7 @@ function ProducerVnsSkeleton() {
       <div className="h-6 w-64 rounded bg-bg-elev/60" />
       <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
         <div className="mb-4 h-4 w-40 rounded bg-bg-elev/60" />
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-density-px, 220px), 1fr))' }}>
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2">
               <div className="h-16 w-11 shrink-0 rounded bg-bg-elev/60" />
@@ -182,7 +182,7 @@ function ProducerVnsSkeleton() {
       </div>
       <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
         <div className="mb-4 h-4 w-40 rounded bg-bg-elev/60" />
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-density-px, 220px), 1fr))' }}>
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2">
               <div className="h-16 w-11 shrink-0 rounded bg-bg-elev/60" />

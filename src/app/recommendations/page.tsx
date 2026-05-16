@@ -162,7 +162,7 @@ export default async function RecommendationsPage({
       )}
 
       {results.length > 0 && (
-        <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-density-px, 220px), 1fr))' }}>
+        <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
           {results.map((r) => {
             const year = r.released?.slice(0, 4);
             const rating = r.rating != null ? (r.rating / 10).toFixed(1) : null;

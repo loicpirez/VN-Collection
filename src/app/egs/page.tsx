@@ -155,7 +155,7 @@ export default async function EgsPage() {
         ) : (
           <ul
             className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(max(260px, var(--card-density-px, 260px)), 1fr))' }}
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 260px)), 1fr))' }}
           >
             {links.map((l) => (
               <li
@@ -228,7 +228,7 @@ export default async function EgsPage() {
           <p className="mb-3 text-xs text-muted">{t.egs.unlinkedListHint}</p>
           <ul
             className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(max(260px, var(--card-density-px, 260px)), 1fr))' }}
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 260px)), 1fr))' }}
           >
             {unlinkedRows.map((u) => (
               <li

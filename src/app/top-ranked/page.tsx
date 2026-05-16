@@ -200,7 +200,7 @@ function VndbSection({ rows, t }: { rows: VndbTopRanked[]; t: Dictionary }) {
     <section className="rounded-xl border border-border bg-bg-card p-3 sm:p-5">
       <ol
         className="grid gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-density-px, 220px), 1fr))' }}
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
       >
         {rows.map((v, i) => (
           <li
@@ -272,7 +272,7 @@ function EgsSection({
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-3 sm:p-5">
       <ol
         className="grid gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-density-px, 220px), 1fr))' }}
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
       >
         {rows.map((r, i) => {
           const vndbCover = r.vndb_id ? covers.get(r.vndb_id) ?? null : null;

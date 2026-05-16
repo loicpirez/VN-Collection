@@ -152,7 +152,7 @@ export default async function DumpedPage({
           ) : (
             <ul
               className="grid gap-3"
-              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(max(280px, var(--card-density-px, 280px)), 1fr))' }}
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
             >
               {filtered.map((e) => {
                 const fullyDumped =

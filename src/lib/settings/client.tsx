@@ -54,9 +54,19 @@ const DEFAULTS: DisplaySettings = {
   showSexualTraits: false,
 };
 
-/** Clamp helper exported so callers (Settings, slider) share the same bounds. */
-export const CARD_DENSITY_MIN = 140;
-export const CARD_DENSITY_MAX = 320;
+/** Clamp helper exported so callers (Settings, slider) share the same bounds.
+ *
+ * Range widened from the original [140, 320]:
+ * - Min 120 lets power users pack ~8 columns on a normal 1200px
+ *   viewport (still readable on a desktop monitor; mobile is capped
+ *   by responsive breakpoints elsewhere).
+ * - Max 480 lets the user genuinely get "~2 cards per row" on a
+ *   1200px viewport, which is what poster-mode browsing wants.
+ *   The previous 320 max made the slider feel like it did
+ *   nothing on the high end — at 1200px / 320 = 3.75 columns,
+ *   only barely different from default 220 (1200/220 = 5.45). */
+export const CARD_DENSITY_MIN = 120;
+export const CARD_DENSITY_MAX = 480;
 export function clampCardDensity(px: number): number {
   if (!Number.isFinite(px)) return 220;
   return Math.max(CARD_DENSITY_MIN, Math.min(CARD_DENSITY_MAX, Math.round(px)));

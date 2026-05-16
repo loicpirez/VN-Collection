@@ -81,5 +81,8 @@ export function CardDensitySlider({ className = '' }: { className?: string }) {
  */
 export function cardGridColumns(densityPx: number, fill: 'auto-fill' | 'auto-fit' = 'auto-fill'): string {
   const safe = clampCardDensity(densityPx);
-  return `repeat(${fill}, minmax(${safe}px, 1fr))`;
+  // `min(100%, …)` ensures the cell never exceeds the container's
+  // available width on narrow viewports — without it, a slider at
+  // 480px would force a horizontal scroll on a 360px phone.
+  return `repeat(${fill}, minmax(min(100%, ${safe}px), 1fr))`;
 }

@@ -15,6 +15,7 @@ import { SavedFilters } from './SavedFilters';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
+import { CardDensitySlider } from './CardDensitySlider';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
 import type { CollectionItem, ProducerStat, SeriesRow, Stats } from '@/lib/types';
@@ -642,6 +643,7 @@ export function LibraryClient() {
           </select>
         </label>
         <div className="ml-auto flex flex-wrap items-center gap-3">
+          <CardDensitySlider />
           <button
             type="button"
             onClick={() => set('denseLibrary', !settings.denseLibrary)}
@@ -911,9 +913,18 @@ function Grid({
   onToggle?: (id: string) => void;
   dense?: boolean;
 }) {
-  const cls = dense
-    ? 'grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8'
-    : 'grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6';
+  // Library grid is density-responsive via the shared
+  // `--card-density-px` CSS variable (set by <CardDensitySlider>).
+  // `denseLibrary` only tunes the GAP + cover-bias (a smaller minmax
+  // floor so the same slider value yields more columns in dense
+  // mode). The slider value itself is the floor; the grid auto-fills
+  // remaining space at 1fr. Cards inside use `aspect-[2/3] w-full`
+  // so cover size scales with column width.
+  const cls = dense ? 'grid gap-3' : 'grid gap-5';
+  const densityMul = dense ? 0.72 : 1;
+  const gridStyle: React.CSSProperties = {
+    gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${densityMul})), 1fr))`,
+  };
   // Stash the per-render onToggle in a ref so each `<VnCard>` can get
   // an `onSelect` reference that's stable across renders. Without this
   // the `() => onToggle?.(it.id)` arrow was freshly allocated every
@@ -931,7 +942,7 @@ function Grid({
   // M6 concern about the WeakMap missing on every refetch.
   const cardData = useMemo(() => items.map(toCardData), [items]);
   return (
-    <div className={cls}>
+    <div className={cls} style={gridStyle}>
       {items.map((it, i) => (
         <MemoCard
           key={it.id}

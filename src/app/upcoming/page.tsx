@@ -328,7 +328,15 @@ function AnticipatedSection({
   return (
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-4 sm:p-5">
       <p className="mb-4 text-[11px] text-muted">{t.upcoming.anticipatedSubtitle}</p>
-      <ol className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+      {/* Density-responsive grid: column min is the slider value with
+          a hard floor of 320px (these cards carry more text than
+          poster-only cards, so they need more horizontal room than
+          the library default). The slider can still grow them to
+          larger sizes. */}
+      <ol
+        className="grid gap-4 lg:gap-5"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(320px, var(--card-density-px, 320px))), 1fr))' }}
+      >
         {rows.map((a, i) => {
           // Prefer the VNDB cover when the anticipated row carries a
           // vndb_id and VNDB returned an image for it. Falls back to the
@@ -344,12 +352,22 @@ function AnticipatedSection({
               key={a.egs_id}
               className="group flex gap-4 rounded-xl border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent sm:p-4"
             >
-              <div className="relative shrink-0">
+              <div
+                className="relative shrink-0"
+                style={{
+                  // Cover follows the density slider so a wider card
+                  // gets a proportionally larger cover instead of
+                  // tiny image + huge whitespace. Clamp to a sane
+                  // mobile minimum (96px) and a poster-mode max so
+                  // the cover never dwarfs its accompanying text.
+                  width: 'clamp(96px, calc(var(--card-density-px, 220px) * 0.38), 200px)',
+                }}
+              >
                 <Link
                   href={coverHref}
                   target={a.vndb_id ? undefined : '_blank'}
                   rel={a.vndb_id ? undefined : 'noopener noreferrer'}
-                  className="block h-48 w-32 overflow-hidden rounded-lg shadow-card sm:h-56 sm:w-36"
+                  className="block aspect-[2/3] w-full overflow-hidden rounded-lg shadow-card"
                 >
                   <SafeImage src={coverSrc} alt={a.gamename} sexual={coverSexual} className="h-full w-full" />
                 </Link>
