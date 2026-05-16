@@ -910,12 +910,10 @@ export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]
     + `GROUP BY g.id, g.gamename, g.sellday, b.brandname, g.vndb `
     + `ORDER BY will_buy DESC LIMIT ${safe}`;
 
-  let rows: string[][];
-  try {
-    rows = await fetchTable(sql);
-  } catch {
-    return [];
-  }
+  // Same policy as fetchEgsTopRanked: don't swallow EgsUnreachable.
+  // Callers can wrap in a try/catch and render an actionable error
+  // state. Genuine 0-row responses still cache negatives normally.
+  const rows = await fetchTable(sql);
   if (rows.length < 2) {
     writeCache(cacheK, [], ANTICIPATED_TTL_MS);
     return [];
@@ -1002,12 +1000,11 @@ export async function fetchEgsTopRanked(
     `ORDER BY (g.median2 IS NULL), g.median2 DESC, g.count2 DESC ` +
     `LIMIT ${safeLimit}`;
 
-  let rows: string[][];
-  try {
-    rows = await fetchTable(sql);
-  } catch {
-    return [];
-  }
+  // Surface EgsUnreachable to the caller so the UI can render an
+  // actionable error state (try Refresh / check network) instead of
+  // a generic "empty" message. A clean 0-row response still maps to
+  // an empty array (cached negative).
+  const rows = await fetchTable(sql);
   if (rows.length < 2) {
     writeCache(cacheK, [], EGS_TOP_TTL_MS);
     return [];

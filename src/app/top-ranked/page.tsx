@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink, Library as LibraryIcon, Sparkles, Star, Trophy } from 'lucide-react';
 import { fetchVndbTopRanked, VNDB_TOP_MIN_VOTES, type VndbTopRanked } from '@/lib/top-ranked';
-import { fetchEgsTopRanked, EGS_TOP_MIN_VOTES, type EgsTopRanked } from '@/lib/erogamescape';
+import { fetchEgsTopRanked, EGS_TOP_MIN_VOTES, EgsUnreachable, type EgsTopRanked } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
@@ -98,11 +98,15 @@ async function TabContent({ tab, t }: { tab: Tab; t: Dictionary }) {
     if (tab === 'egs') {
       const rows = await fetchEgsTopRanked(100);
       if (rows.length === 0) {
-        return <EmptyState message={t.topRanked.emptyEgs} />;
+        return <EmptyState message={t.topRanked.emptyEgs} hint={t.topRanked.emptyEgsHint} />;
       }
       // VNDB cover wins when the EGS row carries a `vndb` id and VNDB
       // returned a poster — much higher quality than the EGS resolver
       // chain. Falls back per-row to `/api/egs-cover/{id}` otherwise.
+      // IMPORTANT: do NOT filter out rows that lack a vndb_id — the
+      // EGS-side feed is the canonical surface for "EGS-ranked
+      // games"; rows without a known VNDB cross-link still belong
+      // here and the row itself surfaces a Map-to-VNDB action.
       const vndbIds = rows.map((r) => r.vndb_id).filter((v): v is string => !!v);
       const covers = vndbIds.length > 0 ? await fetchVnCovers(vndbIds) : new Map<string, VndbCoverInfo>();
       return <EgsSection rows={rows} covers={covers} t={t} />;
@@ -113,19 +117,34 @@ async function TabContent({ tab, t }: { tab: Tab; t: Dictionary }) {
     }
     return <VndbSection rows={rows} t={t} />;
   } catch (e) {
+    // Differentiate "EGS unreachable" (network / form down / 5xx) from
+    // generic errors. The unreachable case is the user's actionable
+    // path: Refresh button + retry. Generic errors still surface the
+    // raw message so the user can diagnose.
+    const err = e as Error;
+    const isUnreachable = err instanceof EgsUnreachable;
+    if (isUnreachable && tab === 'egs') {
+      return (
+        <div className="rounded-xl border border-status-on_hold/40 bg-status-on_hold/10 p-4 text-sm">
+          <p className="font-bold text-status-on_hold">{t.topRanked.egsUnreachableTitle}</p>
+          <p className="mt-1 text-[12px] text-muted">{t.topRanked.egsUnreachableHint}</p>
+        </div>
+      );
+    }
     return (
       <div className="mb-4 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm text-status-dropped">
-        {(e as Error).message}
+        {err.message}
       </div>
     );
   }
 }
 
-function EmptyState({ message }: { message: string }) {
+function EmptyState({ message, hint }: { message: string; hint?: string }) {
   return (
-    <p className="rounded-xl border border-border bg-bg-card p-6 text-center text-sm text-muted">
-      {message}
-    </p>
+    <div className="rounded-xl border border-border bg-bg-card p-6 text-center text-sm text-muted">
+      <p>{message}</p>
+      {hint && <p className="mt-2 text-[11px] opacity-80">{hint}</p>}
+    </div>
   );
 }
 

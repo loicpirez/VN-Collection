@@ -82,6 +82,9 @@ export const dictionaries = {
       thresholdEgs: 'Minimum {n} avis EGS pour figurer au classement.',
       emptyVndb: 'Aucun classement VNDB disponible pour le moment.',
       emptyEgs: 'Aucun classement EGS disponible pour le moment.',
+      emptyEgsHint: 'Lance « Tout rafraîchir » depuis cette page pour recharger les données EGS. Aucun token EGS n\'est requis — l\'accès est public.',
+      egsUnreachableTitle: 'EGS injoignable',
+      egsUnreachableHint: 'Le formulaire SQL public d\'ErogameScape n\'a pas répondu. Vérifie ta connexion réseau ou réessaie plus tard. Si le problème persiste, regarde si erogamescape.dyndns.org répond depuis ton navigateur.',
       voteCount: '{n} votes',
     },
     upcoming: {
@@ -1992,6 +1995,9 @@ export const dictionaries = {
       thresholdEgs: 'Minimum {n} EGS reviews to qualify.',
       emptyVndb: 'No VNDB ranking available right now.',
       emptyEgs: 'No EGS ranking available right now.',
+      emptyEgsHint: 'Hit "Refresh" on this page to repopulate from EGS. No EGS token is required — the SQL form is public.',
+      egsUnreachableTitle: 'EGS unreachable',
+      egsUnreachableHint: 'ErogameScape\'s public SQL form did not respond. Check your network, or try again later. If the problem persists, see if erogamescape.dyndns.org loads in your browser.',
       voteCount: '{n} votes',
     },
     upcoming: {
@@ -3902,6 +3908,9 @@ export const dictionaries = {
       thresholdEgs: 'ランクインには EGS のレビュー数 {n} 件以上が必要です。',
       emptyVndb: '現在 VNDB のランキングはありません。',
       emptyEgs: '現在 EGS のランキングはありません。',
+      emptyEgsHint: 'このページの「すべて更新」を押すと EGS からデータを再取得します。EGS のトークンは不要 — SQL フォームは公開です。',
+      egsUnreachableTitle: 'EGS に接続できません',
+      egsUnreachableHint: 'ErogameScape の公開 SQL フォームから応答がありませんでした。ネットワーク接続を確認するか、時間を置いて再試行してください。erogamescape.dyndns.org がブラウザで開けるか確認してください。',
       voteCount: '{n} 票',
     },
     upcoming: {

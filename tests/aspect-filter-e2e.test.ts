@@ -57,7 +57,7 @@ beforeEach(() => clear());
 describe('aspect filter end-to-end (?aspect=…)', () => {
   it('matches a VN whose VN-level manual override is the only signal', () => {
     seedVn('v90001');
-    addToCollection('v90001', { title: 'v90001' });
+    addToCollection('v90001', {});
     setVnAspectOverride({ vnId: 'v90001', aspectKey: '16:9' });
     const items = listCollection({ aspect: '16:9' });
     expect(items.map((i) => i.id)).toContain('v90001');
@@ -70,7 +70,7 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
 
   it('matches a VN whose only signal is a VN-bound release_resolution_cache row', () => {
     seedVn('v90002');
-    addToCollection('v90002', { title: 'v90002' });
+    addToCollection('v90002', {});
     upsertReleaseResolutionCache({
       releaseId: 'r90002',
       vnId: 'v90002',
@@ -87,7 +87,7 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
       { dims: [1920, 1080] },
       { dims: [800, 600] },
     ]);
-    addToCollection('v90003', { title: 'v90003' });
+    addToCollection('v90003', {});
     // Before materialize the SQL filter cannot reach into screenshots.
     const beforeMat = listCollection({ aspect: '16:9' });
     expect(beforeMat.map((i) => i.id)).not.toContain('v90003');
@@ -101,7 +101,7 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
 
   it('manual VN override takes priority over screenshots fallback', () => {
     seedVn('v90004', [{ dims: [1920, 1080] }]);
-    addToCollection('v90004', { title: 'v90004' });
+    addToCollection('v90004', {});
     materializeAspectForCollectionVns(['v90004']);
     // Now flip the override to a different bucket.
     setVnAspectOverride({ vnId: 'v90004', aspectKey: '4:3' });
@@ -116,7 +116,7 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
 
   it('does not falsely match a VN with no aspect signal at all', () => {
     seedVn('v90005');
-    addToCollection('v90005', { title: 'v90005' });
+    addToCollection('v90005', {});
     materializeAspectForCollectionVns(['v90005']);
     const items = listCollection({ aspect: '16:9' });
     expect(items.map((i) => i.id)).not.toContain('v90005');
@@ -127,7 +127,7 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
 
   it('materialize is idempotent — repeated calls do not duplicate cache rows', () => {
     seedVn('v90006', [{ dims: [1280, 720] }]);
-    addToCollection('v90006', { title: 'v90006' });
+    addToCollection('v90006', {});
     materializeAspectForCollectionVns(['v90006']);
     materializeAspectForCollectionVns(['v90006']);
     materializeAspectForCollectionVns(['v90006']);
@@ -142,7 +142,7 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
 
   it('materialize skips VNs that already have a stronger signal', () => {
     seedVn('v90007', [{ dims: [1280, 720] }]);
-    addToCollection('v90007', { title: 'v90007' });
+    addToCollection('v90007', {});
     setVnAspectOverride({ vnId: 'v90007', aspectKey: '4:3' });
     materializeAspectForCollectionVns(['v90007']);
     const synthetic = db
