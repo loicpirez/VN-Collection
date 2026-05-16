@@ -79,6 +79,7 @@ vndb-collection/
 │   │   ├── MediaGallery.tsx            # Combined screenshot + release art lightbox
 │   │   ├── CharactersSection.tsx       # Lazy-loaded section on VN detail
 │   │   ├── ReleasesSection.tsx
+│   │   ├── VnDetailLayout.tsx          # dnd-kit reorder/hide/collapse VN sections
 │   │   ├── QuotesSection.tsx
 │   │   ├── QuoteFooter.tsx             # Hover-reveal random quote (lazy)
 │   │   ├── SafeImage.tsx               # Hide / blur-R18 / prefer-local
@@ -102,6 +103,9 @@ vndb-collection/
 │       ├── types.ts                    # Domain types
 │       ├── files.ts                    # storage bucket helpers (download, save, read)
 │       ├── assets.ts                   # ensureLocalImagesForVn (covers + sc + release art + char + EGS)
+│       ├── vn-detail-layout.ts         # versioned VN detail section layout config
+│       ├── home-section-layout.ts      # versioned home strip visibility/collapse config
+│       ├── aspect-ratio.ts             # resolution → aspect bucket helpers
 │       ├── settings/client.tsx         # DisplaySettingsProvider (localStorage) + resolveTitles
 │       └── i18n/
 │           ├── dictionaries.ts         # FR / EN / JA, type-safe via Widen<>
@@ -162,10 +166,10 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET | `/api/vndb/quote/random` | Random quote (TTL = 0, never cached) |
 | GET | `/api/vndb/cache` | Cache stats |
 | DELETE | `/api/vndb/cache` (`?mode=expired|prefix&prefix=…`) | Invalidate cache |
-| GET/PATCH | `/api/settings` | Read / update app settings. SAFE_KEYS: `vndb_token`, `random_quote_source`, `default_sort`, `vndb_writeback`, `vndb_backup_url`, `vndb_backup_enabled`, `steam_api_key`, `steam_id`, `egs_username`, `vndb_fanout`. Sensitive keys (token / Steam key / backup URL) leave a tail in `app_setting_audit`. |
+| GET/PATCH | `/api/settings` | Read / update app settings. SAFE_KEYS include `vndb_token`, `random_quote_source`, `default_sort`, `default_order`, `default_group`, `home_section_layout_v1`, `vn_detail_section_layout_v1`, `vndb_writeback`, `vndb_backup_url`, `vndb_backup_enabled`, `steam_api_key`, `steam_id`, `egs_username`, `vndb_fanout`. Sensitive keys (token / Steam key / backup URL) leave a tail in `app_setting_audit`. |
 | GET | `/api/wishlist` | Authenticated wishlist (ulist label 5) + in_collection + EGS hint |
 | DELETE | `/api/wishlist/[id]` | Remove a VN from VNDB wishlist (PATCH labels_unset=[5]) |
-| GET/POST/PATCH/DELETE | `/api/collection/[id]/owned-releases` | Per-edition inventory (location, edition_label, condition, price, dumped…) |
+| GET/POST/PATCH/DELETE | `/api/collection/[id]/owned-releases` | Per-edition inventory (location, edition_label, condition, price, dumped, aspect override…) |
 | GET/POST/PATCH/DELETE | `/api/collection/[id]/game-log` | Per-VN free-form timestamped notes (`vn_game_log`) |
 | GET/PATCH | `/api/collection/[id]/source-pref` | Per-VN / per-field source preference JSON |
 | GET/POST/DELETE | `/api/vn/[id]/erogamescape` | Resolve / link / unlink an EGS game for a VN |
@@ -320,6 +324,17 @@ shelf_slot       PK (shelf_id, row, col)
                   All writes go through `placeShelfItem` for atomic
                   swap-or-evict semantics.
 
+shelf_display_slot PK (shelf_id, after_row, position)
+                  vn_id, release_id, placed_at
+                  UNIQUE (vn_id, release_id) — face-out display rows.
+                  All writes go through `placeShelfDisplayItem`.
+
+release_resolution_cache PK release_id
+                  width, height, raw_resolution, aspect_key, fetched_at
+
+owned_release_aspect_override PK (vn_id, release_id)
+                  width, height, aspect_key, note, updated_at
+
 user_list        PK id (auto)
                   name, slug (UNIQUE), description, color, icon,
                   pinned BOOL, created_at, updated_at
@@ -403,7 +418,7 @@ response (CSV) in the shared `vndb_cache` table.
   render cleanly for EGS-only entries.
 - `loadVn()` on `/vn/[id]` skips the VNDB refresh for `isEgsOnly(id)` VNs.
 
-### Shelf layout (`shelf_unit` + `shelf_slot`)
+### Shelf layout (`shelf_unit` + `shelf_slot` + `shelf_display_slot`)
 
 - `shelf_unit` rows model named physical shelves with `(cols, rows)`
   dimensions, clamped to `[1, 200]` server-side. `order_index` controls
@@ -411,15 +426,21 @@ response (CSV) in the shared `vndb_cache` table.
 - `shelf_slot` is sparse: a row exists only for occupied slots. The
   PRIMARY KEY `(shelf_id, row, col)` enforces "one edition per slot";
   the UNIQUE `(vn_id, release_id)` enforces "one slot per edition".
+- `shelf_display_slot` is the face-out / front-display layer between
+  rows. `after_row` ranges `0..rows` (top, between rows, bottom);
+  `position` ranges `0..cols-1`. It also has UNIQUE `(vn_id,
+  release_id)`, and the DB helpers delete the same edition from the
+  other placement table before inserting.
 - `placeShelfItem` runs the entire move/swap/evict logic inside a
   single `db.transaction(...)` to avoid the half-state where the
   UNIQUE constraint refuses an insert. Always go through that helper
   — never write to `shelf_slot` directly.
 - Resizing through `resizeShelf` returns the evicted slot list (rows
-  outside the new bounds) so callers can surface "N editions moved
-  to unplaced" warnings. Slots are NOT silently lost.
+  outside the new bounds, including front-display rows/positions) so
+  callers can surface "N editions moved to unplaced" warnings. Slots
+  are NOT silently lost.
 - Pool query (`listUnplacedOwnedReleases`) is a `NOT EXISTS` subquery
-  on `shelf_slot`; the index `idx_shelf_slot_item` keeps it fast.
+  across both `shelf_slot` and `shelf_display_slot`.
 
 ### Synthetic release ids (`synthetic:<vnId>`)
 
@@ -694,6 +715,11 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 - When you add a new client-side fetch, the loading skeleton is part of the change —
   not a follow-up. The user has flagged "Nothing available" / "No results" flashes
   before data arrives as a recurring quality issue.
+- Client-side fetches must clean up on unmount: use `AbortController`
+  where fetch supports it, guard `finally` blocks from setting state
+  after abort, and clear timers/listeners in cleanup. This matters on
+  VN detail pages, where opening many items in sequence otherwise
+  stacks in-flight fetches and stale timers.
 
 ### Markdown
 - `MarkdownNotes` (editor) is in `MarkdownNotes.tsx`; the heavy
@@ -830,7 +856,8 @@ New DB tables introduced by recent batches:
 | `reading_queue` | Reading queue | VNs the user wants to play next, distinct from the "Planning" status. Ordered manually. |
 | `reading_goal` | Yearly reading goal | One row per year. Progress ring against `countFinishedInYear`. |
 | `steam_link` | Steam playtime sync | VN ↔ Steam appid mapping with `source` ('auto' / 'manual') and last-synced minutes. Manual links are sticky. |
-| `shelf_unit` / `shelf_slot` | Drag-and-drop shelf layout | `shelf_unit` is the (cols × rows) grid metadata; `shelf_slot` is sparse — one row per occupied slot, with composite PK `(shelf_id, row, col)` and UNIQUE `(vn_id, release_id)`. All mutations go through `placeShelfItem` for atomic swap-or-evict semantics. |
+| `shelf_unit` / `shelf_slot` / `shelf_display_slot` | Drag-and-drop shelf layout | `shelf_unit` is the grid metadata; `shelf_slot` is regular cells; `shelf_display_slot` is face-out rows between shelves. Both placement tables enforce UNIQUE `(vn_id, release_id)` through helpers so one edition is placed once. |
+| `release_resolution_cache` / `owned_release_aspect_override` | Aspect-ratio filtering | VNDB release resolutions are normalized to buckets; manual per-edition overrides take precedence for library filters/groups. |
 
 ## Backlog cleared (2026-05-15 batch H)
 

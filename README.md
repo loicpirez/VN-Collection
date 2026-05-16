@@ -22,6 +22,9 @@ ingested, cached locally, and can be combined or compared per-field.
 
 ### Library
 - Steam-like detail pages (custom cover, custom banner, hero backdrop)
+  with customizable sections below the immutable hero: reorder,
+  hide/show, collapse/expand, save to `vn_detail_section_layout_v1`,
+  and reset from Settings
 - Track per-VN: status (planning / playing / completed / on hold / dropped),
   personal rating (10–100), playtime, started / finished dates, favorite,
   "dumped" flag, free-form download URL
@@ -59,7 +62,15 @@ ingested, cached locally, and can be combined or compared per-field.
   tab strip. Touch-friendly (long-press to drag),
   keyboard-accessible (Space to pick up, arrows to move, Space to
   drop), and optimistic — every action persists to `shelf_unit` /
-  `shelf_slot` with full rollback on error.
+  `shelf_slot` with full rollback on error. The layout view also has
+  a fullscreen mode and optional **Front display** rows between normal
+  shelf rows, backed by `shelf_display_slot`, for face-out editions /
+  display stands without losing the regular grid.
+- **Aspect ratio tracking** — VNDB release resolutions are normalized
+  into 4:3 / 16:9 / 16:10 / 21:9 / other / unknown buckets. Library
+  results can be filtered or grouped by aspect, and each owned edition
+  can store a manual resolution/aspect override when VNDB is missing
+  or wrong.
 - **Routes** — heroine / branch tracker with autocomplete from the VN's
   main / primary cast, completion checkboxes, and reorderable list
 - **Markdown notes** (GFM, tables, code blocks) for personal reviews
@@ -89,10 +100,13 @@ ingested, cached locally, and can be combined or compared per-field.
       primary playtime chip with the per-source breakdown beneath.
 - Filters: status, **developer (`?producer=`)**, **publisher
   (`?publisher=`)** — two separate axes, never collapsed — series,
-  tag, free-text, place, year range, **dumped state** — all
+  tag, free-text, place, year range, **dumped state**, **aspect
+  ratio** — all
   persisted in the URL
-- Group-by: status, developer, publisher, tag, series
-- Recently viewed strip on the home page (localStorage, last 12 entries)
+- Group-by: status, developer, publisher, tag, series, aspect ratio
+- Recently viewed strip on the home page (localStorage, last 12
+  entries) with persisted collapse / hide controls; Settings can
+  restore hidden home sections.
 - Bulk select / edit / download
 - **Viewport-aware lazy image loading** via IntersectionObserver
   (`rootMargin: 500px`) so virtualised / overflow-scroll grids actually
@@ -332,13 +346,21 @@ The **closed-eye icon** in the navbar opens the content-controls hub:
 - "All settings…" jumps to the full gear-icon modal
 
 The **gear icon** in the navbar opens the full settings modal:
+- Tabbed groups for Display, Content / Spoilers, Library defaults,
+  Home layout, VN page layout, Data / accounts, Integrations, and
+  Downloads / automation
 - Every content-controls toggle (mirrored)
 - **Original title first** (swap headline ↔ subtitle)
+- **Library defaults** — default sort, order, and grouping when `/`
+  has no URL params
+- **Home layout** — restore hidden home strips
+- **VN page layout** — restore hidden VN detail sections and choose
+  which sections start collapsed
 - **VNDB token** (paste from <https://vndb.org/u/tokens>) + writeback,
   status pull, fan-out auto-download toggle, backup URL
 - **Steam** API key + 64-bit SteamID
 - **Random quote source** — all VNDB or only from your collection
-- **Default sort** for the library
+- **Default sort / order / group** for the library
 
 ### Direct VNDB writes
 The VNDB status panel on `/vn/[id]` writes back four ulist fields
@@ -354,6 +376,9 @@ job mutation (start / tick / error / finish) and throttle event
 emits within milliseconds — no polling cost when nothing's
 happening. Falls back to the original interval-poll
 `/api/download-status` endpoint if `EventSource` is unavailable.
+Long-running fan-out jobs also surface the current entity being
+downloaded (`sid`, `cid`, `pid`, release/relation id) so the user can
+see what is moving, not only the remaining gap.
 
 ### Search everywhere
 - **`/characters`** — search every character indexed on VNDB by

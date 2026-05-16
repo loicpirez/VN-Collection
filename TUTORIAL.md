@@ -71,7 +71,14 @@ Click any tile to open the detail page. The hero banner is editable —
 hit **Adjust** to pick a focal point with a drag pin. The cover is
 fully swappable via the **Cover source picker** (see step 4 below).
 
-Sections from top to bottom:
+The top identity card is stable: title, cover / banner, synopsis,
+core metadata, media, and the main action row stay in place. Everything
+below that is a customizable layout block. Use **Customize layout** on
+the VN page to reorder sections by drag-and-drop, hide/show optional
+sections, choose which ones start collapsed, or reset to the default
+order. The same layout can also be restored from Settings → **VN page**.
+
+Default sections:
 
 1. **Headline**: title, alttitle, rating, year, length, languages,
    platforms, developer. The length row carries the **Reading speed
@@ -274,6 +281,13 @@ Tabbed-style sections:
   through a Pokémon box. Touch + keyboard friendly. Resizing a
   shelf smaller surfaces an "N editions evicted" warning and
   sends them safely to the pool — nothing lost.
+  Use fullscreen for a larger visual view. Toggle **Front display**
+  rows to place editions face-out between normal rows, like display
+  stands/risers; one edition can still live in only one place.
+- **Aspect ratio** — VNDB release resolutions are normalized into
+  4:3 / 16:9 / 16:10 / 21:9 / other / unknown. The library can
+  filter/group by aspect, and **My editions** lets you manually
+  override the resolution/aspect when VNDB data is missing or wrong.
 - **Selective full download** — checkbox picker with Select all /
   Select none / Invert. Pick which VNs to fan-out staff /
   characters / developers for. Rate-limited by the global throttle.
@@ -383,7 +397,10 @@ active so you always know your current posture at a glance.
 
 ### Gear icon (full settings modal)
 
-The top-right gear opens the canonical settings modal — every content-
+The top-right gear opens the canonical settings modal. It is split
+into tabs: **Display**, **Content / Spoilers**, **Library defaults**,
+**Home layout**, **VN page layout**, **Data / accounts**,
+**Integrations**, and **Downloads / automation**. Every content-
 controls toggle is mirrored, plus:
 
 - **VNDB token** — pasted from [vndb.org/u/tokens](https://vndb.org/u/tokens).
@@ -395,7 +412,12 @@ controls toggle is mirrored, plus:
 - **Backup URL** — alternate VNDB API endpoint.
 - **Steam** — Web API key + 64-bit SteamID.
 - **Random quote source** — all VNDB or only from your collection.
-- **Default sort** — library opens with this sort by default.
+- **Default sort / order / group** — library opens with these defaults
+  when the URL does not already specify its own state.
+- **Home layout** — restore hidden Recently viewed / Reading queue /
+  Anniversaries sections.
+- **VN page layout** — restore hidden VN sections and choose which
+  sections start collapsed.
 - **Prefer native title** — swaps `title` / `alttitle` in the headline
   for VNs with both.
 
@@ -413,7 +435,8 @@ is fetching from VNDB:
 - **Active downloads count + queued count** on the badge.
 - Click to expand: per-job progress bars (Staff, Characters,
   Developers, VNDB pull, EGS sync) with the current `done/total`
-  and per-item error lines when something fails.
+  and the current entity being downloaded. Per-item error lines appear
+  when something fails.
 - **429 countdown** — when VNDB asks us to slow down, a banner
   appears above the pill: "VNDB returned 429, retrying in Ns",
   ticking every second until the retry fires.

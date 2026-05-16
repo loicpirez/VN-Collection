@@ -587,6 +587,36 @@ Upgraded `next` 15.1.6 → 16.2.6, `react` 19.0 → 19.2.6, `@types/react`
 
 ---
 
+## Batch N — audit-requested UX/data phases (2026-05-16) — shipped ✅
+
+- **Data safety**: VNDB Wishlist is now separate from local collection
+  status; removing VNDB Wishlist never deletes local `collection` data.
+  VNDB status dates use the app locale, and global refresh jobs use a
+  neutral cache/discovery label instead of "VNDB Pull".
+- **Home / library**: selective full download is available from `/`,
+  library default sort/order/group are persisted, home strips can be
+  hidden/collapsed/restored, French navbar overflow was compacted, and
+  download-status jobs show the current entity being downloaded.
+- **Editions**: release cards fall back to the parent VN cover,
+  "I own it" became My editions actions, My editions refreshes live,
+  and the edition picker is searchable with richer release metadata.
+- **Discovery/data**: `/egs` invalid nested anchors fixed, `/dumped`
+  gained URL-state tabs, `/top-ranked` was added with VNDB/EGS tabs,
+  and recommendations now explain why instead of showing raw tag
+  weights.
+- **Customization/settings**: VN detail sections below the immutable
+  hero can be reordered, hidden, collapsed, saved, and reset through
+  `vn_detail_section_layout_v1`; Settings is tabbed and exposes Home
+  layout + VN page layout panels.
+- **Shelf/aspect**: shelf layout has fullscreen and front-display rows
+  (`shelf_display_slot`), and library/item pages support game aspect
+  buckets with manual per-edition overrides.
+- **Stability**: VN/page-adjacent client fetches gained abort cleanup,
+  timers are cleared on unmount, and settings layout toggles avoid
+  stale whole-layout writes.
+
+---
+
 ## Future / backlog
 
 Items that have been sketched but not started:
@@ -625,7 +655,7 @@ missed locales.
 
 ### Tests
 
-Same convention as today — `npm run build` + `bash scripts/smoke.sh`
+Same convention as today — `yarn build` + `yarn smoke`
 are the gates. Smoke covers every page + the critical API endpoints.
 
 ### Performance
@@ -645,5 +675,5 @@ queries that could get slow:
 ### Rollout order
 
 Each step is independently mergeable. After every step, run
-`npm run build` + `bash scripts/smoke.sh` and click through the changed
+`yarn build` + `yarn smoke` and click through the changed
 surface.

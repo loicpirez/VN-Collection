@@ -175,6 +175,20 @@ priority-fallback default if the user wants the resolver's pick.
 
 ## Per-VN detail page
 
+### Customizable VN section layout ✅
+The immutable identity area (title, cover/banner, synopsis, core
+metadata/media/actions) stays fixed. Everything below it is managed by
+`VnDetailLayout` + `lib/vn-detail-layout.ts`:
+- drag-and-drop reorder via dnd-kit
+- hide/show optional sections
+- collapse/expand and "collapsed by default"
+- persisted as `vn_detail_section_layout_v1`
+- resettable from the VN page and Settings → VN page
+
+Registered sections include notes, routes, activity, relations, VNDB
+status, EGS, characters, cast, staff, tag overlap, similar VNs, My
+editions, releases, quotes, and cover/banner/edit tools.
+
 ### Producer / Developer / Publisher — three concepts, end-to-end ✅
 VNDB models three distinct things and we keep them distinct everywhere:
 - **Producer** — the *entity*: a company / individual / amateur group
@@ -535,12 +549,17 @@ posture at a glance. State is mirrored to localStorage + cookie by
 
 ### Full settings modal ✅ (gear icon)
 `SettingsButton` opens a modal portal (escapes the header stacking
-context) with every content-controls toggle mirrored, plus:
+context) with tabbed groups: Display, Content / Spoilers, Library
+defaults, Home layout, VN page layout, Data / accounts, Integrations,
+and Downloads / automation. It mirrors every content-controls toggle,
+plus:
 - **VNDB token** (paste from <https://vndb.org/u/tokens>) + writeback
   + status pull + fan-out toggle + backup URL
 - **Steam** Web API key + 64-bit SteamID
 - **Random quote source** — all VNDB or only from your collection
-- **Default sort** for the library
+- **Default sort / order / group** for the library
+- **Home layout** restore panel for hidden home strips
+- **VN page layout** restore / collapsed-by-default panel
 - **Original title first** (swap headline ↔ subtitle)
 - **Prefer local images** (read from `/api/files/` instead of remote
   CDNs when a mirror exists)
@@ -804,27 +823,37 @@ Three view modes via `?view=release|item|layout`:
 ### Drag-and-drop shelf layout ✅
 `/shelf?view=layout` opens a fully interactive 2-D shelf simulator
 backed by `<ShelfLayoutEditor>` (client) +
-`/api/shelves` / `/api/shelves/[id]` / `/api/shelves/[id]/slots`
+`/api/shelves` / `/api/shelves/[id]` /
+`/api/shelves/[id]/slots` / `/api/shelves/[id]/displays`
 (server). Models a real piece of furniture: a *shelf unit* is a
 named (cols × rows) grid, and each owned edition occupies at most
-one slot. Tables:
+one slot, either in a regular grid cell or in a face-out display row.
+Tables:
 
 ```sql
 shelf_unit(id, name, cols, rows, order_index, created_at, updated_at)
 shelf_slot(shelf_id FK, row, col, vn_id, release_id, placed_at,
            PRIMARY KEY(shelf_id, row, col),
            UNIQUE(vn_id, release_id))  -- one slot per edition
+shelf_display_slot(shelf_id FK, after_row, position, vn_id, release_id,
+           PRIMARY KEY(shelf_id, after_row, position),
+           UNIQUE(vn_id, release_id))  -- face-out display rows
 ```
 
 UI sections:
 - **Shelf tabs** — one chip per shelf with `placed / capacity` count.
   Active tab is highlighted. "New shelf" chip opens a name input.
 - **Toolbar** — resize buttons (− / + on Cols and on Rows, clamped
-  to 1–30), Rename (styled prompt), Delete (confirm dialog).
+  to 1–200), Rename (styled prompt), Delete (confirm dialog),
+  fullscreen, and Front display visibility.
 - **Grid** — `(cols × rows)` droppable cells, each rendered as an
   aspect-2/3 tile. Occupied cells show the cover, box-type chip,
   dumped chip, and a hover-revealed VN-title link to `/vn/[id]`.
   Empty cells show a faint "row · col" coordinate label.
+- **Front display rows** — optional face-out strips between normal
+  rows (plus top/bottom) for two-cover showcase / riser displays.
+  Moving an edition into a display row removes its regular-cell
+  placement and vice versa.
 - **Unplaced pool** — owned editions not yet placed, rendered as a
   responsive grid of draggable thumbnails.
 
@@ -834,6 +863,9 @@ DnD model:
 - Slot tile → empty cell : move (same or different shelf)
 - Slot tile → occupied   : atomic **swap** (no eviction)
 - Slot tile → pool       : remove placement
+- Any tile → front display : place face-out, evicting any display
+  occupant back to the pool
+- Front display tile → grid / pool : move or unplace
 
 Every action is optimistic — the UI patches state immediately,
 the request runs in the background, and any error rolls the patch
@@ -844,6 +876,17 @@ activation, so the link tap-through still works), `TouchSensor`
 Resizing surfaces an "N editions evicted" warning if the new
 bounds are smaller than the current placements; evicted editions
 land back in the Unplaced pool, never silently lost.
+
+Fullscreen mode uses the same editor state/API but increases tile
+size and places the whole layout in a full-viewport overlay.
+
+### Aspect ratio / resolution tracking ✅
+VNDB release `resolution` is normalized into
+`release_resolution_cache` with buckets `4:3`, `16:9`, `16:10`,
+`21:9`, `other`, and `unknown`. Per-owned-edition corrections live
+in `owned_release_aspect_override`, taking precedence over the VNDB
+cache. Library URL state supports `?aspect=16:9` and `group=aspect`;
+the My editions editor can set a manual width/height or bucket.
 
 Multi-shelf navigation ("Pokémon box" pattern): each shelf can
 independently have its own (cols × rows) size, and the user can
@@ -965,6 +1008,9 @@ filled.
 | `character_image` | Local mirror of VNDB character images | character_id PK, local_path, original_url, fetched_at |
 | `shelf_unit` | One per "real shelf" the user models | id, name, cols, rows, order_index, created_at, updated_at |
 | `shelf_slot` | Sparse placement table (one row per occupied cell) | composite PK (shelf_id, row, col); UNIQUE(vn_id, release_id); FK on (vn_id, release_id) cascades from owned_release |
+| `shelf_display_slot` | Face-out / front-display shelf slots | composite PK (shelf_id, after_row, position); UNIQUE(vn_id, release_id); FK on (vn_id, release_id) cascades from owned_release |
+| `release_resolution_cache` | Normalized VNDB release resolutions | release_id PK, width, height, raw_resolution, aspect_key, fetched_at |
+| `owned_release_aspect_override` | Manual aspect/resolution corrections | composite PK (vn_id, release_id); width, height, aspect_key, note, updated_at |
 | `staff_credit_index` | Derived index from `staff_full` cache | (sid, vn_id, is_va) — narrows brand-overlap scans before parsing JSON |
 | `character_vn_index` | Derived index from `char_full` cache | (character_id, vn_id) — narrows trait fan-out before parsing JSON |
 | `app_setting_audit` | Append-only audit log | id, key, prior_preview, next_preview, changed_at — last 4 chars only |
