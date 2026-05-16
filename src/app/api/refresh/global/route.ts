@@ -59,7 +59,11 @@ export async function POST(req: NextRequest) {
   const bust = db.prepare(
     "DELETE FROM vndb_cache WHERE " +
     "cache_key LIKE 'egs:cover-resolved:%' OR " +
-    "cache_key LIKE 'anticipated:%' OR " +
+    // Real EGS anticipated cache keys are `egs:anticipated:%` —
+    // the previous `anticipated:%` pattern matched zero rows so
+    // the global refresh silently left the /upcoming?tab=anticipated
+    // cache stale up to 12h. Restored to match the real prefix.
+    "cache_key LIKE 'egs:anticipated:%' OR " +
     "cache_key LIKE 'egs:top-ranked:%' OR " +
     "cache_key LIKE '% /stats|%' OR " +
     "cache_key LIKE '% /schema|%' OR " +

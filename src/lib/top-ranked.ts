@@ -93,6 +93,16 @@ export interface VndbTopRankedPage {
   page: number;
   pageSize: number;
   hasMore: boolean;
+  /**
+   * True when `cachedFetch` returned an expired cache row because the
+   * upstream VNDB request failed (stale-while-error). Surfaced in the
+   * UI so the user sees a "VNDB unreachable, showing cached data"
+   * banner instead of silently rendering stale rows — parity with the
+   * EGS top-ranked tab which already exposes this signal.
+   */
+  stale?: boolean;
+  /** `fetched_at` of the cache row that produced the stale rows. */
+  fetchedAt?: number;
 }
 
 /**
@@ -136,5 +146,7 @@ export async function fetchVndbTopRankedPage(
     page: safePage,
     pageSize: safeSize,
     hasMore: !!r.data.more,
+    stale: r.stale,
+    fetchedAt: r.cachedAt,
   };
 }

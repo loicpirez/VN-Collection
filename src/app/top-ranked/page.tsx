@@ -92,11 +92,16 @@ export default async function TopRankedPage({
             {t.topRanked.tabEgs}
           </TabLink>
         </nav>
-        <p className="mt-2 text-[10px] text-muted">
-          {tab === 'vndb'
-            ? t.topRanked.thresholdVndb.replace('{n}', String(VNDB_TOP_MIN_VOTES))
-            : t.topRanked.thresholdEgs.replace('{n}', String(EGS_TOP_MIN_VOTES))}
-        </p>
+        <div className="mt-2 space-y-0.5 text-[10px] text-muted">
+          <p>
+            {tab === 'vndb' ? t.topRanked.methodVndb : t.topRanked.methodEgs}
+          </p>
+          <p>
+            {tab === 'vndb'
+              ? t.topRanked.thresholdVndb.replace('{n}', String(VNDB_TOP_MIN_VOTES))
+              : t.topRanked.thresholdEgs.replace('{n}', String(EGS_TOP_MIN_VOTES))}
+          </p>
+        </div>
       </header>
 
       <Suspense key={`${tab}-${page}`} fallback={<SkeletonCardGrid count={12} />}>
@@ -130,12 +135,13 @@ async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Diction
         </>
       );
     }
-    const { rows, hasMore } = await fetchVndbTopRankedPage(page, PAGE_SIZE);
+    const { rows, hasMore, stale, fetchedAt } = await fetchVndbTopRankedPage(page, PAGE_SIZE);
     if (rows.length === 0) {
       return <EmptyState message={t.topRanked.emptyVndb} />;
     }
     return (
       <>
+        {stale && <StaleVndbBanner fetchedAt={fetchedAt ?? null} t={t} />}
         <VndbSection rows={rows} t={t} startRank={(page - 1) * PAGE_SIZE} />
         <Paginator tab={tab} page={page} hasMore={hasMore} t={t} />
       </>
@@ -178,6 +184,28 @@ function StaleEgsBanner({ fetchedAt, t }: { fetchedAt: number | null; t: Diction
       role="status"
     >
       <p className="font-semibold">{t.topRanked.staleNoticeTitle}</p>
+      <p className="mt-0.5 text-[11px] opacity-90">
+        {t.topRanked.staleNoticeBody.replace('{when}', when)}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Mirror of {@link StaleEgsBanner} for the VNDB tab. Surfaces the
+ * `stale` flag now plumbed through `fetchVndbTopRankedPage` so the
+ * user sees an explicit "VNDB unreachable, cached data" notice
+ * instead of silently reading old rows. Parity with the EGS tab
+ * which already exposed this signal.
+ */
+function StaleVndbBanner({ fetchedAt, t }: { fetchedAt: number | null; t: Dictionary }) {
+  const when = fetchedAt ? new Date(fetchedAt).toLocaleString() : '—';
+  return (
+    <div
+      className="mb-4 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-[12px] text-status-on_hold"
+      role="status"
+    >
+      <p className="font-semibold">{t.topRanked.staleNoticeTitleVndb}</p>
       <p className="mt-0.5 text-[11px] opacity-90">
         {t.topRanked.staleNoticeBody.replace('{when}', when)}
       </p>
