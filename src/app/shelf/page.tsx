@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, ArrowDown, Box, Coins, Layers, LayoutGrid, Library, Package } from 'lucide-react';
+import { ArrowLeft, ArrowDown, Box, Coins, Eye, Layers, LayoutGrid, Library, Package } from 'lucide-react';
 import {
   listAllOwnedReleases,
   listShelves,
@@ -10,10 +10,19 @@ import {
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { ShelfLayoutEditor } from '@/components/ShelfLayoutEditor';
+import { ShelfSpatialView } from '@/components/ShelfSpatialView';
 
 export const dynamic = 'force-dynamic';
 
-type ShelfView = 'release' | 'item' | 'layout';
+// Four view modes:
+// - `spatial` (default): polished read-only browse of every shelf
+//   rendered as a visual grid with Top/Bottom/Between display rows.
+//   No drag, no mutation. Has a fullscreen toggle.
+// - `release` / `item`: read-only flat grouped grids by physical
+//   location tag / by VN. Useful for power users who track
+//   `physical_location` text tags independent of the spatial layout.
+// - `layout`: the drag-and-drop editor (`<ShelfLayoutEditor>`).
+type ShelfView = 'spatial' | 'release' | 'item' | 'layout';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -65,8 +74,16 @@ export default async function ShelfPage({
   const locale = await getLocale();
   const { view: viewRaw } = await searchParams;
   const view: ShelfView =
-    viewRaw === 'item' ? 'item' : viewRaw === 'layout' ? 'layout' : 'release';
-  const items = listAllOwnedReleases();
+    viewRaw === 'item' ? 'item' :
+    viewRaw === 'layout' ? 'layout' :
+    viewRaw === 'release' ? 'release' :
+    'spatial';
+  // Only load the flat owned-release list when one of the flat
+  // views is requested. The spatial view reads shelf_unit/slot/
+  // display_slot tables; loading every owned_release on every
+  // shelf page render is wasteful and was the most expensive
+  // query on /shelf before this split.
+  const items = view === 'release' || view === 'item' ? listAllOwnedReleases() : [];
 
   // Per-item view collapses multiple owned releases for the same VN
   // into one card. The card surfaces "N editions" so the user keeps
@@ -176,9 +193,16 @@ export default async function ShelfPage({
             with 2 editions" so the user can see at a glance how
             many distinct titles they own physically.
           */}
-          <div className="mb-4 inline-flex rounded-xl border border-border bg-bg-card p-1 text-sm">
+          <div className="mb-4 inline-flex flex-wrap rounded-xl border border-border bg-bg-card p-1 text-sm">
             <TabLink
               href="/shelf"
+              active={view === 'spatial'}
+              icon={<Eye className="h-3.5 w-3.5" />}
+            >
+              {t.shelf.viewSpatial}
+            </TabLink>
+            <TabLink
+              href="/shelf?view=release"
               active={view === 'release'}
               icon={<Package className="h-3.5 w-3.5" />}
             >
@@ -199,6 +223,8 @@ export default async function ShelfPage({
               {t.shelf.viewLayout}
             </TabLink>
           </div>
+
+          {view === 'spatial' && <ShelfSpatialView />}
 
           {view === 'release' &&
             sortedKeys.map((key) => {
