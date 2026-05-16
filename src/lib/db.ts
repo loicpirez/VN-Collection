@@ -67,18 +67,31 @@ function ensureColumn(db: Database.Database, table: string, column: string, ddl:
 }
 
 function open(): Database.Database {
-  if (global.__vndb_db) return global.__vndb_db;
-  const dbPath = resolveDbPath();
-  // Path is constructed at call time (not as a module-level
-  // constant) so Turbopack's NFT tracer can't statically follow it
-  // into the project tree. `mkdirSync` then runs the first time
-  // anything in this module is reached at runtime — schema /
-  // migration work is amortised over the lifetime of the Node
-  // process via `global.__vndb_db`.
-  mkdirSync(dirname(dbPath), { recursive: true });
-  const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  // HMR resilience: reuse the cached connection if it exists, but
+  // ALWAYS re-run the idempotent migration body below. A long-running
+  // `next dev` process keeps `global.__vndb_db` across Turbopack
+  // hot-reloads; without re-running the migration block, source-tree
+  // edits that add a new table or column would never be reflected in
+  // the cached connection — leading to "no such table" runtime 500s
+  // on routes that query the new schema (the very same failure mode
+  // the QA pass earlier this session observed on /shelf,
+  // /producer/[id], /upcoming, /top-ranked, /egs). Every DDL below
+  // is `CREATE TABLE IF NOT EXISTS`, `ensureColumn` (idempotent), or
+  // a marker-gated one-shot migration that short-circuits on a
+  // SELECT app_setting; re-running them on each open is safe and
+  // cheap (≪1ms after warm-up).
+  let db = global.__vndb_db as Database.Database | undefined;
+  if (!db) {
+    const dbPath = resolveDbPath();
+    // Path is constructed at call time (not as a module-level
+    // constant) so Turbopack's NFT tracer can't statically follow it
+    // into the project tree. `mkdirSync` then runs the first time
+    // anything in this module is reached at runtime.
+    mkdirSync(dirname(dbPath), { recursive: true });
+    db = new Database(dbPath);
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS vn (
       id              TEXT PRIMARY KEY,
