@@ -137,14 +137,28 @@ function RoleSection({
       {vns.length === 0 ? (
         <p className="text-xs text-muted/80">{emptyMessage}</p>
       ) : (
-        <ul className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+        <ul
+          className="grid gap-2"
+          style={{
+            // Density-aware grid (was hard `minmax(220px, 1fr)`).
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+          }}
+        >
           {vns.map((v) => (
             <li key={v.id} className="relative">
               <Link
                 href={`/vn/${v.id}`}
                 className="group flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 pr-10 transition-colors hover:border-accent"
               >
-                <div className="h-16 w-11 shrink-0 overflow-hidden rounded">
+                {/* Density-aware row cover (was hard `h-16 w-11`). */}
+                <div
+                  className="shrink-0 overflow-hidden rounded"
+                  style={{
+                    width: 'clamp(44px, calc(var(--card-density-px, 220px) * 0.22), 120px)',
+                    aspectRatio: '2 / 3',
+                  }}
+                >
                   <SafeImage
                     src={v.image?.thumbnail || v.image?.url || null}
                     sexual={v.image?.sexual ?? null}

@@ -174,7 +174,13 @@ export default async function EgsPage() {
                   className="flex min-w-0 flex-1 items-start gap-3"
                   aria-label={l.vn_title}
                 >
-                  <div className="h-20 w-14 shrink-0 overflow-hidden rounded">
+                  <div
+                    className="shrink-0 overflow-hidden rounded"
+                    style={{
+                      width: 'clamp(56px, calc(var(--card-density-px, 220px) * 0.28), 140px)',
+                      aspectRatio: '2 / 3',
+                    }}
+                  >
                     <SafeImage
                       src={l.vn_image_thumb}
                       localSrc={l.vn_local_image_thumb}
@@ -240,7 +246,13 @@ export default async function EgsPage() {
                   className="flex min-w-0 flex-1 items-start gap-3"
                   aria-label={u.vn_title}
                 >
-                  <div className="h-20 w-14 shrink-0 overflow-hidden rounded">
+                  <div
+                    className="shrink-0 overflow-hidden rounded"
+                    style={{
+                      width: 'clamp(56px, calc(var(--card-density-px, 220px) * 0.28), 140px)',
+                      aspectRatio: '2 / 3',
+                    }}
+                  >
                     <SafeImage
                       src={u.vn_image_thumb}
                       localSrc={u.vn_local_image_thumb}

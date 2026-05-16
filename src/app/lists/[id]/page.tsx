@@ -148,7 +148,14 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           {t.lists.detailEmpty}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        // Density-aware grid (was hard breakpoint-only grid-cols-N).
+        <div
+          className="grid gap-5"
+          style={{
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+          }}
+        >
           {items.map((it) => {
             const row = rows.get(it.vn_id);
             const developers = parseDevelopers(row?.developers ?? null);

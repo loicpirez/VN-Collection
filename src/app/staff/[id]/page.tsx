@@ -210,7 +210,17 @@ export default async function StaffPage({
             <Mic2 className="h-4 w-4 text-accent" /> {t.staff.voiceCredits}
             <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {voice.length}</span>
           </h2>
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+          <ul
+            className="grid gap-3"
+            style={{
+              // Density-aware: voice cards carry a fair amount of
+              // per-character detail so the default fallback is
+              // 280px (was a hard floor). User can dial the column
+              // count via the global density slider.
+              gridTemplateColumns:
+                'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 280px)), 1fr))',
+            }}
+          >
             {voice.map((credit) => (
               <li key={credit.vn.id}>
                 <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle}>
@@ -339,7 +349,15 @@ function VnCard({
         vn.in_collection ? 'border-accent/40' : 'border-border'
       } hover:border-accent`}
     >
-      <Link href={`/vn/${vn.id}`} className="block h-24 w-16 shrink-0 overflow-hidden rounded">
+      {/* Density-aware row cover. */}
+      <Link
+        href={`/vn/${vn.id}`}
+        className="block shrink-0 overflow-hidden rounded"
+        style={{
+          width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.32), 160px)',
+          aspectRatio: '2 / 3',
+        }}
+      >
         <SafeImage
           src={vn.image_url || vn.image_thumb}
           localSrc={vn.local_image || vn.local_image_thumb}

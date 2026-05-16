@@ -84,7 +84,16 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
       {items.length === 0 ? (
         <div className="py-12 text-center text-muted">{t.series.emptyDetail}</div>
       ) : (
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        // Density-aware grid (was hard `grid-cols-2..xl:grid-cols-6`).
+        // Matches the canonical listing template; the density slider
+        // now governs the column count on this page too.
+        <div
+          className="grid gap-5"
+          style={{
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+          }}
+        >
           {items.map((it) => (
             <div key={it.id} className="group relative">
               <SeriesRemoveVn seriesId={series.id} vnId={it.id} />

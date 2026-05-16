@@ -280,12 +280,21 @@ export default async function CharacterPage({
                     href={`/vn/${v.id}`}
                     className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
                   >
-                    <SafeImage
-                      src={v.image?.thumbnail || v.image?.url || null}
-                      sexual={v.image?.sexual ?? null}
-                      alt={v.title ?? v.id}
-                      className="h-24 w-16 shrink-0 rounded"
-                    />
+                    {/* Density-aware row cover. */}
+                    <div
+                      className="shrink-0 overflow-hidden rounded"
+                      style={{
+                        width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.32), 160px)',
+                        aspectRatio: '2 / 3',
+                      }}
+                    >
+                      <SafeImage
+                        src={v.image?.thumbnail || v.image?.url || null}
+                        sexual={v.image?.sexual ?? null}
+                        alt={v.title ?? v.id}
+                        className="h-full w-full"
+                      />
+                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-1">
                         <span className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">

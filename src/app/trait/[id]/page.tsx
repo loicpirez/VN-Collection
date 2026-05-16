@@ -135,13 +135,22 @@ export default async function TraitPage({
                       owned ? 'border-accent/40' : 'border-border'
                     }`}
                   >
-                    <SafeImage
-                      src={c.image?.url ?? null}
-                      localSrc={localPaths.get(c.id)?.local_path ?? null}
-                      sexual={c.image?.sexual ?? null}
-                      alt={c.name}
-                      className="h-24 w-16 shrink-0 rounded"
-                    />
+                    {/* Density-aware character cover. */}
+                    <div
+                      className="shrink-0 overflow-hidden rounded"
+                      style={{
+                        width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.32), 160px)',
+                        aspectRatio: '2 / 3',
+                      }}
+                    >
+                      <SafeImage
+                        src={c.image?.url ?? null}
+                        localSrc={localPaths.get(c.id)?.local_path ?? null}
+                        sexual={c.image?.sexual ?? null}
+                        alt={c.name}
+                        className="h-full w-full"
+                      />
+                    </div>
                     <div className="min-w-0 flex-1">
                       <span className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
                         {c.name}

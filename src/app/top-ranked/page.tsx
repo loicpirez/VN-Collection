@@ -335,7 +335,11 @@ function VndbSection({ rows, t, startRank = 0 }: { rows: VndbTopRanked[]; t: Dic
     <section className="rounded-xl border border-border bg-bg-card p-3 sm:p-5">
       <ol
         className="grid gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(260px, var(--card-density-px, 260px))), 1fr))' }}
+        // Density-aware grid — the previous `max(260px, var(...))` floor
+        // pinned the column to ≥260px regardless of slider position, so
+        // dialling the slider down did nothing. Use the var with a 260
+        // default and let the slider go below it.
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 260px)), 1fr))' }}
       >
         {rows.map((v, i) => (
           <li
@@ -416,7 +420,11 @@ function EgsSection({
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-3 sm:p-5">
       <ol
         className="grid gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(260px, var(--card-density-px, 260px))), 1fr))' }}
+        // Density-aware grid — the previous `max(260px, var(...))` floor
+        // pinned the column to ≥260px regardless of slider position, so
+        // dialling the slider down did nothing. Use the var with a 260
+        // default and let the slider go below it.
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 260px)), 1fr))' }}
       >
         {rows.map((r, i) => {
           const vndbCover = r.vndb_id ? covers.get(r.vndb_id) ?? null : null;

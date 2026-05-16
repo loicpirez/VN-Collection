@@ -384,7 +384,9 @@ function ReleasesSection({
           */}
           <ul
             className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(240px, var(--card-density-px, 240px))), 1fr))' }}
+            // Density-aware grid — removed `max(240px, ...)` floor so
+            // the slider can take the column count below 240px.
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 240px)), 1fr))' }}
           >
             {rels.map((r) => (
               <li key={r.id}>
@@ -485,7 +487,8 @@ function AnticipatedSection({
           larger sizes. */}
       <ol
         className="grid gap-4 lg:gap-5"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(280px, var(--card-density-px, 280px))), 1fr))' }}
+        // Density-aware grid — removed `max(280px, ...)` floor.
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 280px)), 1fr))' }}
       >
         {rows.map((a, i) => {
           // Prefer the VNDB cover when the anticipated row carries a

@@ -177,7 +177,17 @@ export default async function DumpedPage({
                         fullyDumped ? 'border-status-completed/50' : 'border-border'
                       } hover:border-accent`}
                     >
-                      <div className="h-24 w-16 shrink-0 overflow-hidden rounded">
+                      {/* Density-aware cover — the card column
+                          scales via --card-density-px, so the cover
+                          must too. Hard `h-24 w-16` previously looked
+                          tiny in a wide column. */}
+                      <div
+                        className="shrink-0 overflow-hidden rounded"
+                        style={{
+                          width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.32), 160px)',
+                          aspectRatio: '2 / 3',
+                        }}
+                      >
                         <SafeImage
                           src={e.vn_image_url || e.vn_image_thumb}
                           localSrc={e.vn_local_image_thumb}
