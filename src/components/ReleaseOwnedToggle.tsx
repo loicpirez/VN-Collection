@@ -1,10 +1,27 @@
 'use client';
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Check, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
+
+/**
+ * Custom event broadcast by every component that mutates owned-edition
+ * state for a VN. Listeners (OwnedEditionsSection, ReleasesSection,
+ * any future widget) re-fetch their own slice rather than waiting on a
+ * full router.refresh().
+ *
+ * `detail.vnId` lets a strip filter out events for VNs it doesn't care
+ * about. `detail.releaseId` is informative — useful for optimistic
+ * highlights but not required for the refetch path.
+ */
+export const OWNED_EDITIONS_EVENT = 'vn:owned-editions-changed';
+
+export interface OwnedEditionsChangedDetail {
+  vnId: string;
+  releaseId: string;
+  isNowOwned: boolean;
+}
 
 interface Props {
   vnId: string;
@@ -17,14 +34,16 @@ interface Props {
  * user can flip the inventory state without navigating to /vn/[id] first.
  * The "Edit" button just deep-links to /vn/[vnId]#editions so they can fill in
  * location, edition_label, price etc. there.
+ *
+ * On success we broadcast `OWNED_EDITIONS_EVENT` so OwnedEditionsSection
+ * and any other live consumer can append/remove the edition without a
+ * full page reload.
  */
 export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
   const t = useT();
   const toast = useToast();
-  const router = useRouter();
   const [owned, setOwned] = useState(initialOwned);
   const [busy, setBusy] = useState(false);
-  const [, startTransition] = useTransition();
 
   async function toggle() {
     setBusy(true);
@@ -41,9 +60,17 @@ export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
           };
       const r = await fetch(url, init);
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
-      setOwned(!owned);
-      toast.success(owned ? t.toast.removed : t.toast.added);
-      startTransition(() => router.refresh());
+      const nowOwned = !owned;
+      setOwned(nowOwned);
+      toast.success(nowOwned ? t.toast.added : t.toast.removed);
+      // Broadcast so OwnedEditionsSection (and any future listener) refetches
+      // immediately instead of waiting on router.refresh() — which would re-run
+      // the entire server tree for a single per-edition toggle.
+      window.dispatchEvent(
+        new CustomEvent<OwnedEditionsChangedDetail>(OWNED_EDITIONS_EVENT, {
+          detail: { vnId, releaseId, isNowOwned: nowOwned },
+        }),
+      );
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -66,6 +93,7 @@ export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
           type="button"
           onClick={toggle}
           disabled={busy}
+          aria-pressed={owned}
           className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
             owned
               ? 'border-status-completed bg-status-completed/15 text-status-completed'
@@ -73,10 +101,12 @@ export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
           }`}
         >
           {busy ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
+            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
           ) : owned ? (
-            <Check className="h-3 w-3" />
-          ) : null}
+            <Check className="h-3 w-3" aria-hidden />
+          ) : (
+            <Plus className="h-3 w-3" aria-hidden />
+          )}
           {owned ? t.releases.ownedYes : t.releases.markOwned}
         </button>
         {owned && (
@@ -84,7 +114,7 @@ export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
             href={`/vn/${vnId}`}
             className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
           >
-            <Pencil className="h-3 w-3" />
+            <Pencil className="h-3 w-3" aria-hidden />
             {t.releases.editInventory}
           </Link>
         )}
@@ -94,9 +124,10 @@ export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
             onClick={toggle}
             disabled={busy}
             className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-status-dropped/10 hover:text-status-dropped"
-            title={t.common.delete}
+            title={t.releases.removeMyEdition}
+            aria-label={t.releases.removeMyEdition}
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash2 className="h-3 w-3" aria-hidden />
           </button>
         )}
       </div>

@@ -12,11 +12,16 @@ import {
   Languages,
   Mic2,
   Package,
+  Plus,
   Shield,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { LangFlag } from './LangFlag';
 import { SkeletonRows } from './Skeleton';
+import {
+  OWNED_EDITIONS_EVENT,
+  type OwnedEditionsChangedDetail,
+} from './ReleaseOwnedToggle';
 import type { VndbRelease } from '@/lib/vndb-types';
 
 const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> = {
@@ -77,6 +82,24 @@ export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; 
     if (open) refreshOwned();
   }, [open, refreshOwned]);
 
+  // Keep the local "owned" set in sync with mutations coming from
+  // elsewhere — primarily OwnedEditionsSection removing a tile, or the
+  // /release/[id] page's ReleaseOwnedToggle.
+  useEffect(() => {
+    function onChange(e: Event) {
+      const detail = (e as CustomEvent<OwnedEditionsChangedDetail>).detail;
+      if (!detail || detail.vnId !== vnId) return;
+      setOwned((prev) => {
+        const next = new Set(prev);
+        if (detail.isNowOwned) next.add(detail.releaseId);
+        else next.delete(detail.releaseId);
+        return next;
+      });
+    }
+    window.addEventListener(OWNED_EDITIONS_EVENT, onChange);
+    return () => window.removeEventListener(OWNED_EDITIONS_EVENT, onChange);
+  }, [vnId]);
+
   async function toggleOwned(releaseId: string) {
     if (!inCollection || pendingId) return;
     const isOwned = owned.has(releaseId);
@@ -94,6 +117,14 @@ export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; 
       if (isOwned) next.delete(releaseId);
       else next.add(releaseId);
       setOwned(next);
+      // Tell OwnedEditionsSection / any other listener so the My-Editions
+      // section appends/removes the tile without waiting on the user to
+      // refresh the page.
+      window.dispatchEvent(
+        new CustomEvent<OwnedEditionsChangedDetail>(OWNED_EDITIONS_EVENT, {
+          detail: { vnId, releaseId, isNowOwned: !isOwned },
+        }),
+      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -172,14 +203,17 @@ export function ReleasesSection({ vnId, inCollection = false }: { vnId: string; 
                           type="button"
                           onClick={() => toggleOwned(r.id)}
                           disabled={pendingId === r.id}
+                          aria-pressed={isOwned}
                           className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
                             isOwned
                               ? 'border-status-completed bg-status-completed/20 text-status-completed'
                               : 'border-border bg-bg text-muted hover:border-accent hover:text-white'
                           }`}
-                          title={isOwned ? t.releases.ownedYes : t.releases.markOwned}
+                          title={isOwned ? t.releases.removeMyEdition : t.releases.markOwned}
                         >
-                          {isOwned ? <Check className="h-3 w-3" /> : null}
+                          {isOwned
+                            ? <Check className="h-3 w-3" aria-hidden />
+                            : <Plus className="h-3 w-3" aria-hidden />}
                           {isOwned ? t.releases.ownedYes : t.releases.markOwned}
                         </button>
                       )}

@@ -25,6 +25,10 @@ import { DateInput } from './DateInput';
 import { TagInput } from './TagInput';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
+import {
+  OWNED_EDITIONS_EVENT,
+  type OwnedEditionsChangedDetail,
+} from './ReleaseOwnedToggle';
 import { useT } from '@/lib/i18n/client';
 import { BOX_TYPES, LOCATIONS, type BoxType, type Location } from '@/lib/types';
 import type { VndbRelease } from '@/lib/vndb-types';
@@ -59,7 +63,26 @@ const CONDITIONS: { value: string; key: 'new' | 'used' | 'sealed' | 'opened' | '
 
 const COMMON_CURRENCIES = ['JPY', 'EUR', 'USD', 'GBP', 'CNY', 'KRW'];
 
-export function OwnedEditionsSection({ vnId }: { vnId: string }) {
+/**
+ * Parent VN identity used to fall back when a release has no
+ * package cover. The OwnedEditionsSection tile would otherwise show
+ * a blank "no image" placeholder for the very common case of
+ * digital-only / EGS releases where VNDB hasn't mirrored a
+ * `pkgfront`.
+ */
+export interface ParentVnCover {
+  url: string | null;
+  localPath: string | null;
+  sexual: number | null;
+}
+
+interface SectionProps {
+  vnId: string;
+  parentVnTitle?: string | null;
+  parentVnCover?: ParentVnCover;
+}
+
+export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: SectionProps) {
   const t = useT();
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -94,6 +117,20 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
     };
   }, [reload]);
 
+  // Re-fetch whenever any other component (ReleasesSection's per-row
+  // toggle, /release/[id]'s ReleaseOwnedToggle, future widgets) flips
+  // ownership for this VN. Keeps the My-Editions list and the
+  // releases list visually in sync without a full page reload.
+  useEffect(() => {
+    function onChange(e: Event) {
+      const detail = (e as CustomEvent<OwnedEditionsChangedDetail>).detail;
+      if (!detail || detail.vnId !== vnId) return;
+      void reload();
+    }
+    window.addEventListener(OWNED_EDITIONS_EVENT, onChange);
+    return () => window.removeEventListener(OWNED_EDITIONS_EVENT, onChange);
+  }, [reload, vnId]);
+
   const releaseMap = useMemo(() => new Map(releases.map((r) => [r.id, r])), [releases]);
   const unownedReleases = useMemo(() => {
     const ownedSet = new Set(owned.map((o) => o.release_id));
@@ -124,7 +161,14 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
       await reload();
       setAdderOpen(false);
       setEditingId(releaseId);
-      toast.success(t.toast.saved);
+      toast.success(t.toast.added);
+      // Tell sibling components (ReleasesSection's per-row toggle,
+      // /release/[id]/ReleaseOwnedToggle) so checkmarks stay in sync.
+      window.dispatchEvent(
+        new CustomEvent<OwnedEditionsChangedDetail>(OWNED_EDITIONS_EVENT, {
+          detail: { vnId, releaseId, isNowOwned: true },
+        }),
+      );
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -144,6 +188,11 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
       if (!r.ok) throw new Error(t.common.error);
       await reload();
       toast.success(t.toast.removed);
+      window.dispatchEvent(
+        new CustomEvent<OwnedEditionsChangedDetail>(OWNED_EDITIONS_EVENT, {
+          detail: { vnId, releaseId, isNowOwned: false },
+        }),
+      );
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -200,51 +249,15 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
       </header>
 
       {adderOpen && (unownedReleases.length > 0 || canAddSynthetic) && (
-        <div className="border-t border-border bg-bg-elev/30 px-4 py-3 sm:px-6">
-          <p className="mb-2 text-[11px] uppercase tracking-wider text-muted">
-            {unownedReleases.length > 0 ? t.inventory.pickRelease : t.inventory.pickSynthetic}
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {/*
-              Synthetic-edition tile: shown when VNDB has no release
-              data for this VN (EGS-only items, or VNs whose release
-              fan-out hasn't run yet). Lets the user record physical
-              storage / dump status / price without waiting for a
-              release id from VNDB.
-            */}
-            {canAddSynthetic && (
-              <button
-                type="button"
-                onClick={() => addEdition(syntheticReleaseId)}
-                disabled={busy}
-                className="flex flex-col gap-1 rounded-md border border-accent/50 bg-accent/5 p-2 text-left text-xs transition-colors hover:border-accent disabled:opacity-50"
-              >
-                <span className="line-clamp-2 font-semibold">{t.inventory.syntheticTitle}</span>
-                <span className="text-[11px] text-muted">{t.inventory.syntheticHint}</span>
-              </button>
-            )}
-            {unownedReleases.slice(0, 30).map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => addEdition(r.id)}
-                disabled={busy}
-                className="flex flex-col gap-1 rounded-md border border-border bg-bg-card p-2 text-left text-xs transition-colors hover:border-accent disabled:opacity-50"
-              >
-                <span className="line-clamp-2 font-semibold">{r.title}</span>
-                <div className="flex flex-wrap gap-1 text-[11px] text-muted">
-                  {r.released && <span className="tabular-nums">{r.released}</span>}
-                  {r.platforms.slice(0, 3).map((p) => (
-                    <span key={p}>{p}</span>
-                  ))}
-                  {r.languages.slice(0, 4).map((l) => (
-                    <LangFlag key={l.lang} lang={l.lang} className="text-xs" />
-                  ))}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+        <EditionPicker
+          unownedReleases={unownedReleases}
+          parentVnCover={parentVnCover}
+          parentVnTitle={parentVnTitle ?? null}
+          canAddSynthetic={canAddSynthetic}
+          syntheticReleaseId={syntheticReleaseId}
+          busy={busy}
+          onAdd={addEdition}
+        />
       )}
 
       {owned.length === 0 ? (
@@ -256,15 +269,23 @@ export function OwnedEditionsSection({ vnId }: { vnId: string }) {
           {owned.map((edition) => {
             const release = releaseMap.get(edition.release_id);
             const cover = release?.images.find((img) => img.type === 'pkgfront') ?? release?.images[0] ?? null;
+            // Release-level cover wins; otherwise fall back to the
+            // parent VN's cover (most common for digital / EGS-only
+            // releases that VNDB hasn't mirrored a `pkgfront` for).
+            const coverSrc = cover?.url ?? parentVnCover?.url ?? null;
+            const coverLocal = cover?.url ? null : parentVnCover?.localPath ?? null;
+            const coverSexual = cover?.sexual ?? parentVnCover?.sexual ?? null;
+            const coverAlt = release?.title ?? parentVnTitle ?? edition.release_id;
             const isEditing = editingId === edition.release_id;
             return (
               <li key={edition.release_id} className="px-4 py-4 sm:px-6">
                 <div className="flex gap-4">
                   <div className="w-24 shrink-0">
                     <SafeImage
-                      src={cover?.url ?? null}
-                      sexual={cover?.sexual ?? null}
-                      alt={release?.title ?? edition.release_id}
+                      src={coverSrc}
+                      localSrc={coverLocal}
+                      sexual={coverSexual}
+                      alt={coverAlt}
                       className="aspect-[2/3] w-full rounded-md border border-border"
                     />
                   </div>
@@ -609,6 +630,303 @@ function EditionEditor({
         <button type="button" className="btn btn-primary" onClick={submit} disabled={busy}>
           <Save className="h-4 w-4" /> {t.common.save}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function fmtRes(r: VndbRelease['resolution']): string | null {
+  if (r == null) return null;
+  if (typeof r === 'string') return r;
+  return `${r[0]}×${r[1]}`;
+}
+
+/**
+ * "Add edition" picker. Lists every release of the VN that the user
+ * doesn't already own, with enough info per row to choose correctly:
+ * cover (falling back to the parent VN cover), title + alttitle,
+ * release date, languages with MTL flag, platforms, dev / pub,
+ * resolution, and the official / patch / freeware / uncensored / ero
+ * flags. A debounced search + filter chips narrow the list — there's
+ * no arbitrary "first 30" cap.
+ *
+ * The synthetic "Main edition" tile is still shown when no real VNDB
+ * release exists, for EGS-only items.
+ */
+function EditionPicker({
+  unownedReleases,
+  parentVnCover,
+  parentVnTitle,
+  canAddSynthetic,
+  syntheticReleaseId,
+  busy,
+  onAdd,
+}: {
+  unownedReleases: VndbRelease[];
+  parentVnCover?: ParentVnCover;
+  parentVnTitle: string | null;
+  canAddSynthetic: boolean;
+  syntheticReleaseId: string;
+  busy: boolean;
+  onAdd: (releaseId: string) => void;
+}) {
+  const t = useT();
+  const [search, setSearch] = useState('');
+  const [filterLang, setFilterLang] = useState<string>('');
+  const [filterPlatform, setFilterPlatform] = useState<string>('');
+  // Tri-state flag filters: undefined = all, true = only YES, false = only NO.
+  const [filterOfficial, setFilterOfficial] = useState<'all' | 'official' | 'patch'>('all');
+  const [filterEro, setFilterEro] = useState<'all' | 'ero' | 'noero'>('all');
+  const [filterMtl, setFilterMtl] = useState<'all' | 'mtl' | 'nomtl'>('all');
+
+  // Build the language/platform option sets from the actual data so
+  // every chip is meaningful (no dead options like "Klingon").
+  const allLangs = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of unownedReleases) for (const l of r.languages) set.add(l.lang);
+    return Array.from(set).sort();
+  }, [unownedReleases]);
+  const allPlatforms = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of unownedReleases) for (const p of r.platforms) set.add(p);
+    return Array.from(set).sort();
+  }, [unownedReleases]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return unownedReleases.filter((r) => {
+      if (filterLang && !r.languages.some((l) => l.lang === filterLang)) return false;
+      if (filterPlatform && !r.platforms.includes(filterPlatform)) return false;
+      if (filterOfficial === 'official' && !r.official) return false;
+      if (filterOfficial === 'patch' && !r.patch) return false;
+      if (filterEro === 'ero' && !r.has_ero) return false;
+      if (filterEro === 'noero' && r.has_ero) return false;
+      if (filterMtl === 'mtl' && !r.languages.some((l) => l.mtl)) return false;
+      if (filterMtl === 'nomtl' && r.languages.some((l) => l.mtl)) return false;
+      if (!q) return true;
+      const blob = [
+        r.title,
+        r.alttitle ?? '',
+        r.engine ?? '',
+        r.producers.map((p) => p.name).join(' '),
+        r.languages.map((l) => l.lang).join(' '),
+        r.platforms.join(' '),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [unownedReleases, search, filterLang, filterPlatform, filterOfficial, filterEro, filterMtl]);
+
+  function resetFilters() {
+    setSearch('');
+    setFilterLang('');
+    setFilterPlatform('');
+    setFilterOfficial('all');
+    setFilterEro('all');
+    setFilterMtl('all');
+  }
+
+  const filtersActive =
+    !!search ||
+    !!filterLang ||
+    !!filterPlatform ||
+    filterOfficial !== 'all' ||
+    filterEro !== 'all' ||
+    filterMtl !== 'all';
+
+  return (
+    <div className="border-t border-border bg-bg-elev/30 px-4 py-3 sm:px-6">
+      <p className="mb-2 text-[11px] uppercase tracking-wider text-muted">
+        {unownedReleases.length > 0 ? t.inventory.pickRelease : t.inventory.pickSynthetic}
+      </p>
+      {unownedReleases.length > 0 && (
+        <div className="mb-3 space-y-2">
+          <input
+            type="search"
+            className="input w-full text-xs"
+            placeholder={t.inventory.pickerSearchPlaceholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label={t.inventory.pickerSearchPlaceholder}
+          />
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <select
+              value={filterLang}
+              onChange={(e) => setFilterLang(e.target.value)}
+              className="input h-7 py-0 text-[11px]"
+              aria-label={t.inventory.pickerFilterLang}
+            >
+              <option value="">{t.inventory.pickerFilterLang}</option>
+              {allLangs.map((l) => (
+                <option key={l} value={l}>{l.toUpperCase()}</option>
+              ))}
+            </select>
+            <select
+              value={filterPlatform}
+              onChange={(e) => setFilterPlatform(e.target.value)}
+              className="input h-7 py-0 text-[11px]"
+              aria-label={t.inventory.pickerFilterPlatform}
+            >
+              <option value="">{t.inventory.pickerFilterPlatform}</option>
+              {allPlatforms.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <select
+              value={filterOfficial}
+              onChange={(e) => setFilterOfficial(e.target.value as typeof filterOfficial)}
+              className="input h-7 py-0 text-[11px]"
+              aria-label={t.inventory.pickerFilterType}
+            >
+              <option value="all">{t.inventory.pickerFilterType}</option>
+              <option value="official">{t.releases.official}</option>
+              <option value="patch">{t.releases.patch}</option>
+            </select>
+            <select
+              value={filterEro}
+              onChange={(e) => setFilterEro(e.target.value as typeof filterEro)}
+              className="input h-7 py-0 text-[11px]"
+              aria-label={t.inventory.pickerFilterEro}
+            >
+              <option value="all">{t.inventory.pickerFilterEro}</option>
+              <option value="ero">{t.releases.hasEro}</option>
+              <option value="noero">{t.inventory.pickerNoEro}</option>
+            </select>
+            <select
+              value={filterMtl}
+              onChange={(e) => setFilterMtl(e.target.value as typeof filterMtl)}
+              className="input h-7 py-0 text-[11px]"
+              aria-label={t.inventory.pickerFilterMtl}
+            >
+              <option value="all">{t.inventory.pickerFilterMtl}</option>
+              <option value="mtl">{t.inventory.pickerOnlyMtl}</option>
+              <option value="nomtl">{t.inventory.pickerNoMtl}</option>
+            </select>
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:text-white"
+              >
+                {t.inventory.pickerFilterReset}
+              </button>
+            )}
+            <span className="ml-auto text-[10px] text-muted">
+              {t.inventory.pickerResults
+                .replace('{count}', String(filtered.length))
+                .replace('{total}', String(unownedReleases.length))}
+            </span>
+          </div>
+        </div>
+      )}
+      <div className="grid max-h-[60vh] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+        {canAddSynthetic && (
+          <button
+            type="button"
+            onClick={() => onAdd(syntheticReleaseId)}
+            disabled={busy}
+            className="flex gap-2 rounded-md border border-accent/50 bg-accent/5 p-2 text-left text-xs transition-colors hover:border-accent disabled:opacity-50"
+          >
+            <div className="w-12 shrink-0">
+              <SafeImage
+                src={parentVnCover?.url ?? null}
+                localSrc={parentVnCover?.localPath ?? null}
+                sexual={parentVnCover?.sexual ?? null}
+                alt={parentVnTitle ?? t.inventory.syntheticTitle}
+                className="aspect-[2/3] w-full rounded border border-border"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="line-clamp-2 font-semibold">{t.inventory.syntheticTitle}</div>
+              <div className="text-[11px] text-muted">{t.inventory.syntheticHint}</div>
+            </div>
+          </button>
+        )}
+        {filtered.length === 0 && unownedReleases.length > 0 && (
+          <p className="col-span-full p-3 text-center text-xs text-muted">
+            {t.inventory.pickerNoResults}
+          </p>
+        )}
+        {filtered.map((r) => {
+          const cover = r.images.find((img) => img.type === 'pkgfront') ?? r.images[0] ?? null;
+          const coverSrc = cover?.url ?? parentVnCover?.url ?? null;
+          const coverLocal = cover?.url ? null : parentVnCover?.localPath ?? null;
+          const coverSexual = cover?.sexual ?? parentVnCover?.sexual ?? null;
+          const dev = r.producers.filter((p) => p.developer).map((p) => p.name).join(', ');
+          const pub = r.producers.filter((p) => p.publisher).map((p) => p.name).join(', ');
+          const res = fmtRes(r.resolution);
+          const flags: { key: string; label: string }[] = [];
+          if (r.official) flags.push({ key: 'official', label: t.releases.official });
+          if (r.patch) flags.push({ key: 'patch', label: t.releases.patch });
+          if (r.freeware) flags.push({ key: 'freeware', label: t.releases.freeware });
+          if (r.uncensored) flags.push({ key: 'uncensored', label: t.releases.uncensored });
+          if (r.has_ero) flags.push({ key: 'ero', label: t.releases.hasEro });
+          return (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => onAdd(r.id)}
+              disabled={busy}
+              className="flex gap-2 rounded-md border border-border bg-bg-card p-2 text-left text-xs transition-colors hover:border-accent disabled:opacity-50"
+            >
+              <div className="w-12 shrink-0">
+                <SafeImage
+                  src={coverSrc}
+                  localSrc={coverLocal}
+                  sexual={coverSexual}
+                  alt={r.title}
+                  className="aspect-[2/3] w-full rounded border border-border"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="line-clamp-2 text-[12px] font-semibold">{r.title}</div>
+                {r.alttitle && r.alttitle !== r.title && (
+                  <div className="line-clamp-1 text-[10px] text-muted">{r.alttitle}</div>
+                )}
+                <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-muted">
+                  {r.released && <span className="tabular-nums">{r.released}</span>}
+                  {r.languages.slice(0, 4).map((l) => (
+                    <span key={l.lang} className="inline-flex items-center gap-0.5">
+                      <LangFlag lang={l.lang} className="text-[10px]" />
+                      {l.mtl && (
+                        <span
+                          className="rounded bg-status-on_hold/20 px-1 text-[8px] uppercase tracking-wide text-status-on_hold"
+                          title={t.inventory.pickerOnlyMtl}
+                        >
+                          MTL
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                  {r.platforms.slice(0, 3).map((p) => (
+                    <span key={p}>{p}</span>
+                  ))}
+                  {res && <span>{res}</span>}
+                </div>
+                {(dev || pub) && (
+                  <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">
+                    {dev && <b className="text-white/80">{dev}</b>}
+                    {dev && pub && ' · '}
+                    {pub}
+                  </div>
+                )}
+                {flags.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-0.5">
+                    {flags.map((f) => (
+                      <span
+                        key={f.key}
+                        className="rounded bg-bg-elev px-1 py-0.5 text-[9px] uppercase tracking-wide text-accent"
+                      >
+                        {f.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

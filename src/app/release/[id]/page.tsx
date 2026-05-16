@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Boxes, ExternalLink, Globe, Languages, Mic2, Package, Shield } from 'lucide-react';
 import { getRelease, type VndbRelease } from '@/lib/vndb';
-import { getOwnedRelease, isInCollection } from '@/lib/db';
+import { getCollectionItem, getOwnedRelease, isInCollection } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { LangFlag } from '@/components/LangFlag';
@@ -59,6 +59,20 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
   const pub = release.producers.filter((p) => p.publisher);
   const firstVnId = release.vns[0]?.id;
   const res = fmtRes(release.resolution);
+
+  // Parent VN cover used as fallback when the release has no images
+  // of its own (common for digital / EGS-only releases that VNDB
+  // hasn't mirrored a `pkgfront` for). `getCollectionItem` returns
+  // any VN known locally regardless of collection membership.
+  const parentVn = firstVnId ? getCollectionItem(firstVnId) : null;
+  const parentCover = parentVn
+    ? {
+        url: parentVn.image_url ?? null,
+        localPath: parentVn.local_image || parentVn.local_image_thumb || null,
+        sexual: parentVn.image_sexual ?? null,
+        title: parentVn.title,
+      }
+    : null;
 
   // Owned-inventory shortcut: if any of the VNs linked to this release is in
   // the user's collection, surface a quick toggle/edit panel here.
@@ -291,7 +305,29 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.media.section}</h2>
         {release.images.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted">{t.releases.noVisuals}</p>
+          parentCover && (parentCover.url || parentCover.localPath) ? (
+            // No release-level images — fall back to the parent VN
+            // cover so the user gets a visual anchor instead of a
+            // blank "no visuals" line. Marked explicitly as the VN's
+            // cover so they know it isn't the release's own art.
+            <figure className="mx-auto max-w-xs overflow-hidden rounded-lg border border-border bg-bg-elev">
+              <div className="aspect-[2/3] w-full">
+                <SafeImage
+                  src={parentCover.url}
+                  localSrc={parentCover.localPath}
+                  sexual={parentCover.sexual}
+                  alt={parentCover.title}
+                  className="h-full w-full"
+                  fit="cover"
+                />
+              </div>
+              <figcaption className="px-2 py-1 text-center text-[10px] uppercase tracking-wider text-muted">
+                {t.releases.parentVnCoverFallback}
+              </figcaption>
+            </figure>
+          ) : (
+            <p className="py-6 text-center text-sm text-muted">{t.releases.noVisuals}</p>
+          )
         ) : (
           <div
             className="grid gap-3"

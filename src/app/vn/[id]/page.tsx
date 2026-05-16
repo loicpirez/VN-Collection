@@ -671,7 +671,17 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
             <Sparkles className="h-3 w-3" aria-hidden /> {t.similar.moreLink}
           </Link>
         )}
-        {inCol && <OwnedEditionsSection vnId={vn.id} />}
+        {inCol && (
+          <OwnedEditionsSection
+            vnId={vn.id}
+            parentVnTitle={vn.title}
+            parentVnCover={{
+              url: vn.image_url ?? null,
+              localPath: vn.local_image || vn.local_image_thumb,
+              sexual: vn.image_sexual ?? null,
+            }}
+          />
+        )}
         <ReleasesSection vnId={vn.id} inCollection={inCol} />
         <QuotesSection vnId={vn.id} />
       </div>
