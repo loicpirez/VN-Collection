@@ -34,19 +34,28 @@ export default async function DumpedPage({
   const summary = getDumpSummary();
   const entries = listDumpStatus();
 
+  // Classify each VN as 'complete' | 'partial' | 'none'. A VN is
+  // 'complete' when EITHER its owned editions are all dumped OR
+  // `collection.dumped = 1` is set on the VN itself. The latter is
+  // the same flag the Library `?dumped=1` filter reads — without
+  // it, the dumped page used to say 0 while Library showed several
+  // dumped VNs.
+  function classify(e: typeof entries[number]): 'complete' | 'partial' | 'none' {
+    if (e.collection_dumped) return 'complete';
+    if (e.total_editions === 0) return 'none';
+    if (e.dumped_editions === e.total_editions) return 'complete';
+    if (e.dumped_editions === 0) return 'none';
+    return 'partial';
+  }
+
   // Pre-compute per-tab counts so the chips show "{tab} · {n}" without
   // re-filtering inside the JSX. Counts are independent of the active
   // tab — they represent the underlying distribution.
   const counts = entries.reduce(
     (acc, e) => {
       acc.all += 1;
-      if (e.total_editions === 0) {
-        acc.none += 1;
-        return acc;
-      }
-      if (e.dumped_editions === e.total_editions) acc.complete += 1;
-      else if (e.dumped_editions === 0) acc.none += 1;
-      else acc.partial += 1;
+      const c = classify(e);
+      acc[c] += 1;
       return acc;
     },
     { all: 0, complete: 0, partial: 0, none: 0 },
@@ -57,13 +66,7 @@ export default async function DumpedPage({
   // user's mental model is "haven't dumped this VN".
   const filtered = entries.filter((e) => {
     if (tab === 'all') return true;
-    if (e.total_editions === 0) return tab === 'none';
-    const fully = e.dumped_editions === e.total_editions;
-    const partial = !fully && e.dumped_editions > 0;
-    if (tab === 'complete') return fully;
-    if (tab === 'partial') return partial;
-    if (tab === 'none') return e.dumped_editions === 0;
-    return true;
+    return classify(e) === tab;
   });
 
   const tabPct = (key: DumpTab): string => {
@@ -90,7 +93,7 @@ export default async function DumpedPage({
         </h1>
         <p className="mt-1 text-sm text-muted">{t.dumped.pageSubtitle}</p>
 
-        {summary.totalEditions > 0 ? (
+        {summary.totalEditions > 0 || summary.fullyDumpedVns > 0 ? (
           <>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat label={t.dumped.totalEditions} value={summary.totalEditions} />
@@ -155,12 +158,17 @@ export default async function DumpedPage({
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
             >
               {filtered.map((e) => {
+                // Reflect the same classification the tabs use:
+                // collection.dumped=1 is a complete signal even
+                // when the user has zero owned editions.
                 const fullyDumped =
-                  e.total_editions > 0 && e.dumped_editions === e.total_editions;
-                const pct =
-                  e.total_editions === 0
-                    ? 0
-                    : Math.round((e.dumped_editions / e.total_editions) * 100);
+                  e.collection_dumped ||
+                  (e.total_editions > 0 && e.dumped_editions === e.total_editions);
+                const pct = e.collection_dumped
+                  ? 100
+                  : e.total_editions === 0
+                  ? 0
+                  : Math.round((e.dumped_editions / e.total_editions) * 100);
                 return (
                   <li key={e.vn_id}>
                     <Link

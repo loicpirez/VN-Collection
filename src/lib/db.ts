@@ -3640,15 +3640,32 @@ export function listDumpStatus(): DumpStatusEntry[] {
 }
 
 export interface DumpSummary {
-  /** Total VNs in the collection that have at least one owned release. */
+  /** Total VNs in the collection (regardless of whether they have owned editions). */
   totalVns: number;
   /** Total owned_release rows. */
   totalEditions: number;
   /** owned_release rows with dumped=1. */
   dumpedEditions: number;
-  /** VNs where every edition is dumped. */
+  /**
+   * VNs counted as "fully dumped". A VN qualifies when EITHER:
+   *   1. it has owned editions AND every owned edition has dumped=1, OR
+   *   2. `collection.dumped = 1` is set on the VN itself.
+   * Branch (2) is the VN-level flag the Library `?dumped=1` filter
+   * reads. Without it, a user who never tracks per-edition data but
+   * marks "this VN is dumped" on the collection row used to see
+   * `/dumped` say 0 — the page disagreed with the filter.
+   */
   fullyDumpedVns: number;
-  /** Percentage (0-100, rounded) of editions that are dumped. */
+  /**
+   * Percentage (0-100, rounded) used for the page's progress bar.
+   * Numerator: editions-with-dumped=1 + collection.dumped=1 VNs
+   *   that have no owned editions (so the VN-level flag has weight).
+   * Denominator: total editions + count of collection.dumped=1 VNs
+   *   without editions. This keeps the percentage honest: a user
+   *   who dumps 1/2 editions of one VN AND marks-dumped 1 VN with
+   *   no editions sees 2/3 ≈ 67% — exactly what the Library
+   *   `?dumped=1` filter implies.
+   */
   editionPct: number;
 }
 
@@ -3656,25 +3673,39 @@ export function getDumpSummary(): DumpSummary {
   const totals = db
     .prepare(`
       SELECT
-        (SELECT COUNT(DISTINCT vn_id) FROM owned_release) AS total_vns,
-        (SELECT COUNT(*)              FROM owned_release) AS total_editions,
-        (SELECT COUNT(*)              FROM owned_release WHERE dumped = 1) AS dumped_editions
+        (SELECT COUNT(*) FROM collection)                      AS total_vns,
+        (SELECT COUNT(*) FROM owned_release)                   AS total_editions,
+        (SELECT COUNT(*) FROM owned_release WHERE dumped = 1)  AS dumped_editions,
+        (SELECT COUNT(*) FROM collection c
+          WHERE c.dumped = 1
+            AND NOT EXISTS (
+              SELECT 1 FROM owned_release o WHERE o.vn_id = c.vn_id
+            )
+        ) AS coll_dumped_no_editions
     `)
-    .get() as { total_vns: number; total_editions: number; dumped_editions: number };
+    .get() as {
+      total_vns: number;
+      total_editions: number;
+      dumped_editions: number;
+      coll_dumped_no_editions: number;
+    };
   const fullyDumpedVns = (db
     .prepare(`
-      SELECT COUNT(*) AS n FROM (
-        SELECT vn_id, SUM(CASE WHEN dumped = 1 THEN 0 ELSE 1 END) AS notdone
-        FROM owned_release
+      SELECT COUNT(DISTINCT vn_id) AS n FROM (
+        -- VNs fully covered by per-edition dumped=1
+        SELECT vn_id FROM owned_release
         GROUP BY vn_id
-        HAVING notdone = 0
+        HAVING SUM(CASE WHEN dumped = 1 THEN 0 ELSE 1 END) = 0
+        UNION
+        -- VNs marked dumped at the collection level (regardless
+        -- of whether they have owned editions)
+        SELECT vn_id FROM collection WHERE dumped = 1
       )
     `)
     .get() as { n: number }).n;
-  const editionPct =
-    totals.total_editions === 0
-      ? 0
-      : Math.round((totals.dumped_editions / totals.total_editions) * 100);
+  const numerator = totals.dumped_editions + totals.coll_dumped_no_editions;
+  const denominator = totals.total_editions + totals.coll_dumped_no_editions;
+  const editionPct = denominator === 0 ? 0 : Math.round((numerator / denominator) * 100);
   return {
     totalVns: totals.total_vns,
     totalEditions: totals.total_editions,
