@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   bumpStatus,
   finishJob,
+  listJobs,
   recordError,
+  setJobCurrent,
   startJob,
   subscribeStatus,
   tickJob,
@@ -73,6 +75,32 @@ describe('download-status pub/sub', () => {
   // oldest listener is evicted and never notified again. Previous
   // test runs left the cap untested — a regression that flipped
   // the cap off would silently grow the set unbounded.
+  it('setJobCurrent surfaces the current task on the snapshot for the bar', async () => {
+    // Regression: the DownloadStatusBar collapsed chip used to
+    // show only the generic "1 en cours" label even when a
+    // job-specific current_item was set (e.g. "EGS top-ranked
+    // (top 100)"). The bar's source data MUST carry the
+    // current_item field through getStatusSnapshot() so the
+    // chip can promote it to the visible line.
+    const listener = vi.fn();
+    const off = subscribeStatus(listener);
+    const job = startJob('cache-refresh', 'Global refresh', 3);
+    setJobCurrent(job.id, 'EGS top-ranked (top 100)');
+    await flushMicrotasks();
+    const j = listJobs().find((x) => x.id === job.id);
+    expect(j).toBeDefined();
+    expect(j?.current_item).toBe('EGS top-ranked (top 100)');
+    expect(j?.kind).toBe('cache-refresh');
+    expect(j?.label).toBe('Global refresh');
+    // setJobCurrent(null) clears it.
+    setJobCurrent(job.id, null);
+    await flushMicrotasks();
+    expect(listJobs().find((x) => x.id === job.id)?.current_item)
+      .toBeNull();
+    finishJob(job.id);
+    off();
+  });
+
   it('evicts the oldest listener when the cap is exceeded', async () => {
     const MAX_LISTENERS = 100;
     const listeners: Array<{ fn: ReturnType<typeof vi.fn>; off: () => void }> = [];

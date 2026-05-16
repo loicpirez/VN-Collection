@@ -250,18 +250,20 @@ function ReleasesSection({
             {month} · <span className="opacity-70">{rels.length}</span>
           </h2>
           {/*
-            Density-responsive grid: column min is the slider value
+            Density-responsive grid: column min follows the slider
             (with min(100%, …) so mobile doesn't overflow). The
-            inner cover scales via clamp() so the cover grows
-            alongside the card width instead of staying at a fixed
-            h-24 w-16. The 280px floor in the grid template stays
-            because these cards carry text that needs room — but
-            the inner cover ignores that floor and follows the
-            slider directly.
+            inner cover scales via clamp() so it visibly grows /
+            shrinks as the user drags the slider — at the default
+            density (~220px) the previous floor of 80px clamped
+            the cover so it looked frozen. The new formula puts
+            the floor below the default value and bumps the
+            multiplier so the cover starts moving at every slider
+            tick. The 240px column floor keeps the accompanying
+            text readable on narrow viewports.
           */}
           <ul
             className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(280px, var(--card-density-px, 280px))), 1fr))' }}
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(240px, var(--card-density-px, 240px))), 1fr))' }}
           >
             {rels.map((r) => (
               <li key={r.id}>
@@ -278,7 +280,12 @@ function ReleasesSection({
                         href={`/vn/${v.id}`}
                         className="block shrink-0 overflow-hidden rounded"
                         style={{
-                          width: 'clamp(80px, calc(var(--card-density-px, 220px) * 0.34), 180px)',
+                          // Floor 64px so the cover can shrink at
+                          // dense slider values; multiplier 0.42
+                          // (was 0.34) so it visibly grows at the
+                          // wide end. Max 200px keeps the cover
+                          // from dwarfing its text block.
+                          width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
                           aspectRatio: '2 / 3',
                         }}
                       >
@@ -355,7 +362,7 @@ function AnticipatedSection({
           larger sizes. */}
       <ol
         className="grid gap-4 lg:gap-5"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(320px, var(--card-density-px, 320px))), 1fr))' }}
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, max(280px, var(--card-density-px, 280px))), 1fr))' }}
       >
         {rows.map((a, i) => {
           // Prefer the VNDB cover when the anticipated row carries a
@@ -375,12 +382,14 @@ function AnticipatedSection({
               <div
                 className="relative shrink-0"
                 style={{
-                  // Cover follows the density slider so a wider card
-                  // gets a proportionally larger cover instead of
-                  // tiny image + huge whitespace. Clamp to a sane
-                  // mobile minimum (96px) and a poster-mode max so
-                  // the cover never dwarfs its accompanying text.
-                  width: 'clamp(96px, calc(var(--card-density-px, 220px) * 0.38), 200px)',
+                  // Cover follows the density slider so a wider
+                  // card gets a proportionally larger cover instead
+                  // of tiny image + huge whitespace. The floor was
+                  // 96px which clamped the cover frozen at the
+                  // default slider position (220); we lower the
+                  // floor and bump the multiplier so the cover
+                  // moves at every slider tick.
+                  width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.45), 220px)',
                 }}
               >
                 <Link

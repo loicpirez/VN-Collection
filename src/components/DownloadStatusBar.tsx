@@ -213,7 +213,7 @@ export function DownloadStatusBar() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`tap-target group flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold shadow-card transition-colors ${
+        className={`tap-target group flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold shadow-card transition-colors ${
           retryingNow
             ? 'border-status-on_hold/60 bg-status-on_hold/15 text-status-on_hold'
             : live.length > 0
@@ -226,25 +226,53 @@ export function DownloadStatusBar() {
         aria-haspopup="dialog"
         aria-controls={popoverId}
         aria-label={t.downloadStatus.title}
+        title={
+          live.length === 1 && live[0].current_item
+            ? `${labelKind(live[0].kind)} · ${live[0].current_item}`
+            : t.downloadStatus.title
+        }
       >
         {retryingNow ? (
-          <AlertTriangle className="h-3.5 w-3.5" />
+          <AlertTriangle className="h-4 w-4 shrink-0" />
         ) : live.length > 0 ? (
-          <CloudDownload className="h-3.5 w-3.5 animate-pulse" />
+          <CloudDownload className="h-4 w-4 shrink-0 animate-pulse" />
         ) : totalErrors > 0 ? (
-          <AlertTriangle className="h-3.5 w-3.5" />
+          <AlertTriangle className="h-4 w-4 shrink-0" />
         ) : (
-          <Cloud className="h-3.5 w-3.5" />
+          <Cloud className="h-4 w-4 shrink-0" />
         )}
-        {retryingNow
-          ? t.downloadStatus.waitingShort.replace('{s}', String(Math.ceil(localRetryMs / 1000)))
-          : live.length > 0
-            ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
-            : totalErrors > 0
-              ? t.downloadStatus.errorCount.replace('{n}', String(totalErrors))
-              : t.downloadStatus.idle}
+        {/*
+          Collapsed state surfaces the source-specific task on the
+          chip itself so the user does NOT need to open the popover
+          to know what's downloading. Falls back to the generic
+          "{n} en cours" count when there are multiple in-flight
+          jobs (the popover then disambiguates). The previous chip
+          only showed "1 en cours · 0/0" which the user reported
+          as opaque ("can't see what's downloading").
+        */}
+        <span className="min-w-0 truncate">
+          {retryingNow
+            ? t.downloadStatus.waitingShort.replace('{s}', String(Math.ceil(localRetryMs / 1000)))
+            : live.length === 1
+              ? (() => {
+                  const j = live[0];
+                  const head = labelKind(j.kind);
+                  const tail = j.current_item || j.label;
+                  return `${head} · ${tail}`;
+                })()
+              : live.length > 1
+                ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
+                : totalErrors > 0
+                  ? t.downloadStatus.errorCount.replace('{n}', String(totalErrors))
+                  : t.downloadStatus.idle}
+        </span>
+        {live.length === 1 && live[0].total > 0 && (
+          <span className="shrink-0 text-[10px] font-normal opacity-80">
+            {live[0].done}/{live[0].total}
+          </span>
+        )}
         {(activeReq > 0 || queuedReq > 0) && (
-          <span className="text-[10px] font-normal opacity-80">
+          <span className="shrink-0 text-[10px] font-normal opacity-80">
             · {activeReq}/{queuedReq}
           </span>
         )}
