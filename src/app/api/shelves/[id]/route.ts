@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   deleteShelf,
   getShelf,
+  listShelfDisplaySlots,
   listShelfSlots,
   renameShelf,
   resizeShelf,
@@ -21,7 +22,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const shelf = getShelf(sid);
   if (!shelf) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  return NextResponse.json({ shelf, slots: listShelfSlots(sid) });
+  return NextResponse.json({
+    shelf,
+    slots: listShelfSlots(sid),
+    displays: listShelfDisplaySlots(sid),
+  });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

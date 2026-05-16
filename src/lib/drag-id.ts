@@ -9,6 +9,7 @@
  *
  *   pool|<vnId>|<releaseId>
  *   slot|<vnId>|<releaseId>|<shelfId>|<row>|<col>
+ *   display|<vnId>|<releaseId>|<shelfId>|<afterRow>|<position>
  *
  * Pulled out of `<ShelfLayoutEditor>` so the tests can exercise the
  * same code path the component runs at drag end — previously the test
@@ -24,6 +25,14 @@ export type DragSource =
       shelf_id: number;
       row: number;
       col: number;
+    }
+  | {
+      kind: 'display';
+      vn_id: string;
+      release_id: string;
+      shelf_id: number;
+      after_row: number;
+      position: number;
     };
 
 export function parseDragId(id: string): DragSource | null {
@@ -50,6 +59,24 @@ export function parseDragId(id: string): DragSource | null {
       col: c,
     };
   }
+  if (id.startsWith('display|')) {
+    const parts = id.split('|');
+    if (parts.length !== 6) return null;
+    const [, vnId, releaseId, shelfId, afterRow, position] = parts;
+    const sid = Number(shelfId);
+    const r = Number(afterRow);
+    const p = Number(position);
+    if (!vnId || !releaseId) return null;
+    if (!Number.isInteger(sid) || !Number.isInteger(r) || !Number.isInteger(p)) return null;
+    return {
+      kind: 'display',
+      vn_id: vnId,
+      release_id: releaseId,
+      shelf_id: sid,
+      after_row: r,
+      position: p,
+    };
+  }
   return null;
 }
 
@@ -69,4 +96,23 @@ export function parseCellId(id: string): CellTarget | null {
   const c = Number(parts[3]);
   if (!Number.isInteger(sid) || !Number.isInteger(r) || !Number.isInteger(c)) return null;
   return { shelf_id: sid, row: r, col: c };
+}
+
+/** Front-display drop-target shape:
+ *  `display-cell|<shelfId>|<afterRow>|<position>`. */
+export interface DisplayTarget {
+  shelf_id: number;
+  after_row: number;
+  position: number;
+}
+
+export function parseDisplayCellId(id: string): DisplayTarget | null {
+  if (!id.startsWith('display-cell|')) return null;
+  const parts = id.split('|');
+  if (parts.length !== 4) return null;
+  const sid = Number(parts[1]);
+  const r = Number(parts[2]);
+  const p = Number(parts[3]);
+  if (!Number.isInteger(sid) || !Number.isInteger(r) || !Number.isInteger(p)) return null;
+  return { shelf_id: sid, after_row: r, position: p };
 }

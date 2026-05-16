@@ -50,7 +50,10 @@ interface OwnedEdition {
   added_at: number;
   /** Populated server-side via `listOwnedReleasesWithShelfForVn`.
    *  Null when the edition isn't placed on any /shelf?view=layout. */
-  shelf: { id: number; name: string; row: number; col: number } | null;
+  shelf:
+    | { kind: 'cell'; id: number; name: string; row: number; col: number }
+    | { kind: 'display'; id: number; name: string; afterRow: number; position: number }
+    | null;
 }
 
 const CONDITIONS: { value: string; key: 'new' | 'used' | 'sealed' | 'opened' | 'damaged' }[] = [
@@ -429,8 +432,9 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
           >
             <Package className="h-3 w-3" aria-hidden /> {edition.shelf.name}
             <span className="rounded bg-bg/40 px-1 text-[9px] font-bold tabular-nums">
-              {t.shelfLayout.rowLabel.replace('{n}', String(edition.shelf.row + 1))}·
-              {t.shelfLayout.colLabel.replace('{n}', String(edition.shelf.col + 1))}
+              {edition.shelf.kind === 'cell'
+                ? `${t.shelfLayout.rowLabel.replace('{n}', String(edition.shelf.row + 1))}·${t.shelfLayout.colLabel.replace('{n}', String(edition.shelf.col + 1))}`
+                : `${t.shelfLayout.frontDisplay} · ${edition.shelf.position + 1}`}
             </span>
           </Link>
         </div>
@@ -931,4 +935,3 @@ function EditionPicker({
     </div>
   );
 }
-

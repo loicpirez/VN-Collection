@@ -7,10 +7,13 @@ import {
   createShelf,
   deleteShelf,
   getShelfPlacementForEdition,
+  listShelfDisplaySlots,
   listShelfSlots,
   listShelves,
   listUnplacedOwnedReleases,
+  placeShelfDisplayItem,
   placeShelfItem,
+  removeShelfDisplayPlacement,
   removeShelfPlacement,
   renameShelf,
   resizeShelf,
@@ -35,15 +38,25 @@ function ensureVnAndOwned(vnId: string, releaseId: string, title = vnId): void {
 }
 
 function clear(): void {
-  db.exec('DELETE FROM shelf_slot; DELETE FROM shelf_unit; DELETE FROM owned_release; DELETE FROM vn;');
+  db.exec(
+    'DELETE FROM shelf_display_slot; DELETE FROM shelf_slot; DELETE FROM shelf_unit; DELETE FROM owned_release; DELETE FROM vn;',
+  );
 }
 
 beforeAll(() => {
   // The bootstrap in lib/db runs on import — verify the tables exist.
   const rows = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('shelf_unit', 'shelf_slot', 'owned_release', 'vn')")
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('shelf_unit', 'shelf_slot', 'shelf_display_slot', 'owned_release', 'vn')",
+    )
     .all() as Array<{ name: string }>;
-  expect(rows.map((r) => r.name).sort()).toEqual(['owned_release', 'shelf_slot', 'shelf_unit', 'vn']);
+  expect(rows.map((r) => r.name).sort()).toEqual([
+    'owned_release',
+    'shelf_display_slot',
+    'shelf_slot',
+    'shelf_unit',
+    'vn',
+  ]);
 });
 
 beforeEach(() => {
@@ -223,7 +236,7 @@ describe('placement lookup + unplace', () => {
     ensureVnAndOwned('v1', 'r1');
     placeShelfItem({ shelfId: shelf.id, row: 2, col: 3, vnId: 'v1', releaseId: 'r1' });
     const where = getShelfPlacementForEdition('v1', 'r1');
-    expect(where).toMatchObject({ shelf_id: shelf.id, row: 2, col: 3, shelf_name: 'A' });
+    expect(where).toMatchObject({ kind: 'cell', shelf_id: shelf.id, row: 2, col: 3, shelf_name: 'A' });
   });
 
   it('unplaces and returns the edition to the pool', () => {
@@ -237,3 +250,112 @@ describe('placement lookup + unplace', () => {
   });
 });
 
+describe('front-display slots', () => {
+  it('places an edition into a front-display slot', () => {
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 1, position: 0, vnId: 'v1', releaseId: 'r1' });
+    const slots = listShelfDisplaySlots(shelf.id);
+    expect(slots).toHaveLength(1);
+    expect(slots[0]).toMatchObject({ vn_id: 'v1', release_id: 'r1', after_row: 1, position: 0 });
+  });
+
+  it('rejects out-of-bounds after_row / position', () => {
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    // after_row may be 0..rows inclusive (so "after the last row" is
+    // shelf.rows). Anything else is rejected.
+    expect(() =>
+      placeShelfDisplayItem({ shelfId: shelf.id, afterRow: -1, position: 0, vnId: 'v1', releaseId: 'r1' }),
+    ).toThrow(/after_row/);
+    expect(() =>
+      placeShelfDisplayItem({ shelfId: shelf.id, afterRow: shelf.rows + 1, position: 0, vnId: 'v1', releaseId: 'r1' }),
+    ).toThrow(/after_row/);
+    expect(() =>
+      placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 0, position: shelf.cols, vnId: 'v1', releaseId: 'r1' }),
+    ).toThrow(/position/);
+  });
+
+  it('moving from a cell to a display slot removes the cell placement', () => {
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    placeShelfItem({ shelfId: shelf.id, row: 0, col: 0, vnId: 'v1', releaseId: 'r1' });
+    expect(listShelfSlots(shelf.id)).toHaveLength(1);
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 1, position: 1, vnId: 'v1', releaseId: 'r1' });
+    // The cell row must be gone — no double-placement allowed.
+    expect(listShelfSlots(shelf.id)).toEqual([]);
+    expect(listShelfDisplaySlots(shelf.id)).toHaveLength(1);
+  });
+
+  it('moving from a display slot to a cell removes the display placement', () => {
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 0, position: 0, vnId: 'v1', releaseId: 'r1' });
+    placeShelfItem({ shelfId: shelf.id, row: 2, col: 2, vnId: 'v1', releaseId: 'r1' });
+    expect(listShelfDisplaySlots(shelf.id)).toEqual([]);
+    expect(listShelfSlots(shelf.id)).toHaveLength(1);
+  });
+
+  it('evicts a previous occupant of the same display slot back to the pool', () => {
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    ensureVnAndOwned('v2', 'r2');
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 1, position: 1, vnId: 'v1', releaseId: 'r1' });
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 1, position: 1, vnId: 'v2', releaseId: 'r2' });
+    const slots = listShelfDisplaySlots(shelf.id);
+    expect(slots).toHaveLength(1);
+    expect(slots[0].vn_id).toBe('v2');
+    expect(listUnplacedOwnedReleases().map((u) => u.vn_id)).toContain('v1');
+  });
+
+  it('removeShelfDisplayPlacement returns the edition to the unplaced pool', () => {
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 0, position: 0, vnId: 'v1', releaseId: 'r1' });
+    expect(removeShelfDisplayPlacement('v1', 'r1')).toBe(true);
+    expect(listShelfDisplaySlots(shelf.id)).toEqual([]);
+    expect(listUnplacedOwnedReleases().map((u) => u.vn_id)).toContain('v1');
+  });
+
+  it('removeShelfPlacement covers both kinds (cell and display)', () => {
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 1, position: 0, vnId: 'v1', releaseId: 'r1' });
+    expect(removeShelfPlacement('v1', 'r1')).toBe(true);
+    expect(getShelfPlacementForEdition('v1', 'r1')).toBeNull();
+  });
+
+  it('getShelfPlacementForEdition returns the display placement when applicable', () => {
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 2, position: 1, vnId: 'v1', releaseId: 'r1' });
+    const where = getShelfPlacementForEdition('v1', 'r1');
+    expect(where).toMatchObject({
+      kind: 'display',
+      shelf_id: shelf.id,
+      shelf_name: 'A',
+      after_row: 2,
+      position: 1,
+    });
+  });
+
+  it('listShelves counts display slots as placed editions', () => {
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 2, position: 1, vnId: 'v1', releaseId: 'r1' });
+    const listed = listShelves().find((s) => s.id === shelf.id);
+    expect(listed?.placed_count).toBe(1);
+  });
+
+  it('resize evicts out-of-bounds display slots back to the pool', () => {
+    const shelf = createShelf({ name: 'A', cols: 4, rows: 3 });
+    ensureVnAndOwned('v1', 'r1');
+    ensureVnAndOwned('v2', 'r2');
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 3, position: 0, vnId: 'v1', releaseId: 'r1' });
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 1, position: 3, vnId: 'v2', releaseId: 'r2' });
+    const resized = resizeShelf(shelf.id, 2, 2);
+    expect(resized?.evicted.map((e) => e.vn_id).sort()).toEqual(['v1', 'v2']);
+    expect(listShelfDisplaySlots(shelf.id)).toEqual([]);
+    expect(listUnplacedOwnedReleases().map((u) => u.vn_id).sort()).toEqual(['v1', 'v2']);
+  });
+});

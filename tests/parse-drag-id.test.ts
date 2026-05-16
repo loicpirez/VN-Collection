@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDragId } from '@/lib/drag-id';
+import { parseDisplayCellId, parseDragId } from '@/lib/drag-id';
 
 /**
  * Test the parser the way `<ShelfLayoutEditor>` actually uses it —
@@ -51,6 +51,17 @@ describe('parseDragId', () => {
     });
   });
 
+  it('parses front-display drag ids', () => {
+    expect(parseDragId('display|v123|synthetic:v123|9|2|1')).toEqual({
+      kind: 'display',
+      vn_id: 'v123',
+      release_id: 'synthetic:v123',
+      shelf_id: 9,
+      after_row: 2,
+      position: 1,
+    });
+  });
+
   it('rejects malformed slot ids (wrong segment count)', () => {
     expect(parseDragId('slot|v123|r456|3|0')).toBeNull();
     expect(parseDragId('slot|v123|r456|3|0|0|extra')).toBeNull();
@@ -64,5 +75,21 @@ describe('parseDragId', () => {
   it('rejects unknown prefixes', () => {
     expect(parseDragId('cell|7|0|0')).toBeNull();
     expect(parseDragId('random|stuff')).toBeNull();
+  });
+});
+
+describe('parseDisplayCellId', () => {
+  it('parses front-display drop targets', () => {
+    expect(parseDisplayCellId('display-cell|7|3|1')).toEqual({
+      shelf_id: 7,
+      after_row: 3,
+      position: 1,
+    });
+  });
+
+  it('rejects malformed front-display drop targets', () => {
+    expect(parseDisplayCellId('display-cell|7|3')).toBeNull();
+    expect(parseDisplayCellId('display-cell|7|x|1')).toBeNull();
+    expect(parseDisplayCellId('cell|7|3|1')).toBeNull();
   });
 });

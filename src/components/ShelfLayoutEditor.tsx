@@ -28,6 +28,7 @@ import {
   LayoutGrid,
   Loader2,
   Maximize2,
+  Minimize2,
   Minus,
   Plus,
   Trash2,
@@ -39,8 +40,8 @@ import { SafeImage } from '@/components/SafeImage';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/ToastProvider';
 import { SkeletonBlock } from '@/components/Skeleton';
-import type { ShelfEntry, ShelfSlotEntry, ShelfUnitWithCount } from '@/lib/db';
-import { parseDragId, parseCellId, type DragSource } from '@/lib/drag-id';
+import type { ShelfDisplaySlotEntry, ShelfEntry, ShelfSlotEntry, ShelfUnitWithCount } from '@/lib/db';
+import { parseDisplayCellId, parseDragId, parseCellId, type DragSource } from '@/lib/drag-id';
 
 interface Props {
   initialShelves: ShelfUnitWithCount[];
@@ -50,6 +51,7 @@ interface Props {
 interface LoadedShelfState {
   shelf: ShelfUnitWithCount;
   slots: ShelfSlotEntry[];
+  displays: ShelfDisplaySlotEntry[];
 }
 
 const POOL_DROPPABLE_ID = '__pool__';
@@ -96,6 +98,8 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   const [busy, setBusy] = useState(false);
   const [showCreate, setShowCreate] = useState(initialShelves.length === 0);
   const [newName, setNewName] = useState('');
+  const [showFrontDisplay, setShowFrontDisplay] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
   const createInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load the active shelf's slots on first selection. Subsequent
@@ -108,9 +112,20 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       try {
         const res = await fetch(`/api/shelves/${activeId}`, { cache: 'no-store' });
         if (!res.ok) throw new Error(await res.text());
-        const data = (await res.json()) as { shelf: ShelfUnitWithCount; slots: ShelfSlotEntry[] };
+        const data = (await res.json()) as {
+          shelf: ShelfUnitWithCount;
+          slots: ShelfSlotEntry[];
+          displays?: ShelfDisplaySlotEntry[];
+        };
         if (cancelled) return;
-        setLoaded((prev) => ({ ...prev, [activeId]: { shelf: data.shelf, slots: data.slots } }));
+        setLoaded((prev) => ({
+          ...prev,
+          [activeId]: {
+            shelf: data.shelf,
+            slots: data.slots,
+            displays: data.displays ?? [],
+          },
+        }));
       } catch (e) {
         if (!cancelled) toast.error((e as Error).message || t.shelfLayout.saveFailed);
       }
@@ -159,6 +174,8 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         pageShelf(1);
+      } else if (e.key === 'Escape') {
+        setFullscreen(false);
       }
     }
     window.addEventListener('keydown', onKey);
@@ -183,14 +200,50 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
     });
   }
 
+  function patchActiveDisplays(updater: (prev: ShelfDisplaySlotEntry[]) => ShelfDisplaySlotEntry[]) {
+    if (activeId == null) return;
+    setLoaded((prev) => {
+      const cur = prev[activeId];
+      if (!cur) return prev;
+      return { ...prev, [activeId]: { ...cur, displays: updater(cur.displays) } };
+    });
+  }
+
+  async function refreshActiveShelf(id = activeId) {
+    if (id == null) return;
+    const res = await fetch(`/api/shelves/${id}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(await res.text());
+    const data = (await res.json()) as {
+      shelf: ShelfUnitWithCount;
+      slots: ShelfSlotEntry[];
+      displays?: ShelfDisplaySlotEntry[];
+    };
+    setLoaded((prev) => ({
+      ...prev,
+      [id]: {
+        shelf: data.shelf,
+        slots: data.slots,
+        displays: data.displays ?? [],
+      },
+    }));
+    setShelves((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...data.shelf } : s)),
+    );
+  }
+
   async function placeOnSlot(target: { row: number; col: number }, source: DragSource) {
     if (activeId == null) return;
     // Optimistic update:
     //   • move/insert the dragged item to (row, col)
     //   • if source was a slot AND target had an occupant → put occupant at source slot (swap)
     //   • if source was the pool AND target had an occupant → push occupant to the pool
-    const prevSnapshot: { slots: ShelfSlotEntry[]; pool: ShelfEntry[] } = {
+    const prevSnapshot: {
+      slots: ShelfSlotEntry[];
+      displays: ShelfDisplaySlotEntry[];
+      pool: ShelfEntry[];
+    } = {
       slots: activeState?.slots ?? [],
+      displays: activeState?.displays ?? [],
       pool: unplaced,
     };
 
@@ -204,7 +257,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           (s) => !(s.row === target.row && s.col === target.col)
             && !(s.vn_id === source.vn_id && s.release_id === source.release_id),
         );
-        const ed = findEdition(source, prevSnapshot.slots, prevSnapshot.pool);
+        const ed = findEdition(source, prevSnapshot.slots, prevSnapshot.displays, prevSnapshot.pool);
         if (!ed) return prev;
         next.push({
           shelf_id: activeId,
@@ -218,7 +271,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           vn_local_image_thumb: ed.vn_local_image_thumb,
           vn_image_sexual: ed.vn_image_sexual,
           edition_label: ed.edition_label,
-          box_type: ed.box_type,
+          box_type: ed.box_type as ShelfSlotEntry['box_type'],
           condition: ed.condition,
           dumped: ed.dumped,
         });
@@ -228,7 +281,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       const occupant = prevSnapshot.slots.find(
         (s) => s.row === target.row && s.col === target.col,
       );
-      if (occupant && source.kind === 'pool') {
+      if (occupant && source.kind !== 'slot') {
         setUnplaced((prev) => [
           ...prev,
           shelfSlotToShelfEntry(occupant),
@@ -238,6 +291,12 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         setUnplaced((prev) =>
           prev.filter(
             (e) => !(e.vn_id === source.vn_id && e.release_id === source.release_id),
+          ),
+        );
+      } else if (source.kind === 'display') {
+        patchActiveDisplays((prev) =>
+          prev.filter(
+            (d) => !(d.vn_id === source.vn_id && d.release_id === source.release_id),
           ),
         );
       }
@@ -260,10 +319,100 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         if (!cur) return prev;
         return { ...prev, [activeId]: { ...cur, slots: data.slots } };
       });
+      await refreshActiveShelf();
       await refreshPool();
       await refreshShelfMeta();
     } catch (e) {
       patchActiveSlots(() => prevSnapshot.slots);
+      patchActiveDisplays(() => prevSnapshot.displays);
+      setUnplaced(prevSnapshot.pool);
+      toast.error((e as Error).message || t.shelfLayout.saveFailed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function placeOnDisplay(
+    target: { after_row: number; position: number },
+    source: DragSource,
+  ) {
+    if (activeId == null) return;
+    const prevSnapshot: {
+      slots: ShelfSlotEntry[];
+      displays: ShelfDisplaySlotEntry[];
+      pool: ShelfEntry[];
+    } = {
+      slots: activeState?.slots ?? [],
+      displays: activeState?.displays ?? [],
+      pool: unplaced,
+    };
+
+    setBusy(true);
+    try {
+      const ed = findEdition(source, prevSnapshot.slots, prevSnapshot.displays, prevSnapshot.pool);
+      if (ed) {
+        patchActiveDisplays((prev) => {
+          const next = prev.filter(
+            (d) => !(d.after_row === target.after_row && d.position === target.position)
+              && !(d.vn_id === source.vn_id && d.release_id === source.release_id),
+          );
+          next.push({
+            shelf_id: activeId,
+            after_row: target.after_row,
+            position: target.position,
+            vn_id: source.vn_id,
+            release_id: source.release_id,
+            placed_at: Date.now(),
+            vn_title: ed.vn_title,
+            vn_image_thumb: ed.vn_image_thumb,
+            vn_image_url: ed.vn_image_url,
+            vn_local_image_thumb: ed.vn_local_image_thumb,
+            vn_image_sexual: ed.vn_image_sexual,
+            edition_label: ed.edition_label,
+            box_type: ed.box_type as ShelfDisplaySlotEntry['box_type'],
+            condition: ed.condition,
+            dumped: ed.dumped,
+          });
+          return next;
+        });
+      }
+
+      const targetOccupant = prevSnapshot.displays.find(
+        (d) => d.after_row === target.after_row && d.position === target.position,
+      );
+      if (
+        targetOccupant &&
+        !(targetOccupant.vn_id === source.vn_id && targetOccupant.release_id === source.release_id)
+      ) {
+        setUnplaced((prev) => [...prev, shelfDisplayToShelfEntry(targetOccupant)]);
+      }
+      if (source.kind === 'pool') {
+        setUnplaced((prev) =>
+          prev.filter((e) => !(e.vn_id === source.vn_id && e.release_id === source.release_id)),
+        );
+      } else if (source.kind === 'slot') {
+        patchActiveSlots((prev) =>
+          prev.filter((s) => !(s.vn_id === source.vn_id && s.release_id === source.release_id)),
+        );
+      }
+
+      const res = await fetch(`/api/shelves/${activeId}/displays`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          after_row: target.after_row,
+          position: target.position,
+          vn_id: source.vn_id,
+          release_id: source.release_id,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await refreshActiveShelf();
+      await refreshPool();
+      await refreshShelfMeta();
+    } catch (e) {
+      patchActiveSlots(() => prevSnapshot.slots);
+      patchActiveDisplays(() => prevSnapshot.displays);
       setUnplaced(prevSnapshot.pool);
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
@@ -273,8 +422,13 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
 
   async function unplaceItem(source: DragSource) {
     if (activeId == null) return;
-    const prevSnapshot: { slots: ShelfSlotEntry[]; pool: ShelfEntry[] } = {
+    const prevSnapshot: {
+      slots: ShelfSlotEntry[];
+      displays: ShelfDisplaySlotEntry[];
+      pool: ShelfEntry[];
+    } = {
       slots: activeState?.slots ?? [],
+      displays: activeState?.displays ?? [],
       pool: unplaced,
     };
     setBusy(true);
@@ -290,16 +444,29 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         );
         setUnplaced((prev) => [...prev, shelfSlotToShelfEntry(occupant)]);
       }
+      const displayOccupant = prevSnapshot.displays.find(
+        (s) => s.vn_id === source.vn_id && s.release_id === source.release_id,
+      );
+      if (displayOccupant) {
+        patchActiveDisplays((prev) =>
+          prev.filter(
+            (s) => !(s.vn_id === source.vn_id && s.release_id === source.release_id),
+          ),
+        );
+        setUnplaced((prev) => [...prev, shelfDisplayToShelfEntry(displayOccupant)]);
+      }
       const res = await fetch(`/api/shelves/${activeId}/slots`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: source.vn_id, release_id: source.release_id }),
       });
       if (!res.ok) throw new Error(await res.text());
+      await refreshActiveShelf();
       await refreshPool();
       await refreshShelfMeta();
     } catch (e) {
       patchActiveSlots(() => prevSnapshot.slots);
+      patchActiveDisplays(() => prevSnapshot.displays);
       setUnplaced(prevSnapshot.pool);
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
@@ -337,7 +504,23 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
     if (!source) return;
     const overId = String(over.id);
     if (overId === POOL_DROPPABLE_ID) {
-      if (source.kind === 'slot') await unplaceItem(source);
+      if (source.kind === 'slot' || source.kind === 'display') await unplaceItem(source);
+      return;
+    }
+    const displayCell = parseDisplayCellId(overId);
+    if (displayCell) {
+      if (
+        source.kind === 'display' &&
+        displayCell.shelf_id === source.shelf_id &&
+        displayCell.after_row === source.after_row &&
+        displayCell.position === source.position
+      ) {
+        return;
+      }
+      await placeOnDisplay(
+        { after_row: displayCell.after_row, position: displayCell.position },
+        source,
+      );
       return;
     }
     const cell = parseCellId(overId);
@@ -439,7 +622,13 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       );
       setLoaded((prev) => ({
         ...prev,
-        [activeShelf.id]: { shelf: { ...activeShelf, ...data.shelf }, slots: data.slots },
+        [activeShelf.id]: {
+          shelf: { ...activeShelf, ...data.shelf },
+          slots: data.slots,
+          displays: activeState?.displays.filter(
+            (d) => d.after_row <= data.shelf.rows && d.position < data.shelf.cols,
+          ) ?? [],
+        },
       }));
       if (data.evicted.length > 0) {
         toast.warning(
@@ -493,12 +682,19 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   }
 
   const placedItems = activeState?.slots ?? [];
+  const displayItems = activeState?.displays ?? [];
   const grid = useMemo(() => {
     if (!activeShelf) return null;
     const map = new Map<string, ShelfSlotEntry>();
     placedItems.forEach((s) => map.set(`${s.row}:${s.col}`, s));
     return map;
   }, [activeShelf, placedItems]);
+  const displayGrid = useMemo(() => {
+    if (!activeShelf) return null;
+    const map = new Map<string, ShelfDisplaySlotEntry>();
+    displayItems.forEach((s) => map.set(`${s.after_row}:${s.position}`, s));
+    return map;
+  }, [activeShelf, displayItems]);
 
   return (
     <DndContext
@@ -508,6 +704,14 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       onDragEnd={onDragEnd}
       onDragCancel={() => setDraggingFrom(null)}
     >
+      <div
+        className={
+          fullscreen
+            ? 'fixed inset-0 z-50 overflow-auto bg-bg p-3 sm:p-6'
+            : ''
+        }
+      >
+        <div className={fullscreen ? 'mx-auto max-w-[1600px]' : undefined}>
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         {/* Shelf tabs + toolbar — left/right paginators flank the tab
             strip so the user can swipe between shelves like a Pokémon
@@ -547,7 +751,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                 >
                   <LayoutGrid className="h-3.5 w-3.5" aria-hidden /> {s.name}
                   <span className="rounded bg-bg-elev/60 px-1 text-[10px] font-normal text-muted/80">
-                    {s.placed_count} / {s.cols * s.rows}
+                    {s.placed_count} / {s.cols * (s.rows * 2 + 1)}
                   </span>
                   {s.id === activeId && (
                     <span className="rounded bg-accent/20 px-1 text-[10px] font-bold tabular-nums text-accent">
@@ -580,6 +784,29 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               <span className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-muted">
                 <Maximize2 className="h-3 w-3" aria-hidden /> {activeShelf.cols} × {activeShelf.rows}
               </span>
+              <button
+                type="button"
+                onClick={() => setFullscreen((v) => !v)}
+                className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent"
+              >
+                {fullscreen ? (
+                  <Minimize2 className="h-3 w-3" aria-hidden />
+                ) : (
+                  <Maximize2 className="h-3 w-3" aria-hidden />
+                )}
+                {fullscreen ? t.shelfLayout.exitFullscreen : t.shelfLayout.fullscreen}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFrontDisplay((v) => !v)}
+                className={`inline-flex items-center gap-1 rounded border px-2 py-1 ${
+                  showFrontDisplay
+                    ? 'border-accent/50 bg-accent/10 text-accent'
+                    : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+                }`}
+              >
+                <Layers className="h-3 w-3" aria-hidden /> {t.shelfLayout.frontDisplay}
+              </button>
               <ResizeButton
                 label={t.shelfLayout.cols}
                 ariaInc={t.shelfLayout.incrementCols}
@@ -676,14 +903,17 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           <ShelfGrid
             shelf={activeShelf}
             occupied={grid!}
+            displays={displayGrid!}
             draggingFrom={draggingFrom}
+            showFrontDisplay={showFrontDisplay}
+            fullscreen={fullscreen}
           />
         )}
 
         <p className="mt-3 text-[11px] text-muted/80 sm:hidden">{t.shelfLayout.mobileHint}</p>
         <Legend
           used={activeShelf ? activeShelf.placed_count : undefined}
-          total={activeShelf ? activeShelf.cols * activeShelf.rows : undefined}
+          total={activeShelf ? activeShelf.cols * (activeShelf.rows * 2 + 1) : undefined}
         />
       </section>
 
@@ -712,12 +942,15 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           )}
         </PoolDrop>
       </section>
+        </div>
+      </div>
 
       <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
         {draggingFrom ? (
           <DragGhost
             from={draggingFrom}
             slots={activeState?.slots ?? []}
+            displays={activeState?.displays ?? []}
             pool={unplaced}
           />
         ) : null}
@@ -729,18 +962,18 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
 function ShelfGrid({
   shelf,
   occupied,
+  displays,
   draggingFrom,
+  showFrontDisplay,
+  fullscreen,
 }: {
   shelf: ShelfUnitWithCount;
   occupied: Map<string, ShelfSlotEntry>;
+  displays: Map<string, ShelfDisplaySlotEntry>;
   draggingFrom: DragSource | null;
+  showFrontDisplay: boolean;
+  fullscreen: boolean;
 }) {
-  const cells: Array<{ row: number; col: number; slot: ShelfSlotEntry | undefined }> = [];
-  for (let r = 0; r < shelf.rows; r += 1) {
-    for (let c = 0; c < shelf.cols; c += 1) {
-      cells.push({ row: r, col: c, slot: occupied.get(`${r}:${c}`) });
-    }
-  }
   // Cell dimensions hand-tuned to balance "thumbnail visible" with
   // "shelf fits on a phone". 64px works at any breakpoint;
   // overflow-x-auto guarantees wide shelves never break the layout.
@@ -752,24 +985,48 @@ function ShelfGrid({
       aria-labelledby={`shelf-tab-${shelf.id}`}
       tabIndex={0}
     >
-      <div
-        className="inline-grid gap-1.5"
-        style={{
-          gridTemplateColumns: `repeat(${shelf.cols}, minmax(64px, 1fr))`,
-        }}
-        role="grid"
-        aria-label={shelf.name}
-      >
-        {cells.map(({ row, col, slot }) => (
-          <DroppableCell
-            key={`${row}:${col}`}
-            shelf={shelf}
-            row={row}
-            col={col}
-            slot={slot}
-            draggingFrom={draggingFrom}
-          />
+      <div className="inline-flex min-w-full flex-col gap-2">
+        {Array.from({ length: shelf.rows }).map((_, row) => (
+          <div key={row} className="contents">
+            {showFrontDisplay && (
+              <DisplayRow
+                shelf={shelf}
+                afterRow={row}
+                displays={displays}
+                draggingFrom={draggingFrom}
+                fullscreen={fullscreen}
+              />
+            )}
+            <div
+              className="inline-grid gap-1.5"
+              style={{
+                gridTemplateColumns: `repeat(${shelf.cols}, minmax(${fullscreen ? 88 : 64}px, 1fr))`,
+              }}
+              role="grid"
+              aria-label={`${shelf.name} — ${row + 1}`}
+            >
+              {Array.from({ length: shelf.cols }).map((__, col) => (
+                <DroppableCell
+                  key={`${row}:${col}`}
+                  shelf={shelf}
+                  row={row}
+                  col={col}
+                  slot={occupied.get(`${row}:${col}`)}
+                  draggingFrom={draggingFrom}
+                />
+              ))}
+            </div>
+          </div>
         ))}
+        {showFrontDisplay && (
+          <DisplayRow
+            shelf={shelf}
+            afterRow={shelf.rows}
+            displays={displays}
+            draggingFrom={draggingFrom}
+            fullscreen={fullscreen}
+          />
+        )}
       </div>
     </div>
   );
@@ -831,6 +1088,151 @@ function DroppableCell({
           {`${row + 1}·${col + 1}`}
         </span>
       )}
+    </div>
+  );
+}
+
+function DisplayRow({
+  shelf,
+  afterRow,
+  displays,
+  draggingFrom,
+  fullscreen,
+}: {
+  shelf: ShelfUnitWithCount;
+  afterRow: number;
+  displays: Map<string, ShelfDisplaySlotEntry>;
+  draggingFrom: DragSource | null;
+  fullscreen: boolean;
+}) {
+  const t = useT();
+  const label =
+    afterRow === 0
+      ? t.shelfLayout.frontDisplayTop
+      : afterRow === shelf.rows
+        ? t.shelfLayout.frontDisplayBottom
+        : t.shelfLayout.frontDisplayBetween
+            .replace('{a}', String(afterRow))
+            .replace('{b}', String(afterRow + 1));
+  return (
+    <div
+      className="rounded-md border border-dashed border-accent/25 bg-accent/[0.04] p-1"
+      aria-label={label}
+    >
+      <div className="mb-1 flex items-center justify-between gap-2 px-0.5 text-[9px] font-bold uppercase tracking-wider text-accent/80">
+        <span className="inline-flex items-center gap-1">
+          <Layers className="h-2.5 w-2.5" aria-hidden /> {label}
+        </span>
+        <span className="text-muted/60">{t.shelfLayout.faceOutHint}</span>
+      </div>
+      <div
+        className="inline-grid w-full gap-1.5"
+        style={{
+          gridTemplateColumns: `repeat(${shelf.cols}, minmax(${fullscreen ? 88 : 64}px, 1fr))`,
+        }}
+      >
+        {Array.from({ length: shelf.cols }).map((_, position) => (
+          <DroppableDisplayCell
+            key={`${afterRow}:${position}`}
+            shelf={shelf}
+            afterRow={afterRow}
+            position={position}
+            slot={displays.get(`${afterRow}:${position}`)}
+            draggingFrom={draggingFrom}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DroppableDisplayCell({
+  shelf,
+  afterRow,
+  position,
+  slot,
+  draggingFrom,
+}: {
+  shelf: ShelfUnitWithCount;
+  afterRow: number;
+  position: number;
+  slot: ShelfDisplaySlotEntry | undefined;
+  draggingFrom: DragSource | null;
+}) {
+  const id = `display-cell|${shelf.id}|${afterRow}|${position}`;
+  const { isOver, setNodeRef } = useDroppable({ id });
+  const isSource =
+    draggingFrom?.kind === 'display' &&
+    draggingFrom.shelf_id === shelf.id &&
+    draggingFrom.after_row === afterRow &&
+    draggingFrom.position === position;
+  return (
+    <div
+      ref={setNodeRef}
+      className={`relative aspect-[2/3] w-full overflow-hidden rounded-md border transition-colors ${
+        slot
+          ? 'border-accent/40 bg-bg-elev/60 shadow-[0_10px_25px_-18px_rgba(0,0,0,0.85)]'
+          : 'border-dashed border-accent/25 bg-bg-elev/10'
+      } ${isOver ? 'ring-2 ring-accent ring-offset-1 ring-offset-bg-card' : ''} ${
+        isSource ? 'opacity-40' : ''
+      }`}
+    >
+      {slot ? (
+        <DraggableDisplayItem slot={slot} shelfRows={shelf.rows} />
+      ) : (
+        <span className="pointer-events-none absolute left-1 top-1 text-[9px] font-bold uppercase tracking-wider text-accent/35">
+          {position + 1}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function DraggableDisplayItem({ slot, shelfRows }: { slot: ShelfDisplaySlotEntry; shelfRows: number }) {
+  const t = useT();
+  const id = `display|${slot.vn_id}|${slot.release_id}|${slot.shelf_id}|${slot.after_row}|${slot.position}`;
+  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
+  const label =
+    slot.after_row === 0
+      ? t.shelfLayout.frontDisplayTop
+      : slot.after_row === shelfRows
+        ? t.shelfLayout.frontDisplayBottom
+      : t.shelfLayout.frontDisplayBetween
+          .replace('{a}', String(slot.after_row))
+          .replace('{b}', String(slot.after_row + 1));
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      title={`${slot.vn_title} — ${label} · ${slot.position + 1}`}
+      className={`group/display relative h-full w-full cursor-grab touch-none select-none active:cursor-grabbing ${
+        isDragging ? 'opacity-30' : ''
+      }`}
+    >
+      <SafeImage
+        src={slot.vn_image_url || slot.vn_image_thumb}
+        localSrc={slot.vn_local_image_thumb}
+        sexual={slot.vn_image_sexual}
+        alt={slot.vn_title}
+        className="h-full w-full"
+      />
+      <span className="absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-accent/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-bg">
+        <Layers className="h-2.5 w-2.5" aria-hidden />
+      </span>
+      {slot.dumped && (
+        <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded bg-status-completed/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-bg">
+          <ArrowDown className="h-2.5 w-2.5" aria-hidden />
+        </span>
+      )}
+      <Link
+        href={`/vn/${slot.vn_id}`}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/85 px-1 py-0.5 text-[9px] font-bold leading-tight text-white opacity-100 transition-opacity hover:text-accent sm:opacity-0 sm:group-hover/display:opacity-100"
+      >
+        {slot.vn_title}
+      </Link>
     </div>
   );
 }
@@ -934,13 +1336,15 @@ function PoolDrop({ children }: { children: React.ReactNode }) {
 function DragGhost({
   from,
   slots,
+  displays,
   pool,
 }: {
   from: DragSource;
   slots: ShelfSlotEntry[];
+  displays: ShelfDisplaySlotEntry[];
   pool: ShelfEntry[];
 }) {
-  const ed = findEdition(from, slots, pool);
+  const ed = findEdition(from, slots, displays, pool);
   if (!ed) return null;
   return (
     <div className="rotate-[3deg] cursor-grabbing">
@@ -1026,6 +1430,9 @@ function Legend({ used, total }: { used?: number; total?: number }) {
         <span className="inline-flex items-center gap-1 text-status-completed">
           <ArrowDown className="h-3 w-3" aria-hidden /> {t.shelfLayout.legendDumped}
         </span>
+        <span className="inline-flex items-center gap-1 text-accent">
+          <Layers className="h-3 w-3" aria-hidden /> {t.shelfLayout.legendFrontDisplay}
+        </span>
         <span className="ml-auto inline-flex items-center gap-1 text-muted/60">
           <Undo2 className="h-3 w-3" aria-hidden /> {t.shelfLayout.removeFromShelf}
         </span>
@@ -1038,6 +1445,7 @@ function Legend({ used, total }: { used?: number; total?: number }) {
 function findEdition(
   src: DragSource,
   slots: ShelfSlotEntry[],
+  displays: ShelfDisplaySlotEntry[],
   pool: ShelfEntry[],
 ): {
   vn_title: string;
@@ -1046,12 +1454,18 @@ function findEdition(
   vn_local_image_thumb: string | null;
   vn_image_sexual: number | null;
   edition_label: string | null;
-  box_type: string;
+  box_type: ShelfEntry['box_type'];
   condition: string | null;
   dumped: boolean;
 } | null {
   if (src.kind === 'slot') {
     const slot = slots.find(
+      (s) => s.vn_id === src.vn_id && s.release_id === src.release_id,
+    );
+    if (slot) return slot;
+  }
+  if (src.kind === 'display') {
+    const slot = displays.find(
       (s) => s.vn_id === src.vn_id && s.release_id === src.release_id,
     );
     if (slot) return slot;
@@ -1073,6 +1487,29 @@ function findEdition(
     };
   }
   return null;
+}
+
+function shelfDisplayToShelfEntry(slot: ShelfDisplaySlotEntry): ShelfEntry {
+  return {
+    vn_id: slot.vn_id,
+    release_id: slot.release_id,
+    notes: null,
+    location: 'unknown',
+    physical_location: [],
+    box_type: slot.box_type,
+    edition_label: slot.edition_label,
+    condition: slot.condition,
+    price_paid: null,
+    currency: null,
+    acquired_date: null,
+    dumped: slot.dumped,
+    added_at: 0,
+    vn_title: slot.vn_title,
+    vn_image_thumb: slot.vn_image_thumb,
+    vn_image_url: slot.vn_image_url,
+    vn_local_image_thumb: slot.vn_local_image_thumb,
+    vn_image_sexual: slot.vn_image_sexual,
+  };
 }
 
 function shelfSlotToShelfEntry(slot: ShelfSlotEntry): ShelfEntry {

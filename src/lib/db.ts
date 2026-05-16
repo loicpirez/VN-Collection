@@ -365,6 +365,29 @@ function open(): Database.Database {
     -- The UNIQUE(vn_id, release_id) constraint above already creates a
     -- covering index; no explicit one is needed.
 
+    -- Face-out / "front display" slots that sit BETWEEN normal shelf
+    -- rows so the user can showcase certain editions cover-out instead
+    -- of spine-out. after_row ranges from 0..rows (0 = before row 0,
+    -- N = after the last row). position orders left-to-right within
+    -- the strip. The UNIQUE constraint on (vn_id, release_id) keeps
+    -- one edition in at most one display slot; cross-table uniqueness
+    -- against shelf_slot is enforced in placeShelfDisplayItem so an
+    -- edition can never appear in both a normal slot AND a display
+    -- slot at the same time.
+    CREATE TABLE IF NOT EXISTS shelf_display_slot (
+      shelf_id   INTEGER NOT NULL REFERENCES shelf_unit(id) ON DELETE CASCADE,
+      after_row  INTEGER NOT NULL,
+      position   INTEGER NOT NULL,
+      vn_id      TEXT NOT NULL,
+      release_id TEXT NOT NULL,
+      placed_at  INTEGER NOT NULL,
+      PRIMARY KEY (shelf_id, after_row, position),
+      UNIQUE (vn_id, release_id),
+      FOREIGN KEY (vn_id, release_id) REFERENCES owned_release(vn_id, release_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_shelf_display_slot_shelf
+      ON shelf_display_slot(shelf_id, after_row, position);
+
     -- Derived index over staff_full cache bodies. Lets brand-overlap
     -- and per-VN trait lookups answer "which staff/characters touch
     -- VN X" without parsing every cached JSON blob.
@@ -3133,16 +3156,19 @@ function clampShelfDim(n: number, fallback: number): number {
 }
 
 export function listShelves(): ShelfUnitWithCount[] {
-  // LEFT JOIN + GROUP BY avoids the per-row scalar subquery we had
-  // previously; a single index scan over `shelf_slot` covers every
-  // shelf's count.
+  // Count regular grid slots and face-out display slots together:
+  // to the user both mean "this owned edition is placed somewhere
+  // on a shelf". Subqueries avoid multiplying counts across the two
+  // placement tables.
   return db
     .prepare(`
       SELECT u.id, u.name, u.cols, u.rows, u.order_index, u.created_at, u.updated_at,
-             COUNT(s.shelf_id) AS placed_count
+             (
+               SELECT COUNT(*) FROM shelf_slot s WHERE s.shelf_id = u.id
+             ) + (
+               SELECT COUNT(*) FROM shelf_display_slot d WHERE d.shelf_id = u.id
+             ) AS placed_count
       FROM shelf_unit u
-      LEFT JOIN shelf_slot s ON s.shelf_id = u.id
-      GROUP BY u.id
       ORDER BY u.order_index ASC, u.id ASC
     `)
     .all() as ShelfUnitWithCount[];
@@ -3203,16 +3229,24 @@ export function resizeShelf(id: number, cols: number, rows: number): ShelfResize
       'SELECT vn_id, release_id, row, col FROM shelf_slot WHERE shelf_id = ? AND (row >= ? OR col >= ?)',
     )
     .all(id, nextRows, nextCols) as Array<{ vn_id: string; release_id: string; row: number; col: number }>;
+  const displayEvicted = db
+    .prepare(
+      'SELECT vn_id, release_id, after_row AS row, position AS col FROM shelf_display_slot WHERE shelf_id = ? AND (after_row > ? OR position >= ?)',
+    )
+    .all(id, nextRows, nextCols) as Array<{ vn_id: string; release_id: string; row: number; col: number }>;
   const tx = db.transaction(() => {
     db.prepare(
       'DELETE FROM shelf_slot WHERE shelf_id = ? AND (row >= ? OR col >= ?)',
+    ).run(id, nextRows, nextCols);
+    db.prepare(
+      'DELETE FROM shelf_display_slot WHERE shelf_id = ? AND (after_row > ? OR position >= ?)',
     ).run(id, nextRows, nextCols);
     db.prepare(
       'UPDATE shelf_unit SET cols = ?, rows = ?, updated_at = ? WHERE id = ?',
     ).run(nextCols, nextRows, Date.now(), id);
   });
   tx();
-  return { shelf: getShelf(id)!, evicted };
+  return { shelf: getShelf(id)!, evicted: [...evicted, ...displayEvicted] };
 }
 
 export function deleteShelf(id: number): boolean {
@@ -3241,7 +3275,7 @@ export interface ShelfSlotEntry {
   vn_local_image_thumb: string | null;
   vn_image_sexual: number | null;
   edition_label: string | null;
-  box_type: string;
+  box_type: BoxType;
   condition: string | null;
   dumped: boolean;
 }
@@ -3268,7 +3302,7 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
   return rows.map((r) => ({
     ...r,
     dumped: !!r.dumped,
-    box_type: r.box_type ?? 'none',
+    box_type: (r.box_type ?? 'none') as BoxType,
   }));
 }
 
@@ -3291,6 +3325,9 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
       WHERE NOT EXISTS (
         SELECT 1 FROM shelf_slot s
         WHERE s.vn_id = o.vn_id AND s.release_id = o.release_id
+      ) AND NOT EXISTS (
+        SELECT 1 FROM shelf_display_slot d
+        WHERE d.vn_id = o.vn_id AND d.release_id = o.release_id
       )
       ORDER BY v.title COLLATE NOCASE ASC
     `)
@@ -3388,12 +3425,18 @@ export function placeShelfItem(input: PlaceShelfItemInput): PlaceShelfItemResult
     }
 
     // Always clear both ends first so the UNIQUE constraints don't
-    // refuse the inserts.
+    // refuse the inserts. Also drop any prior placement of this
+    // edition in a front-display slot so an edition is never present
+    // in both tables at once — cross-table uniqueness is the user's
+    // mental model ("one slot per edition") regardless of slot kind.
     db.prepare(
       'DELETE FROM shelf_slot WHERE shelf_id = ? AND row = ? AND col = ?',
     ).run(input.shelfId, input.row, input.col);
     db.prepare(
       'DELETE FROM shelf_slot WHERE vn_id = ? AND release_id = ?',
+    ).run(input.vnId, input.releaseId);
+    db.prepare(
+      'DELETE FROM shelf_display_slot WHERE vn_id = ? AND release_id = ?',
     ).run(input.vnId, input.releaseId);
 
     db.prepare(
@@ -3435,20 +3478,34 @@ export function placeShelfItem(input: PlaceShelfItemInput): PlaceShelfItemResult
   return { swapped };
 }
 
-/** Remove an edition's placement (returns it to the unplaced pool). */
+/** Remove an edition's placement (returns it to the unplaced pool).
+ *  Tries the regular cell table first, then the front-display table.
+ *  Returns true if either delete affected a row. */
 export function removeShelfPlacement(vnId: string, releaseId: string): boolean {
   const info = db
     .prepare('DELETE FROM shelf_slot WHERE vn_id = ? AND release_id = ?')
     .run(vnId, releaseId);
-  return info.changes > 0;
+  if (info.changes > 0) return true;
+  const dispInfo = db
+    .prepare('DELETE FROM shelf_display_slot WHERE vn_id = ? AND release_id = ?')
+    .run(vnId, releaseId);
+  return dispInfo.changes > 0;
 }
 
-/** Where (if anywhere) a specific edition currently lives. */
+/** Where (if anywhere) a specific edition currently lives — checks
+ *  both the regular cell grid and the front-display rows. The discriminant
+ *  field is `kind`: 'cell' for shelf_slot rows, 'display' for
+ *  shelf_display_slot rows. */
+export type ShelfPlacementForEdition =
+  | { kind: 'cell'; shelf_id: number; shelf_name: string; row: number; col: number }
+  | { kind: 'display'; shelf_id: number; shelf_name: string; after_row: number; position: number }
+  | null;
+
 export function getShelfPlacementForEdition(
   vnId: string,
   releaseId: string,
-): { shelf_id: number; shelf_name: string; row: number; col: number } | null {
-  const row = db
+): ShelfPlacementForEdition {
+  const cell = db
     .prepare(`
       SELECT s.shelf_id, u.name AS shelf_name, s.row, s.col
       FROM shelf_slot s
@@ -3458,7 +3515,135 @@ export function getShelfPlacementForEdition(
     .get(vnId, releaseId) as
     | { shelf_id: number; shelf_name: string; row: number; col: number }
     | undefined;
-  return row ?? null;
+  if (cell) return { kind: 'cell', ...cell };
+  const disp = db
+    .prepare(`
+      SELECT d.shelf_id, u.name AS shelf_name, d.after_row, d.position
+      FROM shelf_display_slot d
+      JOIN shelf_unit u ON u.id = d.shelf_id
+      WHERE d.vn_id = ? AND d.release_id = ?
+    `)
+    .get(vnId, releaseId) as
+    | { shelf_id: number; shelf_name: string; after_row: number; position: number }
+    | undefined;
+  if (disp) return { kind: 'display', ...disp };
+  return null;
+}
+
+// -- Front display rows (face-out display slots between shelf rows) ------
+
+export interface ShelfDisplaySlotEntry {
+  shelf_id: number;
+  after_row: number;
+  position: number;
+  vn_id: string;
+  release_id: string;
+  placed_at: number;
+  vn_title: string;
+  vn_image_thumb: string | null;
+  vn_image_url: string | null;
+  vn_local_image_thumb: string | null;
+  vn_image_sexual: number | null;
+  edition_label: string | null;
+  box_type: BoxType;
+  condition: string | null;
+  dumped: boolean;
+}
+
+/** List every front-display placement on a shelf, sorted by row then
+ *  left-to-right position. Joined with VN + owned-release display
+ *  data so the fullscreen view can render covers without N+1 fetches. */
+export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] {
+  const rows = db
+    .prepare(`
+      SELECT d.shelf_id, d.after_row, d.position, d.vn_id, d.release_id, d.placed_at,
+             v.title          AS vn_title,
+             v.image_thumb    AS vn_image_thumb,
+             v.image_url      AS vn_image_url,
+             v.local_image_thumb AS vn_local_image_thumb,
+             v.image_sexual   AS vn_image_sexual,
+             o.edition_label  AS edition_label,
+             o.box_type       AS box_type,
+             o.condition      AS condition,
+             o.dumped         AS dumped
+      FROM shelf_display_slot d
+      JOIN owned_release o ON o.vn_id = d.vn_id AND o.release_id = d.release_id
+      JOIN vn v ON v.id = d.vn_id
+      WHERE d.shelf_id = ?
+      ORDER BY d.after_row ASC, d.position ASC
+    `)
+    .all(shelfId) as Array<Omit<ShelfDisplaySlotEntry, 'dumped' | 'box_type'> & { dumped: number | null; box_type: string | null }>;
+  return rows.map((r) => ({
+    ...r,
+    dumped: !!r.dumped,
+    box_type: (r.box_type ?? 'none') as BoxType,
+  }));
+}
+
+export interface PlaceShelfDisplayItemInput {
+  shelfId: number;
+  afterRow: number;
+  position: number;
+  vnId: string;
+  releaseId: string;
+}
+
+/**
+ * Place an owned edition into a front-display slot. Atomic:
+ *   - Verifies the owned edition exists.
+ *   - Drops any prior placement (cell OR display) for the same
+ *     (vn_id, release_id) so an edition is never present twice.
+ *   - If the target display slot is occupied, the occupant goes back
+ *     to the unplaced pool (`shelf_slot` evict semantics, but simpler
+ *     because display slots don't swap onto each other — they're
+ *     positional indices, not 2D coords).
+ *   - Bounds: `after_row` must be 0..shelf.rows (inclusive — the
+ *     value `shelf.rows` means "below the last row"). `position`
+ *     must be in [0, shelf.cols] so a display row never overflows
+ *     past the regular grid's visual width.
+ */
+export function placeShelfDisplayItem(input: PlaceShelfDisplayItemInput): void {
+  if (!Number.isInteger(input.shelfId)) throw new Error('shelf id must be integer');
+  if (!Number.isInteger(input.afterRow) || !Number.isInteger(input.position)) {
+    throw new Error('after_row/position must be integers');
+  }
+  const shelf = getShelf(input.shelfId);
+  if (!shelf) throw new Error('shelf not found');
+  if (input.afterRow < 0 || input.afterRow > shelf.rows) {
+    throw new Error('after_row out of bounds');
+  }
+  if (input.position < 0 || input.position >= shelf.cols) {
+    throw new Error('position out of bounds');
+  }
+  const tx = db.transaction(() => {
+    const owned = db
+      .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
+      .get(input.vnId, input.releaseId);
+    if (!owned) throw new Error('owned edition not found');
+    // Strip any previous placement (cell OR display) for this
+    // edition. Cross-table uniqueness is the whole point.
+    db.prepare('DELETE FROM shelf_slot WHERE vn_id = ? AND release_id = ?').run(input.vnId, input.releaseId);
+    db.prepare('DELETE FROM shelf_display_slot WHERE vn_id = ? AND release_id = ?').run(input.vnId, input.releaseId);
+    // Evict any occupant of the target display slot back to the pool.
+    db.prepare(
+      'DELETE FROM shelf_display_slot WHERE shelf_id = ? AND after_row = ? AND position = ?',
+    ).run(input.shelfId, input.afterRow, input.position);
+    db.prepare(
+      `INSERT INTO shelf_display_slot
+         (shelf_id, after_row, position, vn_id, release_id, placed_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(input.shelfId, input.afterRow, input.position, input.vnId, input.releaseId, Date.now());
+  });
+  tx();
+}
+
+/** Remove a display-slot placement (the edition goes back to the
+ *  unplaced pool). Returns true if anything was actually removed. */
+export function removeShelfDisplayPlacement(vnId: string, releaseId: string): boolean {
+  const info = db
+    .prepare('DELETE FROM shelf_display_slot WHERE vn_id = ? AND release_id = ?')
+    .run(vnId, releaseId);
+  return info.changes > 0;
 }
 
 export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {
@@ -3470,15 +3655,18 @@ export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {
 
 export interface OwnedReleaseWithShelf extends OwnedReleaseRow {
   /** When the edition is placed on a shelf, this carries the
-   *  shelf id / display name / (row, col). null when unplaced. */
-  shelf: { id: number; name: string; row: number; col: number } | null;
+   *  shelf id / display name / coordinates. null when unplaced. */
+  shelf:
+    | { kind: 'cell'; id: number; name: string; row: number; col: number }
+    | { kind: 'display'; id: number; name: string; afterRow: number; position: number }
+    | null;
 }
 
 /**
  * Variant of `listOwnedReleasesForVn` that LEFT JOINs the shelf
  * placement so the VN detail page can render a chip like
- * "Living room — left bookcase · R2 · C5" next to each owned
- * edition. One query, no N+1.
+ * "Living room — left bookcase · R2 · C5" or "Front display · 2"
+ * next to each owned edition. One query, no N+1.
  */
 export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithShelf[] {
   const rows = db
@@ -3487,12 +3675,20 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
              s.shelf_id  AS shelf_id,
              s.row       AS shelf_row,
              s.col       AS shelf_col,
-             u.name      AS shelf_name
+             u.name      AS shelf_name,
+             d.shelf_id  AS display_shelf_id,
+             d.after_row AS display_after_row,
+             d.position  AS display_position,
+             du.name     AS display_shelf_name
       FROM owned_release o
       LEFT JOIN shelf_slot s
         ON s.vn_id = o.vn_id AND s.release_id = o.release_id
       LEFT JOIN shelf_unit u
         ON u.id = s.shelf_id
+      LEFT JOIN shelf_display_slot d
+        ON d.vn_id = o.vn_id AND d.release_id = o.release_id
+      LEFT JOIN shelf_unit du
+        ON du.id = d.shelf_id
       WHERE o.vn_id = ?
       ORDER BY o.added_at DESC
     `)
@@ -3501,13 +3697,28 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
       shelf_row: number | null;
       shelf_col: number | null;
       shelf_name: string | null;
+      display_shelf_id: number | null;
+      display_after_row: number | null;
+      display_position: number | null;
+      display_shelf_name: string | null;
     }>;
   return rows.map((r) => ({
     ...mapOwnedReleaseRow(r),
     shelf:
       r.shelf_id != null && r.shelf_row != null && r.shelf_col != null && r.shelf_name != null
-        ? { id: r.shelf_id, name: r.shelf_name, row: r.shelf_row, col: r.shelf_col }
-        : null,
+        ? { kind: 'cell', id: r.shelf_id, name: r.shelf_name, row: r.shelf_row, col: r.shelf_col }
+        : r.display_shelf_id != null &&
+            r.display_after_row != null &&
+            r.display_position != null &&
+            r.display_shelf_name != null
+          ? {
+              kind: 'display',
+              id: r.display_shelf_id,
+              name: r.display_shelf_name,
+              afterRow: r.display_after_row,
+              position: r.display_position,
+            }
+          : null,
   }));
 }
 
