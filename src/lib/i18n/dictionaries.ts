@@ -317,7 +317,7 @@ export const dictionaries = {
       filterDumpedNo: 'Pas dumpé',
       filterDumpedAll: 'Filtrer par statut de dump (clic = dumpé → pas dumpé → tous)',
       clearFilters: 'Tout effacer',
-      advancedFilters: 'Filtres avancés',
+      advancedFilters: 'Filtres',
       stats: {
         vnCount: 'VN',
         playedHours: 'joué',
@@ -1639,7 +1639,7 @@ export const dictionaries = {
       resetHint: 'Restaure l\'ordre et la visibilité par défaut.',
     },
     homeLayout: {
-      openEditor: 'Personnaliser la page',
+      openEditor: 'Mise en page de l\'accueil',
       title: 'Mise en page de l\'accueil',
       hint: 'Glisser-déposer pour réordonner. Œil = masquer / afficher. Le tout est sauvegardé automatiquement.',
       reset: 'Réinitialiser',
@@ -2257,7 +2257,7 @@ export const dictionaries = {
       filterDumpedNo: 'Not dumped',
       filterDumpedAll: 'Filter by dump status (click cycles dumped → not dumped → all)',
       clearFilters: 'Clear all',
-      advancedFilters: 'Advanced filters',
+      advancedFilters: 'Filters',
       stats: {
         vnCount: 'VN',
         playedHours: 'played',
@@ -3579,7 +3579,7 @@ export const dictionaries = {
       resetHint: 'Restore the default order and visibility.',
     },
     homeLayout: {
-      openEditor: 'Customize home',
+      openEditor: 'Home layout',
       title: 'Home page layout',
       hint: 'Drag to reorder. Eye toggles visibility. Everything saves automatically.',
       reset: 'Reset',
@@ -4197,7 +4197,7 @@ export const dictionaries = {
       filterDumpedNo: '未ダンプ',
       filterDumpedAll: 'ダンプ状態で絞り込み（クリックで「ダンプ済み → 未ダンプ → すべて」）',
       clearFilters: 'すべてクリア',
-      advancedFilters: '詳細フィルター',
+      advancedFilters: 'フィルター',
       stats: {
         vnCount: '本',
         playedHours: 'プレイ',
@@ -5519,7 +5519,7 @@ export const dictionaries = {
       resetHint: '既定の表示順と表示状態に戻します。',
     },
     homeLayout: {
-      openEditor: 'ホームをカスタマイズ',
+      openEditor: 'ホームの配置',
       title: 'ホームページのレイアウト',
       hint: 'ドラッグで順序変更。目アイコンで表示・非表示を切替。すべて自動保存されます。',
       reset: 'リセット',
