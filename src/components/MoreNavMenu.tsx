@@ -15,6 +15,7 @@ import {
   FileCode2,
   Gamepad2,
   Globe,
+  HardDriveDownload,
   Heart,
   LayoutGrid,
   Library,
@@ -108,6 +109,7 @@ export function GroupedNav() {
   const insights: NavItem[] = [
     { href: '/stats', label: t.nav.stats, icon: BarChart3 },
     { href: '/shelf', label: t.nav.shelf, icon: LayoutGrid },
+    { href: '/dumped', label: t.nav.dumped, icon: HardDriveDownload },
     { href: '/steam', label: t.nav.steam, icon: Globe },
     { href: '/egs', label: t.nav.egs, icon: Gamepad2 },
     { href: '/schema', label: t.nav.schema, icon: FileCode2 },
