@@ -10,7 +10,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const releases = await getReleasesForVn(id);
     for (const rel of releases) {
-      upsertReleaseResolutionCache({ releaseId: rel.id, resolution: rel.resolution });
+      // Bind the release back to its VN so aspect-ratio filters can
+      // match without an `owned_release` row.
+      upsertReleaseResolutionCache({ releaseId: rel.id, vnId: id, resolution: rel.resolution });
     }
     return NextResponse.json({ releases });
   } catch (err) {

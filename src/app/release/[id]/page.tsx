@@ -46,7 +46,21 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
     error = (e as Error).message;
   }
   if (!release) notFound();
-  upsertReleaseResolutionCache({ releaseId: release.id, resolution: release.resolution });
+  // First-time visit caches the resolution for aspect-ratio filters.
+  // Bind every VN the release covers so any of those VNs can match a
+  // library aspect filter without needing an owned-release row.
+  for (const vn of release.vns) {
+    if (vn?.id) {
+      upsertReleaseResolutionCache({
+        releaseId: release.id,
+        vnId: vn.id,
+        resolution: release.resolution,
+      });
+    }
+  }
+  if (release.vns.length === 0) {
+    upsertReleaseResolutionCache({ releaseId: release.id, resolution: release.resolution });
+  }
 
   const voicedKey = release.voiced && VOICED_KEY[release.voiced] ? VOICED_KEY[release.voiced] : null;
   const flags: { label: string; tone?: 'good' | 'warn' }[] = [];

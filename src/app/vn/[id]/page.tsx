@@ -18,6 +18,7 @@ import {
 } from '@/lib/db';
 import { parseVnDetailLayoutV1 } from '@/lib/vn-detail-layout';
 import { VnDetailLayout, type VnDetailSection } from '@/components/VnDetailLayout';
+import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
 import { resolveField } from '@/lib/source-resolve';
 import { formatMinutes } from '@/lib/format';
@@ -711,6 +712,13 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         if ((vn.staff ?? []).length > 0) {
           sections.push({ id: 'staff', node: <StaffSection staff={vn.staff ?? []} /> });
         }
+        // Aspect-ratio control is meaningful for any VN (in collection
+        // or not) — surfaces the derived ratio and lets the user pin
+        // a manual override that beats everything else.
+        sections.push({
+          id: 'aspect-override',
+          node: <AspectOverrideControl vnId={vn.id} />,
+        });
         if (inCol) {
           sections.push({ id: 'tag-overlap', node: <TagCoOccurrence vnId={vn.id} /> });
           sections.push({

@@ -181,6 +181,22 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_owned_release_aspect_override_aspect
       ON owned_release_aspect_override(aspect_key);
 
+    -- VN-level aspect-ratio manual override. Highest priority in the
+    -- filter chain — used when no release on VNDB has a resolution we
+    -- can derive from, when releases are wrong, or when the user
+    -- knows the screen ratio from a source we don't read (manuals,
+    -- packshots, the original engine). Independent from the
+    -- owned_release_aspect_override table so a user without any owned
+    -- edition can still tag a VN's aspect ratio.
+    CREATE TABLE IF NOT EXISTS vn_aspect_override (
+      vn_id      TEXT PRIMARY KEY REFERENCES vn(id) ON DELETE CASCADE,
+      aspect_key TEXT NOT NULL,
+      note       TEXT,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_aspect_override_aspect
+      ON vn_aspect_override(aspect_key);
+
     CREATE TABLE IF NOT EXISTS vn_route (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       vn_id          TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
@@ -441,6 +457,14 @@ function open(): Database.Database {
   // Remove the redundant index from older builds.
   db.exec(`DROP INDEX IF EXISTS idx_shelf_slot_item`);
 
+  // The aspect-ratio filter used to require an `owned_release` row to
+  // bridge release_id → vn_id. That made the filter useless for users
+  // with no owned editions in inventory. Storing vn_id directly on the
+  // resolution cache lets us match by VN without that JOIN. Column is
+  // nullable for back-compat with already-populated rows; the writers
+  // fill it on subsequent visits.
+  ensureColumn(db, 'release_resolution_cache', 'vn_id', 'TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_release_resolution_cache_vn ON release_resolution_cache(vn_id, aspect_key)');
   ensureColumn(db, 'vn', 'screenshots', 'TEXT');
   ensureColumn(db, 'vn', 'image_sexual', 'REAL');
   ensureColumn(db, 'vn', 'image_violence', 'REAL');
@@ -2487,8 +2511,21 @@ export function listCollection({
     params.push(dumped ? 1 : 0);
   }
   if (aspect && aspect !== 'unknown') {
-    where.push(`
+    // Aspect match priority (highest to lowest):
+    //   1. VN-level manual override (vn_aspect_override)
+    //   2. Owned-edition per-release override (owned_release_aspect_override)
+    //   3. Cached release resolution joined via owned_release (user owns it)
+    //   4. Cached release resolution bound directly to the VN
+    //      (release_resolution_cache.vn_id — populated whenever the
+    //      releases endpoint or the /release page was visited)
+    // Each branch is short-circuited by COALESCE, so the highest-
+    // priority hit decides the match.
+    where.push(`(
       EXISTS (
+        SELECT 1 FROM vn_aspect_override vo
+        WHERE vo.vn_id = c.vn_id AND vo.aspect_key = ?
+      )
+      OR EXISTS (
         SELECT 1
         FROM owned_release o
         LEFT JOIN owned_release_aspect_override ao
@@ -2498,11 +2535,19 @@ export function listCollection({
         WHERE o.vn_id = c.vn_id
           AND COALESCE(ao.aspect_key, rc.aspect_key) = ?
       )
-    `);
-    params.push(aspect);
+      OR EXISTS (
+        SELECT 1 FROM release_resolution_cache rc
+        WHERE rc.vn_id = c.vn_id AND rc.aspect_key = ?
+      )
+    )`);
+    params.push(aspect, aspect, aspect);
   } else if (aspect === 'unknown') {
     where.push(`
       NOT EXISTS (
+        SELECT 1 FROM vn_aspect_override vo
+        WHERE vo.vn_id = c.vn_id AND vo.aspect_key <> 'unknown'
+      )
+      AND NOT EXISTS (
         SELECT 1
         FROM owned_release o
         LEFT JOIN owned_release_aspect_override ao
@@ -2512,6 +2557,10 @@ export function listCollection({
         WHERE o.vn_id = c.vn_id
           AND COALESCE(ao.aspect_key, rc.aspect_key) IS NOT NULL
           AND COALESCE(ao.aspect_key, rc.aspect_key) <> 'unknown'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM release_resolution_cache rc
+        WHERE rc.vn_id = c.vn_id AND rc.aspect_key <> 'unknown'
       )
     `);
   }
@@ -3749,6 +3798,10 @@ export interface ReleaseAspectInfo {
 export function upsertReleaseResolutionCache(input: {
   releaseId: string;
   resolution: unknown;
+  /** Optional VN id the release belongs to. When supplied, we record
+   *  the link in `release_resolution_cache.vn_id` so aspect-ratio
+   *  filters can match the VN without going through `owned_release`. */
+  vnId?: string | null;
   fetchedAt?: number;
 }): void {
   const parsed = parseResolutionValue(input.resolution);
@@ -3763,9 +3816,10 @@ export function upsertReleaseResolutionCache(input: {
   const aspect = parsed ? aspectKeyForResolution(parsed.width, parsed.height) : 'unknown';
   db.prepare(
     `INSERT INTO release_resolution_cache
-       (release_id, width, height, raw_resolution, aspect_key, fetched_at)
-       VALUES (?, ?, ?, ?, ?, ?)
+       (release_id, vn_id, width, height, raw_resolution, aspect_key, fetched_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(release_id) DO UPDATE SET
+       vn_id = COALESCE(excluded.vn_id, release_resolution_cache.vn_id),
        width = excluded.width,
        height = excluded.height,
        raw_resolution = excluded.raw_resolution,
@@ -3773,12 +3827,123 @@ export function upsertReleaseResolutionCache(input: {
        fetched_at = excluded.fetched_at`,
   ).run(
     input.releaseId,
+    input.vnId ?? null,
     parsed?.width ?? null,
     parsed?.height ?? null,
     raw,
     aspect,
     input.fetchedAt ?? Date.now(),
   );
+}
+
+/**
+ * VN-level aspect-ratio manual override. Takes precedence over any
+ * per-release override / cached resolution / screenshot-derived
+ * value when filtering and grouping the library. Pass `aspectKey:
+ * null` (or omit it) to clear the override.
+ */
+export function setVnAspectOverride(input: {
+  vnId: string;
+  aspectKey?: AspectKey | null;
+  note?: string | null;
+}): void {
+  const aspect =
+    input.aspectKey && isAspectKey(input.aspectKey) && input.aspectKey !== 'unknown'
+      ? input.aspectKey
+      : null;
+  if (!aspect) {
+    db.prepare('DELETE FROM vn_aspect_override WHERE vn_id = ?').run(input.vnId);
+    return;
+  }
+  db.prepare(
+    `INSERT INTO vn_aspect_override (vn_id, aspect_key, note, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(vn_id) DO UPDATE SET
+       aspect_key = excluded.aspect_key,
+       note = excluded.note,
+       updated_at = excluded.updated_at`,
+  ).run(input.vnId, aspect, input.note?.trim() || null, Date.now());
+}
+
+export interface VnAspectOverride {
+  aspect_key: AspectKey;
+  note: string | null;
+  updated_at: number;
+}
+
+export function getVnAspectOverride(vnId: string): VnAspectOverride | null {
+  const row = db
+    .prepare('SELECT aspect_key, note, updated_at FROM vn_aspect_override WHERE vn_id = ?')
+    .get(vnId) as { aspect_key: string; note: string | null; updated_at: number } | undefined;
+  if (!row || !isAspectKey(row.aspect_key)) return null;
+  return { aspect_key: row.aspect_key, note: row.note, updated_at: row.updated_at };
+}
+
+/**
+ * Derive an aspect key for a VN from every signal we have, in
+ * priority order: manual VN override → per-edition override → release
+ * cache (own or globally cached for this VN) → vn.screenshots
+ * dimensions (best-effort when VNDB has no release resolution).
+ * Returns `'unknown'` when nothing matches.
+ */
+export function deriveVnAspectKey(vnId: string): AspectKey {
+  const manual = getVnAspectOverride(vnId);
+  if (manual) return manual.aspect_key;
+
+  const cacheHit = db
+    .prepare(`
+      SELECT COALESCE(ao.aspect_key, rc.aspect_key) AS aspect
+      FROM owned_release o
+      LEFT JOIN owned_release_aspect_override ao
+        ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+      LEFT JOIN release_resolution_cache rc
+        ON rc.release_id = o.release_id
+      WHERE o.vn_id = ? AND COALESCE(ao.aspect_key, rc.aspect_key) IS NOT NULL
+        AND COALESCE(ao.aspect_key, rc.aspect_key) <> 'unknown'
+      LIMIT 1
+    `)
+    .get(vnId) as { aspect: string } | undefined;
+  if (cacheHit && isAspectKey(cacheHit.aspect) && cacheHit.aspect !== 'unknown') {
+    return cacheHit.aspect;
+  }
+  const cacheVn = db
+    .prepare(
+      `SELECT aspect_key FROM release_resolution_cache
+         WHERE vn_id = ? AND aspect_key <> 'unknown' LIMIT 1`,
+    )
+    .get(vnId) as { aspect_key: string } | undefined;
+  if (cacheVn && isAspectKey(cacheVn.aspect_key) && cacheVn.aspect_key !== 'unknown') {
+    return cacheVn.aspect_key;
+  }
+  // Screenshot dimensions fallback. VNDB returns `dims: [w, h]` on
+  // each screenshot; that's usually the engine's native resolution
+  // even when no release row carries a resolution. We pick the most
+  // common bucket so single oddballs don't dominate.
+  const vnRow = db
+    .prepare('SELECT screenshots FROM vn WHERE id = ?')
+    .get(vnId) as { screenshots: string | null } | undefined;
+  if (vnRow?.screenshots) {
+    try {
+      const shots = JSON.parse(vnRow.screenshots) as Array<{ dims?: [number, number] }>;
+      const tally = new Map<AspectKey, number>();
+      for (const s of shots) {
+        if (!Array.isArray(s.dims)) continue;
+        const [w, h] = s.dims;
+        if (typeof w !== 'number' || typeof h !== 'number' || w <= 0 || h <= 0) continue;
+        const key = aspectKeyForResolution(w, h);
+        if (key === 'unknown') continue;
+        tally.set(key, (tally.get(key) ?? 0) + 1);
+      }
+      let best: { key: AspectKey; n: number } | null = null;
+      for (const [key, n] of tally) {
+        if (!best || n > best.n) best = { key, n };
+      }
+      if (best) return best.key;
+    } catch {
+      // ignore — malformed JSON column, treat as unknown
+    }
+  }
+  return 'unknown';
 }
 
 export function setOwnedReleaseAspectOverride(input: {
