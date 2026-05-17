@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { SpoilerReveal } from './SpoilerReveal';
 
 /**
  * Render VNDB-flavoured BBCode as React nodes. Description fields
@@ -151,14 +152,17 @@ function renderTokens(tokens: Token[], spoilerLabel: string, keyPrefix = 'm'): R
       case 's':
         return <span key={key} className="line-through">{renderTokens(tok.children, spoilerLabel, key)}</span>;
       case 'spoiler':
+        // SpoilerReveal is a client component but ships safely under
+        // a server-rendered parent (React server-component → client-
+        // island boundary). It applies the same hover/focus/tap rules
+        // as every other spoiler surface, so the synopsis behaves
+        // exactly like a tag chip would. Level 2 = major spoiler
+        // (anything inside `[spoiler]…[/spoiler]` is treated as such
+        // per VNDB convention).
         return (
-          <details key={key} className="inline">
-            <summary className="inline-flex cursor-pointer items-center gap-1 rounded bg-bg-elev/60 px-1 text-muted hover:text-white [&::-webkit-details-marker]:hidden [list-style:none]">
-              <svg aria-hidden viewBox="0 0 16 16" className="h-3 w-3 transition-transform [details[open]>summary>&]:rotate-90"><path fill="currentColor" d="M5 3l6 5-6 5z"/></svg>
-              {spoilerLabel}
-            </summary>
-            <span>{renderTokens(tok.children, spoilerLabel, key)}</span>
-          </details>
+          <SpoilerReveal key={key} level={2} hiddenLabel={spoilerLabel}>
+            {renderTokens(tok.children, spoilerLabel, key)}
+          </SpoilerReveal>
         );
     }
   });
