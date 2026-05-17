@@ -9,6 +9,14 @@ import {
   parseVnDetailLayoutV1,
   validateVnDetailLayoutV1,
 } from '@/lib/vn-detail-layout';
+import {
+  parseSeriesDetailLayoutV1,
+  validateSeriesDetailLayoutV1,
+} from '@/lib/series-detail-layout';
+import {
+  parseShelfViewPrefsV1,
+  validateShelfViewPrefsV1,
+} from '@/lib/shelf-view-prefs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -21,6 +29,8 @@ const SAFE_KEYS = new Set([
   'default_group',
   'home_section_layout_v1',
   'vn_detail_section_layout_v1',
+  'series_detail_section_layout_v1',
+  'shelf_view_prefs_v1',
   'vndb_writeback',
   'vndb_backup_url',
   'vndb_backup_enabled',
@@ -105,6 +115,8 @@ export async function GET(req: Request) {
     default_group: getAppSetting('default_group') ?? 'none',
     home_section_layout_v1: parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1')),
     vn_detail_section_layout_v1: parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1')),
+    series_detail_section_layout_v1: parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1')),
+    shelf_view_prefs_v1: parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1')),
     vndb_writeback: getAppSetting('vndb_writeback') === '1',
     vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
     // Mask: never echo the raw URL on GET (it can contain auth
@@ -222,6 +234,50 @@ export async function PATCH(req: NextRequest) {
     } else {
       return NextResponse.json(
         { error: 'vn_detail_section_layout_v1 must be an object or null' },
+        { status: 400 },
+      );
+    }
+  }
+  if ('series_detail_section_layout_v1' in body) {
+    const v = body.series_detail_section_layout_v1;
+    if (v == null) {
+      setAppSetting('series_detail_section_layout_v1', null);
+    } else if (typeof v === 'object' && !Array.isArray(v)) {
+      // Same merge-on-top-of-persisted strategy as the home layout so
+      // partial patches from the per-section menu or drag-reorder don't
+      // clobber each other.
+      const current = parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1'));
+      const patch = v as Record<string, unknown>;
+      const merged: unknown = {
+        sections: {
+          ...current.sections,
+          ...(typeof patch.sections === 'object' && patch.sections !== null
+            ? (patch.sections as Record<string, unknown>)
+            : {}),
+        },
+        order: Array.isArray(patch.order) ? patch.order : current.order,
+      };
+      const normalized = validateSeriesDetailLayoutV1(merged);
+      setAppSetting('series_detail_section_layout_v1', JSON.stringify(normalized));
+    } else {
+      return NextResponse.json(
+        { error: 'series_detail_section_layout_v1 must be an object or null' },
+        { status: 400 },
+      );
+    }
+  }
+  if ('shelf_view_prefs_v1' in body) {
+    const v = body.shelf_view_prefs_v1;
+    if (v == null) {
+      setAppSetting('shelf_view_prefs_v1', null);
+    } else if (typeof v === 'object' && !Array.isArray(v)) {
+      // Validator clamps sliders to documented ranges so a malicious
+      // PATCH can't store `cellSizePx: 99999` and break the grid layout.
+      const normalized = validateShelfViewPrefsV1(v);
+      setAppSetting('shelf_view_prefs_v1', JSON.stringify(normalized));
+    } else {
+      return NextResponse.json(
+        { error: 'shelf_view_prefs_v1 must be an object or null' },
         { status: 400 },
       );
     }
