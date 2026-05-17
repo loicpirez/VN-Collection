@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useId, useRef, useState, useTransition } from 'react';
+import { useCallback, useId, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bookmark, Check, ListPlus, Loader2, Plus, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { PortalPopover } from './PortalPopover';
 import { useToast } from './ToastProvider';
 
 interface UserList {
@@ -38,25 +39,10 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState('');
   const [memberCount, setMemberCount] = useState<number | null>(initialMemberCount ?? null);
-  const popRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverId = useId();
   const [, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (!open) return;
-    function outside(e: MouseEvent) {
-      if (!popRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    function esc(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    window.addEventListener('mousedown', outside);
-    window.addEventListener('keydown', esc);
-    return () => {
-      window.removeEventListener('mousedown', outside);
-      window.removeEventListener('keydown', esc);
-    };
-  }, [open]);
+  const closePopover = useCallback(() => setOpen(false), []);
 
   async function load() {
     setLoading(true);
@@ -149,8 +135,9 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
         }`;
 
   return (
-    <div ref={popRef} className="relative inline-flex">
+    <div className="relative inline-flex">
       <button
+        ref={triggerRef}
         type="button"
         onClick={toggleOpen}
         className={triggerClass}
@@ -168,13 +155,18 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
           </span>
         )}
       </button>
-      {open && (
+      <PortalPopover
+        open={open}
+        onClose={closePopover}
+        triggerRef={triggerRef}
+        label={t.lists.addToList}
+        panelId={popoverId}
+        panelClassName="w-64 rounded-lg border border-border bg-bg-card p-2 text-sm shadow-card"
+      >
         <div
-          id={popoverId}
           role="menu"
           aria-label={t.lists.addToList}
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-full z-50 mt-1 w-64 rounded-lg border border-border bg-bg-card p-2 text-sm shadow-card"
         >
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[10px] font-bold uppercase tracking-widest text-muted">{t.lists.addToList}</span>
@@ -266,7 +258,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
             </>
           )}
         </div>
-      )}
+      </PortalPopover>
     </div>
   );
 }
