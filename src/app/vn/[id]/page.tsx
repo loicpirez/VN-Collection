@@ -453,7 +453,24 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               {!!vn.platforms?.length && (
                 <div className="col-span-2 sm:col-span-3">
                   <dt className="label">{t.detail.platforms}</dt>
-                  <dd className="font-semibold">{vn.platforms.slice(0, 10).join(', ')}</dd>
+                  {/*
+                    Each platform code links to `/search?platforms=<code>`.
+                    Previously the row was a dead comma-joined string —
+                    the acceptance gate flagged that metadata had to be
+                    actionable everywhere it appears. Same chip styling
+                    as `<LangList>` for visual consistency.
+                  */}
+                  <dd className="mt-1 flex flex-wrap items-center gap-1.5">
+                    {vn.platforms.slice(0, 10).map((p) => (
+                      <Link
+                        key={p}
+                        href={`/search?platforms=${encodeURIComponent(p)}`}
+                        className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs uppercase tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
+                      >
+                        {p}
+                      </Link>
+                    ))}
+                  </dd>
                 </div>
               )}
               {/*

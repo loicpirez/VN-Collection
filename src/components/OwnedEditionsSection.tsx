@@ -494,11 +494,23 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
             <MapPin className="h-3 w-3" />
             {t.form.physicalLocation}
           </div>
+          {/*
+            Each location chip is a `<Link>` to `/?place=<value>` so
+            the user can pivot from "what's in this edition" to
+            "everything I have at this location" with one click. The
+            Library page reads `?place=` server-side and filters via
+            `owned_release.physical_location`.
+          */}
           <div className="flex flex-wrap gap-1">
             {edition.physical_location.map((p) => (
-              <span key={p} className="rounded border border-border bg-bg-elev/60 px-1.5 py-0.5 text-[10px]">
+              <Link
+                key={p}
+                href={`/?place=${encodeURIComponent(p)}`}
+                className="inline-flex items-center rounded border border-border bg-bg-elev/60 px-1.5 py-0.5 text-[10px] transition-colors hover:border-accent hover:text-accent"
+                title={p}
+              >
                 {p}
-              </span>
+              </Link>
             ))}
           </div>
         </div>

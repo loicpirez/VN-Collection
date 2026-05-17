@@ -16,7 +16,6 @@ import {
   Shield,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
-import { LangFlag } from './LangFlag';
 import { SkeletonRows } from './Skeleton';
 import {
   OWNED_EDITIONS_EVENT,
@@ -173,7 +172,6 @@ export function ReleasesSection({
         {releases && releases.length > 0 && (
           <ul className="space-y-3">
             {releases.map((r) => {
-              const platforms = r.platforms.join(', ');
               const flags: string[] = [];
               if (r.official) flags.push(t.releases.official);
               if (r.patch) flags.push(t.releases.patch);
@@ -182,8 +180,11 @@ export function ReleasesSection({
               if (r.has_ero) flags.push(t.releases.hasEro);
               const voicedKey = r.voiced && VOICED_KEY[r.voiced] ? VOICED_KEY[r.voiced] : null;
               const rtype = r.vns.find((v) => v.id === vnId)?.rtype;
-              const dev = r.producers.filter((p) => p.developer).map((p) => p.name).join(', ');
-              const pub = r.producers.filter((p) => p.publisher).map((p) => p.name).join(', ');
+              // Keep the `{ id, name }` shape so each producer chip can
+              // route to `/producer/<id>` (and the developer / publisher
+              // distinction stays preserved when both rows render).
+              const devList = r.producers.filter((p) => p.developer);
+              const pubList = r.producers.filter((p) => p.publisher);
               const res = fmtRes(r.resolution);
               const isOwned = owned.has(r.id);
               return (
@@ -243,18 +244,41 @@ export function ReleasesSection({
                   {r.alttitle && r.alttitle !== r.title && (
                     <div className="mt-0.5 text-xs text-muted">{r.alttitle}</div>
                   )}
-                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+                    {/*
+                      Languages + platforms render as clickable chips
+                      linking to `/search?langs=<code>` and
+                      `/search?platforms=<code>` respectively. The
+                      bare-icon-then-text variant was dead-text — the
+                      acceptance gate requires every metadata token on
+                      a detail page to be a discovery entry point.
+                    */}
                     {r.languages.length > 0 && (
-                      <span className="inline-flex items-baseline gap-1">
-                        <Languages className="h-3 w-3" />
+                      <span className="inline-flex flex-wrap items-center gap-1">
+                        <Languages className="h-3 w-3 shrink-0" aria-hidden />
                         {r.languages.map((l) => (
-                          <LangFlag key={l.lang} lang={l.lang} className="text-xs" />
+                          <Link
+                            key={l.lang}
+                            href={`/search?langs=${encodeURIComponent(l.lang)}`}
+                            className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] uppercase tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
+                          >
+                            {l.lang}
+                          </Link>
                         ))}
                       </span>
                     )}
-                    {platforms && (
-                      <span className="inline-flex items-center gap-1">
-                        <Globe className="h-3 w-3" /> {platforms}
+                    {r.platforms.length > 0 && (
+                      <span className="inline-flex flex-wrap items-center gap-1">
+                        <Globe className="h-3 w-3 shrink-0" aria-hidden />
+                        {r.platforms.map((p) => (
+                          <Link
+                            key={p}
+                            href={`/search?platforms=${encodeURIComponent(p)}`}
+                            className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] uppercase tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
+                          >
+                            {p}
+                          </Link>
+                        ))}
                       </span>
                     )}
                     {res && <span>{t.releases.resolution}: {res}</span>}
@@ -275,11 +299,33 @@ export function ReleasesSection({
                       </span>
                     )}
                   </div>
-                  {(dev || pub) && (
-                    <div className="mt-2 text-[11px] text-muted">
-                      {dev && <span><b className="text-white/80">{dev}</b></span>}
-                      {dev && pub && <span> · </span>}
-                      {pub && <span>{pub}</span>}
+                  {(devList.length > 0 || pubList.length > 0) && (
+                    <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-[11px] text-muted">
+                      {devList.map((p, i) => (
+                        <span key={`dev-${p.id}`} className="inline-flex items-baseline gap-1">
+                          {i > 0 && <span aria-hidden>·</span>}
+                          <Link
+                            href={`/producer/${p.id}`}
+                            className="font-bold text-white/80 transition-colors hover:text-accent"
+                            title={p.name}
+                          >
+                            {p.name}
+                          </Link>
+                        </span>
+                      ))}
+                      {devList.length > 0 && pubList.length > 0 && <span aria-hidden>·</span>}
+                      {pubList.map((p, i) => (
+                        <span key={`pub-${p.id}`} className="inline-flex items-baseline gap-1">
+                          {i > 0 && <span aria-hidden>·</span>}
+                          <Link
+                            href={`/producer/${p.id}`}
+                            className="transition-colors hover:text-accent"
+                            title={p.name}
+                          >
+                            {p.name}
+                          </Link>
+                        </span>
+                      ))}
                     </div>
                   )}
                   {flags.length > 0 && (
