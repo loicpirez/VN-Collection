@@ -26,7 +26,7 @@ const ICONS = {
  * me a VN on VNDB"; this panel is a secondary affordance for when
  * the user types text they wrote into their notes. Previous
  * rendering put it ABOVE the main results with full row dump,
- * which the user reported as hijacking the search experience.
+ * which manual QA flagged as hijacking the search experience.
  *
  * Collapsed-by-default: shows a single line with the hit count and
  * a chevron. Click to expand the rows. If there are no hits, the

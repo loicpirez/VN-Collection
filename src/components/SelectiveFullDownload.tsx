@@ -111,7 +111,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
     try {
       // Build query string from defaultFilters; /api/collection validates
       // each param, so we don't filter here. `sort=title` keeps the
-      // initial order deterministic regardless of the user's library
+      // initial order deterministic regardless of the saved library
       // sort — they re-sort client-side below if needed.
       const params = new URLSearchParams({ sort: 'title' });
       if (defaultFilters) {

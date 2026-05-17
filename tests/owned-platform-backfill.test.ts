@@ -5,7 +5,7 @@
  * platforms (e.g. one row may cover WIN / PS4 / PSV / SWI). The
  * user physically owns ONE SKU per `owned_release` row; without
  * a per-edition platform field the shelf popover and pool-card
- * face widened to the full set, which the user reported as
+ * face widened to the full set, which manual QA flagged as
  * misleading. The fix introduces `owned_release.owned_platform`
  * (lowercase VNDB code) plus three autofill layers:
  *

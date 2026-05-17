@@ -579,7 +579,7 @@ export async function getCharacter(id: string): Promise<VndbCharacter | null> {
 
 /**
  * Returns the characters of a VN if (and only if) we have already fetched them
- * before. No network call is made — used for the "in my collection only" trait
+ * before. No network call is made — used for the "in collection only" trait
  * aggregate. The body MUST stay in sync with `getCharactersForVn`.
  */
 export function readCachedCharactersForVn(vnId: string, max = 30): VndbCharacter[] {
@@ -999,7 +999,7 @@ export async function getRandomQuote(): Promise<VndbQuote | null> {
 }
 
 /**
- * Pull a random quote drawn from a specific set of VN ids (the user's collection).
+ * Pull a random quote drawn from a specific set of VN ids (e.g. the collection).
  * VNDB's quote endpoint supports `random: 1` with arbitrary filters, but the JSON
  * shape capping `or` clauses at ~50 predicates means we batch.
  */

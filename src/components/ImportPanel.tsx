@@ -49,7 +49,7 @@ export function ImportPanel() {
       if (kind === 'db') {
         // DB restore wipes every existing row — gate behind a
         // type-to-confirm so an accidental drop doesn't atomic-
-        // destroy the user's collection.
+        // destroy the local collection.
         const ok = await confirm({
           message: t.dataMgmt.restoreConfirm,
           tone: 'danger',

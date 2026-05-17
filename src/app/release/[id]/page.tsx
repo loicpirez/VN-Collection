@@ -90,7 +90,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
     : null;
 
   // Owned-inventory shortcut: if any of the VNs linked to this release is in
-  // the user's collection, surface a quick toggle/edit panel here.
+  // the collection, surface a quick toggle/edit panel here.
   const ownedContexts = release.vns
     .filter((v) => isInCollection(v.id))
     .map((v) => ({

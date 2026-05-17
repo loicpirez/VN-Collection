@@ -54,7 +54,7 @@ function watchedProducerIds(): string[] {
 }
 
 /**
- * Fetch upcoming releases produced by any developer in the user's library.
+ * Fetch upcoming releases produced by any developer in the library.
  * Splits the producer-id list into batches of 50 to stay below VNDB's
  * filter-predicate cap and keep individual queries small.
  *
@@ -104,7 +104,7 @@ export async function fetchUpcomingForCollection(): Promise<UpcomingRelease[]> {
 }
 
 /**
- * Pull upcoming VNDB releases unrestricted by the user's collection. Useful
+ * Pull upcoming VNDB releases unrestricted by the collection. Useful
  * for "what's coming up everywhere" panes. Limited to the next 12 months so
  * the result stays bounded; ordered by release date ascending.
  */

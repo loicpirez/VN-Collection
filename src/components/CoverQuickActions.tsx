@@ -37,7 +37,7 @@ interface WishlistState {
  *
  * Two independent concerns:
  *
- *   1. Local collection — "Add to my collection" / "Remove from my collection".
+ *   1. Local collection — "Add to collection" / "Remove from collection".
  *      Persisted in SQLite via /api/collection/[id].
  *
  *   2. VNDB wishlist — heart toggle that adds/removes VNDB ulist label 5.

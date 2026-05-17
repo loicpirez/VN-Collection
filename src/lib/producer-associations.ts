@@ -128,7 +128,7 @@ function summarize(v: VndbVnSummary): Omit<ProducerVnRef, 'owned'> {
 
 /**
  * Fetch BOTH developer and publisher credits for a producer, split by
- * role. The user's collection is cross-referenced so each VN carries an
+ * role. The local collection is cross-referenced so each VN carries an
  * `owned` flag the UI can use to render "add me" affordances.
  *
  * Why this split exists:

@@ -17,7 +17,7 @@
  *
  * 'library' was a single block that bundled the Library toolbar
  * (chips/search/filters/sort/group/density/actions) with the Library
- * grid. The user wanted to hide/reorder/collapse those two parts
+ * grid. The split now lets operators hide/reorder/collapse those two parts
  * independently — see the migration logic in `validateHomeSectionLayoutV1`
  * below which rewrites legacy 'library' into the split pair.
  */

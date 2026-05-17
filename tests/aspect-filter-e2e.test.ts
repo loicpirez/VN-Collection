@@ -13,7 +13,7 @@
  * Before the fix shipped today, case (1) + (4) were partially broken
  * (the SQL filter included them but `listAspectKeysForVns` for the
  * card chip + the `group=aspect` grouping did not), and case (5) was
- * not handled at all. The user reported "aspect ratio filter
+ * not handled at all. Manual QA flagged "aspect ratio filter
  * matches nothing" — this suite locks the regression.
  */
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';

@@ -77,7 +77,7 @@ function longestCommonPrefix(titles: string[]): string {
 }
 
 /**
- * Inspect a VN's VNDB relations and the user's collection to propose
+ * Inspect a VN's VNDB relations and the local collection to propose
  * series membership. Returns nothing when there's no signal — caller
  * should hide the suggestion card.
  *

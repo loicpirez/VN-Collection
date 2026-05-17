@@ -247,7 +247,7 @@ export function DownloadStatusBar() {
           to know what's downloading. Falls back to the generic
           "{n} en cours" count when there are multiple in-flight
           jobs (the popover then disambiguates). The previous chip
-          only showed "1 en cours · 0/0" which the user reported
+          only showed "1 en cours · 0/0" which manual QA flagged
           as opaque ("can't see what's downloading").
         */}
         <span className="min-w-0 truncate">

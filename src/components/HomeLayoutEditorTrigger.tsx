@@ -46,7 +46,7 @@ export const HOME_LAYOUT_OPEN_EVENT = 'vn:open-home-layout';
  * the home page.
  *
  * Previously paired with a standalone floating icon at the top of
- * the home page. The user reported that as detached and dominant;
+ * the home page. Manual QA flagged that as detached and dominant;
  * the trigger is now consumed via a CustomEvent (HOME_LAYOUT_OPEN_EVENT)
  * dispatched from the Library toolbar's Options menu and from the
  * Settings → Home tab.

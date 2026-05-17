@@ -94,7 +94,7 @@ const VNDB_API = 'https://api.vndb.org/kana';
  * live only on the release-level extlinks. To match a Steam appid back to
  * a local VN we therefore need to ask VNDB:
  *
- *   "For my collection's VN ids, which releases carry a Steam extlink?"
+ *   "For the collection's VN ids, which releases carry a Steam extlink?"
  *
  * That's a single (batched) /release call rather than N per-VN fetches.
  * VNDB caps "or" predicates around 1000, so we chunk by 80 VN ids to
@@ -229,7 +229,7 @@ export function listUnlinkedSteamGames(steamGames: SteamPlaytime[]): UnlinkedSte
 }
 
 /**
- * Search the user's collection by title (case-insensitive substring).
+ * Search the local collection by title (case-insensitive substring).
  * Used by the /steam page to look up a candidate VN for a manual assign.
  */
 export function searchCollectionByTitle(query: string, limit = 12): Array<{ id: string; title: string; alttitle: string | null }> {

@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * Two-tab ranking page. The "developer" tab counts each producer's
- * developed VNs in the user's collection (joined on `vn.developers`),
+ * developed VNs in the collection (joined on `vn.developers`),
  * the "publisher" tab counts the same producer's PUBLISHED VNs
  * (joined on `vn.publishers`). VNDB models these as two distinct
  * roles attached to releases, so a publisher-only studio

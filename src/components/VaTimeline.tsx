@@ -5,7 +5,7 @@ import { getDict } from '@/lib/i18n/server';
 /**
  * Year-by-year credit heatmap for a VA. Each column is a calendar year,
  * height is the credit count, and the saturated portion of the bar marks
- * the share that is in the user's collection. Empty years between the
+ * the share that is in the collection. Empty years between the
  * earliest and latest credit are rendered as gap columns so the timeline
  * stays chronologically faithful.
  */

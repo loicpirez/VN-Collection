@@ -9,7 +9,7 @@ interface Props {
   vnId: string;
   /** Whether the VN is currently favorited (for optimistic UI). */
   initial: boolean;
-  /** Whether the VN is in the user's collection. If false, the button auto-adds it (status=planning) before toggling. */
+  /** Whether the VN is in the collection. If false, the button auto-adds it (status=planning) before toggling. */
   inCollection?: boolean;
   /** Visual mode: floating overlay on a card, or inline pill on detail pages. */
   variant?: 'overlay' | 'inline';

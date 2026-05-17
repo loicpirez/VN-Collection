@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
   // The name is broadcast through `setJobCurrent` so the
   // DownloadStatusBar's "Now: …" hint shows precisely what is being
   // fetched (previous behavior was just "cache-refresh · Global
-  // refresh" with no detail, which the user reported as opaque).
+  // refresh" with no detail, which manual QA flagged as opaque).
   const tasks: Array<{ name: string; run: () => Promise<unknown> }> = [
     { name: 'Cache rows (bust)', run: async () => { bust.run(); } },
     { name: 'EGS anticipated (top 100)', run: () => fetchEgsAnticipated(100) },
