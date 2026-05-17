@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Library, Loader2, Search, Tags } from 'lucide-react';
+import { ArrowRight, Loader2, Search, Tags } from 'lucide-react';
 import { RefreshPageButton } from './RefreshPageButton';
 import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import { stripVndbMarkup } from './VndbMarkup';
 import type { VndbTag } from '@/lib/vndb-types';
+import { tagChipHref, tagsPageHref, type TagsPageMode } from '@/lib/tags-page-modes';
 
 const CATEGORIES: { key: 'cont' | 'ero' | 'tech'; tkey: 'cat_cont' | 'cat_ero' | 'cat_tech' }[] = [
   { key: 'cont', tkey: 'cat_cont' },
@@ -14,11 +15,30 @@ const CATEGORIES: { key: 'cont' | 'ero' | 'tech'; tkey: 'cat_cont' | 'cat_ero' |
   { key: 'tech', tkey: 'cat_tech' },
 ];
 
-export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null } = {}) {
+interface TagsBrowserProps {
+  lastUpdatedAt?: number | null;
+  initialMode?: TagsPageMode;
+}
+
+/**
+ * Two-mode tag browser:
+ *
+ * - `local`: pulls from `/api/collection/tags` (only tags the operator
+ *   has at least one VN with). Clicking a card goes straight to the
+ *   Library filter `/?tag=<id>`. This is the default — the page paints
+ *   instantly from SQLite.
+ * - `vndb`:  pulls from `/api/tags` which proxies VNDB's `/tag`
+ *   endpoint (cached via `cachedFetch` in `lib/vndb.ts`). Clicking a
+ *   card goes to the per-tag detail page `/tag/<id>` which then
+ *   exposes both Local and VNDB drill-downs.
+ *
+ * The mode lives in the URL (`?mode=vndb`) so the choice is shareable.
+ */
+export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: TagsBrowserProps = {}) {
   const t = useT();
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<'' | 'cont' | 'ero' | 'tech'>('');
-  const [onlyMine, setOnlyMine] = useState(false);
+  const [mode, setMode] = useState<TagsPageMode>(initialMode);
   const [results, setResults] = useState<VndbTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,9 +48,10 @@ export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number |
     setLoading(true);
     setError(null);
     const ctrl = new AbortController();
+    const isLocal = mode === 'local';
     const handle = setTimeout(async () => {
       try {
-        const url = onlyMine
+        const url = isLocal
           ? '/api/collection/tags'
           : (() => {
               const p = new URLSearchParams();
@@ -43,7 +64,7 @@ export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number |
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
         const d = await r.json();
         let list: VndbTag[] = d.tags;
-        if (onlyMine) {
+        if (isLocal) {
           if (q.trim()) {
             const lower = q.trim().toLowerCase();
             list = list.filter((tag) => tag.name.toLowerCase().includes(lower));
@@ -57,13 +78,21 @@ export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number |
       } finally {
         if (alive) setLoading(false);
       }
-    }, onlyMine ? 0 : 300);
+    }, isLocal ? 0 : 300);
     return () => {
       alive = false;
       ctrl.abort();
       clearTimeout(handle);
     };
-  }, [q, category, onlyMine, t.common.error]);
+  }, [q, category, mode, t.common.error]);
+
+  const switchMode = (next: TagsPageMode) => {
+    setMode(next);
+    if (typeof window !== 'undefined') {
+      const url = tagsPageHref(next);
+      window.history.replaceState(null, '', url);
+    }
+  };
 
   return (
     <div>
@@ -71,10 +100,36 @@ export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number |
         <Tags className="h-7 w-7 text-accent" aria-hidden />
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">{t.tags.pageTitle}</h1>
-          <p className="text-sm text-muted">{t.tags.pageSubtitle}</p>
+          <p className="text-sm text-muted">
+            {mode === 'vndb' ? t.tags.vndbTabHint : t.tags.pageSubtitle}
+          </p>
         </div>
         <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
       </header>
+
+      <nav
+        className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
+        role="tablist"
+      >
+        <button
+          type="button"
+          onClick={() => switchMode('local')}
+          role="tab"
+          aria-selected={mode === 'local'}
+          className={`rounded px-2.5 py-1 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+        >
+          {t.tags.tabLocal}
+        </button>
+        <button
+          type="button"
+          onClick={() => switchMode('vndb')}
+          role="tab"
+          aria-selected={mode === 'vndb'}
+          className={`rounded px-2.5 py-1 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+        >
+          {t.tags.tabVndb}
+        </button>
+      </nav>
 
       <div className="mb-6 flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-[200px]">
@@ -96,21 +151,15 @@ export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number |
             <option key={c.key} value={c.key}>{t.tags[c.tkey]}</option>
           ))}
         </select>
-        <button
-          type="button"
-          onClick={() => setOnlyMine((v) => !v)}
-          className={`btn ${onlyMine ? 'btn-primary' : ''}`}
-          title={t.library.filterMineHint}
-        >
-          <Library className="h-4 w-4" />
-          {t.library.filterMine}
-        </button>
       </div>
 
       {error && <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">{error}</div>}
 
       {loading ? (
-        <SkeletonRows count={8} withThumb={false} />
+        <div className="flex items-center gap-2 text-sm text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          <SkeletonRows count={8} withThumb={false} />
+        </div>
       ) : results.length === 0 ? (
         <div className="py-12 text-center text-muted">{t.search.noResults}</div>
       ) : (
@@ -118,9 +167,9 @@ export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number |
           {results.map((tag) => (
             <Link
               key={tag.id}
-              href={`/?tag=${encodeURIComponent(tag.id)}`}
+              href={tagChipHref(mode, tag.id)}
               className="group block rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
-              title={t.tags.openInLibrary}
+              title={mode === 'vndb' ? t.tagPage.browse : t.tags.openInLibrary}
             >
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-sm font-bold transition-colors group-hover:text-accent">{tag.name}</h3>
@@ -137,7 +186,7 @@ export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number |
                 <span className="tabular-nums">{tag.vn_count.toLocaleString()} {t.tags.vnCount}</span>
                 {tag.aliases.length > 0 && <span className="truncate">· {tag.aliases.slice(0, 2).join(', ')}</span>}
                 <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-                  {t.tags.openInLibrary}
+                  {mode === 'vndb' ? t.tagPage.browse : t.tags.openInLibrary}
                   <ArrowRight className="h-3 w-3" aria-hidden />
                 </span>
               </div>
@@ -148,4 +197,3 @@ export function TagsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number |
     </div>
   );
 }
-

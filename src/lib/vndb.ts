@@ -826,6 +826,28 @@ export async function getTag(id: string): Promise<VndbTag | null> {
   return r.results[0] ?? null;
 }
 
+/**
+ * Top VNs (by rating descending) that carry a given tag. Cached through
+ * the regular `cachedFetch` so repeated visits to a tag detail page are
+ * served from the local SQLite cache.
+ *
+ * Uses the documented VNDB filter shape `['tag', '=', [id, lie, spoiler]]`.
+ * The default `1.2` lie threshold keeps the soft "the VN really has this
+ * tag" cutoff per the round-2 spec.
+ */
+export async function fetchTopVnsByTag(
+  tagId: string,
+  { results = 24, lieThreshold = 1.2, spoiler = 1 }: { results?: number; lieThreshold?: number; spoiler?: number } = {},
+): Promise<VndbResponse<Omit<import('./types').VndbSearchHit, 'in_collection'>>> {
+  return vndbPost('/vn', {
+    filters: ['tag', '=', [tagId.toLowerCase(), lieThreshold, spoiler]],
+    fields: VN_SEARCH_FIELDS,
+    sort: 'rating',
+    reverse: true,
+    results: Math.min(results, 100),
+  }, TTL.vnSearch);
+}
+
 // Trait
 export interface VndbTrait {
   id: string;
