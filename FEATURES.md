@@ -54,8 +54,15 @@ navigates to the appropriate filtered view. Affected surfaces:
 - Stats "By edition": each row routes to `/?edition=<type>`
   (driven by the new `?edition=` library filter).
 - /similar cards: each matched seed tag is its own `<Link>` to
-  `/?tag=<id>` so the user can pivot from "this VN matched these
+  `/?tag=<id>` so the reader can pivot from "this VN matched these
   seeds" to "every other VN with that tag".
+- VN detail "Sorti" line is a `<Link>` to the library pre-filtered
+  by that release year (`?yearMin=<y>&yearMax=<y>`).
+- VN detail aspect chip pairs the existing scroll-to-override
+  anchor with a secondary `<Link>` to `/?aspect=<key>` so the
+  reader can pivot to every VN at that ratio without scrolling.
+- VN detail dumped chip links to `/?dumped=1` whenever the
+  collection-level dumped flag is set.
 
 ### Sort + custom drag-reorder ✅
 Standard sort dropdown plus an opt-in `sort=custom` mode that unlocks
@@ -493,7 +500,7 @@ brand-new title with one perfect score doesn't shoot to #1.
 On `/similar?vn=v123`, each result card now lists the seed tags
 that surfaced it as individual `<Link>` chips routing to
 `/?tag=<id>`. The user can pivot from "this VN matched these
-two seeds" to "every VN in my library with that same tag"
+two seeds" to "every VN in the library with that same tag"
 without going back to /similar.
 
 ### Cross-VN quotes ✅

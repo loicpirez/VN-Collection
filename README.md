@@ -142,8 +142,8 @@ ingested, cached locally, and can be combined or compared per-field.
   (owned chip, VNDB / EGS external links) with the character
   thumbnails the seiyuu voiced inline under the card. Tap a
   character thumb to jump to `/character/[id]`. Makes "what does
-  Sumire Uesaka sound like in *this* role" a one-click lookup.
-- Tag & trait browsers — trait page has an "In my collection" toggle
+  this seiyuu sound like in *this* role" a one-click lookup.
+- Tag & trait browsers — trait page has an "In the collection" toggle
 - Release listings per VN — package artwork, languages with mtl flag,
   voiced level, GTIN / catalog, all extlinks
 - Quote of the moment (footer, hover-reveal)
@@ -349,6 +349,14 @@ recommendations, shelf, dumped, stats).
   flagged. Companion to the existing per-edition `is_dumped` flag
   in `owned_release` — gives the same "how complete is my archive?"
   signal as the editor / producer completion pages.
+- **Five tabs** (`?tab=`): `all` (default, every tracked VN, hides
+  the no-editions bucket so 0/0 rows never appear), `complete`
+  (fully dumped, either VN-level flag or every owned edition
+  marked), `partial` (≥1 dumped edition, not all), `missing` (has
+  owned editions, none dumped), `none` (in the collection with
+  NO owned editions — the row carries a CTA linking back to the
+  VN's `#my-editions` anchor so editions can be added without
+  leaving the page).
 
 ### Backup & migration
 - **Export**: full collection as JSON (versioned schema)

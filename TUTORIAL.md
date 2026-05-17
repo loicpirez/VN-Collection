@@ -183,14 +183,24 @@ Default sections:
   view. Clear all chips to fall back to auto-derivation.
 - `/top-ranked` (`g k`) — two tabs of community-ranked games:
     1. **VNDB top** — highest-rated VNs across VNDB by user score,
-       filtered by minimum vote count.
-    2. **EGS top** — top games by EGS community median.
+       filtered by minimum vote count. The score chip carries a
+       tooltip naming the ranking method (`VNDB rating (Bayesian-
+       weighted score)`).
+    2. **EGS top** — top games by EGS community median. Each row
+       displays BOTH the raw median (`Star {n}/100`, tooltip
+       `EGS median (raw)`) and the Bayesian-shrunk value the
+       ranking actually used (`Bayes {n}/100`, tooltip names the
+       method) so a single-reviewer 100/100 no longer looks like
+       it should rank above a 1000-reviewer 85/100.
   EGS rows missing a VNDB cross-link get a **"Map to VNDB"**
   button that opens a search modal — the chosen mapping is sticky
   and survives cache refresh.
+  The `?min=` URL chip switches the minimum-votes threshold among
+  the configured presets; each preset has its own cache row so
+  flipping between them is free after the first fetch.
 - `/upcoming` (`g u`) — three tabs of "what's next":
-    1. **My collection** — future releases from developers already in
-       your collection (default).
+    1. **The collection** — future releases from developers already in
+       the collection (default).
     2. **EGS anticipated** — top games on ErogameScape ranked by user
        purchase intent (`必ず購入 / 多分購入 / 様子見`), each cross-linked
        to its VNDB entry when EGS records one. Cards render **2-per-row
@@ -288,9 +298,15 @@ Tabbed-style sections:
   pattern (manage links, see linked games at a glance). The
   `/data` EGS section has "Open EGS" CTA that jumps to the
   dedicated page.
-- **Dumped** — `/dumped` shows your archival-completion ratio
+- **Dumped** — `/dumped` shows the archival-completion ratio
   globally and per-VN (mini progress bars + fully-dumped chips).
-  Companion to the editor / producer completion pages.
+  Companion to the editor / producer completion pages. Five tabs
+  split the entries: `all` (default — every tracked VN, hides the
+  no-editions rows so 0/0 never appears), `complete` (fully
+  dumped), `partial`, `missing` (owned editions but none dumped),
+  `none` (no owned editions tracked yet — each row carries an
+  "Add an edition" CTA that links back to the VN's
+  `#my-editions` anchor).
 - **Shelf layout (drag-and-drop)** — `/shelf?view=layout` is a
   2-D grid editor. Create one or more shelves (give them a name
   like "Living room — left bookcase"), set each shelf's own
