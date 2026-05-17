@@ -33,6 +33,38 @@ import {
   type VnSectionId,
   type VnSectionState,
 } from '@/lib/vn-detail-layout';
+import {
+  CHARACTER_DETAIL_LAYOUT_EVENT,
+  CHARACTER_SECTION_IDS,
+  defaultCharacterDetailLayoutV1,
+  validateCharacterDetailLayoutV1,
+  type CharacterDetailLayoutV1,
+  type CharacterSectionId,
+} from '@/lib/character-detail-layout';
+import {
+  STAFF_DETAIL_LAYOUT_EVENT,
+  STAFF_SECTION_IDS,
+  defaultStaffDetailLayoutV1,
+  validateStaffDetailLayoutV1,
+  type StaffDetailLayoutV1,
+  type StaffSectionId,
+} from '@/lib/staff-detail-layout';
+import {
+  PRODUCER_DETAIL_LAYOUT_EVENT,
+  PRODUCER_SECTION_IDS,
+  defaultProducerDetailLayoutV1,
+  validateProducerDetailLayoutV1,
+  type ProducerDetailLayoutV1,
+  type ProducerSectionId,
+} from '@/lib/producer-detail-layout';
+import {
+  SERIES_DETAIL_LAYOUT_EVENT,
+  SERIES_DETAIL_SECTION_IDS,
+  defaultSeriesDetailLayoutV1,
+  validateSeriesDetailLayoutV1,
+  type SeriesDetailLayoutV1,
+  type SeriesSectionId,
+} from '@/lib/series-detail-layout';
 import { startTour } from './TutorialTour';
 
 type SortKey =
@@ -84,6 +116,10 @@ interface ServerSettings {
   default_group?: GroupKey;
   home_section_layout_v1?: HomeSectionLayoutV1;
   vn_detail_section_layout_v1?: VnDetailLayoutV1;
+  series_detail_section_layout_v1?: SeriesDetailLayoutV1;
+  character_detail_section_layout_v1?: CharacterDetailLayoutV1;
+  staff_detail_section_layout_v1?: StaffDetailLayoutV1;
+  producer_detail_section_layout_v1?: ProducerDetailLayoutV1;
   vndb_writeback?: boolean;
   vndb_backup_enabled?: boolean;
   vndb_backup_url?: { hasUrl: boolean; host: string | null; isDefault: boolean };
@@ -151,6 +187,10 @@ export function SettingsButton() {
       default_group: GroupKey;
       home_section_layout_v1: { sections?: Partial<HomeSectionLayoutV1['sections']>; order?: HomeSectionLayoutV1['order'] } | null;
       vn_detail_section_layout_v1: VnDetailLayoutV1 | null;
+      series_detail_section_layout_v1: SeriesDetailLayoutV1 | null;
+      character_detail_section_layout_v1: CharacterDetailLayoutV1 | null;
+      staff_detail_section_layout_v1: StaffDetailLayoutV1 | null;
+      producer_detail_section_layout_v1: ProducerDetailLayoutV1 | null;
       vndb_writeback: boolean;
       vndb_backup_enabled: boolean;
       vndb_backup_url: string | null;
@@ -803,11 +843,57 @@ export function SettingsButton() {
                 )}
 
                 {activeTab === 'vn-page' && (
-                  <VnLayoutPanel
-                    layout={server?.vn_detail_section_layout_v1 ?? defaultVnDetailLayoutV1()}
-                    onSave={(next) => saveServer({ vn_detail_section_layout_v1: next })}
-                    onReset={() => saveServer({ vn_detail_section_layout_v1: null })}
-                  />
+                  <div className="space-y-4">
+                    <VnLayoutPanel
+                      layout={server?.vn_detail_section_layout_v1 ?? defaultVnDetailLayoutV1()}
+                      onSave={(next) => saveServer({ vn_detail_section_layout_v1: next })}
+                      onReset={() => saveServer({ vn_detail_section_layout_v1: null })}
+                    />
+                    <DetailPageLayoutPanel
+                      title={t.characterLayout.restoreTitle}
+                      desc={t.characterLayout.restoreDesc}
+                      resetLabel={t.characterLayout.reset}
+                      layout={server?.character_detail_section_layout_v1 ?? defaultCharacterDetailLayoutV1()}
+                      sectionIds={CHARACTER_SECTION_IDS}
+                      sectionLabels={t.characterLayout.sectionLabels as Record<string, string>}
+                      eventName={CHARACTER_DETAIL_LAYOUT_EVENT}
+                      onSave={(next) => saveServer({ character_detail_section_layout_v1: next })}
+                      onReset={() => saveServer({ character_detail_section_layout_v1: null })}
+                    />
+                    <DetailPageLayoutPanel
+                      title={t.staffLayout.restoreTitle}
+                      desc={t.staffLayout.restoreDesc}
+                      resetLabel={t.staffLayout.reset}
+                      layout={server?.staff_detail_section_layout_v1 ?? defaultStaffDetailLayoutV1()}
+                      sectionIds={STAFF_SECTION_IDS}
+                      sectionLabels={t.staffLayout.sectionLabels as Record<string, string>}
+                      eventName={STAFF_DETAIL_LAYOUT_EVENT}
+                      onSave={(next) => saveServer({ staff_detail_section_layout_v1: next })}
+                      onReset={() => saveServer({ staff_detail_section_layout_v1: null })}
+                    />
+                    <DetailPageLayoutPanel
+                      title={t.producerLayout.restoreTitle}
+                      desc={t.producerLayout.restoreDesc}
+                      resetLabel={t.producerLayout.reset}
+                      layout={server?.producer_detail_section_layout_v1 ?? defaultProducerDetailLayoutV1()}
+                      sectionIds={PRODUCER_SECTION_IDS}
+                      sectionLabels={t.producerLayout.sectionLabels as Record<string, string>}
+                      eventName={PRODUCER_DETAIL_LAYOUT_EVENT}
+                      onSave={(next) => saveServer({ producer_detail_section_layout_v1: next })}
+                      onReset={() => saveServer({ producer_detail_section_layout_v1: null })}
+                    />
+                    <DetailPageLayoutPanel
+                      title={t.seriesLayout.restoreTitle}
+                      desc={t.seriesLayout.restoreDesc}
+                      resetLabel={t.seriesLayout.reset}
+                      layout={server?.series_detail_section_layout_v1 ?? defaultSeriesDetailLayoutV1()}
+                      sectionIds={SERIES_DETAIL_SECTION_IDS}
+                      sectionLabels={t.seriesLayout.sectionLabels as Record<string, string>}
+                      eventName={SERIES_DETAIL_LAYOUT_EVENT}
+                      onSave={(next) => saveServer({ series_detail_section_layout_v1: next })}
+                      onReset={() => saveServer({ series_detail_section_layout_v1: null })}
+                    />
+                  </div>
                 )}
 
                 <div className="mt-6 flex justify-between">
@@ -1033,6 +1119,126 @@ function VnLayoutPanel({
       </ul>
       {hiddenCount === 0 && (
         <p className="text-[10px] text-muted">{t.vnLayout.hiddenNoneHint}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Generic collapsed-by-default accordion panel for any detail-page
+ * section layout (character, staff, producer, series). Same contract
+ * as VnLayoutPanel but parameterised — avoids copy-pasting.
+ */
+function DetailPageLayoutPanel<Id extends string>({
+  title,
+  desc,
+  resetLabel,
+  layout,
+  sectionIds,
+  sectionLabels,
+  eventName,
+  onSave,
+  onReset,
+}: {
+  title: string;
+  desc: string;
+  resetLabel: string;
+  layout: { order: Id[]; sections: Record<Id, { visible: boolean; collapsedByDefault: boolean }> };
+  sectionIds: readonly Id[];
+  sectionLabels: Record<string, string>;
+  eventName: string;
+  onSave: (next: typeof layout) => void;
+  onReset: () => void;
+}) {
+  const t = useT();
+  const [draft, setDraft] = useState(layout);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => { setDraft(layout); }, [layout]);
+
+  function patch(id: Id, partial: Partial<{ visible: boolean; collapsedByDefault: boolean }>) {
+    setDraft((cur) => {
+      const next = {
+        order: cur.order,
+        sections: { ...cur.sections, [id]: { ...cur.sections[id], ...partial } },
+      };
+      onSave(next);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(eventName, { detail: { layout: next } }));
+      }
+      return next;
+    });
+  }
+
+  const hiddenCount = sectionIds.filter((id) => !draft.sections[id]?.visible).length;
+
+  return (
+    <div className="border-t border-border pt-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
+        <div>
+          <h3 className="text-sm font-bold">{title}</h3>
+          <p className="text-[11px] text-muted">{desc}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {hiddenCount > 0 && (
+            <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">{hiddenCount}</span>
+          )}
+          <span className="text-muted text-xs">{open ? '▲' : '▼'}</span>
+        </div>
+      </button>
+      {open && (
+        <div className="mt-3 space-y-2">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold"
+            >
+              {resetLabel}
+            </button>
+          </div>
+          <ul className="space-y-1.5">
+            {draft.order.map((id) => {
+              const state = draft.sections[id];
+              if (!state) return null;
+              return (
+                <li key={id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-elev/40 px-2.5 py-1.5 text-xs">
+                  <span className={state.visible ? 'text-white' : 'text-muted'}>
+                    {sectionLabels[id] ?? id}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-muted">
+                      <input
+                        type="checkbox"
+                        checked={state.collapsedByDefault}
+                        onChange={(e) => patch(id, { collapsedByDefault: e.target.checked })}
+                        className="h-3 w-3 accent-accent"
+                      />
+                      {t.vnLayout.collapseByDefault}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => patch(id, { visible: !state.visible })}
+                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
+                        state.visible
+                          ? 'border-accent bg-accent/10 text-accent'
+                          : 'border-border text-muted hover:border-accent hover:text-accent'
+                      }`}
+                      aria-pressed={state.visible}
+                    >
+                      {state.visible ? <Eye className="h-3 w-3" aria-hidden /> : <EyeOff className="h-3 w-3" aria-hidden />}
+                      {state.visible ? t.vnLayout.hide : t.vnLayout.show}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );
