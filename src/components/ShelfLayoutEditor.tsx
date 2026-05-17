@@ -280,6 +280,10 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           // entry so the EditionInfoPopover keeps its data while
           // the drag-end refetch is in flight.
           owned_platform: ed.owned_platform ?? null,
+          physical_location: ed.physical_location ?? [],
+          price_paid: ed.price_paid ?? null,
+          currency: ed.currency ?? null,
+          acquired_date: ed.acquired_date ?? null,
           vn_platforms: ed.vn_platforms ?? [],
           vn_languages: ed.vn_languages ?? [],
           vn_released: ed.vn_released ?? null,
@@ -389,6 +393,10 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             // Mirror the slot-placement optimistic forward — see the
             // sibling call site above for the rationale.
             owned_platform: ed.owned_platform ?? null,
+            physical_location: ed.physical_location ?? [],
+            price_paid: ed.price_paid ?? null,
+            currency: ed.currency ?? null,
+            acquired_date: ed.acquired_date ?? null,
             vn_platforms: ed.vn_platforms ?? [],
             vn_languages: ed.vn_languages ?? [],
             vn_released: ed.vn_released ?? null,
@@ -1573,6 +1581,17 @@ function findEdition(
   // lets the caller forward what's available and fall back to
   // safe defaults otherwise.
   owned_platform?: string | null;
+  /**
+   * Owned-release annotations now plumbed through `listShelfSlots` /
+   * `listShelfDisplaySlots` (previously synthesized as empty / null
+   * by the optimistic snapshots, then refetched from the server). All
+   * four are optional because the synthetic pool synthesizer for
+   * brand-new editions doesn't know them.
+   */
+  physical_location?: string[];
+  price_paid?: number | null;
+  currency?: string | null;
+  acquired_date?: string | null;
   vn_platforms?: string[];
   vn_languages?: string[];
   vn_released?: string | null;
@@ -1608,6 +1627,20 @@ function findEdition(
       box_type: pooled.box_type,
       condition: pooled.condition,
       dumped: pooled.dumped,
+      // Pool entries DO carry these — ShelfEntry extends OwnedReleaseRow.
+      physical_location: pooled.physical_location,
+      price_paid: pooled.price_paid,
+      currency: pooled.currency,
+      acquired_date: pooled.acquired_date,
+      owned_platform: pooled.owned_platform,
+      vn_platforms: pooled.vn_platforms,
+      vn_languages: pooled.vn_languages,
+      vn_released: pooled.vn_released,
+      rel_title: pooled.rel_title,
+      rel_platforms: pooled.rel_platforms,
+      rel_languages: pooled.rel_languages,
+      rel_released: pooled.rel_released,
+      rel_resolution: pooled.rel_resolution,
     };
   }
   return null;
@@ -1667,14 +1700,15 @@ function shelfSlotToPopoverData(slot: ShelfSlotEntry): EditionInfoPopoverData {
     edition_label: slot.edition_label,
     box_type: slot.box_type,
     condition: slot.condition,
-    // Slot entries don't carry physical_location / price / acquired_date
-    // (those are owned_release fields, but the slot query only joins
-    // the display-critical subset). Surface empty / null so the popover
-    // hides those rows.
-    physical_location: [],
-    price_paid: null,
-    currency: null,
-    acquired_date: null,
+    // The owned-release columns are now part of the slot SQL projection
+    // (physical_location, price_paid, currency, acquired_date), so the
+    // popover gets the full edition picture even when triggered from a
+    // placed cell. Previously these were hardcoded `[]` / null, which
+    // hid useful info the user had recorded.
+    physical_location: slot.physical_location,
+    price_paid: slot.price_paid,
+    currency: slot.currency,
+    acquired_date: slot.acquired_date,
     dumped: slot.dumped,
     vn_platforms: slot.vn_platforms,
     vn_languages: slot.vn_languages,
@@ -1701,10 +1735,10 @@ function displaySlotToPopoverData(slot: ShelfDisplaySlotEntry): EditionInfoPopov
     edition_label: slot.edition_label,
     box_type: slot.box_type,
     condition: slot.condition,
-    physical_location: [],
-    price_paid: null,
-    currency: null,
-    acquired_date: null,
+    physical_location: slot.physical_location,
+    price_paid: slot.price_paid,
+    currency: slot.currency,
+    acquired_date: slot.acquired_date,
     dumped: slot.dumped,
     vn_platforms: slot.vn_platforms,
     vn_languages: slot.vn_languages,
@@ -1723,13 +1757,13 @@ function shelfDisplayToShelfEntry(slot: ShelfDisplaySlotEntry): ShelfEntry {
     release_id: slot.release_id,
     notes: null,
     location: 'unknown',
-    physical_location: [],
+    physical_location: slot.physical_location,
     box_type: slot.box_type,
     edition_label: slot.edition_label,
     condition: slot.condition,
-    price_paid: null,
-    currency: null,
-    acquired_date: null,
+    price_paid: slot.price_paid,
+    currency: slot.currency,
+    acquired_date: slot.acquired_date,
     owned_platform: slot.owned_platform,
     dumped: slot.dumped,
     added_at: 0,
@@ -1765,13 +1799,13 @@ function shelfSlotToShelfEntry(slot: ShelfSlotEntry): ShelfEntry {
     release_id: slot.release_id,
     notes: null,
     location: 'unknown',
-    physical_location: [],
+    physical_location: slot.physical_location,
     box_type: slot.box_type,
     edition_label: slot.edition_label,
     condition: slot.condition,
-    price_paid: null,
-    currency: null,
-    acquired_date: null,
+    price_paid: slot.price_paid,
+    currency: slot.currency,
+    acquired_date: slot.acquired_date,
     owned_platform: slot.owned_platform,
     dumped: slot.dumped,
     added_at: 0,

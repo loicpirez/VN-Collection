@@ -4284,6 +4284,17 @@ export interface ShelfSlotEntry {
   condition: string | null;
   /** Per-edition platform the user owns (lowercase VNDB code), if set. */
   owned_platform: string | null;
+  /**
+   * Forwarded `owned_release` annotations so the shelf popover stops
+   * showing empty rows for placed editions. Previously the SQL only
+   * pulled display-critical columns and the synthesizer hardcoded
+   * `physical_location: []` / `price_paid: null`, which contradicted
+   * the popover's contract of "surface every owned-release fact".
+   */
+  physical_location: string[];
+  price_paid: number | null;
+  currency: string | null;
+  acquired_date: string | null;
   /** VN-aggregate fallback (every platform across all releases). */
   vn_platforms: string[];
   vn_languages: string[];
@@ -4309,11 +4320,15 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
              v.platforms         AS vn_platforms,
              v.languages         AS vn_languages,
              v.released          AS vn_released,
-             o.edition_label     AS edition_label,
-             o.box_type          AS box_type,
-             o.condition         AS condition,
-             o.owned_platform    AS owned_platform,
-             o.dumped            AS dumped,
+             o.edition_label      AS edition_label,
+             o.box_type           AS box_type,
+             o.condition          AS condition,
+             o.owned_platform     AS owned_platform,
+             o.physical_location  AS physical_location,
+             o.price_paid         AS price_paid,
+             o.currency           AS currency,
+             o.acquired_date      AS acquired_date,
+             o.dumped             AS dumped,
              rm.title       AS rel_title,
              rm.platforms   AS rel_platforms,
              rm.languages   AS rel_languages,
@@ -4343,6 +4358,10 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
       box_type: string | null;
       condition: string | null;
       owned_platform: string | null;
+      physical_location: string | null;
+      price_paid: number | null;
+      currency: string | null;
+      acquired_date: string | null;
       dumped: number | null;
       rel_title: string | null;
       rel_platforms: string | null;
@@ -4365,6 +4384,10 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
     box_type: (r.box_type ?? 'none') as BoxType,
     condition: r.condition,
     owned_platform: r.owned_platform,
+    physical_location: parseJsonArrayField(r.physical_location),
+    price_paid: r.price_paid,
+    currency: r.currency,
+    acquired_date: r.acquired_date,
     vn_platforms: parseJsonArrayField(r.vn_platforms),
     vn_languages: parseJsonArrayField(r.vn_languages),
     vn_released: r.vn_released,
@@ -4631,6 +4654,11 @@ export interface ShelfDisplaySlotEntry {
   box_type: BoxType;
   condition: string | null;
   owned_platform: string | null;
+  /** See ShelfSlotEntry for rationale — same plumbing. */
+  physical_location: string[];
+  price_paid: number | null;
+  currency: string | null;
+  acquired_date: string | null;
   vn_platforms: string[];
   vn_languages: string[];
   vn_released: string | null;
@@ -4657,11 +4685,15 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
              v.platforms         AS vn_platforms,
              v.languages         AS vn_languages,
              v.released          AS vn_released,
-             o.edition_label     AS edition_label,
-             o.box_type          AS box_type,
-             o.condition         AS condition,
-             o.owned_platform    AS owned_platform,
-             o.dumped            AS dumped,
+             o.edition_label      AS edition_label,
+             o.box_type           AS box_type,
+             o.condition          AS condition,
+             o.owned_platform     AS owned_platform,
+             o.physical_location  AS physical_location,
+             o.price_paid         AS price_paid,
+             o.currency           AS currency,
+             o.acquired_date      AS acquired_date,
+             o.dumped             AS dumped,
              rm.title       AS rel_title,
              rm.platforms   AS rel_platforms,
              rm.languages   AS rel_languages,
@@ -4693,6 +4725,10 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
       box_type: string | null;
       condition: string | null;
       owned_platform: string | null;
+      physical_location: string | null;
+      price_paid: number | null;
+      currency: string | null;
+      acquired_date: string | null;
       dumped: number | null;
       rel_title: string | null;
       rel_platforms: string | null;
@@ -4716,6 +4752,10 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
     box_type: (r.box_type ?? 'none') as BoxType,
     condition: r.condition,
     owned_platform: r.owned_platform,
+    physical_location: parseJsonArrayField(r.physical_location),
+    price_paid: r.price_paid,
+    currency: r.currency,
+    acquired_date: r.acquired_date,
     vn_platforms: parseJsonArrayField(r.vn_platforms),
     vn_languages: parseJsonArrayField(r.vn_languages),
     vn_released: r.vn_released,
