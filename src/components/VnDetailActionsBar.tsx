@@ -253,6 +253,13 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           vndbImage={vn.image_url}
           egsId={egsRow?.egs_id ?? null}
           currentCustomCover={vn.custom_cover ?? null}
+          currentRotation={
+            // `vn.cover_rotation` is stored as a normalized 0/90/180/270
+            // integer; the picker accepts the same union so the cast
+            // is safe. Default 0 covers the migration window before
+            // the column existed.
+            ((vn.cover_rotation ?? 0) as 0 | 90 | 180 | 270)
+          }
           screenshots={screenshots}
           releaseImages={releaseImages}
         />

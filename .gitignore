@@ -30,6 +30,12 @@ Thumbs.db
 # logs / temp
 *.log
 /tmp/
+# Round-N verification logs (kept locally, not source-controlled).
+logs/
+# Isolated QA tree used by scripts/browser-qa.sh + the QA dev
+# server. Holds a copy of the real DB + a throwaway storage tree
+# so write-capable QA does not touch the user's data.
+.qa/
 
 # editor
 .vscode/

@@ -1090,6 +1090,7 @@ export const dictionaries = {
       instances: 'Autres instances (vndb.org)',
       instancesHint: 'Fiches frères/sœurs déclarées sur vndb.org — l\'API ne les expose pas. Mises à jour par « Tout télécharger ».',
       voicedByAll: 'Doubleurs (vndb.org)',
+      releaseCountChip: '{n} éditions',
     },
     staff: {
       section: 'Équipe',
@@ -3318,6 +3319,7 @@ export const dictionaries = {
       instances: 'Instances (vndb.org)',
       instancesHint: 'Sibling character records declared on vndb.org — the API does not expose them. Refreshed by "Download all".',
       voicedByAll: 'Voiced by (vndb.org)',
+      releaseCountChip: '{n} editions',
     },
     staff: {
       section: 'Staff',
@@ -5543,6 +5545,7 @@ export const dictionaries = {
       instances: '別エントリ（vndb.org）',
       instancesHint: 'vndb.org のページから取得した姉妹キャラエントリ（API では取得不可）。「全て取得」で更新されます。',
       voicedByAll: '担当声優（vndb.org）',
+      releaseCountChip: '{n} 版',
     },
     staff: {
       section: 'スタッフ',

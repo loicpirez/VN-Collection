@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Pencil, Trash2, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
+import { VndbMarkup } from './VndbMarkup';
 import { useT } from '@/lib/i18n/client';
 
 interface Props {
@@ -173,7 +174,16 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
           </button>
         </div>
       </div>
-      <p className="whitespace-pre-wrap leading-relaxed text-white/85">{current}</p>
+      {/*
+        User-authored synopsis goes through VndbMarkup so BBCode
+        (`[url=…]`, `[spoiler]`) plus inline VNDB refs (`vNNN`,
+        `cNNN`, etc.) become canonical internal links via
+        normalizeVndbHref — same contract as the VNDB description
+        path, no plain-text bypass.
+      */}
+      <div className="whitespace-pre-wrap leading-relaxed text-white/85">
+        <VndbMarkup text={current} />
+      </div>
       {showSources && (
         <div className="mt-4 rounded-md border border-border bg-bg-elev/20 p-3">
           {fallback}

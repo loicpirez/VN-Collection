@@ -13,22 +13,92 @@
 # wired into a `yarn qa` step or a manual pre-merge check.
 #
 # Usage:
-#   scripts/browser-qa.sh             # against localhost:3000
+#   scripts/browser-qa.sh             # against localhost:3100 (isolated)
 #   PORT=4000 scripts/browser-qa.sh   # against a custom port
 #   HOST=192.168.0.10 scripts/browser-qa.sh
 #
-# Requires a running dev server (`yarn dev`). The script does NOT
-# spawn one itself: bringing the server up is a separate concern
-# (warm caches, DB shape, etc.) and conflating the two has caused
-# false negatives in the past.
+# Requires a running dev server. The script does NOT spawn one
+# itself: bringing the server up is a separate concern (warm
+# caches, DB shape, etc.) and conflating the two has caused false
+# negatives in the past.
+#
+# DATA SAFETY: the script defaults to PORT=3100, the canonical
+# "isolated QA server" port. The QA dev server MUST be started
+# with snapshot DB + storage paths via the DB_PATH / STORAGE_ROOT
+# env vars; otherwise the assertions touch the user's real
+# collection.db and storage tree. A preflight check below aborts
+# loudly if the server reports it's pointed at the real data file.
 
 set -uo pipefail
 
-PORT="${PORT:-3000}"
+# Default to 3100 (isolated QA server). The previous 3000 default
+# silently pointed at `yarn dev`, which writes through to the real
+# DB; switching the default is the single most effective guard
+# against accidental mutation during a QA run.
+PORT="${PORT:-3100}"
 HOST="${HOST:-localhost}"
 BASE="http://${HOST}:${PORT}"
 PASS=0
 FAIL=0
+
+# ── Mandatory QA-isolation preflight ──────────────────────────────
+# Print the DB / storage paths the upstream server is using so the
+# operator (and any log scraper) can confirm at a glance which tree
+# QA is hitting. The values come from env vars set on the QA
+# server's process; the script itself does not open the DB but
+# reads the same env so the print is honest.
+#
+# Resolve "real" paths (what the project would resolve to with no
+# overrides) up front so we can compare against the QA env.
+REAL_DB_DEFAULT="$(pwd)/data/collection.db"
+REAL_STORAGE_DEFAULT="$(pwd)/data/storage"
+
+# `WRITE_QA_ALLOWED` is a self-declared flag. Mutation-capable
+# probes (POST/PATCH/DELETE) must set it to 1; read-only probes
+# (the default in this script) leave it 0. The gate below blocks
+# any write-capable run that points at real data.
+WRITE_QA_ALLOWED="${WRITE_QA_ALLOWED:-0}"
+
+# DB_PATH / STORAGE_ROOT are reported as-is. If unset, the QA
+# server is using project defaults — also a hard fail when write
+# QA is allowed, because the project defaults ARE the real tree.
+REPORT_DB_PATH="${DB_PATH:-<unset → defaults to ${REAL_DB_DEFAULT}>}"
+REPORT_STORAGE_ROOT="${STORAGE_ROOT:-<unset → defaults to ${REAL_STORAGE_DEFAULT}>}"
+
+printf 'browser-qa.sh preflight\n'
+printf '  BASE                = %s\n' "${BASE}"
+printf '  DB_PATH             = %s\n' "${REPORT_DB_PATH}"
+printf '  STORAGE_ROOT        = %s\n' "${REPORT_STORAGE_ROOT}"
+printf '  WRITE_QA_ALLOWED    = %s\n' "${WRITE_QA_ALLOWED}"
+printf '  VNCOLL_QA           = %s\n' "${VNCOLL_QA:-<unset>}"
+printf '\n'
+
+# Hard fail if the operator overrode env vars to point at the real
+# data file AND declared write QA is allowed — that combination
+# would mutate the user's real collection.
+if [ "${WRITE_QA_ALLOWED}" = "1" ]; then
+  if [ -z "${DB_PATH:-}" ] || [ "${DB_PATH}" = "${REAL_DB_DEFAULT}" ]; then
+    printf 'browser-qa.sh refusing to run: WRITE_QA_ALLOWED=1 with DB_PATH unset or pointing at real %s.\n' "${REAL_DB_DEFAULT}" >&2
+    printf 'Set DB_PATH to an isolated copy (e.g. %s/.qa/data/collection.db) before retrying.\n' "$(pwd)" >&2
+    exit 2
+  fi
+  if [ -z "${STORAGE_ROOT:-}" ] || [ "${STORAGE_ROOT}" = "${REAL_STORAGE_DEFAULT}" ]; then
+    printf 'browser-qa.sh refusing to run: WRITE_QA_ALLOWED=1 with STORAGE_ROOT unset or pointing at real %s.\n' "${REAL_STORAGE_DEFAULT}" >&2
+    printf 'Set STORAGE_ROOT to an isolated tree (e.g. %s/.qa/storage) before retrying.\n' "$(pwd)" >&2
+    exit 2
+  fi
+fi
+# Even in read-only mode, fail loudly if env vars explicitly point
+# at the real data file — that almost always indicates a misconfig
+# the operator wants to know about before the run keeps going.
+if [ -n "${DB_PATH:-}" ] && [ "${DB_PATH}" = "${REAL_DB_DEFAULT}" ]; then
+  printf 'browser-qa.sh refusing to run: DB_PATH explicitly points at the real %s.\n' "${REAL_DB_DEFAULT}" >&2
+  exit 2
+fi
+if [ -n "${STORAGE_ROOT:-}" ] && [ "${STORAGE_ROOT}" = "${REAL_STORAGE_DEFAULT}" ]; then
+  printf 'browser-qa.sh refusing to run: STORAGE_ROOT explicitly points at the real %s.\n' "${REAL_STORAGE_DEFAULT}" >&2
+  exit 2
+fi
 
 # Colours, but only when stdout is a TTY so log scrapers stay clean.
 if [ -t 1 ]; then

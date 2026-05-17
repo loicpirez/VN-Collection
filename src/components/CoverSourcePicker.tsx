@@ -2,7 +2,7 @@
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
-import { Check, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, Sparkles, X } from 'lucide-react';
+import { Check, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, RotateCw, Sparkles, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
@@ -18,6 +18,15 @@ interface Props {
   egsId: number | null;
   /** Current custom cover string (path / URL) — drives the "current" visual marker. */
   currentCustomCover: string | null;
+  /**
+   * Current cover rotation in degrees (0/90/180/270). The picker
+   * surfaces dedicated rotate-left / rotate-right / reset buttons
+   * inside the modal so the user doesn't have to dismiss the
+   * picker to find the inline buttons on `<CoverHero>`. Stays
+   * orthogonal to the source-tab selection — rotating doesn't
+   * change which cover (VNDB / EGS / custom) is active.
+   */
+  currentRotation?: 0 | 90 | 180 | 270;
   screenshots: Screenshot[];
   releaseImages: ReleaseImage[];
 }
@@ -43,6 +52,7 @@ export function CoverSourcePicker({
   vndbImage,
   egsId,
   currentCustomCover,
+  currentRotation = 0,
   screenshots,
   releaseImages,
 }: Props) {
@@ -52,6 +62,14 @@ export function CoverSourcePicker({
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>(initialTab(egsId, currentCustomCover));
   const [busy, setBusy] = useState(false);
+  const [rotation, setRotationState] = useState<0 | 90 | 180 | 270>(currentRotation);
+  // Re-sync with the server-rendered value whenever the parent
+  // re-renders us with a different baseline (e.g. another rotate
+  // surface fired first). Keeps the modal's local optimistic state
+  // honest against the canonical row.
+  useEffect(() => {
+    setRotationState(currentRotation);
+  }, [currentRotation]);
   const [, startTransition] = useTransition();
   const [urlValue, setUrlValue] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -191,6 +209,38 @@ export function CoverSourcePicker({
     }
   }
 
+  async function rotateBy(delta: 90 | -90 | 'reset') {
+    if (busy) return;
+    const prev = rotation;
+    const next: 0 | 90 | 180 | 270 =
+      delta === 'reset'
+        ? 0
+        : (((((rotation + delta) % 360) + 360) % 360) as 0 | 90 | 180 | 270);
+    if (next === prev) return;
+    setRotationState(next);
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/collection/${vnId}/cover`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rotation: next }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      // Same broadcast pattern as <CoverHero>: the listeners
+      // already handle a rotation-only update without touching
+      // src/local, so omit those and let the consumer keep
+      // whatever cover bytes it already had.
+      dispatchCoverChanged({ vnId, newSrc: null, newLocal: null, rotation: next });
+      toast.success(t.toast.coverSaved);
+      startTransition(() => router.refresh());
+    } catch (e) {
+      setRotationState(prev);
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function uploadFile(file: File) {
     if (!file.type.startsWith('image/')) {
       toast.error(t.cover.mustBeImage);
@@ -275,6 +325,52 @@ export function CoverSourcePicker({
                 <X className="h-4 w-4" />
               </button>
             </header>
+            {/*
+              Rotation row — orthogonal to the source tabs. Surfaces
+              the same rotate-left / rotate-right / reset triplet
+              that lives on `<CoverHero>` so the user can adjust
+              without dismissing the modal. Reads the current
+              rotation through the `currentRotation` prop and writes
+              via PATCH `/api/collection/[id]/cover { rotation }`.
+            */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-bg-elev/30 px-4 py-2 text-xs">
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted">
+                {t.coverActions.rotationLabel} · {rotation}°
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => rotateBy(-90)}
+                  disabled={busy}
+                  className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                  title={t.coverActions.rotateLeft}
+                  aria-label={t.coverActions.rotateLeft}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                  <span className="hidden sm:inline">{t.coverActions.rotateLeft}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => rotateBy(90)}
+                  disabled={busy}
+                  className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                  title={t.coverActions.rotateRight}
+                  aria-label={t.coverActions.rotateRight}
+                >
+                  <RotateCw className="h-3.5 w-3.5" aria-hidden />
+                  <span className="hidden sm:inline">{t.coverActions.rotateRight}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => rotateBy('reset')}
+                  disabled={busy || rotation === 0}
+                  className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
+                  title={t.coverActions.resetRotation}
+                >
+                  {t.coverActions.resetRotation}
+                </button>
+              </div>
+            </div>
             <nav role="tablist" aria-label={t.coverPicker.title} className="flex border-b border-border">
               <TabButton
                 active={tab === 'custom'}

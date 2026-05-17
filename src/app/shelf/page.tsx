@@ -9,6 +9,8 @@ import {
 } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { platformLabel } from '@/lib/platform-label';
+import { languageDisplayName } from '@/lib/language-names';
 import { ShelfLayoutEditor } from '@/components/ShelfLayoutEditor';
 import { ShelfSpatialView } from '@/components/ShelfSpatialView';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -336,6 +338,21 @@ export default async function ShelfPage({
                             <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
                               {e.vn_title}
                             </p>
+                            {/*
+                              Release-level title — when the cached
+                              `release_meta_cache` row populated
+                              `rel_title` and it differs from the
+                              VN title (the common case for
+                              re-edition / fan-disc releases), show
+                              it as a secondary line so the card
+                              describes the actual physical edition
+                              rather than the umbrella VN.
+                            */}
+                            {e.rel_title && e.rel_title !== e.vn_title && (
+                              <p className="line-clamp-1 text-[11px] text-muted">
+                                {e.rel_title}
+                              </p>
+                            )}
                             {e.edition_label && (
                               <p className="line-clamp-1 text-[11px] text-muted">{e.edition_label}</p>
                             )}
@@ -348,6 +365,39 @@ export default async function ShelfPage({
                                 {e.physical_location.slice(1).join(' · ')}
                               </p>
                             )}
+                            {/*
+                              Platform + language chips. Prefer the
+                              release-level data (rel_*) when present
+                              — they describe the exact edition the
+                              user shelved — falling back to the VN
+                              aggregate so synthetic / unharvested
+                              rows still surface something useful.
+                            */}
+                            {(() => {
+                              const platforms = e.rel_platforms.length > 0 ? e.rel_platforms : e.vn_platforms;
+                              const languages = e.rel_languages.length > 0 ? e.rel_languages : e.vn_languages;
+                              if (platforms.length === 0 && languages.length === 0) return null;
+                              return (
+                                <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted">
+                                  {platforms.slice(0, 3).map((p) => (
+                                    <span
+                                      key={`p-${p}`}
+                                      className="rounded bg-bg px-1 py-0.5 uppercase tracking-wider"
+                                    >
+                                      {platformLabel(p)}
+                                    </span>
+                                  ))}
+                                  {languages.slice(0, 3).map((l) => (
+                                    <span
+                                      key={`l-${l}`}
+                                      className="rounded bg-bg px-1 py-0.5"
+                                    >
+                                      {languageDisplayName(l)}
+                                    </span>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted">
                               {e.box_type !== 'none' && (
                                 <span className="inline-flex items-center gap-0.5">
@@ -358,6 +408,19 @@ export default async function ShelfPage({
                               {e.price_paid != null && (
                                 <span className="text-accent">
                                   {fmtMoneyLocale(e.price_paid, e.currency, locale)}
+                                </span>
+                              )}
+                              {/*
+                                Acquired-date stamp — surfaces the
+                                provenance the user already enters in
+                                the My Editions form. Plain ISO is
+                                fine on the card (the picker writes
+                                YYYY-MM-DD); no relative-time math
+                                because a shelf is not a timeline.
+                              */}
+                              {e.acquired_date && (
+                                <span title={t.releases.viewDetails}>
+                                  {e.acquired_date}
                                 </span>
                               )}
                               {e.dumped && (

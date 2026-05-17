@@ -53,6 +53,12 @@ export interface CharacterBrowseParams {
   q: string;
   sex: CharacterSex | null;
   role: CharacterRole | null;
+  /**
+   * Blood-type chip. The URL accepts BOTH `?blood=` (legacy) and
+   * `?bloodType=` (canonical, matches the visible label on
+   * `/character/[id]` so the metadata link round-trips). The
+   * parser normalises either alias into this field.
+   */
   blood: BloodType | null;
   /** Two-letter VNDB language code for the seiyuu (e.g. `ja`). */
   vaLang: string | null;
@@ -60,6 +66,13 @@ export interface CharacterBrowseParams {
   hasVoice: boolean | null;
   /** `true` keeps characters with an image. */
   hasImage: boolean | null;
+  /**
+   * 1..12 — keep characters born in the given month. The
+   * birthday-month metadata field on `/character/[id]` links to
+   * `?birthMonth=<m>` so users can pivot from "this character"
+   * to "everyone born in month m". `null` disables the filter.
+   */
+  birthMonth: number | null;
   sort: CharacterSort;
   /** Reverse-sort flag. Defaults to false (ascending). */
   reverse: boolean;
@@ -93,10 +106,20 @@ export function parseCharacterBrowseParams(
   const role = roleRaw && (CHARACTER_ROLES as readonly string[]).includes(roleRaw)
     ? (roleRaw as CharacterRole)
     : null;
-  const bloodRaw = pickFirst(raw.blood)?.toLowerCase() ?? null;
+  // Accept both `?blood=` (legacy) and `?bloodType=` (canonical,
+  // matches the on-character metadata label). The canonical form
+  // wins when both are present so the character-detail link is
+  // unambiguous.
+  const bloodRaw = (pickFirst(raw.bloodType) ?? pickFirst(raw.blood))?.toLowerCase() ?? null;
   const blood = bloodRaw && (BLOOD_TYPES as readonly string[]).includes(bloodRaw)
     ? (bloodRaw as BloodType)
     : null;
+  const birthMonthRaw = pickFirst(raw.birthMonth);
+  const birthMonthNum = birthMonthRaw != null ? Number.parseInt(birthMonthRaw, 10) : NaN;
+  const birthMonth =
+    Number.isFinite(birthMonthNum) && birthMonthNum >= 1 && birthMonthNum <= 12
+      ? birthMonthNum
+      : null;
   const vaLangRaw = pickFirst(raw.vaLang) ?? null;
   const vaLang = vaLangRaw && /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/i.test(vaLangRaw) ? vaLangRaw : null;
   const hasVoice = parseBool(pickFirst(raw.hasVoice));
@@ -119,6 +142,7 @@ export function parseCharacterBrowseParams(
     vaLang,
     hasVoice,
     hasImage,
+    birthMonth,
     sort,
     reverse,
     groupBy,
@@ -138,6 +162,9 @@ export function filterCharacters(
     }
     if (params.blood) {
       if ((c.blood_type ?? '').toLowerCase() !== params.blood) return false;
+    }
+    if (params.birthMonth != null) {
+      if (birthdayMonth(c) !== params.birthMonth) return false;
     }
     if (params.hasImage === true && !c.image?.url) return false;
     if (params.hasImage === false && c.image?.url) return false;
@@ -226,10 +253,14 @@ export function characterBrowseHref(
   set('q', current.q || null);
   set('sex', current.sex);
   set('role', current.role);
-  set('blood', current.blood);
+  // Emit the canonical `bloodType` param so metadata links from
+  // `/character/[id]` and the chip set on `/characters` share a
+  // URL shape. The parser keeps reading `?blood=` for back-compat.
+  set('bloodType', current.blood);
   set('vaLang', current.vaLang);
   set('hasVoice', current.hasVoice);
   set('hasImage', current.hasImage);
+  set('birthMonth', current.birthMonth != null ? String(current.birthMonth) : null);
   set('sort', current.sort === 'name' ? null : current.sort);
   set('reverse', current.reverse ? '1' : null);
   set('groupBy', current.groupBy || null);

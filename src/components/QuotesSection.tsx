@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ChevronDown, ChevronRight, MessageSquareQuote } from 'lucide-react';
 import { SkeletonBlock } from './Skeleton';
 import { QuoteAvatar } from './QuoteAvatar';
+import { VndbMarkup } from './VndbMarkup';
 import { useT } from '@/lib/i18n/client';
 import type { VndbQuote } from '@/lib/vndb-types';
 
@@ -80,7 +81,18 @@ export function QuotesSection({
                 key={q.id}
                 className="rounded-lg border-l-2 border-accent bg-bg-elev/50 px-4 py-3 italic text-white/90"
               >
-                <span className="block whitespace-pre-wrap text-sm">“{q.quote}”</span>
+                {/*
+                  Quotes pass through VndbMarkup so any embedded
+                  BBCode (`[url=…]`, `[spoiler]`) AND inline VNDB
+                  refs (`cNNN`, `https://vndb.org/cNNN`) are
+                  parsed into real links via normalizeVndbHref.
+                  The quote stays italic via the parent `<li>` and
+                  the open/close quotation marks wrap the rendered
+                  markup nodes, not the raw string.
+                */}
+                <span className="block whitespace-pre-wrap text-sm">
+                  “<VndbMarkup text={q.quote} />”
+                </span>
                 {q.character && (
                   // Right-aligned citation row: avatar + character
                   // name (linked when we know the character id).

@@ -93,6 +93,19 @@ describe('parseCharacterBrowseParams', () => {
   it('lowercases the blood type', () => {
     expect(parseCharacterBrowseParams({ blood: 'AB' }).blood).toBe('ab');
   });
+
+  it('accepts the canonical bloodType alias and prefers it over the legacy key', () => {
+    expect(parseCharacterBrowseParams({ bloodType: 'O' }).blood).toBe('o');
+    // Canonical wins when both are present.
+    expect(parseCharacterBrowseParams({ bloodType: 'ab', blood: 'a' }).blood).toBe('ab');
+  });
+
+  it('parses birthMonth and clamps to [1..12]', () => {
+    expect(parseCharacterBrowseParams({ birthMonth: '3' }).birthMonth).toBe(3);
+    expect(parseCharacterBrowseParams({ birthMonth: '0' }).birthMonth).toBeNull();
+    expect(parseCharacterBrowseParams({ birthMonth: '13' }).birthMonth).toBeNull();
+    expect(parseCharacterBrowseParams({ birthMonth: 'feb' }).birthMonth).toBeNull();
+  });
 });
 
 describe('filterCharacters', () => {

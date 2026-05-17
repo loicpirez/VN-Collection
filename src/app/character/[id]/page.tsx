@@ -10,6 +10,7 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { readScrapedCharacterInfo } from '@/lib/scrape-character-instances';
+import { dedupAppearances } from '@/lib/character-appearances';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,7 +70,14 @@ export default async function CharacterPage({
   }
   if (!char) notFound();
 
-  const meta: { label: string; value: string }[] = [];
+  // Each metadata row can optionally carry an `href` that points
+  // back to `/characters` with a single chip pinned. The values
+  // that drive a chip (blood type, birthday month, sex) link out
+  // so the user can pivot from "this character" → "everyone like
+  // this". Purely informational rows (age, height, weight, …)
+  // stay as plain text — there's no equivalent chip on the
+  // browser.
+  const meta: { label: string; value: string; href?: string }[] = [];
   if (char.age != null) meta.push({ label: t.characters.age, value: `${char.age}` });
   if (char.height != null) meta.push({ label: t.characters.height, value: `${char.height} cm` });
   if (char.weight != null) meta.push({ label: t.characters.weight, value: `${char.weight} kg` });
@@ -77,15 +85,41 @@ export default async function CharacterPage({
   if (char.waist != null) meta.push({ label: t.characters.waist, value: `${char.waist} cm` });
   if (char.hips != null) meta.push({ label: t.characters.hips, value: `${char.hips} cm` });
   if (char.cup) meta.push({ label: t.characters.cup, value: char.cup });
-  if (char.blood_type) meta.push({ label: t.characters.bloodType, value: char.blood_type.toUpperCase() });
+  if (char.blood_type) {
+    const bt = char.blood_type.toLowerCase();
+    meta.push({
+      label: t.characters.bloodType,
+      value: char.blood_type.toUpperCase(),
+      href: `/characters?bloodType=${encodeURIComponent(bt)}`,
+    });
+  }
   const bday = fmtBirthday(char.birthday);
-  if (bday) meta.push({ label: t.characters.birthday, value: bday });
+  if (bday) {
+    const month = char.birthday?.[0];
+    meta.push({
+      label: t.characters.birthday,
+      value: bday,
+      href: month ? `/characters?birthMonth=${month}` : undefined,
+    });
+  }
   const sexA = sexLabel(char.sex, t, 0);
-  if (sexA) meta.push({ label: t.characters.sex, value: sexA });
+  if (sexA) {
+    const sx = char.sex?.[0];
+    meta.push({
+      label: t.characters.sex,
+      value: sexA,
+      href: sx ? `/characters?sex=${encodeURIComponent(sx)}` : undefined,
+    });
+  }
   const genderA = genderLabel(char.gender, t, 0);
   if (genderA) meta.push({ label: t.characters.gender, value: genderA });
 
-  const sortedVns = [...char.vns].sort(
+  // VNDB returns one row per (character, vn, release) tuple, so the
+  // raw `char.vns` array can carry the same VN id N times when N
+  // releases exist. `dedupAppearances` collapses by VN id, keeps the
+  // strongest role, and exposes `releaseCount` so the card can render
+  // "N editions" instead of stacking identical covers.
+  const sortedVns = dedupAppearances(char.vns).sort(
     (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9),
   );
   // "Also voiced by" comes from local vn_va_credit (covers every VN the
@@ -128,7 +162,15 @@ export default async function CharacterPage({
               {meta.map((m) => (
                 <div key={m.label}>
                   <dt className="text-[11px] uppercase tracking-wider text-muted">{m.label}</dt>
-                  <dd className="font-semibold">{m.value}</dd>
+                  <dd className="font-semibold">
+                    {m.href ? (
+                      <Link href={m.href} className="hover:text-accent">
+                        {m.value}
+                      </Link>
+                    ) : (
+                      m.value
+                    )}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -320,6 +362,15 @@ export default async function CharacterPage({
                           </span>
                         )}
                         {year && <span>{year}</span>}
+                        {v.releaseCount > 1 && (
+                          // "N editions" chip — surfaces how many
+                          // release-tuples VNDB reported for this VN id
+                          // so the user knows the deduped card still
+                          // covers multiple editions.
+                          <span className="rounded bg-bg px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted">
+                            {t.characters.releaseCountChip.replace('{n}', String(v.releaseCount))}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </Link>
