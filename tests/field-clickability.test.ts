@@ -34,13 +34,12 @@ describe('staff/[id] header clickability', () => {
   });
 
   it('production-credits & voice-credits sections expose anchor ids', () => {
-    // After the section-layout rework (item 15) the literal `id=`
-    // attribute moves into the `<DetailSectionFrame anchor="…">`
-    // prop, which renders it on the section element. Pin the
-    // `anchor` prop value so the source still anchors deep links
-    // from the header chips.
-    expect(src).toMatch(/anchor="production-credits"/);
-    expect(src).toMatch(/anchor="voice-credits"/);
+    // Restored from the section-layout regression: the original
+    // pages carry literal `id="…"` anchors on their <section>
+    // elements again so the header pills (`href="#voice-credits"`)
+    // still scroll to the right block.
+    expect(src).toMatch(/id="production-credits"/);
+    expect(src).toMatch(/id="voice-credits"/);
   });
 });
 

@@ -41,11 +41,14 @@ interface Props<Id extends string> {
   sectionId: Id;
   layout: SectionLayoutV1<Id>;
   /**
-   * Localized section title. Rendered as the header text + appended
-   * to the controls' aria-labels so screen readers can tell sibling
-   * sections apart.
+   * Localized section title. Used only for the controls' aria-label
+   * and the collapsed-state placeholder copy — the visible header of
+   * each section is owned by the caller now (so its original chrome,
+   * icon, and count chip are preserved). Accepts a string OR a
+   * ReactNode for callers that want to embed the rendered title in
+   * the collapsed placeholder.
    */
-  title: string;
+  title: React.ReactNode;
   /**
    * Optional anchor id placed on the section wrapper so deep-links
    * from elsewhere in the app can jump straight to this block.
@@ -183,36 +186,50 @@ export function DetailSectionFrame<Id extends string>({
   const idx = order.indexOf(sectionId);
   const canMoveUp = idx > 0;
   const canMoveDown = idx >= 0 && idx < order.length - 1;
-  const wrapperClass = embedded
-    ? 'mt-4'
-    : 'mt-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6';
 
+  // Chrome-less wrapper. The frame used to add `border bg-bg-card
+  // rounded-2xl p-4 sm:p-6` so every below-main section read as
+  // a generic admin card — destroying the existing detail-page
+  // design. Now the frame only carries the data-* attributes for
+  // QA/interaction selectors and an absolutely-positioned controls
+  // chip; the section's visual chrome belongs to the caller.
   return (
-    <section
+    <div
       id={anchor}
       data-section-id={sectionId}
       data-section-scope={scope}
       data-section-collapsed={collapsed ? 'true' : 'false'}
-      className={wrapperClass}
+      className="relative group/section"
     >
-      <header className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          {title}
-        </h2>
-        <SectionControls
-          busy={busy}
-          collapsed={collapsed}
-          canMoveUp={canMoveUp}
-          canMoveDown={canMoveDown}
-          sectionLabel={title}
-          onToggleCollapse={() => void persist({ collapsedByDefault: !collapsed })}
-          onMoveUp={() => move('up')}
-          onMoveDown={() => move('down')}
-          onHide={() => void persist({ visible: false })}
-        />
-      </header>
-      {!collapsed && <div>{children}</div>}
-    </section>
+      {/*
+        Absolutely-positioned controls chip — only shows on hover /
+        focus so the section's existing header is undisturbed at
+        rest. Drops the bespoke header bar the previous wrapping
+        rendered above every section.
+      */}
+      <div className="pointer-events-none absolute right-2 top-2 z-20 opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100">
+        <div className="pointer-events-auto rounded-md border border-border bg-bg-card/95 shadow-card backdrop-blur">
+          <SectionControls
+            busy={busy}
+            collapsed={collapsed}
+            canMoveUp={canMoveUp}
+            canMoveDown={canMoveDown}
+            sectionLabel={typeof title === 'string' ? title : sectionId}
+            onToggleCollapse={() => void persist({ collapsedByDefault: !collapsed })}
+            onMoveUp={() => move('up')}
+            onMoveDown={() => move('down')}
+            onHide={() => void persist({ visible: false })}
+          />
+        </div>
+      </div>
+      {!collapsed && children}
+      {collapsed && (
+        <div className="mb-4 mt-2 rounded-md border border-border bg-bg-elev/30 px-3 py-2 text-[11px] text-muted">
+          <span>{typeof title === 'string' ? title : sectionId}</span>
+          <span className="ml-2 italic">— {/* collapsed copy lives at the call site */}</span>
+        </div>
+      )}
+    </div>
   );
 }
 

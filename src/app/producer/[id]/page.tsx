@@ -3,15 +3,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
-import { getAppSetting, getProducer as getProducerLocal, producerOwnershipSummary, upsertProducer } from '@/lib/db';
-import {
-  parseProducerDetailLayoutV1,
-  type ProducerSectionId,
-} from '@/lib/producer-detail-layout';
-import {
-  DetailSectionFrame,
-  DetailSectionResetButton,
-} from '@/components/DetailSectionFrame';
+import { getProducer as getProducerLocal, producerOwnershipSummary, upsertProducer } from '@/lib/db';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
@@ -145,86 +137,42 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
         <CardDensitySlider scope="producerWorks" />
       </div>
 
-      {/* Section-layout reset chip (item 15). */}
-      <div className="mb-3 flex items-center justify-end">
-        <DetailSectionResetButton scope="producer" />
-      </div>
+      {producer.description && (
+        <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
+            <VndbMarkup text={producer.description} />
+          </div>
+        </section>
+      )}
 
-      {(() => {
-        const layout = parseProducerDetailLayoutV1(getAppSetting('producer_detail_section_layout_v1'));
-        const renderers: Record<ProducerSectionId, React.ReactNode> = {
-          description: producer.description ? (
-            <DetailSectionFrame
-              scope="producer"
-              sectionId="description"
-              layout={layout}
-              title={t.sectionLayout.sections.producer.description}
-            >
-              <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
-                <VndbMarkup text={producer.description} />
-              </div>
-            </DetailSectionFrame>
-          ) : null,
-          extlinks: (
-            <DetailSectionFrame
-              scope="producer"
-              sectionId="extlinks"
-              layout={layout}
-              title={t.sectionLayout.sections.producer.extlinks}
-              embedded
-            >
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href={`https://vndb.org/${producer.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" /> VNDB
-                </a>
-                {producer.extlinks.map((l) => (
-                  <a
-                    key={l.url}
-                    href={l.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" /> {l.label}
-                  </a>
-                ))}
-              </div>
-            </DetailSectionFrame>
-          ),
-          works: (
-            <DetailSectionFrame
-              scope="producer"
-              sectionId="works"
-              layout={layout}
-              title={t.sectionLayout.sections.producer.works}
-              embedded
-            >
-              <Suspense fallback={<ProducerVnsSkeleton />}>
-                <ProducerVnsSections producerId={producer.id} />
-              </Suspense>
-            </DetailSectionFrame>
-          ),
-          stats: (
-            <DetailSectionFrame
-              scope="producer"
-              sectionId="stats"
-              layout={layout}
-              title={t.sectionLayout.sections.producer.stats}
-              embedded
-            >
-              <ProducerScrapedRelations pid={producer.id} t={t} />
-            </DetailSectionFrame>
-          ),
-        };
-        return layout.order.map((sectionId) => (
-          <div key={sectionId}>{renderers[sectionId]}</div>
-        ));
-      })()}
+      <section className="mb-8 flex flex-wrap gap-2">
+        <a
+          href={`https://vndb.org/${producer.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn"
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> VNDB
+        </a>
+        {producer.extlinks.map((l) => (
+          <a
+            key={l.url}
+            href={l.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> {l.label}
+          </a>
+        ))}
+      </section>
+
+      <Suspense fallback={<ProducerVnsSkeleton />}>
+        <ProducerVnsSections producerId={producer.id} />
+      </Suspense>
+
+      <ProducerScrapedRelations pid={producer.id} t={t} />
     </DensityScopeProvider>
   );
 }
