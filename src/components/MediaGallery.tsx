@@ -681,14 +681,14 @@ function TileKebab({
             icon={<ImageDown className="h-3.5 w-3.5" aria-hidden />}
             shortLabel={t.media.setAsCoverShort}
             longLabel={t.media.setAsCover}
-            onClick={() => setAs('cover')}
+            onClick={() => { setOpen(false); setAs('cover'); }}
             disabled={busy === 'cover'}
           />
           <MenuItem
             icon={<ImageUp className="h-3.5 w-3.5" aria-hidden />}
             shortLabel={t.media.setAsBannerShort}
             longLabel={t.media.setAsBanner}
-            onClick={() => setAs('banner')}
+            onClick={() => { setOpen(false); setAs('banner'); }}
             disabled={busy === 'banner'}
           />
           <a

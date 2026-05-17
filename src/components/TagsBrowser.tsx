@@ -50,9 +50,6 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setError(null);
-    setStaleWarning(null);
     const ctrl = new AbortController();
     const isLocal = mode === 'local';
     const isVndbBrowse = !isLocal && !q.trim() && !category;
@@ -62,6 +59,16 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
     // API call and re-use the SSR data.  We still need the local counts
     // from /api/collection/tags, so that fetch always fires.
     const skipTreeFetch = isVndbBrowse && !!initialTree && !refreshNonce;
+
+    // Only show the loading skeleton when we actually need to fetch.
+    // When skipTreeFetch is true the SSR-injected tree is already in the
+    // DOM, so flashing a skeleton and back would cause a flicker and
+    // cause concurrent Playwright assertions to see an empty DOM mid-cycle.
+    if (!skipTreeFetch) {
+      setLoading(true);
+    }
+    setError(null);
+    setStaleWarning(null);
 
     const handle = setTimeout(async () => {
       try {
