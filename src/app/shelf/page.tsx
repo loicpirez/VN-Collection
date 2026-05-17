@@ -13,6 +13,9 @@ import { ShelfLayoutEditor } from '@/components/ShelfLayoutEditor';
 import { ShelfSpatialView } from '@/components/ShelfSpatialView';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
+import { ShelfReadOnlyControls } from '@/components/ShelfReadOnlyControls';
+import { parseShelfViewPrefsV1 } from '@/lib/shelf-view-prefs';
+import { getAppSetting } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -201,8 +204,15 @@ export default async function ShelfPage({
             and mounting it consistently keeps the header layout
             stable across the four view modes.
           */}
-          <div className="shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             <CardDensitySlider scope="shelf" />
+            {/* Display knobs only relevant to the read-only views. The
+                layout editor owns its own placement geometry and
+                ignores the css variables, so the controls render
+                consistently across all four tabs. */}
+            <ShelfReadOnlyControls
+              initialPrefs={parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1'))}
+            />
           </div>
         </div>
       </header>
@@ -257,7 +267,16 @@ export default async function ShelfPage({
             </TabLink>
           </div>
 
-          {view === 'spatial' && <ShelfSpatialView activeShelf={activeShelfNum} />}
+          {/* `.shelf-view-root` is the anchor that ShelfReadOnlyControls
+              writes CSS variables onto. Spatial / release / item views
+              all live underneath it so the same knobs apply. The
+              layout editor opts out — it owns its own placement
+              geometry. */}
+          {view === 'spatial' && (
+            <div className="shelf-view-root">
+              <ShelfSpatialView activeShelf={activeShelfNum} />
+            </div>
+          )}
 
           {view === 'release' &&
             sortedKeys.map((key) => {
