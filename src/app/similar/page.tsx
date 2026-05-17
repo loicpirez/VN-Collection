@@ -35,6 +35,10 @@ interface SimilarHit {
   image: { url: string; thumbnail: string; sexual?: number } | null;
   developers: { name: string }[];
   score: number;
+  /** Seed-tag chips that surfaced this VN. Displayed on each card so
+   *  the user can see WHY a recommendation appeared, not just that it
+   *  did. Order matches seed-tag iteration order. */
+  matchedTags: { id: string; name: string }[];
 }
 
 export default async function SimilarPage({
@@ -125,8 +129,21 @@ export default async function SimilarPage({
   for (const { tag, results } of perTag) {
     for (const r of results) {
       const cur = hits.get(r.id);
-      if (cur) cur.score += tag.rating ?? 1;
-      else hits.set(r.id, { ...r, score: tag.rating ?? 1 });
+      if (cur) {
+        cur.score += tag.rating ?? 1;
+        // Append unique — VNDB results don't double-count, but the
+        // belt-and-braces check keeps the chip list tidy if a tag
+        // appears in `seedTags` more than once for some reason.
+        if (!cur.matchedTags.some((m) => m.id === tag.id)) {
+          cur.matchedTags.push({ id: tag.id, name: tag.name });
+        }
+      } else {
+        hits.set(r.id, {
+          ...r,
+          score: tag.rating ?? 1,
+          matchedTags: [{ id: tag.id, name: tag.name }],
+        });
+      }
     }
   }
   const results = Array.from(hits.values())
@@ -188,10 +205,13 @@ export default async function SimilarPage({
             const year = r.released?.slice(0, 4);
             const rating = r.rating != null ? (r.rating / 10).toFixed(1) : null;
             return (
-              <li key={r.id}>
+              <li
+                key={r.id}
+                className="group flex flex-col gap-2 rounded-xl border border-border bg-bg-card p-3 transition-colors hover:border-accent"
+              >
                 <Link
                   href={`/vn/${r.id}`}
-                  className="group flex flex-col gap-2 rounded-xl border border-border bg-bg-card p-3 transition-colors hover:border-accent"
+                  className="flex flex-col gap-2"
                 >
                   <SafeImage
                     src={r.image?.thumbnail || r.image?.url || null}
@@ -216,6 +236,41 @@ export default async function SimilarPage({
                     </div>
                   </div>
                 </Link>
+                {/*
+                  Matched-seed-tag chips. Each chip is a separate
+                  `<Link>` to `/?tag=<id>` so the user can pivot from
+                  "this card matched two of my seeds" to "every VN
+                  in my collection with that same tag". The chip row
+                  lives OUTSIDE the parent `<Link>` to avoid nested
+                  anchors. The card still hovers as one unit thanks
+                  to `group-hover` on the title.
+                */}
+                {r.matchedTags.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                    <span className="text-muted opacity-70">{t.similar.matchedTagsLabel}</span>
+                    {r.matchedTags.slice(0, 4).map((tag) => (
+                      <Link
+                        key={tag.id}
+                        href={`/?tag=${encodeURIComponent(tag.id)}`}
+                        className="inline-flex items-center rounded border border-accent/40 bg-accent/10 px-1 py-0.5 text-accent transition-colors hover:bg-accent/20"
+                        title={tag.name}
+                      >
+                        {tag.name}
+                      </Link>
+                    ))}
+                    {r.matchedTags.length > 4 && (
+                      <span
+                        className="text-muted"
+                        title={r.matchedTags
+                          .slice(4)
+                          .map((m) => m.name)
+                          .join(', ')}
+                      >
+                        +{r.matchedTags.length - 4}
+                      </span>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}

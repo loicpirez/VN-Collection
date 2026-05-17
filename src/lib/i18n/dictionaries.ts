@@ -545,6 +545,15 @@ export const dictionaries = {
       lengthVotes: 'votes durée',
       averageVndb: 'Moy. brute',
       titlesAll: 'Titres (toutes langues)',
+      actions: {
+        ariaLabel: 'Actions du VN',
+        groupTracking: 'Suivi',
+        groupInventory: 'Inventaire',
+        groupMedia: 'Médias',
+        groupSync: 'Mise à jour',
+        groupActivity: 'Activité',
+        groupDangerous: 'Zone sensible',
+      },
     },
     form: {
       myTracking: 'Mon suivi',
@@ -1189,6 +1198,7 @@ export const dictionaries = {
       empty: 'Aucun VN similaire trouvé. Essaie une autre graine.',
       partialFailure: 'Quelques recherches ont échoué ({tags}). Les résultats sont peut-être incomplets.',
       seedsAutoHint: 'Auto-déduits des tags les plus pertinents du VN. Ajoute ou retire un tag pour modeler les similaires.',
+      matchedTagsLabel: 'Tags partagés :',
     },
     pomodoro: {
       label: 'Session',
@@ -2529,6 +2539,15 @@ export const dictionaries = {
       titlesAll: 'Titles (all languages)',
       seriesSection: 'Series',
       addToSeries: 'Add to a series',
+      actions: {
+        ariaLabel: 'VN actions',
+        groupTracking: 'Tracking',
+        groupInventory: 'Inventory',
+        groupMedia: 'Media',
+        groupSync: 'Refresh',
+        groupActivity: 'Activity',
+        groupDangerous: 'Danger zone',
+      },
     },
     form: {
       myTracking: 'My tracking',
@@ -3173,6 +3192,7 @@ export const dictionaries = {
       empty: 'No similar VNs found. Try another seed.',
       partialFailure: 'Some searches failed ({tags}). Results may be incomplete.',
       seedsAutoHint: 'Auto-derived from the seed VN\'s top tags. Add or remove a tag to steer the matches.',
+      matchedTagsLabel: 'Matched tags:',
     },
     pomodoro: {
       label: 'Session',
@@ -4510,6 +4530,15 @@ export const dictionaries = {
       lengthVotes: 'プレイ時間票',
       averageVndb: '平均（生）',
       titlesAll: 'タイトル（全言語）',
+      actions: {
+        ariaLabel: 'VN アクション',
+        groupTracking: '進捗',
+        groupInventory: 'インベントリ',
+        groupMedia: 'メディア',
+        groupSync: '更新',
+        groupActivity: 'アクティビティ',
+        groupDangerous: '危険操作',
+      },
     },
     form: {
       myTracking: '自分の進捗',
@@ -5154,6 +5183,7 @@ export const dictionaries = {
       empty: '類似する VN が見つかりませんでした。別のシードを試してください。',
       partialFailure: '一部の検索に失敗しました（{tags}）。結果は不完全な可能性があります。',
       seedsAutoHint: '元 VN の主要タグから自動抽出。タグを追加・削除して類似度を調整できます。',
+      matchedTagsLabel: '一致タグ：',
     },
     pomodoro: {
       label: 'セッション',
