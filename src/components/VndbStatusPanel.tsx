@@ -193,6 +193,11 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
               type="button"
               onClick={() => toggle(l.id)}
               disabled={pendingLabel === l.id}
+              // aria-pressed mirrors the visual on/off state for SR
+              // users — the toggle's color/icon difference was the
+              // only signal previously. WAI-ARIA "Toggle Button"
+              // pattern applies here verbatim.
+              aria-pressed={active}
               className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-50 ${
                 active
                   ? 'border-accent bg-accent/15 text-accent font-bold'
