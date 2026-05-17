@@ -135,6 +135,22 @@ const KIND_COLOR: Record<string, string> = {
   manual:   'bg-accent/20 text-accent',
 };
 
+const PAGE_SIZE = 50;
+
+function entityHref(entity: string | null, entityId: string | null): string | null {
+  if (!entity || !entityId) return null;
+  switch (entity) {
+    case 'vn': return `/vn/${entityId}`;
+    case 'producer': return `/producer/${entityId}`;
+    case 'character': return `/character/${entityId}`;
+    case 'staff': return `/staff/${entityId}`;
+    case 'series': return `/series/${entityId}`;
+    case 'tag': return `/tag/${entityId}`;
+    case 'trait': return `/trait/${entityId}`;
+    default: return null;
+  }
+}
+
 export default async function ActivityPage({ searchParams }: PageProps) {
   const t = await getDict();
   const locale = await getLocale();
@@ -142,11 +158,30 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   const q = first(sp.q).trim();
   const kind = first(sp.kind).trim();
   const entity = first(sp.entity).trim();
+  const page = Math.max(0, parseInt(first(sp.page) || '0', 10));
+  const offset = page * PAGE_SIZE;
+
   const kinds = listActivityKinds();
-  const sysRows = listUserActivity({ q: q || null, kind: kind || null, entity: entity || null, limit: 200 });
-  const vnRows = listRecentActivity(200);
+  const sysRowsAll = listUserActivity({ q: q || null, kind: kind || null, entity: entity || null, limit: offset + PAGE_SIZE + 1 });
+  const sysRows = sysRowsAll.slice(offset, offset + PAGE_SIZE);
+  const sysHasMore = sysRowsAll.length > PAGE_SIZE;
+
+  const vnRowsAll = listRecentActivity(offset + PAGE_SIZE + 1);
+  const vnRows = vnRowsAll.slice(offset, offset + PAGE_SIZE);
+  const vnHasMore = vnRowsAll.length > PAGE_SIZE;
+
   const fmt = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' });
   const statusLabels = t.status as Record<string, string>;
+
+  function pageHref(p: number) {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (kind) params.set('kind', kind);
+    if (entity) params.set('entity', entity);
+    if (p > 0) params.set('page', String(p));
+    const qs = params.toString();
+    return qs ? `/activity?${qs}` : '/activity';
+  }
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -163,29 +198,21 @@ export default async function ActivityPage({ searchParams }: PageProps) {
             <input
               name="q"
               defaultValue={q}
-              className="block w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
+              className="input w-full"
             />
           </label>
           <label className="min-w-[160px] text-xs text-muted">
             <span className="mb-1 inline-flex items-center gap-1">
               <Filter className="h-3 w-3" aria-hidden /> {t.userActivity.kind}
             </span>
-            <select
-              name="kind"
-              defaultValue={kind}
-              className="block w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
-            >
-              <option value="">{t.common.none}</option>
-              {kinds.map((k) => <option key={k} value={k}>{k}</option>)}
+            <select name="kind" defaultValue={kind} className="input w-full">
+              <option value="">{t.userActivity.allKinds}</option>
+              {kinds.map((k) => <option key={k} value={k}>{k.replace(/_/g, ' ')}</option>)}
             </select>
           </label>
           <label className="min-w-[160px] text-xs text-muted">
             <span className="mb-1 block">{t.userActivity.entity}</span>
-            <input
-              name="entity"
-              defaultValue={entity}
-              className="block w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
-            />
+            <input name="entity" defaultValue={entity} className="input w-full" />
           </label>
           <button type="submit" className="btn btn-primary">{t.search.run}</button>
           {(q || kind || entity) && <Link href="/activity" className="btn">{t.cardDensity.resetView}</Link>}
@@ -193,69 +220,112 @@ export default async function ActivityPage({ searchParams }: PageProps) {
       </header>
 
       <div className="space-y-8">
-        {/* VN changes — from vn_activity */}
         <section>
           <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">{t.userActivity.vnChanges}</h2>
           {vnRows.length === 0 ? (
             <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted">{t.userActivity.empty}</p>
           ) : (
-            <ol className="space-y-2">
-              {vnRows.map((row) => (
-                <li key={row.id} className="rounded-xl border border-border bg-bg-card p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_COLOR[row.kind] ?? 'bg-muted/20 text-muted'}`}>
-                          {kindLabel(row.kind, t)}
-                        </span>
-                        <Link
-                          href={`/vn/${row.vn_id}`}
-                          className="truncate text-sm font-semibold hover:text-accent transition-colors"
-                        >
-                          {row.title}
-                        </Link>
+            <>
+              <ol className="space-y-2">
+                {vnRows.map((row) => (
+                  <li key={row.id} className="rounded-xl border border-border bg-bg-card p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_COLOR[row.kind] ?? 'bg-muted/20 text-muted'}`}>
+                            {kindLabel(row.kind, t)}
+                          </span>
+                          <Link
+                            href={`/vn/${row.vn_id}`}
+                            className="truncate text-sm font-semibold hover:text-accent transition-colors"
+                          >
+                            {row.title}
+                          </Link>
+                        </div>
+                        <div className="mt-1 text-xs">
+                          <VnActivitySummary entry={row} t={t} statusLabels={statusLabels} />
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs">
-                        <VnActivitySummary entry={row} t={t} statusLabels={statusLabels} />
-                      </div>
+                      <time className="shrink-0 text-[11px] text-muted" dateTime={new Date(row.occurred_at).toISOString()}>
+                        {fmt.format(new Date(row.occurred_at))}
+                      </time>
                     </div>
-                    <time className="shrink-0 text-[11px] text-muted" dateTime={new Date(row.occurred_at).toISOString()}>
-                      {fmt.format(new Date(row.occurred_at))}
-                    </time>
-                  </div>
-                </li>
-              ))}
-            </ol>
+                  </li>
+                ))}
+              </ol>
+              <Pagination page={page} hasMore={vnHasMore} pageHref={pageHref} t={t} />
+            </>
           )}
         </section>
 
-        {/* System events — from user_activity */}
         <section>
           <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">{t.userActivity.sysEvents}</h2>
           {sysRows.length === 0 ? (
             <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted">{t.userActivity.empty}</p>
           ) : (
-            <ol className="space-y-2">
-              {sysRows.map((row) => (
-                <li key={row.id} className="rounded-xl border border-border bg-bg-card p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">{row.label || row.kind}</p>
-                      <p className="mt-0.5 text-[11px] text-muted">
-                        {row.kind}
-                        {row.entity && <> · {row.entity}{row.entity_id ? `:${row.entity_id}` : ''}</>}
-                      </p>
-                    </div>
-                    <time className="text-[11px] text-muted" dateTime={new Date(row.occurred_at).toISOString()}>
-                      {fmt.format(new Date(row.occurred_at))}
-                    </time>
-                  </div>
-                </li>
-              ))}
-            </ol>
+            <>
+              <ol className="space-y-2">
+                {sysRows.map((row) => {
+                  const href = entityHref(row.entity, row.entity_id);
+                  return (
+                    <li key={row.id} className="rounded-xl border border-border bg-bg-card p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold">{row.label || row.kind.replace(/_/g, ' ')}</p>
+                          {(row.entity || row.entity_id) && (
+                            <p className="mt-0.5 text-[11px] text-muted">
+                              {href ? (
+                                <Link href={href} className="hover:text-accent transition-colors">
+                                  {row.entity}{row.entity_id ? ` · ${row.entity_id}` : ''}
+                                </Link>
+                              ) : (
+                                <span>{row.entity}{row.entity_id ? ` · ${row.entity_id}` : ''}</span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                        <time className="text-[11px] text-muted" dateTime={new Date(row.occurred_at).toISOString()}>
+                          {fmt.format(new Date(row.occurred_at))}
+                        </time>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+              <Pagination page={page} hasMore={sysHasMore} pageHref={pageHref} t={t} />
+            </>
           )}
         </section>
       </div>
     </div>
+  );
+}
+
+function Pagination({
+  page,
+  hasMore,
+  pageHref,
+  t,
+}: {
+  page: number;
+  hasMore: boolean;
+  pageHref: (p: number) => string;
+  t: Awaited<ReturnType<typeof getDict>>;
+}) {
+  if (page === 0 && !hasMore) return null;
+  return (
+    <nav className="mt-4 flex items-center gap-2 text-xs">
+      {page > 0 && (
+        <Link href={pageHref(page - 1)} className="btn">
+          ← {t.common.prev}
+        </Link>
+      )}
+      <span className="text-muted">{t.userActivity.pageLabel.replace('{n}', String(page + 1))}</span>
+      {hasMore && (
+        <Link href={pageHref(page + 1)} className="btn">
+          {t.common.next} →
+        </Link>
+      )}
+    </nav>
   );
 }

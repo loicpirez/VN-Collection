@@ -43,7 +43,9 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
   const query = parsed.q;
   const { tab, role, lang, vn, scope } = parsed;
   const hasFilters = role != null || lang != null || vn != null;
-  const shouldQuery = query.length > 0 || hasFilters;
+  // Collection scope always fetches (browse all local staff by default).
+  // All-scope VNDB tab requires a text query or active filter before hitting API.
+  const shouldQuery = scope === 'collection' || query.length > 0 || hasFilters;
 
   type StaffRow = {
     id: string;

@@ -107,8 +107,10 @@ export default async function DumpedPage({
   });
 
   const tabPct = (key: DumpTab): string => {
-    if (counts.all === 0) return '0';
-    return ((counts[key] / counts.all) * 100).toFixed(0);
+    const total = entries.length;
+    if (total === 0) return '0';
+    if (key === 'all') return '100';
+    return Math.min(100, Math.round((counts[key] / total) * 100)).toString();
   };
 
   const tabIcon = {

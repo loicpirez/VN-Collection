@@ -69,7 +69,9 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   }
 
   const hasFilters = hasActiveCharacterFilter(params);
-  const shouldQuery = query.length > 0 || hasFilters;
+  // Local tab always fetches (browse all local chars by default). VNDB tab
+  // requires a text query or active filter chip before hitting the API.
+  const shouldQuery = tab !== 'vndb' || query.length > 0 || hasFilters;
 
   let localResults: VndbCharacter[] = [];
   if (shouldQuery) {
