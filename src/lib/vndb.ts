@@ -854,7 +854,7 @@ export async function getTag(id: string): Promise<VndbTag | null> {
  */
 export async function fetchTopVnsByTag(
   tagId: string,
-  { results = 24, lieThreshold = 1.2, spoiler = 1 }: { results?: number; lieThreshold?: number; spoiler?: 0 | 1 | 2 } = {},
+  { results = 24, page = 1, lieThreshold = 1.2, spoiler = 1 }: { results?: number; page?: number; lieThreshold?: number; spoiler?: 0 | 1 | 2 } = {},
 ): Promise<VndbResponse<Omit<import('./types').VndbSearchHit, 'in_collection'>>> {
   return vndbPost('/vn', {
     // Order per KANA.md example `["g505", 2, 1.2]`:
@@ -866,6 +866,7 @@ export async function fetchTopVnsByTag(
     sort: 'rating',
     reverse: true,
     results: Math.min(results, 100),
+    page: Math.max(1, Math.floor(page)),
   }, TTL.vnSearch);
 }
 

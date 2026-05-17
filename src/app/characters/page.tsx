@@ -69,31 +69,27 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   }
 
   const hasFilters = hasActiveCharacterFilter(params);
-  // Local tab always fetches (browse all local chars by default). VNDB tab
-  // requires a text query or active filter chip before hitting the API.
-  const shouldQuery = tab !== 'vndb' || query.length > 0 || hasFilters;
-
-  let localResults: VndbCharacter[] = [];
-  if (shouldQuery) {
-    localResults = searchLocalCharacters({ q: query || undefined, limit: 200 }).map(
-      (row) => ({
-        ...(row.profile as unknown as VndbCharacter),
-        voice_languages: row.voice_languages,
-      }),
-    );
-  }
+  // Always fetch local results — local tab browses all, VNDB tab uses
+  // local as fallback when no text query is active.
+  const localResults: VndbCharacter[] = searchLocalCharacters({ q: query || undefined, limit: 200 }).map(
+    (row) => ({
+      ...(row.profile as unknown as VndbCharacter),
+      voice_languages: row.voice_languages,
+    }),
+  );
   let vndbResults: VndbCharacter[] = [];
+  // Only hit the VNDB API when there's an actual text query (not filter-only).
   if (query.length > 0 && tab !== 'local') {
     vndbResults = await searchCharacters(query, { results: 60 }).catch(() => []);
   }
-  // For the VNDB tab without a text query (filter-only), fall back to local results
-  // so filters still surface matches rather than showing nothing.
   const allResults =
     tab === 'local'
       ? localResults
       : tab === 'vndb'
         ? (query.length > 0 ? vndbResults : localResults)
         : dedupeCharacters([...localResults, ...vndbResults]);
+  // shouldQuery stays for the idle-hint render gate (VNDB tab, no query, no filters)
+  const shouldQuery = tab !== 'vndb' || query.length > 0 || hasFilters || localResults.length > 0;
   const ageGated = includeEro
     ? allResults
     : allResults.filter((c) => !((c.image?.sexual ?? 0) >= 1.5));

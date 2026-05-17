@@ -16,7 +16,6 @@ import {
   CHARACTER_DETAIL_LAYOUT_EVENT,
   CHARACTER_DETAIL_SETTINGS_KEY,
   CHARACTER_SECTION_IDS,
-  defaultCharacterDetailLayoutV1,
   parseCharacterDetailLayoutV1,
 } from '@/lib/character-detail-layout';
 
@@ -374,7 +373,7 @@ export default async function CharacterPage({
             sectionIds={CHARACTER_SECTION_IDS}
             settingsKey={CHARACTER_DETAIL_SETTINGS_KEY}
             eventName={CHARACTER_DETAIL_LAYOUT_EVENT}
-            defaultLayout={defaultCharacterDetailLayoutV1}
+
           />
         );
       })()}

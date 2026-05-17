@@ -41,7 +41,7 @@ export interface DetailSection {
 }
 
 export interface SectionLayoutV1 {
-  sections: Record<string, { visible: boolean; collapsed?: boolean }>;
+  sections: Record<string, { visible: boolean; collapsedByDefault?: boolean }>;
   order: string[];
 }
 
@@ -56,8 +56,6 @@ interface Props {
   settingsKey: string;
   /** CustomEvent name dispatched after a save. */
   eventName: string;
-  /** Default layout factory. */
-  defaultLayout: () => SectionLayoutV1;
 }
 
 function defaultSectionLayoutV1(sectionIds: readonly string[]): SectionLayoutV1 {
@@ -72,7 +70,6 @@ export function DetailReorderLayout({
   sectionIds,
   settingsKey,
   eventName,
-  defaultLayout,
 }: Props) {
   const t = useT();
   const toast = useToast();
@@ -142,7 +139,7 @@ export function DetailReorderLayout({
       ...prev,
       sections: {
         ...prev.sections,
-        [id]: { ...prev.sections[id], collapsed: !(prev.sections[id]?.collapsed ?? false) },
+        [id]: { ...prev.sections[id], collapsedByDefault: !(prev.sections[id]?.collapsedByDefault ?? false) },
       },
     }));
   }
@@ -173,8 +170,7 @@ export function DetailReorderLayout({
   }
 
   function reset() {
-    const d = defaultLayout();
-    setDraft(d);
+    setDraft(defaultSectionLayoutV1(sectionIds));
   }
 
   if (!editing) {
@@ -182,7 +178,7 @@ export function DetailReorderLayout({
       <>
         {orderedSections.map(({ id, node, visible }) => {
           if (!visible) return null;
-          const isCollapsed = layout.sections[id]?.collapsed ?? false;
+          const isCollapsed = layout.sections[id]?.collapsedByDefault ?? false;
           const sec = sections.find((s) => s.id === id);
           if (isCollapsed && sec?.label) {
             return (
@@ -228,7 +224,7 @@ export function DetailReorderLayout({
         <SortableContext items={draft.order} strategy={verticalListSortingStrategy}>
           {orderedSections.map(({ id, node, visible }) => {
             const sec = sections.find((s) => s.id === id);
-            const collapsed = draft.sections[id]?.collapsed ?? false;
+            const collapsed = draft.sections[id]?.collapsedByDefault ?? false;
             return (
               <SortableSection
                 key={id}

@@ -24,7 +24,6 @@ import {
   STAFF_DETAIL_LAYOUT_EVENT,
   STAFF_DETAIL_SETTINGS_KEY,
   STAFF_SECTION_IDS,
-  defaultStaffDetailLayoutV1,
   parseStaffDetailLayoutV1,
 } from '@/lib/staff-detail-layout';
 
@@ -359,7 +358,7 @@ export default async function StaffPage({
             sectionIds={STAFF_SECTION_IDS}
             settingsKey={STAFF_DETAIL_SETTINGS_KEY}
             eventName={STAFF_DETAIL_LAYOUT_EVENT}
-            defaultLayout={defaultStaffDetailLayoutV1}
+
           />
         );
       })()}

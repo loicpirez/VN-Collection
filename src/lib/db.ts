@@ -3694,10 +3694,17 @@ export function searchLocalCharacters({
       `SELECT vc.cache_key, vc.body
        FROM vndb_cache vc
        WHERE vc.cache_key LIKE 'char_full:%'
-         AND EXISTS (
-           SELECT 1 FROM character_vn_index ci
-           JOIN collection c ON c.vn_id = ci.vn_id
-           WHERE ci.character_id = substr(vc.cache_key, length('char_full:') + 1)
+         AND (
+           EXISTS (
+             SELECT 1 FROM character_vn_index ci
+             JOIN collection c ON c.vn_id = ci.vn_id
+             WHERE ci.character_id = substr(vc.cache_key, length('char_full:') + 1)
+           )
+           OR EXISTS (
+             SELECT 1 FROM vn_va_credit va
+             JOIN collection col ON col.vn_id = va.vn_id
+             WHERE va.c_id = substr(vc.cache_key, length('char_full:') + 1)
+           )
          )`,
     )
     .all() as Array<{ cache_key: string; body: string }>;

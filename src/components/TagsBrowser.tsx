@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ExternalLink, Search, Tags } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, Tags } from 'lucide-react';
 import { RefreshPageButton } from './RefreshPageButton';
 import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import { stripVndbMarkup } from './VndbMarkup';
 import type { VndbTag } from '@/lib/vndb-types';
+import type { VndbTagHomeTree, VndbTagTreeNode } from '@/lib/vndb-tag-web-parser';
 import {
   groupTagsByCategory,
   tagChipHref,
@@ -26,68 +27,72 @@ interface TagsBrowserProps {
   initialMode?: TagsPageMode;
 }
 
-/**
- * Two-mode tag browser:
- *
- * - `local`: pulls from `/api/collection/tags` (only tags present in
- *   the local collection). Clicking a card opens the canonical per-tag
- *   detail page. This is the default — the page paints instantly from
- *   SQLite.
- * - `vndb`:  pulls from `/api/tags` which proxies VNDB's `/tag`
- *   endpoint (cached via `cachedFetch` in `lib/vndb.ts`). Clicking a
- *   card goes to the per-tag detail page `/tag/<id>` which then
- *   exposes both Local and VNDB drill-downs.
- *
- * The mode lives in the URL (`?mode=vndb`) so the choice is shareable.
- */
 export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: TagsBrowserProps = {}) {
   const t = useT();
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<'' | 'cont' | 'ero' | 'tech'>('');
   const [mode, setMode] = useState<TagsPageMode>(initialMode);
   const [results, setResults] = useState<VndbTag[]>([]);
+  const [homeTree, setHomeTree] = useState<VndbTagHomeTree | null>(null);
   const [localCounts, setLocalCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [staleWarning, setStaleWarning] = useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setError(null);
+    setStaleWarning(null);
     const ctrl = new AbortController();
     const isLocal = mode === 'local';
     const handle = setTimeout(async () => {
       try {
-        const url = isLocal
-          ? '/api/collection/tags'
-          : (() => {
-              const p = new URLSearchParams();
-              if (q) p.set('q', q);
-              if (category) p.set('category', category);
-              p.set('results', '60');
-              return `/api/tags?${p}`;
-            })();
-        const fetches: Promise<unknown>[] = [fetch(url, { signal: ctrl.signal })];
-        if (!isLocal) fetches.push(fetch('/api/collection/tags', { signal: ctrl.signal }));
-        const [mainRes, localRes] = await Promise.all(fetches) as [Response, Response | undefined];
-        if (!mainRes.ok) throw new Error((await mainRes.json().catch(() => ({}))).error || t.common.error);
-        const d = await mainRes.json();
-        let list: VndbTag[] = d.tags;
+        let list: VndbTag[] = [];
+        let tree: VndbTagHomeTree | null = null;
         if (isLocal) {
+          const res = await fetch('/api/collection/tags', { signal: ctrl.signal });
+          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || t.common.error);
+          const d = await res.json();
+          list = d.tags ?? [];
           if (q.trim()) {
             const lower = q.trim().toLowerCase();
             list = list.filter((tag) => tag.name.toLowerCase().includes(lower));
           }
           if (category) list = list.filter((tag) => tag.category === category);
-        } else if (localRes?.ok) {
-          const ld = await localRes.json();
+        } else if (!q.trim() && !category) {
+          const [treeRes, localRes] = await Promise.all([
+            fetch(`/api/tags/web-tree${refreshNonce ? '?force=1' : ''}`, { signal: ctrl.signal }),
+            fetch('/api/collection/tags', { signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] }),
+          ]);
+          const d = await treeRes.json().catch(() => ({}));
+          if (!treeRes.ok) throw new Error(d.error || t.common.error);
+          tree = d.data ?? null;
           const counts = new Map<string, number>();
-          for (const t of (ld.tags as Array<{ id: string; vn_count: number }>) ?? []) {
-            counts.set(t.id, t.vn_count);
+          for (const tag of (localRes.tags ?? []) as Array<{ id: string; vn_count: number }>) {
+            counts.set(tag.id, tag.vn_count);
+          }
+          if (alive) setLocalCounts(counts);
+          if (alive && d.warning) setStaleWarning(String(d.warning));
+        } else {
+          const [tagRes, localRes] = await Promise.all([
+            fetch(`/api/tags?results=100${category ? `&category=${category}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`, { signal: ctrl.signal }),
+            fetch('/api/collection/tags', { signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] }),
+          ]);
+          const d = await tagRes.json().catch(() => ({}));
+          if (!tagRes.ok) throw new Error(d.error || t.common.error);
+          list = d.tags ?? [];
+          const counts = new Map<string, number>();
+          for (const tag of (localRes.tags ?? []) as Array<{ id: string; vn_count: number }>) {
+            counts.set(tag.id, tag.vn_count);
           }
           if (alive) setLocalCounts(counts);
         }
-        if (alive) setResults(list);
+        if (alive) {
+          setResults(list);
+          setHomeTree(tree);
+        }
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
         if (alive) setError((e as Error).message);
@@ -95,18 +100,13 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
         if (alive) setLoading(false);
       }
     }, isLocal ? 0 : 300);
-    return () => {
-      alive = false;
-      ctrl.abort();
-      clearTimeout(handle);
-    };
-  }, [q, category, mode, t.common.error]);
+    return () => { alive = false; ctrl.abort(); clearTimeout(handle); };
+  }, [q, category, mode, refreshNonce, t.common.error]);
 
   const switchMode = (next: TagsPageMode) => {
     setMode(next);
     if (typeof window !== 'undefined') {
-      const url = tagsPageHref(next);
-      window.history.replaceState(null, '', url);
+      window.history.replaceState(null, '', tagsPageHref(next));
     }
   };
 
@@ -120,30 +120,20 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
             {mode === 'vndb' ? t.tags.vndbTabHint : t.tags.pageSubtitle}
           </p>
         </div>
+        {mode === 'vndb' && !q && !category && (
+          <button type="button" className="btn" onClick={() => setRefreshNonce((n) => n + 1)}>
+            {t.tags.refreshHierarchy}
+          </button>
+        )}
         <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
       </header>
 
-      {/*
-        The tab strip renders as `<Link>` so the URL contract
-        (`/tags` for local, `/tags?mode=vndb` for VNDB) is the
-        SOURCE of truth, not the local component state. Crawlers,
-        the browser-QA script, and screen readers all see the
-        href directly. The onClick handler still flips local state
-        synchronously to avoid a full page reload, but the URL
-        side-effect goes through router.replace via switchMode.
-      */}
-      <nav
-        className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
-        role="tablist"
-      >
+      <nav className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" role="tablist">
         <Link
           href={tagsPageHref('local')}
           role="tab"
           aria-selected={mode === 'local'}
-          onClick={(e) => {
-            e.preventDefault();
-            switchMode('local');
-          }}
+          onClick={(e) => { e.preventDefault(); switchMode('local'); }}
           className={`rounded px-2.5 py-1 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabLocal}
@@ -152,10 +142,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
           href={tagsPageHref('vndb')}
           role="tab"
           aria-selected={mode === 'vndb'}
-          onClick={(e) => {
-            e.preventDefault();
-            switchMode('vndb');
-          }}
+          onClick={(e) => { e.preventDefault(); switchMode('vndb'); }}
           className={`rounded px-2.5 py-1 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabVndb}
@@ -184,25 +171,191 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
         </select>
       </div>
 
-      {error && <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">{error}</div>}
+      {error && (
+        <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
+          {error}
+        </div>
+      )}
+      {staleWarning && (
+        <div className="mb-4 rounded-lg border border-status-playing bg-status-playing/10 p-4 text-sm text-status-playing">
+          {t.tags.staleHierarchy}
+        </div>
+      )}
 
       {loading ? (
-        <SkeletonRows count={8} withThumb={false} />
+        mode === 'vndb' && !q && !category ? <VndbTreeSkeleton /> : <SkeletonRows count={12} withThumb={false} />
       ) : results.length === 0 ? (
-        <div className="py-12 text-center text-muted">{t.search.noResults}</div>
+        mode === 'vndb' && !q && !category && homeTree ? (
+          <VndbTreeView tree={homeTree} localCounts={localCounts} />
+        ) : (
+          <div className="py-12 text-center text-muted">{t.search.noResults}</div>
+        )
       ) : (
-        <TagTreeView results={results} mode={mode} q={q} localCounts={localCounts} />
+        <TagFlatView results={results} mode={mode} q={q} localCounts={localCounts} />
       )}
     </div>
   );
 }
 
-function TagTreeView({ results, mode, q, localCounts }: { results: VndbTag[]; mode: TagsPageMode; q: string; localCounts: Map<string, number> }) {
+/** Tree view shown in VNDB mode with no active search/filter — parsed from https://vndb.org/g and cached locally. */
+function VndbTreeView({ tree, localCounts }: { tree: VndbTagHomeTree; localCounts: Map<string, number> }) {
   const t = useT();
-  // Memoised so typing into the search box doesn't recompute the
-  // bucket map on every keystroke. The grouping is also where the
-  // client-side `q` substring filter is applied (mirrors what the
-  // local-mode useEffect already does so the two paths agree).
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted">{t.tags.tagTree}</h2>
+          <a
+            href="https://vndb.org/g"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto inline-flex items-center gap-1 text-xs text-accent hover:text-white"
+          >
+            VNDB <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+          </a>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {tree.groups.map((group) => (
+            <RootGroupRow
+              key={group.id}
+              label={group.label}
+              href={group.href}
+              children={group.children}
+              moreCount={group.moreCount ?? null}
+              localCounts={localCounts}
+            />
+          ))}
+        </div>
+      </section>
+
+      {(tree.popular.length > 0 || tree.recentlyAdded.length > 0) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {tree.popular.length > 0 && (
+            <TagListPanel title={t.tags.popularTags} tags={tree.popular} localCounts={localCounts} />
+          )}
+          {tree.recentlyAdded.length > 0 && (
+            <TagListPanel title={t.tags.recentlyAdded} tags={tree.recentlyAdded} localCounts={localCounts} showDate />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RootGroupRow({
+  label,
+  href,
+  children,
+  moreCount,
+  localCounts,
+}: {
+  label: string;
+  href: string;
+  children: VndbTagTreeNode[];
+  moreCount: number | null;
+  localCounts: Map<string, number>;
+}) {
+  const [open, setOpen] = useState(true);
+  const t = useT();
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-bg-elev/35">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-bg-elev/40 transition-colors"
+      >
+        {open
+          ? <ChevronDown className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+          : <ChevronRight className="h-4 w-4 shrink-0 text-accent" aria-hidden />}
+        <span className="font-bold text-sm">{label}</span>
+        <span className="text-xs text-muted">({children.length + (moreCount ?? 0)})</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-border px-4 py-3">
+          <div className="flex flex-wrap gap-2">
+            {children.map((tag) => (
+              <TreeTagChip key={tag.id} tag={tag} localCount={localCounts.get(tag.id)} />
+            ))}
+            {moreCount ? (
+              <Link
+                href={href}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-elev/40 px-3 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent"
+              >
+                {t.tags.moreTags.replace('{n}', String(moreCount))}
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TreeTagChip({ tag, localCount }: { tag: VndbTagTreeNode; localCount?: number }) {
+  return (
+    <Link
+      href={tag.href}
+      className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-card px-3 py-1 text-xs transition-colors hover:border-accent hover:bg-accent/10"
+    >
+      <span className="font-medium transition-colors group-hover:text-accent">{tag.name}</span>
+      {tag.count != null ? <span className="text-muted tabular-nums">({tag.count.toLocaleString()})</span> : null}
+      {localCount ? (
+        <span className="rounded bg-accent/20 px-1 text-accent tabular-nums">{localCount}</span>
+      ) : null}
+    </Link>
+  );
+}
+
+function TagListPanel({
+  title,
+  tags,
+  localCounts,
+  showDate = false,
+}: {
+  title: string;
+  tags: Array<{ id: string; name: string; href: string; count?: number | null; dateLabel?: string | null }>;
+  localCounts: Map<string, number>;
+  showDate?: boolean;
+}) {
+  return (
+    <section className="rounded-xl border border-border bg-bg-card p-4">
+      <h2 className="mb-3 text-sm font-bold uppercase tracking-widest text-muted">{title}</h2>
+      <ul className="space-y-2">
+        {tags.slice(0, 12).map((tag) => (
+          <li key={tag.id}>
+            <Link href={tag.href} className="group flex items-center gap-2 rounded-lg border border-border bg-bg-elev/35 px-3 py-2 text-sm hover:border-accent">
+              <span className="min-w-0 flex-1 truncate font-medium group-hover:text-accent">{tag.name}</span>
+              {showDate && tag.dateLabel ? <span className="text-xs text-muted">{tag.dateLabel}</span> : null}
+              {tag.count != null ? <span className="text-xs tabular-nums text-muted">({tag.count.toLocaleString()})</span> : null}
+              {localCounts.get(tag.id) ? <span className="rounded bg-accent/20 px-1 text-xs text-accent">{localCounts.get(tag.id)}</span> : null}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function VndbTreeSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true">
+      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+        <SkeletonRows count={5} withThumb={false} />
+      </section>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SkeletonRows count={6} withThumb={false} />
+        <SkeletonRows count={6} withThumb={false} />
+      </div>
+    </div>
+  );
+}
+
+/** Flat card grid — used when search/filter is active or in local mode */
+function TagFlatView({ results, mode, q, localCounts }: { results: VndbTag[]; mode: TagsPageMode; q: string; localCounts: Map<string, number> }) {
+  const t = useT();
   const buckets = useMemo(() => groupTagsByCategory(results, q), [results, q]);
   return (
     <div className="space-y-6">
@@ -226,13 +379,10 @@ function TagTreeView({ results, mode, q, localCounts }: { results: VndbTag[]; mo
                   <Link
                     href={tagChipHref(mode, tag.id)}
                     className="block focus-visible:outline-none"
-                    title={mode === 'vndb' ? t.tagPage.browse : t.tags.openInLibrary}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <h3 className="text-sm font-bold transition-colors group-hover:text-accent">{tag.name}</h3>
-                    </div>
+                    <h3 className="text-sm font-bold transition-colors group-hover:text-accent">{tag.name}</h3>
                     {tag.description && (
-                      <p className="mt-1 line-clamp-3 text-xs text-muted">
+                      <p className="mt-1 line-clamp-2 text-xs text-muted">
                         {stripVndbMarkup(tag.description)}
                       </p>
                     )}
@@ -243,9 +393,7 @@ function TagTreeView({ results, mode, q, localCounts }: { results: VndbTag[]; mo
                           {localCounts.get(tag.id)} {t.tags.inCollection}
                         </span>
                       ) : null}
-                      {tag.aliases.length > 0 && <span className="truncate">· {tag.aliases.slice(0, 2).join(', ')}</span>}
-                      <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-                        {mode === 'vndb' ? t.tagPage.browse : t.tags.openInLibrary}
+                      <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity md:opacity-0 md:group-hover:opacity-100">
                         <ArrowRight className="h-3 w-3" aria-hidden />
                       </span>
                     </div>

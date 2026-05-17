@@ -43,9 +43,6 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
   const query = parsed.q;
   const { tab, role, lang, vn, scope } = parsed;
   const hasFilters = role != null || lang != null || vn != null;
-  // Collection scope always fetches (browse all local staff by default).
-  // All-scope VNDB tab requires a text query or active filter before hitting API.
-  const shouldQuery = scope === 'collection' || query.length > 0 || hasFilters;
 
   type StaffRow = {
     id: string;
@@ -60,55 +57,47 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     source: 'local' | 'vndb';
   };
 
+  // Always fetch local results — both scopes browse local data by default.
+  const localRows: StaffRow[] = searchLocalStaff({
+    q: query || undefined,
+    role,
+    lang,
+    limit: 200,
+  }).map((s) => ({ ...s, source: 'local' as const }));
+
   let results: StaffRow[] = [];
-  if (shouldQuery) {
-    if (scope === 'collection') {
-      results = searchLocalStaff({
-        q: query || undefined,
-        role,
-        lang,
-        limit: 200,
-      }).map((s) => ({ ...s, source: 'local' as const }));
-    } else {
-      // `scope=all` mixes VNDB + local. When the operator has typed a
-      // query, VNDB drives the result list; when only filters are set
-      // (empty query), we fall back to a local search so empty-q +
-      // filters still returns something useful.
-      const vndbRows: StaffRow[] = query
-        ? (
-            await searchStaff(query, {
-              results: 60,
-              mainOnly,
-              role: tab === 'vndb' ? role : null,
-              lang,
-              vn: tab === 'vndb' ? vn : null,
-            }).catch(() => []) as VndbStaff[]
-          ).map((s) => ({
-            id: s.id,
-            name: s.name,
-            original: s.original,
-            lang: s.lang,
-            gender: s.gender,
-            ismain: s.ismain,
-            aliases: s.aliases?.map((a) => ({ name: a.name })),
-            source: 'vndb' as const,
-          }))
-        : [];
-      const localRows: StaffRow[] = searchLocalStaff({
-        q: query || undefined,
-        role,
-        lang,
-        limit: 200,
-      }).map((s) => ({ ...s, source: 'local' as const }));
-      // Merge — local wins on duplicate id so collection metadata
-      // (role / vn_count) survives.
-      const merged = new Map<string, StaffRow>();
-      for (const r of vndbRows) merged.set(r.id, r);
-      for (const r of localRows) merged.set(r.id, r);
-      results = [...merged.values()];
-      if (lang) results = results.filter((s) => !s.lang || s.lang === lang);
-    }
+  if (scope === 'collection') {
+    results = localRows;
+  } else {
+    // scope=all: VNDB + local, VNDB only when there's a text query.
+    const vndbRows: StaffRow[] = query
+      ? (
+          await searchStaff(query, {
+            results: 60,
+            mainOnly,
+            role: tab === 'vndb' ? role : null,
+            lang,
+            vn: tab === 'vndb' ? vn : null,
+          }).catch(() => []) as VndbStaff[]
+        ).map((s) => ({
+          id: s.id,
+          name: s.name,
+          original: s.original,
+          lang: s.lang,
+          gender: s.gender,
+          ismain: s.ismain,
+          aliases: s.aliases?.map((a) => ({ name: a.name })),
+          source: 'vndb' as const,
+        }))
+      : [];
+    const merged = new Map<string, StaffRow>();
+    for (const r of vndbRows) merged.set(r.id, r);
+    for (const r of localRows) merged.set(r.id, r);
+    results = [...merged.values()];
+    if (lang) results = results.filter((s) => !s.lang || s.lang === lang);
   }
+  // Show idle hint only when there are truly no results (VNDB-wide search with no local data)
+  const shouldQuery = results.length > 0 || query.length > 0 || hasFilters || scope === 'collection';
 
   function chipHref(overrides: Record<string, string | null>): string {
     const params = new URLSearchParams();

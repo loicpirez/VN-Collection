@@ -23,6 +23,7 @@ export interface TagsPageState {
 
 export interface TagPageState {
   tab: TagPageTab;
+  page: number;
 }
 
 function pickFirst(value: string | string[] | undefined): string | undefined {
@@ -41,7 +42,9 @@ export function parseTagPageParams(
   raw: Record<string, string | string[] | undefined>,
 ): TagPageState {
   const tab = pickFirst(raw.tab) === 'vndb' ? 'vndb' : 'local';
-  return { tab };
+  const parsedPage = Number(pickFirst(raw.page) ?? '1');
+  const page = Number.isFinite(parsedPage) ? Math.max(1, Math.floor(parsedPage)) : 1;
+  return { tab, page };
 }
 
 /**
@@ -70,9 +73,12 @@ export function tagsPageHref(mode: TagsPageMode): string {
 }
 
 /** Switch URL for the Local/VNDB tab strip on `/tag/[id]`. */
-export function tagPageTabHref(tagId: string, tab: TagPageTab): string {
+export function tagPageTabHref(tagId: string, tab: TagPageTab, page = 1): string {
   const id = tagId.toLowerCase();
-  if (tab === 'vndb') return `/tag/${encodeURIComponent(id)}?tab=vndb`;
+  if (tab === 'vndb') {
+    const p = Math.max(1, Math.floor(page));
+    return `/tag/${encodeURIComponent(id)}?tab=vndb${p > 1 ? `&page=${p}` : ''}`;
+  }
   return `/tag/${encodeURIComponent(id)}`;
 }
 

@@ -19,7 +19,6 @@ import {
   PRODUCER_DETAIL_LAYOUT_EVENT,
   PRODUCER_DETAIL_SETTINGS_KEY,
   PRODUCER_SECTION_IDS,
-  defaultProducerDetailLayoutV1,
   parseProducerDetailLayoutV1,
 } from '@/lib/producer-detail-layout';
 
@@ -214,7 +213,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
             sectionIds={PRODUCER_SECTION_IDS}
             settingsKey={PRODUCER_DETAIL_SETTINGS_KEY}
             eventName={PRODUCER_DETAIL_LAYOUT_EVENT}
-            defaultLayout={defaultProducerDetailLayoutV1}
+
           />
         );
       })()}

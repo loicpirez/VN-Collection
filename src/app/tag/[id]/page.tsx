@@ -8,6 +8,8 @@ import { getDict } from '@/lib/i18n/server';
 import { tagPageEmptyState } from '@/lib/tag-page-empty-state';
 import { parseTagPageParams, tagPageTabHref } from '@/lib/tags-page-modes';
 import { getTag, fetchTopVnsByTag } from '@/lib/vndb';
+import { getVndbTagWebDetail } from '@/lib/vndb-tag-web-cache';
+import type { VndbTagTreeNode } from '@/lib/vndb-tag-web-parser';
 import { SafeImage } from '@/components/SafeImage';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -51,7 +53,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   const sp = await searchParams;
   const t = await getDict();
   const tagId = id.toLowerCase();
-  const { tab } = parseTagPageParams(sp);
+  const { tab, page } = parseTagPageParams(sp);
 
   const localRows = db
     .prepare(
@@ -178,6 +180,10 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         </div>
       </header>
 
+      <Suspense fallback={<TagWebDetailSkeleton />}>
+        <TagWebDetailBlock tagId={tagId} />
+      </Suspense>
+
       {tab === 'local' && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
@@ -237,11 +243,113 @@ export default async function TagPage({ params, searchParams }: PageProps) {
             blank page while the upstream call is in flight.
           */}
           <Suspense fallback={<TagVndbSkeleton />}>
-            <TagVndbResults tagId={tagId} />
+            <TagVndbResults tagId={tagId} page={page} />
           </Suspense>
         </section>
       )}
     </DensityScopeProvider>
+  );
+}
+
+function TagWebDetailSkeleton() {
+  return (
+    <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6" aria-busy="true">
+      <SkeletonBlock className="h-4 w-1/3" />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <SkeletonBlock className="h-20 rounded-lg" />
+        <SkeletonBlock className="h-20 rounded-lg" />
+      </div>
+    </section>
+  );
+}
+
+async function TagWebDetailBlock({ tagId }: { tagId: string }) {
+  const t = await getDict();
+  let detail: Awaited<ReturnType<typeof getVndbTagWebDetail>> | null = null;
+  let error: string | null = null;
+  try {
+    detail = await getVndbTagWebDetail(tagId);
+  } catch (e) {
+    error = (e as Error).message;
+  }
+  if (error) {
+    return (
+      <section className="mt-6 rounded-xl border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
+        {error}
+      </section>
+    );
+  }
+  if (!detail) return null;
+  const data = detail.data;
+  return (
+    <section className="mt-6 space-y-4 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+      {detail.warning && (
+        <div className="rounded-lg border border-status-playing bg-status-playing/10 p-3 text-xs text-status-playing">
+          {detail.warning}
+        </div>
+      )}
+      {data.breadcrumb.length > 1 && (
+        <nav className="flex flex-wrap items-center gap-1 text-xs text-muted" aria-label={t.tagPage.breadcrumb}>
+          {data.breadcrumb.map((crumb, idx) => (
+            <span key={`${crumb.id ?? 'self'}-${idx}`} className="inline-flex items-center gap-1">
+              {idx > 0 && <span>/</span>}
+              {crumb.href ? (
+                <Link href={crumb.href} className="text-accent hover:text-white">{crumb.name}</Link>
+              ) : (
+                <span className="text-white">{crumb.name}</span>
+              )}
+            </span>
+          ))}
+        </nav>
+      )}
+      {(data.categoryLabel || data.properties.searchable != null || data.properties.applicable != null) && (
+        <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-wider">
+          {data.categoryLabel && <span className="rounded bg-accent/10 px-2 py-0.5 text-accent">{data.categoryLabel}</span>}
+          {data.properties.searchable != null && (
+            <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
+              {data.properties.searchable ? t.tagPage.searchable : t.tagPage.notSearchable}
+            </span>
+          )}
+          {data.properties.applicable != null && (
+            <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
+              {data.properties.applicable ? t.tagPage.applicable : t.tagPage.notApplicable}
+            </span>
+          )}
+        </div>
+      )}
+      {data.childGroups.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.tagPage.children}</h2>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {data.childGroups.map((group) => (
+              <article key={group.title} className="rounded-lg border border-border bg-bg-elev/35 p-3">
+                <h3 className="mb-2 text-sm font-bold">{group.title}</h3>
+                <div className="flex flex-wrap gap-2">
+                  {group.children.map((child) => <TagChildChip key={child.id} tag={child} />)}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+      <a
+        href={`https://vndb.org/${tagId}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-xs text-accent hover:text-white"
+      >
+        VNDB <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+      </a>
+    </section>
+  );
+}
+
+function TagChildChip({ tag }: { tag: VndbTagTreeNode }) {
+  return (
+    <Link href={tag.href} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-card px-3 py-1 text-xs hover:border-accent hover:text-accent">
+      <span>{tag.name}</span>
+      {tag.count != null ? <span className="text-muted tabular-nums">({tag.count.toLocaleString()})</span> : null}
+    </Link>
   );
 }
 
@@ -277,7 +385,7 @@ function TagVndbSkeleton() {
  * card so the operator can see WHY the panel is empty (offline /
  * 429 / 502) rather than just "no results".
  */
-async function TagVndbResults({ tagId }: { tagId: string }) {
+async function TagVndbResults({ tagId, page }: { tagId: string; page: number }) {
   const t = await getDict();
   let topVndb: Array<{
     id: string;
@@ -287,8 +395,10 @@ async function TagVndbResults({ tagId }: { tagId: string }) {
     released: string | null;
   }> = [];
   let vndbError: string | null = null;
+  let more = false;
   try {
-    const r = await fetchTopVnsByTag(tagId, { results: 24 });
+    const r = await fetchTopVnsByTag(tagId, { results: 24, page });
+    more = r.more;
     topVndb = r.results.map((v) => ({
       id: v.id,
       title: v.title,
@@ -306,41 +416,48 @@ async function TagVndbResults({ tagId }: { tagId: string }) {
     return <p className="text-sm text-muted">{t.search.noResults}</p>;
   }
   return (
-    <ul
-      className="grid gap-3"
-      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
-    >
-      {topVndb.map((v) => {
-        const year = v.released?.slice(0, 4);
-        const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
-        return (
-          <li key={v.id}>
-            <Link
-              href={`/vn/${v.id}`}
-              className="group flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
-            >
-              <div className="aspect-[2/3] w-full overflow-hidden rounded">
-                <SafeImage
-                  src={v.image?.thumbnail || v.image?.url || null}
-                  alt={v.title}
-                  className="h-full w-full"
-                />
-              </div>
-              <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
-                {v.title}
-              </p>
-              <div className="flex items-center gap-2 text-[11px] text-muted">
-                {ratingDisplay && (
-                  <span className="inline-flex items-center gap-0.5 text-accent">
-                    <Star className="h-3 w-3 fill-accent" aria-hidden /> {ratingDisplay}
-                  </span>
-                )}
-                {year && <span>{year}</span>}
-              </div>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="space-y-4">
+      <ul
+        className="grid gap-3"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
+      >
+        {topVndb.map((v) => {
+          const year = v.released?.slice(0, 4);
+          const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
+          return (
+            <li key={v.id}>
+              <Link
+                href={`/vn/${v.id}`}
+                className="group flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
+              >
+                <div className="aspect-[2/3] w-full overflow-hidden rounded">
+                  <SafeImage
+                    src={v.image?.thumbnail || v.image?.url || null}
+                    alt={v.title}
+                    className="h-full w-full"
+                  />
+                </div>
+                <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                  {v.title}
+                </p>
+                <div className="flex items-center gap-2 text-[11px] text-muted">
+                  {ratingDisplay && (
+                    <span className="inline-flex items-center gap-0.5 text-accent">
+                      <Star className="h-3 w-3 fill-accent" aria-hidden /> {ratingDisplay}
+                    </span>
+                  )}
+                  {year && <span>{year}</span>}
+                </div>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <nav className="flex items-center justify-between gap-3 text-sm">
+        {page > 1 ? <Link className="btn" href={tagPageTabHref(tagId, 'vndb', page - 1)}>{t.common.prev}</Link> : <span />}
+        <span className="text-xs text-muted">{t.tagPage.pageLabel.replace('{n}', String(page))}</span>
+        {more ? <Link className="btn" href={tagPageTabHref(tagId, 'vndb', page + 1)}>{t.common.next}</Link> : <span />}
+      </nav>
+    </div>
   );
 }
