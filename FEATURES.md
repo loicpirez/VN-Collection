@@ -27,6 +27,36 @@ Status chips, free-text title search, tag / language / year filters, tri-state
 "more filters" (matched-VNDB, matched-EGS, fan-disc, favourite, has-notes,
 NSFW, nukige…). All state lives in URL params so the back button works.
 
+The library accepts the following URL params (all optional, all
+shareable): `status`, `q`, `producer` (developer side), `publisher`,
+`series`, `tag`, `place` (free-text physical location tag),
+`edition` (one of `EDITION_TYPES`), `yearMin` / `yearMax`,
+`aspect` (CSV; supports multi-select), `dumped` (`1` / `0`),
+`sort`, `order`, `group`. New filters land on the existing
+`<FilterChip>` row so the active state stays visible and one click
+removes it.
+
+### Metadata everywhere is clickable ✅
+Every metadata token rendered on a detail page is a discovery
+entry point — clicking a language code, platform code, developer
+chip, publisher chip, physical-location pin, or status slice
+navigates to the appropriate filtered view. Affected surfaces:
+
+- VN detail page: languages → `/search?langs=<code>`;
+  platforms → `/search?platforms=<code>` (chips, no longer a
+  comma-joined string).
+- Releases section per row: languages + platforms become chip
+  rows; developer / publisher names become `<Link>`s to
+  `/producer/<id>`.
+- Owned editions: each `physical_location` chip routes to
+  `/?place=<value>`.
+- Stats donut: each status slice routes to `/?status=<status>`.
+- Stats "By edition": each row routes to `/?edition=<type>`
+  (driven by the new `?edition=` library filter).
+- /similar cards: each matched seed tag is its own `<Link>` to
+  `/?tag=<id>` so the user can pivot from "this VN matched these
+  seeds" to "every other VN with that tag".
+
 ### Sort + custom drag-reorder ✅
 Standard sort dropdown plus an opt-in `sort=custom` mode that unlocks
 drag-to-reorder via @dnd-kit. Reset button reverts to the default sort.
@@ -446,6 +476,25 @@ anticipated row's `vndb_id` into a single VNDB POST. The card then
 renders the high-quality VNDB poster URL inline (with the correct
 `sexual` flag for NSFW gating) instead of bouncing through the EGS
 resolver. EGS-only rows (no `vndb_id`) fall back to `/api/egs-cover/`.
+
+### Top-ranked rankings ✅
+`/top-ranked` — two tabs, **VNDB top** and **EGS top**, with a
+per-tab freshness chip (the EGS chip never lies "just now"
+because only VNDB refreshed). Pagination is URL-driven via
+`?page=<n>` and the vote threshold is URL-driven via `?min=<n>`,
+snapping to a preset (50 / 100 / 250 / 500 / 1000). Each preset
+caches independently, so a power user toggling thresholds pays
+the round-trip once per threshold. The EGS tab applies Bayesian
+shrinkage (`(count × median + C × prior) / (count + C)` with
+prior = 70 / strength = 30) on top of the threshold, so a
+brand-new title with one perfect score doesn't shoot to #1.
+
+### /similar matched-tags ✅
+On `/similar?vn=v123`, each result card now lists the seed tags
+that surfaced it as individual `<Link>` chips routing to
+`/?tag=<id>`. The user can pivot from "this VN matched these
+two seeds" to "every VN in my library with that same tag"
+without going back to /similar.
 
 ### Cross-VN quotes ✅
 `/quotes` — every quote across every VN you've fetched, with character +

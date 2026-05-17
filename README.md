@@ -239,9 +239,15 @@ recommendations, shelf, dumped, stats).
   The mapping survives cache refresh and auto-rematch (it lives in
   `vn_egs_link` / `egs_vn_link`, not just the EGS cache row).
 - **Top-ranked** (`/top-ranked`) — two tabs (VNDB top, EGS top) with
-  a per-page Refresh button and freshness chip. The global refresh
-  busts both `% /vn:top-ranked:%` and `egs:top-ranked:%` caches so
-  the reload actually moves the data forward.
+  a per-page Refresh button and a per-tab freshness chip (so the
+  EGS tab chip never lies "just now" because only VNDB refreshed).
+  Pagination via `?page=`. Vote threshold is URL-driven via
+  `?min=<n>` and snaps to a preset (50 / 100 / 250 / 500 / 1000); the
+  EGS tab applies Bayesian shrinkage on top of the threshold so a
+  brand-new VN with one perfect score doesn't shoot to #1. The
+  global refresh busts both `% /vn:top-ranked:%` and
+  `egs:top-ranked:%` caches so the reload actually moves the data
+  forward.
 
 ### Image management
 - **Auto-download on add**: cover + thumbnail + screenshots + every
@@ -323,10 +329,12 @@ recommendations, shelf, dumped, stats).
 
 ### Stats & charts
 - Personal: total VN, hours played, average rating, favorites,
-  status donut
+  clickable status donut (each slice → `/?status=<status>`)
 - Time series: VNs finished per month (last 12 months)
 - Distributions: rating histogram, by language, by platform, by
-  country, by edition, by year (clickable bars → library filter)
+  country, by edition, by year (clickable rows / bars → library
+  filter via `?tag=`, `?langs=`, `?platforms=`, `?place=`,
+  `?edition=`, `?yearMin=`/`?yearMax=`)
 - Top tags in your collection
 - EGS aggregates: matched count, average EGS median across the
   collection, sum of EGS playtimes, `total = mine + EGS`
