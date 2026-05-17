@@ -70,6 +70,14 @@ export interface VnRow {
   custom_cover: string | null;
   banner_image: string | null;
   banner_position: string | null;
+  /**
+   * Cover rotation in degrees clockwise. Stored as 0/90/180/270 only;
+   * the DB → row mapper coerces anything else back to 0 so the
+   * renderer never sees a tilted transform.
+   */
+  cover_rotation: 0 | 90 | 180 | 270;
+  /** Banner rotation, same scheme as `cover_rotation`. */
+  banner_rotation: 0 | 90 | 180 | 270;
   relations: VnRelation[];
   aliases: string[];
   extlinks: { url: string; label: string; name: string }[];

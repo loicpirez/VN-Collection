@@ -19,6 +19,16 @@ export interface SafeImageProps {
    * the VN detail page, the lightbox).
    */
   priority?: boolean;
+  /**
+   * Rotation in degrees clockwise. Only 0/90/180/270 are honoured —
+   * other values fall back to 0. For 90/270 rotations the image is
+   * rotated AND scaled by the container's aspect ratio so the rotated
+   * landscape still fills a portrait container without leaving black
+   * bars. The parent container is already `overflow-hidden` per the
+   * existing `relative overflow-hidden` wrapper, so the rotated image
+   * is safely clipped on the long axis.
+   */
+  rotation?: 0 | 90 | 180 | 270;
 }
 
 function publicLocal(rel: string | null | undefined): string | null {
@@ -40,6 +50,40 @@ function publicLocal(rel: string | null | undefined): string | null {
  *      element comes within 500 px of the viewport, then sets `src`
  *      directly so the browser fetches eagerly with a known intent.
  */
+/**
+ * Build the inline transform style + container measurer for a rotated
+ * image. Exported so unit tests can pin the contract without rendering
+ * the React component. The CSS contract:
+ *
+ *   - 0 / 180     → plain `rotate(<deg>)`; container aspect unchanged.
+ *   - 90 / 270    → `rotate(<deg>)` plus a `scale(W/H)` to swap the
+ *     effective aspect inside a fixed-aspect container. The scale is
+ *     applied to the larger dimension so a 90deg-rotated landscape
+ *     fills a portrait wrapper. When width/height aren't available
+ *     yet (SSR / first paint) we skip the scale; the user sees the
+ *     rotated image with a brief letterbox until the container is
+ *     measured, which the layout shifts away on the first
+ *     ResizeObserver tick.
+ */
+export function buildRotationStyle(
+  rotation: number,
+  width: number | null,
+  height: number | null,
+): CSSProperties {
+  const r = rotation % 360;
+  if (r === 0) return {};
+  if (r === 180) return { transform: 'rotate(180deg)' };
+  if (r !== 90 && r !== 270) return {};
+  if (!width || !height) return { transform: `rotate(${r}deg)` };
+  // When the image is rotated 90/270 inside a CSS box, the rotated
+  // image's "effective width" becomes the container's HEIGHT (and
+  // vice versa). To cover the container we need to scale the rotated
+  // image by max(W/H, H/W). The image's native object-fit handles
+  // the rest.
+  const scale = Math.max(width / height, height / width);
+  return { transform: `rotate(${r}deg) scale(${scale})` };
+}
+
 export function SafeImage({
   src,
   localSrc,
@@ -50,6 +94,7 @@ export function SafeImage({
   fit = 'cover',
   onLoadError,
   priority = false,
+  rotation = 0,
 }: SafeImageProps) {
   const t = useT();
   const { settings } = useDisplaySettings();
@@ -57,6 +102,33 @@ export function SafeImage({
   const [errored, setErrored] = useState(false);
   const [inView, setInView] = useState(priority);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Track the container's rendered size so 90/270 rotations can scale
+  // up to fill the box. The state is only "live" when rotation is
+  // 90/270 — keeps the ResizeObserver out of the hot path for the
+  // 99% of images that aren't rotated.
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
+  const rotationActive = rotation === 90 || rotation === 270;
+  useEffect(() => {
+    if (!rotationActive) {
+      setContainerSize(null);
+      return;
+    }
+    const el = containerRef.current;
+    if (!el) return;
+    if (typeof ResizeObserver === 'undefined') {
+      const r = el.getBoundingClientRect();
+      setContainerSize({ w: r.width, h: r.height });
+      return;
+    }
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const r = entry.contentRect;
+        setContainerSize({ w: r.width, h: r.height });
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [rotationActive]);
 
   const local = publicLocal(localSrc);
   const url = settings.preferLocalImages ? local || src || '' : src || local || '';
@@ -126,6 +198,8 @@ export function SafeImage({
     );
   }
 
+  const rotationStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null);
+
   return (
     <div ref={containerRef} className={`relative overflow-hidden ${className}`} style={style}>
       {/* Omit the src attribute entirely until the element is in
@@ -140,6 +214,7 @@ export function SafeImage({
           decoding="async"
           loading={priority ? 'eager' : 'lazy'}
           className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
+          style={rotationStyle}
           onError={() => {
             setErrored(true);
             onLoadError?.();

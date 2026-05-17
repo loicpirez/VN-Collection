@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCollectionItem, setBanner, setBannerPosition } from '@/lib/db';
+import {
+  getCollectionItem,
+  normalizeRotation,
+  setBanner,
+  setBannerPosition,
+  setBannerRotation,
+} from '@/lib/db';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { validateVnIdOr400 } from '@/lib/vn-id';
@@ -87,13 +93,31 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!getCollectionItem(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as { position?: string | null };
-  if (!('position' in body)) return NextResponse.json({ error: 'missing position' }, { status: 400 });
-  const value = body.position;
-  if (value !== null && (typeof value !== 'string' || !POSITION_RE.test(value))) {
-    return NextResponse.json({ error: 'position must be "X% Y%" or null' }, { status: 400 });
+  const body = (await req.json().catch(() => ({}))) as {
+    position?: string | null;
+    rotation?: unknown;
+  };
+  // The PATCH route now accepts EITHER `position` (focal-point edit)
+  // OR `rotation` (degrees). Both can coexist in a single body so the
+  // banner adjust UI can flip rotation and crop in one round-trip.
+  const hasPosition = 'position' in body;
+  const hasRotation = 'rotation' in body;
+  if (!hasPosition && !hasRotation) {
+    return NextResponse.json({ error: 'missing position or rotation' }, { status: 400 });
   }
-  setBannerPosition(id, value ?? null);
+  if (hasPosition) {
+    const value = body.position;
+    if (value !== null && (typeof value !== 'string' || !POSITION_RE.test(value))) {
+      return NextResponse.json({ error: 'position must be "X% Y%" or null' }, { status: 400 });
+    }
+    setBannerPosition(id, value ?? null);
+  }
+  if (hasRotation) {
+    if (typeof body.rotation !== 'number' || !Number.isFinite(body.rotation)) {
+      return NextResponse.json({ error: 'rotation must be a number' }, { status: 400 });
+    }
+    setBannerRotation(id, normalizeRotation(body.rotation));
+  }
   return NextResponse.json({ item: getCollectionItem(id) });
 }
 
@@ -106,5 +130,8 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   }
   setBanner(id, null);
   setBannerPosition(id, null);
+  // Rotation is metadata on the active banner image. Wipe on reset
+  // so a fresh upload doesn't inherit a stale 90deg flag.
+  setBannerRotation(id, 0);
   return NextResponse.json({ item: getCollectionItem(id) });
 }

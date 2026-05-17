@@ -548,6 +548,13 @@ function open(): Database.Database {
   ensureColumn(db, 'vn', 'release_images', 'TEXT');
   ensureColumn(db, 'vn', 'banner_image', 'TEXT');
   ensureColumn(db, 'vn', 'banner_position', 'TEXT');
+  // Per-VN rotation for cover / banner imagery. Values 0/90/180/270
+  // (degrees clockwise). Stored as INTEGER so the rotation survives
+  // backups + applies anywhere the cover / banner is rendered (hero,
+  // card, shelf, owned-edition tile, media gallery). Non-mod-90
+  // values are rejected at the API boundary.
+  ensureColumn(db, 'vn', 'cover_rotation', "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, 'vn', 'banner_rotation', "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, 'vn', 'relations', 'TEXT');
   // Publishers (JSON [{id, name}]) — distinct from `developers`. VNDB's
   // `/vn` endpoint only carries the developer role; publishers live on
@@ -591,6 +598,10 @@ function open(): Database.Database {
   // Free text — pairs with `acquired_date` for full provenance.
   ensureColumn(db, 'owned_release', 'purchase_place', 'TEXT');
   ensureColumn(db, 'owned_release', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
+  // Per-edition cover rotation (degrees, 0/90/180/270). Independent of
+  // the VN-level `vn.cover_rotation` so a misaligned scan for one
+  // edition can be straightened without flipping every other tile.
+  ensureColumn(db, 'owned_release', 'cover_rotation', "INTEGER NOT NULL DEFAULT 0");
   // Per-edition platform. A single VNDB release row often covers
   // multiple platforms (e.g. one row may list WIN / PS4 / PSV / SWI);
   // the user owns ONE physical SKU. Without this column the shelf
@@ -1431,6 +1442,26 @@ export function setBannerPosition(vnId: string, value: string | null): void {
   db.prepare('UPDATE vn SET banner_position = ? WHERE id = ?').run(value, vnId);
 }
 
+/**
+ * Normalize a stored rotation value to a known-good {0,90,180,270}.
+ * Old DB rows / NULLs / out-of-spec values collapse to 0 rather than
+ * propagating "tilted" CSS transforms to the renderer.
+ */
+export function normalizeRotation(raw: number | null | undefined): 0 | 90 | 180 | 270 {
+  const n = typeof raw === 'number' ? Math.round(raw) : 0;
+  const mod = ((n % 360) + 360) % 360;
+  if (mod === 90 || mod === 180 || mod === 270) return mod;
+  return 0;
+}
+
+export function setCoverRotation(vnId: string, value: number): void {
+  db.prepare('UPDATE vn SET cover_rotation = ? WHERE id = ?').run(normalizeRotation(value), vnId);
+}
+
+export function setBannerRotation(vnId: string, value: number): void {
+  db.prepare('UPDATE vn SET banner_rotation = ? WHERE id = ?').run(normalizeRotation(value), vnId);
+}
+
 export function setLocalScreenshots(vnId: string, shots: Screenshot[]): void {
   db.prepare('UPDATE vn SET screenshots = ? WHERE id = ?').run(JSON.stringify(shots), vnId);
 }
@@ -1478,6 +1509,24 @@ export function getCharacterImages(charIds: string[]): Map<string, CharacterImag
     .all(...charIds) as (CharacterImageRecord & { char_id: string })[];
   for (const r of rows) out.set(r.char_id, { url: r.url, local_path: r.local_path, fetched_at: r.fetched_at });
   return out;
+}
+
+/**
+ * Lookup the cover columns for a single VN id. Used by the quote
+ * endpoints to enrich the `<QuoteAvatar>` fallback chain — when no
+ * character portrait is downloaded the avatar falls back to the VN
+ * cover, which lives on `vn.*`.
+ */
+export interface VnCoverRow {
+  image_url: string | null;
+  local_image: string | null;
+  local_image_thumb: string | null;
+}
+export function getVnCover(vnId: string): VnCoverRow | null {
+  const row = db
+    .prepare('SELECT image_url, local_image, local_image_thumb FROM vn WHERE id = ?')
+    .get(vnId) as VnCoverRow | undefined;
+  return row ?? null;
 }
 
 export interface EgsRow {
@@ -1956,6 +2005,15 @@ export interface LocalQuote {
    * `character_image`; null when no image has been downloaded yet.
    */
   character_local_image: string | null;
+  /**
+   * VN cover columns surfaced from the same JOIN — they let the
+   * `QuoteAvatar` fall back to the VN cover when no character portrait
+   * is available. All three may be null on a freshly-added VN before
+   * `ensureLocalImagesForVn` has run.
+   */
+  vn_image_url: string | null;
+  vn_local_image: string | null;
+  vn_local_image_thumb: string | null;
 }
 
 /**
@@ -1999,6 +2057,10 @@ export interface QuoteWithVn {
    * the same field documentation; both shapes share the JOIN.
    */
   character_local_image: string | null;
+  /** VN cover fallback columns — see LocalQuote for documentation. */
+  vn_image_url: string | null;
+  vn_local_image: string | null;
+  vn_local_image_thumb: string | null;
 }
 
 /**
@@ -2014,14 +2076,17 @@ export function listAllQuotes(q?: string, limit = 200): QuoteWithVn[] {
       .prepare(`
         SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
                q.character_id, q.character_name,
-               ci.local_path AS character_local_image
+               ci.local_path AS character_local_image,
+               v.image_url AS vn_image_url,
+               v.local_image AS vn_local_image,
+               v.local_image_thumb AS vn_local_image_thumb
         FROM vn_quote q
         JOIN collection c ON c.vn_id = q.vn_id
         JOIN vn v ON v.id = q.vn_id
         LEFT JOIN character_image ci ON ci.char_id = q.character_id
         ORDER BY q.score DESC, v.title COLLATE NOCASE ASC
         LIMIT ?
-      `)
+`)
       .all(limit) as QuoteWithVn[];
   }
   const like = `%${trimmed.replace(/[%_]/g, '\\$&')}%`;
@@ -2029,7 +2094,10 @@ export function listAllQuotes(q?: string, limit = 200): QuoteWithVn[] {
     .prepare(`
       SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
              q.character_id, q.character_name,
-             ci.local_path AS character_local_image
+             ci.local_path AS character_local_image,
+             v.image_url AS vn_image_url,
+             v.local_image AS vn_local_image,
+             v.local_image_thumb AS vn_local_image_thumb
       FROM vn_quote q
       JOIN collection c ON c.vn_id = q.vn_id
       JOIN vn v ON v.id = q.vn_id
@@ -2037,7 +2105,7 @@ export function listAllQuotes(q?: string, limit = 200): QuoteWithVn[] {
       WHERE q.quote LIKE ? ESCAPE '\\' OR q.character_name LIKE ? ESCAPE '\\'
       ORDER BY q.score DESC, v.title COLLATE NOCASE ASC
       LIMIT ?
-    `)
+`)
     .all(like, like, limit) as QuoteWithVn[];
 }
 
@@ -2046,14 +2114,17 @@ export function getRandomLocalQuote(): LocalQuote | null {
     .prepare(`
       SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
              q.character_id, q.character_name,
-             ci.local_path AS character_local_image
+             ci.local_path AS character_local_image,
+             v.image_url AS vn_image_url,
+             v.local_image AS vn_local_image,
+             v.local_image_thumb AS vn_local_image_thumb
       FROM vn_quote q
       JOIN collection c ON c.vn_id = q.vn_id
       JOIN vn v ON v.id = q.vn_id
       LEFT JOIN character_image ci ON ci.char_id = q.character_id
       ORDER BY RANDOM()
       LIMIT 1
-    `)
+`)
     .get() as LocalQuote | undefined;
   return row ?? null;
 }
@@ -2477,6 +2548,8 @@ interface DbRow {
   custom_cover: string | null;
   banner_image: string | null;
   banner_position: string | null;
+  cover_rotation: number | null;
+  banner_rotation: number | null;
   relations: string | null;
   aliases: string | null;
   extlinks: string | null;
@@ -2567,6 +2640,8 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
     custom_cover: row.custom_cover,
     banner_image: row.banner_image,
     banner_position: row.banner_position,
+    cover_rotation: normalizeRotation(row.cover_rotation),
+    banner_rotation: normalizeRotation(row.banner_rotation),
     relations: safeJsonParse(row.relations, [] as CollectionItem['relations']),
     aliases: safeJsonParse(row.aliases, [] as string[]),
     extlinks: safeJsonParse(row.extlinks, [] as CollectionItem['extlinks']),
@@ -3999,6 +4074,25 @@ export interface DumpStatusEntry {
   dumped_editions: number;
   /** True when collection.dumped is also flagged on the VN itself. */
   collection_dumped: boolean;
+}
+
+/**
+ * Return the set of VN ids that have at least one placed edition on
+ * any shelf (either `shelf_slot` or `shelf_display_slot`). Used by
+ * `/dumped` to surface a "Voir sur l'étagère" deep-link next to
+ * each row that the user has physically arranged. A simple Set keeps
+ * the per-row lookup O(1) without re-running a subquery for every
+ * card.
+ */
+export function listVnIdsOnShelf(): Set<string> {
+  const rows = db
+    .prepare(
+      `SELECT vn_id FROM shelf_slot
+        UNION
+       SELECT vn_id FROM shelf_display_slot`,
+    )
+    .all() as Array<{ vn_id: string }>;
+  return new Set(rows.map((r) => r.vn_id));
 }
 
 /**

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCollectionItem, setCustomCover } from '@/lib/db';
+import { getCollectionItem, setCustomCover, setCoverRotation, normalizeRotation } from '@/lib/db';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { validateVnIdOr400 } from '@/lib/vn-id';
@@ -93,5 +93,31 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   }
   setCustomCover(id, null);
+  // Rotation is metadata on the cover. Resetting the cover wipes the
+  // rotation too so the user doesn't have to chase a stale 90deg flag
+  // back to 0 manually after picking a fresh image.
+  setCoverRotation(id, 0);
   return NextResponse.json({ item: getCollectionItem(id) });
+}
+
+/**
+ * PATCH only mutates rotation. The body must contain `rotation` set
+ * to 0/90/180/270 (degrees clockwise). Out-of-spec values are
+ * normalised to 0 by the storage helper rather than rejected, so
+ * the route never 400s on an honest typo from the UI sliders.
+ */
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
+  if (!getCollectionItem(id)) {
+    return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  }
+  const body = (await req.json().catch(() => ({}))) as { rotation?: unknown };
+  if (typeof body.rotation !== 'number' || !Number.isFinite(body.rotation)) {
+    return NextResponse.json({ error: 'rotation must be a number' }, { status: 400 });
+  }
+  const next = normalizeRotation(body.rotation);
+  setCoverRotation(id, next);
+  return NextResponse.json({ item: getCollectionItem(id), rotation: next });
 }
