@@ -1950,6 +1950,12 @@ export interface LocalQuote {
   score: number;
   character_id: string | null;
   character_name: string | null;
+  /**
+   * Locally-mirrored character avatar path (relative, served by
+   * `/api/files/<path>`). Filled by the LEFT JOIN against
+   * `character_image`; null when no image has been downloaded yet.
+   */
+  character_local_image: string | null;
 }
 
 /**
@@ -1988,6 +1994,11 @@ export interface QuoteWithVn {
   score: number;
   character_id: string | null;
   character_name: string | null;
+  /**
+   * Locally-mirrored character avatar path. See `LocalQuote` for
+   * the same field documentation; both shapes share the JOIN.
+   */
+  character_local_image: string | null;
 }
 
 /**
@@ -2002,10 +2013,12 @@ export function listAllQuotes(q?: string, limit = 200): QuoteWithVn[] {
     return db
       .prepare(`
         SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
-               q.character_id, q.character_name
+               q.character_id, q.character_name,
+               ci.local_path AS character_local_image
         FROM vn_quote q
         JOIN collection c ON c.vn_id = q.vn_id
         JOIN vn v ON v.id = q.vn_id
+        LEFT JOIN character_image ci ON ci.char_id = q.character_id
         ORDER BY q.score DESC, v.title COLLATE NOCASE ASC
         LIMIT ?
       `)
@@ -2015,10 +2028,12 @@ export function listAllQuotes(q?: string, limit = 200): QuoteWithVn[] {
   return db
     .prepare(`
       SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
-             q.character_id, q.character_name
+             q.character_id, q.character_name,
+             ci.local_path AS character_local_image
       FROM vn_quote q
       JOIN collection c ON c.vn_id = q.vn_id
       JOIN vn v ON v.id = q.vn_id
+      LEFT JOIN character_image ci ON ci.char_id = q.character_id
       WHERE q.quote LIKE ? ESCAPE '\\' OR q.character_name LIKE ? ESCAPE '\\'
       ORDER BY q.score DESC, v.title COLLATE NOCASE ASC
       LIMIT ?
@@ -2030,10 +2045,12 @@ export function getRandomLocalQuote(): LocalQuote | null {
   const row = db
     .prepare(`
       SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
-             q.character_id, q.character_name
+             q.character_id, q.character_name,
+             ci.local_path AS character_local_image
       FROM vn_quote q
       JOIN collection c ON c.vn_id = q.vn_id
       JOIN vn v ON v.id = q.vn_id
+      LEFT JOIN character_image ci ON ci.char_id = q.character_id
       ORDER BY RANDOM()
       LIMIT 1
     `)
@@ -3985,7 +4002,7 @@ export interface DumpStatusEntry {
 }
 
 /**
- * Per-VN dump status across the user's collection. Aggregates the
+ * Per-VN dump status across the collection. Aggregates the
  * owned_release.dumped flag on each release plus collection.dumped
  * on the VN itself, so the dump-management page can show a single
  * progress bar per game (X of Y editions dumped) even when a VN

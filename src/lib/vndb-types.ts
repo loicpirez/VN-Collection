@@ -122,7 +122,20 @@ export interface VndbQuote {
   quote: string;
   score: number;
   vn: { id: string; title: string } | null;
-  character: { id: string; name: string; original: string | null } | null;
+  /**
+   * When the local API has mirrored the character portrait, the
+   * quote shape is enriched with an `image.local_path`. The field
+   * is optional so VNDB-shaped responses without a local mirror
+   * still satisfy the type.
+   */
+  character:
+    | {
+        id: string;
+        name: string;
+        original: string | null;
+        image?: { local_path?: string | null } | null;
+      }
+    | null;
 }
 
 export interface VndbStatsGlobal {

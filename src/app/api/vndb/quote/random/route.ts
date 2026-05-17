@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAppSetting, getRandomLocalQuote } from '@/lib/db';
+import { getAppSetting, getCharacterImage, getRandomLocalQuote } from '@/lib/db';
 import { getRandomQuote } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,17 @@ export async function GET() {
             score: row.score,
             vn: { id: row.vn_id, title: row.vn_title },
             character: row.character_id
-              ? { id: row.character_id, name: row.character_name ?? '', original: null }
+              ? {
+                  id: row.character_id,
+                  name: row.character_name ?? '',
+                  original: null,
+                  // Surface the locally-mirrored portrait so the
+                  // QuoteFooter can render the 32×32 avatar without
+                  // a follow-up fetch.
+                  image: row.character_local_image
+                    ? { local_path: row.character_local_image }
+                    : null,
+                }
               : null,
           },
           source: 'mine' as const,
@@ -28,6 +38,28 @@ export async function GET() {
       }
     }
     const quote = await getRandomQuote();
+    // Enrich the VNDB-sourced random quote with our local mirror of
+    // the character portrait when available. VNDB never returns
+    // local paths — but the table is keyed on the same `cNNNN` id, so
+    // a single lookup is enough.
+    if (quote?.character?.id) {
+      const img = getCharacterImage(quote.character.id);
+      if (img?.local_path) {
+        // Mutate a shallow copy so the response shape stays a
+        // superset of `VndbQuote` rather than mutating the cached
+        // object the cache layer might still hold a reference to.
+        return NextResponse.json({
+          quote: {
+            ...quote,
+            character: {
+              ...quote.character,
+              image: { local_path: img.local_path },
+            },
+          },
+          source: 'all' as const,
+        });
+      }
+    }
     return NextResponse.json({ quote, source: 'all' as const });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });

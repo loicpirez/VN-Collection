@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MessageSquareQuote, RefreshCcw, Loader2 } from 'lucide-react';
 import { SkeletonBlock } from './Skeleton';
+import { QuoteAvatar } from './QuoteAvatar';
 import { useT } from '@/lib/i18n/client';
 import type { VndbQuote } from '@/lib/vndb-types';
 
@@ -99,7 +100,15 @@ export function QuoteFooter() {
             {quote && (
               <blockquote className="border-l-2 border-accent pl-2 italic text-white/85">
                 <p className="line-clamp-2 whitespace-pre-wrap text-xs leading-snug">“{quote.quote}”</p>
-                <footer className="mt-0.5 text-right text-[10px] not-italic text-muted">
+                <footer className="mt-0.5 flex items-center justify-end gap-1.5 text-[10px] not-italic text-muted">
+                  {quote.character && (
+                    // Smaller 20×20 avatar — the footer collapses to
+                    // a single line on hover so the portrait stays
+                    // proportional to the body text. UserCircle
+                    // fallback kicks in when no local portrait was
+                    // mirrored.
+                    <QuoteAvatar quote={quote} size={20} />
+                  )}
                   {quote.character && quote.character.id ? (
                     <Link href={`/character/${quote.character.id}`} className="hover:text-accent">
                       — {quote.character.name}

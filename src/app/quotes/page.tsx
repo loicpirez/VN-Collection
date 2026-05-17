@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Quote, Search } from 'lucide-react';
 import { listAllQuotes } from '@/lib/db';
+import { QuoteAvatar } from '@/components/QuoteAvatar';
 import { getDict } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
@@ -56,20 +57,30 @@ export default async function QuotesPage({
               <blockquote className="whitespace-pre-wrap text-sm leading-relaxed text-white/90 before:mr-1 before:text-accent before:content-['“'] after:ml-1 after:text-accent after:content-['”']">
                 {it.quote}
               </blockquote>
-              <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2 text-[11px] text-muted">
-                <span>
-                  {it.character_name && it.character_id ? (
-                    <Link
-                      href={`/character/${it.character_id}`}
-                      className="font-semibold text-white/85 hover:text-accent"
-                    >
-                      {it.character_name}
-                    </Link>
-                  ) : it.character_name ? (
-                    <span className="font-semibold text-white/85">{it.character_name}</span>
-                  ) : null}
-                  {it.character_name && ' · '}
-                  <Link href={`/vn/${it.vn_id}`} className="hover:text-accent">{it.vn_title}</Link>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
+                {/*
+                  Avatar + linked character name on the left side of
+                  the citation row. The `QuoteAvatar` falls back to a
+                  `<UserCircle>` icon when no local portrait is
+                  mirrored, so we always render the row at the same
+                  height even when `character_local_image` is null.
+                */}
+                <span className="inline-flex items-center gap-2">
+                  <QuoteAvatar quote={it} size={28} />
+                  <span>
+                    {it.character_name && it.character_id ? (
+                      <Link
+                        href={`/character/${it.character_id}`}
+                        className="font-semibold text-white/85 hover:text-accent"
+                      >
+                        {it.character_name}
+                      </Link>
+                    ) : it.character_name ? (
+                      <span className="font-semibold text-white/85">{it.character_name}</span>
+                    ) : null}
+                    {it.character_name && ' · '}
+                    <Link href={`/vn/${it.vn_id}`} className="hover:text-accent">{it.vn_title}</Link>
+                  </span>
                 </span>
                 <span className="font-mono">{it.score}</span>
               </div>
