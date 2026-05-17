@@ -14,6 +14,18 @@ import {
   validateSeriesDetailLayoutV1,
 } from '@/lib/series-detail-layout';
 import {
+  parseStaffDetailLayoutV1,
+  validateStaffDetailLayoutV1,
+} from '@/lib/staff-detail-layout';
+import {
+  parseCharacterDetailLayoutV1,
+  validateCharacterDetailLayoutV1,
+} from '@/lib/character-detail-layout';
+import {
+  parseProducerDetailLayoutV1,
+  validateProducerDetailLayoutV1,
+} from '@/lib/producer-detail-layout';
+import {
   parseShelfViewPrefsV1,
   validateShelfViewPrefsV1,
   parseShelfDisplayOverridesV1,
@@ -129,6 +141,9 @@ export async function GET(req: Request) {
     home_section_layout_v1: parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1')),
     vn_detail_section_layout_v1: parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1')),
     series_detail_section_layout_v1: parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1')),
+    staff_detail_section_layout_v1: parseStaffDetailLayoutV1(getAppSetting('staff_detail_section_layout_v1')),
+    character_detail_section_layout_v1: parseCharacterDetailLayoutV1(getAppSetting('character_detail_section_layout_v1')),
+    producer_detail_section_layout_v1: parseProducerDetailLayoutV1(getAppSetting('producer_detail_section_layout_v1')),
     shelf_view_prefs_v1: parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1')),
     // Wrapped per-shelf overrides. The GET path always returns the
     // wrapped shape; the legacy `shelf_view_prefs_v1` key above
@@ -285,6 +300,43 @@ export async function PATCH(req: NextRequest) {
         { status: 400 },
       );
     }
+  }
+  // ─────────────────────────────────────────────────────────────
+  // App-wide section layout — staff / character / producer (item 15).
+  // Same merge-on-persisted strategy as the existing VN/series
+  // layouts so a partial patch from a per-section menu or a
+  // drag-reorder doesn't clobber the other axis.
+  // ─────────────────────────────────────────────────────────────
+  for (const [key, parse, validate] of [
+    ['staff_detail_section_layout_v1', parseStaffDetailLayoutV1, validateStaffDetailLayoutV1] as const,
+    ['character_detail_section_layout_v1', parseCharacterDetailLayoutV1, validateCharacterDetailLayoutV1] as const,
+    ['producer_detail_section_layout_v1', parseProducerDetailLayoutV1, validateProducerDetailLayoutV1] as const,
+  ]) {
+    if (!(key in body)) continue;
+    const v = (body as Record<string, unknown>)[key];
+    if (v == null) {
+      setAppSetting(key, null);
+      continue;
+    }
+    if (typeof v !== 'object' || Array.isArray(v)) {
+      return NextResponse.json(
+        { error: `${key} must be an object or null` },
+        { status: 400 },
+      );
+    }
+    const current = parse(getAppSetting(key));
+    const patch = v as Record<string, unknown>;
+    const merged: unknown = {
+      sections: {
+        ...current.sections,
+        ...(typeof patch.sections === 'object' && patch.sections !== null
+          ? (patch.sections as Record<string, unknown>)
+          : {}),
+      },
+      order: Array.isArray(patch.order) ? patch.order : current.order,
+    };
+    const normalized = validate(merged);
+    setAppSetting(key, JSON.stringify(normalized));
   }
   if ('shelf_view_prefs_v1' in body) {
     const v = body.shelf_view_prefs_v1;

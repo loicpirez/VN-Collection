@@ -18,6 +18,15 @@ import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/Staff
 import { readStaffFullCache } from '@/lib/staff-full';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { languageDisplayName } from '@/lib/language-names';
+import {
+  parseStaffDetailLayoutV1,
+  type StaffSectionId,
+} from '@/lib/staff-detail-layout';
+import { getAppSetting } from '@/lib/db';
+import {
+  DetailSectionFrame,
+  DetailSectionResetButton,
+} from '@/components/DetailSectionFrame';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,6 +106,121 @@ export default async function StaffPage({
   const groupedProduction = ROLE_ORDER
     .map((role) => ({ role, credits: dedupeByVnId(prodByRole.get(role) ?? []) }))
     .filter((g) => g.credits.length > 0);
+
+  // Section-layout config drives reorder / hide / collapse on the
+  // below-main sections (timeline / voice / production / extras).
+  // Identity / aliases / description stay fixed inside the header
+  // card per the operator's "main identity stays fixed" rule.
+  const layout = parseStaffDetailLayoutV1(getAppSetting('staff_detail_section_layout_v1'));
+  const sectionRenderers: Record<StaffSectionId, React.ReactNode> = {
+    timeline: voice.length > 0 ? (
+      <DetailSectionFrame
+        scope="staff"
+        sectionId="timeline"
+        layout={layout}
+        title={t.sectionLayout.sections.staff.timeline}
+        embedded
+      >
+        <VaTimeline sid={id} />
+      </DetailSectionFrame>
+    ) : null,
+    'voice-credits': voice.length > 0 ? (
+      <DetailSectionFrame
+        scope="staff"
+        sectionId="voice-credits"
+        layout={layout}
+        title={t.sectionLayout.sections.staff['voice-credits']}
+        anchor="voice-credits"
+      >
+        <ul
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 280px)), 1fr))',
+          }}
+        >
+          {voice.map((credit) => (
+            <li key={credit.vn.id}>
+              <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle}>
+                <ul className="mt-2 space-y-1.5 text-[11px] text-muted">
+                  {credit.characters.map((c) => (
+                    <li key={c.id} className="flex items-start gap-2">
+                      <Link
+                        href={`/character/${c.id}`}
+                        className="block h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-bg-elev/40"
+                        aria-label={c.name}
+                      >
+                        <SafeImage
+                          src={c.image_url}
+                          localSrc={c.local_image}
+                          alt={c.name}
+                          className="h-full w-full"
+                        />
+                      </Link>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/character/${c.id}`}
+                          className="line-clamp-1 font-semibold text-white/85 hover:text-accent"
+                        >
+                          {c.name}
+                        </Link>
+                        {c.original && c.original !== c.name && (
+                          <div className="line-clamp-1 text-[10px] text-muted/70">{c.original}</div>
+                        )}
+                        {c.note && (
+                          <div className="line-clamp-1 text-[10px] opacity-70">{c.note}</div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </VnCard>
+            </li>
+          ))}
+        </ul>
+      </DetailSectionFrame>
+    ) : null,
+    'production-credits': groupedProduction.length > 0 ? (
+      <DetailSectionFrame
+        scope="staff"
+        sectionId="production-credits"
+        layout={layout}
+        title={t.sectionLayout.sections.staff['production-credits']}
+        anchor="production-credits"
+      >
+        {groupedProduction.map((g) => (
+          <div key={g.role} className="mb-6 last:mb-0">
+            <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
+              {t.staff[ROLE_KEY[g.role]]}
+            </h3>
+            <ul
+              className="grid gap-3"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+            >
+              {g.credits.map((credit) => (
+                <li key={credit.vn.id}>
+                  <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </DetailSectionFrame>
+    ) : null,
+    'extra-credits': (
+      <DetailSectionFrame
+        scope="staff"
+        sectionId="extra-credits"
+        layout={layout}
+        title={t.sectionLayout.sections.staff['extra-credits']}
+        embedded
+      >
+        <Suspense fallback={<StaffExtraCreditsSkeleton />}>
+          <StaffExtraCredits sid={id} knownProdVnIds={knownProdVnIds} knownVaVnIds={knownVaVnIds} />
+        </Suspense>
+      </DetailSectionFrame>
+    ),
+  };
 
   return (
     <DensityScopeProvider scope="staffWorks" className="mx-auto max-w-6xl">
@@ -230,110 +354,27 @@ export default async function StaffPage({
         </div>
       </header>
 
-      {voice.length > 0 && (
-        <div className="mb-6">
-          <VaTimeline sid={id} />
-        </div>
-      )}
+      {/* Page-level Reset chip for the section layout (item 15). */}
+      <div className="mb-3 flex items-center justify-end">
+        <DetailSectionResetButton scope="staff" />
+      </div>
 
-      {voice.length > 0 && (
-        <section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-          <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            <Mic2 className="h-4 w-4 text-accent" /> {t.staff.voiceCredits}
-            <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {voice.length}</span>
-          </h2>
-          <ul
-            className="grid gap-3"
-            style={{
-              // Density-aware: voice cards carry a fair amount of
-              // per-character detail so the default fallback is
-              // 280px (was a hard floor). User can dial the column
-              // count via the global density slider.
-              gridTemplateColumns:
-                'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 280px)), 1fr))',
-            }}
-          >
-            {voice.map((credit) => (
-              <li key={credit.vn.id}>
-                <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle}>
-                  {/*
-                    Each voiced character renders with a thumbnail
-                    next to the name. The thumbnail uses the local
-                    mirror when available (populated by the
-                    "Download all" / per-VN fan-out) so the page
-                    works offline once the data is cached.
-                  */}
-                  <ul className="mt-2 space-y-1.5 text-[11px] text-muted">
-                    {credit.characters.map((c) => (
-                      <li key={c.id} className="flex items-start gap-2">
-                        <Link
-                          href={`/character/${c.id}`}
-                          className="block h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-bg-elev/40"
-                          aria-label={c.name}
-                        >
-                          <SafeImage
-                            src={c.image_url}
-                            localSrc={c.local_image}
-                            alt={c.name}
-                            className="h-full w-full"
-                          />
-                        </Link>
-                        <div className="min-w-0 flex-1">
-                          <Link
-                            href={`/character/${c.id}`}
-                            className="line-clamp-1 font-semibold text-white/85 hover:text-accent"
-                          >
-                            {c.name}
-                          </Link>
-                          {c.original && c.original !== c.name && (
-                            <div className="line-clamp-1 text-[10px] text-muted/70">{c.original}</div>
-                          )}
-                          {c.note && (
-                            <div className="line-clamp-1 text-[10px] opacity-70">{c.note}</div>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </VnCard>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {groupedProduction.length > 0 && (
-        <section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-          <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            <Users className="h-4 w-4 text-accent" /> {t.staff.productionCredits}
-            <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {production.length}</span>
-          </h2>
-          {groupedProduction.map((g) => (
-            <div key={g.role} className="mb-6 last:mb-0">
-              <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
-                {t.staff[ROLE_KEY[g.role]]}
-              </h3>
-              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
-                {g.credits.map((credit) => (
-                  <li key={credit.vn.id}>
-                    <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </section>
-      )}
+      {/*
+        Below-main sections rendered in the operator-configured order
+        via the section-layout system. Each block is wrapped in
+        <DetailSectionFrame> which owns its own visibility / collapse
+        / reorder controls. Hidden sections render `null` so we never
+        ship their children.
+      */}
+      {layout.order.map((sectionId) => (
+        <div key={sectionId}>{sectionRenderers[sectionId]}</div>
+      ))}
 
       {production.length === 0 && voice.length === 0 && (
         <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">
           {t.staff.empty}
         </p>
       )}
-
-      <Suspense fallback={<StaffExtraCreditsSkeleton />}>
-        <StaffExtraCredits sid={id} knownProdVnIds={knownProdVnIds} knownVaVnIds={knownVaVnIds} />
-      </Suspense>
     </DensityScopeProvider>
   );
 }
