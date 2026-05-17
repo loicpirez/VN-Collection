@@ -3,11 +3,9 @@ import { buildRotationStyle } from '@/components/SafeImage';
 
 /**
  * Pin the pure-CSS rotation-style helper that powers
- * `<SafeImage rotation={…}>`. The component itself can't be
- * rendered here (Vitest env: node — no DOM, no React DOM), but the
- * style math is the load-bearing part: a 90/270 rotation inside a
- * fixed-aspect container needs to scale up to fill the rotated
- * dimensions, otherwise the rotated image leaves a black strip.
+ * `<SafeImage rotation={…}>`. Uses min(W/H, H/W) so the rotated image
+ * fits entirely within the container (no cropping) rather than
+ * filling/zooming it.
  */
 describe('buildRotationStyle', () => {
   it('returns no transform for rotation 0', () => {
@@ -18,18 +16,19 @@ describe('buildRotationStyle', () => {
     expect(buildRotationStyle(180, 100, 200)).toEqual({ transform: 'rotate(180deg)' });
   });
 
-  it('scales by max(W/H, H/W) for 90 inside a portrait container', () => {
-    // Portrait container: 100w x 200h.  H/W = 2, W/H = 0.5.
-    // Rotating an image 90deg in this box needs scale(2) to fill.
+  it('scales by min(W/H, H/W) for 90 inside a portrait container', () => {
+    // Portrait container: 100w x 200h. min(0.5, 2) = 0.5.
+    // Fit mode: the rotated (landscape) image scales DOWN to 0.5 so
+    // the full width is visible, letterboxed vertically.
     expect(buildRotationStyle(90, 100, 200)).toEqual({
-      transform: 'rotate(90deg) scale(2)',
+      transform: 'rotate(90deg) scale(0.5)',
     });
   });
 
-  it('scales by max(W/H, H/W) for 270 inside a landscape container', () => {
-    // Landscape: 200w x 100h. W/H = 2.
+  it('scales by min(W/H, H/W) for 270 inside a landscape container', () => {
+    // Landscape: 200w x 100h. min(2, 0.5) = 0.5.
     expect(buildRotationStyle(270, 200, 100)).toEqual({
-      transform: 'rotate(270deg) scale(2)',
+      transform: 'rotate(270deg) scale(0.5)',
     });
   });
 

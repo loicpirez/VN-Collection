@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Mic2, Star, Users } from 'lucide-react';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
-import { findCharacterSiblings, getVasForCharacter } from '@/lib/db';
+import { findCharacterSiblings, getVasForCharacter, getAppSetting } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
@@ -11,6 +11,14 @@ import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { readScrapedCharacterInfo } from '@/lib/scrape-character-instances';
 import { dedupAppearances } from '@/lib/character-appearances';
+import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
+import {
+  CHARACTER_DETAIL_LAYOUT_EVENT,
+  CHARACTER_DETAIL_SETTINGS_KEY,
+  CHARACTER_SECTION_IDS,
+  defaultCharacterDetailLayoutV1,
+  parseCharacterDetailLayoutV1,
+} from '@/lib/character-detail-layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,6 +142,7 @@ export default async function CharacterPage({
   // vndb.org HTML scrape — provides character "instances" and the full
   // per-VN voice-actor map that the Kana API doesn't expose.
   const scraped = readScrapedCharacterInfo(id);
+  const initialLayout = parseCharacterDetailLayoutV1(getAppSetting(CHARACTER_DETAIL_SETTINGS_KEY));
 
   return (
     <DensityScopeProvider scope="characterWorks" className="mx-auto max-w-5xl">
@@ -193,166 +202,143 @@ export default async function CharacterPage({
         </div>
       </div>
 
-      {siblings.length > 0 && (
-        <section className="mt-6 rounded-xl border border-accent/30 bg-accent/5 p-4">
-          <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
-            <Users className="h-4 w-4" /> {t.characters.sameName}
-          </h3>
-          <p className="mb-3 text-[11px] text-muted">{t.characters.sameNameHint}</p>
-          <ul className="space-y-1.5 text-xs">
-            {siblings.map((s) => (
-              <li key={s.c_id} className="flex flex-wrap items-baseline gap-2">
-                <Link href={`/character/${s.c_id}`} className="font-bold hover:text-accent">
-                  {s.c_name}
-                </Link>
-                <span className="font-mono text-[10px] text-muted">{s.c_id}</span>
-                <span className="text-muted">·</span>
-                <span className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
-                  {s.vns.map((v, i) => (
-                    <span key={v.vn_id}>
-                      <Link href={`/vn/${v.vn_id}`} className="hover:text-accent">{v.vn_title}</Link>
-                      {i < s.vns.length - 1 && <span className="text-muted">,</span>}
+      {(() => {
+        const characterSections: DetailSection[] = [];
+        if (siblings.length > 0) characterSections.push({
+          id: 'siblings',
+          node: (
+            <section className="mt-6 rounded-xl border border-accent/30 bg-accent/5 p-4">
+              <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
+                <Users className="h-4 w-4" /> {t.characters.sameName}
+              </h3>
+              <p className="mb-3 text-[11px] text-muted">{t.characters.sameNameHint}</p>
+              <ul className="space-y-1.5 text-xs">
+                {siblings.map((s) => (
+                  <li key={s.c_id} className="flex flex-wrap items-baseline gap-2">
+                    <Link href={`/character/${s.c_id}`} className="font-bold hover:text-accent">{s.c_name}</Link>
+                    <span className="font-mono text-[10px] text-muted">{s.c_id}</span>
+                    <span className="text-muted">·</span>
+                    <span className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+                      {s.vns.map((v, i) => (
+                        <span key={v.vn_id}>
+                          <Link href={`/vn/${v.vn_id}`} className="hover:text-accent">{v.vn_title}</Link>
+                          {i < s.vns.length - 1 && <span className="text-muted">,</span>}
+                        </span>
+                      ))}
                     </span>
-                  ))}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {char.description && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
-          <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
-            <VndbMarkup text={char.description} />
-          </div>
-        </section>
-      )}
-
-      <CharacterMetaClient char={char} />
-
-      {scraped && scraped.instances.length > 0 && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-          <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            <Users className="h-4 w-4 text-accent" /> {t.characters.instances}
-            <span className="text-[10px] font-normal text-muted">· {scraped.instances.length}</span>
-          </h3>
-          <ul className="grid gap-2 text-xs sm:grid-cols-2">
-            {scraped.instances.map((inst) => (
-              <li key={`${inst.cid}-${inst.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
-                <Link href={`/character/${inst.cid}`} className="font-semibold hover:text-accent">
-                  {inst.name}
-                </Link>
-                <span className="text-muted">·</span>
-                <Link href={`/vn/${inst.vn_id}`} className="text-muted hover:text-accent">
-                  {inst.vn_title}
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-[10px] text-muted/70">{t.characters.instancesHint}</p>
-        </section>
-      )}
-
-      {scraped && scraped.voiced_by.length > 0 && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-          <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            <Mic2 className="h-4 w-4 text-accent" /> {t.characters.voicedByAll}
-            <span className="text-[10px] font-normal text-muted">· {scraped.voiced_by.length}</span>
-          </h3>
-          <ul className="grid gap-2 text-xs sm:grid-cols-2">
-            {scraped.voiced_by.map((v) => (
-              <li key={`${v.sid}-${v.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
-                <Link href={`/staff/${v.sid}`} className="font-semibold hover:text-accent">
-                  {v.staff_name}
-                </Link>
-                <span className="text-muted">·</span>
-                <Link href={`/vn/${v.vn_id}`} className="text-muted hover:text-accent">
-                  {v.vn_title}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {vas.length > 0 && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-          <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            <Mic2 className="h-4 w-4 text-accent" /> {t.characters.alsoVoicedBy}
-          </h3>
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-            {vas.map((va) => (
-              <li key={va.sid}>
-                <Link
-                  href={`/staff/${va.sid}`}
-                  className="block rounded-lg border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent"
-                >
-                  <div className="font-bold">{va.va_name}</div>
-                  {va.va_original && va.va_original !== va.va_name && (
-                    <div className="text-[10px] text-muted">{va.va_original}</div>
-                  )}
-                  <div className="mt-1 text-[11px] text-muted">
-                    {va.vns.length} {t.staff.vnCount}
-                    {va.vns.some((v) => v.in_collection) && (
-                      <span
-                        className="ml-1 inline-flex items-center rounded bg-accent/15 px-1 text-accent"
-                        aria-label={t.staff.ownedTitle}
-                        title={t.staff.ownedTitle}
-                      >
-                        <Star className="h-2.5 w-2.5 fill-accent" aria-hidden />
-                      </span>
-                    )}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {sortedVns.length > 0 && (
-        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
-            {t.characters.appearsIn} · {sortedVns.length}
-          </h3>
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-            {sortedVns.map((v) => {
-              const year = v.released?.slice(0, 4);
-              const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
-              const role = t.characters.roles[v.role as keyof typeof t.characters.roles] ?? v.role;
-              return (
-                <li key={`${v.id}-${v.role}`}>
-                  <Link
-                    href={`/vn/${v.id}`}
-                    className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
-                  >
-                    {/* Density-aware row cover. */}
-                    <div
-                      className="shrink-0 overflow-hidden rounded"
-                      style={{
-                        width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.32), 160px)',
-                        aspectRatio: '2 / 3',
-                      }}
-                    >
-                      <SafeImage
-                        src={v.image?.thumbnail || v.image?.url || null}
-                        sexual={v.image?.sexual ?? null}
-                        alt={v.title ?? v.id}
-                        className="h-full w-full"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-1">
-                        <span className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
-                          {v.title ?? v.id}
-                        </span>
-                        <span className="shrink-0 rounded bg-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
-                          {role}
-                        </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ),
+        });
+        if (char.description) characterSections.push({
+          id: 'description',
+          node: (
+            <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+              <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
+              <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
+                <VndbMarkup text={char.description} />
+              </div>
+            </section>
+          ),
+        });
+        characterSections.push({ id: 'meta', node: <CharacterMetaClient char={char} /> });
+        if (scraped && scraped.instances.length > 0) characterSections.push({
+          id: 'instances',
+          node: (
+            <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+              <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+                <Users className="h-4 w-4 text-accent" /> {t.characters.instances}
+                <span className="text-[10px] font-normal text-muted">· {scraped.instances.length}</span>
+              </h3>
+              <ul className="grid gap-2 text-xs sm:grid-cols-2">
+                {scraped.instances.map((inst) => (
+                  <li key={`${inst.cid}-${inst.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
+                    <Link href={`/character/${inst.cid}`} className="font-semibold hover:text-accent">{inst.name}</Link>
+                    <span className="text-muted">·</span>
+                    <Link href={`/vn/${inst.vn_id}`} className="text-muted hover:text-accent">{inst.vn_title}</Link>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[10px] text-muted/70">{t.characters.instancesHint}</p>
+            </section>
+          ),
+        });
+        if (scraped && scraped.voiced_by.length > 0) characterSections.push({
+          id: 'voiced-by-all',
+          node: (
+            <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+              <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+                <Mic2 className="h-4 w-4 text-accent" /> {t.characters.voicedByAll}
+                <span className="text-[10px] font-normal text-muted">· {scraped.voiced_by.length}</span>
+              </h3>
+              <ul className="grid gap-2 text-xs sm:grid-cols-2">
+                {scraped.voiced_by.map((v) => (
+                  <li key={`${v.sid}-${v.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
+                    <Link href={`/staff/${v.sid}`} className="font-semibold hover:text-accent">{v.staff_name}</Link>
+                    <span className="text-muted">·</span>
+                    <Link href={`/vn/${v.vn_id}`} className="text-muted hover:text-accent">{v.vn_title}</Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ),
+        });
+        if (vas.length > 0) characterSections.push({
+          id: 'also-voiced-by',
+          node: (
+            <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+              <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+                <Mic2 className="h-4 w-4 text-accent" /> {t.characters.alsoVoicedBy}
+              </h3>
+              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+                {vas.map((va) => (
+                  <li key={va.sid}>
+                    <Link href={`/staff/${va.sid}`} className="block rounded-lg border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent">
+                      <div className="font-bold">{va.va_name}</div>
+                      {va.va_original && va.va_original !== va.va_name && (
+                        <div className="text-[10px] text-muted">{va.va_original}</div>
+                      )}
+                      <div className="mt-1 text-[11px] text-muted">
+                        {va.vns.length} {t.staff.vnCount}
+                        {va.vns.some((v) => v.in_collection) && (
+                          <span className="ml-1 inline-flex items-center rounded bg-accent/15 px-1 text-accent" aria-label={t.staff.ownedTitle} title={t.staff.ownedTitle}>
+                            <Star className="h-2.5 w-2.5 fill-accent" aria-hidden />
+                          </span>
+                        )}
                       </div>
-                      {v.alttitle && v.alttitle !== v.title && (
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ),
+        });
+        if (sortedVns.length > 0) characterSections.push({
+          id: 'appears-in',
+          node: (
+            <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+              <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
+                {t.characters.appearsIn} · {sortedVns.length}
+              </h3>
+              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+                {sortedVns.map((v) => {
+                  const year = v.released?.slice(0, 4);
+                  const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
+                  const role = t.characters.roles[v.role as keyof typeof t.characters.roles] ?? v.role;
+                  return (
+                    <li key={`${v.id}-${v.role}`}>
+                      <Link href={`/vn/${v.id}`} className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent">
+                        <div className="shrink-0 overflow-hidden rounded" style={{ width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.32), 160px)', aspectRatio: '2 / 3' }}>
+                          <SafeImage src={v.image?.thumbnail || v.image?.url || null} sexual={v.image?.sexual ?? null} alt={v.title ?? v.id} className="h-full w-full" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-1">
+                            <span className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">{v.title ?? v.id}</span>
+                            <span className="shrink-0 rounded bg-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">{role}</span>
+                          </div>
+                          {v.alttitle && v.alttitle !== v.title && (
                         <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">{v.alttitle}</div>
                       )}
                       <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
@@ -377,9 +363,21 @@ export default async function CharacterPage({
                 </li>
               );
             })}
-          </ul>
-        </section>
-      )}
+              </ul>
+            </section>
+          ),
+        });
+        return (
+          <DetailReorderLayout
+            sections={characterSections}
+            initialLayout={initialLayout}
+            sectionIds={CHARACTER_SECTION_IDS}
+            settingsKey={CHARACTER_DETAIL_SETTINGS_KEY}
+            eventName={CHARACTER_DETAIL_LAYOUT_EVENT}
+            defaultLayout={defaultCharacterDetailLayoutV1}
+          />
+        );
+      })()}
     </DensityScopeProvider>
   );
 }

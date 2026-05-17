@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Filter, Globe, Mic2, Star, User, Users } from 'lucide-react';
 import {
+  getAppSetting,
   getStaffProfileFromCredits,
   listStaffProductionCredits,
   listStaffVaCredits,
@@ -18,6 +19,14 @@ import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/Staff
 import { readStaffFullCache } from '@/lib/staff-full';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { languageDisplayName } from '@/lib/language-names';
+import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
+import {
+  STAFF_DETAIL_LAYOUT_EVENT,
+  STAFF_DETAIL_SETTINGS_KEY,
+  STAFF_SECTION_IDS,
+  defaultStaffDetailLayoutV1,
+  parseStaffDetailLayoutV1,
+} from '@/lib/staff-detail-layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,6 +106,7 @@ export default async function StaffPage({
   const groupedProduction = ROLE_ORDER
     .map((role) => ({ role, credits: dedupeByVnId(prodByRole.get(role) ?? []) }))
     .filter((g) => g.credits.length > 0);
+  const initialStaffLayout = parseStaffDetailLayoutV1(getAppSetting(STAFF_DETAIL_SETTINGS_KEY));
 
   return (
     <DensityScopeProvider scope="staffWorks" className="mx-auto max-w-6xl">
@@ -230,14 +240,15 @@ export default async function StaffPage({
         </div>
       </header>
 
-      {voice.length > 0 && (
-        <div className="mb-6">
-          <VaTimeline sid={id} />
-        </div>
-      )}
-
-      {voice.length > 0 && (
-        <section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+      {(() => {
+        const staffSections: DetailSection[] = [];
+        if (voice.length > 0) staffSections.push({
+          id: 'timeline',
+          node: <div className="mb-6"><VaTimeline sid={id} /></div>,
+        });
+        if (voice.length > 0) staffSections.push({
+          id: 'voice-credits',
+          node: <section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Mic2 className="h-4 w-4 text-accent" /> {t.staff.voiceCredits}
             <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {voice.length}</span>
@@ -299,41 +310,59 @@ export default async function StaffPage({
               </li>
             ))}
           </ul>
-        </section>
-      )}
-
-      {groupedProduction.length > 0 && (
-        <section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-          <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            <Users className="h-4 w-4 text-accent" /> {t.staff.productionCredits}
-            <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {production.length}</span>
-          </h2>
-          {groupedProduction.map((g) => (
-            <div key={g.role} className="mb-6 last:mb-0">
-              <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
-                {t.staff[ROLE_KEY[g.role]]}
-              </h3>
-              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
-                {g.credits.map((credit) => (
-                  <li key={credit.vn.id}>
-                    <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {production.length === 0 && voice.length === 0 && (
-        <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">
-          {t.staff.empty}
-        </p>
-      )}
-
-      <Suspense fallback={<StaffExtraCreditsSkeleton />}>
-        <StaffExtraCredits sid={id} knownProdVnIds={knownProdVnIds} knownVaVnIds={knownVaVnIds} />
-      </Suspense>
+        </section>,
+        });
+        if (groupedProduction.length > 0) staffSections.push({
+          id: 'production-credits',
+          node: (
+            <section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+              <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+                <Users className="h-4 w-4 text-accent" /> {t.staff.productionCredits}
+                <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {production.length}</span>
+              </h2>
+              {groupedProduction.map((g) => (
+                <div key={g.role} className="mb-6 last:mb-0">
+                  <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
+                    {t.staff[ROLE_KEY[g.role]]}
+                  </h3>
+                  <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
+                    {g.credits.map((credit) => (
+                      <li key={credit.vn.id}>
+                        <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </section>
+          ),
+        });
+        staffSections.push({
+          id: 'extra-credits',
+          node: (
+            <Suspense fallback={<StaffExtraCreditsSkeleton />}>
+              <StaffExtraCredits sid={id} knownProdVnIds={knownProdVnIds} knownVaVnIds={knownVaVnIds} />
+            </Suspense>
+          ),
+        });
+        if (production.length === 0 && voice.length === 0) {
+          return (
+            <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">
+              {t.staff.empty}
+            </p>
+          );
+        }
+        return (
+          <DetailReorderLayout
+            sections={staffSections}
+            initialLayout={initialStaffLayout}
+            sectionIds={STAFF_SECTION_IDS}
+            settingsKey={STAFF_DETAIL_SETTINGS_KEY}
+            eventName={STAFF_DETAIL_LAYOUT_EVENT}
+            defaultLayout={defaultStaffDetailLayoutV1}
+          />
+        );
+      })()}
     </DensityScopeProvider>
   );
 }
