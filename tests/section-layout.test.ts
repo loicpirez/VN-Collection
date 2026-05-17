@@ -140,12 +140,12 @@ describe('character + producer wrappers share the same shape', () => {
   });
 
   it('producer section ids are canonical', () => {
+    // Aliases stay inside the producer identity header; dev/pub
+    // works are presented together via <ProducerVnsSections>.
     expect(PRODUCER_SECTION_IDS).toEqual([
-      'aliases',
       'description',
       'extlinks',
-      'developer-works',
-      'publisher-works',
+      'works',
       'stats',
     ]);
   });

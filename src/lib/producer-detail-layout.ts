@@ -6,12 +6,14 @@
  */
 import { createSectionLayoutModule } from './section-layout';
 
+/**
+ * Customizable below-main sections on /producer/[id]. Aliases stay
+ * inside the identity header.
+ */
 export const PRODUCER_SECTION_IDS = [
-  'aliases',
   'description',
   'extlinks',
-  'developer-works',
-  'publisher-works',
+  'works',
   'stats',
 ] as const;
 
