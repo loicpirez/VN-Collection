@@ -199,11 +199,18 @@ export default async function DumpedPage({
                 const bucket = classify(e);
                 const fullyDumped = bucket === 'complete';
                 const noEditions = bucket === 'none';
-                const pct = e.collection_dumped
+                // Guard against `dumped_editions > total_editions`
+                // (shouldn't happen if the writes are consistent, but
+                // a stale per-edition row + a manually toggled
+                // `collection.dumped` can leave a transient overshoot
+                // before the next materializer pass). Clamp to [0,100]
+                // so the bar never overflows its track.
+                const rawPct = e.collection_dumped
                   ? 100
                   : e.total_editions === 0
                   ? 0
                   : Math.round((e.dumped_editions / e.total_editions) * 100);
+                const pct = Math.max(0, Math.min(100, rawPct));
                 const onShelfHere = onShelf.has(e.vn_id);
                 // The "0/0" counter was visually noisy and gave no
                 // dump signal — `total_editions === 0` rows route

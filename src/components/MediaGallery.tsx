@@ -9,6 +9,8 @@ import {
   ImageUp,
   Maximize2,
   MoreHorizontal,
+  RotateCcw,
+  RotateCw,
   X,
 } from 'lucide-react';
 import { useDialogA11y } from './Dialog';
@@ -182,7 +184,16 @@ export function MediaGallery({
 
       <div
         className="grid gap-2"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}
+        // Thumbnail grid now reads the same `--card-density-px`
+        // variable every listing page mounts (scoped via
+        // `density.vnMedia` in the slider). The previous fixed
+        // 140px ignored the slider entirely on the VN detail page,
+        // so users that dial density up for /library still got the
+        // packed 140px grid on the Médias section.
+        style={{
+          gridTemplateColumns:
+            'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), 1fr))',
+        }}
         role="list"
         aria-label={t.media.itemsLabel}
       >
@@ -292,6 +303,16 @@ function MediaTile({
   const t = useT();
   // Prefer the local path so the banner survives offline / cache misses.
   const bannerValue = item.local || item.url;
+  // Per-image rotation preview state. This is intentionally NOT persisted
+  // — the rotation is meant as a preview for the operator to evaluate a
+  // candidate cover/banner orientation before committing. Once the
+  // image is promoted via "Set as cover" / "Set as banner", the
+  // persisted rotation flag is re-evaluated through the dedicated
+  // CoverHero / HeroBanner controls that PATCH the rotation field.
+  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
+  const rotateBy = (delta: 90 | -90) => {
+    setRotation((r) => ((((r + delta) % 360) + 360) % 360) as 0 | 90 | 180 | 270);
+  };
 
   return (
     <div
@@ -315,11 +336,21 @@ function MediaTile({
           localSrc={item.local_thumb || item.local}
           alt={item.alt}
           sexual={item.sexual}
+          rotation={rotation}
           className="h-full w-full"
           fit={item.aspect === 'landscape' ? 'cover' : 'contain'}
         />
       </button>
-      <TileKebab vnId={vnId} item={item} bannerValue={bannerValue} onOpenLightbox={onOpenLightbox} />
+      <TileKebab
+        vnId={vnId}
+        item={item}
+        bannerValue={bannerValue}
+        onOpenLightbox={onOpenLightbox}
+        rotation={rotation}
+        onRotateLeft={() => rotateBy(-90)}
+        onRotateRight={() => rotateBy(90)}
+        onResetRotation={() => setRotation(0)}
+      />
       {item.dims && item.dims[0] > 0 && item.dims[1] > 0 && (
         <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-mono text-white backdrop-blur-sm">
           {item.dims[0]}×{item.dims[1]}
@@ -372,11 +403,19 @@ function TileKebab({
   item,
   bannerValue,
   onOpenLightbox,
+  rotation,
+  onRotateLeft,
+  onRotateRight,
+  onResetRotation,
 }: {
   vnId: string;
   item: MediaItem;
   bannerValue: string;
   onOpenLightbox: () => void;
+  rotation: 0 | 90 | 180 | 270;
+  onRotateLeft: () => void;
+  onRotateRight: () => void;
+  onResetRotation: () => void;
 }) {
   const t = useT();
   const toast = useToast();
@@ -590,6 +629,39 @@ function TileKebab({
               onOpenLightbox();
             }}
           />
+          {/*
+            Rotation preview entries. Per-image only; the rotation is
+            kept in the tile's local state so the operator can audition
+            an orientation before committing it via "Set as cover" /
+            "Set as banner". The persisted rotation field is owned by
+            CoverHero / HeroBanner, not the gallery preview.
+          */}
+          <MenuItem
+            icon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
+            shortLabel={t.coverActions.rotateLeft}
+            longLabel={t.coverActions.rotateLeft}
+            onClick={() => {
+              onRotateLeft();
+            }}
+          />
+          <MenuItem
+            icon={<RotateCw className="h-3.5 w-3.5" aria-hidden />}
+            shortLabel={t.coverActions.rotateRight}
+            longLabel={t.coverActions.rotateRight}
+            onClick={() => {
+              onRotateRight();
+            }}
+          />
+          {rotation !== 0 && (
+            <MenuItem
+              icon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
+              shortLabel={t.coverActions.resetRotation}
+              longLabel={t.coverActions.resetRotation}
+              onClick={() => {
+                onResetRotation();
+              }}
+            />
+          )}
           <MenuItem
             icon={<ImageDown className="h-3.5 w-3.5" aria-hidden />}
             shortLabel={t.media.setAsCoverShort}

@@ -129,7 +129,15 @@ export default async function TraitPage({
             {mineOnly ? t.traits.mineEmpty : t.search.noResults}
           </p>
         ) : (
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+          <ul
+            className="grid gap-3"
+            // Honour the shared density variable instead of pinning
+            // 180px so the per-page slider tunes the column floor.
+            style={{
+              gridTemplateColumns:
+                'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+            }}
+          >
             {visible.map((c) => {
               const owned = c.vns.find((v) => ownedVnIds.has(v.id));
               const firstVn = owned ?? c.vns[0];

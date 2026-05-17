@@ -43,15 +43,25 @@ export function RecentlyViewedStrip({ initialState }: Props) {
         />
       </div>
       {!isCollapsed && (
-        <div className="scroll-fade-right flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+        <div
+          className="scroll-fade-right flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 no-scrollbar"
+          // `scroll-snap-x` pins each tile so the strip pans cleanly
+          // on narrow viewports (the previous `flex gap-3 overflow-x-
+          // auto` row could jitter mid-drag with rounded card widths).
+        >
           {items.map((it) => (
             <Link
               key={it.id}
               href={`/vn/${it.id}`}
-              className="group flex w-24 shrink-0 flex-col gap-1"
+              // Width is now density-aware via the shared CSS variable
+              // so the strip scales with the same slider the listing
+              // grids use. The legacy `w-24` (96px) was hard-coded and
+              // looked tiny when the operator dialled density up.
+              className="group flex flex-none snap-start flex-col gap-1"
+              style={{ width: 'min(40vw, calc(var(--card-density-px, 180px) * 0.55))' }}
               title={it.title}
             >
-              <div className="aspect-[2/3] w-24 overflow-hidden rounded-md border border-border transition-colors group-hover:border-accent">
+              <div className="aspect-[2/3] w-full overflow-hidden rounded-md border border-border transition-colors group-hover:border-accent">
                 <SafeImage
                   src={it.poster}
                   localSrc={it.localPoster}

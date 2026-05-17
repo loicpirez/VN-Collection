@@ -1086,7 +1086,13 @@ function Grid({
   // mode). The slider value itself is the floor; the grid auto-fills
   // remaining space at 1fr. Cards inside use `aspect-[2/3] w-full`
   // so cover size scales with column width.
-  const cls = dense ? 'grid gap-3' : 'grid gap-5';
+  // Spacing audit: the comfortable mode used `gap-5` and the dense
+  // mode used `gap-3`. Comfortable felt loose on a 1440px monitor and
+  // inconsistent with the rest of the listing grids (which all use
+  // `gap-3`). Tightened to `gap-3` (comfortable) / `gap-4` (dense)
+  // — the dense mode keeps slightly more breathing room because the
+  // cover-bias makes each column visually narrower.
+  const cls = dense ? 'grid gap-4' : 'grid gap-3';
   const densityMul = dense ? 0.72 : 1;
   const gridStyle: React.CSSProperties = {
     gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${densityMul})), 1fr))`,
