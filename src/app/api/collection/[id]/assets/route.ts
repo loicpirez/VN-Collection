@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCollectionItem, materializeReleaseMetaForVn, upsertVn } from '@/lib/db';
+import { db, getCollectionItem, materializeReleaseMetaForVn, upsertVn } from '@/lib/db';
 import { ensureLocalImagesForVn } from '@/lib/assets';
 import { EgsUnreachable, resolveEgsForVn } from '@/lib/erogamescape';
-import { refreshVn } from '@/lib/vndb';
+import { getVn, refreshVn } from '@/lib/vndb';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
@@ -29,7 +29,50 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
-  if (!getCollectionItem(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+
+  // Data / metadata operations are intentionally NOT gated on
+  // collection membership. The assets endpoint refreshes the VNDB
+  // metadata cache, the EGS mapping, the on-disk images, and the
+  // materialised `release_meta_cache` — every one of those is a
+  // per-VN concern, not a per-collection-row concern. Forcing the
+  // operator to add a VN to the collection just to refresh its
+  // cached data is a UX trap that surfaced on `/vn/<id>` links
+  // arriving from EGS top-ranked, search hits, and anticipated
+  // rows. Collection-only fields (status, owned editions, shelf
+  // placement, personal tracking) remain gated by their own routes.
+  //
+  // What we still require: a row in the `vn` table. If the VN
+  // page was reached via a deep-link and the `vn` row doesn't yet
+  // exist locally, hydrate it from VNDB so the rest of the pipeline
+  // has something to mirror. EGS-only synthetic ids skip the
+  // upstream fetch (the `egs_*` prefix never resolves on VNDB).
+  const vnExistsRow = db
+    .prepare('SELECT id FROM vn WHERE id = ?')
+    .get(id) as { id: string } | undefined;
+  if (!vnExistsRow) {
+    const isEgsOnlyId = id.startsWith('egs_');
+    if (isEgsOnlyId) {
+      // Synthetic id with no local row — there's no upstream to
+      // fall back to. Return a clean 404 so the UI surfaces the
+      // missing-row state instead of cascading downstream failures.
+      return NextResponse.json(
+        { error: 'synthetic VN with no local row; nothing to refresh' },
+        { status: 404 },
+      );
+    }
+    try {
+      const fresh = await getVn(id);
+      if (!fresh) {
+        return NextResponse.json({ error: 'VN not found on VNDB' }, { status: 404 });
+      }
+      upsertVn(fresh);
+    } catch (e) {
+      return NextResponse.json(
+        { error: `failed to hydrate VN from VNDB: ${(e as Error).message}` },
+        { status: 502 },
+      );
+    }
+  }
 
   const refresh = req.nextUrl.searchParams.get('refresh') === 'true';
   const isEgsOnly = id.startsWith('egs_');
@@ -114,6 +157,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       poster_thumb: result.posterThumb,
       screenshot_count: result.screenshots.length,
       release_image_count: result.releaseImages.length,
+      // `item` is null for VNs not in the local collection — the
+      // route runs the metadata/asset refresh either way, and the
+      // collection row stays untouched. Callers that care about
+      // tracking state read `getCollectionItem(id)` themselves.
       item: getCollectionItem(id),
       egs_warning: egsWarning,
     });
