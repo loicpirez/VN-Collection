@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, ArrowDown, CheckCircle2, HardDriveDownload, MinusCircle, PackageOpen, Plus, XCircle } from 'lucide-react';
-import { getDumpSummary, listDumpStatus } from '@/lib/db';
+import { ArrowLeft, ArrowDown, CheckCircle2, HardDriveDownload, LayoutGrid, MinusCircle, PackageOpen, Plus, XCircle } from 'lucide-react';
+import { getDumpSummary, listDumpStatus, listVnIdsOnShelf } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
+import { dumpedShelfHref, dumpedVnHref, dumpedEditionsAnchor } from '@/lib/dumped-links';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +73,11 @@ export default async function DumpedPage({
 
   const summary = getDumpSummary();
   const entries = listDumpStatus();
+  // VN ids that have at least one placed edition on any shelf
+  // (regular slot or face-out display slot). Drives the per-row
+  // "Voir sur l'étagère" deep-link so the user can jump from the
+  // dump tracker straight to the layout editor.
+  const onShelf = listVnIdsOnShelf();
 
   // Pre-compute per-tab counts so the chips show "{tab} · {n}" without
   // re-filtering inside the JSX. Counts are independent of the active
@@ -198,10 +204,26 @@ export default async function DumpedPage({
                   : e.total_editions === 0
                   ? 0
                   : Math.round((e.dumped_editions / e.total_editions) * 100);
+                const onShelfHere = onShelf.has(e.vn_id);
+                // The "0/0" counter was visually noisy and gave no
+                // dump signal — `total_editions === 0` rows route
+                // through the `noEditions` branch (CTA) or the
+                // `fullyDumped` branch (collection-level dumped),
+                // never the bare counter line.
+                const hasEditionCounter = !noEditions && !fullyDumped && e.total_editions > 0;
                 return (
-                  <li key={e.vn_id}>
+                  <li key={e.vn_id} className="relative">
+                    {/*
+                      The whole card is a single anchor to the VN
+                      page (title appears once — only inside the
+                      `<p>`). The shelf deep-link sits ABOVE the
+                      card via `absolute` so it doesn't nest a
+                      second `<a>` inside the outer Link (HTML
+                      validity rule). Pointer events on the chip
+                      win over the outer link via z-index.
+                    */}
                     <Link
-                      href={`/vn/${e.vn_id}`}
+                      href={dumpedVnHref(e.vn_id)}
                       className={`group flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors ${
                         fullyDumped ? 'border-status-completed/50' : 'border-border'
                       } hover:border-accent`}
@@ -244,7 +266,10 @@ export default async function DumpedPage({
                               <PackageOpen className="h-3 w-3" aria-hidden />
                               {t.dumped.noEditions}
                             </p>
-                            <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent group-hover:underline">
+                            <span
+                              className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent group-hover:underline"
+                              data-dumped-editions-anchor={dumpedEditionsAnchor(e.vn_id)}
+                            >
                               <Plus className="h-3 w-3" aria-hidden />
                               {t.dumped.addEditionCta}
                             </span>
@@ -257,18 +282,12 @@ export default async function DumpedPage({
                                   <CheckCircle2 className="h-3 w-3 text-status-completed" aria-hidden />
                                   {t.dumped.allDone}
                                 </>
-                              ) : (
+                              ) : hasEditionCounter ? (
                                 <>
                                   <ArrowDown className="h-3 w-3" aria-hidden />
-                                  {/*
-                                   * Hide the counter entirely when
-                                   * there are no owned editions (the
-                                   * "0/0" was visually noisy and led
-                                   * to the same redesign request).
-                                   */}
                                   {e.dumped_editions} / {e.total_editions}
                                 </>
-                              )}
+                              ) : null}
                             </p>
                             {e.total_editions > 0 && (
                               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev">
@@ -284,6 +303,16 @@ export default async function DumpedPage({
                         )}
                       </div>
                     </Link>
+                    {onShelfHere && (
+                      <Link
+                        href={dumpedShelfHref(e.vn_id)}
+                        className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md border border-border bg-bg-card/95 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm transition-colors hover:border-accent hover:text-accent"
+                        title={t.dumped.viewOnShelf}
+                      >
+                        <LayoutGrid className="h-3 w-3" aria-hidden />
+                        {t.dumped.viewOnShelf}
+                      </Link>
+                    )}
                   </li>
                 );
               })}
