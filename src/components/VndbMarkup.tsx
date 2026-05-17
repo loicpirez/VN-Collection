@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { SpoilerReveal } from './SpoilerReveal';
+import { normalizeVndbHref } from '@/lib/vndb-link-normalize';
 
 /**
  * Render VNDB-flavoured BBCode as React nodes. Description fields
@@ -32,8 +33,11 @@ const SAFE_URL_SCHEME = /^(?:https?:|mailto:|\/)/i;
 type InlineKind = 'b' | 'i' | 'u' | 's' | 'spoiler';
 
 function sanitizeHref(raw: string): string {
-  const trimmed = raw.trim();
-  return SAFE_URL_SCHEME.test(trimmed) ? trimmed : '#';
+  // Map VNDB-flavoured shortcuts (`c8646`, `/c8646`, `https://vndb.org/c8646`)
+  // to internal App Router routes BEFORE the scheme check — otherwise a
+  // bare id would be rejected by the http/https/mailto/relative guard.
+  const normalized = normalizeVndbHref(raw);
+  return SAFE_URL_SCHEME.test(normalized) ? normalized : '#';
 }
 
 function tokenize(input: string): Token[] {
