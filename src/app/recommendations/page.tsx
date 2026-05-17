@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   Award,
+  Check,
   Compass,
   Eye,
   EyeOff,
@@ -555,6 +556,28 @@ function ResultsGrid({
                 <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent">
                   {r.title}
                 </h3>
+                {/*
+                  Ownership badges: when the operator opts into the
+                  include-owned / include-wishlist toggles, surface a
+                  badge on each affected card so the picker doesn't
+                  have to remember which VNs are already tracked.
+                  Two separate spans so a VN that's BOTH in the
+                  collection and on the wishlist gets both pills.
+                */}
+                {(r.inCollection || r.inWishlist) && (
+                  <div className="mt-1 flex flex-wrap gap-1 text-[9px]">
+                    {r.inCollection && (
+                      <span className="inline-flex items-center gap-0.5 rounded bg-status-completed/20 px-1 py-0.5 font-bold uppercase tracking-wider text-status-completed">
+                        <Check className="h-2.5 w-2.5" aria-hidden /> {t.recommend.badgeInCollection}
+                      </span>
+                    )}
+                    {r.inWishlist && (
+                      <span className="inline-flex items-center gap-0.5 rounded bg-accent/20 px-1 py-0.5 font-bold uppercase tracking-wider text-accent">
+                        <Heart className="h-2.5 w-2.5" aria-hidden /> {t.recommend.badgeOnWishlist}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {reason && (
                   <p className="mt-0.5 text-[10px] text-accent/80">{reason}</p>
                 )}

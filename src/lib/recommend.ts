@@ -45,6 +45,15 @@ export interface Recommendation {
   /** Tag-overlap score with the picked seed — higher = better fit. */
   score: number;
   matchedTags: { id: string; name: string }[];
+  /** True when the VN already exists in the local `collection` table.
+   *  Only filled when the result row reaches the UI via `recommendVns`
+   *  with `includeOwned` set — otherwise owned VNs are excluded and
+   *  the flag is meaningless. Defaults to false. */
+  inCollection?: boolean;
+  /** True when the VN appears in the cached VNDB wishlist (ulist
+   *  label=5). Same caveat as `inCollection`: only meaningful when
+   *  `includeWishlist` is set. */
+  inWishlist?: boolean;
 }
 
 export interface RecommendOptions {
@@ -134,7 +143,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
       mode,
       exclude,
     });
-    return { seeds, results, mode };
+    return { seeds, results: stampOwnershipFlags(results, includeOwned, includeWishlist), mode };
   }
 
   // Custom-seeds bypass for the non-similar modes: lets the operator
@@ -147,7 +156,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
       mode,
       exclude,
     });
-    return { seeds: customSeeds, results, mode };
+    return { seeds: customSeeds, results: stampOwnershipFlags(results, includeOwned, includeWishlist), mode };
   }
 
   // Auto-derive seeds from the operator's top-rated collection entries.
@@ -159,7 +168,38 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
     mode,
     exclude,
   });
-  return { seeds, results, mode };
+  return { seeds, results: stampOwnershipFlags(results, includeOwned, includeWishlist), mode };
+}
+
+/**
+ * Set `inCollection` / `inWishlist` on each result so the card can
+ * render the "already in your library / wishlist" badges. We only
+ * scan the local DB / cached payload when the matching `include…`
+ * flag is on — otherwise the exclusion logic already removed those
+ * rows and the badge would never fire.
+ *
+ * Pure-ish helper (touches the DB and the in-process wishlist cache
+ * but does not mutate the input array). Returns a fresh array.
+ */
+function stampOwnershipFlags(
+  results: Recommendation[],
+  includeOwned: boolean,
+  includeWishlist: boolean,
+): Recommendation[] {
+  if (!includeOwned && !includeWishlist) return results;
+  const ownedSet = includeOwned
+    ? new Set(
+        (db.prepare(`SELECT vn_id FROM collection`).all() as { vn_id: string }[]).map(
+          (r) => r.vn_id,
+        ),
+      )
+    : new Set<string>();
+  const wishSet = includeWishlist ? readCachedWishlistIds() : new Set<string>();
+  return results.map((r) => ({
+    ...r,
+    inCollection: ownedSet.has(r.id),
+    inWishlist: wishSet.has(r.id),
+  }));
 }
 
 /**
