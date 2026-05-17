@@ -8,6 +8,7 @@ import {
 } from '@/lib/db';
 import type { Status } from '@/lib/types';
 import { EgsUnreachable, fetchEgsGame, linkEgsToVn } from '@/lib/erogamescape';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -55,6 +56,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     status: isValidStatus(body.status) ? (body.status as Status) : 'planning',
   };
   addToCollection(vnId, patch);
+
+  // Track EGS-only adds as a distinct event so the activity log
+  // can distinguish "VNDB add" from "synthetic EGS-only add".
+  try {
+    recordActivity({
+      kind: 'collection.add',
+      entity: 'vn',
+      entityId: vnId,
+      label: game.gamename ?? `EGS #${egsId}`,
+      payload: { source: 'egs', egs_id: egsId, status: patch.status ?? null },
+    });
+  } catch {
+    // ignore
+  }
 
   return NextResponse.json({ vn_id: vnId, item: getCollectionItem(vnId) });
 }

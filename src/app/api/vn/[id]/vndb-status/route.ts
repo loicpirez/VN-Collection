@@ -6,6 +6,7 @@ import {
   patchUlistEntry,
   type UlistPatch,
 } from '@/lib/vndb';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -59,6 +60,24 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   try {
     const r = await patchUlistEntry(id, patch);
     if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
+    // VNDB writeback — record the change. Payload includes only
+    // the *fields* the user touched, never the raw notes / vote
+    // body, so the activity log stays useful without ballooning.
+    try {
+      recordActivity({
+        kind: 'vndb.writeback',
+        entity: 'vn',
+        entityId: id,
+        label: id,
+        payload: {
+          changed: Object.keys(patch),
+          labels_set: patch.labels_set ?? null,
+          labels_unset: patch.labels_unset ?? null,
+        },
+      });
+    } catch {
+      // Never let a logging failure surface to the user.
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
@@ -71,6 +90,17 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   try {
     const r = await deleteUlistEntry(id);
     if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
+    try {
+      recordActivity({
+        kind: 'vndb.writeback',
+        entity: 'vn',
+        entityId: id,
+        label: id,
+        payload: { action: 'delete-entry' },
+      });
+    } catch {
+      // Never let a logging failure surface to the user.
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });

@@ -341,14 +341,16 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
       role="group"
       aria-label={t.detail.actions.groupDangerous}
       className={
-        // On mobile: full-width row separated from the dropdowns
-        // above by a `border-t` rule + top padding so the
-        // destructive action visually belongs to a different band.
-        // On desktop: right-anchored with `md:ml-auto`, a left
-        // vertical divider, and no top border (the desktop divider
-        // already carries the separation duty).
-        'mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 ' +
-        'md:mt-0 md:ml-auto md:border-l md:border-t-0 md:border-border/60 md:pl-3 md:pt-0 ' +
+        // Visual coherence pass: the danger action now sits on the
+        // SAME row as the dropdown cluster on desktop, sharing the
+        // `h-9` height baseline. On mobile it stays in its own
+        // wrapped row (no top border — the lighter `flex flex-col
+        // gap-2` of the outer nav already separates clusters
+        // cleanly without a hard rule). The previous `border-t` +
+        // `md:ml-auto` combo produced the "detached" look the
+        // operator flagged: a horizontal rule above the Remove
+        // button on mobile and a far-right anchor on desktop.
+        'flex flex-wrap items-center gap-2 ' +
         '[&_button.btn]:h-9 [&_button.btn]:px-3 [&_button.btn]:py-1.5'
       }
     >
@@ -386,6 +388,19 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
             </span>
           ))}
         </div>
+      )}
+      {/*
+        Same-style divider in front of the danger cluster so the
+        intent ("destructive action lives on its own band") still
+        reads at a glance, but the action stays on the SAME visual
+        row at desktop widths. Hidden on mobile because the column
+        flex already separates rows cleanly.
+      */}
+      {dangerous && (
+        <span
+          aria-hidden
+          className="hidden h-6 w-px shrink-0 self-center bg-border/40 md:inline-block"
+        />
       )}
       {dangerous}
     </nav>

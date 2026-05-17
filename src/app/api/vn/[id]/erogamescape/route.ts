@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { clearEgsCache, linkEgsToVn, resolveEgsForVn } from '@/lib/erogamescape';
 import { getVnEgsLink } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -43,6 +44,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!game) {
       return NextResponse.json({ error: 'EGS game not found' }, { status: 404 });
     }
+    // Mapping created — record so the audit trail shows
+    // "operator pinned VN→EGS" events. EGS ids are not secrets,
+    // safe to include in the payload.
+    try {
+      recordActivity({
+        kind: 'mapping.vn-egs',
+        entity: 'vn',
+        entityId: id,
+        label: game.gamename ?? null,
+        payload: { egs_id: egsId, action: 'pin' },
+      });
+    } catch {
+      // Logging failure must never break the user write.
+    }
     return NextResponse.json({ game, source: 'manual' as const });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
@@ -69,5 +84,18 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     raw === 'manual-none' ? 'manual-none' :
     raw === 'clear-manual' ? 'clear-manual' : 'auto';
   clearEgsCache(id, mode);
+  // Record the clear; useful to distinguish "I cleared the
+  // cache" from "I pinned no-EGS-counterpart".
+  try {
+    recordActivity({
+      kind: 'mapping.vn-egs',
+      entity: 'vn',
+      entityId: id,
+      label: id,
+      payload: { action: 'clear', mode },
+    });
+  } catch {
+    // ignore
+  }
   return NextResponse.json({ ok: true, mode });
 }
