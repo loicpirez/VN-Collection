@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Library as LibraryIcon, Sparkles, Star, Trophy } from 'lucide-react';
 import { fetchVndbTopRankedPage, VNDB_TOP_MIN_VOTES, type VndbTopRanked } from '@/lib/top-ranked';
-import { fetchEgsTopRankedPage, EGS_TOP_MIN_VOTES, EgsUnreachable, type EgsTopRanked } from '@/lib/erogamescape';
+import { egsBayesianScore, fetchEgsTopRankedPage, EGS_TOP_MIN_VOTES, EgsUnreachable, type EgsTopRanked } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
@@ -12,6 +12,7 @@ import { SkeletonCardGrid } from '@/components/Skeleton';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
@@ -56,7 +57,7 @@ export default async function TopRankedPage({
       : getCacheFreshness(['% /vn:top-ranked:%']);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <DensityScopeProvider scope="topRanked" className="mx-auto max-w-5xl">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
@@ -70,7 +71,7 @@ export default async function TopRankedPage({
             <p className="mt-1 text-sm text-muted">{t.topRanked.subtitle}</p>
           </div>
           <div className="flex items-center gap-2">
-            <CardDensitySlider />
+            <CardDensitySlider scope="topRanked" />
             <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
           </div>
         </div>
@@ -117,7 +118,7 @@ export default async function TopRankedPage({
       <Suspense key={`${tab}-${page}-${minVotes}`} fallback={<SkeletonCardGrid count={12} />}>
         <TabContent tab={tab} page={page} minVotes={minVotes} t={t} />
       </Suspense>
-    </div>
+    </DensityScopeProvider>
   );
 }
 
@@ -454,7 +455,19 @@ function VndbSection({ rows, t, startRank = 0 }: { rows: VndbTopRanked[]; t: Dic
               )}
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
                 {v.rating != null && (
-                  <span className="inline-flex items-center gap-0.5 text-accent">
+                  /*
+                   * VNDB rating chip — the title tooltip surfaces
+                   * the method label so the reader doesn't have to
+                   * remember whether the value is raw or shrunken.
+                   * Star icon and `8.7` digit are unchanged; only
+                   * the tooltip and aria-label grew to spell out
+                   * the method. Matches the EGS counterpart below.
+                   */
+                  <span
+                    className="inline-flex items-center gap-0.5 text-accent"
+                    title={t.topRanked.scoreMethodVndb}
+                    aria-label={`${(v.rating / 10).toFixed(1)} — ${t.topRanked.scoreMethodVndb}`}
+                  >
                     <Star className="h-3 w-3 fill-accent" aria-hidden /> {(v.rating / 10).toFixed(1)}
                   </span>
                 )}
@@ -554,18 +567,40 @@ function EgsSection({
                   {r.median != null && (
                     <span
                       className="inline-flex items-center gap-0.5 text-accent"
-                      title={`${t.egs.section} · ${t.egs.median}: ${r.median}/100`}
+                      title={t.topRanked.scoreMethodEgsRaw}
+                      aria-label={`${r.median}/100 — ${t.topRanked.scoreMethodEgsRaw}`}
                     >
                       {/*
                         EGS median is stored on a 0-100 scale (raw).
-                        Earlier this surface divided by 100, surfacing
-                        scores like "0.90" with a star icon — visually
-                        ambiguous with a 0.0-1.0 normalized score.
-                        The canonical convention used elsewhere (VnCard,
-                        /stats) is "<n>/100"; matching it removes the
-                        misleading 0.<x> display.
+                        The shrunk score lives in a sibling chip
+                        below so the reader sees BOTH the raw and
+                        the ranking value at a glance — the latter
+                        is what determined the row's position in
+                        the list.
                       */}
                       <Star className="h-3 w-3 fill-accent" aria-hidden /> {r.median}/100
+                    </span>
+                  )}
+                  {r.median != null && r.count != null && (
+                    /*
+                     * Bayesian-weighted score chip — surfaces the
+                     * value the ORDER BY actually used for ranking.
+                     * Pre-blocker the reader could only see the raw
+                     * median and had to infer the shrunken score
+                     * mentally (or trust the method label). Now both
+                     * appear side by side so a row like "median 100,
+                     * count 3" no longer surprises the reader when
+                     * it sits below a "median 85, count 2000" row.
+                     */
+                    <span
+                      className="rounded border border-accent/30 bg-accent/10 px-1 text-[10px] font-bold tabular-nums text-accent"
+                      title={t.topRanked.scoreMethodEgsBayes}
+                      aria-label={`Bayes ${egsBayesianScore(r.median, r.count).toFixed(0)}/100 — ${t.topRanked.scoreMethodEgsBayes}`}
+                    >
+                      {t.topRanked.bayesScoreShort.replace(
+                        '{n}',
+                        egsBayesianScore(r.median, r.count).toFixed(0),
+                      )}
                     </span>
                   )}
                   {r.count != null && (
