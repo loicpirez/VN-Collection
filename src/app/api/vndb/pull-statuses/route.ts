@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { pullStatusesFromVndb } from '@/lib/vndb-sync';
+import { recordActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,5 +13,14 @@ export const dynamic = 'force-dynamic';
 export async function POST() {
   const result = await pullStatusesFromVndb();
   const status = result.ok ? 200 : result.needsAuth ? 401 : 500;
+  if (result.ok) {
+    recordActivity({
+      kind: 'vndb.status.pull',
+      entity: 'vndb',
+      entityId: 'ulist',
+      label: 'VNDB status pull',
+      payload: { ...result },
+    });
+  }
   return NextResponse.json(result, { status });
 }

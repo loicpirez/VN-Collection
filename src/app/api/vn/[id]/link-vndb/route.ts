@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollectionItem, migrateVnId, upsertVn } from '@/lib/db';
 import { getVn } from '@/lib/vndb';
+import { recordActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!vn) return NextResponse.json({ error: 'VNDB id not found' }, { status: 404 });
     upsertVn(vn);
     migrateVnId(id, target);
+    recordActivity({
+      kind: 'mapping.vndb.link',
+      entity: 'vn',
+      entityId: target,
+      label: 'Linked VNDB id',
+      payload: { from: id, to: target },
+    });
     return NextResponse.json({ ok: true, vn_id: target });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });

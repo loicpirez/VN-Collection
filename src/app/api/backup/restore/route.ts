@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { restoreFromSqliteFile } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -39,6 +40,13 @@ export async function POST(req: NextRequest) {
   }
   try {
     const summary = await restoreFromSqliteFile(buf);
+    recordActivity({
+      kind: 'backup.restore',
+      entity: 'backup',
+      entityId: 'sqlite',
+      label: 'SQLite backup restore',
+      payload: { ...summary },
+    });
     return NextResponse.json({ ok: true, summary });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

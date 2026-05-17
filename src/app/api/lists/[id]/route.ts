@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteUserList, getUserList, listUserListItems, updateUserList } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -49,6 +50,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   try {
     const list = updateUserList(listId, patch);
     if (!list) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    recordActivity({
+      kind: 'list.update',
+      entity: 'list',
+      entityId: String(listId),
+      label: list.name,
+      payload: patch,
+    });
     return NextResponse.json({ list });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
@@ -63,5 +71,11 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   }
   const ok = deleteUserList(listId);
   if (!ok) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  recordActivity({
+    kind: 'list.delete',
+    entity: 'list',
+    entityId: String(listId),
+    label: 'List deleted',
+  });
   return NextResponse.json({ ok: true });
 }

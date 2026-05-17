@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { importData, type CollectionExportPayload } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -50,6 +51,13 @@ export async function POST(req: NextRequest) {
   }
   try {
     const summary = importData(body);
+    recordActivity({
+      kind: 'collection.import',
+      entity: 'collection',
+      entityId: 'all',
+      label: 'Collection import',
+      payload: { ...summary },
+    });
     return NextResponse.json({ ok: true, summary });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

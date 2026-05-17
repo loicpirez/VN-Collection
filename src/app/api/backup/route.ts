@@ -4,6 +4,7 @@ import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { db, getDbPath } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -33,6 +34,13 @@ export async function GET(req: Request) {
   }
   const stream = Readable.toWeb(createReadStream(dbPath)) as ReadableStream<Uint8Array>;
   const date = new Date().toISOString().slice(0, 10);
+  recordActivity({
+    kind: 'backup.export',
+    entity: 'backup',
+    entityId: date,
+    label: 'SQLite backup export',
+    payload: { size },
+  });
   return new NextResponse(stream, {
     status: 200,
     headers: {

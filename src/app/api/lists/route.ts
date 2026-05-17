@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createUserList, listUserLists } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -24,6 +25,13 @@ export async function POST(req: NextRequest) {
       description: typeof body.description === 'string' ? body.description : null,
       color: typeof body.color === 'string' ? body.color : null,
       icon: typeof body.icon === 'string' ? body.icon : null,
+    });
+    recordActivity({
+      kind: 'list.create',
+      entity: 'list',
+      entityId: String(list.id),
+      label: list.name,
+      payload: { color: list.color, icon: list.icon },
     });
     return NextResponse.json({ list });
   } catch (e) {

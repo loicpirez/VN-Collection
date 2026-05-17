@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSavedFilter, deleteSavedFilter, listSavedFilters, reorderSavedFilters } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'params required' }, { status: 400 });
   }
   const created = createSavedFilter(body.name, body.params);
+  recordActivity({
+    kind: 'saved_filter.create',
+    entity: 'saved_filter',
+    entityId: String(created.id),
+    label: created.name,
+    payload: { params: created.params },
+  });
   return NextResponse.json({ filter: created });
 }
 
@@ -26,6 +34,12 @@ export async function DELETE(req: NextRequest) {
   }
   const ok = deleteSavedFilter(id);
   if (!ok) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  recordActivity({
+    kind: 'saved_filter.delete',
+    entity: 'saved_filter',
+    entityId: String(id),
+    label: 'Saved filter deleted',
+  });
   return NextResponse.json({ ok: true });
 }
 
@@ -35,5 +49,12 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'ids array required' }, { status: 400 });
   }
   reorderSavedFilters(body.ids as number[]);
+  recordActivity({
+    kind: 'saved_filter.reorder',
+    entity: 'saved_filter',
+    entityId: 'all',
+    label: 'Saved filters reordered',
+    payload: { count: body.ids.length },
+  });
   return NextResponse.json({ ok: true });
 }
