@@ -227,8 +227,8 @@ comparison view last (depends on the recommendations helper).
 - `/api/download-status` polling: 1.5 s / 10 s → 4 s / 60 s, paused
   on `document.visibilityState === 'hidden'`, resumes on focus.
   Stops flooding the server log during long bulk runs.
-- GameLog placeholder: removed the Fate spoiler ("Saber dies in
-  chapter 4") across FR/EN/JA.
+- GameLog placeholder: removed an unsolicited specific-title
+  spoiler line across FR/EN/JA, replaced with neutral copy.
 - Tour: new **Lists** step + refreshed `vnpage` body to mention
   PlaytimeCompare, cover/banner pickers, lists picker, game log.
 

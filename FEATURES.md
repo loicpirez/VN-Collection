@@ -376,8 +376,8 @@ description, cover image, and banner image. Uploads stream through
 banner as a hero strip plus the cover thumbnail.
 
 ### Routes ✅
-Per-VN ordered list of routes (e.g. "Saber → Rin → Sakura") with completion
-tracking and free-form notes.
+Per-VN ordered list of routes (e.g. "Heroine A → Heroine B → True route")
+with completion tracking and free-form notes.
 
 ### Per-route notes ✅
 Each route entry has a sticky-note toggle that expands an inline textarea
