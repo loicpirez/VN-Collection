@@ -230,21 +230,51 @@ export function listUnlinkedSteamGames(steamGames: SteamPlaytime[]): UnlinkedSte
 
 /**
  * Search the local collection by title (case-insensitive substring).
- * Used by the /steam page to look up a candidate VN for a manual assign.
+ *
+ * Returns the VN's cover columns so callers that render the result as
+ * a card (e.g. the recommendations seed picker) don't render a
+ * "no image" placeholder for VNs that DO have local or remote covers.
+ * `image_url` / `image_thumb` are the VNDB-sourced URLs; `local_image`
+ * / `local_image_thumb` are the relative storage paths. The caller can
+ * decide which to prefer per `<SafeImage src=… localSrc=…>`.
  */
-export function searchCollectionByTitle(query: string, limit = 12): Array<{ id: string; title: string; alttitle: string | null }> {
+export function searchCollectionByTitle(
+  query: string,
+  limit = 12,
+): Array<{
+  id: string;
+  title: string;
+  alttitle: string | null;
+  image_url: string | null;
+  image_thumb: string | null;
+  local_image: string | null;
+  local_image_thumb: string | null;
+  image_sexual: number | null;
+}> {
   const trimmed = query.trim();
   if (trimmed.length < 1) return [];
   const like = `%${trimmed.replace(/[%_]/g, '\\$&')}%`;
   return db
     .prepare(`
-      SELECT v.id, v.title, v.alttitle
+      SELECT v.id, v.title, v.alttitle,
+             v.image_url, v.image_thumb,
+             v.local_image, v.local_image_thumb,
+             v.image_sexual
       FROM collection c JOIN vn v ON v.id = c.vn_id
       WHERE v.title LIKE ? ESCAPE '\\' OR v.alttitle LIKE ? ESCAPE '\\'
       ORDER BY v.title COLLATE NOCASE
       LIMIT ?
     `)
-    .all(like, like, limit) as Array<{ id: string; title: string; alttitle: string | null }>;
+    .all(like, like, limit) as Array<{
+      id: string;
+      title: string;
+      alttitle: string | null;
+      image_url: string | null;
+      image_thumb: string | null;
+      local_image: string | null;
+      local_image_thumb: string | null;
+      image_sexual: number | null;
+    }>;
 }
 
 /** Used by the apply step to record the sync. */

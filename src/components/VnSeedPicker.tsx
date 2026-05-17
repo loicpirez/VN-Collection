@@ -134,16 +134,38 @@ export function VnSeedPicker({
     // Race local in first so the UI flickers minimally.
     const localRows = await localPromise;
     if (lastQueryRef.current !== trimmed) return;
-    const localHits: VnHit[] = localRows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      alttitle: row.alttitle,
-      released: null,
-      developer: null,
-      image: null,
-      inCollection: true,
-      source: 'local' as const,
-    }));
+    const localHits: VnHit[] = localRows.map((row) => {
+      // `/api/collection/find` previously returned only `id/title/
+      // alttitle`. The seed-picker mapped `image: null` and the row
+      // rendered "Pas d'image" for every local hit even when the VN
+      // had a perfectly good cover. The route now exposes the four
+      // cover columns; collapse them into the same `{url, thumbnail}`
+      // shape the VnHit type already carries. Prefer the local
+      // storage path (served via `/api/files/`) when available so the
+      // picker doesn't go through VNDB's CDN for an asset we've
+      // already mirrored.
+      const r = row as typeof row & {
+        image_url?: string | null;
+        image_thumb?: string | null;
+        local_image?: string | null;
+        local_image_thumb?: string | null;
+        image_sexual?: number | null;
+      };
+      const localThumb = r.local_image_thumb || r.local_image || null;
+      const remoteThumb = r.image_thumb || r.image_url || null;
+      const url = localThumb ? `/api/files/${localThumb}` : remoteThumb;
+      const image = url ? { url, thumbnail: url, sexual: r.image_sexual ?? null } : null;
+      return {
+        id: row.id,
+        title: row.title,
+        alttitle: row.alttitle,
+        released: null,
+        developer: null,
+        image,
+        inCollection: true,
+        source: 'local' as const,
+      };
+    });
     setHits(localHits);
     const vndbRows = await vndbPromise;
     if (lastQueryRef.current !== trimmed) return;
