@@ -33,22 +33,41 @@ export function parseRecommendMode(raw: string | null | undefined): RecommendMod
  * during seed ranking (penalty ∈ (0, 1), so tags here always rank LOWER
  * than a non-generic tag with the same raw count).
  *
- * The list is intentionally short — only well-known structural tags
- * (engine / protagonist sex / setting) and the most over-applied heroine
- * archetypes. Operators who actually love these tags can pin them via the
+ * The list covers three tiers:
+ *   0.15-0.25 — structural / format tags (present in nearly every VN):
+ *               ADV engine, Multiple Routes
+ *   0.3-0.4   — ubiquitous genre / protagonist tags: Romance, Male
+ *               Protagonist, Nukige, Dating Sim, School Setting
+ *   0.45-0.55 — over-applied heroine archetypes
+ *
+ * Operators who want a penalty tag as a seed can pin it via the
  * `?tags=…` custom-seed URL — penalties only apply to AUTO-derived seeds.
  *
- * Sources: VNDB tag pages https://vndb.org/g134 / g630 / g69 / g1166 …
+ * Sources: VNDB tag pages https://vndb.org/g{id}
  */
 export const GENERIC_TAG_PENALTY_MAP: Record<string, number> = {
-  g134: 0.2, // ADV (engine / format — almost every VN)
-  g630: 0.3, // Male Protagonist
-  g69: 0.4, // High School Student Heroine
-  g1166: 0.5, // Tsundere Heroine
-  g1167: 0.5, // Dandere Heroine
-  g540: 0.5, // Genki Heroine
-  g541: 0.5, // Kuudere Heroine
-  g542: 0.5, // Yandere Heroine
+  // --- Structural / format (nearly every VN has these) ---
+  g134: 0.15, // ADV (adventure engine format)
+  g184: 0.25, // NVL (novel-mode engine format)
+
+  // --- Ubiquitous genre / protagonist / setting tags ---
+  g630: 0.3,  // Male Protagonist
+  g4:   0.3,  // Romance (extremely common genre in VNs)
+  g255: 0.35, // Modern Day Japan (default setting for most commercial VNs)
+  g153: 0.35, // School Life (second-most common setting)
+  g73:  0.4,  // Comedy (very common genre — rarely the distinguishing factor)
+  g2:   0.35, // Slice of Life (broad umbrella — doesn't indicate specific taste)
+
+  // --- Common VN mechanics that appear in most titles ---
+  g117: 0.45, // Multiple Endings (nearly universal; not taste-specific)
+
+  // --- Over-applied heroine archetypes ---
+  g69:   0.4,  // High School Student Heroine
+  g1166: 0.5,  // Tsundere Heroine
+  g1167: 0.5,  // Dandere Heroine
+  g540:  0.5,  // Genki Heroine
+  g541:  0.5,  // Kuudere Heroine
+  g542:  0.5,  // Yandere Heroine
 };
 
 /**
@@ -493,7 +512,7 @@ function deriveSeedsFromUnion(
     const ranked = info.tags
       .filter((t) => (t.spoiler ?? 0) === 0 && (includeEro || t.category !== 'ero'))
       .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-      .slice(0, 5);
+      .slice(0, 8);
     const seedContribution = (info.rating || 70) / 100;
     for (const t of ranked) {
       let acc = tagAcc.get(t.id);

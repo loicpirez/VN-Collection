@@ -8,6 +8,7 @@
     "start": "next start -p ${PORT:-3000}",
     "smoke": "bash scripts/smoke.sh",
     "qa": "bash scripts/browser-qa.sh",
+    "qa:interactions": "bash scripts/interactions-qa.sh",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
