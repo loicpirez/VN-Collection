@@ -31,6 +31,7 @@ import {
   type OwnedEditionsChangedDetail,
 } from './ReleaseOwnedToggle';
 import { useT } from '@/lib/i18n/client';
+import { derivePlatformDisplay } from '@/lib/platform-display';
 import { BOX_TYPES, LOCATIONS, type BoxType, type Location } from '@/lib/types';
 import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
 import type { VndbRelease } from '@/lib/vndb-types';
@@ -441,32 +442,52 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
   const price = edition.price_paid != null && edition.price_paid > 0
     ? `${edition.price_paid.toLocaleString()} ${edition.currency ?? ''}`.trim()
     : null;
-  const platformMultiAvailable = (edition.rel_platforms?.length ?? 0) > 1;
+  // Funnel through the shared helper so the per-edition platform
+  // string here reads the same as the shelf popover / pool tiles
+  // for the same edition. Drift between surfaces was the failure
+  // mode manual QA flagged.
+  const platformState = derivePlatformDisplay({
+    ownedPlatform: edition.owned_platform,
+    releasePlatforms: edition.rel_platforms ?? [],
+    releaseId: edition.release_id,
+  });
 
   return (
     <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] sm:grid-cols-3">
       {edition.edition_label && (
         <Field icon={<Sparkles className="h-3 w-3" />} label={t.form.editionLabel} value={edition.edition_label} />
       )}
-      {edition.owned_platform && (
-        <Field
-          icon={<Tag className="h-3 w-3" />}
-          label={t.form.ownedPlatform}
-          value={edition.owned_platform.toUpperCase()}
-        />
-      )}
-      {!edition.owned_platform && platformMultiAvailable && (
-        // Warn the user that this multi-platform release has no
-        // physical-SKU pick yet — until they choose one in the
-        // editor, the shelf popover will widen to the full set
-        // (which is what the user complained about).
-        <Field
-          icon={<Tag className="h-3 w-3" />}
-          label={t.form.ownedPlatform}
-          value={t.form.ownedPlatformUnset}
-          valueClassName="text-status-on_hold"
-        />
-      )}
+      {(() => {
+        switch (platformState.kind) {
+          case 'owned':
+          case 'release-single':
+            return (
+              <Field
+                icon={<Tag className="h-3 w-3" />}
+                label={t.form.ownedPlatform}
+                value={platformState.platform.toUpperCase()}
+              />
+            );
+          case 'choose':
+            // Warn the user that this multi-platform release has no
+            // physical-SKU pick yet — until they choose one in the
+            // editor, every consuming surface will say "choose".
+            return (
+              <Field
+                icon={<Tag className="h-3 w-3" />}
+                label={t.form.ownedPlatform}
+                value={t.shelfLayout.platformChooseLabel}
+                valueClassName="text-status-on_hold"
+              />
+            );
+          case 'metadata-missing':
+          case 'unknown':
+            // Render nothing — the summary stays compact when no
+            // platform info is available. The editor below is where
+            // the user can refresh or input it.
+            return null;
+        }
+      })()}
       {edition.location !== 'unknown' && (
         <Field icon={<Home className="h-3 w-3" />} label={t.form.location} value={t.locations[edition.location]} />
       )}

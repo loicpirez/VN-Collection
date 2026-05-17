@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCollectionItem, upsertVn } from '@/lib/db';
+import { getCollectionItem, materializeReleaseMetaForVn, upsertVn } from '@/lib/db';
 import { ensureLocalImagesForVn } from '@/lib/assets';
 import { EgsUnreachable, resolveEgsForVn } from '@/lib/erogamescape';
 import { refreshVn } from '@/lib/vndb';
@@ -98,6 +98,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
     }
     const result = await ensureLocalImagesForVn(id);
+    // Re-populate release_meta_cache from the freshly-fetched release
+    // payloads so the shelf popover / owned-editions surfaces stop
+    // showing "Unknown platform" once the user clicks Refresh. The
+    // materializer is idempotent + no-ops for synthetic / egs-only ids
+    // (the regex check happens inside the helper).
+    try {
+      materializeReleaseMetaForVn(id);
+    } catch (e) {
+      console.error(`[assets:${id}] release-meta materialize failed:`, (e as Error).message);
+    }
     return NextResponse.json({
       ok: true,
       poster: result.poster,

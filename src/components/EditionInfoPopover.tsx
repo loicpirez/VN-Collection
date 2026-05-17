@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { derivePlatformDisplay } from '@/lib/platform-display';
 import { useToast } from './ToastProvider';
 import { useRouter } from 'next/navigation';
 
@@ -68,7 +69,7 @@ export interface EditionInfoPopoverData {
  * once those server cards gain a client island.
  *
  * Behavior contract (lifted from the original pool-item popover; the
- * user reported a brief mis-position flash when collision detection
+ * manual QA flagged a brief mis-position flash when collision detection
  * ran AFTER the popover painted):
  *   1. Open state is internal — parent only provides data.
  *   2. Default placement: below + left.
@@ -258,133 +259,154 @@ export function EditionInfoTrigger({
               <span className="font-mono">{data.release_id}</span>
             </div>
             {/*
-              Platform row — strict priority chain spelled out so
-              the aggregate VN/release platforms list is NEVER shown
-              as "the owned platform". The user's manual QA flagged
-              the case where a multi-platform release without a pin
-              leaked all four platforms into the row labelled
-              "Platforms:".
-
-              Priority (matches Blocker 3 spec):
-                1. explicit owned_release.owned_platform           → show that
-                2. exact release has exactly one platform          → show that, with "release" badge
-                3. multi-platform release, owned_platform unset    → show "Platform not specified" + hint
-                4. release metadata missing                         → show "Unknown platform" hint
+              Platform row — every branch funnels through the shared
+              `derivePlatformDisplay` so the priority chain matches
+              every other owned-edition surface (OwnedEditionsSection,
+              ShelfLayoutEditor pool / slot / display tiles, server
+              cards on /shelf). The shared helper guarantees the
+              aggregate VN platforms list is NEVER rendered as
+              "the owned platform" — the failure mode manual QA
+              flagged previously.
             */}
             {(() => {
-              if (data.owned_platform) {
-                return (
-                  <div>
-                    {t.form.ownedPlatform}:{' '}
-                    <span className="text-white">{data.owned_platform.toUpperCase()}</span>
-                    <span className="ml-1 rounded bg-accent/20 px-1 text-[9px] uppercase text-accent">
-                      {t.shelfLayout.ownedBadge}
-                    </span>
-                  </div>
-                );
-              }
-              if (data.rel_platforms.length === 1) {
-                return (
-                  <div>
-                    {t.form.ownedPlatform}:{' '}
-                    <span className="text-white">{data.rel_platforms[0].toUpperCase()}</span>
-                    <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
-                      {t.shelfLayout.releaseFieldBadge}
-                    </span>
-                  </div>
-                );
-              }
-              if (data.rel_platforms.length > 1) {
-                // Multi-platform release, no pin → real action that
-                // navigates to the VN page's owned-editions section,
-                // where the EditionEditor select lets the user pick.
-                // Previously the popover only showed dead "(N options)"
-                // text — the acceptance gate flagged that as
-                // unactionable.
-                return (
-                  <div className="inline-flex flex-wrap items-center gap-1">
-                    <span>{t.form.ownedPlatform}:</span>{' '}
-                    <span className="text-status-on_hold">{t.form.ownedPlatformUnset}</span>
-                    <Link
-                      // Anchor must match the section id registered
-                      // in src/lib/vn-detail-layout.ts (`my-editions`).
-                      // The popover Link previously pointed at
-                      // `#owned-editions`, which doesn't exist as a
-                      // section id — clicking did nothing.
-                      // `?edit_release=...` opens the matching
-                      // EditionEditor immediately so the platform
-                      // <select> is one click away, not three.
-                      href={`/vn/${data.vn_id}?edit_release=${encodeURIComponent(data.release_id)}#my-editions`}
-                      onPointerDown={stop}
-                      onMouseDown={stop}
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-0.5 rounded border border-accent/40 bg-accent/10 px-1 py-0.5 text-[9px] uppercase tracking-wider text-accent hover:bg-accent/20"
-                      title={data.rel_platforms.join(' · ').toUpperCase()}
-                    >
-                      <Edit3 className="h-2.5 w-2.5" aria-hidden />
-                      {t.form.choosePlatform}
-                    </Link>
-                  </div>
-                );
-              }
-              // Release metadata not materialized yet — never
-              // widen to vn_platforms here. Surface an actual
-              // "Refresh releases" button (POSTs to the assets
-              // refresh endpoint, which re-fetches release rows and
-              // re-runs materializeReleaseMetaForVn). The fallback
-              // for synthetic ids (no remote releases possible)
-              // skips the button.
-              const isSynthetic = data.release_id.startsWith('synthetic:');
-              return (
-                <div className="inline-flex flex-wrap items-center gap-1">
-                  <span>{t.form.ownedPlatform}:</span>{' '}
-                  <span className="text-muted">{t.shelfLayout.platformUnknownLabel}</span>
-                  {!isSynthetic && (
-                    <button
-                      type="button"
-                      onPointerDown={stop}
-                      onMouseDown={stop}
-                      disabled={refreshing}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        if (refreshing) return;
-                        setRefreshing(true);
-                        try {
-                          const r = await fetch(
-                            `/api/collection/${data.vn_id}/assets?refresh=true`,
-                            { method: 'POST' },
-                          );
-                          if (!r.ok) {
-                            const body = (await r.json().catch(() => ({}))) as { error?: string };
-                            throw new Error(body.error || t.common.error);
-                          }
-                          toast.success(t.toast.saved);
-                          // The server-rendered popover data is
-                          // stale until the parent re-fetches. A
-                          // router.refresh() invalidates the RSC
-                          // cache so the next paint reads the
-                          // freshly-materialized release_meta_cache.
-                          router.refresh();
-                        } catch (err) {
-                          toast.error((err as Error).message);
-                        } finally {
-                          setRefreshing(false);
-                        }
-                      }}
-                      className="inline-flex items-center gap-0.5 rounded border border-border bg-bg-elev/50 px-1 py-0.5 text-[9px] uppercase tracking-wider text-muted hover:border-accent hover:text-accent disabled:opacity-50"
-                      title={t.shelfLayout.refreshReleases}
-                    >
-                      {refreshing ? (
-                        <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden />
-                      ) : (
-                        <RefreshCw className="h-2.5 w-2.5" aria-hidden />
+              const state = derivePlatformDisplay({
+                ownedPlatform: data.owned_platform,
+                releasePlatforms: data.rel_platforms,
+                releaseId: data.release_id,
+              });
+              switch (state.kind) {
+                case 'owned':
+                  return (
+                    <div>
+                      {t.form.ownedPlatform}:{' '}
+                      <span className="text-white">{state.platform.toUpperCase()}</span>
+                      <span className="ml-1 rounded bg-accent/20 px-1 text-[9px] uppercase text-accent">
+                        {t.shelfLayout.ownedBadge}
+                      </span>
+                    </div>
+                  );
+                case 'release-single':
+                  return (
+                    <div>
+                      {t.form.ownedPlatform}:{' '}
+                      <span className="text-white">{state.platform.toUpperCase()}</span>
+                      <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
+                        {t.shelfLayout.releaseFieldBadge}
+                      </span>
+                    </div>
+                  );
+                case 'choose':
+                  // Multi-platform release, no pin → real action that
+                  // navigates to the VN page's owned-editions section,
+                  // where the EditionEditor select lets the user pick.
+                  return (
+                    <div className="inline-flex flex-wrap items-center gap-1">
+                      <span>{t.form.ownedPlatform}:</span>{' '}
+                      <span className="text-status-on_hold">
+                        {t.shelfLayout.platformChooseLabel}
+                      </span>
+                      <Link
+                        // Anchor must match the section id registered
+                        // in src/lib/vn-detail-layout.ts (`my-editions`).
+                        // `?edit_release=...` opens the matching
+                        // EditionEditor immediately so the platform
+                        // <select> is one click away, not three.
+                        href={`/vn/${data.vn_id}?edit_release=${encodeURIComponent(data.release_id)}#my-editions`}
+                        onPointerDown={stop}
+                        onMouseDown={stop}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-0.5 rounded border border-accent/40 bg-accent/10 px-1 py-0.5 text-[9px] uppercase tracking-wider text-accent hover:bg-accent/20"
+                        title={state.releasePlatforms.join(' · ').toUpperCase()}
+                      >
+                        <Edit3 className="h-2.5 w-2.5" aria-hidden />
+                        {t.form.choosePlatform}
+                      </Link>
+                    </div>
+                  );
+                case 'metadata-missing':
+                  // Real release with no cached metadata → offer a
+                  // refresh that POSTs to the assets endpoint, which
+                  // re-fetches release rows and runs
+                  // materializeReleaseMetaForVn.
+                  return (
+                    <div className="inline-flex flex-wrap items-center gap-1">
+                      <span>{t.form.ownedPlatform}:</span>{' '}
+                      <span className="text-muted">{t.shelfLayout.platformUnknownLabel}</span>
+                      {state.canRefresh && (
+                        <button
+                          type="button"
+                          onPointerDown={stop}
+                          onMouseDown={stop}
+                          disabled={refreshing}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (refreshing) return;
+                            setRefreshing(true);
+                            try {
+                              const r = await fetch(
+                                `/api/collection/${data.vn_id}/assets?refresh=true`,
+                                { method: 'POST' },
+                              );
+                              if (!r.ok) {
+                                const body = (await r.json().catch(() => ({}))) as { error?: string };
+                                throw new Error(body.error || t.common.error);
+                              }
+                              toast.success(t.toast.saved);
+                              // The server-rendered popover data is
+                              // stale until the parent re-fetches. A
+                              // router.refresh() invalidates the RSC
+                              // cache so the next paint reads the
+                              // freshly-materialized release_meta_cache.
+                              router.refresh();
+                            } catch (err) {
+                              toast.error((err as Error).message);
+                            } finally {
+                              setRefreshing(false);
+                            }
+                          }}
+                          className="inline-flex items-center gap-0.5 rounded border border-border bg-bg-elev/50 px-1 py-0.5 text-[9px] uppercase tracking-wider text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                          title={t.shelfLayout.refreshReleases}
+                        >
+                          {refreshing ? (
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden />
+                          ) : (
+                            <RefreshCw className="h-2.5 w-2.5" aria-hidden />
+                          )}
+                          {t.shelfLayout.refreshReleases}
+                        </button>
                       )}
-                      {t.shelfLayout.refreshReleases}
-                    </button>
-                  )}
-                </div>
-              );
+                    </div>
+                  );
+                case 'unknown':
+                  // Synthetic edition — no remote release to refresh.
+                  // Render the bare label so the row stays visible
+                  // (downstream surfaces still expect a platform line).
+                  return (
+                    <div>
+                      <span>{t.form.ownedPlatform}:</span>{' '}
+                      <span className="text-muted">{t.shelfLayout.platformUnknownLabel}</span>
+                    </div>
+                  );
+              }
             })()}
+            {/*
+              When the user pinned an `owned_platform` AND the release
+              is multi-platform, show a secondary line listing every
+              platform of the release so the wider coverage stays
+              visible without being confused with the owned-platform
+              pin. Spec: "Cette sortie existe aussi sur : WIN · PS4 …".
+            */}
+            {data.owned_platform && data.rel_platforms.length > 1 && (
+              <div className="text-[10px] text-muted/70">
+                {t.shelfLayout.alsoAvailableOn}{' '}
+                <span className="text-white/80">
+                  {data.rel_platforms
+                    .filter((p) => p.toLowerCase() !== data.owned_platform!.toLowerCase())
+                    .map((p) => p.toUpperCase())
+                    .join(' · ')}
+                </span>
+              </div>
+            )}
             {(() => {
               const released = data.rel_released ?? data.vn_released;
               if (!released) return null;

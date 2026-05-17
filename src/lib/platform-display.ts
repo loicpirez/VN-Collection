@@ -18,7 +18,7 @@
  *
  * Falling back to `vn_platforms` (VN-aggregate) is INTENTIONALLY not
  * an option here. The VN-aggregate is the union across every release
- * and is what the user reported as misleading.
+ * and is what manual QA flagged as misleading.
  */
 
 export interface PlatformDisplayInput {

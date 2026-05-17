@@ -36,6 +36,7 @@ import {
   X,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { derivePlatformDisplay } from '@/lib/platform-display';
 import { SafeImage } from '@/components/SafeImage';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/ToastProvider';
@@ -1343,14 +1344,26 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
           glance, without needing to open the info popover.
         */}
         {(() => {
-          // owned_platform (when set) is the most useful single
-          // distinguisher for multi-platform releases — exactly the
-          // axis the user complained about ("WIN · PS4 · PSV · SWI"
-          // shown for a WIN-only SKU). It slots between
-          // edition_label (most user-specific) and physical_location.
+          // The owned platform (or single-platform release) is the
+          // most useful single distinguisher when two editions of
+          // the same VN coexist in the pool. We funnel through
+          // `derivePlatformDisplay` so the chip never widens to the
+          // VN-aggregate platform list — the failure mode flagged
+          // by manual QA. Only 'owned' / 'release-single' surface a
+          // platform code here; multi-platform / unknown states fall
+          // through to other distinguishers below.
+          const platformState = derivePlatformDisplay({
+            ownedPlatform: entry.owned_platform,
+            releasePlatforms: entry.rel_platforms ?? [],
+            releaseId: entry.release_id,
+          });
+          const platformChip =
+            platformState.kind === 'owned' || platformState.kind === 'release-single'
+              ? platformState.platform.toUpperCase()
+              : null;
           const distinguisher =
             entry.edition_label ??
-            (entry.owned_platform ? entry.owned_platform.toUpperCase() : null) ??
+            platformChip ??
             (entry.physical_location.length > 0 ? entry.physical_location[0] : null) ??
             (entry.box_type !== 'none' ? entry.box_type : null) ??
             (entry.release_id.startsWith('synthetic:') ? null : entry.release_id);

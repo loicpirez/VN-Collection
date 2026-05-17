@@ -77,6 +77,14 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
     return Object.keys(out).length > 0 ? out : undefined;
   }, [onLibrary, searchParams]);
 
+  /**
+   * Iterate the provided VN list and POST to `/api/collection/[id]/assets`
+   * for each. The assets endpoint already runs `materializeReleaseMetaForVn`
+   * server-side after the asset fetch completes, so the shelf popover /
+   * owned-editions surfaces pick up freshly-derived per-edition platform
+   * metadata once the bulk pass finishes — no extra client roundtrip
+   * needed. `full=true` adds `?refresh=true` to also re-fetch VNDB.
+   */
   async function runItems(items: { id: string; title: string }[], full: boolean) {
     setRunning(true);
     setFinished(false);
