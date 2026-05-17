@@ -12,6 +12,7 @@ import { SkeletonCardGrid, SkeletonRows } from '@/components/Skeleton';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
@@ -75,7 +76,7 @@ export default async function UpcomingPage({
       : getCacheFreshness(['% /release|%', '% /release:%']);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <DensityScopeProvider scope="upcoming" className="mx-auto max-w-5xl">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
@@ -89,7 +90,7 @@ export default async function UpcomingPage({
             <p className="mt-1 text-sm text-muted">{t.upcoming.subtitle}</p>
           </div>
           <div className="flex items-center gap-2">
-            <CardDensitySlider />
+            <CardDensitySlider scope="upcoming" />
             <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
           </div>
         </div>
@@ -109,7 +110,7 @@ export default async function UpcomingPage({
       <Suspense key={`${tab}-${page}`} fallback={<UpcomingTabSkeleton tab={tab} />}>
         <TabContent tab={tab} page={page} t={t} />
       </Suspense>
-    </div>
+    </DensityScopeProvider>
   );
 }
 
@@ -314,7 +315,7 @@ interface LocalVnCover {
 /**
  * VNDB's `/release` endpoint sometimes returns `vns[].image = null` for
  * upcoming entries (cover not uploaded yet). For VNs already in the
- * user's collection we have richer data locally — including a mirrored
+ * collection we have richer data locally — including a mirrored
  * cover. Look up every referenced VN id in one shot and overlay.
  */
 function loadLocalCovers(rows: UpcomingRelease[]): Map<string, LocalVnCover> {

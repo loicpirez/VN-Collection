@@ -6,8 +6,9 @@ import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
 import { TextualSearchPanel } from './TextualSearchPanel';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
+import { DensityScopeProvider } from './DensityScopeProvider';
 import { useToast } from './ToastProvider';
-import { useDisplaySettings } from '@/lib/settings/client';
+import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
 import type { VndbSearchHit } from '@/lib/types';
 
@@ -322,7 +323,7 @@ export function SearchClient() {
   }
 
   return (
-    <div>
+    <DensityScopeProvider scope="search">
       <div
         className="mb-2 inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]"
         role="tablist"
@@ -560,7 +561,7 @@ export function SearchClient() {
           - 'local' — free-text match across local notes / custom
             synopses / cached quotes.
         Each tab renders its OWN result body; we do NOT mix them
-        in the same vertical flow (the user reported the previous
+        in the same vertical flow (manual QA flagged the previous
         "all sources in one column" approach as hijacking the
         remote search experience).
       */}
@@ -626,12 +627,12 @@ export function SearchClient() {
               that previously hard-coded `grid-cols-2..xl:grid-cols-6`
               and ignored the global density pref. */}
           <div className="mb-3 flex justify-end">
-            <CardDensitySlider />
+            <CardDensitySlider scope="search" />
           </div>
           <SearchResultsGrid results={results} />
         </>
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }
 
@@ -644,8 +645,10 @@ export function SearchClient() {
  */
 function SearchResultsGrid({ results }: { results: VndbSearchHit[] }) {
   const { settings } = useDisplaySettings();
+  const search = useSearchParams();
+  const density = resolveScopedDensity(settings, 'search', search?.get('density') ?? null);
   const gridStyle: React.CSSProperties = {
-    gridTemplateColumns: cardGridColumns(settings.cardDensityPx),
+    gridTemplateColumns: cardGridColumns(density),
   };
   return (
     <div className="grid gap-5" style={gridStyle}>

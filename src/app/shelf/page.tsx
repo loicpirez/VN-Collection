@@ -12,6 +12,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { ShelfLayoutEditor } from '@/components/ShelfLayoutEditor';
 import { ShelfSpatialView } from '@/components/ShelfSpatialView';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,7 +96,7 @@ export default async function ShelfPage({
   // load when view is release|item" optimisation was incorrect:
   // it made the spatial-view header always show '0 éditions ·
   // 0 VN uniques' even when the user had owned editions placed
-  // on shelves, which the user reported as a regression.
+  // on shelves — manual QA flagged this as a regression.
   const items = listAllOwnedReleases();
 
   // Per-item view collapses multiple owned releases for the same VN
@@ -167,7 +168,7 @@ export default async function ShelfPage({
   );
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <DensityScopeProvider scope="shelf" className="mx-auto max-w-6xl">
       <Link href="/data" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.data}
       </Link>
@@ -201,7 +202,7 @@ export default async function ShelfPage({
             stable across the four view modes.
           */}
           <div className="shrink-0">
-            <CardDensitySlider />
+            <CardDensitySlider scope="shelf" />
           </div>
         </div>
       </header>
@@ -440,7 +441,7 @@ export default async function ShelfPage({
           )}
         </>
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }
 

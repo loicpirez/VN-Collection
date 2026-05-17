@@ -13,6 +13,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
 import { readStaffFullCache } from '@/lib/staff-full';
 import { VndbMarkup } from '@/components/VndbMarkup';
@@ -98,7 +99,7 @@ export default async function StaffPage({
     .filter((g) => g.credits.length > 0);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <DensityScopeProvider scope="staffWorks" className="mx-auto max-w-6xl">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
@@ -175,7 +176,7 @@ export default async function StaffPage({
                 Matches the convention used on every other listing
                 surface (/wishlist, /recommendations, /top-ranked,
                 /upcoming, /dumped, /egs, /similar). */}
-            <CardDensitySlider />
+            <CardDensitySlider scope="staffWorks" />
             <StaffDownloadButton sid={id} />
             <a
               href={`https://vndb.org/${id}`}
@@ -309,7 +310,7 @@ export default async function StaffPage({
       <Suspense fallback={<StaffExtraCreditsSkeleton />}>
         <StaffExtraCredits sid={id} knownProdVnIds={knownProdVnIds} knownVaVnIds={knownVaVnIds} />
       </Suspense>
-    </div>
+    </DensityScopeProvider>
   );
 }
 

@@ -12,6 +12,7 @@ import { SeriesAddVnForm } from '@/components/SeriesAddVnForm';
 import { SeriesRemoveVn } from '@/components/SeriesRemoveVn';
 import { SeriesMetaEditor } from '@/components/SeriesMetaEditor';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
   const items = listCollection({ series: n });
 
   return (
-    <div>
+    <DensityScopeProvider scope="seriesWorks">
       <Link href="/series" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.series}
       </Link>
@@ -67,7 +68,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
           </div>
           {/* Density slider — controls the VN grid below. */}
           <div className="shrink-0">
-            <CardDensitySlider />
+            <CardDensitySlider scope="seriesWorks" />
           </div>
         </div>
       </header>
@@ -107,6 +108,6 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
           ))}
         </div>
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }

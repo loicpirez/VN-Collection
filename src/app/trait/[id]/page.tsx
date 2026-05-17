@@ -7,6 +7,7 @@ import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { stripVndbMarkup } from '@/components/VndbMarkup';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,7 @@ export default async function TraitPage({
   const localPaths = getCharacterImages(visible.map((c) => c.id));
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <DensityScopeProvider scope="characterWorks" className="mx-auto max-w-5xl">
       <Link href="/traits" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.traits}
       </Link>
@@ -75,7 +76,7 @@ export default async function TraitPage({
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {/* Density slider controls the character grid below. */}
-            <CardDensitySlider />
+            <CardDensitySlider scope="characterWorks" />
             <a
               href={`https://vndb.org/${trait.id}`}
               target="_blank"
@@ -178,6 +179,6 @@ export default async function TraitPage({
           </ul>
         )}
       </section>
-    </div>
+    </DensityScopeProvider>
   );
 }

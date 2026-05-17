@@ -17,6 +17,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { CardDensitySlider } from './CardDensitySlider';
+import { DensityScopeProvider } from './DensityScopeProvider';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
 import type { CollectionItem, ProducerStat, SeriesRow, Stats } from '@/lib/types';
@@ -443,7 +444,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const groups = useMemo(() => groupItems(visibleItems, group, t, sort, order), [visibleItems, group, t, sort, order]);
 
   return (
-    <div>
+    <DensityScopeProvider scope="library">
       {showControls && (
         <>
       {/*
@@ -815,7 +816,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           </select>
         </label>
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <CardDensitySlider />
+          <CardDensitySlider scope="library" />
           <button
             type="button"
             onClick={() => set('denseLibrary', !settings.denseLibrary)}
@@ -965,7 +966,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           onApplied={() => setRefreshKey((k) => k + 1)}
         />
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }
 

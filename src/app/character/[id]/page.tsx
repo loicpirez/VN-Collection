@@ -7,6 +7,7 @@ import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { readScrapedCharacterInfo } from '@/lib/scrape-character-instances';
 
@@ -101,7 +102,7 @@ export default async function CharacterPage({
   const scraped = readScrapedCharacterInfo(id);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <DensityScopeProvider scope="characterWorks" className="mx-auto max-w-5xl">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
@@ -145,7 +146,7 @@ export default async function CharacterPage({
             {/* Density slider controls the "appears in" + sibling
                 VN grids below. Mounted in the header for parity
                 with /staff/[id] and /producer/[id]. */}
-            <CardDensitySlider />
+            <CardDensitySlider scope="characterWorks" />
           </div>
         </div>
       </div>
@@ -328,6 +329,6 @@ export default async function CharacterPage({
           </ul>
         </section>
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }

@@ -6,6 +6,7 @@ import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeedTagControls } from '@/components/SeedTagControls';
 
 export const dynamic = 'force-dynamic';
@@ -151,7 +152,7 @@ export default async function SimilarPage({
     .slice(0, 24);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <DensityScopeProvider scope="vnSimilar" className="mx-auto max-w-6xl">
       <Link href={`/vn/${seed.id}`} className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {seed.title}
       </Link>
@@ -192,7 +193,7 @@ export default async function SimilarPage({
       )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <CardDensitySlider />
+        <CardDensitySlider scope="vnSimilar" />
       </div>
 
       {results.length === 0 ? (
@@ -240,7 +241,7 @@ export default async function SimilarPage({
                   Matched-seed-tag chips. Each chip is a separate
                   `<Link>` to `/?tag=<id>` so the user can pivot from
                   "this card matched two of my seeds" to "every VN
-                  in my collection with that same tag". The chip row
+                  in the collection with that same tag". The chip row
                   lives OUTSIDE the parent `<Link>` to avoid nested
                   anchors. The card still hovers as one unit thanks
                   to `group-hover` on the title.
@@ -276,6 +277,6 @@ export default async function SimilarPage({
           })}
         </ul>
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }

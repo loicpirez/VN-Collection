@@ -14,6 +14,7 @@ import { ListMetaEditor } from '@/components/ListMetaEditor';
 import { ListRemoveVn } from '@/components/ListRemoveVn';
 import { ListAddVnForm } from '@/components/ListAddVnForm';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import type { Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -112,7 +113,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const rows = loadCards(items);
 
   return (
-    <div>
+    <DensityScopeProvider scope="lists">
       <Link href="/lists" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.lists.backToLists}
       </Link>
@@ -138,7 +139,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {/* Density slider — controls the VN grid below. */}
-            <CardDensitySlider />
+            <CardDensitySlider scope="lists" />
             <ListMetaEditor list={list} />
           </div>
         </div>
@@ -178,7 +179,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           })}
         </div>
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }
 

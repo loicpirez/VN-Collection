@@ -9,6 +9,7 @@ import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
 import { ProducerLogoUpload } from '@/components/ProducerLogoUpload';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { ProducerVnsSections } from '@/components/ProducerVnsSections';
 import { readScrapedProducerInfo } from '@/lib/scrape-producer-relations';
@@ -77,7 +78,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
   const typeKey = producer.type ? TYPE_KEY[producer.type] : null;
 
   return (
-    <div>
+    <DensityScopeProvider scope="producerWorks">
       <Link href="/producers" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.producers.back}
       </Link>
@@ -133,7 +134,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
         {/* Density slider — controls every VN grid below (dev + pub
             credit sections). Mounting on /producer/[id] closes the
             "missing slider on detail pages" consistency gap. */}
-        <CardDensitySlider />
+        <CardDensitySlider scope="producerWorks" />
       </div>
 
       {producer.description && (
@@ -172,7 +173,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
       </Suspense>
 
       <ProducerScrapedRelations pid={producer.id} t={t} />
-    </div>
+    </DensityScopeProvider>
   );
 }
 

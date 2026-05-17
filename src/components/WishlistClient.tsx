@@ -5,9 +5,11 @@ import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
+import { DensityScopeProvider } from './DensityScopeProvider';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
-import { useDisplaySettings } from '@/lib/settings/client';
+import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
+import { useSearchParams } from 'next/navigation';
 import { useT } from '@/lib/i18n/client';
 
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc';
@@ -113,6 +115,10 @@ export function WishlistClient() {
   const toast = useToast();
   const { confirm } = useConfirm();
   const { settings } = useDisplaySettings();
+  // Resolve the active density for the wishlist scope; the
+  // `?density=N` override still wins thanks to `resolveScopedDensity`.
+  const search = useSearchParams();
+  const density = resolveScopedDensity(settings, 'wishlist', search?.get('density') ?? null);
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   // Gate the empty-state copy so it never renders before the first successful
@@ -296,7 +302,7 @@ export function WishlistClient() {
   }
 
   return (
-    <div>
+    <DensityScopeProvider scope="wishlist">
       <header className="mb-6 flex items-center gap-3">
         <Heart className="h-7 w-7 text-accent" aria-hidden />
         <div>
@@ -379,7 +385,7 @@ export function WishlistClient() {
               />
               {t.wishlist.hideOwned}
             </label>
-            <CardDensitySlider />
+            <CardDensitySlider scope="wishlist" />
             <button
               type="button"
               onClick={onRefresh}
@@ -421,7 +427,7 @@ export function WishlistClient() {
               )}
               <div
                 className="grid gap-5"
-                style={{ gridTemplateColumns: cardGridColumns(settings.cardDensityPx) }}
+                style={{ gridTemplateColumns: cardGridColumns(density) }}
               >
                 {g.items.map((it) => (
                   <VnCard
@@ -475,6 +481,6 @@ export function WishlistClient() {
           )}
         </>
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }
