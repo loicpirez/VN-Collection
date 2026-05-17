@@ -1577,6 +1577,8 @@ export const dictionaries = {
       noEditions: 'Aucune édition possédée',
       addEditionCta: 'Ajouter une édition',
       viewOnShelf: "Voir sur l'étagère",
+      counter: '{n} / {m} éditions dumpées',
+      modelHint: "Le statut « dumpé » se gère par édition possédée. Les compteurs ci-dessous comptent des éditions, pas des VN.",
     },
     shelf: {
       title: 'Étagère',
@@ -1590,6 +1592,7 @@ export const dictionaries = {
       viewItem: 'Par VN',
       viewLayout: 'Plan de l\'étagère',
       editionsForVn: '{n} éditions',
+      alsoOnRelease: 'aussi sur',
       empty: 'Aucune édition possédée.',
       emptyHint: 'Cette vue affiche les éditions physiques/numériques que tu possèdes — pas tous les VN de ta bibliothèque. Ouvre la fiche d\'un VN et clique sur « Mes éditions » pour en ajouter (emplacement physique, condition, prix, état dumpé…).',
       dumped: 'dumpé',
@@ -1893,6 +1896,7 @@ export const dictionaries = {
     },
     inventory: {
       section: 'Mes éditions',
+      ownedPlatformLabel: 'Plateforme possédée',
       addEdition: 'Ajouter une édition',
       pickRelease: 'Choisis l\'édition que tu possèdes',
       pickSynthetic: 'Aucune release VNDB connue — utilise une édition générique',
@@ -3905,6 +3909,8 @@ export const dictionaries = {
       noEditions: 'No owned editions',
       addEditionCta: 'Add an edition',
       viewOnShelf: 'View on shelf',
+      counter: '{n} / {m} editions dumped',
+      modelHint: 'Dumped status is tracked per owned edition. The counts below tally editions, not VNs.',
     },
     shelf: {
       title: 'Shelf',
@@ -3918,6 +3924,7 @@ export const dictionaries = {
       viewItem: 'By VN',
       viewLayout: 'Layout',
       editionsForVn: '{n} editions',
+      alsoOnRelease: 'also on',
       empty: 'No owned editions yet.',
       emptyHint: 'This view shows physical/digital editions you own — NOT every VN in your collection. Open a VN page and click "My editions" to add one (physical location, condition, price, dumped flag…).',
       dumped: 'dumped',
@@ -4218,6 +4225,7 @@ export const dictionaries = {
     },
     inventory: {
       section: 'My editions',
+      ownedPlatformLabel: 'Owned platform',
       addEdition: 'Add edition',
       pickRelease: 'Pick the edition you own',
       pickSynthetic: 'No VNDB release known — use a generic edition',
@@ -6230,6 +6238,8 @@ export const dictionaries = {
       noEditions: '所有エディションなし',
       addEditionCta: 'エディションを追加',
       viewOnShelf: '本棚で見る',
+      counter: '{n} / {m} エディションがダンプ済',
+      modelHint: 'ダンプ状況は所有エディション単位で記録します。下の集計は VN ではなくエディションを数えます。',
     },
     shelf: {
       title: '本棚',
@@ -6243,6 +6253,7 @@ export const dictionaries = {
       viewItem: 'VN 別',
       viewLayout: 'レイアウト',
       editionsForVn: '{n} エディション',
+      alsoOnRelease: '対応プラットフォーム',
       empty: '所有エディションがありません。',
       emptyHint: 'このビューはコレクション全体ではなく、所有している物理/デジタル版（My editions）を表示します。VN ページを開いて「My editions」から所有版を追加してください（保管場所、状態、価格、ダンプ済フラグなど）。',
       dumped: 'ダンプ済み',
@@ -6542,6 +6553,7 @@ export const dictionaries = {
     },
     inventory: {
       section: '所有エディション',
+      ownedPlatformLabel: '所有プラットフォーム',
       addEdition: 'エディションを追加',
       pickRelease: '所有しているエディションを選択',
       pickSynthetic: 'VNDB のリリース情報なし — 汎用エディションで登録',

@@ -130,6 +130,17 @@ export default async function DumpedPage({
           <HardDriveDownload className="h-6 w-6 text-accent" aria-hidden /> {t.dumped.pageTitle}
         </h1>
         <p className="mt-1 text-sm text-muted">{t.dumped.pageSubtitle}</p>
+        {/*
+          Edition-level data-model disclaimer. The operator flagged
+          per-row counters like `Ai Kiss 0 / 2` as confusing because
+          they read at first glance as if the VN itself is half-
+          dumped. The model is per-owned-edition; this banner +
+          the row counter unit make that explicit at every
+          rendering surface.
+        */}
+        <p className="mt-2 inline-flex items-start gap-1 rounded-md bg-bg-elev/50 px-2 py-1 text-[11px] text-muted">
+          {t.dumped.modelHint}
+        </p>
 
         {summary.totalEditions > 0 || summary.fullyDumpedVns > 0 ? (
           <>
@@ -291,7 +302,18 @@ export default async function DumpedPage({
                               ) : hasEditionCounter ? (
                                 <>
                                   <ArrowDown className="h-3 w-3" aria-hidden />
-                                  {e.dumped_editions} / {e.total_editions}
+                                  {/*
+                                    Explicit unit so the counter
+                                    reads as edition-level, not VN-
+                                    level. Operator flagged the bare
+                                    "0 / 2" rendering as ambiguous
+                                    — a VN itself can never be
+                                    half-dumped, only its owned
+                                    editions can.
+                                  */}
+                                  {t.dumped.counter
+                                    .replace('{n}', String(e.dumped_editions))
+                                    .replace('{m}', String(e.total_editions))}
                                 </>
                               ) : null}
                             </p>

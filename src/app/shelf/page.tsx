@@ -374,27 +374,67 @@ export default async function ShelfPage({
                               rows still surface something useful.
                             */}
                             {(() => {
-                              const platforms = e.rel_platforms.length > 0 ? e.rel_platforms : e.vn_platforms;
+                              // Owned-edition-first chip rendering. If the
+                              // operator pinned a specific `owned_platform`
+                              // on this edition, show ONLY that platform as
+                              // the primary chip — never let the release's
+                              // generic [win, psp, ps2] aggregate override
+                              // the explicit ownership. The release-level
+                              // multi-platform list still renders as a
+                              // muted secondary row below.
+                              const ownedPlatform = e.owned_platform ?? null;
+                              const fallbackPlatforms = e.rel_platforms.length > 0
+                                ? e.rel_platforms
+                                : e.vn_platforms;
+                              const primaryPlatforms = ownedPlatform
+                                ? [ownedPlatform]
+                                : fallbackPlatforms;
                               const languages = e.rel_languages.length > 0 ? e.rel_languages : e.vn_languages;
-                              if (platforms.length === 0 && languages.length === 0) return null;
+                              const secondaryPlatforms = ownedPlatform
+                                ? fallbackPlatforms.filter((p) => p !== ownedPlatform)
+                                : [];
+                              if (primaryPlatforms.length === 0 && languages.length === 0) return null;
                               return (
-                                <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted">
-                                  {platforms.slice(0, 3).map((p) => (
-                                    <span
-                                      key={`p-${p}`}
-                                      className="rounded bg-bg px-1 py-0.5 uppercase tracking-wider"
-                                    >
-                                      {platformLabel(p)}
-                                    </span>
-                                  ))}
-                                  {languages.slice(0, 3).map((l) => (
-                                    <span
-                                      key={`l-${l}`}
-                                      className="rounded bg-bg px-1 py-0.5"
-                                    >
-                                      {languageDisplayName(l)}
-                                    </span>
-                                  ))}
+                                <div className="mt-1 flex flex-col gap-0.5 text-[10px]">
+                                  <div className="flex flex-wrap gap-1 text-muted">
+                                    {primaryPlatforms.slice(0, 3).map((p) => (
+                                      <span
+                                        key={`p-${p}`}
+                                        className={
+                                          ownedPlatform === p
+                                            ? 'rounded bg-accent/20 px-1 py-0.5 uppercase tracking-wider text-accent'
+                                            : 'rounded bg-bg px-1 py-0.5 uppercase tracking-wider'
+                                        }
+                                        title={
+                                          ownedPlatform === p
+                                            ? t.inventory.ownedPlatformLabel
+                                            : undefined
+                                        }
+                                      >
+                                        {platformLabel(p)}
+                                      </span>
+                                    ))}
+                                    {languages.slice(0, 3).map((l) => (
+                                      <span
+                                        key={`l-${l}`}
+                                        className="rounded bg-bg px-1 py-0.5 text-muted"
+                                      >
+                                        {languageDisplayName(l)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  {secondaryPlatforms.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 text-[9px] text-muted/60">
+                                      <span className="uppercase tracking-wider">
+                                        {t.shelf.alsoOnRelease}
+                                      </span>
+                                      {secondaryPlatforms.slice(0, 4).map((p) => (
+                                        <span key={`sp-${p}`} className="rounded bg-bg/40 px-1">
+                                          {platformLabel(p)}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })()}

@@ -116,7 +116,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </header>
                 <main
                   id="main-content"
-                  className="mx-auto max-w-7xl px-3 pb-16 pt-6 sm:px-6 sm:pt-8"
+                  // Tightened top padding (was `pt-6 sm:pt-8`) so the
+                  // navbar doesn't leave a huge dead gap above the
+                  // first home strip / library toolbar. Bottom kept
+                  // at pb-16 to leave room for the floating download-
+                  // status bar.
+                  className="mx-auto max-w-7xl px-3 pb-16 pt-4 sm:px-6 sm:pt-5"
                   tabIndex={-1}
                 >
                   {children}

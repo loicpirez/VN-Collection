@@ -26,7 +26,7 @@ export function RecentlyViewedStrip({ initialState }: Props) {
   if (isHidden || items.length === 0) return null;
 
   return (
-    <section className="mb-6 rounded-2xl border border-border bg-bg-card/60 px-4 py-3">
+    <section className="mb-4 rounded-2xl border border-border bg-bg-card/60 px-4 py-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-muted">
           <Clock className="h-3.5 w-3.5 text-accent" aria-hidden /> {t.recently.title}
