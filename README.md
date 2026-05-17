@@ -241,7 +241,6 @@ Refreshing metadata does not add an item to your collection. Collection membersh
 * [CLAUDE.md](CLAUDE.md) — developer and agent guide
 
 ---
-
 ## Data, media, and compliance
 
 VN Collection is a self-hosted personal library manager.
@@ -257,6 +256,10 @@ It does not include, sell, distribute, or host:
 
 The application can download and cache metadata and images from configured public sources for local personal library management. Users are responsible for complying with each source’s terms, license requirements, rate limits, and applicable law.
 
-VNDB data is subject to VNDB’s Data License. ErogameScape data and site content remain subject to ErogameScape and the relevant rights holders. This project does not claim ownership over third-party metadata or media.
+VNDB data is subject to [VNDB’s Data License](https://vndb.org/d17) and the [VNDB Kana API usage terms](https://api.vndb.org/kana).
+
+ErogameScape data and site content remain subject to [ErogameScape](https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/), its site policies, and the relevant rights holders. ErogameScape’s public SQL pages are available through [エロゲーマーのためのSQL](https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/sql_for_erogamer_index.php), but this project does not treat that access as permission to redistribute cached database exports or media.
+
+This project does not claim ownership over third-party metadata or media.
 
 If you publish a fork, demo, screenshot, dataset, or hosted instance, review the upstream terms first and avoid redistributing cached media or database exports unless you have the right to do so.
