@@ -21,41 +21,47 @@ import { MapVnToEgsButton } from './MapVnToEgsButton';
 import { QueueButton } from './QueueButton';
 
 /**
- * Detail-page action toolbar — second acceptance-gate rework.
+ * Detail-page action toolbar — third acceptance-gate rework.
  *
- * The previous regroup left the rendered page as a button wall: a flat
- * row of mismatched buttons, a "Refresh/Sync" cluster label that
- * spoke about transport instead of intent, and a Tracking cluster
- * that lumped unrelated controls together. The new contract is six
- * explicit groups, with the inline cluster strictly limited to four
- * primary tracking affordances:
+ * The previous regroup kept the six logical clusters but rendered as
+ * a heterogeneous wall of buttons: primary buttons and dropdown
+ * triggers shared the same `btn` class with mismatched paddings,
+ * heights drifted between 32 px (FavoriteToggle inline) and 40 px
+ * (CoverQuickActions add), and the destructive cluster nestled in
+ * the same row as the tracking primaries with no visual separator.
  *
- *   1. groupCollection  — favorite, wishlist heart, queue, lists,
- *                          plus the status pill / add button inline;
- *                          remove sits right-anchored as btn-danger.
- *                          AnimeChip stays as inline informational.
- *   2. groupTracking    — series picker, notes editor entry,
- *                          follow-up status, owned editions.
- *   3. groupExternal    — VNDB / EGS / Wikipedia / Wikidata /
- *                          MobyGames / IGDB / GameFAQs / VGMdb /
- *                          ACDB / HowLongToBeat, rendered as a 2-col
- *                          icon grid INSIDE a single dropdown so the
- *                          flat 10-icon row never appears.
- *   4. groupMedia       — cover source, banner source, crop.
- *   5. groupData        — download missing / re-download all, refresh
- *                          releases, refresh release-metadata,
- *                          refresh images, refresh EGS↔VNDB mapping.
- *   6. groupMapping     — compare, map EGS / map VNDB, migrate id.
+ * This pass keeps the six clusters but pins their visual hierarchy:
  *
- * The bar surfaces:
- *   - Exactly 4 inline primary <button>s (favorite, wishlist, queue,
- *     lists). The status pill / AnimeChip are spans, not buttons.
- *   - Exactly 5 <ActionMenu> dropdown triggers (Tracking, External,
- *     Media, Data, Mapping). groupCollection is inline-only.
- *   - Exactly 1 right-anchored <button class="btn-danger"> (Remove).
+ *   - One responsive flex stack: on mobile (<md) the bar is a column
+ *     where each row stacks vertically (primaries, dropdowns, danger),
+ *     separated by a `border-t` rule between dropdowns and danger so
+ *     destructive actions visibly belong to a different band.
+ *   - On md+ everything is a single row with `gap-3` between clusters
+ *     and a `h-6 w-px bg-border/40` vertical separator between the
+ *     primary cluster and the dropdown cluster. The danger cluster is
+ *     pushed right via `md:ml-auto` with its own `md:border-l`
+ *     vertical divider so the destructive button sits visually apart.
+ *   - Every primary button inside the inline cluster is normalised to
+ *     `h-9` via the parent's Tailwind arbitrary variant. Padding is
+ *     tuned down to `py-1.5` so the natural line-height fits the 36 px
+ *     box without overflowing. Icon size is locked at `h-4 w-4`.
+ *   - Each dropdown trigger keeps the `btn` class but is rendered
+ *     through `<ActionMenu>` which already appends `<ChevronDown>` and
+ *     `aria-haspopup="menu"`. The trigger sits inside the second flex
+ *     row on mobile, alongside the primaries on desktop.
+ *   - The External links dropdown is a 2-column icon grid where every
+ *     cell shows the lucide `ExternalLink` glyph + the label (long
+ *     URLs truncate with a tooltip).
  *
- * Each cluster keeps its `role="group"` so screen readers still
- * announce the grouping.
+ * Gating from the previous rework is preserved:
+ *   - Media + Tracking + Dangerous gate on `inCollection`.
+ *   - Data gates on `!isEgsOnly` (NOT `inCollection`).
+ *   - Mapping renders unconditionally.
+ *   - External gates on `showExternalMenu`.
+ *
+ * The `tests/vn-detail-collection-gating.test.ts` greps the source
+ * for those gating expressions — the const declarations below must
+ * keep their `const x = condition ?` shape so the pin doesn't fire.
  */
 interface Props {
   /** Full VN row — used to derive titles, extlinks, custom banner, etc. */
@@ -66,26 +72,49 @@ interface Props {
   egsRow: { egs_id: number | null; image_url?: string | null } | null;
 }
 
+/**
+ * Wrapper classes applied to the primary-buttons row. Tailwind's
+ * arbitrary variants are used to enforce a uniform `h-9` height +
+ * `py-1.5` padding on every child `.btn` (button or anchor) so the
+ * row doesn't drift heights when components mix custom padding into
+ * their `btn` class string. `gap-2` matches the spec.
+ */
+const PRIMARY_ROW_CLASSES =
+  'flex flex-wrap items-center gap-2 ' +
+  '[&_a.btn]:h-9 [&_a.btn]:px-3 [&_a.btn]:py-1.5 ' +
+  '[&_button.btn]:h-9 [&_button.btn]:px-3 [&_button.btn]:py-1.5';
+
+/**
+ * Dropdown-cluster classes — same `h-9` lock but tighter horizontal
+ * padding so the chevron caret rendered by `<ActionMenu>` reads as
+ * part of the trigger rather than an afterthought. `gap-2` between
+ * triggers; rows INSIDE each dropdown panel use `gap-1.5` (set on
+ * each menu's body separately).
+ */
+const DROPDOWN_ROW_CLASSES =
+  'flex flex-wrap items-center gap-2 ' +
+  '[&_button.btn]:h-9 [&_button.btn]:px-3 [&_button.btn]:py-1.5';
+
 export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   const t = await getDict();
   const isEgsOnly = vn.id.startsWith('egs_');
   const screenshots: Screenshot[] = vn.screenshots ?? [];
   const releaseImages: ReleaseImage[] = vn.release_images ?? [];
-  // Every external link folds into the dropdown; the flat 10-icon
-  // row was the loudest button-wall offender on the rendered page.
   const extlinks = vn.extlinks ?? [];
   const hasExtlinks = extlinks.length > 0;
   const showExternalMenu = !isEgsOnly || hasExtlinks || !!egsRow?.egs_id;
 
   // ── Cluster 1: Collection (inline only — NO dropdown) ────────────
-  // Four primary inline buttons (favorite, wishlist heart, queue,
-  // lists) sit above the cluster row. The status pill is a passive
-  // <AnimeChip>; the Add button is rendered inline only when the VN
-  // is missing from the collection — otherwise the row stays at the
-  // four primary buttons. Remove lives in the right-anchored danger
-  // cluster below so the destructive action is visually separated.
+  // The four primary buttons (favorite, wishlist heart, queue, lists)
+  // sit in the first row. AnimeChip is passive and folds in next to
+  // them on desktop (it's a span, not a button, and stays out of the
+  // h-9 enforcement so its compact pill shape survives).
   const collection = (
-    <ActionGroup label={t.detail.actions.groupCollection}>
+    <div
+      role="group"
+      aria-label={t.detail.actions.groupCollection}
+      className={PRIMARY_ROW_CLASSES}
+    >
       {inCollection && (
         <FavoriteToggleButton
           vnId={vn.id}
@@ -98,16 +127,13 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
       {inCollection && <QueueButton vnId={vn.id} />}
       <ListsPickerButton vnId={vn.id} variant="inline" />
       {inCollection && <AnimeChip vnId={vn.id} />}
-    </ActionGroup>
+    </div>
   );
 
   // ── Cluster 2: Tracking (single dropdown) ────────────────────────
-  // The actual notes / series / owned-editions editors render
-  // further down the VN page (inside `<EditForm>`, `<SeriesAutoSuggest>`,
-  // `<OwnedEditionsSection>`). The dropdown surfaces anchor links to
-  // those sections so a user landing on the bar can jump straight to
-  // the editor without scrolling — every link uses a fragment anchor
-  // that the receiving section reads via `id="…"`.
+  // Anchor links inside the dropdown jump to the in-page sections
+  // (notes / series / owned-editions) so the inline row never has
+  // to grow beyond its four primaries.
   const tracking = inCollection ? (
     <ActionMenu
       label={t.detail.actions.groupTracking}
@@ -120,7 +146,11 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
       menuClassName="w-56 rounded-lg border border-border bg-bg-card p-1 shadow-card"
       defaultPlacement="bottom-left"
     >
-      <div className="flex flex-col gap-0.5" role="group" aria-label={t.detail.actions.groupTracking}>
+      <div
+        className="flex flex-col gap-1.5"
+        role="group"
+        aria-label={t.detail.actions.groupTracking}
+      >
         <TrackingAnchor href="#section-series" label={t.detail.seriesSection} />
         <TrackingAnchor href="#section-edit" label={t.form.myTracking} />
         <TrackingAnchor href="#section-notes" label={t.form.personalNotes} />
@@ -130,10 +160,9 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   ) : null;
 
   // ── Cluster 3: External links (single dropdown) ─────────────────
-  // The trigger sits inline; the menu body is a 2-column icon grid
-  // with the lucide `ExternalLink` glyph plus the label. VNDB / EGS
-  // sit at the top so they're the most prominent options; every
-  // VNDB-reported extlink is appended below.
+  // 2-column icon grid; every row shows icon + label so the operator
+  // can read where each link goes (the previous flat 10-icon row
+  // hid every label behind a tooltip).
   const external = showExternalMenu ? (
     <ActionMenu
       label={t.detail.actions.groupExternal}
@@ -147,7 +176,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
       defaultPlacement="bottom-left"
     >
       <div
-        className="grid grid-cols-2 gap-1"
+        className="grid grid-cols-2 gap-1.5"
         role="group"
         aria-label={t.detail.actions.groupExternal}
       >
@@ -171,8 +200,6 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   ) : null;
 
   // ── Cluster 4: Media (single dropdown) ──────────────────────────
-  // Both source pickers open their own dialogs. Folding them inside
-  // a dropdown keeps the inline row at four primaries.
   const media = inCollection ? (
     <ActionMenu
       label={t.detail.actions.groupMedia}
@@ -185,7 +212,11 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
       menuClassName="w-56 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
-      <div className="flex flex-col gap-1" role="group" aria-label={t.detail.actions.groupMedia}>
+      <div
+        className="flex flex-col gap-1.5"
+        role="group"
+        aria-label={t.detail.actions.groupMedia}
+      >
         <CoverSourcePicker
           vnId={vn.id}
           vndbImage={vn.image_url}
@@ -208,15 +239,9 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   ) : null;
 
   // ── Cluster 5: Data (single dropdown) ──────────────────────────
-  // Data + metadata actions are intentionally NOT gated on collection
-  // membership. The operator can open `/vn/<id>` from an EGS top-
-  // ranked link, a search hit, or an anticipated row — they STILL
-  // need to refresh the VNDB metadata cache, re-mirror images, and
-  // re-materialise `release_meta_cache`. The route
-  // `POST /api/collection/[id]/assets` was relaxed in tandem so it
-  // operates on the `vn` table (per-VN cache), not on `collection`
-  // (per-tracking-row). Synthetic `egs_*` ids still skip the menu —
-  // there's no VNDB metadata to refresh on a synthetic row.
+  // Intentionally NOT gated on collection — the operator can still
+  // need the VNDB metadata refresh from a search-hit landing. See
+  // `tests/vn-detail-collection-gating.test.ts` for the pin.
   const data = !isEgsOnly ? (
     <ActionMenu
       label={t.detail.actions.groupData}
@@ -234,9 +259,6 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   ) : null;
 
   // ── Cluster 6: Mapping (single dropdown) ────────────────────────
-  // Compare + map EGS/VNDB + the heavyweight id migration all open
-  // large modals, so a single dropdown trigger keeps them out of
-  // the inline row.
   const mapping = (
     <ActionMenu
       label={t.detail.actions.groupMapping}
@@ -249,7 +271,11 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
       menuClassName="w-64 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-right"
     >
-      <div className="flex flex-col gap-1" role="group" aria-label={t.detail.actions.groupMapping}>
+      <div
+        className="flex flex-col gap-1.5"
+        role="group"
+        aria-label={t.detail.actions.groupMapping}
+      >
         <CompareWithButton currentVnId={vn.id} />
         {!isEgsOnly && (
           <MapVnToEgsButton
@@ -265,63 +291,66 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
     </ActionMenu>
   );
 
-  // ── Destructive (rendered last, pushed right) ────────────────────
-  const dangerous = inCollection ? (
-    <ActionGroup label={t.detail.actions.groupDangerous} tone="danger">
-      <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />
-    </ActionGroup>
-  ) : null;
+  // The dropdown cluster groups every secondary dropdown trigger
+  // into a single row on desktop. Empty entries are filtered out so
+  // a missing menu (e.g. `tracking` on an out-of-collection VN)
+  // doesn't leave dead whitespace.
+  const dropdownTriggers = [tracking, external, media, data, mapping].filter(Boolean);
 
-  // Build the linear list, skipping empty clusters so we never render
-  // a stray separator.
-  const blocks = [collection, tracking, external, media, data, mapping, dangerous].filter(
-    Boolean,
-  );
+  // ── Destructive (rendered last, right-anchored on md+) ───────────
+  const dangerous = inCollection ? (
+    <div
+      role="group"
+      aria-label={t.detail.actions.groupDangerous}
+      className={
+        // On mobile: full-width row separated from the dropdowns
+        // above by a `border-t` rule + top padding so the
+        // destructive action visually belongs to a different band.
+        // On desktop: right-anchored with `md:ml-auto`, a left
+        // vertical divider, and no top border (the desktop divider
+        // already carries the separation duty).
+        'mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 ' +
+        'md:mt-0 md:ml-auto md:border-l md:border-t-0 md:border-border/60 md:pl-3 md:pt-0 ' +
+        '[&_button.btn]:h-9 [&_button.btn]:px-3 [&_button.btn]:py-1.5'
+      }
+    >
+      <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />
+    </div>
+  ) : null;
 
   return (
     <nav
       aria-label={t.detail.actions.ariaLabel}
-      className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"
+      className="mt-3 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:gap-3"
     >
-      {blocks.map((g, i) => (
-        <div key={i} className="contents">
-          {g}
-          {i < blocks.length - 1 && (
-            <span
-              aria-hidden
-              className="hidden h-7 w-px shrink-0 self-center bg-border/70 md:inline-block"
-            />
-          )}
+      {collection}
+      {/*
+        Desktop-only vertical separator between the primary inline
+        cluster and the dropdown cluster. On mobile each cluster
+        already lives on its own row, so the divider would be a
+        rotated 1-pixel sliver — hidden via `hidden md:inline-block`.
+      */}
+      {dropdownTriggers.length > 0 && (
+        <span
+          aria-hidden
+          className="hidden h-6 w-px shrink-0 self-center bg-border/40 md:inline-block"
+        />
+      )}
+      {dropdownTriggers.length > 0 && (
+        <div
+          role="group"
+          aria-label={t.detail.actions.ariaLabel}
+          className={DROPDOWN_ROW_CLASSES}
+        >
+          {dropdownTriggers.map((trigger, i) => (
+            <span key={i} className="contents">
+              {trigger}
+            </span>
+          ))}
         </div>
-      ))}
+      )}
+      {dangerous}
     </nav>
-  );
-}
-
-/**
- * Single action cluster shell. The `tone='danger'` variant pushes
- * the cluster right-aligned on `md+` so the destructive Remove
- * button sits visually apart from the tracking primaries.
- */
-function ActionGroup({
-  label,
-  tone,
-  children,
-}: {
-  label: string;
-  tone?: 'danger';
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      role="group"
-      aria-label={label}
-      className={`flex flex-wrap items-center gap-2 ${
-        tone === 'danger' ? 'md:ml-auto' : ''
-      }`}
-    >
-      {children}
-    </div>
   );
 }
 

@@ -5,7 +5,15 @@ import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Check, Download, Eye, EyeOff, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
-import { useDisplaySettings } from '@/lib/settings/client';
+import {
+  CARD_DENSITY_DEFAULT,
+  DENSITY_SCOPES,
+  clearAllScopeDensities,
+  hasScopeOverride,
+  type DensityScope,
+  type DensityScopes,
+  useDisplaySettings,
+} from '@/lib/settings/client';
 import { GlobalCardDensitySlider } from './CardDensitySlider';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
@@ -339,11 +347,21 @@ export function SettingsButton() {
                         onChange={(v) => set('preferNativeTitle', v)}
                       />
                     </div>
+                    {/*
+                      Density panel — split into two sections so the
+                      operator can tell that the legacy global default
+                      (`cardDensityPx`) only seeds pages that have NOT
+                      been touched. Scoped overrides live below, each
+                      with a Reset button that drops the override; the
+                      bulk "Reset all per-page" + "Reset everything"
+                      buttons sit at the bottom.
+                    */}
                     <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
-                      <span className="text-sm font-semibold">{t.settings.cardDensityTitle}</span>
-                      <span className="text-[11px] text-muted">{t.settings.cardDensityDesc}</span>
+                      <span className="text-sm font-semibold">{t.settings.cardDensityDefault}</span>
+                      <span className="text-[11px] text-muted">{t.settings.cardDensityDefaultHint}</span>
                       <GlobalCardDensitySlider className="mt-1 self-start" />
                     </div>
+                    <PerPageDensityPanel />
                   </div>
                 )}
 
@@ -999,6 +1017,98 @@ function VnLayoutPanel({
       {hiddenCount === 0 && (
         <p className="text-[10px] text-muted">{t.vnLayout.hiddenNoneHint}</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Settings → Display panel for per-page density overrides. Lists every
+ * scope from `DENSITY_SCOPES`, surfaces which ones currently carry an
+ * override, and offers a Reset button per row. The bulk-reset row at
+ * the bottom clears either every override (leaving the legacy default
+ * intact) or every density preference at once.
+ *
+ * Reads + writes go through `useDisplaySettings()` so the changes
+ * propagate to every grid mounted on the page without a router
+ * refresh — Settings is a portal inside the persistent layout.
+ */
+function PerPageDensityPanel() {
+  const t = useT();
+  const { settings, set } = useDisplaySettings();
+  const density = settings.density ?? {};
+
+  function resetScope(scope: DensityScope) {
+    const next: DensityScopes = { ...density };
+    delete next[scope];
+    set('density', next);
+  }
+
+  function resetAllScopes() {
+    set('density', clearAllScopeDensities(settings));
+  }
+
+  function resetEverything() {
+    set('density', clearAllScopeDensities(settings));
+    set('cardDensityPx', CARD_DENSITY_DEFAULT);
+  }
+
+  const someOverride = DENSITY_SCOPES.some((s) => hasScopeOverride(settings, s));
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
+      <span className="text-sm font-semibold">{t.settings.perPageDensity}</span>
+      <span className="text-[11px] text-muted">{t.settings.perPageDensityHint}</span>
+      <ul className="mt-1 grid gap-1 sm:grid-cols-2">
+        {DENSITY_SCOPES.map((scope) => {
+          const overridden = hasScopeOverride(settings, scope);
+          const value = density[scope];
+          return (
+            <li
+              key={scope}
+              className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-bg-card/40 px-2 py-1 text-[11px]"
+            >
+              <span className={overridden ? 'text-white' : 'text-muted'}>
+                {t.cardDensity.scope[scope]}
+              </span>
+              <span className="ml-auto inline-flex items-center gap-1.5">
+                {overridden ? (
+                  <span className="tabular-nums text-accent">{value}px</span>
+                ) : (
+                  <span className="text-[10px] italic text-muted/80">
+                    {t.settings.followsDefault}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => resetScope(scope)}
+                  disabled={!overridden}
+                  className="rounded-md border border-border bg-bg-elev/40 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
+                  title={t.settings.perPageReset}
+                >
+                  {t.settings.perPageReset}
+                </button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
+        <button
+          type="button"
+          onClick={resetAllScopes}
+          disabled={!someOverride}
+          className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
+        >
+          {t.settings.perPageResetAll}
+        </button>
+        <button
+          type="button"
+          onClick={resetEverything}
+          className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-status-dropped hover:text-status-dropped"
+        >
+          {t.settings.resetEverything}
+        </button>
+      </div>
     </div>
   );
 }

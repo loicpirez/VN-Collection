@@ -65,13 +65,29 @@ export function CardDensitySlider({
     set('density', nextDensity);
   };
 
+  // Surface the "custom vs fallback" state to the operator. When the
+  // scope has its own override we render a small chip + tooltip the
+  // wrapper with "Override actif"; when it inherits we tooltip "Suit
+  // la valeur par défaut" so the user understands the slider edits a
+  // per-page slot, not a global default.
+  const followsDefaultTitle = t.cardDensity.followsDefault;
+  const customTitle = t.cardDensity.customOverride;
   return (
     <div
       className={`inline-flex items-center gap-2 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] ${className}`}
+      title={canReset ? customTitle : followsDefaultTitle}
     >
       <label htmlFor={id} className="inline-flex items-center gap-1 text-muted">
         <LayoutGrid className="h-3 w-3" aria-hidden />
         <span>{t.cardDensity.label}</span>
+        {canReset && (
+          <span
+            className="ml-1 inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-1 py-0 text-[9px] font-semibold text-accent"
+            title={customTitle}
+          >
+            {t.cardDensity.customOverrideChip}
+          </span>
+        )}
       </label>
       <button
         type="button"

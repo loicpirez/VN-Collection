@@ -30,6 +30,7 @@ export const DENSITY_SCOPES = [
   'vnSimilar',
   'vnMedia',
   'shelf',
+  'tagPage',
 ] as const;
 
 export type DensityScope = (typeof DENSITY_SCOPES)[number];
@@ -133,6 +134,42 @@ export const CARD_DENSITY_DEFAULT = 220;
 export function clampCardDensity(px: number): number {
   if (!Number.isFinite(px)) return CARD_DENSITY_DEFAULT;
   return Math.max(CARD_DENSITY_MIN, Math.min(CARD_DENSITY_MAX, Math.round(px)));
+}
+
+/**
+ * Pure helper: does a settings object carry an explicit per-scope
+ * override for the given scope? Exported so the Settings panel can
+ * label a row as "Suit la valeur par défaut" vs "Personnalisé"
+ * without re-implementing the predicate against the typed `density`
+ * map. Returns `false` for `undefined`, `null`, non-finite, and for
+ * the absence of the `density` map entirely — anything else counts
+ * as an override.
+ */
+export function hasScopeOverride(
+  settings: Pick<DisplaySettings, 'density'> | null | undefined,
+  scope: DensityScope,
+): boolean {
+  const v = settings?.density?.[scope];
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+/**
+ * Pure helper: produce a `density` map with every per-scope override
+ * cleared. The legacy `cardDensityPx` is intentionally NOT touched
+ * here — Settings → Display surfaces two distinct reset buttons
+ * (per-page only vs everything) so the helper can be reused for the
+ * narrower of the two without clobbering the user's preferred
+ * default. Returns a fresh empty object so callers can pass it
+ * straight into `set('density', …)` without aliasing.
+ */
+export function clearAllScopeDensities(
+  _settings: Pick<DisplaySettings, 'density'> | null | undefined,
+): DensityScopes {
+  // The current contract is "clear everything" so the input is
+  // unused; signature keeps it for parity with future "clear except
+  // pinned" variants without forcing a call-site refactor.
+  void _settings;
+  return {};
 }
 
 /**
