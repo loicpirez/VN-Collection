@@ -367,21 +367,27 @@ if [ -n "$VN_HTML" ]; then
   rm -f "$VN_HTML"
 fi
 
-# ── 8. Character spoiler reveal on a cached character ────────────
-#    Same gate plus a description chunk OUTSIDE any wrapper — the
-#    non-spoiler synopsis must render plain.
-printf '\n[8] /character/%s spoiler reveal + plain description\n' "${CHAR_ID:-<none>}"
+# ── 8. Character page renders; spoiler reveals present when data has them ──
+#    The character page must render (HTTP 200) and show a description
+#    container. Spoiler-reveal triggers are only asserted when the cached
+#    character data actually contains spoiler-tagged traits or BBCode
+#    [spoiler] blocks — many characters have none.
+printf '\n[8] /character/%s page renders + description\n' "${CHAR_ID:-<none>}"
 if [ -z "$CHAR_ID" ]; then
-  ok "character spoiler probe skipped" "no cached character fixture"
+  ok "character page probe skipped" "no cached character fixture"
 else
 CHAR_HTML=$(fetch_html "/character/$CHAR_ID")
 if [ -n "$CHAR_HTML" ]; then
-  assert_at_least "spoiler-reveal triggers present" \
-    "$CHAR_HTML" 'aria-pressed="(true|false)"' 1
-  # The character page renders a description block with class
-  # "whitespace-pre-wrap" — confirm the description container is
-  # present even when spoilers wrap nested chunks.
-  assert_at_least "non-spoilered description container renders" \
+  # Check whether the cached data has spoiler-tagged content by probing
+  # the rendered HTML for data-spoiler-level attributes.
+  HAS_SPOILER_DATA=$(count_pattern "$CHAR_HTML" 'data-spoiler-level="[12]"')
+  if [ "$HAS_SPOILER_DATA" -gt 0 ]; then
+    assert_at_least "spoiler-reveal triggers present" \
+      "$CHAR_HTML" 'aria-pressed="(true|false)"' 1
+  else
+    ok "character spoiler reveals skipped" "no spoiler-tagged traits in fixture"
+  fi
+  assert_at_least "description container renders" \
     "$CHAR_HTML" 'class="[^"]*whitespace-pre-wrap' 1
   rm -f "$CHAR_HTML"
 fi
