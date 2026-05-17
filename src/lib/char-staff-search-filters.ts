@@ -35,6 +35,8 @@ export interface CharacterSearchParams {
   vn: string | null;
 }
 
+export type StaffSearchScope = 'all' | 'collection';
+
 export interface StaffSearchParams {
   tab: StaffSearchTab;
   q: string;
@@ -44,6 +46,13 @@ export interface StaffSearchParams {
   lang: string | null;
   /** Filter by a credited VN id (`v\d+`). */
   vn: string | null;
+  /**
+   * `all` — mix local + VNDB results (default).
+   * `collection` — only search local `vn_staff_credit` rows tied to
+   *                the operator's collection. Useful for "every
+   *                translator credited on a VN I own".
+   */
+  scope: StaffSearchScope;
 }
 
 const CHARACTER_ROLES: readonly CharacterRole[] = ['main', 'primary', 'side', 'appears'];
@@ -106,7 +115,8 @@ export function parseStaffSearchParams(
   const lang = langRaw && /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/i.test(langRaw) ? langRaw : null;
   const vnRaw = pickFirst(raw.vn) ?? null;
   const vn = vnRaw && /^v\d+$/i.test(vnRaw) ? vnRaw.toLowerCase() : null;
-  return { tab, q, role, lang, vn };
+  const scope: StaffSearchScope = pickFirst(raw.scope) === 'collection' ? 'collection' : 'all';
+  return { tab, q, role, lang, vn, scope };
 }
 
 /**

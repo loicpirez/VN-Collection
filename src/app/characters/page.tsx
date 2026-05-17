@@ -1,17 +1,20 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { ArrowLeft, UserSquare, X } from 'lucide-react';
 import { searchCharacters, type VndbCharacter } from '@/lib/vndb';
-import { db } from '@/lib/db';
+import { searchLocalCharacters } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import {
   characterBrowseHref,
   filterCharacters,
   groupCharacters,
+  hasActiveCharacterFilter,
   parseCharacterBrowseParams,
   sortCharacters,
   type BloodType,
+  type CharacterBrowseParams,
   type CharacterRole,
   type CharacterSex,
   type CharacterSort,
@@ -32,17 +35,26 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 }
 
 /**
- * /characters — real browsing experience.
+ * `/characters` — full-featured browsing experience.
  *
- * - Tabs: Local / VNDB / Combined.
- * - Filter chips: sex, role, blood type, seiyuu language, has-voice,
- *   has-image (every chip is a `<Link>` so the page is shareable).
- * - Sort: name / height / age / birthday-month + reverse toggle.
- * - Group-by: blood / birthMonth / sex / role.
- * - Cards: avatar, name, original, sex+age, role, # VN appearances.
+ * The page is server-rendered so the URL is the only source of
+ * truth. It dispatches between three tabs (Local / VNDB / Combined)
+ * and surfaces real filter controls (chip groups, range inputs,
+ * segmented controls). Three behaviours that differ from a plain
+ * search box:
  *
- * Local mode is backed by cached character payloads tied to collection
- * VNs. VNDB mode uses remote search. Combined mode dedupes both.
+ *  1. When `q` matches `^c\d+$` we redirect server-side to the
+ *     canonical `/character/<id>` page. The operator can paste a
+ *     VNDB character id into the input and hit Enter (the form is
+ *     a plain GET so the redirect lives on the same page load).
+ *  2. When `q` is empty but at least one chip / range is active,
+ *     the local tab still runs `searchLocalCharacters({...filters})`
+ *     so the operator can browse "every female main lead I own"
+ *     without typing a query. The previous build short-circuited
+ *     to an idle hint.
+ *  3. The reset button clears every chip / range while preserving
+ *     the active query so the operator can dial filters back to
+ *     zero without losing the search context.
  */
 export default async function CharactersPage({ searchParams }: PageProps) {
   const t = await getDict();
@@ -52,10 +64,26 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   const tab = params.tab;
   const query = params.q;
 
-  const localResults = query ? loadLocalCharacters(query) : [];
-  const vndbResults = query && tab !== 'local'
-    ? await searchCharacters(query, { results: 60 }).catch(() => [])
-    : [];
+  if (/^c\d+$/i.test(query)) {
+    redirect(`/character/${query.toLowerCase()}`);
+  }
+
+  const hasFilters = hasActiveCharacterFilter(params);
+  const shouldQuery = query.length > 0 || hasFilters;
+
+  let localResults: VndbCharacter[] = [];
+  if (shouldQuery && tab !== 'vndb') {
+    localResults = searchLocalCharacters({ q: query || undefined, limit: 200 }).map(
+      (row) => ({
+        ...(row.profile as unknown as VndbCharacter),
+        voice_languages: row.voice_languages,
+      }),
+    );
+  }
+  let vndbResults: VndbCharacter[] = [];
+  if (query && tab !== 'local') {
+    vndbResults = await searchCharacters(query, { results: 60 }).catch(() => []);
+  }
   const allResults =
     tab === 'local'
       ? localResults
@@ -68,6 +96,27 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   const filtered = filterCharacters(ageGated, params);
   const sorted = sortCharacters(filtered, params);
   const groups = groupCharacters(sorted, params.groupBy);
+
+  const ranges = {
+    ageMin: params.ageMin?.toString() ?? '',
+    ageMax: params.ageMax?.toString() ?? '',
+    heightMin: params.heightMin?.toString() ?? '',
+    heightMax: params.heightMax?.toString() ?? '',
+  };
+
+  const resetHref = characterBrowseHref(params, {
+    role: null,
+    sex: null,
+    blood: null,
+    vaLang: null,
+    hasVoice: null,
+    hasImage: null,
+    birthMonth: null,
+    ageMin: null,
+    ageMax: null,
+    heightMin: null,
+    heightMax: null,
+  });
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -88,15 +137,20 @@ export default async function CharactersPage({ searchParams }: PageProps) {
             defaultValue={query}
             placeholder={t.charactersSearch.searchPlaceholder}
             aria-label={t.charactersSearch.searchPlaceholder}
-            className="flex-1 min-w-[200px] rounded-lg border border-border bg-bg px-3 py-2 text-sm"
+            className="input flex-1 min-w-[200px]"
           />
           {tab !== 'local' && <input type="hidden" name="tab" value={tab} />}
-          {params.role && <input type="hidden" name="role" value={params.role} />}
-          {params.sex && <input type="hidden" name="sex" value={params.sex} />}
-          {params.blood && <input type="hidden" name="blood" value={params.blood} />}
-          {params.vaLang && <input type="hidden" name="vaLang" value={params.vaLang} />}
+          {forwardChip('role', params.role)}
+          {forwardChip('sex', params.sex)}
+          {forwardChip('bloodType', params.blood)}
+          {forwardChip('vaLang', params.vaLang)}
           {params.hasVoice != null && <input type="hidden" name="hasVoice" value={params.hasVoice ? '1' : '0'} />}
           {params.hasImage != null && <input type="hidden" name="hasImage" value={params.hasImage ? '1' : '0'} />}
+          {forwardChip('birthMonth', params.birthMonth?.toString() ?? null)}
+          {forwardChip('ageMin', params.ageMin?.toString() ?? null)}
+          {forwardChip('ageMax', params.ageMax?.toString() ?? null)}
+          {forwardChip('heightMin', params.heightMin?.toString() ?? null)}
+          {forwardChip('heightMax', params.heightMax?.toString() ?? null)}
           {params.sort !== 'name' && <input type="hidden" name="sort" value={params.sort} />}
           {params.reverse && <input type="hidden" name="reverse" value="1" />}
           {params.groupBy && <input type="hidden" name="groupBy" value={params.groupBy} />}
@@ -129,144 +183,228 @@ export default async function CharactersPage({ searchParams }: PageProps) {
           ))}
         </nav>
 
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
-          <span className="text-muted">{t.charactersSearch.filtersLabel}:</span>
-          {(['main', 'primary', 'side', 'appears'] as const satisfies readonly CharacterRole[]).map((r) => (
-            <Link
-              key={r}
-              href={characterBrowseHref(params, { role: params.role === r ? null : r })}
-              className={`rounded-md border px-2 py-0.5 transition-colors ${
-                params.role === r
-                  ? 'border-accent bg-accent/15 text-accent font-bold'
-                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-              }`}
-              aria-pressed={params.role === r}
+        {/* Segmented controls — each row is a labelled group of `.chip` /
+            `.chip-active` buttons so the visual contract matches the rest of
+            the toolbar. Tooltips on icon-only chips via `title`. */}
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <SegmentRow label={t.charactersSearch.filters.role}>
+            <ChipLink active={params.role == null} href={characterBrowseHref(params, { role: null })}>
+              {t.charactersSearch.filters.any}
+            </ChipLink>
+            {(['main', 'primary', 'side', 'appears'] as const satisfies readonly CharacterRole[]).map((r) => (
+              <ChipLink
+                key={r}
+                active={params.role === r}
+                href={characterBrowseHref(params, { role: params.role === r ? null : r })}
+              >
+                {t.charactersSearch.role[r]}
+              </ChipLink>
+            ))}
+          </SegmentRow>
+
+          <SegmentRow label={t.charactersSearch.filters.sex}>
+            <ChipLink active={params.sex == null} href={characterBrowseHref(params, { sex: null })}>
+              {t.charactersSearch.filters.any}
+            </ChipLink>
+            {(['f', 'm', 'b', 'n'] as const satisfies readonly CharacterSex[]).map((s) => (
+              <ChipLink
+                key={s}
+                active={params.sex === s}
+                href={characterBrowseHref(params, { sex: params.sex === s ? null : s })}
+              >
+                {t.charactersSearch.sex[s]}
+              </ChipLink>
+            ))}
+          </SegmentRow>
+
+          <SegmentRow label={t.charactersSearch.filters.blood}>
+            <ChipLink active={params.blood == null} href={characterBrowseHref(params, { blood: null })}>
+              {t.charactersSearch.filters.any}
+            </ChipLink>
+            {(['a', 'b', 'ab', 'o'] as const satisfies readonly BloodType[]).map((b) => (
+              <ChipLink
+                key={b}
+                active={params.blood === b}
+                href={characterBrowseHref(params, { blood: params.blood === b ? null : b })}
+                className="uppercase"
+              >
+                {b}
+              </ChipLink>
+            ))}
+          </SegmentRow>
+
+          <SegmentRow label={t.charactersSearch.filters.toggles}>
+            <ChipLink
+              active={params.hasImage === true}
+              href={characterBrowseHref(params, { hasImage: params.hasImage === true ? null : true })}
+              title={t.charactersSearch.hasImage}
             >
-              {t.charactersSearch.role[r]}
-            </Link>
-          ))}
-          <span className="text-muted/60">·</span>
-          {(['m', 'f', 'b', 'n'] as const satisfies readonly CharacterSex[]).map((s) => (
-            <Link
-              key={s}
-              href={characterBrowseHref(params, { sex: params.sex === s ? null : s })}
-              className={`rounded-md border px-2 py-0.5 transition-colors ${
-                params.sex === s
-                  ? 'border-accent bg-accent/15 text-accent font-bold'
-                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-              }`}
-              aria-pressed={params.sex === s}
+              {t.charactersSearch.hasImage}
+            </ChipLink>
+            <ChipLink
+              active={params.hasVoice === true}
+              href={characterBrowseHref(params, { hasVoice: params.hasVoice === true ? null : true })}
+              title={t.charactersSearch.hasVoice}
             >
-              {t.charactersSearch.sex[s]}
-            </Link>
-          ))}
-          <span className="text-muted/60">·</span>
-          {(['a', 'b', 'ab', 'o'] as const satisfies readonly BloodType[]).map((b) => (
-            <Link
-              key={b}
-              href={characterBrowseHref(params, { blood: params.blood === b ? null : b })}
-              className={`rounded-md border px-2 py-0.5 uppercase transition-colors ${
-                params.blood === b
-                  ? 'border-accent bg-accent/15 text-accent font-bold'
-                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-              }`}
-              aria-pressed={params.blood === b}
-            >
-              {b}
-            </Link>
-          ))}
-          <span className="text-muted/60">·</span>
-          <Link
-            href={characterBrowseHref(params, { hasImage: params.hasImage === true ? null : true })}
-            className={`rounded-md border px-2 py-0.5 transition-colors ${
-              params.hasImage === true
-                ? 'border-accent bg-accent/15 text-accent font-bold'
-                : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-            }`}
-          >
-            {t.charactersSearch.hasImage}
-          </Link>
-          <Link
-            href={characterBrowseHref(params, { hasVoice: params.hasVoice === true ? null : true })}
-            className={`rounded-md border px-2 py-0.5 transition-colors ${
-              params.hasVoice === true
-                ? 'border-accent bg-accent/15 text-accent font-bold'
-                : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-            }`}
-          >
-            {t.charactersSearch.hasVoice}
-          </Link>
-          <Link
-            href={characterBrowseHref(params, { vaLang: params.vaLang === 'ja' ? null : 'ja' })}
-            className={`rounded-md border px-2 py-0.5 transition-colors ${
-              params.vaLang === 'ja'
-                ? 'border-accent bg-accent/15 text-accent font-bold'
-                : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-            }`}
-          >
-            {t.charactersSearch.voiceJa}
-          </Link>
-          {(params.role || params.sex || params.blood || params.vaLang || params.hasVoice != null || params.hasImage != null) && (
-            <Link
-              href={characterBrowseHref(params, {
-                role: null,
-                sex: null,
-                blood: null,
-                vaLang: null,
-                hasVoice: null,
-                hasImage: null,
-              })}
-              className="rounded-md border border-status-dropped/40 bg-status-dropped/10 px-2 py-0.5 text-status-dropped hover:bg-status-dropped/20"
-              aria-label={t.charactersSearch.resetFilters}
-            >
-              <X className="inline h-3 w-3" aria-hidden /> {t.charactersSearch.resetFilters}
-            </Link>
-          )}
+              {t.charactersSearch.hasVoice}
+            </ChipLink>
+          </SegmentRow>
         </div>
+
+        {/* Range / numeric inputs — submit via the same GET form
+            above. The form encompasses the toolbar, so each input
+            posts back its name on submission. */}
+        <form method="get" className="mt-3 grid gap-3 text-xs sm:grid-cols-3">
+          <input type="hidden" name="q" value={query} />
+          {tab !== 'local' && <input type="hidden" name="tab" value={tab} />}
+          {forwardChip('role', params.role)}
+          {forwardChip('sex', params.sex)}
+          {forwardChip('bloodType', params.blood)}
+          {params.hasVoice != null && <input type="hidden" name="hasVoice" value={params.hasVoice ? '1' : '0'} />}
+          {params.hasImage != null && <input type="hidden" name="hasImage" value={params.hasImage ? '1' : '0'} />}
+          {params.sort !== 'name' && <input type="hidden" name="sort" value={params.sort} />}
+          {params.reverse && <input type="hidden" name="reverse" value="1" />}
+          {params.groupBy && <input type="hidden" name="groupBy" value={params.groupBy} />}
+
+          <fieldset className="rounded-md border border-border bg-bg-elev/30 p-2">
+            <legend className="px-1 text-[10px] uppercase tracking-wider text-muted">
+              {t.charactersSearch.filters.age}
+            </legend>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                inputMode="numeric"
+                name="ageMin"
+                min={0}
+                max={200}
+                defaultValue={ranges.ageMin}
+                placeholder={t.charactersSearch.filters.min}
+                aria-label={t.charactersSearch.filters.ageMin}
+                className="input w-full"
+              />
+              <span className="text-muted">–</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                name="ageMax"
+                min={0}
+                max={200}
+                defaultValue={ranges.ageMax}
+                placeholder={t.charactersSearch.filters.max}
+                aria-label={t.charactersSearch.filters.ageMax}
+                className="input w-full"
+              />
+            </div>
+          </fieldset>
+
+          <fieldset className="rounded-md border border-border bg-bg-elev/30 p-2">
+            <legend className="px-1 text-[10px] uppercase tracking-wider text-muted">
+              {t.charactersSearch.filters.height}
+            </legend>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                inputMode="numeric"
+                name="heightMin"
+                min={0}
+                max={300}
+                defaultValue={ranges.heightMin}
+                placeholder={t.charactersSearch.filters.min}
+                aria-label={t.charactersSearch.filters.heightMin}
+                className="input w-full"
+              />
+              <span className="text-muted">–</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                name="heightMax"
+                min={0}
+                max={300}
+                defaultValue={ranges.heightMax}
+                placeholder={t.charactersSearch.filters.max}
+                aria-label={t.charactersSearch.filters.heightMax}
+                className="input w-full"
+              />
+            </div>
+          </fieldset>
+
+          <fieldset className="rounded-md border border-border bg-bg-elev/30 p-2">
+            <legend className="px-1 text-[10px] uppercase tracking-wider text-muted">
+              {t.charactersSearch.filters.misc}
+            </legend>
+            <div className="flex items-center gap-1">
+              <select
+                name="birthMonth"
+                defaultValue={params.birthMonth?.toString() ?? ''}
+                aria-label={t.charactersSearch.filters.birthMonth}
+                className="input w-full"
+              >
+                <option value="">{t.charactersSearch.filters.birthMonthAny}</option>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    {t.charactersSearch.filters.month.replace('{n}', String(m))}
+                  </option>
+                ))}
+              </select>
+              <select
+                name="vaLang"
+                defaultValue={params.vaLang ?? ''}
+                aria-label={t.charactersSearch.filters.vaLang}
+                className="input w-full"
+              >
+                <option value="">{t.charactersSearch.filters.vaLangAny}</option>
+                <option value="ja">ja</option>
+                <option value="en">en</option>
+                <option value="zh-Hans">zh-Hans</option>
+                <option value="zh-Hant">zh-Hant</option>
+                <option value="ko">ko</option>
+              </select>
+            </div>
+          </fieldset>
+
+          <div className="flex items-center gap-2 sm:col-span-3">
+            <button type="submit" className="btn">
+              {t.charactersSearch.filters.apply}
+            </button>
+            {hasFilters && (
+              <Link href={resetHref} className="chip" aria-label={t.charactersSearch.resetFilters}>
+                <X className="inline h-3 w-3" aria-hidden /> {t.charactersSearch.resetFilters}
+              </Link>
+            )}
+          </div>
+        </form>
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className="text-muted">{t.charactersSearch.sortLabel}</span>
           {(['name', 'height', 'age', 'birthday'] as const satisfies readonly CharacterSort[]).map((s) => (
-            <Link
+            <ChipLink
               key={s}
+              active={params.sort === s}
               href={characterBrowseHref(params, { sort: s === 'name' ? null : s })}
-              className={`rounded-md border px-2 py-0.5 transition-colors ${
-                params.sort === s
-                  ? 'border-accent bg-accent/15 text-accent font-bold'
-                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-              }`}
             >
               {t.charactersSearch.sort[s]}
-            </Link>
+            </ChipLink>
           ))}
-          <Link
+          <ChipLink
+            active={params.reverse}
             href={characterBrowseHref(params, { reverse: params.reverse ? null : true })}
-            className={`rounded-md border px-2 py-0.5 transition-colors ${
-              params.reverse
-                ? 'border-accent bg-accent/15 text-accent font-bold'
-                : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-            }`}
           >
             {t.charactersSearch.reverse}
-          </Link>
+          </ChipLink>
           <span className="ml-2 text-muted">{t.charactersSearch.groupLabel}</span>
           {(['', 'blood', 'birthMonth', 'sex', 'role'] as const satisfies readonly CharacterGroupBy[]).map((g) => (
-            <Link
+            <ChipLink
               key={g || 'none'}
+              active={params.groupBy === g}
               href={characterBrowseHref(params, { groupBy: g || null })}
-              className={`rounded-md border px-2 py-0.5 transition-colors ${
-                params.groupBy === g
-                  ? 'border-accent bg-accent/15 text-accent font-bold'
-                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-              }`}
             >
               {g ? t.charactersSearch.group[g] : t.charactersSearch.group.none}
-            </Link>
+            </ChipLink>
           ))}
         </div>
       </header>
 
-      {query.length === 0 ? (
+      {!shouldQuery ? (
         <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">
           {t.charactersSearch.idleHint}
         </p>
@@ -347,44 +485,59 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   );
 }
 
+function forwardChip(name: string, value: string | null) {
+  if (!value) return null;
+  return <input type="hidden" name={name} value={value} />;
+}
+
+function SegmentRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+      <span className="text-muted">{label}:</span>
+      {children}
+    </div>
+  );
+}
+
+function ChipLink({
+  active,
+  href,
+  children,
+  className,
+  title,
+}: {
+  active: boolean;
+  href: string;
+  children: React.ReactNode;
+  className?: string;
+  title?: string;
+}) {
+  const cls = active ? 'chip chip-active' : 'chip';
+  return (
+    <Link href={href} className={[cls, className].filter(Boolean).join(' ')} aria-pressed={active} title={title}>
+      {children}
+    </Link>
+  );
+}
+
 function dedupeCharacters(list: VndbCharacter[]): VndbCharacter[] {
+  // Combined-tab dedup. Prefer the row that carries an image so the
+  // operator gets a thumbnail when at least one of the local / VNDB
+  // copies has one cached.
   const map = new Map<string, VndbCharacter>();
-  for (const c of list) if (!map.has(c.id)) map.set(c.id, c);
+  for (const c of list) {
+    const prev = map.get(c.id);
+    if (!prev) {
+      map.set(c.id, c);
+      continue;
+    }
+    if (!prev.image?.url && c.image?.url) {
+      map.set(c.id, c);
+    }
+  }
   return [...map.values()];
 }
 
-function loadLocalCharacters(query: string): VndbCharacter[] {
-  const q = query.trim().toLowerCase();
-  const rows = db
-    .prepare(
-      `SELECT vc.cache_key, vc.body
-       FROM vndb_cache vc
-       WHERE vc.cache_key LIKE 'char_full:%'
-         AND EXISTS (
-           SELECT 1 FROM character_vn_index ci
-           JOIN collection c ON c.vn_id = ci.vn_id
-           WHERE ci.character_id = substr(vc.cache_key, length('char_full:') + 1)
-         )`,
-    )
-    .all() as Array<{ cache_key: string; body: string }>;
-  const out: VndbCharacter[] = [];
-  for (const row of rows) {
-    try {
-      const payload = JSON.parse(row.body) as { profile?: VndbCharacter | null };
-      const profile = payload.profile;
-      if (!profile) continue;
-      const haystack = [profile.id, profile.name, profile.original, ...(profile.aliases ?? [])]
-        .filter(Boolean)
-        .join('\n')
-        .toLowerCase();
-      if (q && !haystack.includes(q)) continue;
-      const langRows = db
-        .prepare('SELECT DISTINCT lang FROM vn_va_credit WHERE c_id = ? AND lang IS NOT NULL')
-        .all(profile.id) as Array<{ lang: string }>;
-      out.push({ ...profile, voice_languages: langRows.map((r) => r.lang) } as VndbCharacter);
-    } catch {
-      // Ignore malformed legacy cache rows; they will be refreshed by normal download flows.
-    }
-  }
-  return out.slice(0, 100);
-}
+// `CharacterBrowseParams` is re-exported so the helper file stays the
+// canonical owner of the type contract; the page just narrows it here.
+export type { CharacterBrowseParams };

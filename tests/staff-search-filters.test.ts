@@ -9,13 +9,26 @@ import {
 } from '@/lib/char-staff-search-filters';
 
 describe('parseStaffSearchParams', () => {
-  it('defaults to the Local tab + empty query', () => {
+  it('defaults to the Local tab + empty query + scope=all', () => {
     const r = parseStaffSearchParams({});
     expect(r.tab).toBe('local');
     expect(r.q).toBe('');
     expect(r.role).toBeNull();
     expect(r.lang).toBeNull();
     expect(r.vn).toBeNull();
+    expect(r.scope).toBe('all');
+  });
+
+  it('reads scope=collection from the URL', () => {
+    expect(parseStaffSearchParams({ scope: 'collection' }).scope).toBe('collection');
+    expect(parseStaffSearchParams({ scope: 'invalid' }).scope).toBe('all');
+  });
+
+  it('parses empty-query + role + lang together (the empty-query path)', () => {
+    const r = parseStaffSearchParams({ q: '', role: 'translator', lang: 'ja' });
+    expect(r.q).toBe('');
+    expect(r.role).toBe('translator');
+    expect(r.lang).toBe('ja');
   });
 
   it('reads tab=vndb', () => {

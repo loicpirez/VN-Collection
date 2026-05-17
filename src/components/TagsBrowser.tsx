@@ -1,13 +1,19 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Loader2, Search, Tags } from 'lucide-react';
+import { ArrowRight, ExternalLink, Search, Tags } from 'lucide-react';
 import { RefreshPageButton } from './RefreshPageButton';
 import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import { stripVndbMarkup } from './VndbMarkup';
 import type { VndbTag } from '@/lib/vndb-types';
-import { tagChipHref, tagsPageHref, type TagsPageMode } from '@/lib/tags-page-modes';
+import {
+  groupTagsByCategory,
+  tagChipHref,
+  tagsPageHref,
+  vndbTagExternalHref,
+  type TagsPageMode,
+} from '@/lib/tags-page-modes';
 
 const CATEGORIES: { key: 'cont' | 'ero' | 'tech'; tkey: 'cat_cont' | 'cat_ero' | 'cat_tech' }[] = [
   { key: 'cont', tkey: 'cat_cont' },
@@ -171,44 +177,80 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
       {error && <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">{error}</div>}
 
       {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          <SkeletonRows count={8} withThumb={false} />
-        </div>
+        <SkeletonRows count={8} withThumb={false} />
       ) : results.length === 0 ? (
         <div className="py-12 text-center text-muted">{t.search.noResults}</div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {results.map((tag) => (
-            <Link
-              key={tag.id}
-              href={tagChipHref(mode, tag.id)}
-              className="group block rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
-              title={mode === 'vndb' ? t.tagPage.browse : t.tags.openInLibrary}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="text-sm font-bold transition-colors group-hover:text-accent">{tag.name}</h3>
-                <span className="shrink-0 rounded-md bg-bg-elev px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">
-                  {t.tags[`cat_${tag.category}` as 'cat_cont' | 'cat_ero' | 'cat_tech']}
-                </span>
-              </div>
-              {tag.description && (
-                <p className="mt-1 line-clamp-3 text-xs text-muted">
-                  {stripVndbMarkup(tag.description)}
-                </p>
-              )}
-              <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
-                <span className="tabular-nums">{tag.vn_count.toLocaleString()} {t.tags.vnCount}</span>
-                {tag.aliases.length > 0 && <span className="truncate">· {tag.aliases.slice(0, 2).join(', ')}</span>}
-                <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-                  {mode === 'vndb' ? t.tagPage.browse : t.tags.openInLibrary}
-                  <ArrowRight className="h-3 w-3" aria-hidden />
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
+        <TagTreeView results={results} mode={mode} q={q} />
       )}
+    </div>
+  );
+}
+
+function TagTreeView({ results, mode, q }: { results: VndbTag[]; mode: TagsPageMode; q: string }) {
+  const t = useT();
+  // Memoised so typing into the search box doesn't recompute the
+  // bucket map on every keystroke. The grouping is also where the
+  // client-side `q` substring filter is applied (mirrors what the
+  // local-mode useEffect already does so the two paths agree).
+  const buckets = useMemo(() => groupTagsByCategory(results, q), [results, q]);
+  return (
+    <div className="space-y-6">
+      {buckets.map((bucket) => {
+        const label =
+          bucket.category === 'other'
+            ? t.tags.cat_other
+            : t.tags[`cat_${bucket.category}` as 'cat_cont' | 'cat_ero' | 'cat_tech'];
+        return (
+          <section key={bucket.category}>
+            <h2 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+              <span className="rounded bg-accent/10 px-2 py-0.5 text-accent">{label}</span>
+              <span className="text-muted/70">({bucket.tags.length})</span>
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {bucket.tags.map((tag) => (
+                <article
+                  key={tag.id}
+                  className="group relative rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
+                >
+                  <Link
+                    href={tagChipHref(mode, tag.id)}
+                    className="block focus-visible:outline-none"
+                    title={mode === 'vndb' ? t.tagPage.browse : t.tags.openInLibrary}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="text-sm font-bold transition-colors group-hover:text-accent">{tag.name}</h3>
+                    </div>
+                    {tag.description && (
+                      <p className="mt-1 line-clamp-3 text-xs text-muted">
+                        {stripVndbMarkup(tag.description)}
+                      </p>
+                    )}
+                    <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
+                      <span className="tabular-nums">{tag.vn_count.toLocaleString()} {t.tags.vnCount}</span>
+                      {tag.aliases.length > 0 && <span className="truncate">· {tag.aliases.slice(0, 2).join(', ')}</span>}
+                      <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+                        {mode === 'vndb' ? t.tagPage.browse : t.tags.openInLibrary}
+                        <ArrowRight className="h-3 w-3" aria-hidden />
+                      </span>
+                    </div>
+                  </Link>
+                  <a
+                    href={vndbTagExternalHref(tag.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-accent"
+                    aria-label={`VNDB ${tag.id}`}
+                  >
+                    <ExternalLink className="h-3 w-3" aria-hidden /> VNDB
+                  </a>
+                </article>
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Mic, Users, X } from 'lucide-react';
-import { searchStaff } from '@/lib/vndb';
+import { searchStaff, type VndbStaff } from '@/lib/vndb';
+import { searchLocalStaff } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { languageDisplayName } from '@/lib/language-names';
 import { parseStaffSearchParams } from '@/lib/char-staff-search-filters';
@@ -20,11 +21,19 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 }
 
 /**
- * VNDB-wide staff search. Until now you could land on `/staff/[id]`
- * via a credit link but couldn't search for staff by name without
- * leaving the app. This page surfaces the `searchStaff` helper that
- * already powered the modal picker. Toggling "include aliases" drops
- * the `ismain=1` gate so romaji / pen-name variants come back too.
+ * VNDB-wide staff search.
+ *
+ * Two new behaviours over the previous build:
+ *
+ *  - Empty-query + filters is a valid input. `?q=&role=translator&lang=ja`
+ *    must return results because the operator may genuinely want to
+ *    browse "every translator credited in Japanese on a VN I own"
+ *    without typing a name. The page now triggers a fetch whenever a
+ *    query OR a filter is present.
+ *  - `scope=collection` flips the search to a pure local query
+ *    against `vn_staff_credit` (joined with `collection`). `scope=all`
+ *    keeps the original "local hits surface but VNDB drives the
+ *    result list" behaviour.
  */
 export default async function StaffSearchPage({ searchParams }: PageProps) {
   const t = await getDict();
@@ -32,20 +41,72 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
   const parsed = parseStaffSearchParams(sp);
   const mainOnly = sp.aliases !== '1';
   const query = parsed.q;
-  const { tab, role, lang, vn } = parsed;
-  const allResults = query
-    ? await searchStaff(query, {
-        results: 60,
-        mainOnly,
-        role: tab === 'vndb' ? role : null,
+  const { tab, role, lang, vn, scope } = parsed;
+  const hasFilters = role != null || lang != null || vn != null;
+  const shouldQuery = query.length > 0 || hasFilters;
+
+  type StaffRow = {
+    id: string;
+    name: string;
+    original: string | null;
+    lang: string | null;
+    gender?: string | null;
+    ismain?: boolean;
+    aliases?: { name: string }[];
+    roles?: string[];
+    vn_count?: number;
+    source: 'local' | 'vndb';
+  };
+
+  let results: StaffRow[] = [];
+  if (shouldQuery) {
+    if (scope === 'collection') {
+      results = searchLocalStaff({
+        q: query || undefined,
+        role,
         lang,
-        vn: tab === 'vndb' ? vn : null,
-      }).catch(() => [])
-    : [];
-  const results = allResults.filter((s) => {
-    if (lang && s.lang && s.lang !== lang) return false;
-    return true;
-  });
+        limit: 200,
+      }).map((s) => ({ ...s, source: 'local' as const }));
+    } else {
+      // `scope=all` mixes VNDB + local. When the operator has typed a
+      // query, VNDB drives the result list; when only filters are set
+      // (empty query), we fall back to a local search so empty-q +
+      // filters still returns something useful.
+      const vndbRows: StaffRow[] = query
+        ? (
+            await searchStaff(query, {
+              results: 60,
+              mainOnly,
+              role: tab === 'vndb' ? role : null,
+              lang,
+              vn: tab === 'vndb' ? vn : null,
+            }).catch(() => []) as VndbStaff[]
+          ).map((s) => ({
+            id: s.id,
+            name: s.name,
+            original: s.original,
+            lang: s.lang,
+            gender: s.gender,
+            ismain: s.ismain,
+            aliases: s.aliases?.map((a) => ({ name: a.name })),
+            source: 'vndb' as const,
+          }))
+        : [];
+      const localRows: StaffRow[] = searchLocalStaff({
+        q: query || undefined,
+        role,
+        lang,
+        limit: 200,
+      }).map((s) => ({ ...s, source: 'local' as const }));
+      // Merge — local wins on duplicate id so collection metadata
+      // (role / vn_count) survives.
+      const merged = new Map<string, StaffRow>();
+      for (const r of vndbRows) merged.set(r.id, r);
+      for (const r of localRows) merged.set(r.id, r);
+      results = [...merged.values()];
+      if (lang) results = results.filter((s) => !s.lang || s.lang === lang);
+    }
+  }
 
   function chipHref(overrides: Record<string, string | null>): string {
     const params = new URLSearchParams();
@@ -55,6 +116,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     if (role && !('role' in overrides)) params.set('role', role);
     if (lang && !('lang' in overrides)) params.set('lang', lang);
     if (vn && !('vn' in overrides)) params.set('vn', vn);
+    if (scope === 'collection' && !('scope' in overrides)) params.set('scope', 'collection');
     for (const [k, v] of Object.entries(overrides)) {
       if (v == null) params.delete(k);
       else params.set(k, v);
@@ -62,7 +124,17 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     const qs = params.toString();
     return qs ? `/staff?${qs}` : '/staff';
   }
-  const staffRoles: readonly string[] = ['scenario', 'art', 'music', 'songs', 'director', 'translator'];
+  const staffRoles: readonly string[] = [
+    'scenario',
+    'chardesign',
+    'art',
+    'music',
+    'songs',
+    'director',
+    'producer',
+    'staff',
+    'translator',
+  ];
   const langs: readonly string[] = ['ja', 'en', 'zh-Hans', 'zh-Hant', 'ko'];
 
   return (
@@ -84,12 +156,13 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
             defaultValue={query}
             placeholder={t.staffSearch.searchPlaceholder}
             aria-label={t.staffSearch.searchPlaceholder}
-            className="flex-1 min-w-[200px] rounded-lg border border-border bg-bg px-3 py-2 text-sm"
+            className="input flex-1 min-w-[200px]"
           />
           {tab === 'vndb' && <input type="hidden" name="tab" value="vndb" />}
           {role && <input type="hidden" name="role" value={role} />}
           {lang && <input type="hidden" name="lang" value={lang} />}
           {vn && <input type="hidden" name="vn" value={vn} />}
+          {scope === 'collection' && <input type="hidden" name="scope" value="collection" />}
           <label className="inline-flex items-center gap-1 text-xs text-muted">
             <input
               type="checkbox"
@@ -124,18 +197,34 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
           </Link>
         </nav>
 
+        <div className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" role="tablist" aria-label={t.staffSearch.scopeLabel}>
+          <Link
+            href={chipHref({ scope: null })}
+            role="tab"
+            aria-selected={scope === 'all'}
+            className={`rounded px-2.5 py-1 ${scope === 'all' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+          >
+            {t.staffSearch.scopeAll}
+          </Link>
+          <Link
+            href={chipHref({ scope: 'collection' })}
+            role="tab"
+            aria-selected={scope === 'collection'}
+            className={`rounded px-2.5 py-1 ${scope === 'collection' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+          >
+            {t.staffSearch.scopeCollection}
+          </Link>
+        </div>
+
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className="text-muted">{t.staffSearch.filtersLabel}:</span>
           {staffRoles.map((r) => (
             <Link
               key={r}
               href={chipHref({ role: role === r ? null : r })}
-              className={`inline-flex items-center gap-0.5 rounded-md border px-2 py-0.5 transition-colors ${
-                role === r
-                  ? 'border-accent bg-accent/15 text-accent font-bold'
-                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-              }`}
+              className={role === r ? 'chip chip-active' : 'chip'}
               aria-pressed={role === r}
+              title={t.staffSearch.roleLabels[r as keyof typeof t.staffSearch.roleLabels] ?? r}
             >
               {t.staffSearch.roleLabels[r as keyof typeof t.staffSearch.roleLabels] ?? r}
             </Link>
@@ -145,12 +234,9 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
             <Link
               key={l}
               href={chipHref({ lang: lang === l ? null : l })}
-              className={`inline-flex items-center gap-0.5 rounded-md border px-2 py-0.5 transition-colors ${
-                lang === l
-                  ? 'border-accent bg-accent/15 text-accent font-bold'
-                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-              }`}
+              className={lang === l ? 'chip chip-active' : 'chip'}
               aria-pressed={lang === l}
+              title={languageDisplayName(l)}
             >
               {languageDisplayName(l)}
             </Link>
@@ -158,16 +244,16 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
           {(role || lang || vn) && (
             <Link
               href={chipHref({ role: null, lang: null, vn: null })}
-              className="inline-flex items-center gap-0.5 rounded-md border border-status-dropped/40 bg-status-dropped/10 px-2 py-0.5 text-status-dropped hover:bg-status-dropped/20"
+              className="chip"
               aria-label={t.staffSearch.resetFilters}
             >
-              <X className="h-3 w-3" aria-hidden /> {t.staffSearch.resetFilters}
+              <X className="inline h-3 w-3" aria-hidden /> {t.staffSearch.resetFilters}
             </Link>
           )}
         </div>
       </header>
 
-      {query.length === 0 ? (
+      {!shouldQuery ? (
         <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">
           {t.staffSearch.idleHint}
         </p>
@@ -203,7 +289,17 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
                         {s.gender === 'm' ? t.staff.genderM : s.gender === 'f' ? t.staff.genderF : s.gender}
                       </Chip>
                     )}
-                    {!s.ismain && (
+                    {s.source === 'local' && s.vn_count != null && (
+                      <Chip>
+                        {t.staffSearch.localVnCount.replace('{n}', String(s.vn_count))}
+                      </Chip>
+                    )}
+                    {s.roles && s.roles.length > 0 && (
+                      <Chip>
+                        {s.roles.slice(0, 2).join(', ')}
+                      </Chip>
+                    )}
+                    {s.ismain === false && (
                       <Chip>
                         <Mic className="mr-0.5 inline h-2.5 w-2.5" aria-hidden /> {t.staffSearch.aliasChip}
                       </Chip>

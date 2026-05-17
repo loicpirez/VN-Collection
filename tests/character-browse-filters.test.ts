@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import {
   characterBrowseHref,
   filterCharacters,
+  hasActiveCharacterFilter,
   parseCharacterBrowseParams,
 } from '@/lib/character-browse';
 import type { BrowsableCharacter as VndbCharacter } from '@/lib/character-browse';
@@ -142,6 +143,73 @@ describe('filterCharacters', () => {
     const r = filterCharacters(list, parseCharacterBrowseParams({ hasImage: '0' }));
     expect(r.map((c) => c.id).sort()).toEqual(['c1', 'c2']);
   });
+
+  it('cascades ageMin / ageMax (inclusive) and drops null-age rows', () => {
+    const rangeList: VndbCharacter[] = [
+      char('c10', { age: 15 }),
+      char('c11', { age: 18 }),
+      char('c12', { age: 22 }),
+      char('c13', { age: 30 }),
+      char('c14', { age: null }),
+    ];
+    const r = filterCharacters(rangeList, parseCharacterBrowseParams({ ageMin: '18', ageMax: '25' }));
+    expect(r.map((c) => c.id)).toEqual(['c11', 'c12']);
+    // null age is dropped by either bound being set.
+    expect(filterCharacters(rangeList, parseCharacterBrowseParams({ ageMin: '0' })).map((c) => c.id)).toEqual(['c10', 'c11', 'c12', 'c13']);
+  });
+
+  it('cascades heightMin / heightMax', () => {
+    const heightList: VndbCharacter[] = [
+      char('c20', { height: 145 }),
+      char('c21', { height: 160 }),
+      char('c22', { height: 175 }),
+      char('c23', { height: null }),
+    ];
+    const r = filterCharacters(heightList, parseCharacterBrowseParams({ heightMin: '150', heightMax: '170' }));
+    expect(r.map((c) => c.id)).toEqual(['c21']);
+  });
+});
+
+describe('parseCharacterBrowseParams (ranges)', () => {
+  it('reads ageMin / ageMax / heightMin / heightMax as integers', () => {
+    const r = parseCharacterBrowseParams({ ageMin: '18', ageMax: '30', heightMin: '150', heightMax: '180' });
+    expect(r.ageMin).toBe(18);
+    expect(r.ageMax).toBe(30);
+    expect(r.heightMin).toBe(150);
+    expect(r.heightMax).toBe(180);
+  });
+
+  it('rejects malformed range inputs', () => {
+    const r = parseCharacterBrowseParams({ ageMin: 'eighteen', heightMax: '-5' });
+    expect(r.ageMin).toBeNull();
+    expect(r.heightMax).toBeNull();
+  });
+
+  it('rejects ranges past the hard ceiling', () => {
+    const r = parseCharacterBrowseParams({ ageMin: '9999', heightMin: '99999' });
+    expect(r.ageMin).toBeNull();
+    expect(r.heightMin).toBeNull();
+  });
+});
+
+describe('hasActiveCharacterFilter', () => {
+  it('returns false for a fresh params object', () => {
+    expect(hasActiveCharacterFilter(parseCharacterBrowseParams({}))).toBe(false);
+  });
+
+  it.each([
+    ['sex', { sex: 'f' }],
+    ['role', { role: 'main' }],
+    ['blood', { blood: 'ab' }],
+    ['hasVoice', { hasVoice: '1' }],
+    ['hasImage', { hasImage: '0' }],
+    ['vaLang', { vaLang: 'ja' }],
+    ['birthMonth', { birthMonth: '4' }],
+    ['ageMin', { ageMin: '18' }],
+    ['heightMax', { heightMax: '160' }],
+  ])('flags %s as an active filter', (_label, patch) => {
+    expect(hasActiveCharacterFilter(parseCharacterBrowseParams(patch as Record<string, string>))).toBe(true);
+  });
 });
 
 describe('characterBrowseHref', () => {
@@ -154,6 +222,17 @@ describe('characterBrowseHref', () => {
     const base = parseCharacterBrowseParams({ sex: 'f' });
     expect(characterBrowseHref(base, {})).toBe('/characters?sex=f');
     expect(characterBrowseHref(base, { sex: null })).toBe('/characters');
+  });
+
+  it('round-trips range params through the URL', () => {
+    const r = characterBrowseHref(
+      parseCharacterBrowseParams({ ageMin: '18', ageMax: '30', heightMin: '150' }),
+      {},
+    );
+    expect(r).toContain('ageMin=18');
+    expect(r).toContain('ageMax=30');
+    expect(r).toContain('heightMin=150');
+    expect(r).not.toContain('heightMax');
   });
 
   it('emits sort + reverse together', () => {

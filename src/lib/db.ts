@@ -3666,6 +3666,154 @@ export function listCollectionTags(): CollectionTagAggregate[] {
     .map((r) => ({ id: r.tag_id, name: r.tag_name, category: r.tag_category, count: r.tag_count }));
 }
 
+/**
+ * Local character search across `character_full:*` cache rows that
+ * belong to a VN in the operator's collection. Used by `/characters`
+ * + `/api/collection/characters` to back the "Local" tab. Returns the
+ * raw VNDB character profile JSON with the seiyuu language list
+ * attached from `vn_va_credit` so the page-level filters
+ * (vaLang / hasVoice) work without a follow-up fetch.
+ *
+ * The function is intentionally untyped — the page parses each row
+ * with `VndbCharacter` and the `voice_languages` extension. Keeping
+ * the return type loose dodges a circular import on `lib/vndb.ts`.
+ */
+export interface LocalCharacterSearchOptions {
+  /** Optional case-insensitive substring against id / name / aliases. */
+  q?: string;
+  /** Cap on the number of returned characters. Defaults to 200. */
+  limit?: number;
+}
+
+export function searchLocalCharacters({
+  q,
+  limit = 200,
+}: LocalCharacterSearchOptions = {}): Array<{ profile: Record<string, unknown>; voice_languages: string[] }> {
+  const rows = db
+    .prepare(
+      `SELECT vc.cache_key, vc.body
+       FROM vndb_cache vc
+       WHERE vc.cache_key LIKE 'char_full:%'
+         AND EXISTS (
+           SELECT 1 FROM character_vn_index ci
+           JOIN collection c ON c.vn_id = ci.vn_id
+           WHERE ci.character_id = substr(vc.cache_key, length('char_full:') + 1)
+         )`,
+    )
+    .all() as Array<{ cache_key: string; body: string }>;
+  const needle = q?.trim().toLowerCase() ?? '';
+  const out: Array<{ profile: Record<string, unknown>; voice_languages: string[] }> = [];
+  const langStmt = db.prepare(
+    'SELECT DISTINCT lang FROM vn_va_credit WHERE c_id = ? AND lang IS NOT NULL',
+  );
+  for (const row of rows) {
+    let payload: { profile?: Record<string, unknown> | null } | null = null;
+    try {
+      payload = JSON.parse(row.body) as { profile?: Record<string, unknown> | null };
+    } catch {
+      continue;
+    }
+    const profile = payload?.profile;
+    if (!profile || typeof profile !== 'object') continue;
+    if (needle) {
+      const idVal = typeof profile.id === 'string' ? profile.id : '';
+      const nameVal = typeof profile.name === 'string' ? profile.name : '';
+      const originalVal = typeof profile.original === 'string' ? profile.original : '';
+      const aliasesArr = Array.isArray(profile.aliases) ? profile.aliases.filter((x) => typeof x === 'string') : [];
+      const haystack = [idVal, nameVal, originalVal, ...aliasesArr].join('\n').toLowerCase();
+      if (!haystack.includes(needle)) continue;
+    }
+    const id = typeof profile.id === 'string' ? profile.id : '';
+    const langs = id
+      ? (langStmt.all(id) as Array<{ lang: string }>).map((r) => r.lang).filter(Boolean)
+      : [];
+    out.push({ profile, voice_languages: langs });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
+ * Local staff search across `vn_staff_credit` joined with the
+ * operator's collection. Backs the `/staff?scope=collection` mode.
+ * The optional filters mirror the VNDB-tab filter chips so users
+ * can dial in "every translator credited on a VN I own" without
+ * pulling VNDB live data.
+ */
+export interface LocalStaffSearchOptions {
+  q?: string;
+  role?: string | null;
+  lang?: string | null;
+  limit?: number;
+}
+
+export interface LocalStaffRow {
+  id: string;
+  name: string;
+  original: string | null;
+  lang: string | null;
+  roles: string[];
+  vn_count: number;
+}
+
+export function searchLocalStaff({
+  q,
+  role,
+  lang,
+  limit = 100,
+}: LocalStaffSearchOptions = {}): LocalStaffRow[] {
+  const where: string[] = [];
+  const args: unknown[] = [];
+  const needle = q?.trim().toLowerCase() ?? '';
+  if (needle) {
+    where.push(
+      "(LOWER(sc.name) LIKE ? OR LOWER(COALESCE(sc.original, '')) LIKE ? OR sc.sid LIKE ?)",
+    );
+    const like = `%${needle}%`;
+    args.push(like, like, like);
+  }
+  if (role) {
+    where.push('sc.role = ?');
+    args.push(role);
+  }
+  if (lang) {
+    where.push('sc.lang = ?');
+    args.push(lang);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const sql = `
+    SELECT sc.sid AS sid,
+           MAX(sc.name) AS name,
+           MAX(sc.original) AS original,
+           MAX(sc.lang) AS lang,
+           GROUP_CONCAT(DISTINCT sc.role) AS roles,
+           COUNT(DISTINCT sc.vn_id) AS vn_count
+    FROM vn_staff_credit sc
+    JOIN collection c ON c.vn_id = sc.vn_id
+    ${whereSql}
+    GROUP BY sc.sid
+    ORDER BY vn_count DESC, name COLLATE NOCASE ASC
+    LIMIT ?
+  `;
+  args.push(Math.min(Math.max(limit, 1), 500));
+  const rows = db.prepare(sql).all(...args) as Array<{
+    sid: string;
+    name: string;
+    original: string | null;
+    lang: string | null;
+    roles: string | null;
+    vn_count: number;
+  }>;
+  return rows.map((r) => ({
+    id: r.sid,
+    name: r.name,
+    original: r.original,
+    lang: r.lang,
+    roles: (r.roles ?? '').split(',').filter(Boolean),
+    vn_count: r.vn_count,
+  }));
+}
+
 export interface CoOccurringTag {
   id: string;
   name: string;

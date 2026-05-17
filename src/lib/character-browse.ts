@@ -74,6 +74,14 @@ export interface CharacterBrowseParams {
    * to "everyone born in month m". `null` disables the filter.
    */
   birthMonth: number | null;
+  /** Inclusive minimum age (years). `null` disables the lower bound. */
+  ageMin: number | null;
+  /** Inclusive maximum age (years). `null` disables the upper bound. */
+  ageMax: number | null;
+  /** Inclusive minimum height (cm). `null` disables the lower bound. */
+  heightMin: number | null;
+  /** Inclusive maximum height (cm). `null` disables the upper bound. */
+  heightMax: number | null;
   sort: CharacterSort;
   /** Reverse-sort flag. Defaults to false (ascending). */
   reverse: boolean;
@@ -83,6 +91,13 @@ export interface CharacterBrowseParams {
 function pickFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
+}
+
+function parsePositiveInt(raw: string | undefined, { max }: { max: number }): number | null {
+  if (raw == null || raw === '') return null;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0 || n > max) return null;
+  return n;
 }
 
 function parseBool(raw: string | undefined): boolean | null {
@@ -121,6 +136,10 @@ export function parseCharacterBrowseParams(
     Number.isFinite(birthMonthNum) && birthMonthNum >= 1 && birthMonthNum <= 12
       ? birthMonthNum
       : null;
+  const ageMin = parsePositiveInt(pickFirst(raw.ageMin), { max: 200 });
+  const ageMax = parsePositiveInt(pickFirst(raw.ageMax), { max: 200 });
+  const heightMin = parsePositiveInt(pickFirst(raw.heightMin), { max: 300 });
+  const heightMax = parsePositiveInt(pickFirst(raw.heightMax), { max: 300 });
   const vaLangRaw = pickFirst(raw.vaLang) ?? null;
   const vaLang = vaLangRaw && /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/i.test(vaLangRaw) ? vaLangRaw : null;
   const hasVoice = parseBool(pickFirst(raw.hasVoice));
@@ -144,10 +163,37 @@ export function parseCharacterBrowseParams(
     hasVoice,
     hasImage,
     birthMonth,
+    ageMin,
+    ageMax,
+    heightMin,
+    heightMax,
     sort,
     reverse,
     groupBy,
   };
+}
+
+/**
+ * Returns `true` when at least one filter chip / range / toggle is
+ * active. Used by `/characters` to decide whether to run a query for
+ * the empty-search case — when no filter is set we still show the idle
+ * hint, but with any chip toggled we fan out to the local DB so the
+ * operator can browse "every female main lead I own" without typing.
+ */
+export function hasActiveCharacterFilter(p: CharacterBrowseParams): boolean {
+  return (
+    p.sex != null ||
+    p.role != null ||
+    p.blood != null ||
+    p.vaLang != null ||
+    p.hasVoice != null ||
+    p.hasImage != null ||
+    p.birthMonth != null ||
+    p.ageMin != null ||
+    p.ageMax != null ||
+    p.heightMin != null ||
+    p.heightMax != null
+  );
 }
 
 /** Apply the chip filters to an in-memory character list. */
@@ -166,6 +212,18 @@ export function filterCharacters(
     }
     if (params.birthMonth != null) {
       if (birthdayMonth(c) !== params.birthMonth) return false;
+    }
+    if (params.ageMin != null) {
+      if (c.age == null || c.age < params.ageMin) return false;
+    }
+    if (params.ageMax != null) {
+      if (c.age == null || c.age > params.ageMax) return false;
+    }
+    if (params.heightMin != null) {
+      if (c.height == null || c.height < params.heightMin) return false;
+    }
+    if (params.heightMax != null) {
+      if (c.height == null || c.height > params.heightMax) return false;
     }
     if (params.hasImage === true && !c.image?.url) return false;
     if (params.hasImage === false && c.image?.url) return false;
@@ -268,6 +326,10 @@ export function characterBrowseHref(
   set('hasVoice', current.hasVoice);
   set('hasImage', current.hasImage);
   set('birthMonth', current.birthMonth != null ? String(current.birthMonth) : null);
+  set('ageMin', current.ageMin != null ? String(current.ageMin) : null);
+  set('ageMax', current.ageMax != null ? String(current.ageMax) : null);
+  set('heightMin', current.heightMin != null ? String(current.heightMin) : null);
+  set('heightMax', current.heightMax != null ? String(current.heightMax) : null);
   set('sort', current.sort === 'name' ? null : current.sort);
   set('reverse', current.reverse ? '1' : null);
   set('groupBy', current.groupBy || null);
