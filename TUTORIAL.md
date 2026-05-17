@@ -13,12 +13,14 @@ The shortcut overview below is also reachable in-app via `?`.
 
 You land on your collection grid.
 
-The **home page** is now four reorderable sections: Recently viewed,
-Reading queue, Today's anniversaries, and the Library itself. Click
-**Customize home** (top right) to drag-reorder them or hide any
+The **home page** is now five reorderable sections: Recently viewed,
+Reading queue, Today's anniversaries, and the Library split into a
+controls strip (search / filters / sort) plus its own grid section.
+Click **Customize home** (top right) to drag-reorder or hide any
 section. Hidden sections stay restorable from Settings → Home tab.
-The Library section can be collapsed or hidden too if you prefer the
-home page to feel lighter; restore it the same way.
+Hiding `library-grid` while keeping `library-controls` shipped is
+valid — the operator can keep the toolbar for quick navigation
+without the cover wall. Restore the same way.
 
 - **Status chips** at the top filter by Planning / Playing / Completed /
   On hold / Dropped.
@@ -34,8 +36,14 @@ home page to feel lighter; restore it the same way.
   dense grid layouts.
 - **Card density slider** (in Settings → Display, also exposed in the
   toolbar of every multi-VN listing page — wishlist, recommendations,
-  top-ranked, upcoming, dumped, EGS, similar) lets you set the
-  minimum tile width across every grid in one go.
+  top-ranked, upcoming, dumped, EGS, similar, producer, staff) is
+  **per-page**. Each grid has its own scoped value; the Settings
+  panel has both a **Default density** slider (seeds pages with no
+  override) and a **Per-page overrides** list with a Reset button
+  per surface. Changing the library slider only affects the library
+  grid, not the wishlist. Tutorial: tap a slider on any page, scroll
+  to Settings → Display to see the override row, click Reset to
+  return that scope to the default.
 - **Random pick** (dice icon) jumps to a random entry from the current
   filter set.
 - **Bulk download** (cloud arrow) refreshes VNDB + EGS for every VN.
@@ -106,6 +114,15 @@ Default sections:
    the source picker — opens to the Custom tab so the upload /
    URL / in-VN gallery picker is on screen immediately. Same for
    the banner via the **Change banner** picker (Custom by default).
+   Each image carries inline **rotate-left** / **rotate-right**
+   buttons in the same hover-revealed action group as the focal-
+   point adjust; a "reset rotation" affordance appears when the
+   value drifts from 0. Rotation is persisted per-VN
+   (`cover_rotation` / `banner_rotation` columns, 0 / 90 / 180 /
+   270). Cover and banner mutations broadcast through a typed
+   CustomEvent so every surface that's showing the same VN
+   (library card, hero, MediaGallery) repaints without a router
+   refresh.
 3. **Action buttons**: external VNDB link, optional extlinks, your
    personal download URL, **Change cover** / **Change banner**,
    Download all data, Add to reading queue, **Favorite** inline
@@ -176,11 +193,29 @@ Default sections:
 ## 6. Discovery surfaces
 
 - `/recommendations` (`g r`) — tag-seeded picks weighted by your top
-  ratings. Toggle whether to include ero tags. The **seed tags** can
-  be edited directly: a chip-style picker below the toggle lets you
-  remove a seed or search VNDB for additional ones. The URL carries
-  `?tags=g123,g456` so you can share a hand-tuned recommendation
-  view. Clear all chips to fall back to auto-derivation.
+  ratings. Five **modes** in a chip strip at the top of the page
+  (URL `?mode=…`):
+    1. **Because you liked** (default) — weighted scoring across
+       every tag drawn from your highest-rated VNs.
+    2. **Tag-based** — pure tag overlap; rating drops out of the
+       score so a tag you simply have many entries for can drive
+       the picks.
+    3. **Hidden gems** — same scoring as "Because you liked", then
+       drops VNs with high VNDB community ratings so the
+       underseen picks rise to the top.
+    4. **Highly rated** — only keeps VNs with VNDB rating ≥ 80 and
+       enough votes to clear the Bayesian noise floor.
+    5. **Similar to a VN** — pick a seed VN through the inline
+       `<VnSeedPicker>` (or pass `?vn=v123` in the URL). Pulls top
+       tags from that VN and feeds them to the rest of the
+       pipeline.
+  Toggle whether to include ero tags. The **seed tags** can be
+  edited directly: a chip-style `<TagPicker>` lets you remove a
+  seed or search VNDB for additional ones. The URL carries
+  `?tags=g123,g456` so you can share a hand-tuned view. Clear all
+  chips to fall back to auto-derivation. Each result card carries
+  **owned** / **wishlist** indicator chips when the row matches
+  your local collection or VNDB wishlist.
 - `/top-ranked` (`g k`) — two tabs of community-ranked games:
     1. **VNDB top** — highest-rated VNs across VNDB by user score,
        filtered by minimum vote count. The score chip carries a

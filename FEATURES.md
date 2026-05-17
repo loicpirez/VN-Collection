@@ -13,10 +13,13 @@ Pair with:
 > Status legend: ✅ shipped · 🧪 scaffolded (works but minimal) · 🚧 planned.
 
 > Tip: the in-app guided tour auto-opens on first visit and walks you
-> through every major surface (15 steps covering library, search,
-> lists, recommend, upcoming, quotes, year, stats, shelf, shelf
-> layout, steam, EGS, dumped, data, VN detail). Re-runnable from
-> `/data → Tour`.
+> through every major surface (15 steps: library, search, lists,
+> recommend, upcoming, quotes, year, stats, shelf, shelf layout,
+> steam, EGS, dumped, data, VN detail). The tour body copy mentions
+> the scoped density slider, VNDB tags grouped view, cover/banner
+> rotation, recommendation modes, and the SpoilerReveal hover toggle
+> so the operator hits the recent surfaces without leaving the tour.
+> Re-runnable from `/data → Tour`.
 
 ---
 
@@ -432,6 +435,38 @@ Routes: `GET/POST/PATCH/DELETE /api/collection/[id]/game-log`.
 `/recommendations` — surfaces VNs you don't own that share tags with your
 highest-rated entries. Weighted by user_rating; tag matches scored and
 ranked. Toggle for including ero tags.
+
+**Five modes** (URL `?mode=…`, default `because-you-liked`):
+
+  - `because-you-liked` — weighted scoring across every tag drawn
+    from the operator's highly-rated VNs.
+  - `tag-based` — pure tag-overlap. Rating drops out of the
+    score so a tag the operator merely has many entries for can
+    still drive the picks.
+  - `hidden-gems` — same scoring as `because-you-liked`, then
+    drops entries with high VNDB community ratings so the
+    "underseen" picks rise to the top.
+  - `highly-rated` — only keeps rows with `rating >= 80` and
+    enough votes to clear the Bayesian noise floor.
+  - `similar-to-vn` — seeded by a single VN id (passed via
+    `?vn=v123`). Pulls top tags from that VN and feeds them to
+    the rest of the recommend pipeline. Powers the
+    `/similar?vn=…` companion page too.
+
+Every result card carries **owned** / **wishlist** indicator
+chips when the underlying row matches the operator's local
+collection or VNDB wishlist label. The indicators surface from
+`recommendVns()` directly so a recommendation that's already
+covered is obvious at a glance.
+
+Manual seed override: a `<TagPicker>` chip strip on
+`/recommendations` lets the operator pin a custom seed-tag list
+(`?tags=g123,g456`). Auto-derivation still kicks in when no tags
+are pinned. The `?mode=similar-to-vn` flow has a parallel
+`<VnSeedPicker>` for choosing the seed VN.
+
+Tests: `tests/recommend-modes.test.ts`,
+`tests/recommend-owned-badge.test.ts`.
 
 ### Upcoming releases ✅
 `/upcoming` — three tabs to choose your scope of "what's next":
@@ -1014,32 +1049,49 @@ resolver gets a fresh shot.
 upsert-on-conflict, validation, bulk overlay, and the no-override
 no-op path.
 
-### Card density slider ✅
-Shared `cardDensityPx` setting in `useDisplaySettings()` clamped
-to `[140, 320]` via `clampCardDensity()`. The value flows into a
-CSS custom property `--card-density-px` set on the document
-root: SSR seed from cookie (no flash-of-default-density on first
-paint), client mirror via `<CardDensityVarSetter>` on every
-change.
+### Card density slider — scoped per page ✅
+Density is **per-scope**. Each listing surface (`library`,
+`wishlist`, `recommendations`, `topRanked`, `upcoming`,
+`dumped`, `similar`, `egs`, `producerWorks`, `staffWorks`, …)
+has its own slider that writes to `density.<scope>` inside
+`useDisplaySettings()`. Resolve order:
 
-Pages using the slider (each grid uses
-`minmax(var(--card-density-px, …px), 1fr)` so the column count
-follows the user's preference):
+  1. URL override (`?density=N`, snapped to the clamp range).
+  2. Persisted per-scope value (`density[scope]`).
+  3. Legacy global fallback (`cardDensityPx`).
 
-- `/wishlist` — `<CardDensitySlider />` in toolbar
-- `/recommendations` — slider in chip row
-- `/top-ranked` — slider next to `RefreshPageButton`
-- `/upcoming` — slider next to `RefreshPageButton` (floor 280px)
-- `/dumped` — slider above tab grid (floor 280px)
-- `/similar` — slider above grid
-- `/egs` — slider on "Linked" section header (floor 260px)
-- `/producer/[id]` — VN grids
-- `/staff/[id]` — credit grid
+The legacy `cardDensityPx` is **kept** for back-compat: a
+freshly-loaded settings payload with a stored `cardDensityPx`
+but no `density.library` entry promotes the legacy value into
+`density.library` on first read so existing sessions don't
+visually jump when the new scoped model lands. Every other
+scope falls back to the legacy global until its own slider is
+touched.
 
-The Library on `/` keeps its dedicated dense toggle (controls
-gap + padding, distinct from column count). The Settings →
-Display tab carries the canonical slider alongside the other
-display preferences.
+Resolved value flows into a CSS custom property
+`--card-density-px` set on the surface root. The clamp range is
+`[120, 480]` so the operator can genuinely get ~2 cards per row
+at the high end without forcing a horizontal scroll on mobile.
+
+Settings → Display tab surfaces **two** sections:
+  - **Default density** — the legacy global slider that seeds
+    every page without its own override.
+  - **Per-page overrides** — one row per scope with a Reset
+    button. A bulk "Reset all per-page" button clears every
+    override at once; "Reset everything" also drops the global
+    back to the default.
+
+Implementation: `src/lib/settings/client.tsx` exports
+`DENSITY_SCOPES`, `resolveCardDensity()`, `hasScopeOverride()`,
+and `clearAllScopeDensities()`. `<CardDensitySlider scope="…">`
+is the canonical UI surface and is mounted on every grid page
+header. Tests in `tests/density-scopes.test.ts` and
+`tests/density-cross-scope-isolation.test.ts` pin the resolve
+order, migration semantics, and the bulk-reset behaviour.
+
+The Library on `/` keeps its dedicated dense toggle in addition
+to the density slider — the toggle controls `gap` + `padding`
+(comfortable vs dense), distinct from the column-count slider.
 
 ### Home page layout: drag-reorder + library section ✅
 `home_section_layout_v1` (versioned JSON config) tracks both
@@ -1048,12 +1100,14 @@ per-section visibility/collapse state AND the render order:
 ```
 {
   sections: {
-    'recently-viewed': { visible: true, collapsed: false },
-    'reading-queue':    { visible: true, collapsed: false },
-    anniversary:        { visible: true, collapsed: false },
-    library:            { visible: true, collapsed: false }
+    'recently-viewed':   { visible: true, collapsed: false },
+    'reading-queue':     { visible: true, collapsed: false },
+    anniversary:         { visible: true, collapsed: false },
+    'library-controls':  { visible: true, collapsed: false },
+    'library-grid':      { visible: true, collapsed: false }
   },
-  order: ['recently-viewed', 'reading-queue', 'anniversary', 'library']
+  order: ['recently-viewed', 'reading-queue', 'anniversary',
+          'library-controls', 'library-grid']
 }
 ```
 
@@ -1064,8 +1118,12 @@ per-section visibility/collapse state AND the render order:
   fires `vn:home-layout-changed` so live strips re-sync.
 - `<HomeLibrarySection />` wraps `<LibraryClient />` in the
   same hide / collapse / reorder shell as the other home
-  strips. Library can now be hidden, collapsed, and reordered
-  like every other section.
+  strips. The Library is split across two slots —
+  `library-controls` (search / filters / sort toolbar) and
+  `library-grid` (the cover wall). Either or both can be hidden
+  / collapsed / reordered like every other section, so the
+  operator can keep the toolbar visible above a hidden grid
+  for fast in-page navigation, or vice versa.
 - The validator accepts both the new shape AND the legacy v0
   flat shape for backward compatibility — older payloads
   upgrade transparently. Unknown ids are dropped from `order`,
@@ -1074,9 +1132,10 @@ per-section visibility/collapse state AND the render order:
   dialog) sends `PATCH /api/settings { home_section_layout_v1:
   null }` to drop the override and fall back to defaults.
 
-9 cases in `tests/home-section-layout.test.ts` cover default
+10 cases in `tests/home-section-layout.test.ts` cover default
 fallback, v0/v1 shape detection, append-missing, drop-unknown,
-dedupe, typo-safe visibility, malformed JSON, round-trip.
+dedupe, typo-safe visibility, malformed JSON, round-trip, plus
+the `library-controls` / `library-grid` split.
 
 ### Custom tag picker for /recommendations and /similar ✅
 Both pages now expose a shared `<TagPicker>` so the user can
@@ -1175,6 +1234,179 @@ gets a fresh snapshot immediately when the user returns.
 `<UlistDetailsEditor>` collapsed details panel on `/vn/[id]`.
 Vote is stored as 10–100 integer on VNDB but rendered / edited
 in the UI as 1.0–10.0 with one decimal for human readability.
+
+---
+
+## Recently shipped — round-3 increments
+
+The items below are the most recently landed surfaces; they post-
+date the batch A–N history in `PLAN.md`. Each one has a focused
+test file pinning its behaviour (see `docs/test-matrix.md`).
+
+### VNDB tags grouped view ✅
+`<VnTagsGroupedView>` on `/vn/[id]` collapses the flat tag chip
+strip into a categorised accordion. Categories come from the
+VNDB `g.cat` enum (`cont` / `ero` / `tech`), each with its own
+header, summary count, and per-group "Spoil me" override that
+flips the scoped spoiler level for that section without
+touching the global setting. Scored tags surface their numeric
+weight inline; spoiler-mode tags are wrapped in
+`<SpoilerReveal level={tag.spoiler}>` so the global content
+controls still apply.
+
+### Cover / banner rotation ✅
+Per-VN `cover_rotation` and `banner_rotation` columns (0 / 90 /
+180 / 270, normalised via `normalizeRotation()`). Rotate-left /
+rotate-right buttons sit on `HeroBanner` and `CoverHero` in the
+same hover-revealed action group as the focal-point adjust
+button; a "reset rotation" affordance appears when the value
+drifts from 0. `<SafeImage rotation={…}>` applies a scaled
+`transform: rotate(<deg>)` measured by a ResizeObserver so 90 /
+270 rotations fill the box without overflow. PATCH endpoints
+extend the existing `/api/collection/[id]/cover` and `/banner`
+routes with a `{ rotation }` body. i18n keys live under
+`coverActions.{rotate, rotateLeft, rotateRight, resetRotation,
+rotationLabel}`. Tests: `tests/cover-rotation.test.ts`,
+`tests/cover-rotation-ui.test.ts`, `tests/safe-image-rotation.
+test.ts`.
+
+### Cover / banner mutation events ✅
+`src/lib/cover-banner-events.ts` exports the typed
+`VN_COVER_CHANGED_EVENT` / `VN_BANNER_CHANGED_EVENT` constants
+plus `dispatchCoverChanged()` / `dispatchBannerChanged()`
+helpers. Every cover / banner producer (MediaGallery kebab,
+CoverSourcePicker, BannerSourcePicker, rotation buttons) does:
+optimistic update → server PATCH → on success dispatch the
+typed event so siblings repaint → `router.refresh()` as a
+defensive SSR fallback → revert + toast on error. Consumers
+listen with a vn-id scoped guard. Tests:
+`tests/cover-banner-events.test.ts`.
+
+### Non-library VN data refresh ✅
+`/vn/[id]` can refresh VNDB / EGS metadata for a VN that is NOT
+in the local collection. Previously the refresh CTA was gated
+on `inCollection`; now it surfaces for every `v\d+` id, with
+the refresh writing to the cache layer only (no `collection`
+row created). EGS-only synthetic `egs_*` rows are still
+gracefully excluded since they have no VNDB-side data to pull.
+Test: `tests/vn-detail-collection-gating.test.ts`.
+
+### Cover / banner rotation playback ✅
+See "Cover / banner rotation" above.
+
+### SpoilerReveal component ✅
+`<SpoilerReveal level={0|1|2} perSectionOverride?>` is the
+single shared gate for every node that may carry spoilers (tag
+chips, character traits, BBCode `[spoiler]…[/spoiler]`, VNDB
+metadata with a `spoiler` field). Truth table in
+`src/lib/spoiler-reveal.ts`:
+
+  1. Hidden when `nodeLevel > globalSpoilerLevel`.
+  2. Pointer hover / keyboard focus → transient reveal.
+  3. Touch / pen tap → toggles persistent reveal (mouse clicks
+     pass through so the hover UX is preserved).
+  4. Enter / Space on focus → keyboard parity with the tap
+     toggle.
+  5. `perSectionOverride` raises (never lowers) the effective
+     level; `?spoil=1|2` deep links share the same lever.
+
+The synopsis renderer `<VndbMarkup>` wraps `[spoiler]` blocks
+through this component so rules apply identically across
+server- and client-rendered surfaces. i18n keys under
+`spoiler.{hidden, reveal, hideHint, revealHint, spoilMe,
+hideAll, showMinor, showAll, ariaHidden, ariaShown}`. Tests:
+`tests/spoiler-reveal.test.ts`,
+`tests/spoiler-global-default.test.ts`,
+`tests/character-spoiler-render.test.ts`.
+
+### Series detail layout customisation ✅
+`/series/[id]` mirrors the VN-detail layout pattern. Sections
+are `hero` / `works` / `metadata` / `related` / `stats`, each
+wrapped in a drag-reorderable / hideable / collapsible slot.
+Persisted as `series_detail_section_layout_v1`. Parser tolerates
+the legacy v0 flat shape, drops unknown ids, appends missing
+defaults, dedupes the order array. `PATCH /api/settings` MERGES
+partial patches so the per-section menu and drag-reorder never
+clobber each other. CustomEvent: `SERIES_DETAIL_LAYOUT_EVENT`.
+Test: `tests/series-detail-layout.test.ts`.
+
+### Shelf read-only display knobs ✅
+`<ShelfReadOnlyControls>` exposes a discreet slider trigger that
+opens a popover with four controls — cell size (60–280 px),
+cover scale (0.5–1.5), gap (0–24 px), fit mode (contain /
+cover). Values apply via the CSS variables `--shelf-cell-px`,
+`--shelf-cover-scale`, `--shelf-gap-px` on a `.shelf-view-root`
+wrapper so cells reactively resize without a re-render.
+Persistence is via `PATCH /api/settings` with key
+`shelf_view_prefs_v1`; the validator clamps every numeric to
+its documented range so a malicious PATCH can't store
+`cellSizePx: 99999`. The placement data (`shelf_slot` /
+`shelf_display_slot`) is NEVER touched — these knobs are pure
+display preferences. Test: `tests/shelf-view-prefs.test.ts`.
+
+### Schema browser EGS section ✅
+`/schema` renders both the VNDB schema tree and a dedicated EGS
+section (`<SchemaEgsSection>` + `lib/schema-egs.ts`). The EGS
+section lists `egs_game`, `vndb_cache` rows scoped to
+`cache_key LIKE 'egs:%'`, `vn_egs_link`, `egs_vn_link`, plus a
+presence flag for `app_setting.egs_username` (never the value
+itself). A "Stale-while-error" badge appears when any EGS
+cache row carries the flag in its JSON body. Test:
+`tests/schema-egs-section.test.ts`.
+
+### MediaGallery kebab convention ✅
+Per-tile kebab dropdown in `<MediaGallery>` has a locked sizing
+contract: `min-width: 12rem`, `max-width: 18rem`, constants in
+`src/components/media-menu-helpers.ts`. Every row uses
+`whitespace-nowrap`, `overflow-hidden`, and `text-overflow:
+ellipsis`. Labels render in a **short** variant
+(`t.media.openLightboxShort`, `setAsCoverShort`,
+`setAsBannerShort`, `openOriginalShort`); the long form rides on
+`aria-label` and `title`. Horizontal flip is rem-based via
+`decideMediaMenuHorizontal(triggerRight, viewportWidth)` so a
+kebab within 12 rem of the right edge opens to the left. Roving
+keyboard focus across `[role="menuitem"]` rows, with
+Enter / Space activating the focused row and Escape returning
+focus to the kebab trigger. Test: `tests/media-menu.test.ts`.
+
+### PortalPopover for card overlays ✅
+`<PortalPopover>` is the canonical primitive for any popover
+that needs to escape the card / tile clipping context. It
+portals into `document.body`, computes preferred placement,
+flips on viewport collision, and re-measures on scroll /
+resize. The card-overlay info popovers on the shelf unplaced
+pool, the lists picker on every `<VnCard>`, and the saved-filter
+chips all funnel through this primitive instead of mounting
+inside the card. Without the portal, the shelf-pool info
+popover used to clip against `overflow: hidden` parents and the
+"Add to list" panel used to flip on its own internal `z-index`
+stacking context. Test: `tests/portal-popover.test.ts`.
+
+### Platform label mapping ✅
+`src/lib/platform-display.ts` exports `platformLabel(code,
+dict)` which maps VNDB platform codes (`win`, `mac`, `lin`,
+`ios`, `and`, `web`, `swi`, `ps3`, …) to localised display
+labels (FR / EN / JA). Duplicate keys collapse; unknown codes
+fall back to the raw uppercase form so a freshly-added VNDB
+platform code never silently breaks the page. Every card
+chip, search-filter chip, and release row uses this helper
+instead of rendering the raw code. Tests:
+`tests/platform-display.test.ts`, `tests/platform-label.test.ts`.
+
+### VNDB BBCode link normalization ✅
+`src/lib/vndb-link-normalize.ts` rewrites VNDB-flavoured links
+at render time so internal references jump to the matching App
+Router route instead of dead `/cNNN` paths. Three input shapes:
+absolute `https://vndb.org/cNNN`, bare `cNNN`, and relative
+`/cNNN`. Mapping: `v` → `/vn/v…`, `c` → `/character/c…`,
+`r` → `/release/r…`, `p` → `/producer/p…`, `g` → `/tag/g…`,
+`i` → `/trait/i…`, `s` → `/staff/s…`. Unknown prefixes
+(`d`/doc, `u`/user, `t`/thread, `w`/review) keep their external
+URL. Normalisation runs at render via `<VndbMarkup>` /
+`<CustomSynopsis>`, NOT during ingest, so the cache layer
+keeps the raw VNDB payloads and any future policy change
+applies retroactively without a cache rebuild. Test:
+`tests/vndb-link-normalize.test.ts`.
 
 ---
 

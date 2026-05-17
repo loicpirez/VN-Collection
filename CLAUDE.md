@@ -1090,16 +1090,35 @@ reasoning in the commit message.
 URL-state, default sort/order/group, and clear semantics are
 unchanged by this layout convention.
 
-### Card density
+### Card density — scoped per page
 
-- Shared `cardDensityPx` setting in `useDisplaySettings()` clamped
-  to `[120, 480]` via `clampCardDensity()`. Range widened from the
-  original `[140, 320]` so the user can genuinely get ~2 cards per
-  row at the high end.
-- The value flows into a CSS variable `--card-density-px` set on
-  the document root by `<CardDensityVarSetter>` (client) + an
-  inline `<html style="--card-density-px:…">` in `layout.tsx`
-  (server seed from cookie, no flash of default density).
+- Density is **per-scope**. `DENSITY_SCOPES` (in
+  `src/lib/settings/client.tsx`) enumerates every surface that
+  mounts a slider (`library`, `wishlist`, `recommendations`,
+  `topRanked`, `upcoming`, `dumped`, `similar`, `egs`,
+  `producerWorks`, `staffWorks`, …). Persisted values live in
+  `DisplaySettings.density: Record<DensityScope, number>`.
+- Resolve order via `resolveCardDensity(scope, settings, urlOverride)`:
+    1. URL override (`?density=N`, snapped to clamp range).
+    2. Persisted per-scope value (`density[scope]`).
+    3. Legacy global fallback (`cardDensityPx`).
+  `cardDensityPx` is kept as the global default. On first read,
+  a persisted payload with `cardDensityPx ≠ default` but no
+  `density.library` entry promotes the legacy value into
+  `density.library` so existing sessions don't visually jump.
+- Settings → Display exposes **two** sections: a global
+  "Default density" slider (writes `cardDensityPx`) and a
+  "Per-page overrides" list with a Reset button per scope. A
+  bulk "Reset all per-page" button clears every scope override
+  at once; "Reset everything" also resets the global.
+- Clamp range is `[120, 480]` via `clampCardDensity()`. Range
+  widened from the original `[140, 320]` so the operator can
+  genuinely get ~2 cards per row at the high end.
+- Resolved value flows into a CSS variable `--card-density-px`
+  on the surface root. `<CardDensitySlider scope="…">` is the
+  canonical UI surface; mount one per page in the toolbar
+  header. The slider writes `density[scope]` directly so the
+  global default is never overwritten by a per-page tweak.
 - Every server-rendered listing grid uses
   `minmax(min(100%, var(--card-density-px, 220px)), 1fr)` so
   changing the slider doesn't require a page reload AND a slider
@@ -1277,6 +1296,48 @@ After non-trivial changes, walk through these in the browser
 - For plain-text needs (filter chips, search snippets) call
   `stripVndbMarkup` from the same module. The inline `stripBb` regex
   copies that used to live in 4 pages were removed.
+
+### VNDB BBCode link normalization
+- `src/lib/vndb-link-normalize.ts` exports `normalizeVndbHref(href)`.
+  Called from `<VndbMarkup>` for every `[url=…]` and autolink target
+  so VNDB-shaped references (`https://vndb.org/cNNN`, bare `cNNN`,
+  relative `/cNNN`) rewrite to the canonical internal route
+  (`/character/cNNN`, `/vn/vNNN`, `/release/rNNN`, `/producer/pNNN`,
+  `/tag/gNNN`, `/trait/iNNN`, `/staff/sNNN`).
+- Unknown id prefixes (`d`/doc, `u`/user, `t`/thread, `w`/review)
+  keep their external URL; the helper only rewrites prefixes with a
+  matching App Router route.
+- Normalisation runs at RENDER time, not during ingest. The cache
+  layer (`vndb-cache.ts`) stores raw VNDB payloads exactly as
+  received so any future route-table change applies retroactively
+  to every cached description without a cache rebuild.
+- Test: `tests/vndb-link-normalize.test.ts`.
+
+### Platform label mapping
+- `src/lib/platform-display.ts` exports `platformLabel(code, dict)`
+  which maps VNDB platform codes (`win`, `mac`, `lin`, `ios`, `and`,
+  `web`, `swi`, `ps3`, …) to localised display labels. Duplicate
+  keys collapse; unknown codes fall back to the raw uppercase form
+  so a freshly-added VNDB code never silently breaks the page.
+- Every card chip, search-filter chip, and release row uses this
+  helper instead of rendering the raw code. Adding a new platform =
+  add the code to the `PLATFORM_LABELS` map under all three locales.
+- Tests: `tests/platform-display.test.ts`, `tests/platform-label.test.ts`.
+
+### PortalPopover
+- `src/components/PortalPopover.tsx` is the canonical primitive for
+  any popover that needs to escape the parent's clipping or stacking
+  context. Portals into `document.body`, measures the trigger, picks
+  a placement, flips on viewport-collision, and re-measures on scroll
+  / resize.
+- Consumers: the shelf unplaced-pool info popover (escapes the
+  card's `overflow: hidden`), the `<ListsPickerButton>` overlay on
+  every `<VnCard>` (escapes the card's `z-index`), the saved-filter
+  chip ⋮ menus on `/`.
+- Anything that needs a card-anchored panel MUST use this primitive
+  — mounting a panel inside the card breaks on viewport collision
+  near the edges and on `overflow: hidden` ancestors. Test:
+  `tests/portal-popover.test.ts`.
 
 ### Language codes
 - `lib/language-names.ts` maps VNDB language codes to display names
