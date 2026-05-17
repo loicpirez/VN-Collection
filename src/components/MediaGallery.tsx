@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,9 +12,15 @@ import {
   X,
 } from 'lucide-react';
 import { useDialogA11y } from './Dialog';
+import {
+  MEDIA_MENU_MAX_WIDTH_REM,
+  MEDIA_MENU_MIN_WIDTH_REM,
+  decideMediaMenuHorizontal,
+} from './media-menu-helpers';
 import { SafeImage } from './SafeImage';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { dispatchBannerChanged, dispatchCoverChanged } from '@/lib/cover-banner-events';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
 export interface MediaItem {
@@ -335,6 +342,24 @@ function MediaTile({
  * below, and flips left when the tile sits at the right edge of the
  * viewport.
  *
+ * Sizing contract (locked by `tests/media-menu.test.ts`):
+ *   - `min-width: 12rem`, `max-width: 18rem` so the menu never spans
+ *     the entire tile on a wide-localised label, never narrower than
+ *     `MEDIA_MENU_MIN_WIDTH_REM`.
+ *   - Per-row labels use `whitespace-nowrap overflow-hidden
+ *     text-overflow: ellipsis`; the short label is rendered visibly
+ *     while the long form rides as the row's `aria-label` and
+ *     `title`.
+ *   - Horizontal flip triggers when the kebab sits within
+ *     `MEDIA_MENU_FLIP_REM` of the right viewport edge.
+ *
+ * Keyboard contract:
+ *   - ArrowDown / ArrowUp: roving focus across menu items, wraps at
+ *     both ends.
+ *   - Enter / Space: activate the focused item (default <button>/<a>
+ *     handlers fire).
+ *   - Escape: close, restore focus to the kebab trigger.
+ *
  * Items:
  *   - Open lightbox      (mirrors the image click for keyboard users
  *                         who would otherwise have to leave the menu)
@@ -355,6 +380,8 @@ function TileKebab({
 }) {
   const t = useT();
   const toast = useToast();
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [placement, setPlacement] = useState<{
     vertical: 'below' | 'above';
@@ -366,7 +393,7 @@ function TileKebab({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Outside-click + Escape close.
+  // Outside-click + Escape + arrow-key roving focus.
   useEffect(() => {
     if (!open) return;
     if (typeof document === 'undefined') return;
@@ -384,7 +411,30 @@ function TileKebab({
         e.preventDefault();
         setOpen(false);
         triggerRef.current?.focus({ preventScroll: true });
+        return;
       }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') {
+        return;
+      }
+      // Arrow keys move the roving focus through `role="menuitem"`
+      // / `role="menuitemcheckbox"` rows inside the menu. Without
+      // this the kebab was tab-only, which on a long menu meant
+      // four discrete Tab keystrokes to reach the last entry.
+      const menu = menuRef.current;
+      if (!menu) return;
+      const items = Array.from(
+        menu.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]'),
+      ).filter((el) => !el.hasAttribute('disabled'));
+      if (items.length === 0) return;
+      const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+      let nextIndex = currentIndex;
+      if (e.key === 'ArrowDown') nextIndex = (currentIndex + 1) % items.length;
+      else if (e.key === 'ArrowUp')
+        nextIndex = (currentIndex - 1 + items.length) % items.length;
+      else if (e.key === 'Home') nextIndex = 0;
+      else if (e.key === 'End') nextIndex = items.length - 1;
+      e.preventDefault();
+      items[nextIndex]?.focus({ preventScroll: true });
     }
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -393,6 +443,17 @@ function TileKebab({
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+
+  // Land focus on the first menu item when the menu opens so a
+  // keyboard user can arrow / Enter without an extra Tab.
+  useEffect(() => {
+    if (!open || !placed) return;
+    if (typeof document === 'undefined') return;
+    const first = menuRef.current?.querySelector<HTMLElement>(
+      '[role="menuitem"], [role="menuitemcheckbox"]',
+    );
+    first?.focus({ preventScroll: true });
+  }, [open, placed]);
 
   // Collision detection — mirrors EditionInfoPopover. Measure the
   // tile (the trigger's offsetParent) instead of the small kebab
@@ -410,17 +471,18 @@ function TileKebab({
     const compute = () => {
       const rect = anchor.getBoundingClientRect();
       const popH = menu.offsetHeight;
-      const popW = menu.offsetWidth;
       const viewportH = window.innerHeight;
       const viewportW = window.innerWidth;
       const spaceBelow = viewportH - rect.bottom;
       const spaceAbove = rect.top;
       const vertical: 'below' | 'above' =
         spaceBelow < popH + 12 && spaceAbove > spaceBelow ? 'above' : 'below';
-      const spaceLeftToTileRight = viewportW - rect.right;
       // Kebab sits in the top-right corner — default to opening
-      // left so the menu doesn't spill off the right edge.
-      const horizontal: 'left' | 'right' = spaceLeftToTileRight < popW + 12 ? 'left' : 'right';
+      // left so the menu doesn't spill off the right edge. Use a
+      // 12rem viewport-edge threshold (matching the menu's
+      // min-width) rather than the live menu width so the flip
+      // behaviour stays predictable across density / zoom levels.
+      const horizontal = decideMediaMenuHorizontal(rect.right, viewportW);
       setPlacement({ vertical, horizontal });
       setPlaced(true);
     };
@@ -437,6 +499,14 @@ function TileKebab({
   async function setAs(kind: 'cover' | 'banner') {
     if (busy) return;
     setBusy(kind);
+    // Best-guess resolved src + local pair for the optimistic event.
+    // `bannerValue` is the path we send to the server; for paths
+    // beginning with `vn-sc/` / `vn/` / `cover/` etc. it's the local
+    // storage path, so we expose it as `newLocal`. Remote URLs
+    // (http(s)://…) become `newSrc`.
+    const isRemote = /^https?:\/\//i.test(bannerValue);
+    const newSrc = isRemote ? bannerValue : item.url;
+    const newLocal = isRemote ? null : bannerValue;
     try {
       const path = kind === 'cover' ? 'cover' : 'banner';
       const res = await fetch(`/api/collection/${vnId}/${path}`, {
@@ -448,8 +518,20 @@ function TileKebab({
         const err = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(err.error || t.common.error);
       }
+      // Notify every mounted surface (HeroBanner, CoverEditOverlay,
+      // VnCard, OwnedEditionsSection, sibling MediaTile renderers) so
+      // the new cover/banner paints without a manual refresh. The
+      // router.refresh() below is a defensive fallback for server-
+      // rendered surfaces (cards on the Library page) that don't
+      // listen to the event.
+      if (kind === 'cover') {
+        dispatchCoverChanged({ vnId, newSrc, newLocal });
+      } else {
+        dispatchBannerChanged({ vnId, newSrc, newLocal });
+      }
       toast.success(t.toast.saved);
       setOpen(false);
+      startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -489,15 +571,20 @@ function TileKebab({
           aria-label={t.media.actionsMenu}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
-          className={`absolute z-30 min-w-[12rem] rounded-md border border-border bg-bg-card p-1 text-xs shadow-card ${
+          className={`absolute z-30 rounded-md border border-border bg-bg-card p-1 text-xs shadow-card ${
             placement.vertical === 'above' ? 'bottom-9 mb-1' : 'top-9 mt-1'
           } ${placement.horizontal === 'right' ? 'left-1.5' : 'right-1.5'} ${
             placed ? 'visible opacity-100' : 'invisible opacity-0'
           }`}
+          style={{
+            minWidth: `${MEDIA_MENU_MIN_WIDTH_REM}rem`,
+            maxWidth: `${MEDIA_MENU_MAX_WIDTH_REM}rem`,
+          }}
         >
           <MenuItem
             icon={<Maximize2 className="h-3.5 w-3.5" aria-hidden />}
-            label={t.media.openLightbox}
+            shortLabel={t.media.openLightboxShort}
+            longLabel={t.media.openLightbox}
             onClick={() => {
               setOpen(false);
               onOpenLightbox();
@@ -505,13 +592,15 @@ function TileKebab({
           />
           <MenuItem
             icon={<ImageDown className="h-3.5 w-3.5" aria-hidden />}
-            label={t.media.setAsCover}
+            shortLabel={t.media.setAsCoverShort}
+            longLabel={t.media.setAsCover}
             onClick={() => setAs('cover')}
             disabled={busy === 'cover'}
           />
           <MenuItem
             icon={<ImageUp className="h-3.5 w-3.5" aria-hidden />}
-            label={t.media.setAsBanner}
+            shortLabel={t.media.setAsBannerShort}
+            longLabel={t.media.setAsBanner}
             onClick={() => setAs('banner')}
             disabled={busy === 'banner'}
           />
@@ -520,11 +609,14 @@ function TileKebab({
             target="_blank"
             rel="noopener noreferrer"
             role="menuitem"
+            tabIndex={-1}
             onClick={() => setOpen(false)}
-            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white"
+            aria-label={t.media.openOriginal}
+            title={t.media.openOriginal}
+            className="flex w-full items-center gap-2 overflow-hidden rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white focus:bg-bg-elev focus:text-white focus:outline-none"
           >
-            <ExternalLinkIcon className="h-3.5 w-3.5" aria-hidden />
-            <span>{t.media.openOriginal}</span>
+            <ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate whitespace-nowrap">{t.media.openOriginalShort}</span>
           </a>
         </div>
       )}
@@ -532,14 +624,26 @@ function TileKebab({
   );
 }
 
+/**
+ * Single menu row inside the kebab dropdown.
+ *
+ * Renders `shortLabel` visibly (truncated with ellipsis when it
+ * still doesn't fit at the 18rem cap) and routes `longLabel` to
+ * `aria-label` + `title` so the full text remains discoverable on
+ * hover / by assistive tech. The button itself is `tabIndex={-1}`
+ * — focus arrives through the roving keyboard handler so a single
+ * Tab into the menu doesn't slide back out the bottom.
+ */
 function MenuItem({
   icon,
-  label,
+  shortLabel,
+  longLabel,
   onClick,
   disabled,
 }: {
   icon: React.ReactNode;
-  label: string;
+  shortLabel: string;
+  longLabel: string;
   onClick: () => void;
   disabled?: boolean;
 }) {
@@ -547,12 +651,15 @@ function MenuItem({
     <button
       type="button"
       role="menuitem"
+      tabIndex={-1}
       onClick={onClick}
       disabled={disabled}
-      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white disabled:opacity-50"
+      aria-label={longLabel}
+      title={longLabel}
+      className="flex w-full items-center gap-2 overflow-hidden rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white focus:bg-bg-elev focus:text-white focus:outline-none disabled:opacity-50"
     >
-      {icon}
-      <span>{label}</span>
+      <span className="shrink-0">{icon}</span>
+      <span className="truncate whitespace-nowrap">{shortLabel}</span>
     </button>
   );
 }
