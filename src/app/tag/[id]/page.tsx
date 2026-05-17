@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Star, Tag as TagIcon } from 'lucide-react';
@@ -11,6 +12,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { VndbMarkup } from '@/components/VndbMarkup';
+import { SkeletonBlock } from '@/components/Skeleton';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,34 +78,11 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   // operator is offline the page still renders with just the id.
   const tagInfo = await getTag(tagId).catch(() => null);
 
-  // Top VNs by VNDB rating for the tag — only fetched when the VNDB
-  // tab is active to keep the local-tab path on the SQLite-only fast
-  // path. Filter shape per KANA.md is the 3-tuple
-  // `['tag', '=', [id, maxSpoiler(int), minTagLevel(float)]]`. The
-  // `fetchTopVnsByTag` helper applies a `1.2` floor on tag level so
-  // weak/voted-down placements are dropped.
-  let topVndb: Array<{
-    id: string;
-    title: string;
-    image: { url: string; thumbnail: string } | null;
-    rating: number | null;
-    released: string | null;
-  }> = [];
-  let vndbError: string | null = null;
-  if (tab === 'vndb') {
-    try {
-      const r = await fetchTopVnsByTag(tagId, { results: 24 });
-      topVndb = r.results.map((v) => ({
-        id: v.id,
-        title: v.title,
-        image: v.image ?? null,
-        rating: v.rating,
-        released: v.released,
-      }));
-    } catch (e) {
-      vndbError = (e as Error).message;
-    }
-  }
+  // VNDB results moved into a Suspense-wrapped async component
+  // below so the page shell paints immediately instead of blocking
+  // on the upstream POST /vn call. The previous design awaited the
+  // result inline, which made `/tag/[id]?tab=vndb` look frozen
+  // until VNDB responded (or 502'd).
 
   return (
     <DensityScopeProvider scope="tagPage" className="mx-auto max-w-5xl">
@@ -250,52 +229,118 @@ export default async function TagPage({ params, searchParams }: PageProps) {
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {t.tagPage.topVns}
           </h2>
-          {vndbError && (
-            <p className="text-sm text-status-dropped">{vndbError}</p>
-          )}
-          {!vndbError && topVndb.length === 0 && (
-            <p className="text-sm text-muted">{t.search.noResults}</p>
-          )}
-          {topVndb.length > 0 && (
-            <ul
-              className="grid gap-3"
-              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
-            >
-              {topVndb.map((v) => {
-                const year = v.released?.slice(0, 4);
-                const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
-                return (
-                  <li key={v.id}>
-                    <Link
-                      href={`/vn/${v.id}`}
-                      className="group flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
-                    >
-                      <div className="aspect-[2/3] w-full overflow-hidden rounded">
-                        <SafeImage
-                          src={v.image?.thumbnail || v.image?.url || null}
-                          alt={v.title}
-                          className="h-full w-full"
-                        />
-                      </div>
-                      <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
-                        {v.title}
-                      </p>
-                      <div className="flex items-center gap-2 text-[11px] text-muted">
-                        {ratingDisplay && (
-                          <span className="inline-flex items-center gap-0.5 text-accent">
-                            <Star className="h-3 w-3 fill-accent" aria-hidden /> {ratingDisplay}
-                          </span>
-                        )}
-                        {year && <span>{year}</span>}
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {/*
+            Skeleton-first VNDB block. The page shell (header,
+            description, tab strip, local list) paints immediately.
+            The VNDB POST happens inside the Suspense boundary so
+            the operator sees skeleton cards instead of a frozen
+            blank page while the upstream call is in flight.
+          */}
+          <Suspense fallback={<TagVndbSkeleton />}>
+            <TagVndbResults tagId={tagId} />
+          </Suspense>
         </section>
       )}
     </DensityScopeProvider>
+  );
+}
+
+/**
+ * Skeleton placeholder for the VNDB-tag VN grid. Mirrors the final
+ * card shape (cover + 2 lines of text) so the layout doesn't jump
+ * when results land.
+ */
+function TagVndbSkeleton() {
+  return (
+    <ul
+      className="grid gap-3"
+      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
+      aria-busy="true"
+    >
+      {Array.from({ length: 12 }).map((_, i) => (
+        <li
+          key={i}
+          className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2"
+        >
+          <SkeletonBlock className="aspect-[2/3] w-full rounded" />
+          <SkeletonBlock className="h-3 w-full" />
+          <SkeletonBlock className="h-2 w-2/3" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Async server component that awaits the VNDB POST and renders the
+ * resolved grid. Failures fall through to a status-dropped error
+ * card so the operator can see WHY the panel is empty (offline /
+ * 429 / 502) rather than just "no results".
+ */
+async function TagVndbResults({ tagId }: { tagId: string }) {
+  const t = await getDict();
+  let topVndb: Array<{
+    id: string;
+    title: string;
+    image: { url: string; thumbnail: string } | null;
+    rating: number | null;
+    released: string | null;
+  }> = [];
+  let vndbError: string | null = null;
+  try {
+    const r = await fetchTopVnsByTag(tagId, { results: 24 });
+    topVndb = r.results.map((v) => ({
+      id: v.id,
+      title: v.title,
+      image: v.image ?? null,
+      rating: v.rating,
+      released: v.released,
+    }));
+  } catch (e) {
+    vndbError = (e as Error).message;
+  }
+  if (vndbError) {
+    return <p className="text-sm text-status-dropped">{vndbError}</p>;
+  }
+  if (topVndb.length === 0) {
+    return <p className="text-sm text-muted">{t.search.noResults}</p>;
+  }
+  return (
+    <ul
+      className="grid gap-3"
+      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
+    >
+      {topVndb.map((v) => {
+        const year = v.released?.slice(0, 4);
+        const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
+        return (
+          <li key={v.id}>
+            <Link
+              href={`/vn/${v.id}`}
+              className="group flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
+            >
+              <div className="aspect-[2/3] w-full overflow-hidden rounded">
+                <SafeImage
+                  src={v.image?.thumbnail || v.image?.url || null}
+                  alt={v.title}
+                  className="h-full w-full"
+                />
+              </div>
+              <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                {v.title}
+              </p>
+              <div className="flex items-center gap-2 text-[11px] text-muted">
+                {ratingDisplay && (
+                  <span className="inline-flex items-center gap-0.5 text-accent">
+                    <Star className="h-3 w-3 fill-accent" aria-hidden /> {ratingDisplay}
+                  </span>
+                )}
+                {year && <span>{year}</span>}
+              </div>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
