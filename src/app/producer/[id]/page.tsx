@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
-import { getProducer as getProducerLocal, producerOwnershipSummary, upsertProducer } from '@/lib/db';
+import { getAppSetting, getProducer as getProducerLocal, producerOwnershipSummary, upsertProducer } from '@/lib/db';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
@@ -14,6 +14,14 @@ import { VndbMarkup } from '@/components/VndbMarkup';
 import { ProducerVnsSections } from '@/components/ProducerVnsSections';
 import { readScrapedProducerInfo } from '@/lib/scrape-producer-relations';
 import type { ProducerRow } from '@/lib/types';
+import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
+import {
+  PRODUCER_DETAIL_LAYOUT_EVENT,
+  PRODUCER_DETAIL_SETTINGS_KEY,
+  PRODUCER_SECTION_IDS,
+  defaultProducerDetailLayoutV1,
+  parseProducerDetailLayoutV1,
+} from '@/lib/producer-detail-layout';
 
 export const dynamic = 'force-dynamic';
 const CACHE_MS = 24 * 3600 * 1000;
@@ -76,6 +84,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
     };
   }
   const typeKey = producer.type ? TYPE_KEY[producer.type] : null;
+  const initialLayout = parseProducerDetailLayoutV1(getAppSetting(PRODUCER_DETAIL_SETTINGS_KEY));
 
   return (
     <DensityScopeProvider scope="producerWorks">
@@ -137,42 +146,78 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
         <CardDensitySlider scope="producerWorks" />
       </div>
 
-      {producer.description && (
-        <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
-          <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
-            <VndbMarkup text={producer.description} />
-          </div>
-        </section>
-      )}
+      {(() => {
+        const producerSections: DetailSection[] = [];
 
-      <section className="mb-8 flex flex-wrap gap-2">
-        <a
-          href={`https://vndb.org/${producer.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn"
-        >
-          <ExternalLink className="h-3.5 w-3.5" /> VNDB
-        </a>
-        {producer.extlinks.map((l) => (
-          <a
-            key={l.url}
-            href={l.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn"
-          >
-            <ExternalLink className="h-3.5 w-3.5" /> {l.label}
-          </a>
-        ))}
-      </section>
+        if (producer.description) {
+          producerSections.push({
+            id: 'description',
+            node: (
+              <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
+                <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
+                  <VndbMarkup text={producer.description} />
+                </div>
+              </section>
+            ),
+          });
+        }
 
-      <Suspense fallback={<ProducerVnsSkeleton />}>
-        <ProducerVnsSections producerId={producer.id} />
-      </Suspense>
+        producerSections.push({
+          id: 'extlinks',
+          node: (
+            <section className="mb-8 flex flex-wrap gap-2">
+              <a
+                href={`https://vndb.org/${producer.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> VNDB
+              </a>
+              {producer.extlinks.map((l) => (
+                <a
+                  key={l.url}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> {l.label}
+                </a>
+              ))}
+            </section>
+          ),
+        });
 
-      <ProducerScrapedRelations pid={producer.id} t={t} />
+        producerSections.push({
+          id: 'works',
+          node: (
+            <Suspense fallback={<ProducerVnsSkeleton />}>
+              <ProducerVnsSections producerId={producer.id} />
+            </Suspense>
+          ),
+        });
+
+        const scrapedInfo = readScrapedProducerInfo(producer.id);
+        if (scrapedInfo && scrapedInfo.relations.length > 0) {
+          producerSections.push({
+            id: 'stats',
+            node: <ProducerScrapedRelations pid={producer.id} t={t} />,
+          });
+        }
+
+        return (
+          <DetailReorderLayout
+            sections={producerSections}
+            initialLayout={initialLayout}
+            sectionIds={PRODUCER_SECTION_IDS}
+            settingsKey={PRODUCER_DETAIL_SETTINGS_KEY}
+            eventName={PRODUCER_DETAIL_LAYOUT_EVENT}
+            defaultLayout={defaultProducerDetailLayoutV1}
+          />
+        );
+      })()}
     </DensityScopeProvider>
   );
 }
