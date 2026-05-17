@@ -1,11 +1,19 @@
 'use client';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink as ExternalLinkIcon,
+  ImageDown,
+  ImageUp,
+  Maximize2,
+  MoreHorizontal,
+  X,
+} from 'lucide-react';
 import { useDialogA11y } from './Dialog';
 import { SafeImage } from './SafeImage';
-import { SetBannerButton } from './SetBannerButton';
-import { SetCoverButton } from './SetCoverButton';
 import { useT } from '@/lib/i18n/client';
+import { useToast } from './ToastProvider';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
 export interface MediaItem {
@@ -171,56 +179,14 @@ export function MediaGallery({
         role="list"
         aria-label={t.media.itemsLabel}
       >
-        {visible.map((item, i) => {
-          // Prefer the local path so the banner survives offline / cache misses.
-          const bannerValue = item.local || item.url;
-          return (
-            <div
-              key={item.key}
-              className={`group relative overflow-hidden rounded-lg border border-border bg-bg-elev ${
-                item.aspect === 'landscape'
-                  ? 'aspect-video'
-                  : item.aspect === 'square'
-                    ? 'aspect-square'
-                    : 'aspect-[2/3]'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => setActive(i)}
-                className="h-full w-full"
-                title={item.caption ?? item.alt}
-              >
-                <SafeImage
-                  src={item.thumbnail || item.url}
-                  localSrc={item.local_thumb || item.local}
-                  alt={item.alt}
-                  sexual={item.sexual}
-                  className="h-full w-full"
-                  fit={item.aspect === 'landscape' ? 'cover' : 'contain'}
-                />
-              </button>
-              <div className="pointer-events-none absolute right-1.5 top-1.5 flex flex-col items-end gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-                <span className="pointer-events-auto">
-                  <SetBannerButton vnId={vnId} value={bannerValue} />
-                </span>
-                <span className="pointer-events-auto">
-                  <SetCoverButton vnId={vnId} value={bannerValue} />
-                </span>
-              </div>
-              {item.dims && item.dims[0] > 0 && item.dims[1] > 0 && (
-                <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-mono text-white backdrop-blur-sm">
-                  {item.dims[0]}×{item.dims[1]}
-                </span>
-              )}
-              {item.caption && (
-                <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-2 py-1 text-[10px] text-white transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-                  {item.caption}
-                </span>
-              )}
-            </div>
-          );
-        })}
+        {visible.map((item, i) => (
+          <MediaTile
+            key={item.key}
+            item={item}
+            vnId={vnId}
+            onOpenLightbox={() => setActive(i)}
+          />
+        ))}
       </div>
 
       {active != null && visible[active] && (
@@ -285,3 +251,309 @@ export function MediaGallery({
     </div>
   );
 }
+
+/**
+ * Single thumbnail in the media grid. The image itself is now the
+ * primary click target — clicking opens the lightbox; the
+ * "Set as cover" / "Set as banner" / "Open original" affordances are
+ * collapsed into a kebab menu anchored to the top-right corner.
+ *
+ * Manual QA flagged that the previous layout painted two large
+ * gradient buttons across most of the thumbnail, hiding the actual
+ * screenshot from view. The kebab approach matches the standard
+ * gallery convention: image stays visible, secondary actions hide
+ * behind a single discoverable affordance.
+ *
+ * Visibility rules:
+ *   - Desktop (`md+`): kebab is hidden by default, fades in on tile
+ *     hover or focus-within (so keyboard users see it the moment
+ *     the tile receives focus).
+ *   - Touch / small viewports (`< md`): kebab is always visible so
+ *     touch users always have a target.
+ *   - Tap target is 32×32 minimum (h-8 w-8 = 2rem) to clear the
+ *     WCAG 2.5.5 + Material touch-size recommendation.
+ */
+function MediaTile({
+  item,
+  vnId,
+  onOpenLightbox,
+}: {
+  item: MediaItem;
+  vnId: string;
+  onOpenLightbox: () => void;
+}) {
+  const t = useT();
+  // Prefer the local path so the banner survives offline / cache misses.
+  const bannerValue = item.local || item.url;
+
+  return (
+    <div
+      className={`group relative overflow-hidden rounded-lg border border-border bg-bg-elev ${
+        item.aspect === 'landscape'
+          ? 'aspect-video'
+          : item.aspect === 'square'
+            ? 'aspect-square'
+            : 'aspect-[2/3]'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onOpenLightbox}
+        className="h-full w-full"
+        title={item.caption ?? item.alt}
+        aria-label={t.media.openLightbox}
+      >
+        <SafeImage
+          src={item.thumbnail || item.url}
+          localSrc={item.local_thumb || item.local}
+          alt={item.alt}
+          sexual={item.sexual}
+          className="h-full w-full"
+          fit={item.aspect === 'landscape' ? 'cover' : 'contain'}
+        />
+      </button>
+      <TileKebab vnId={vnId} item={item} bannerValue={bannerValue} onOpenLightbox={onOpenLightbox} />
+      {item.dims && item.dims[0] > 0 && item.dims[1] > 0 && (
+        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-mono text-white backdrop-blur-sm">
+          {item.dims[0]}×{item.dims[1]}
+        </span>
+      )}
+      {item.caption && (
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-2 py-1 text-[10px] text-white transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+          {item.caption}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Per-tile kebab dropdown. Renders inside the same positioned tile
+ * wrapper so the popover anchors against `top-1.5 right-1.5`. The
+ * dropdown uses collision-aware placement similar to
+ * EditionInfoPopover: it flips above when there isn't enough room
+ * below, and flips left when the tile sits at the right edge of the
+ * viewport.
+ *
+ * Items:
+ *   - Open lightbox      (mirrors the image click for keyboard users
+ *                         who would otherwise have to leave the menu)
+ *   - Set as cover       (POST /api/collection/[id]/cover)
+ *   - Set as banner      (POST /api/collection/[id]/banner)
+ *   - Open original      (`<a target="_blank">` to the source URL)
+ */
+function TileKebab({
+  vnId,
+  item,
+  bannerValue,
+  onOpenLightbox,
+}: {
+  vnId: string;
+  item: MediaItem;
+  bannerValue: string;
+  onOpenLightbox: () => void;
+}) {
+  const t = useT();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<{
+    vertical: 'below' | 'above';
+    horizontal: 'left' | 'right';
+  }>({ vertical: 'below', horizontal: 'left' });
+  const [placed, setPlaced] = useState(false);
+  // Per-action busy flag so the user can see which item is mid-flight.
+  const [busy, setBusy] = useState<'cover' | 'banner' | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Outside-click + Escape close.
+  useEffect(() => {
+    if (!open) return;
+    if (typeof document === 'undefined') return;
+    function onDoc(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        !triggerRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus({ preventScroll: true });
+      }
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  // Collision detection — mirrors EditionInfoPopover. Measure the
+  // tile (the trigger's offsetParent) instead of the small kebab
+  // button so the popover never spills below the tile boundary.
+  useEffect(() => {
+    if (!open) {
+      setPlaced(false);
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    const trigger = triggerRef.current;
+    const menu = menuRef.current;
+    if (!trigger || !menu) return;
+    const anchor = (trigger.offsetParent as HTMLElement | null) ?? trigger;
+    const compute = () => {
+      const rect = anchor.getBoundingClientRect();
+      const popH = menu.offsetHeight;
+      const popW = menu.offsetWidth;
+      const viewportH = window.innerHeight;
+      const viewportW = window.innerWidth;
+      const spaceBelow = viewportH - rect.bottom;
+      const spaceAbove = rect.top;
+      const vertical: 'below' | 'above' =
+        spaceBelow < popH + 12 && spaceAbove > spaceBelow ? 'above' : 'below';
+      const spaceLeftToTileRight = viewportW - rect.right;
+      // Kebab sits in the top-right corner — default to opening
+      // left so the menu doesn't spill off the right edge.
+      const horizontal: 'left' | 'right' = spaceLeftToTileRight < popW + 12 ? 'left' : 'right';
+      setPlacement({ vertical, horizontal });
+      setPlaced(true);
+    };
+    const raf = requestAnimationFrame(compute);
+    window.addEventListener('scroll', compute, { passive: true });
+    window.addEventListener('resize', compute);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', compute);
+      window.removeEventListener('resize', compute);
+    };
+  }, [open]);
+
+  async function setAs(kind: 'cover' | 'banner') {
+    if (busy) return;
+    setBusy(kind);
+    try {
+      const path = kind === 'cover' ? 'cover' : 'banner';
+      const res = await fetch(`/api/collection/${vnId}/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'path', value: bannerValue }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error || t.common.error);
+      }
+      toast.success(t.toast.saved);
+      setOpen(false);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        // Stop propagation so the underlying image-button doesn't
+        // also fire (which would open the lightbox below the menu).
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={t.media.actionsMenu}
+        title={t.media.actionsMenu}
+        // 32×32 minimum on touch. `opacity-100` on small viewports
+        // keeps the affordance always visible for touch users;
+        // hover/focus reveals it on desktop only. focus-visible
+        // forces the kebab to appear the moment a keyboard user
+        // tabs into the tile so they never lose the entry point.
+        className="absolute right-1.5 top-1.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-black/70 text-white shadow backdrop-blur-sm transition-opacity hover:bg-accent hover:text-bg focus-visible:opacity-100 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+      >
+        <MoreHorizontal className="h-4 w-4" aria-hidden />
+      </button>
+      {open && (
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label={t.media.actionsMenu}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          className={`absolute z-30 min-w-[12rem] rounded-md border border-border bg-bg-card p-1 text-xs shadow-card ${
+            placement.vertical === 'above' ? 'bottom-9 mb-1' : 'top-9 mt-1'
+          } ${placement.horizontal === 'right' ? 'left-1.5' : 'right-1.5'} ${
+            placed ? 'visible opacity-100' : 'invisible opacity-0'
+          }`}
+        >
+          <MenuItem
+            icon={<Maximize2 className="h-3.5 w-3.5" aria-hidden />}
+            label={t.media.openLightbox}
+            onClick={() => {
+              setOpen(false);
+              onOpenLightbox();
+            }}
+          />
+          <MenuItem
+            icon={<ImageDown className="h-3.5 w-3.5" aria-hidden />}
+            label={t.media.setAsCover}
+            onClick={() => setAs('cover')}
+            disabled={busy === 'cover'}
+          />
+          <MenuItem
+            icon={<ImageUp className="h-3.5 w-3.5" aria-hidden />}
+            label={t.media.setAsBanner}
+            onClick={() => setAs('banner')}
+            disabled={busy === 'banner'}
+          />
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white"
+          >
+            <ExternalLinkIcon className="h-3.5 w-3.5" aria-hidden />
+            <span>{t.media.openOriginal}</span>
+          </a>
+        </div>
+      )}
+    </>
+  );
+}
+
+function MenuItem({
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white disabled:opacity-50"
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
