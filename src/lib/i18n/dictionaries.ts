@@ -1468,11 +1468,10 @@ export const dictionaries = {
       releaseFieldBadge: 'édition',
       ownedBadge: 'possédé',
       releaseHasOptions: '{n} options disponibles',
-      // Deprecated: the prior copy ("Plateforme inconnue — rafraîchir
-      // les sorties") combined a label and a call-to-action into dead
-      // text. Use `platformUnknownLabel` for the label and the
-      // separate `refreshReleases` action button instead.
-      platformUnknown: 'Plateforme inconnue',
+      // `platformUnknownLabel` is the bare label; the popover renders
+      // a separate `refreshReleases` action button next to it. The
+      // legacy `platformUnknown` key (label + CTA mashed together)
+      // has been removed — it was only ever read as dead text.
       platformUnknownLabel: 'Plateforme inconnue',
       refreshReleases: 'Rafraîchir les sorties',
       fullscreen: 'Plein écran',
@@ -3453,7 +3452,6 @@ export const dictionaries = {
       ownedBadge: 'owned',
       releaseHasOptions: '{n} options available',
       // See FR comment — split into a static label + a real action.
-      platformUnknown: 'Unknown platform',
       platformUnknownLabel: 'Unknown platform',
       refreshReleases: 'Refresh releases',
       fullscreen: 'Fullscreen',
@@ -5433,7 +5431,6 @@ export const dictionaries = {
       releaseFieldBadge: 'リリース',
       ownedBadge: '所有',
       releaseHasOptions: '{n} 個のオプション',
-      platformUnknown: 'プラットフォーム不明',
       platformUnknownLabel: 'プラットフォーム不明',
       refreshReleases: 'リリースを再取得',
       fullscreen: '全画面',
