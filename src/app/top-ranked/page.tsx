@@ -48,10 +48,14 @@ export default async function TopRankedPage({
   const { tab: rawTab, page: rawPage } = await searchParams;
   const tab = parseTab(rawTab);
   const page = parsePage(rawPage);
-  const lastUpdatedAt = getCacheFreshness([
-    '% /vn:top-ranked:%',
-    'egs:top-ranked:%',
-  ]);
+  // Per-tab freshness: previously the chip showed MAX(vndb, egs)
+  // which misled the operator on the inactive tab (e.g. EGS tab
+  // chip reading "just now" when only VNDB was refreshed). Read
+  // only the cache rows backing the currently-visible tab.
+  const lastUpdatedAt =
+    tab === 'egs'
+      ? getCacheFreshness(['egs:top-ranked:%'])
+      : getCacheFreshness(['% /vn:top-ranked:%']);
 
   return (
     <div className="mx-auto max-w-5xl">

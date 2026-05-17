@@ -155,8 +155,15 @@ export default async function StatsPage() {
 
       {agg.topTags.length > 0 && (
         <Card title={t.charts.topTags} icon={<TagsIcon className="h-5 w-5 text-accent" />}>
+          {/* Tag rows are clickable: each links to the Library
+              filtered by that tag id. The HBarChart wraps the row
+              in <Link> when `href` is present. */}
           <HBarChart
-            data={agg.topTags.map((tag) => ({ label: tag.name, value: tag.count }))}
+            data={agg.topTags.map((tag) => ({
+              label: tag.name,
+              value: tag.count,
+              href: `/?tag=${encodeURIComponent(tag.id)}`,
+            }))}
             barClassName="bg-accent"
           />
         </Card>
@@ -167,22 +174,48 @@ export default async function StatsPage() {
       <div className="grid gap-6 md:grid-cols-2">
         {agg.byLanguage.length > 0 && (
           <Card title={t.charts.byLanguage} icon={<Languages className="h-5 w-5 text-accent" />}>
-            <HBarChart data={agg.byLanguage.map((d) => ({ label: d.lang.toUpperCase(), value: d.count }))} />
+            {/* Language rows → VNDB search prefilled with the
+                language code. Library doesn't have a language
+                filter today, so we route through /search whose
+                advanced drawer accepts ?langs=. */}
+            <HBarChart
+              data={agg.byLanguage.map((d) => ({
+                label: d.lang.toUpperCase(),
+                value: d.count,
+                href: `/search?langs=${encodeURIComponent(d.lang)}`,
+              }))}
+            />
           </Card>
         )}
 
         {agg.byPlatform.length > 0 && (
           <Card title={t.charts.byPlatform} icon={<Globe className="h-5 w-5 text-accent" />}>
-            <HBarChart data={agg.byPlatform.map((d) => ({ label: d.platform.toUpperCase(), value: d.count }))} />
+            {/* Platform rows → /search?platforms=<code>. Same
+                rationale as language: Library has no platform
+                filter, /search's advanced drawer does. */}
+            <HBarChart
+              data={agg.byPlatform.map((d) => ({
+                label: d.platform.toUpperCase(),
+                value: d.count,
+                href: `/search?platforms=${encodeURIComponent(d.platform)}`,
+              }))}
+            />
           </Card>
         )}
 
         {agg.byLocation.some((d) => d.location !== 'unknown') && (
           <Card title={t.charts.byLocation} icon={<MapPin className="h-5 w-5 text-accent" />}>
+            {/* Location rows → Library filtered by that physical
+                location. Library has a `?place=` filter that
+                matches the same enum. */}
             <HBarChart
               data={agg.byLocation.map((d) => ({
                 label: t.locations[d.location as keyof typeof t.locations] ?? d.location,
                 value: d.count,
+                href:
+                  d.location === 'unknown'
+                    ? undefined
+                    : `/?place=${encodeURIComponent(d.location)}`,
               }))}
             />
           </Card>

@@ -64,13 +64,15 @@ export default async function UpcomingPage({
   const { tab: rawTab, page: rawPage } = await searchParams;
   const tab = parseTab(rawTab);
   const page = parsePage(rawPage);
-  // EGS anticipated rows live under `egs:anticipated:%` (the page-
-  // level cache uses the page suffix `egs:anticipated:pN:K`). The
-  // bare `anticipated:%` pattern matched nothing, so the freshness
-  // chip on the Anticipated tab silently read only the VNDB release
-  // caches — which moved on every page load even when EGS was
-  // stale. Pin both prefixes here so the chip reads the right tab.
-  const lastUpdatedAt = getCacheFreshness(['% /release|%', '% /release:%', 'egs:anticipated:%']);
+  // Per-tab freshness: the Anticipated tab reads EGS cache rows
+  // (`egs:anticipated:%`) while the All / Collection tabs read
+  // VNDB release caches (`% /release|%`, `% /release:%`). Mixing
+  // both into one MAX hid stale-EGS state behind a fresh VNDB
+  // refresh. Scope the lookup to the active tab.
+  const lastUpdatedAt =
+    tab === 'anticipated'
+      ? getCacheFreshness(['egs:anticipated:%'])
+      : getCacheFreshness(['% /release|%', '% /release:%']);
 
   return (
     <div className="mx-auto max-w-5xl">
