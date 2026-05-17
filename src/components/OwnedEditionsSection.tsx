@@ -32,6 +32,7 @@ import {
 } from './ReleaseOwnedToggle';
 import { useT } from '@/lib/i18n/client';
 import { derivePlatformDisplay } from '@/lib/platform-display';
+import { platformLabel } from '@/lib/platform-label';
 import { BOX_TYPES, LOCATIONS, type BoxType, type Location } from '@/lib/types';
 import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
 import type { VndbRelease } from '@/lib/vndb-types';
@@ -377,7 +378,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                             <LangFlag key={l.lang} lang={l.lang} className="text-xs" />
                           ))}
                           {release?.platforms.slice(0, 3).map((p) => (
-                            <span key={p}>{p}</span>
+                            <span key={p} title={p}>{platformLabel(p)}</span>
                           ))}
                         </div>
                       </div>
@@ -465,7 +466,8 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
               <Field
                 icon={<Tag className="h-3 w-3" />}
                 label={t.form.ownedPlatform}
-                value={platformState.platform.toUpperCase()}
+                value={platformLabel(platformState.platform)}
+                title={platformState.platform}
               />
             );
           case 'choose':
@@ -573,11 +575,13 @@ function Field({
   label,
   value,
   valueClassName = '',
+  title,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   valueClassName?: string;
+  title?: string;
 }) {
   return (
     <div>
@@ -585,7 +589,13 @@ function Field({
         {icon}
         {label}
       </div>
-      <div className={`text-[12px] font-semibold ${valueClassName}`}>{value}</div>
+      <div
+        className={`text-[12px] font-semibold ${valueClassName}`}
+        title={title}
+        aria-label={title}
+      >
+        {value}
+      </div>
     </div>
   );
 }

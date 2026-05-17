@@ -7,6 +7,7 @@ import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { MapVnToEgsButton } from '@/components/MapVnToEgsButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
+import { ResetViewDefaultsButton } from '@/components/ResetViewDefaultsButton';
 import { SafeImage } from '@/components/SafeImage';
 
 export const dynamic = 'force-dynamic';
@@ -149,7 +150,10 @@ export default async function EgsPage() {
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-bold">{t.egs.linkedListTitle}</h2>
-          <CardDensitySlider scope="egs" />
+          <div className="flex flex-wrap items-center gap-2">
+            <CardDensitySlider scope="egs" />
+            <ResetViewDefaultsButton scope="egs" />
+          </div>
         </div>
         {links.length === 0 ? (
           <p className="text-sm text-muted">{t.egs.linkedEmpty}</p>
@@ -178,7 +182,7 @@ export default async function EgsPage() {
                   <div
                     className="shrink-0 overflow-hidden rounded"
                     style={{
-                      width: 'clamp(56px, calc(var(--card-density-px, 220px) * 0.28), 140px)',
+                      width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
                       aspectRatio: '2 / 3',
                     }}
                   >
@@ -250,7 +254,7 @@ export default async function EgsPage() {
                   <div
                     className="shrink-0 overflow-hidden rounded"
                     style={{
-                      width: 'clamp(56px, calc(var(--card-density-px, 220px) * 0.28), 140px)',
+                      width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
                       aspectRatio: '2 / 3',
                     }}
                   >

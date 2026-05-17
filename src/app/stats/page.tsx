@@ -4,6 +4,7 @@ import { BarChart3, Database, Globe, KeyRound, Languages, MapPin, Package, Spark
 import { db, getAggregateStats, getStats, listProducerStats, listPublisherStats } from '@/lib/db';
 import { getAuthInfo, getGlobalStats, type VndbStatsGlobal } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
+import { platformLabel } from '@/lib/platform-label';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -199,7 +200,7 @@ export default async function StatsPage() {
                 filter, /search's advanced drawer does. */}
             <HBarChart
               data={agg.byPlatform.map((d) => ({
-                label: d.platform.toUpperCase(),
+                label: platformLabel(d.platform),
                 value: d.count,
                 href: `/search?platforms=${encodeURIComponent(d.platform)}`,
               }))}

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { derivePlatformDisplay } from '@/lib/platform-display';
+import { platformLabel } from '@/lib/platform-label';
 import { useToast } from './ToastProvider';
 import { useRouter } from 'next/navigation';
 
@@ -279,7 +280,9 @@ export function EditionInfoTrigger({
                   return (
                     <div>
                       {t.form.ownedPlatform}:{' '}
-                      <span className="text-white">{state.platform.toUpperCase()}</span>
+                      <span className="text-white" title={state.platform} aria-label={state.platform}>
+                        {platformLabel(state.platform)}
+                      </span>
                       <span className="ml-1 rounded bg-accent/20 px-1 text-[9px] uppercase text-accent">
                         {t.shelfLayout.ownedBadge}
                       </span>
@@ -289,7 +292,9 @@ export function EditionInfoTrigger({
                   return (
                     <div>
                       {t.form.ownedPlatform}:{' '}
-                      <span className="text-white">{state.platform.toUpperCase()}</span>
+                      <span className="text-white" title={state.platform} aria-label={state.platform}>
+                        {platformLabel(state.platform)}
+                      </span>
                       <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
                         {t.shelfLayout.releaseFieldBadge}
                       </span>
@@ -399,10 +404,15 @@ export function EditionInfoTrigger({
             {data.owned_platform && data.rel_platforms.length > 1 && (
               <div className="text-[10px] text-muted/70">
                 {t.shelfLayout.alsoAvailableOn}{' '}
-                <span className="text-white/80">
+                <span
+                  className="text-white/80"
+                  title={data.rel_platforms
+                    .filter((p) => p.toLowerCase() !== data.owned_platform!.toLowerCase())
+                    .join(' · ')}
+                >
                   {data.rel_platforms
                     .filter((p) => p.toLowerCase() !== data.owned_platform!.toLowerCase())
-                    .map((p) => p.toUpperCase())
+                    .map((p) => platformLabel(p))
                     .join(' · ')}
                 </span>
               </div>

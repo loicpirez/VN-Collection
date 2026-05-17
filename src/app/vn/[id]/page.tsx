@@ -23,6 +23,7 @@ import {
   upsertVn,
 } from '@/lib/db';
 import { parseVnDetailLayoutV1 } from '@/lib/vn-detail-layout';
+import { platformLabel } from '@/lib/platform-label';
 import { VnDetailLayout, type VnDetailSection } from '@/components/VnDetailLayout';
 import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
@@ -47,6 +48,7 @@ import { SeriesAutoSuggest } from '@/components/SeriesAutoSuggest';
 import { detectSeriesForVn } from '@/lib/series-detect';
 import { SessionPanel } from '@/components/SessionPanel';
 import { CoverEditOverlay } from '@/components/CoverEditOverlay';
+import { CoverHero } from '@/components/CoverHero';
 import { VnListMemberships } from '@/components/VnListMemberships';
 import { PlaytimeCompare } from '@/components/PlaytimeCompare';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
@@ -58,6 +60,7 @@ import { RoutesSection } from '@/components/RoutesSection';
 import { LangList } from '@/components/LangFlag';
 import { RelationsSection } from '@/components/RelationsSection';
 import { RecordRecentView } from '@/components/RecordRecentView';
+import { NotInCollectionBanner } from '@/components/NotInCollectionBanner';
 import { TitleLine } from '@/components/TitleLine';
 import { EgsPanel } from '@/components/EgsPanel';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
@@ -70,6 +73,7 @@ import { CustomSynopsis } from '@/components/CustomSynopsis';
 import { BrandCompare } from '@/components/BrandCompare';
 import { CoverCompare } from '@/components/CoverCompare';
 import { VnTagChips } from '@/components/VnTagChips';
+import { VnTagsGroupedView } from '@/components/VnTagsGroupedView';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -139,8 +143,20 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title };
 }
 
-export default async function VnDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function VnDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id: rawId } = await params;
+  const search = await searchParams;
+  // Per-section "Spoil me" override sourced from the URL. Forwarded
+  // to the tag and trait sections so a `?spoil=2` deep link reveals
+  // every spoiler on the page without flipping the global setting.
+  const spoilOverride = (() => {
+    const raw = search.spoil;
+    const v = Array.isArray(raw) ? raw[0] : raw;
+    if (v === '0') return 0 as const;
+    if (v === '1') return 1 as const;
+    if (v === '2') return 2 as const;
+    return null;
+  })();
   // Next gives us URL-encoded dynamic params (e.g. `egs%3A894`); decode once
   // so the rest of the page doesn't care. Legacy `egs:NNNN` form is still
   // accepted here — the startup migration converts them to `egs_NNNN`.
@@ -266,12 +282,24 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
         <span>{t.nav.library}</span>
       </Link>
 
+      {/*
+        Non-library state hint. Rendered ABOVE the hero so the user
+        sees the "Add to collection" CTA before any Collection-only
+        action they'd try to use in the action bar. Hidden for
+        synthetic `egs_*` VNs that already surface a dedicated EGS-
+        only state through `<MatchBadges>` below.
+      */}
+      {!inCol && !vn.id.startsWith('egs_') && (
+        <NotInCollectionBanner vnId={vn.id} />
+      )}
+
       <div className="relative overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card">
         <HeroBanner
           vnId={vn.id}
           src={bannerSrc}
           customBanner={customBanner}
           initialPosition={vn.banner_position}
+          initialRotation={vn.banner_rotation}
           inCollection={inCol}
           sexual={vn.image_sexual}
         />
@@ -291,12 +319,21 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                 />
               ) : (
                 <div className="relative">
-                  <SafeImage
-                    src={heroPoster.remote}
-                    localSrc={heroPoster.local}
-                    alt={vn.title}
+                  {/*
+                    CoverHero is a client wrapper around SafeImage that
+                    listens for vn:cover-changed events so the rendered
+                    cover repaints when a sibling surface (the media
+                    gallery kebab, the source picker) mutates it. It
+                    also hosts the per-cover rotation controls.
+                  */}
+                  <CoverHero
+                    vnId={vn.id}
+                    initialRemote={heroPoster.remote}
+                    initialLocal={heroPoster.local}
                     sexual={vn.image_sexual ?? null}
-                    className="aspect-[2/3] w-full rounded-xl shadow-card"
+                    alt={vn.title}
+                    initialRotation={vn.cover_rotation}
+                    inCollection={inCol}
                   />
                   {inCol && !heroPoster.remote && !heroPoster.local && (
                     <div className="absolute inset-x-2 bottom-2 z-10 flex justify-center">
@@ -305,7 +342,13 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                   )}
                 </div>
               )}
-              {inCol && <CoverEditOverlay vnId={vn.id} />}
+              {/*
+                CoverEditOverlay is still rendered alongside CoverCompare
+                (for the comparison branch); CoverHero already includes
+                it for the simple branch so we only mount it when the
+                comparison view owns the image.
+              */}
+              {inCol && (egsPosterHas || customPosterHas) && <CoverEditOverlay vnId={vn.id} />}
             </div>
           </div>
 
@@ -481,9 +524,11 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                       <Link
                         key={p}
                         href={`/search?platforms=${encodeURIComponent(p)}`}
-                        className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs uppercase tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
+                        title={p}
+                        aria-label={p}
+                        className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
                       >
-                        {p}
+                        {platformLabel(p)}
                       </Link>
                     ))}
                   </dd>
@@ -654,7 +699,13 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               </div>
             )}
 
-            <VnTagChips tags={vn.tags ?? []} max={16} />
+            {/* VnTagsGroupedView replaces the flat top-16 chip
+                strip with category sections (Content / Sexual /
+                Technical), a rating badge per chip, and a
+                Summary-vs-All + spoiler-mode toggle. The original
+                <VnTagChips> stays available as the compact card
+                fallback (see SearchClient.tsx / VnCard.tsx). */}
+            <VnTagsGroupedView tags={vn.tags ?? []} />
 
             {/*
               The detail-page action bar used to be a flat `flex-wrap`

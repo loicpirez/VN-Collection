@@ -16,6 +16,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { platformLabel } from '@/lib/platform-label';
 import { SkeletonRows } from './Skeleton';
 import {
   OWNED_EDITIONS_EVENT,
@@ -274,9 +275,11 @@ export function ReleasesSection({
                           <Link
                             key={p}
                             href={`/search?platforms=${encodeURIComponent(p)}`}
-                            className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] uppercase tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
+                            title={p}
+                            aria-label={p}
+                            className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
                           >
-                            {p}
+                            {platformLabel(p)}
                           </Link>
                         ))}
                       </span>

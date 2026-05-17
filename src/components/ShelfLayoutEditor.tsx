@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { derivePlatformDisplay } from '@/lib/platform-display';
+import { platformLabel } from '@/lib/platform-label';
 import { SafeImage } from '@/components/SafeImage';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/ToastProvider';
@@ -1359,7 +1360,7 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
           });
           const platformChip =
             platformState.kind === 'owned' || platformState.kind === 'release-single'
-              ? platformState.platform.toUpperCase()
+              ? platformLabel(platformState.platform)
               : null;
           const distinguisher =
             entry.edition_label ??
