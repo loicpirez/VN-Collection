@@ -53,8 +53,8 @@ describe('stripVndbMarkup', () => {
   });
 
   it('renders [spoiler] content as plain text', () => {
-    expect(stripVndbMarkup('[spoiler]Sakura dies[/spoiler]'))
-      .toBe('Sakura dies');
+    expect(stripVndbMarkup('[spoiler]Heroine A dies[/spoiler]'))
+      .toBe('Heroine A dies');
   });
 
   it('keeps newlines', () => {

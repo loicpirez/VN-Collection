@@ -35,11 +35,63 @@ const FORBIDDEN = [
   'loic',
 ] as const;
 
-// This test file documents the forbidden phrases verbatim, so it
-// must opt itself out. CLAUDE.md likewise enumerates the rule and
-// names the placeholders — exclude the doc only at the literal
-// "user reported" / "loïc" mentions there.
-const SELF_BASENAME = 'personal-phrasing.test.ts';
+/**
+ * Real-title / studio / character regex. Word-boundary matched (where
+ * applicable) to avoid false positives on substrings — e.g. "key/value"
+ * must not match "Key/", "lucidity" must not match "Lucia". The patterns
+ * mirror the list documented in CLAUDE.md's hygiene section.
+ *
+ * One single regex (with alternation) so the scanner only walks each
+ * file once. Case-SENSITIVE on purpose so generic English words don't
+ * collide with capitalised studio / character names.
+ */
+const REAL_TITLE_REGEX = new RegExp(
+  [
+    'Fate/',
+    '\\bSaber\\b',
+    '\\bRin\\b',
+    '\\bSakura\\b',
+    '\\bKotomi\\b',
+    '\\bTomoyo\\b',
+    '\\bAyanami\\b',
+    '\\bAsuka\\b',
+    '\\bMisaki\\b',
+    '\\bSumire\\b',
+    '\\bUesaka\\b',
+    '\\bWatanuki\\b',
+    'Type-Moon',
+    '\\bKey/',
+    'Nitroplus',
+    'Innocent Grey',
+    'FrontWing',
+    '\\bLucia\\b',
+  ].join('|'),
+  'g',
+);
+
+function scanRealTitles(file: string): Array<{ line: number; phrase: string; snippet: string }> {
+  const text = readFileSync(file, 'utf8');
+  const hits: Array<{ line: number; phrase: string; snippet: string }> = [];
+  REAL_TITLE_REGEX.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = REAL_TITLE_REGEX.exec(text)) !== null) {
+    const idx = m.index;
+    const line = text.slice(0, idx).split('\n').length;
+    const snippetStart = Math.max(0, idx - 20);
+    const snippetEnd = Math.min(text.length, idx + m[0].length + 20);
+    hits.push({
+      line,
+      phrase: m[0],
+      snippet: text.slice(snippetStart, snippetEnd).replace(/\s+/g, ' '),
+    });
+  }
+  return hits;
+}
+
+// These test files document the forbidden phrases / real titles
+// verbatim, so they must opt themselves out. CLAUDE.md likewise
+// enumerates the rule and names the placeholders.
+const SELF_BASENAMES = new Set(['personal-phrasing.test.ts', 'docs-no-real-titles.test.ts']);
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -77,7 +129,7 @@ describe('personal phrasing scrub', () => {
     const srcRoot = join(ROOT, 'src');
     const testsRoot = join(ROOT, 'tests');
     const files = [...walk(srcRoot), ...walk(testsRoot)].filter(
-      (f) => !f.endsWith(SELF_BASENAME),
+      (f) => ![...SELF_BASENAMES].some((b) => f.endsWith(b)),
     );
     const violations: Array<{ file: string; line: number; phrase: string; snippet: string }> = [];
     for (const file of files) {
@@ -91,6 +143,32 @@ describe('personal phrasing scrub', () => {
       );
       throw new Error(
         `Found ${violations.length} personal-phrasing violation(s):\n${lines.join('\n')}`,
+      );
+    }
+    expect(violations).toEqual([]);
+  });
+});
+
+describe('real-title scrub (src/ + tests/)', () => {
+  it('no recognizable real VN / studio / character name leaks into the codebase', () => {
+    const srcRoot = join(ROOT, 'src');
+    const testsRoot = join(ROOT, 'tests');
+    const files = [...walk(srcRoot), ...walk(testsRoot)].filter(
+      // The test files document the forbidden tokens verbatim — exclude.
+      (f) => ![...SELF_BASENAMES].some((b) => f.endsWith(b)),
+    );
+    const violations: Array<{ file: string; line: number; phrase: string; snippet: string }> = [];
+    for (const file of files) {
+      for (const hit of scanRealTitles(file)) {
+        violations.push({ file: relative(ROOT, file), ...hit });
+      }
+    }
+    if (violations.length > 0) {
+      const lines = violations.map(
+        (v) => `  ${v.file}:${v.line} → "${v.phrase}" in "...${v.snippet}..."`,
+      );
+      throw new Error(
+        `Found ${violations.length} real-title leak(s) — replace with placeholders ("Title Y", "Studio X", "Heroine A"):\n${lines.join('\n')}`,
       );
     }
     expect(violations).toEqual([]);

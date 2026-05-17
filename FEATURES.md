@@ -435,8 +435,8 @@ ranked. Toggle for including ero tags.
 
 ### Upcoming releases ✅
 `/upcoming` — three tabs to choose your scope of "what's next":
-  - **My collection** (default): future releases from producers already in
-    your collection, grouped by month. When VNDB returns `vns[].image=null`,
+  - **The collection** (default): future releases from producers already in
+    the local library, grouped by month. When VNDB returns `vns[].image=null`,
     the page overlays the local DB cover (image_url/image_thumb/local_image)
     so collection items always render a poster even for unreleased entries.
   - **EGS anticipated**: top-100 games on ErogameScape ranked by user
