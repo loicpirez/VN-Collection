@@ -781,6 +781,72 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 - When adding a new content-safety pref, surface it in **both** the
   eye popover and the gear modal so users can reach it from either.
 
+### Spoiler / Content controls — shared `<SpoilerReveal>` pattern
+- `<SpoilerReveal level={0|1|2} perSectionOverride?={0|1|2|null}>` is
+  the single shared gate for any node that may carry spoilers (tag
+  chips, character traits, synopsis BBCode `[spoiler]…[/spoiler]`,
+  VNDB metadata with a `spoiler` field). Wraps a child and decides
+  visibility from the truth table in `lib/spoiler-reveal.ts`:
+    1. **Default** — hidden when `nodeLevel > globalSpoilerLevel`.
+    2. **Pointer hover / keyboard focus** — transient reveal (blur
+       lifts; re-blurs on leave/blur).
+    3. **Touch / pen tap** — toggles persistent reveal for that node
+       (pointerType === 'touch' | 'pen'). Mouse clicks bypass so the
+       hover UX is preserved.
+    4. **Enter / Space on focus** — keyboard parity with the tap
+       toggle.
+    5. **`perSectionOverride`** raises (never lowers) the effective
+       level. Per-section toggles ("Spoil me" on `VnTagChips`) and
+       the URL `?spoil=1|2` deep link both go through this lever.
+- Truth table is pinned by `tests/spoiler-reveal.test.ts`.
+- The synopsis renderer (`<VndbMarkup>` `[spoiler]…[/spoiler]`)
+  now wraps spoiler blocks in `<SpoilerReveal level={2}>` so the
+  rules apply consistently across server- and client-rendered
+  surfaces.
+- i18n keys live under `t.spoiler.*` —
+  `{hidden, reveal, hideHint, revealHint, spoilMe, hideAll,
+  showMinor, showAll, ariaHidden, ariaShown}` in all three locales.
+
+### Cover / banner mutation events
+- `src/lib/cover-banner-events.ts` exports
+  `VN_COVER_CHANGED_EVENT` (`'vn:cover-changed'`) and
+  `VN_BANNER_CHANGED_EVENT` (`'vn:banner-changed'`) along with
+  typed `dispatchCoverChanged` / `dispatchBannerChanged` helpers.
+- Producers (any surface that mutates the cover or banner —
+  `MediaGallery` kebab "Set as cover/banner", `CoverSourcePicker`,
+  `BannerSourcePicker`, the rotation buttons on `HeroBanner` and
+  `CoverHero`) MUST:
+  1. Optimistically update their own local state.
+  2. POST/PATCH the server.
+  3. On success dispatch the typed event so siblings repaint.
+  4. Run `router.refresh()` as a defensive fallback so server-
+     rendered surfaces (Library cards) also re-derive.
+  5. Revert local state on error and surface a toast.
+- Consumers (`HeroBanner`, `CoverHero`, anything else that renders
+  the active cover/banner) subscribe via `useEffect` with a
+  vn-id scoped guard so cross-VN events are ignored.
+
+### Cover / banner rotation
+- `vn.cover_rotation`, `vn.banner_rotation`, `owned_release.cover_rotation`
+  store rotation in degrees (0/90/180/270). `normalizeRotation`
+  coerces anything else to 0 so a corrupted column never produces
+  a tilted transform.
+- `PATCH /api/collection/[id]/cover` `{ rotation }` and
+  `PATCH /api/collection/[id]/banner` `{ rotation }` are the
+  write endpoints. The banner PATCH still accepts `position`; both
+  can coexist in a single body.
+- Rendering: `<SafeImage rotation={…}>` applies
+  `transform: rotate(<deg>) scale(<container.w / container.h>)`
+  with a ResizeObserver-measured container so 90/270 rotations
+  fill the box. `buildRotationStyle()` is exported for unit tests.
+- `HeroBanner` carries inline rotate-left / rotate-right buttons in
+  the same hover-revealed action group as the existing focal-point
+  adjust button. `CoverHero` exposes the same controls on the VN
+  cover image, plus a "reset rotation" affordance when the value
+  drifts from 0.
+- i18n keys live under `t.coverActions.{rotate, rotateLeft,
+  rotateRight, resetRotation, rotationLabel}`.
+
 ### Lists feature (lib/db.ts → "User Lists" section)
 - `user_list_vn.vn_id` has **no FK to vn(id)**. Anticipated entries
   the user wants to curate before they hit the local `vn` table need
@@ -807,6 +873,35 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 - `BannerSourcePicker` mirrors the same pattern (Custom default tab).
 - When adding a new source, extend the tabbed UI; don't introduce a
   separate component.
+
+### MediaGallery kebab convention
+- The per-tile kebab dropdown in `<MediaGallery>` has a locked sizing
+  contract: `min-width: 12rem`, `max-width: 18rem`. Constants live in
+  `src/components/media-menu-helpers.ts` so the contract is shared
+  between the renderer and the Vitest cover.
+- Every row uses `whitespace-nowrap`, `overflow-hidden`, and
+  `text-overflow: ellipsis` so a localised label never wraps a row
+  to two lines or blows out the menu width.
+- Labels render in a **short** variant (`t.media.openLightboxShort`,
+  `t.media.setAsCoverShort`, `t.media.setAsBannerShort`,
+  `t.media.openOriginalShort` — e.g. "Open" / "Ouvrir" / "開く"). The
+  long form rides on `aria-label` and `title` so screen readers and
+  hover tooltips still report the full intent.
+- Horizontal flip is rem-based, not menu-width-based: when the
+  trigger sits within `MEDIA_MENU_FLIP_REM` (12rem) of the right
+  viewport edge, the dropdown opens to the left. The pure helper
+  `decideMediaMenuHorizontal(triggerRight, viewportWidth, remToPx?)`
+  is unit-tested in `tests/media-menu.test.ts`.
+- Keyboard contract: Arrow keys (Down/Up/Home/End) drive a roving
+  focus across `[role="menuitem"]` / `[role="menuitemcheckbox"]`
+  rows; Enter / Space activates the focused item via native button
+  click; Escape closes and restores focus to the kebab trigger.
+- Mobile: the kebab is always visible (`opacity-100`) on viewports
+  below `md`, with a 32×32 minimum hit target.
+- The image remains the primary click target — never cover the
+  thumbnail with the kebab or a gradient button. Manual QA flagged
+  the old gradient-button overlay as the worst offender for
+  obscuring the actual screenshot.
 
 ### Playtime model
 - Four sort keys + a virtual "All" column: `playtime` (user only,
@@ -880,6 +975,62 @@ dispatching `vn:open-settings { tab: 'integrations' }` via
 listens for the event, validates the tab id against
 `SETTINGS_TABS`, and pre-selects it on open. Used by `/data`'s
 "Manage in Settings → Integrations" callout links.
+
+### Quote avatar fallback chain
+
+`src/lib/quote-avatar.ts` resolves the avatar src for every quote
+surface with a three-tier fallback chain:
+
+  1. Character portrait (1:1, via `character_image.local_path` JOIN).
+  2. VN cover (2:3, via `vn.local_image_thumb` / `vn.local_image` /
+     remote `image_url`).
+  3. `null` — consumer renders a `<UserCircle>` lucide icon.
+
+`<QuoteAvatar>` renders a `size × size` square when a character
+portrait is available, and a taller `size × size*1.5` frame when
+falling back to the VN cover so the 2:3 ratio is preserved. The SQL
+queries (`listAllQuotes`, `getRandomLocalQuote`) plumb the VN cover
+columns so consumers don't need a follow-up fetch; both
+`/api/vn/[id]/quotes` and `/api/vndb/quote/random` enrich the nested
+`vn` object on the response too.
+
+### Series detail layout (`series_detail_section_layout_v1`)
+
+`/series/[id]` mirrors the VN-detail layout pattern. Sections are
+`hero` / `works` / `metadata` / `related` / `stats`, each wrapped in
+a layout slot the user can drag-reorder, hide, or collapse. The
+parser (`src/lib/series-detail-layout.ts`) follows the same shape as
+`vn-detail-layout.ts` — drop-unknown / append-missing / dedupe — and
+tolerates a v0 flat shape too. Persistence is via
+`PATCH /api/settings` with key `series_detail_section_layout_v1`; the
+route MERGES partial patches so the per-section menu and the drag-
+reorder handler never clobber each other. Custom event:
+`SERIES_DETAIL_LAYOUT_EVENT`.
+
+### Shelf read-only display options (`shelf_view_prefs_v1`)
+
+Separate concern from physical placement data. `shelf_slot` and
+`shelf_display_slot` are NEVER touched by the display knobs.
+
+`<ShelfReadOnlyControls>` renders a discreet slider trigger that
+opens a popover with four controls: cell size (60-280 px), cover
+scale (0.5-1.5), gap (0-24 px), fit mode (contain / cover). Values
+apply via CSS variables (`--shelf-cell-px`, `--shelf-cover-scale`,
+`--shelf-gap-px`) on a `.shelf-view-root` wrapper so cells reactively
+resize without a re-render. Persistence is via `PATCH /api/settings`
+with key `shelf_view_prefs_v1`. The validator clamps every numeric to
+its documented range so a malicious PATCH can't store
+`cellSizePx: 99999` and break the grid. Reset goes through PATCH
+null → next GET reads the default.
+
+### Schema page — EGS section
+
+`/schema` renders both VNDB and EGS sections. The EGS section
+(`<SchemaEgsSection>` + `lib/schema-egs.ts`) lists `egs_game`,
+`vndb_cache` rows scoped to `cache_key LIKE 'egs:%'`, `vn_egs_link`,
+`egs_vn_link`, plus a presence flag for `app_setting.egs_username`
+(never the value). A "Stale-while-error" badge appears when any EGS
+cache row carries the `staleWhileError` JSON flag.
 
 ### Versioned JSON config pattern
 
