@@ -46,6 +46,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
   const [category, setCategory] = useState<'' | 'cont' | 'ero' | 'tech'>('');
   const [mode, setMode] = useState<TagsPageMode>(initialMode);
   const [results, setResults] = useState<VndbTag[]>([]);
+  const [localCounts, setLocalCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,9 +67,11 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
               p.set('results', '60');
               return `/api/tags?${p}`;
             })();
-        const r = await fetch(url, { signal: ctrl.signal });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
-        const d = await r.json();
+        const fetches: Promise<unknown>[] = [fetch(url, { signal: ctrl.signal })];
+        if (!isLocal) fetches.push(fetch('/api/collection/tags', { signal: ctrl.signal }));
+        const [mainRes, localRes] = await Promise.all(fetches) as [Response, Response | undefined];
+        if (!mainRes.ok) throw new Error((await mainRes.json().catch(() => ({}))).error || t.common.error);
+        const d = await mainRes.json();
         let list: VndbTag[] = d.tags;
         if (isLocal) {
           if (q.trim()) {
@@ -76,6 +79,13 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
             list = list.filter((tag) => tag.name.toLowerCase().includes(lower));
           }
           if (category) list = list.filter((tag) => tag.category === category);
+        } else if (localRes?.ok) {
+          const ld = await localRes.json();
+          const counts = new Map<string, number>();
+          for (const t of (ld.tags as Array<{ id: string; vn_count: number }>) ?? []) {
+            counts.set(t.id, t.vn_count);
+          }
+          if (alive) setLocalCounts(counts);
         }
         if (alive) setResults(list);
       } catch (e) {
@@ -181,13 +191,13 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
       ) : results.length === 0 ? (
         <div className="py-12 text-center text-muted">{t.search.noResults}</div>
       ) : (
-        <TagTreeView results={results} mode={mode} q={q} />
+        <TagTreeView results={results} mode={mode} q={q} localCounts={localCounts} />
       )}
     </div>
   );
 }
 
-function TagTreeView({ results, mode, q }: { results: VndbTag[]; mode: TagsPageMode; q: string }) {
+function TagTreeView({ results, mode, q, localCounts }: { results: VndbTag[]; mode: TagsPageMode; q: string; localCounts: Map<string, number> }) {
   const t = useT();
   // Memoised so typing into the search box doesn't recompute the
   // bucket map on every keystroke. The grouping is also where the
@@ -228,6 +238,11 @@ function TagTreeView({ results, mode, q }: { results: VndbTag[]; mode: TagsPageM
                     )}
                     <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
                       <span className="tabular-nums">{tag.vn_count.toLocaleString()} {t.tags.vnCount}</span>
+                      {mode === 'vndb' && localCounts.get(tag.id) ? (
+                        <span className="rounded bg-accent/15 px-1 py-0.5 text-accent tabular-nums">
+                          {localCounts.get(tag.id)} {t.tags.inCollection}
+                        </span>
+                      ) : null}
                       {tag.aliases.length > 0 && <span className="truncate">· {tag.aliases.slice(0, 2).join(', ')}</span>}
                       <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                         {mode === 'vndb' ? t.tagPage.browse : t.tags.openInLibrary}
