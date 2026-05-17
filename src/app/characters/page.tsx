@@ -72,7 +72,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   const shouldQuery = query.length > 0 || hasFilters;
 
   let localResults: VndbCharacter[] = [];
-  if (shouldQuery && tab !== 'vndb') {
+  if (shouldQuery) {
     localResults = searchLocalCharacters({ q: query || undefined, limit: 200 }).map(
       (row) => ({
         ...(row.profile as unknown as VndbCharacter),
@@ -81,14 +81,16 @@ export default async function CharactersPage({ searchParams }: PageProps) {
     );
   }
   let vndbResults: VndbCharacter[] = [];
-  if (query && tab !== 'local') {
+  if (query.length > 0 && tab !== 'local') {
     vndbResults = await searchCharacters(query, { results: 60 }).catch(() => []);
   }
+  // For the VNDB tab without a text query (filter-only), fall back to local results
+  // so filters still surface matches rather than showing nothing.
   const allResults =
     tab === 'local'
       ? localResults
       : tab === 'vndb'
-        ? vndbResults
+        ? (query.length > 0 ? vndbResults : localResults)
         : dedupeCharacters([...localResults, ...vndbResults]);
   const ageGated = includeEro
     ? allResults

@@ -80,7 +80,8 @@ export function buildRotationStyle(
   // vice versa). To cover the container we need to scale the rotated
   // image by max(W/H, H/W). The image's native object-fit handles
   // the rest.
-  const scale = Math.max(width / height, height / width);
+  // min = fit (show the full rotated image); max would fill/crop.
+  const scale = Math.min(width / height, height / width);
   return { transform: `rotate(${r}deg) scale(${scale})` };
 }
 

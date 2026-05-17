@@ -9,6 +9,7 @@ import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { useToast } from './ToastProvider';
 import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
+import { platformLabel } from '@/lib/platform-label';
 import { useT } from '@/lib/i18n/client';
 import type { VndbSearchHit } from '@/lib/types';
 
@@ -457,7 +458,7 @@ export function SearchClient() {
                     className={`chip ${adv.platforms.includes(p) ? 'chip-active' : ''}`}
                     onClick={() => setAdv((s) => ({ ...s, platforms: toggle(s.platforms, p) }))}
                   >
-                    {p.toUpperCase()}
+                    {platformLabel(p)}
                   </button>
                 ))}
               </div>

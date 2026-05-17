@@ -1,13 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Activity, BookMarked, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, HardDriveDownload, KeyRound, QrCode, Sparkles } from 'lucide-react';
+import { Activity, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, KeyRound, QrCode, Sparkles } from 'lucide-react';
 import { getDbStatus } from '@/lib/db';
 import { getAuthInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { ImportPanel } from '@/components/ImportPanel';
 import { DataMaintenance } from '@/components/DataMaintenance';
 import { DropImport } from '@/components/DropImport';
-import { RunTourButton } from '@/components/RunTourButton';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { OpenSettingsButton } from '@/components/OpenSettingsButton';
 import { RecentActivityStrip } from '@/components/RecentActivityStrip';
@@ -195,27 +194,6 @@ export default async function DataPage() {
         </h2>
         <p className="mb-3 text-xs text-muted">{t.selectiveFullDownload.subtitle}</p>
         <SelectiveFullDownload />
-      </section>
-
-      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
-          <BookMarked className="h-4 w-4 text-accent" aria-hidden /> {t.shelf.title}
-        </h2>
-        <p className="mb-3 text-xs text-muted">{t.shelf.subtitle}</p>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/shelf" className="btn">
-            <BookMarked className="h-4 w-4" aria-hidden /> {t.shelf.open}
-          </Link>
-          <Link href="/dumped" className="btn">
-            <HardDriveDownload className="h-4 w-4" aria-hidden /> {t.dumped.open}
-          </Link>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-bold">{t.tour.runAgain}</h2>
-        <p className="mb-3 text-xs text-muted">{t.tour.hint}</p>
-        <RunTourButton />
       </section>
 
       <DropImport />

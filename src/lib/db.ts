@@ -4405,7 +4405,7 @@ export function getDumpSummary(): DumpSummary {
     .get() as { n: number }).n;
   const numerator = totals.dumped_editions + totals.coll_dumped_no_editions;
   const denominator = totals.total_editions + totals.coll_dumped_no_editions;
-  const editionPct = denominator === 0 ? 0 : Math.round((numerator / denominator) * 100);
+  const editionPct = denominator === 0 ? 0 : Math.min(100, Math.round((numerator / denominator) * 100));
   return {
     totalVns: totals.total_vns,
     totalEditions: totals.total_editions,

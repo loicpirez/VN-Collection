@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, Download, Eye, EyeOff, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
+import { ArrowRight, Check, Download, Eye, EyeOff, GraduationCap, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import {
   CARD_DENSITY_DEFAULT,
   DENSITY_SCOPES,
@@ -33,6 +33,7 @@ import {
   type VnSectionId,
   type VnSectionState,
 } from '@/lib/vn-detail-layout';
+import { startTour } from './TutorialTour';
 
 type SortKey =
   | 'updated_at'
@@ -581,21 +582,34 @@ export function SettingsButton() {
                 )}
 
                 {activeTab === 'automation' && (
-                <div className="space-y-3">
-                  <h3 className="mb-1 text-sm font-bold">{t.settings.automationTitle}</h3>
-                  <p className="mb-3 text-[11px] text-muted">{t.settings.automationDesc}</p>
-                  <label className="flex items-start gap-2 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={server?.vndb_fanout !== false}
-                      onChange={(e) => saveServer({ vndb_fanout: e.target.checked })}
-                      className="mt-0.5 h-4 w-4 accent-accent"
-                    />
-                    <span>
-                      <span className="font-bold">{t.settings.vndbFanoutTitle}</span>
-                      <span className="block text-[10px] text-muted">{t.settings.vndbFanoutDesc}</span>
-                    </span>
-                  </label>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="mb-1 text-sm font-bold">{t.settings.automationTitle}</h3>
+                    <p className="mb-3 text-[11px] text-muted">{t.settings.automationDesc}</p>
+                    <label className="flex items-start gap-2 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={server?.vndb_fanout !== false}
+                        onChange={(e) => saveServer({ vndb_fanout: e.target.checked })}
+                        className="mt-0.5 h-4 w-4 accent-accent"
+                      />
+                      <span>
+                        <span className="font-bold">{t.settings.vndbFanoutTitle}</span>
+                        <span className="block text-[10px] text-muted">{t.settings.vndbFanoutDesc}</span>
+                      </span>
+                    </label>
+                  </div>
+                  <div className="rounded-md border border-border bg-bg-elev/30 p-3">
+                    <h4 className="mb-0.5 text-xs font-bold">{t.tour.runAgain}</h4>
+                    <p className="mb-2 text-[10px] text-muted">{t.tour.hint}</p>
+                    <button
+                      type="button"
+                      onClick={() => { setOpen(false); startTour(); }}
+                      className="btn text-xs"
+                    >
+                      <GraduationCap className="h-3.5 w-3.5" aria-hidden /> {t.tour.runAgain}
+                    </button>
+                  </div>
                 </div>
                 )}
 
