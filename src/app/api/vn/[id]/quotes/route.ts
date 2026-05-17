@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCharacterImages } from '@/lib/db';
+import { getCharacterImages, getVnCover } from '@/lib/db';
 import { getQuotesForVn } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
@@ -16,12 +16,23 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       .map((q) => q.character?.id)
       .filter((cid): cid is string => typeof cid === 'string');
     const imageMap = getCharacterImages(charIds);
+    // Single VN cover lookup — surfaces the cover fallback for the
+    // QuoteAvatar component when no character portrait is available.
+    const vnCover = getVnCover(id);
+    const vnCoverPatch = vnCover
+      ? {
+          vn_image_url: vnCover.image_url,
+          vn_local_image: vnCover.local_image,
+          vn_local_image_thumb: vnCover.local_image_thumb,
+        }
+      : {};
     const enriched = quotes.map((q) => {
-      if (!q.character?.id) return q;
+      if (!q.character?.id) return { ...q, ...vnCoverPatch };
       const img = imageMap.get(q.character.id);
-      if (!img?.local_path) return q;
+      if (!img?.local_path) return { ...q, ...vnCoverPatch };
       return {
         ...q,
+        ...vnCoverPatch,
         character: {
           ...q.character,
           image: { local_path: img.local_path },

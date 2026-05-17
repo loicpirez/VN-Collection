@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAppSetting, getCharacterImage, getRandomLocalQuote } from '@/lib/db';
+import { getAppSetting, getCharacterImage, getRandomLocalQuote, getVnCover } from '@/lib/db';
 import { getRandomQuote } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
@@ -18,14 +18,20 @@ export async function GET() {
             id: row.quote_id,
             quote: row.quote,
             score: row.score,
-            vn: { id: row.vn_id, title: row.vn_title },
+            vn: {
+              id: row.vn_id,
+              title: row.vn_title,
+              image_url: row.vn_image_url,
+              local_image: row.vn_local_image,
+              local_image_thumb: row.vn_local_image_thumb,
+            },
             character: row.character_id
               ? {
                   id: row.character_id,
                   name: row.character_name ?? '',
                   original: null,
                   // Surface the locally-mirrored portrait so the
-                  // QuoteFooter can render the 32×32 avatar without
+                  // QuoteFooter can render the avatar without
                   // a follow-up fetch.
                   image: row.character_local_image
                     ? { local_path: row.character_local_image }
@@ -39,26 +45,35 @@ export async function GET() {
     }
     const quote = await getRandomQuote();
     // Enrich the VNDB-sourced random quote with our local mirror of
-    // the character portrait when available. VNDB never returns
-    // local paths — but the table is keyed on the same `cNNNN` id, so
-    // a single lookup is enough.
-    if (quote?.character?.id) {
-      const img = getCharacterImage(quote.character.id);
-      if (img?.local_path) {
-        // Mutate a shallow copy so the response shape stays a
-        // superset of `VndbQuote` rather than mutating the cached
-        // object the cache layer might still hold a reference to.
-        return NextResponse.json({
-          quote: {
-            ...quote,
-            character: {
-              ...quote.character,
-              image: { local_path: img.local_path },
-            },
-          },
-          source: 'all' as const,
-        });
-      }
+    // the character portrait + a richer VN cover row, so the
+    // QuoteAvatar fallback chain (character → vn cover → icon) has
+    // every column it needs. Mutating a shallow copy keeps the
+    // response shape decoupled from the cache layer.
+    if (quote) {
+      const vnId = quote.vn?.id ?? null;
+      const vnCover = vnId ? getVnCover(vnId) : null;
+      const charImg = quote.character?.id ? getCharacterImage(quote.character.id) : null;
+      return NextResponse.json({
+        quote: {
+          ...quote,
+          vn: vnCover
+            ? {
+                ...(quote.vn ?? {}),
+                image_url: vnCover.image_url,
+                local_image: vnCover.local_image,
+                local_image_thumb: vnCover.local_image_thumb,
+              }
+            : quote.vn,
+          character:
+            quote.character && charImg?.local_path
+              ? {
+                  ...quote.character,
+                  image: { local_path: charImg.local_path },
+                }
+              : quote.character,
+        },
+        source: 'all' as const,
+      });
     }
     return NextResponse.json({ quote, source: 'all' as const });
   } catch (err) {
