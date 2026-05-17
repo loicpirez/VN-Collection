@@ -1059,6 +1059,8 @@ export const dictionaries = {
       pkgmed: 'Disque/Cart.',
       dig: 'Numérique',
       screenshots: "Captures d'écran",
+      filtersLabel: 'Filtres médias',
+      itemsLabel: 'Vignettes médias',
     },
     cardAdd: 'Ajouter',
     sourcePref: {
@@ -3054,6 +3056,8 @@ export const dictionaries = {
       pkgmed: 'Disc/Cart.',
       dig: 'Digital',
       screenshots: 'Screenshots',
+      filtersLabel: 'Media filters',
+      itemsLabel: 'Media thumbnails',
     },
     cardAdd: 'Add',
     sourcePref: {
@@ -5046,6 +5050,8 @@ export const dictionaries = {
       pkgmed: 'ディスク/カート',
       dig: 'デジタル',
       screenshots: 'スクリーンショット',
+      filtersLabel: 'メディアフィルター',
+      itemsLabel: 'メディアサムネイル',
     },
     cardAdd: '追加',
     sourcePref: {

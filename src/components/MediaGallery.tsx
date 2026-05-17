@@ -139,12 +139,24 @@ export function MediaGallery({
   }, [active]);
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap gap-1.5">
+    <div aria-label={t.media.section}>
+      {/*
+        The chip row is a single-selection filter — `role="tablist"`
+        with `aria-pressed` on each chip is the closest WAI-ARIA
+        pattern for a chip filter that doesn't switch underlying
+        documents (no need for `tabpanel`). SR users used to hear
+        a row of generic "button" labels with no state.
+      */}
+      <div
+        className="mb-4 flex flex-wrap gap-1.5"
+        role="group"
+        aria-label={t.media.filtersLabel}
+      >
         {TYPE_KEYS.filter((k) => counts[k] > 0).map((k) => (
           <button
             key={k}
             type="button"
+            aria-pressed={filter === k}
             className={`chip ${filter === k ? 'chip-active' : ''}`}
             onClick={() => setFilter(k)}
           >
@@ -153,7 +165,12 @@ export function MediaGallery({
         ))}
       </div>
 
-      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}
+        role="list"
+        aria-label={t.media.itemsLabel}
+      >
         {visible.map((item, i) => {
           // Prefer the local path so the banner survives offline / cache misses.
           const bannerValue = item.local || item.url;
