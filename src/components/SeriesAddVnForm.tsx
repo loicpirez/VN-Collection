@@ -41,7 +41,7 @@ export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
       <div className="mt-1 flex gap-2">
         <input
           className="input flex-1"
-          placeholder="v11, v17…"
+          placeholder="v11, v90017…"
           value={vnId}
           onChange={(e) => setVnId(e.target.value)}
           aria-label={t.series.addVn}

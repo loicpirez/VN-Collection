@@ -5,7 +5,7 @@ import { getCharactersForTrait, getTrait, type VndbCharacter, type VndbTrait } f
 import { getCharacterImages, listInCollectionVnIds } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
-import { stripVndbMarkup } from '@/components/VndbMarkup';
+import { VndbMarkup } from '@/components/VndbMarkup';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 
@@ -70,7 +70,7 @@ export default async function TraitPage({
             </div>
             {trait.description && (
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-white/85">
-                {stripVndbMarkup(trait.description)}
+                <VndbMarkup text={trait.description} spoilerLabel={t.spoiler.markupSummary} />
               </p>
             )}
           </div>

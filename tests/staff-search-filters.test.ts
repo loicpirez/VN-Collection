@@ -39,7 +39,7 @@ describe('parseStaffSearchParams', () => {
   });
 
   it('only accepts canonical VNDB vn ids for the credited-VN filter', () => {
-    expect(parseStaffSearchParams({ vn: 'v17' }).vn).toBe('v17');
+    expect(parseStaffSearchParams({ vn: 'v90017' }).vn).toBe('v90017');
     expect(parseStaffSearchParams({ vn: 'V18' }).vn).toBe('v18');
     expect(parseStaffSearchParams({ vn: 'egs_42' }).vn).toBeNull();
   });
@@ -51,10 +51,10 @@ describe('staffSearchFilters', () => {
   });
 
   it('emits role / lang / vn predicates in the VNDB filter shape', () => {
-    const f = staffSearchFilters({ role: 'scenario', lang: 'ja', vn: 'v17' });
+    const f = staffSearchFilters({ role: 'scenario', lang: 'ja', vn: 'v90017' });
     expect(f).toContainEqual(['role', '=', 'scenario']);
     expect(f).toContainEqual(['lang', '=', 'ja']);
-    expect(f).toContainEqual(['vn', '=', ['id', '=', 'v17']]);
+    expect(f).toContainEqual(['vn', '=', ['id', '=', 'v90017']]);
     expect(f.length).toBe(3);
   });
 });

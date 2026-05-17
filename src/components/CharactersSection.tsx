@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { SkeletonBlock } from './Skeleton';
+import { SpoilerChip } from './SpoilerChip';
 import { useT } from '@/lib/i18n/client';
+import { useDisplaySettings } from '@/lib/settings/client';
 import type { VndbCharacter } from '@/lib/vndb-types';
 
 const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
@@ -33,6 +35,7 @@ export function CharactersSection({
   initialOpen?: boolean;
 }) {
   const t = useT();
+  const { settings } = useDisplaySettings();
   const [open, setOpen] = useState(initialOpen);
   const [chars, setChars] = useState<VndbCharacter[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -140,16 +143,18 @@ export function CharactersSection({
                     {c.traits.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {c.traits
-                          .filter((tr) => tr.spoiler === 0 && !tr.sexual)
                           .slice(0, 5)
                           .map((tr) => (
-                            <Link
+                            <SpoilerChip
                               key={tr.id}
                               href={`/trait/${encodeURIComponent(tr.id)}`}
-                              className="rounded bg-bg px-1.5 py-0.5 text-[11px] text-muted transition-colors hover:bg-accent hover:text-bg"
+                              level={tr.spoiler ?? 0}
+                              sexual={!!tr.sexual}
+                              currentSpoilerLevel={settings.spoilerLevel}
+                              showSexual={settings.showSexualTraits}
                             >
-                              {tr.name}
-                            </Link>
+                              {tr.name ?? tr.id}
+                            </SpoilerChip>
                           ))}
                       </div>
                     )}

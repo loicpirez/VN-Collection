@@ -6,9 +6,9 @@
  *
  * VNDB BBCode descriptions ship with link payloads in three rough
  * shapes:
- *   1. Absolute external URLs (`https://vndb.org/c8646`).
- *   2. Bare entity ids (`c8646`) inside `[url=...]label[/url]`.
- *   3. Already-relative `/c8646` that an earlier ingest may have left
+ *   1. Absolute external URLs (`https://vndb.org/c90046`).
+ *   2. Bare entity ids (`c90046`) inside `[url=...]label[/url]`.
+ *   3. Already-relative `/c90046` that an earlier ingest may have left
  *      pointing at the broken top-level route.
  *
  * Each of those three is mapped to the canonical internal route. Ids
@@ -60,7 +60,7 @@ export function normalizeVndbHref(href: string | null | undefined): string {
     return mapped ?? trimmed;
   }
 
-  // 2. Bare id (`c8646`) — typed inside `[url=…]` by VNDB editors as
+  // 2. Bare id (`c90046`) — typed inside `[url=…]` by VNDB editors as
   //    shorthand. Map to internal when possible; pass through when not
   //    (a string like `foo` should not be touched).
   const bare = BARE_REF_RE.exec(trimmed);
@@ -69,7 +69,7 @@ export function normalizeVndbHref(href: string | null | undefined): string {
     return mapped ?? trimmed;
   }
 
-  // 3. Already-relative `/c8646` — the historical broken form. Map it
+  // 3. Already-relative `/c90046` — the historical broken form. Map it
   //    to the same internal route the absolute URL resolves to.
   const rel = RELATIVE_REF_RE.exec(trimmed);
   if (rel) {

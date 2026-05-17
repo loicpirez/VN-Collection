@@ -54,10 +54,10 @@ describe('pickSimilarToVnView', () => {
     expect(pickSimilarToVnView({ seedVnId: undefined, seedRowExists: false })).toBe('empty');
   });
   it('returns `invalid` when seed id is set but no local row matches', () => {
-    expect(pickSimilarToVnView({ seedVnId: 'v17', seedRowExists: false })).toBe('invalid');
+    expect(pickSimilarToVnView({ seedVnId: 'v90017', seedRowExists: false })).toBe('invalid');
   });
   it('returns `results` when seed id is set and resolves locally', () => {
-    expect(pickSimilarToVnView({ seedVnId: 'v17', seedRowExists: true })).toBe('results');
+    expect(pickSimilarToVnView({ seedVnId: 'v90017', seedRowExists: true })).toBe('results');
   });
 });
 
@@ -121,7 +121,7 @@ describe('similar-to-vn empty state renders the in-page picker', () => {
   });
 
   it('renders the Change + Clear buttons anchored to a chip for a valid seed', () => {
-    // Simulates the `?seed=v17` URL state — the picker page hands a
+    // Simulates the `?seed=v90017` URL state — the picker page hands a
     // resolved chip into the empty-state shell when the seed exists
     // in the local DB. The shell forwards it to the picker, which
     // renders the chip with Change + Clear affordances.
@@ -129,7 +129,7 @@ describe('similar-to-vn empty state renders the in-page picker', () => {
       React.createElement(SimilarSeedEmptyState, {
         invalid: false,
         chip: {
-          id: 'v17',
+          id: 'v90017',
           title: 'placeholder-vn-title',
           alttitle: null,
           released: '2018-01-01',
@@ -141,7 +141,7 @@ describe('similar-to-vn empty state renders the in-page picker', () => {
       }),
     );
     expect(html).toContain('data-testid="vn-seed-chip"');
-    expect(html).toContain('data-seed-id="v17"');
+    expect(html).toContain('data-seed-id="v90017"');
     expect(html).toContain('data-testid="vn-seed-change"');
     expect(html).toContain('data-testid="vn-seed-clear"');
     expect(html).toContain(dictionaries.fr.recommend.seedPicker.change);

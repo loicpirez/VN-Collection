@@ -17,6 +17,7 @@ import {
   parseShelfViewPrefsV1,
   validateShelfViewPrefsV1,
 } from '@/lib/shelf-view-prefs';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -146,6 +147,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: `unknown setting: ${key}` }, { status: 400 });
     }
   }
+  const changedKeys = Object.keys(body);
   if ('vndb_token' in body) {
     const v = body.vndb_token;
     if (v == null || v === '') {
@@ -350,6 +352,14 @@ export async function PATCH(req: NextRequest) {
     } else {
       return NextResponse.json({ error: 'egs_username must be a string' }, { status: 400 });
     }
+  }
+  if (changedKeys.length > 0) {
+    recordActivity({
+      kind: 'settings.update',
+      entity: 'settings',
+      label: 'Updated settings',
+      payload: { keys: changedKeys, values: body },
+    });
   }
   return NextResponse.json({ ok: true });
 }

@@ -57,8 +57,8 @@ navigates to the appropriate filtered view. Affected surfaces:
 - Stats "By edition": each row routes to `/?edition=<type>`
   (driven by the new `?edition=` library filter).
 - /similar cards: each matched seed tag is its own `<Link>` to
-  `/?tag=<id>` so the reader can pivot from "this VN matched these
-  seeds" to "every other VN with that tag".
+  `/tag/<id>` so the reader can inspect local and VNDB-wide context for
+  that tag.
 - VN detail "Sorti" line is a `<Link>` to the library pre-filtered
   by that release year (`?yearMin=<y>&yearMax=<y>`).
 - VN detail aspect chip pairs the existing scroll-to-override
@@ -281,7 +281,7 @@ two roles into one bucket.
   markers and inline "+" buttons.
 - `/producers` ranking has two tabs (`?role=dev` default, `?role=publisher`),
   backed by `listProducerStats` (dev) and `listPublisherStats` (pub).
-  Publisher-only studios (Mangagamer, JAST, NekoNyan…) only appear
+  Publisher-only studios (Studio X, Studio Y, Studio Z…) only appear
   under the Publishers tab.
 - `/stats` shows two ranked bar charts side by side: Top developers
   and Top publishers.
@@ -533,10 +533,9 @@ brand-new title with one perfect score doesn't shoot to #1.
 
 ### /similar matched-tags ✅
 On `/similar?vn=v123`, each result card now lists the seed tags
-that surfaced it as individual `<Link>` chips routing to
-`/?tag=<id>`. The user can pivot from "this VN matched these
-two seeds" to "every VN in the library with that same tag"
-without going back to /similar.
+that surfaced it as individual `<Link>` chips routing to `/tag/<id>`.
+The reader can pivot from a matched tag to its local collection tab or
+VNDB-wide tab without going back to /similar.
 
 ### Cross-VN quotes ✅
 `/quotes` — every quote across every VN you've fetched, with character +
@@ -1208,9 +1207,10 @@ the full credit graph on first visit.
 
 ### Schema browser `/schema` ✅
 Renders the VNDB `/schema` endpoint as a filterable, collapsible
-JSON tree. Lookup any code you see in the API (language tags,
-platform codes, devstatus, extlink ids). Search highlights matches
-and auto-expands the path to them.
+JSON tree, a separate local SQLite table/column section, and a
+separate mirrored EGS cache-data section. Lookup any code you see in
+the API (language tags, platform codes, devstatus, extlink ids).
+Search highlights matches and auto-expands the path to them.
 
 ---
 
@@ -1344,10 +1344,11 @@ its documented range so a malicious PATCH can't store
 `shelf_display_slot`) is NEVER touched — these knobs are pure
 display preferences. Test: `tests/shelf-view-prefs.test.ts`.
 
-### Schema browser EGS section ✅
-`/schema` renders both the VNDB schema tree and a dedicated EGS
-section (`<SchemaEgsSection>` + `lib/schema-egs.ts`). The EGS
-section lists `egs_game`, `vndb_cache` rows scoped to
+### Schema browser local + EGS sections ✅
+`/schema` renders the VNDB schema tree, local SQLite tables/columns
+(`<SchemaLocalSection>` + `lib/schema-local.ts`), and a dedicated
+mirrored EGS data section (`<SchemaEgsSection>` + `lib/schema-egs.ts`).
+The EGS section lists `egs_game`, `vndb_cache` rows scoped to
 `cache_key LIKE 'egs:%'`, `vn_egs_link`, `egs_vn_link`, plus a
 presence flag for `app_setting.egs_username` (never the value
 itself). A "Stale-while-error" badge appears when any EGS

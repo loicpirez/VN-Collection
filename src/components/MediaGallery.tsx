@@ -662,6 +662,11 @@ function TileKebab({
               }}
             />
           )}
+          {rotation !== 0 && (
+            <p className="max-w-[17rem] px-2 py-1 text-[10px] leading-snug text-muted">
+              {t.media.rotationPreviewOnly}
+            </p>
+          )}
           <MenuItem
             icon={<ImageDown className="h-3.5 w-3.5" aria-hidden />}
             shortLabel={t.media.setAsCoverShort}
@@ -735,4 +740,3 @@ function MenuItem({
     </button>
   );
 }
-

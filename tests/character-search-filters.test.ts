@@ -54,7 +54,7 @@ describe('parseCharacterSearchParams', () => {
   });
 
   it('only accepts canonical VNDB vn ids for the appearance filter', () => {
-    expect(parseCharacterSearchParams({ vn: 'v17' }).vn).toBe('v17');
+    expect(parseCharacterSearchParams({ vn: 'v90017' }).vn).toBe('v90017');
     expect(parseCharacterSearchParams({ vn: 'V18' }).vn).toBe('v18');
     expect(parseCharacterSearchParams({ vn: 'egs_42' }).vn).toBeNull();
     expect(parseCharacterSearchParams({ vn: '<script>' }).vn).toBeNull();
@@ -67,10 +67,10 @@ describe('characterSearchFilters', () => {
   });
 
   it('emits role / sex / vn predicates in the VNDB filter shape', () => {
-    const f = characterSearchFilters({ role: 'main', sex: 'f', vn: 'v17' });
+    const f = characterSearchFilters({ role: 'main', sex: 'f', vn: 'v90017' });
     expect(f).toContainEqual(['role', '=', 'main']);
     expect(f).toContainEqual(['sex', '=', 'f']);
-    expect(f).toContainEqual(['vn', '=', ['id', '=', 'v17']]);
+    expect(f).toContainEqual(['vn', '=', ['id', '=', 'v90017']]);
     expect(f.length).toBe(3);
   });
 });

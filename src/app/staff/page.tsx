@@ -34,11 +34,14 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
   const query = parsed.q;
   const { tab, role, lang, vn } = parsed;
   const allResults = query
-    ? await searchStaff(query, { results: 60, mainOnly }).catch(() => [])
+    ? await searchStaff(query, {
+        results: 60,
+        mainOnly,
+        role: tab === 'vndb' ? role : null,
+        lang,
+        vn: tab === 'vndb' ? vn : null,
+      }).catch(() => [])
     : [];
-  // Lang is the only filter the upstream `searchStaff` query field
-  // supports directly — apply role / vn client-side. Result sets are
-  // bounded at 60 rows so JS filtering is fine.
   const results = allResults.filter((s) => {
     if (lang && s.lang && s.lang !== lang) return false;
     return true;
@@ -134,7 +137,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
               }`}
               aria-pressed={role === r}
             >
-              {r}
+              {t.staffSearch.roleLabels[r as keyof typeof t.staffSearch.roleLabels] ?? r}
             </Link>
           ))}
           <span className="text-muted/60">·</span>

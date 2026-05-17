@@ -319,7 +319,7 @@ batch threads the distinction through every surface.
 
 - New `listPublisherStats()` in `lib/db.ts`, symmetric to
   `listProducerStats()`, indexed on `vn.publishers`. A publisher-only
-  studio (Mangagamer, JAST, NekoNyan…) appears only under the
+  studio (Studio X, Studio Y, Studio Z…) appears only under the
   Publishers tab.
 - `/producers` page rebuilt as two-tab UI (URL `?role=publisher` to
   switch). Each tab shows count, average user rating, average VNDB

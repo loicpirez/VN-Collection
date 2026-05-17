@@ -36,14 +36,14 @@ describe('cover-banner-events', () => {
 
   it('typed details accept the documented shape', () => {
     const cover: VnCoverChangedDetail = {
-      vnId: 'v17',
+      vnId: 'v90017',
       newSrc: 'https://example.com/a.jpg',
       newLocal: null,
       rotation: 90,
     };
     expect(cover.rotation).toBe(90);
     const banner: VnBannerChangedDetail = {
-      vnId: 'v17',
+      vnId: 'v90017',
       newSrc: null,
       newLocal: 'cover/x.jpg',
       position: '40% 60%',

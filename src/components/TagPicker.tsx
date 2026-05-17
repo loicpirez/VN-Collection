@@ -106,7 +106,7 @@ export function TagPicker({
           <span className="text-[11px] italic text-muted">{t.tagPicker.empty}</span>
         )}
         {tags.map((tag) => (
-          // Raw VNDB tag ids (e.g. `g133`) were previously rendered as
+          // Raw VNDB tag ids (e.g. `g90033`) were previously rendered as
           // the leading span — implementation detail leaking into the
           // primary recommendations UI. The id is preserved on the
           // `title` attribute and the React `key` for power users /

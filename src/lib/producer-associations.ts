@@ -217,7 +217,7 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
   // implementation only harvested the name when `role.publisher` was
   // true, which left developer-only producers (lots of doujin
   // circles, indie devs) returning `name: null` and falling back to
-  // the bare id ("p17") in the header.
+  // the bare id ("p90017") in the header.
   const pubMap = new Map<string, Omit<ProducerVnRef, 'owned'>>();
   let nameFromUpstream: string | null = null;
   for (const rel of releases) {
@@ -278,8 +278,8 @@ function lookupOwned(ids: Set<string>): Set<string> {
  * next call goes upstream. Used by the "Refresh" button on the producer
  * detail page.
  *
- * The pathTag carries the producer id (`POST /vn:producer:p17`,
- * `POST /release:producer:p17`) so the wipe is scoped — other
+ * The pathTag carries the producer id (`POST /vn:producer:p90017`,
+ * `POST /release:producer:p90017`) so the wipe is scoped — other
  * producers' cached pages survive. Earlier versions wiped every
  * producer's cache on every refresh; that made every adjacent
  * /producer page incur a multi-second blocking re-fetch on the next

@@ -31,6 +31,7 @@ export interface BrowsableCharacter {
   birthday: [number, number] | null;
   sex: [string | null, string | null] | null;
   vns?: ReadonlyArray<{ role: 'main' | 'primary' | 'side' | 'appears'; id?: string; spoiler?: number }>;
+  voice_languages?: readonly string[];
 }
 type VndbCharacter = BrowsableCharacter;
 
@@ -168,6 +169,12 @@ export function filterCharacters(
     }
     if (params.hasImage === true && !c.image?.url) return false;
     if (params.hasImage === false && c.image?.url) return false;
+    if (params.hasVoice === true && (!c.voice_languages || c.voice_languages.length === 0)) return false;
+    if (params.hasVoice === false && c.voice_languages && c.voice_languages.length > 0) return false;
+    if (params.vaLang) {
+      const wanted = params.vaLang.toLowerCase();
+      if (!c.voice_languages?.some((lang) => lang.toLowerCase() === wanted)) return false;
+    }
     return true;
   });
 }

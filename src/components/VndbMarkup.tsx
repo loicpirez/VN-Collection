@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { SpoilerReveal } from './SpoilerReveal';
 import { normalizeVndbHref } from '@/lib/vndb-link-normalize';
 
@@ -33,7 +34,7 @@ const SAFE_URL_SCHEME = /^(?:https?:|mailto:|\/)/i;
 type InlineKind = 'b' | 'i' | 'u' | 's' | 'spoiler';
 
 function sanitizeHref(raw: string): string {
-  // Map VNDB-flavoured shortcuts (`c8646`, `/c8646`, `https://vndb.org/c8646`)
+  // Map VNDB-flavoured shortcuts (`c90046`, `/c90046`, `https://vndb.org/c90046`)
   // to internal App Router routes BEFORE the scheme check — otherwise a
   // bare id would be rejected by the http/https/mailto/relative guard.
   const normalized = normalizeVndbHref(raw);
@@ -136,6 +137,13 @@ function renderTokens(tokens: Token[], spoilerLabel: string, keyPrefix = 'm'): R
       case 'br':
         return <br key={key} />;
       case 'url':
+        if (tok.href.startsWith('/')) {
+          return (
+            <Link key={key} href={tok.href} className="text-accent hover:underline">
+              {tok.children.length > 0 ? renderTokens(tok.children, spoilerLabel, key) : tok.fallback}
+            </Link>
+          );
+        }
         return (
           <a
             key={key}

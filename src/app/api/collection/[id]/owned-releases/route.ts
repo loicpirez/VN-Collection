@@ -13,6 +13,7 @@ import {
 } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
 import { validateVnIdOr400 } from '@/lib/vn-id';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -128,6 +129,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { patch, error } = pickPatch(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   markReleaseOwned(id, validation.normalized, patch);
+  recordActivity({
+    kind: 'owned_release.add',
+    entity: 'owned_release',
+    entityId: `${id}:${validation.normalized}`,
+    label: 'Added owned edition',
+    payload: { vn_id: id, release_id: validation.normalized, ...patch },
+  });
   // Pull cached release rows into `release_meta_cache` so the shelf
   // popover has rel_* data on the very next page load. Without this,
   // adding an edition from `/release/[id]` or the EditionPicker
@@ -160,6 +168,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { patch, error } = pickPatch(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   updateOwnedRelease(id, validation.normalized, patch);
+  recordActivity({
+    kind: 'owned_release.update',
+    entity: 'owned_release',
+    entityId: `${id}:${validation.normalized}`,
+    label: 'Updated owned edition',
+    payload: { vn_id: id, release_id: validation.normalized, ...patch },
+  });
   if ('aspect_override' in body) {
     const v = body.aspect_override;
     if (v == null) {
@@ -193,5 +208,12 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const validation = validateReleaseId(req.nextUrl.searchParams.get('release_id') ?? '', id);
   if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
   unmarkReleaseOwned(id, validation.normalized);
+  recordActivity({
+    kind: 'owned_release.remove',
+    entity: 'owned_release',
+    entityId: `${id}:${validation.normalized}`,
+    label: 'Removed owned edition',
+    payload: { vn_id: id, release_id: validation.normalized },
+  });
   return NextResponse.json({ owned: listOwnedReleasesWithShelfForVn(id) });
 }

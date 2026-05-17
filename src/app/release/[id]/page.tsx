@@ -7,7 +7,7 @@ import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { LangFlag } from '@/components/LangFlag';
 import { ReleaseOwnedToggle } from '@/components/ReleaseOwnedToggle';
-import { stripVndbMarkup } from '@/components/VndbMarkup';
+import { VndbMarkup } from '@/components/VndbMarkup';
 
 export const dynamic = 'force-dynamic';
 
@@ -272,7 +272,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
         {release.notes && (
           <div className="mt-4 rounded-lg border border-border bg-bg-elev/40 p-3 text-sm leading-relaxed text-white/85">
-            {stripVndbMarkup(release.notes)}
+            <VndbMarkup text={release.notes} spoilerLabel={t.spoiler.markupSummary} />
           </div>
         )}
 

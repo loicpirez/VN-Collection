@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
+import { recordActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,13 @@ export async function POST(req: NextRequest) {
       console.error(`[full-download:${vnId}] producers:`, (e as Error).message);
     });
   }
+  recordActivity({
+    kind: 'download.full',
+    entity: 'collection',
+    entityId: 'selected',
+    label: 'Full data download',
+    payload: { count: ids.length, vn_ids: ids },
+  });
 
   return NextResponse.json({ ok: true, queued: ids.length }, { status: 202 });
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   DndContext,
   DragOverlay,
@@ -88,6 +89,8 @@ function clampDim(n: number): number {
  */
 export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   const t = useT();
+  const searchParams = useSearchParams();
+  const highlightVnId = searchParams.get('highlight');
   const toast = useToast();
   const { confirm, prompt } = useConfirm();
 
@@ -137,6 +140,43 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       cancelled = true;
     };
   }, [activeId, loaded, toast, t.shelfLayout.saveFailed]);
+
+  useEffect(() => {
+    if (!highlightVnId || shelves.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      for (const shelf of shelves) {
+        const existing = loaded[shelf.id];
+        let data = existing;
+        if (!data) {
+          const res = await fetch(`/api/shelves/${shelf.id}`, { cache: 'no-store' }).catch(() => null);
+          if (!res?.ok) continue;
+          const json = (await res.json()) as {
+            shelf: ShelfUnitWithCount;
+            slots: ShelfSlotEntry[];
+            displays?: ShelfDisplaySlotEntry[];
+          };
+          data = { shelf: json.shelf, slots: json.slots, displays: json.displays ?? [] };
+          if (!cancelled) setLoaded((prev) => ({ ...prev, [shelf.id]: data! }));
+        }
+        const found =
+          data.slots.some((slot) => slot.vn_id === highlightVnId) ||
+          data.displays.some((slot) => slot.vn_id === highlightVnId);
+        if (found && !cancelled) {
+          setActiveId(shelf.id);
+          window.setTimeout(() => {
+            document
+              .querySelector<HTMLElement>(`[data-shelf-vn="${CSS.escape(highlightVnId)}"]`)
+              ?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+          }, 120);
+          return;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [highlightVnId, shelves, loaded]);
 
   useEffect(() => {
     if (showCreate) {
@@ -943,6 +983,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             draggingFrom={draggingFrom}
             showFrontDisplay={showFrontDisplay}
             fullscreen={fullscreen}
+            highlightVnId={highlightVnId}
           />
         )}
 
@@ -968,8 +1009,11 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             </p>
           ) : (
             <ul
-              className="grid gap-2"
-              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}
+              className="grid"
+              style={{
+                gap: 'calc(var(--shelf-row-gap-px, 10) * 1px)',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(calc(var(--shelf-cell-w-px, 120) * 1px), 1fr))',
+              }}
             >
               {unplaced.map((e) => (
                 <DraggablePoolItem key={`${e.vn_id}:${e.release_id}`} entry={e} />
@@ -1002,6 +1046,7 @@ function ShelfGrid({
   draggingFrom,
   showFrontDisplay,
   fullscreen,
+  highlightVnId,
 }: {
   shelf: ShelfUnitWithCount;
   occupied: Map<string, ShelfSlotEntry>;
@@ -1009,6 +1054,7 @@ function ShelfGrid({
   draggingFrom: DragSource | null;
   showFrontDisplay: boolean;
   fullscreen: boolean;
+  highlightVnId: string | null;
 }) {
   // Cell dimensions hand-tuned to balance "thumbnail visible" with
   // "shelf fits on a phone". 64px works at any breakpoint;
@@ -1031,12 +1077,14 @@ function ShelfGrid({
                 displays={displays}
                 draggingFrom={draggingFrom}
                 fullscreen={fullscreen}
+                highlightVnId={highlightVnId}
               />
             )}
             <div
-              className="inline-grid gap-1.5"
+              className="inline-grid"
               style={{
-                gridTemplateColumns: `repeat(${shelf.cols}, minmax(${fullscreen ? 88 : 64}px, 1fr))`,
+                gap: 'calc(var(--shelf-row-gap-px, 8) * 1px)',
+                gridTemplateColumns: `repeat(${shelf.cols}, minmax(${fullscreen ? '88px' : 'calc(var(--shelf-cell-w-px, 96) * 1px)'}, 1fr))`,
               }}
               role="grid"
               aria-label={`${shelf.name} — ${row + 1}`}
@@ -1049,6 +1097,7 @@ function ShelfGrid({
                   col={col}
                   slot={occupied.get(`${row}:${col}`)}
                   draggingFrom={draggingFrom}
+                  highlightVnId={highlightVnId}
                 />
               ))}
             </div>
@@ -1061,6 +1110,7 @@ function ShelfGrid({
             displays={displays}
             draggingFrom={draggingFrom}
             fullscreen={fullscreen}
+            highlightVnId={highlightVnId}
           />
         )}
       </div>
@@ -1072,8 +1122,11 @@ function ShelfGridSkeleton({ rows, cols }: { rows: number; cols: number }) {
   return (
     <div className="rounded-lg border border-border bg-bg-elev/20 p-2">
       <div
-        className="inline-grid gap-1.5"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(64px, 1fr))` }}
+        className="inline-grid"
+        style={{
+          gap: 'calc(var(--shelf-row-gap-px, 8) * 1px)',
+          gridTemplateColumns: `repeat(${cols}, minmax(calc(var(--shelf-cell-w-px, 96) * 1px), 1fr))`,
+        }}
       >
         {Array.from({ length: rows * cols }).map((_, i) => (
           <SkeletonBlock key={i} className="aspect-[2/3] w-full" />
@@ -1089,12 +1142,14 @@ function DroppableCell({
   col,
   slot,
   draggingFrom,
+  highlightVnId,
 }: {
   shelf: ShelfUnitWithCount;
   row: number;
   col: number;
   slot: ShelfSlotEntry | undefined;
   draggingFrom: DragSource | null;
+  highlightVnId: string | null;
 }) {
   const id = `cell|${shelf.id}|${row}|${col}`;
   const { isOver, setNodeRef } = useDroppable({ id });
@@ -1118,7 +1173,7 @@ function DroppableCell({
       }`}
     >
       {slot ? (
-        <DraggableSlotItem slot={slot} />
+        <DraggableSlotItem slot={slot} highlighted={slot.vn_id === highlightVnId} />
       ) : (
         <span className="pointer-events-none absolute left-1 top-1 text-[9px] font-bold uppercase tracking-wider text-muted/40">
           {`${row + 1}·${col + 1}`}
@@ -1134,12 +1189,14 @@ function DisplayRow({
   displays,
   draggingFrom,
   fullscreen,
+  highlightVnId,
 }: {
   shelf: ShelfUnitWithCount;
   afterRow: number;
   displays: Map<string, ShelfDisplaySlotEntry>;
   draggingFrom: DragSource | null;
   fullscreen: boolean;
+  highlightVnId: string | null;
 }) {
   const t = useT();
   const label =
@@ -1175,6 +1232,7 @@ function DisplayRow({
             position={position}
             slot={displays.get(`${afterRow}:${position}`)}
             draggingFrom={draggingFrom}
+            highlightVnId={highlightVnId}
           />
         ))}
       </div>
@@ -1188,12 +1246,14 @@ function DroppableDisplayCell({
   position,
   slot,
   draggingFrom,
+  highlightVnId,
 }: {
   shelf: ShelfUnitWithCount;
   afterRow: number;
   position: number;
   slot: ShelfDisplaySlotEntry | undefined;
   draggingFrom: DragSource | null;
+  highlightVnId: string | null;
 }) {
   const id = `display-cell|${shelf.id}|${afterRow}|${position}`;
   const { isOver, setNodeRef } = useDroppable({ id });
@@ -1214,7 +1274,7 @@ function DroppableDisplayCell({
       }`}
     >
       {slot ? (
-        <DraggableDisplayItem slot={slot} shelfRows={shelf.rows} />
+        <DraggableDisplayItem slot={slot} shelfRows={shelf.rows} highlighted={slot.vn_id === highlightVnId} />
       ) : (
         <span className="pointer-events-none absolute left-1 top-1 text-[9px] font-bold uppercase tracking-wider text-accent/35">
           {position + 1}
@@ -1224,7 +1284,15 @@ function DroppableDisplayCell({
   );
 }
 
-function DraggableDisplayItem({ slot, shelfRows }: { slot: ShelfDisplaySlotEntry; shelfRows: number }) {
+function DraggableDisplayItem({
+  slot,
+  shelfRows,
+  highlighted,
+}: {
+  slot: ShelfDisplaySlotEntry;
+  shelfRows: number;
+  highlighted: boolean;
+}) {
   const t = useT();
   const id = `display|${slot.vn_id}|${slot.release_id}|${slot.shelf_id}|${slot.after_row}|${slot.position}`;
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
@@ -1238,9 +1306,11 @@ function DraggableDisplayItem({ slot, shelfRows }: { slot: ShelfDisplaySlotEntry
           .replace('{b}', String(slot.after_row + 1));
   return (
     <div
+      data-shelf-vn={slot.vn_id}
       title={`${slot.vn_title} — ${label} · ${slot.position + 1}`}
       className={`group/display relative h-full w-full overflow-visible ${
         isDragging ? 'opacity-30' : ''
+      } ${highlighted ? 'rounded-md ring-2 ring-accent ring-offset-2 ring-offset-bg-card' : ''
       }`}
     >
       {/* Drag surface — covers the cover image only so the overlay
@@ -1390,7 +1460,7 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
   );
 }
 
-function DraggableSlotItem({ slot }: { slot: ShelfSlotEntry }) {
+function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highlighted: boolean }) {
   const t = useT();
   // Pipe-delimited so synthetic release ids (`synthetic:vN`) survive
   // round-trip through parseDragId.
@@ -1398,11 +1468,13 @@ function DraggableSlotItem({ slot }: { slot: ShelfSlotEntry }) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
   return (
     <div
+      data-shelf-vn={slot.vn_id}
       title={`${slot.vn_title} — ${t.shelfLayout.placedAt
         .replace('{row}', String(slot.row + 1))
         .replace('{col}', String(slot.col + 1))}`}
       className={`group/slot relative h-full w-full overflow-visible ${
         isDragging ? 'opacity-30' : ''
+      } ${highlighted ? 'rounded-md ring-2 ring-accent ring-offset-2 ring-offset-bg-card' : ''
       }`}
     >
       {/* Drag surface — covers the cover image only so the Info

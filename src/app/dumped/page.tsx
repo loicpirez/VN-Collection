@@ -230,7 +230,7 @@ export default async function DumpedPage({
                       win over the outer link via z-index.
                     */}
                     <Link
-                      href={dumpedVnHref(e.vn_id)}
+                      href={noEditions ? dumpedEditionsAnchor(e.vn_id) : dumpedVnHref(e.vn_id)}
                       className={`group flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors ${
                         fullyDumped ? 'border-status-completed/50' : 'border-border'
                       } hover:border-accent`}
@@ -275,7 +275,6 @@ export default async function DumpedPage({
                             </p>
                             <span
                               className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent group-hover:underline"
-                              data-dumped-editions-anchor={dumpedEditionsAnchor(e.vn_id)}
                             >
                               <Plus className="h-3 w-3" aria-hidden />
                               {t.dumped.addEditionCta}

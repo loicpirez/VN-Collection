@@ -6,6 +6,7 @@ import { getGlobalStats, getAuthInfo, getSchema, searchTags, searchTraits } from
 import { fetchVndbTopRanked } from '@/lib/top-ranked';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection } from '@/lib/upcoming';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
   // Only bust the page-level caches this route actually repopulates
   // below. Earlier versions also wiped `% /producer:%` and
   // `% /release:%`, but the per-producer pagination caches
-  // (`POST /vn:producer:p17|...`, `POST /release:producer:p17|...`)
+  // (`POST /vn:producer:p90017|...`, `POST /release:producer:p90017|...`)
   // are owned by `fetchProducerAssociations` and get their own
   // per-page refresh button. Wiping them here meant every
   // `/producer/[id]` tab incurred a multi-second blocking re-fetch
@@ -154,6 +155,13 @@ export async function POST(req: NextRequest) {
     }
   }
   finishJob(job.id);
+  recordActivity({
+    kind: 'refresh.global',
+    entity: 'cache',
+    entityId: 'global',
+    label: 'Global refresh',
+    payload: { done, failed, total: tasks.length },
+  });
 
   return NextResponse.json({ ok: true, done, failed, total: tasks.length });
 }

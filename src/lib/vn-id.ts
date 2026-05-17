@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 /**
  * Canonical VN identifier shape. Accepts:
- *   - VNDB ids: `v\d+` (`v17`, `v25634`)
+ *   - VNDB ids: `v\d+` (`v90017`, `v25634`)
  *   - Synthetic EGS-only ids: `egs_\d+` (`egs_12345`)
  *
  * Used by every `/api/*` dynamic route that takes a VN id, so a

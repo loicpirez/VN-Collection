@@ -84,6 +84,8 @@ export function ShelfSpatialFullscreen({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      const container = containerRef.current;
+      if (!fullscreen && container && !container.contains(document.activeElement)) return;
       // While typing in an input / textarea, leave the keys alone.
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement | null)?.isContentEditable) return;
@@ -97,14 +99,14 @@ export function ShelfSpatialFullscreen({
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [navigate]);
+  }, [fullscreen, navigate]);
 
   const shellClass = fullscreen
     ? 'fixed inset-0 z-50 overflow-auto bg-bg p-3 sm:p-6'
     : 'relative';
 
   return (
-    <div ref={containerRef} className={shellClass}>
+    <div ref={containerRef} className={shellClass} tabIndex={-1}>
       <div className="mb-2 flex justify-end">
         <button
           ref={triggerRef}

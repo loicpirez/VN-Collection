@@ -5,6 +5,7 @@ import { getSchema } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { SchemaBrowser } from '@/components/SchemaBrowser';
 import { SchemaEgsSection } from '@/components/SchemaEgsSection';
+import { SchemaLocalSection } from '@/components/SchemaLocalSection';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,9 +49,11 @@ export default async function SchemaPage() {
         </p>
       </header>
 
-      {/* EGS schema section — rendered above the VNDB browser so the
-          operator's most-recent additions (manual mappings, fetched_at
-          on the user's own EGS data) surface immediately. */}
+      <SchemaLocalSection />
+
+      {/* EGS mirrored-data section — rendered above the VNDB browser so
+          cache freshness and manual mappings are visible without
+          pretending the counts are the remote EGS schema itself. */}
       <SchemaEgsSection />
 
       {error ? (

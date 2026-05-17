@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Award,
+  Activity,
   BarChart3,
   Bookmark,
   CalendarRange,
@@ -110,6 +111,7 @@ export function GroupedNav() {
     { href: '/stats', label: t.nav.stats, icon: BarChart3 },
     { href: '/shelf', label: t.nav.shelf, icon: LayoutGrid },
     { href: '/dumped', label: t.nav.dumped, icon: HardDriveDownload },
+    { href: '/activity', label: t.nav.activity, icon: Activity },
     { href: '/steam', label: t.nav.steam, icon: Globe },
     { href: '/egs', label: t.nav.egs, icon: Gamepad2 },
     { href: '/schema', label: t.nav.schema, icon: FileCode2 },

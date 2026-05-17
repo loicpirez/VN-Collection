@@ -7,6 +7,7 @@ import {
   renameShelf,
   resizeShelf,
 } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -43,6 +44,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (typeof body.name === 'string' && body.name.trim().length > 0) {
       const shelf = renameShelf(sid, body.name);
       if (!shelf) return NextResponse.json({ error: 'not found' }, { status: 404 });
+      recordActivity({ kind: 'shelf.rename', entity: 'shelf', entityId: String(sid), label: 'Renamed shelf', payload: { name: shelf.name } });
     }
     if (typeof body.cols === 'number' || typeof body.rows === 'number') {
       const current = getShelf(sid);
@@ -53,6 +55,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         typeof body.rows === 'number' ? body.rows : current.rows,
       );
       if (!result) return NextResponse.json({ error: 'not found' }, { status: 404 });
+      recordActivity({ kind: 'shelf.resize', entity: 'shelf', entityId: String(sid), label: 'Resized shelf', payload: { cols: result.shelf.cols, rows: result.shelf.rows, evicted: result.evicted.length } });
       return NextResponse.json({
         shelf: result.shelf,
         slots: listShelfSlots(sid),
@@ -72,5 +75,6 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const ok = deleteShelf(sid);
   if (!ok) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  recordActivity({ kind: 'shelf.delete', entity: 'shelf', entityId: String(sid), label: 'Deleted shelf' });
   return NextResponse.json({ ok: true });
 }

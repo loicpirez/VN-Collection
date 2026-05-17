@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, UserSquare, X } from 'lucide-react';
-import { searchCharacters } from '@/lib/vndb';
+import { searchCharacters, type VndbCharacter } from '@/lib/vndb';
+import { db } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import {
@@ -40,11 +41,8 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
  * - Group-by: blood / birthMonth / sex / role.
  * - Cards: avatar, name, original, sex+age, role, # VN appearances.
  *
- * All filtering / sorting / grouping is done client-side over the
- * VNDB result set — VNDB's `/character` endpoint is rich but adding
- * predicates triples query latency for marginal gain on a 60-row
- * page. The chips ARE present in the URL so a refresh re-hydrates
- * the same view.
+ * Local mode is backed by cached character payloads tied to collection
+ * VNs. VNDB mode uses remote search. Combined mode dedupes both.
  */
 export default async function CharactersPage({ searchParams }: PageProps) {
   const t = await getDict();
@@ -54,9 +52,16 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   const tab = params.tab;
   const query = params.q;
 
-  const allResults = query
+  const localResults = query ? loadLocalCharacters(query) : [];
+  const vndbResults = query && tab !== 'local'
     ? await searchCharacters(query, { results: 60 }).catch(() => [])
     : [];
+  const allResults =
+    tab === 'local'
+      ? localResults
+      : tab === 'vndb'
+        ? vndbResults
+        : dedupeCharacters([...localResults, ...vndbResults]);
   const ageGated = includeEro
     ? allResults
     : allResults.filter((c) => !((c.image?.sexual ?? 0) >= 1.5));
@@ -119,7 +124,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
               aria-selected={tab === tk}
               className={`rounded px-2.5 py-1 ${tab === tk ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
             >
-              {tk === 'local' ? t.charactersSearch.tabLocal : tk === 'vndb' ? t.charactersSearch.tabVndb : t.charactersSearch.tabLocal + '+' + t.charactersSearch.tabVndb}
+              {tk === 'local' ? t.charactersSearch.tabLocal : tk === 'vndb' ? t.charactersSearch.tabVndb : t.charactersSearch.tabCombined}
             </Link>
           ))}
         </nav>
@@ -179,7 +184,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                 : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
             }`}
           >
-            img+
+            {t.charactersSearch.hasImage}
           </Link>
           <Link
             href={characterBrowseHref(params, { hasVoice: params.hasVoice === true ? null : true })}
@@ -189,7 +194,17 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                 : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
             }`}
           >
-            voice+
+            {t.charactersSearch.hasVoice}
+          </Link>
+          <Link
+            href={characterBrowseHref(params, { vaLang: params.vaLang === 'ja' ? null : 'ja' })}
+            className={`rounded-md border px-2 py-0.5 transition-colors ${
+              params.vaLang === 'ja'
+                ? 'border-accent bg-accent/15 text-accent font-bold'
+                : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+            }`}
+          >
+            {t.charactersSearch.voiceJa}
           </Link>
           {(params.role || params.sex || params.blood || params.vaLang || params.hasVoice != null || params.hasImage != null) && (
             <Link
@@ -210,7 +225,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
-          <span className="text-muted">sort:</span>
+          <span className="text-muted">{t.charactersSearch.sortLabel}</span>
           {(['name', 'height', 'age', 'birthday'] as const satisfies readonly CharacterSort[]).map((s) => (
             <Link
               key={s}
@@ -221,7 +236,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                   : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
               }`}
             >
-              {s}
+              {t.charactersSearch.sort[s]}
             </Link>
           ))}
           <Link
@@ -232,9 +247,9 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                 : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
             }`}
           >
-            rev
+            {t.charactersSearch.reverse}
           </Link>
-          <span className="ml-2 text-muted">group:</span>
+          <span className="ml-2 text-muted">{t.charactersSearch.groupLabel}</span>
           {(['', 'blood', 'birthMonth', 'sex', 'role'] as const satisfies readonly CharacterGroupBy[]).map((g) => (
             <Link
               key={g || 'none'}
@@ -245,7 +260,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                   : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
               }`}
             >
-              {g || '—'}
+              {g ? t.charactersSearch.group[g] : t.charactersSearch.group.none}
             </Link>
           ))}
         </div>
@@ -330,4 +345,46 @@ export default async function CharactersPage({ searchParams }: PageProps) {
       )}
     </div>
   );
+}
+
+function dedupeCharacters(list: VndbCharacter[]): VndbCharacter[] {
+  const map = new Map<string, VndbCharacter>();
+  for (const c of list) if (!map.has(c.id)) map.set(c.id, c);
+  return [...map.values()];
+}
+
+function loadLocalCharacters(query: string): VndbCharacter[] {
+  const q = query.trim().toLowerCase();
+  const rows = db
+    .prepare(
+      `SELECT vc.cache_key, vc.body
+       FROM vndb_cache vc
+       WHERE vc.cache_key LIKE 'char_full:%'
+         AND EXISTS (
+           SELECT 1 FROM character_vn_index ci
+           JOIN collection c ON c.vn_id = ci.vn_id
+           WHERE ci.character_id = substr(vc.cache_key, length('char_full:') + 1)
+         )`,
+    )
+    .all() as Array<{ cache_key: string; body: string }>;
+  const out: VndbCharacter[] = [];
+  for (const row of rows) {
+    try {
+      const payload = JSON.parse(row.body) as { profile?: VndbCharacter | null };
+      const profile = payload.profile;
+      if (!profile) continue;
+      const haystack = [profile.id, profile.name, profile.original, ...(profile.aliases ?? [])]
+        .filter(Boolean)
+        .join('\n')
+        .toLowerCase();
+      if (q && !haystack.includes(q)) continue;
+      const langRows = db
+        .prepare('SELECT DISTINCT lang FROM vn_va_credit WHERE c_id = ? AND lang IS NOT NULL')
+        .all(profile.id) as Array<{ lang: string }>;
+      out.push({ ...profile, voice_languages: langRows.map((r) => r.lang) } as VndbCharacter);
+    } catch {
+      // Ignore malformed legacy cache rows; they will be refreshed by normal download flows.
+    }
+  }
+  return out.slice(0, 100);
 }

@@ -25,16 +25,16 @@ describe('seed-picker-url helpers', () => {
   describe('setSeed', () => {
     it('inserts seed= when no seed param is present', () => {
       const current = new URLSearchParams('mode=similar-to-vn&ero=1');
-      const next = setSeed(current, 'v17');
-      expect(next.get('seed')).toBe('v17');
+      const next = setSeed(current, 'v90017');
+      expect(next.get('seed')).toBe('v90017');
       expect(next.get('mode')).toBe('similar-to-vn');
       expect(next.get('ero')).toBe('1');
     });
 
     it('overwrites an existing seed value rather than appending', () => {
       const current = new URLSearchParams('mode=similar-to-vn&seed=v999');
-      const next = setSeed(current, 'v17');
-      expect(next.getAll('seed')).toEqual(['v17']);
+      const next = setSeed(current, 'v90017');
+      expect(next.getAll('seed')).toEqual(['v90017']);
     });
 
     it('accepts an `egs_NNN` synthetic id', () => {
@@ -43,8 +43,8 @@ describe('seed-picker-url helpers', () => {
     });
 
     it('lowercases the stored seed id', () => {
-      const next = setSeed(new URLSearchParams(), 'V17');
-      expect(next.get('seed')).toBe('v17');
+      const next = setSeed(new URLSearchParams(), 'V90017');
+      expect(next.get('seed')).toBe('v90017');
     });
 
     it('returns an unchanged clone when given a tampered id', () => {
@@ -55,8 +55,8 @@ describe('seed-picker-url helpers', () => {
     });
 
     it('accepts a query-string input as well as URLSearchParams', () => {
-      const next = setSeed('mode=similar-to-vn&ero=1', 'v17');
-      expect(next.get('seed')).toBe('v17');
+      const next = setSeed('mode=similar-to-vn&ero=1', 'v90017');
+      expect(next.get('seed')).toBe('v90017');
       expect(next.get('mode')).toBe('similar-to-vn');
       expect(next.get('ero')).toBe('1');
     });
@@ -64,14 +64,14 @@ describe('seed-picker-url helpers', () => {
     it('never mutates the input URLSearchParams', () => {
       const current = new URLSearchParams('mode=similar-to-vn');
       const before = current.toString();
-      setSeed(current, 'v17');
+      setSeed(current, 'v90017');
       expect(current.toString()).toBe(before);
     });
   });
 
   describe('clearSeed', () => {
     it('strips the seed param', () => {
-      const current = new URLSearchParams('mode=similar-to-vn&seed=v17&ero=1');
+      const current = new URLSearchParams('mode=similar-to-vn&seed=v90017&ero=1');
       const next = clearSeed(current);
       expect(next.has('seed')).toBe(false);
       expect(next.get('mode')).toBe('similar-to-vn');
@@ -85,14 +85,14 @@ describe('seed-picker-url helpers', () => {
     });
 
     it('never mutates the input', () => {
-      const current = new URLSearchParams('seed=v17&mode=similar-to-vn');
+      const current = new URLSearchParams('seed=v90017&mode=similar-to-vn');
       clearSeed(current);
-      expect(current.get('seed')).toBe('v17');
+      expect(current.get('seed')).toBe('v90017');
     });
   });
 
   describe('isValidSeedVnId', () => {
-    it('accepts `v\\d+`', () => expect(isValidSeedVnId('v17')).toBe(true));
+    it('accepts `v\\d+`', () => expect(isValidSeedVnId('v90017')).toBe(true));
     it('accepts `egs_\\d+`', () => expect(isValidSeedVnId('egs_4321')).toBe(true));
     it('rejects empty / null', () => {
       expect(isValidSeedVnId('')).toBe(false);
@@ -101,8 +101,8 @@ describe('seed-picker-url helpers', () => {
     });
     it('rejects tag ids', () => expect(isValidSeedVnId('g123')).toBe(false));
     it('rejects tampered ids', () => {
-      expect(isValidSeedVnId('v17;DROP')).toBe(false);
-      expect(isValidSeedVnId("v17' OR '1'='1")).toBe(false);
+      expect(isValidSeedVnId('v90017;DROP')).toBe(false);
+      expect(isValidSeedVnId("v90017' OR '1'='1")).toBe(false);
     });
   });
 
@@ -115,11 +115,11 @@ describe('seed-picker-url helpers', () => {
       // without spinning up jsdom.
       const router = { replace: vi.fn() };
       const searchParams = new URLSearchParams('mode=similar-to-vn&ero=1');
-      const next = setSeed(searchParams, 'v17');
+      const next = setSeed(searchParams, 'v90017');
       router.replace(`?${next.toString()}`, { scroll: false });
       expect(router.replace).toHaveBeenCalledTimes(1);
       const [target, opts] = router.replace.mock.calls[0];
-      expect(target).toContain('seed=v17');
+      expect(target).toContain('seed=v90017');
       expect(target).toContain('mode=similar-to-vn');
       expect(target).toContain('ero=1');
       expect(opts).toEqual({ scroll: false });
@@ -127,7 +127,7 @@ describe('seed-picker-url helpers', () => {
 
     it('clearing a hit calls router.replace without the seed param', () => {
       const router = { replace: vi.fn() };
-      const searchParams = new URLSearchParams('mode=similar-to-vn&seed=v17&ero=1');
+      const searchParams = new URLSearchParams('mode=similar-to-vn&seed=v90017&ero=1');
       const next = clearSeed(searchParams);
       router.replace(`?${next.toString()}`, { scroll: false });
       const [target] = router.replace.mock.calls[0];

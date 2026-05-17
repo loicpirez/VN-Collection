@@ -71,7 +71,7 @@ export function VnTagChips({ tags, max = 16, perSectionOverride }: { tags: Tag[]
             lie={tag.lie}
             currentSpoilerLevel={effectiveLevel}
             showSexual={settings.showSexualTraits}
-            href={`/?tag=${encodeURIComponent(tag.id)}`}
+            href={`/tag/${encodeURIComponent(tag.id)}`}
           >
             {tag.name}
           </SpoilerChip>

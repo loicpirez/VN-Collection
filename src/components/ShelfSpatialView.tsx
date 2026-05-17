@@ -143,6 +143,10 @@ function ShelfBlock({ shelf, t }: { shelf: ShelfUnitWithCount; t: Dictionary }) 
       className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6"
       aria-labelledby={`shelf-${shelf.id}-name`}
     >
+      <style>{`
+        .shelf-view-root[data-shelf-labels="off"] .shelf-card-label { display: none; }
+        .shelf-view-root .shelf-card-label { font-size: var(--shelf-label-font-px, 10px); }
+      `}</style>
       <header className="mb-5 flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-3">
         <div className="min-w-0 flex-1">
           <h2 id={`shelf-${shelf.id}-name`} className="text-lg font-bold">
@@ -172,7 +176,7 @@ function ShelfBlock({ shelf, t }: { shelf: ShelfUnitWithCount; t: Dictionary }) 
         Bottom Display blocks; the inner `space-y-1.5` keeps each
         row of cells flush against the next.
       */}
-      <div className="space-y-4 overflow-x-auto">
+      <div className="overflow-x-auto" style={{ display: 'grid', gap: 'var(--shelf-section-gap-px, 16px)' }}>
         {/* Top display row (after_row = 0) — renders nothing if empty. */}
         <DisplayRow
           row={displayByAfterRow.get(0) ?? []}
@@ -180,7 +184,7 @@ function ShelfBlock({ shelf, t }: { shelf: ShelfUnitWithCount; t: Dictionary }) 
           label={t.shelfSpatial.topDisplay}
           t={t}
         />
-        <div className="space-y-2">
+        <div style={{ display: 'grid', gap: 'var(--shelf-row-gap-px, 6px)' }}>
           {Array.from({ length: shelf.rows }).map((_, row) => (
             <div key={row}>
               <ShelfRow row={row} cols={shelf.cols} cellMap={cellMap} t={t} />
@@ -226,8 +230,11 @@ function ShelfRow({
 }) {
   return (
     <div
-      className="grid gap-1.5"
-      style={{ gridTemplateColumns: `repeat(${cols}, minmax(64px, 1fr))` }}
+      className="grid"
+      style={{
+        gap: 'var(--shelf-row-gap-px, 6px)',
+        gridTemplateColumns: `repeat(${cols}, minmax(var(--shelf-cell-w-px, 120px), var(--shelf-cell-w-px, 120px)))`,
+      }}
       role="row"
       aria-label={t.shelfSpatial.rowLabel.replace('{n}', String(row + 1))}
     >
@@ -238,7 +245,11 @@ function ShelfRow({
         ) : (
           <div
             key={`${row}|${col}`}
-            className="aspect-[2/3] rounded-md bg-bg-elev/15"
+            className="rounded-md bg-bg-elev/15"
+            style={{
+              width: 'var(--shelf-cell-w-px, 120px)',
+              height: 'var(--shelf-cell-h-px, 180px)',
+            }}
             aria-hidden
           />
         );
@@ -268,8 +279,11 @@ function DisplayRow({
         {label}
       </p>
       <div
-        className={`grid gap-1.5 ${between ? 'border-t border-accent-blue/20 pt-1' : ''}`}
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(64px, 1fr))` }}
+        className={`grid ${between ? 'border-t border-accent-blue/20 pt-1' : ''}`}
+        style={{
+          gap: 'var(--shelf-row-gap-px, 6px)',
+          gridTemplateColumns: `repeat(${cols}, minmax(var(--shelf-front-size-px, 140px), var(--shelf-front-size-px, 140px)))`,
+        }}
       >
         {Array.from({ length: cols }).map((_, position) => {
           const display = row.find((d) => d.position === position);
@@ -278,7 +292,11 @@ function DisplayRow({
           ) : (
             <div
               key={position}
-              className="aspect-[3/2] rounded-md bg-accent-blue/5"
+              className="rounded-md bg-accent-blue/5"
+              style={{
+                width: 'var(--shelf-front-size-px, 140px)',
+                aspectRatio: '3 / 2',
+              }}
               aria-hidden
             />
           );
@@ -292,7 +310,12 @@ function ShelfCard({ slot, t }: { slot: ShelfSlotEntry; t: Dictionary }) {
   return (
     <Link
       href={`/vn/${slot.vn_id}`}
-      className="group block aspect-[2/3] overflow-hidden rounded-md border border-border bg-bg-elev/40 transition-all hover:scale-[1.03] hover:border-accent hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      className="group block overflow-hidden rounded-md border border-border bg-bg-elev/40 transition-all hover:scale-[1.03] hover:border-accent hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      style={{
+        width: 'var(--shelf-cell-w-px, 120px)',
+        height: 'var(--shelf-cell-h-px, 180px)',
+        padding: 'var(--shelf-card-pad, 0px)',
+      }}
       title={`${slot.vn_title}${slot.edition_label ? ` · ${slot.edition_label}` : ''}`}
       aria-label={slot.vn_title}
     >
@@ -302,8 +325,15 @@ function ShelfCard({ slot, t }: { slot: ShelfSlotEntry; t: Dictionary }) {
           localSrc={slot.vn_local_image_thumb}
           sexual={slot.vn_image_sexual}
           alt={slot.vn_title}
-          className="h-full w-full object-cover"
+          className="h-full w-full"
+          style={{
+            objectFit: 'var(--shelf-fit-mode, cover)' as never,
+            transform: 'scale(var(--shelf-cover-scale, 1))',
+          }}
         />
+        <span className="shelf-card-label pointer-events-none absolute inset-x-0 bottom-0 line-clamp-2 bg-bg/80 px-1 py-0.5 text-[10px] font-medium text-white">
+          {slot.vn_title}
+        </span>
         {slot.dumped && (
           <span
             className="absolute right-0.5 top-0.5 rounded bg-status-completed/80 px-1 text-[9px] font-bold text-bg"
@@ -324,7 +354,11 @@ function DisplayCard({ entry, t }: { entry: ShelfDisplaySlotEntry; t: Dictionary
       // Face-out: a different visual cue from the back-row cards.
       // Wider aspect (3/2) + brighter border so the face-out row
       // visually breaks the back-row column rhythm.
-      className="group block aspect-[3/2] overflow-hidden rounded-md border border-accent-blue/50 bg-accent-blue/5 transition-all hover:scale-[1.03] hover:border-accent-blue hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-blue"
+      className="group block overflow-hidden rounded-md border border-accent-blue/50 bg-accent-blue/5 transition-all hover:scale-[1.03] hover:border-accent-blue hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-blue"
+      style={{
+        width: 'var(--shelf-front-size-px, 140px)',
+        aspectRatio: '3 / 2',
+      }}
       title={`${entry.vn_title}${entry.edition_label ? ` · ${entry.edition_label}` : ''}`}
       aria-label={`${t.shelfSpatial.displayItemPrefix} ${entry.vn_title}`}
     >
@@ -334,8 +368,15 @@ function DisplayCard({ entry, t }: { entry: ShelfDisplaySlotEntry; t: Dictionary
           localSrc={entry.vn_local_image_thumb}
           sexual={entry.vn_image_sexual}
           alt={entry.vn_title}
-          className="h-full w-full object-cover"
+          className="h-full w-full"
+          style={{
+            objectFit: 'var(--shelf-fit-mode, cover)' as never,
+            transform: 'scale(var(--shelf-cover-scale, 1))',
+          }}
         />
+        <span className="shelf-card-label pointer-events-none absolute inset-x-0 bottom-0 line-clamp-1 bg-bg/80 px-1 py-0.5 text-[10px] font-medium text-white">
+          {entry.vn_title}
+        </span>
       </div>
     </Link>
   );

@@ -9,6 +9,7 @@ import {
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { validateVnIdOr400 } from '@/lib/vn-id';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw e;
     }
     setBanner(id, path);
+    recordActivity({ kind: 'banner.set', entity: 'vn', entityId: id, label: 'Uploaded banner', payload: { source: 'upload' } });
     return NextResponse.json({ item: getCollectionItem(id), banner: path });
   }
 
@@ -85,6 +87,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   setBanner(id, next);
+  recordActivity({ kind: 'banner.set', entity: 'vn', entityId: id, label: 'Set banner', payload: { source } });
   return NextResponse.json({ item: getCollectionItem(id), banner: next });
 }
 
@@ -111,12 +114,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       return NextResponse.json({ error: 'position must be "X% Y%" or null' }, { status: 400 });
     }
     setBannerPosition(id, value ?? null);
+    recordActivity({ kind: 'banner.position', entity: 'vn', entityId: id, label: 'Updated banner position', payload: { position: value ?? null } });
   }
   if (hasRotation) {
     if (typeof body.rotation !== 'number' || !Number.isFinite(body.rotation)) {
       return NextResponse.json({ error: 'rotation must be a number' }, { status: 400 });
     }
-    setBannerRotation(id, normalizeRotation(body.rotation));
+    const next = normalizeRotation(body.rotation);
+    setBannerRotation(id, next);
+    recordActivity({ kind: 'banner.rotate', entity: 'vn', entityId: id, label: 'Rotated banner', payload: { rotation: next } });
   }
   return NextResponse.json({ item: getCollectionItem(id) });
 }
@@ -133,5 +139,6 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   // Rotation is metadata on the active banner image. Wipe on reset
   // so a fresh upload doesn't inherit a stale 90deg flag.
   setBannerRotation(id, 0);
+  recordActivity({ kind: 'banner.reset', entity: 'vn', entityId: id, label: 'Reset banner' });
   return NextResponse.json({ item: getCollectionItem(id) });
 }

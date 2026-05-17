@@ -43,18 +43,30 @@ check_json() {
   fi
 }
 
-# Pick real local ids when sqlite3 is available; otherwise fall back
-# to VNDB-canonical entries. Allows the caller to override with env
-# vars (PRODUCER_ID, VN_ID) for CI / focused runs.
-DB_PATH="${DB_PATH:-data/collection.db}"
+# Pick ids from the isolated QA DB when sqlite3 is available. The
+# script deliberately does not fall back to repository data or fixed
+# upstream ids; route-specific checks are skipped when no matching
+# fixture exists.
+DB_PATH="${DB_PATH:-$(pwd)/.qa/data/collection.db}"
+STORAGE_ROOT="${STORAGE_ROOT:-$(pwd)/.qa/storage}"
+REAL_DB_DEFAULT="$(pwd)/data/collection.db"
+REAL_STORAGE_DEFAULT="$(pwd)/data/storage"
+echo "smoke.sh preflight:"
+echo "  BASE=${BASE}"
+echo "  DB_PATH=${DB_PATH}"
+echo "  STORAGE_ROOT=${STORAGE_ROOT}"
+if [ "$DB_PATH" = "$REAL_DB_DEFAULT" ] || [ "$STORAGE_ROOT" = "$REAL_STORAGE_DEFAULT" ]; then
+  echo "Refusing to run smoke against real DB/storage paths." >&2
+  exit 2
+fi
 if [ -z "${PRODUCER_ID:-}" ] && command -v sqlite3 >/dev/null 2>&1 && [ -f "$DB_PATH" ]; then
   PRODUCER_ID=$(sqlite3 "$DB_PATH" 'SELECT id FROM producer LIMIT 1' 2>/dev/null || true)
 fi
 if [ -z "${VN_ID:-}" ] && command -v sqlite3 >/dev/null 2>&1 && [ -f "$DB_PATH" ]; then
   VN_ID=$(sqlite3 "$DB_PATH" "SELECT id FROM vn WHERE id LIKE 'v%' LIMIT 1" 2>/dev/null || true)
 fi
-PRODUCER_ID="${PRODUCER_ID:-p17}"   # stable VNDB-canonical producer id
-VN_ID="${VN_ID:-v17}"               # stable VNDB-canonical VN id
+PRODUCER_ID="${PRODUCER_ID:-}"
+VN_ID="${VN_ID:-}"
 
 echo "Pages:"
 check_route /
@@ -75,8 +87,8 @@ check_route '/shelf?view=item'
 check_route '/shelf?view=layout'
 check_route '/shelf?view=garbage' 200      # unknown view should fall back to spatial → 200
 check_route /similar 200
-check_route "/vn/${VN_ID}" 200
-check_route "/producer/${PRODUCER_ID}" 200
+if [ -n "$VN_ID" ]; then check_route "/vn/${VN_ID}" 200; else ok "skip /vn/:id (no QA fixture)"; fi
+if [ -n "$PRODUCER_ID" ]; then check_route "/producer/${PRODUCER_ID}" 200; else ok "skip /producer/:id (no QA fixture)"; fi
 check_route /tags
 check_route /traits
 check_route /series

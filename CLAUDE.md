@@ -627,8 +627,9 @@ migration from a listing page.
 
 ### Footguns
 
-- **EGS schema isn't 100% standardised** — some columns may be missing
-  on certain mirrors. Always `?? null` and verify with the raw row.
+- **EGS mirrors are not 100% standardised** — some columns may be
+  missing on certain mirrors. Always `?? null` and verify with the raw
+  row.
 - **CSV parser** is RFC 4180 compliant for the cases EGS produces; if a
   row has embedded newlines inside a quoted cell, the existing parser
   handles it — don't simplify to `text.split('\n')`.
@@ -1212,7 +1213,7 @@ After non-trivial changes, walk through these in the browser
     - Drag-to-reorder via sort=custom
   - `/wishlist` — sort/group/hideOwned persist across reloads
   - `/recommendations` — seed tag picker round-trips through URL
-  - `/similar?vn=v17` — same
+  - `/similar?vn=v90017` — same
   - `/top-ranked?tab=vndb` — VNDB section renders
   - `/top-ranked?tab=egs` — either renders rows OR shows the
     EGS-unreachable actionable error
@@ -1405,11 +1406,11 @@ Two strict requirements:
 - All keys present (Widen<typeof dictionaries['fr']> enforces shape).
 - Locale code added to `LOCALES` in `dictionaries.ts`.
 
-### Reset everything
+### Reset a disposable QA copy
 ```bash
-rm -f data/collection.db data/collection.db-shm data/collection.db-wal
-rm -rf data/storage
-yarn dev   # next time you GET /, the schema is recreated
+mkdir -p .qa/data .qa/storage
+cp data/collection.db .qa/data/collection.db
+DB_PATH="$PWD/.qa/data/collection.db" STORAGE_ROOT="$PWD/.qa/storage" yarn dev
 ```
 
 ---

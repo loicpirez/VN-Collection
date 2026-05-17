@@ -19,6 +19,7 @@ import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
 import { validateVnIdOr400 } from '@/lib/vn-id';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -155,6 +156,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { fields, error } = pickFields(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   addToCollection(id, fields);
+  recordActivity({
+    kind: wasInCollection ? 'collection.update' : 'collection.add',
+    entity: 'vn',
+    entityId: id,
+    label: wasInCollection ? 'Updated collection item' : 'Added to collection',
+    payload: fields as Record<string, unknown>,
+  });
   await maybePushStatusToVndb(id, fields.status);
   // First-time add: download cover + screenshots + release/package images locally.
   // Failures are silently swallowed — the user can retry via the "Download all" button.
@@ -177,6 +185,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { fields, error } = pickFields(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   updateCollection(id, fields);
+  recordActivity({
+    kind: 'collection.update',
+    entity: 'vn',
+    entityId: id,
+    label: 'Updated collection item',
+    payload: fields as Record<string, unknown>,
+  });
   // Best-effort write-back to VNDB. Awaiting it would tie the route's
   // latency to api.vndb.org; we fire and forget but await so any auth
   // error surfaces in the dev log (the helper itself never throws).
@@ -195,5 +210,11 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   }
   removeFromCollection(id);
+  recordActivity({
+    kind: 'collection.remove',
+    entity: 'vn',
+    entityId: id,
+    label: 'Removed from collection',
+  });
   return NextResponse.json({ ok: true });
 }

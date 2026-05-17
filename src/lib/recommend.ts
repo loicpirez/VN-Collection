@@ -233,14 +233,18 @@ function readCachedWishlistIds(): Set<string> {
       .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE '% /ulist|%' LIMIT 50`)
       .all() as Array<{ body: string }>;
     for (const row of rows) {
-      let parsed: { results?: Array<{ id?: string }> } | null = null;
+      let parsed: { results?: Array<{ id?: string; labels?: Array<number | { id?: number }>; label_ids?: number[] }> } | null = null;
       try {
-        parsed = JSON.parse(row.body) as { results?: Array<{ id?: string }> };
+        parsed = JSON.parse(row.body) as { results?: Array<{ id?: string; labels?: Array<number | { id?: number }>; label_ids?: number[] }> };
       } catch {
         continue;
       }
       for (const entry of parsed?.results ?? []) {
-        if (entry.id && /^v\d+$/.test(entry.id)) ids.add(entry.id);
+        const labels = [
+          ...(entry.label_ids ?? []),
+          ...(entry.labels ?? []).map((label) => (typeof label === 'number' ? label : label.id)).filter((id): id is number => typeof id === 'number'),
+        ];
+        if (entry.id && /^v\d+$/.test(entry.id) && labels.includes(5)) ids.add(entry.id);
       }
     }
   } catch {

@@ -6,6 +6,7 @@ import {
   removeFromReadingQueue,
   reorderReadingQueue,
 } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,9 @@ export async function POST(req: NextRequest) {
   if (!isInCollection(body.vn_id)) {
     return NextResponse.json({ error: 'add VN to collection first' }, { status: 400 });
   }
-  return NextResponse.json({ entry: addToReadingQueue(body.vn_id) });
+  const entry = addToReadingQueue(body.vn_id);
+  recordActivity({ kind: 'reading_queue.add', entity: 'vn', entityId: body.vn_id, label: 'Added to reading queue' });
+  return NextResponse.json({ entry });
 }
 
 export async function DELETE(req: NextRequest) {
@@ -31,6 +34,7 @@ export async function DELETE(req: NextRequest) {
   }
   const ok = removeFromReadingQueue(vnId);
   if (!ok) return NextResponse.json({ error: 'not in queue' }, { status: 404 });
+  recordActivity({ kind: 'reading_queue.remove', entity: 'vn', entityId: vnId, label: 'Removed from reading queue' });
   return NextResponse.json({ ok: true });
 }
 
@@ -40,5 +44,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'ids array required' }, { status: 400 });
   }
   reorderReadingQueue(body.ids as string[]);
+  recordActivity({ kind: 'reading_queue.reorder', entity: 'reading_queue', label: 'Reordered reading queue', payload: { ids: body.ids } });
   return NextResponse.json({ ok: true });
 }

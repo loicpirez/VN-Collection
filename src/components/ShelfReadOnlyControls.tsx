@@ -4,10 +4,13 @@ import { RotateCcw, Sliders, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import {
   SHELF_VIEW_PREFS_BOUNDS,
+  SHELF_TEXT_DENSITIES,
   SHELF_VIEW_PREFS_EVENT,
   defaultShelfViewPrefsV1,
+  shelfViewPrefsDataAttrs,
   shelfViewPrefsCssVars,
   type ShelfViewPrefsV1,
+  type ShelfTextDensity,
   validateShelfViewPrefsV1,
 } from '@/lib/shelf-view-prefs';
 
@@ -45,15 +48,18 @@ export function ShelfReadOnlyControls({ initialPrefs, id = 'default' }: Props) {
   // where the variables aren't relevant).
   useEffect(() => {
     const css = shelfViewPrefsCssVars(prefs);
+    const attrs = shelfViewPrefsDataAttrs(prefs);
     const targets = document.querySelectorAll<HTMLElement>('.shelf-view-root');
     for (const el of targets) {
       for (const [k, v] of Object.entries(css)) el.style.setProperty(k, v);
-      el.dataset.shelfFit = prefs.fitMode;
+      for (const [k, v] of Object.entries(attrs)) {
+        el.setAttribute(k, v);
+      }
     }
     return () => {
       for (const el of targets) {
         for (const k of Object.keys(css)) el.style.removeProperty(k);
-        delete el.dataset.shelfFit;
+        for (const k of Object.keys(attrs)) el.removeAttribute(k);
       }
     };
   }, [prefs]);
@@ -139,15 +145,26 @@ export function ShelfReadOnlyControls({ initialPrefs, id = 'default' }: Props) {
             </button>
           </header>
 
-          <Slider
-            label={dict.cellSize}
-            value={prefs.cellSizePx}
-            min={SHELF_VIEW_PREFS_BOUNDS.cellSizePx.min}
-            max={SHELF_VIEW_PREFS_BOUNDS.cellSizePx.max}
-            step={4}
-            suffix="px"
-            onChange={(n) => void persist({ ...prefs, cellSizePx: n })}
-          />
+          <div className="grid gap-x-3 sm:grid-cols-2">
+            <Slider
+              label={dict.cellWidth}
+              value={prefs.cellWidthPx}
+              min={SHELF_VIEW_PREFS_BOUNDS.cellWidthPx.min}
+              max={SHELF_VIEW_PREFS_BOUNDS.cellWidthPx.max}
+              step={4}
+              suffix="px"
+              onChange={(n) => void persist({ ...prefs, cellWidthPx: n, cellSizePx: n })}
+            />
+            <Slider
+              label={dict.cellHeight}
+              value={prefs.cellHeightPx}
+              min={SHELF_VIEW_PREFS_BOUNDS.cellHeightPx.min}
+              max={SHELF_VIEW_PREFS_BOUNDS.cellHeightPx.max}
+              step={4}
+              suffix="px"
+              onChange={(n) => void persist({ ...prefs, cellHeightPx: n })}
+            />
+          </div>
           <Slider
             label={dict.coverScale}
             value={prefs.coverScale}
@@ -157,15 +174,68 @@ export function ShelfReadOnlyControls({ initialPrefs, id = 'default' }: Props) {
             suffix="×"
             onChange={(n) => void persist({ ...prefs, coverScale: Number(n.toFixed(2)) })}
           />
+          <div className="grid gap-x-3 sm:grid-cols-2">
+            <Slider
+              label={dict.rowGap}
+              value={prefs.rowGapPx}
+              min={SHELF_VIEW_PREFS_BOUNDS.rowGapPx.min}
+              max={SHELF_VIEW_PREFS_BOUNDS.rowGapPx.max}
+              step={1}
+              suffix="px"
+              onChange={(n) => void persist({ ...prefs, rowGapPx: n, gapPx: n })}
+            />
+            <Slider
+              label={dict.sectionGap}
+              value={prefs.sectionGapPx}
+              min={SHELF_VIEW_PREFS_BOUNDS.sectionGapPx.min}
+              max={SHELF_VIEW_PREFS_BOUNDS.sectionGapPx.max}
+              step={2}
+              suffix="px"
+              onChange={(n) => void persist({ ...prefs, sectionGapPx: n })}
+            />
+          </div>
           <Slider
-            label={dict.gap}
-            value={prefs.gapPx}
-            min={SHELF_VIEW_PREFS_BOUNDS.gapPx.min}
-            max={SHELF_VIEW_PREFS_BOUNDS.gapPx.max}
-            step={1}
+            label={dict.frontDisplaySize}
+            value={prefs.frontDisplaySizePx}
+            min={SHELF_VIEW_PREFS_BOUNDS.frontDisplaySizePx.min}
+            max={SHELF_VIEW_PREFS_BOUNDS.frontDisplaySizePx.max}
+            step={4}
             suffix="px"
-            onChange={(n) => void persist({ ...prefs, gapPx: n })}
+            onChange={(n) => void persist({ ...prefs, frontDisplaySizePx: n })}
           />
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Toggle
+              label={dict.showLabels}
+              pressed={prefs.showLabels}
+              onClick={() => void persist({ ...prefs, showLabels: !prefs.showLabels })}
+            />
+            <Toggle
+              label={dict.compact}
+              pressed={prefs.compact}
+              onClick={() => void persist({ ...prefs, compact: !prefs.compact })}
+            />
+          </div>
+          <div className="mt-3">
+            <div className="mb-1 text-[10px] uppercase tracking-widest text-muted">{dict.textDensity}</div>
+            <div className="inline-flex overflow-hidden rounded-md border border-border">
+              {SHELF_TEXT_DENSITIES.map((density) => (
+                <button
+                  key={density}
+                  type="button"
+                  onClick={() => void persist({ ...prefs, textDensity: density as ShelfTextDensity })}
+                  aria-pressed={prefs.textDensity === density}
+                  className={`px-3 py-1 text-xs ${
+                    prefs.textDensity === density
+                      ? 'bg-accent text-bg'
+                      : 'bg-bg-elev/40 text-muted hover:text-white'
+                  }`}
+                >
+                  {dict.textDensityValues[density]}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="mt-3">
             <div className="mb-1 text-[10px] uppercase tracking-widest text-muted">
@@ -209,6 +279,31 @@ export function ShelfReadOnlyControls({ initialPrefs, id = 'default' }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+function Toggle({
+  label,
+  pressed,
+  onClick,
+}: {
+  label: string;
+  pressed: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={`rounded-md border px-2 py-1 text-left text-[11px] ${
+        pressed
+          ? 'border-accent bg-accent/10 text-accent'
+          : 'border-border bg-bg-elev/40 text-muted hover:text-white'
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

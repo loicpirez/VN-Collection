@@ -5,6 +5,7 @@ import {
   listUnplacedOwnedReleases,
   reorderShelves,
 } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
       cols: typeof body.cols === 'number' ? body.cols : undefined,
       rows: typeof body.rows === 'number' ? body.rows : undefined,
     });
+    recordActivity({ kind: 'shelf.create', entity: 'shelf', entityId: String(shelf.id), label: 'Created shelf', payload: { name: shelf.name, cols: shelf.cols, rows: shelf.rows } });
     return NextResponse.json({ shelf });
   } catch (e) {
     // Avoid surfacing raw error message (could carry file paths /
@@ -48,5 +50,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'order must be number[]' }, { status: 400 });
   }
   reorderShelves(body.order as number[]);
+  recordActivity({ kind: 'shelf.reorder', entity: 'shelf', label: 'Reordered shelves', payload: { order: body.order } });
   return NextResponse.json({ shelves: listShelves() });
 }

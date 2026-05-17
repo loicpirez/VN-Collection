@@ -22,7 +22,7 @@ function stubProfile(
   overrides: Partial<StaffExtrasInput['profile']> = {},
 ): StaffExtrasInput['profile'] {
   return {
-    id: 's11',
+    id: 's90011',
     name: 'placeholder name',
     original: 'プレースホルダ',
     lang: 'ja',

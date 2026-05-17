@@ -217,7 +217,7 @@ describe('recommendVns() — modes', () => {
       // `/ulist` POST would have persisted (label = 5 = Wishlist).
       const cacheKey = 'POST /ulist|POST|fakehashabcdef';
       const payload = JSON.stringify({
-        results: [{ id: 'v90700' }],
+        results: [{ id: 'v90700', labels: [5] }],
       });
       db.prepare(
         `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,

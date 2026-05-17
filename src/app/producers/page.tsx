@@ -21,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * the "publisher" tab counts the same producer's PUBLISHED VNs
  * (joined on `vn.publishers`). VNDB models these as two distinct
  * roles attached to releases, so a publisher-only studio
- * (Mangagamer, JAST, NekoNyan…) only ever appears under the
+ * (Studio X, Studio Y, Studio Z…) only ever appears under the
  * publisher tab — they never developed any of the VNs they ship.
  */
 export default async function ProducersPage({

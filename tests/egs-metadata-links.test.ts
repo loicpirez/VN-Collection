@@ -57,7 +57,7 @@ describe('egs-links helpers', () => {
   });
 
   it('vnHref accepts only canonical VNDB ids', () => {
-    expect(vnHref('v17')).toBe('/vn/v17');
+    expect(vnHref('v90017')).toBe('/vn/v90017');
     expect(vnHref('V18')).toBe('/vn/v18');
     expect(vnHref('egs_42')).toBeNull();
     expect(vnHref(null)).toBeNull();

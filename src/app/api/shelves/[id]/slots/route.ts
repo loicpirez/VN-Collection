@@ -5,6 +5,7 @@ import {
   placeShelfItem,
   removeShelfPlacement,
 } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -71,6 +72,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       vnId: body.vn_id,
       releaseId: body.release_id,
     });
+    recordActivity({
+      kind: 'shelf.place',
+      entity: 'shelf_slot',
+      entityId: `${sid}:${body.row}:${body.col}`,
+      label: 'Placed shelf edition',
+      payload: { shelf_id: sid, row: body.row, col: body.col, vn_id: body.vn_id, release_id: body.release_id },
+    });
     return NextResponse.json({
       slots: listShelfSlots(sid),
       swapped: result.swapped,
@@ -98,5 +106,12 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     return NextResponse.json({ error: 'vn_id/release_id required' }, { status: 400 });
   }
   removeShelfPlacement(body.vn_id, body.release_id);
+  recordActivity({
+    kind: 'shelf.unplace',
+    entity: 'shelf_slot',
+    entityId: `${body.vn_id}:${body.release_id}`,
+    label: 'Removed shelf placement',
+    payload: { shelf_id: sid, vn_id: body.vn_id, release_id: body.release_id },
+  });
   return NextResponse.json({ slots: listShelfSlots(sid) });
 }

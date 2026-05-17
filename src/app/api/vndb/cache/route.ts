@@ -27,7 +27,7 @@ export async function DELETE(req: NextRequest) {
   }
   if (mode === 'prefix' && prefix) {
     // Reject prefixes containing LIKE wildcards. The path-tag space
-    // looks like `POST /vn:producer:p17`; wildcards in here would
+    // looks like `POST /vn:producer:p90017`; wildcards in here would
     // either over-match (`%` matches everything) or be matched
     // literally (the underscore was the worst — `_` matches any
     // single char and is common in EGS path tags). Either way the

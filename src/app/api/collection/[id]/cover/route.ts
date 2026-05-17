@@ -3,6 +3,7 @@ import { getCollectionItem, setCustomCover, setCoverRotation, normalizeRotation 
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { validateVnIdOr400 } from '@/lib/vn-id';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw e;
     }
     setCustomCover(id, path);
+    recordActivity({ kind: 'cover.set', entity: 'vn', entityId: id, label: 'Uploaded cover', payload: { source: 'upload' } });
     return NextResponse.json({ item: getCollectionItem(id), cover: path });
   }
 
@@ -80,6 +82,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   setCustomCover(id, next);
+  recordActivity({ kind: 'cover.set', entity: 'vn', entityId: id, label: 'Set cover', payload: { source } });
   return NextResponse.json({ item: getCollectionItem(id), cover: next });
 }
 
@@ -97,6 +100,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   // rotation too so the user doesn't have to chase a stale 90deg flag
   // back to 0 manually after picking a fresh image.
   setCoverRotation(id, 0);
+  recordActivity({ kind: 'cover.reset', entity: 'vn', entityId: id, label: 'Reset cover' });
   return NextResponse.json({ item: getCollectionItem(id) });
 }
 
@@ -119,5 +123,6 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   const next = normalizeRotation(body.rotation);
   setCoverRotation(id, next);
+  recordActivity({ kind: 'cover.rotate', entity: 'vn', entityId: id, label: 'Rotated cover', payload: { rotation: next } });
   return NextResponse.json({ item: getCollectionItem(id), rotation: next });
 }

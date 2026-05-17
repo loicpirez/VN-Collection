@@ -9,6 +9,7 @@ import {
   SHELF_VIEW_PREFS_BOUNDS,
   defaultShelfViewPrefsV1,
   parseShelfViewPrefsV1,
+  shelfViewPrefsDataAttrs,
   shelfViewPrefsCssVars,
   validateShelfViewPrefsV1,
 } from '@/lib/shelf-view-prefs';
@@ -84,17 +85,52 @@ describe('validateShelfViewPrefsV1', () => {
 });
 
 describe('shelfViewPrefsCssVars', () => {
-  it('produces the documented css variable triplet', () => {
+  it('produces the documented css variables and data attributes', () => {
     const css = shelfViewPrefsCssVars({
       cellSizePx: 200,
       coverScale: 1.25,
       gapPx: 4,
       fitMode: 'cover',
+      cellWidthPx: 160,
+      cellHeightPx: 220,
+      rowGapPx: 8,
+      sectionGapPx: 24,
+      frontDisplaySizePx: 180,
+      textDensity: 'lg',
+      showLabels: false,
+      compact: true,
     });
     expect(css).toEqual({
       '--shelf-cell-px': '200px',
       '--shelf-cover-scale': '1.25',
       '--shelf-gap-px': '4px',
+      '--shelf-cell-w-px': '160px',
+      '--shelf-cell-h-px': '220px',
+      '--shelf-row-gap-px': '8px',
+      '--shelf-section-gap-px': '24px',
+      '--shelf-front-size-px': '180px',
+      '--shelf-fit-mode': 'cover',
+      '--shelf-card-pad': '1px',
+      '--shelf-label-font-px': '12px',
+    });
+    expect(shelfViewPrefsDataAttrs({
+      cellSizePx: 200,
+      coverScale: 1.25,
+      gapPx: 4,
+      fitMode: 'cover',
+      cellWidthPx: 160,
+      cellHeightPx: 220,
+      rowGapPx: 8,
+      sectionGapPx: 24,
+      frontDisplaySizePx: 180,
+      textDensity: 'lg',
+      showLabels: false,
+      compact: true,
+    })).toEqual({
+      'data-shelf-labels': 'off',
+      'data-shelf-compact': 'on',
+      'data-shelf-text-density': 'lg',
+      'data-shelf-fit': 'cover',
     });
   });
 });

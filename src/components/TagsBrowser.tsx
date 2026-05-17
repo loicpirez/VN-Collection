@@ -23,10 +23,10 @@ interface TagsBrowserProps {
 /**
  * Two-mode tag browser:
  *
- * - `local`: pulls from `/api/collection/tags` (only tags the operator
- *   has at least one VN with). Clicking a card goes straight to the
- *   Library filter `/?tag=<id>`. This is the default — the page paints
- *   instantly from SQLite.
+ * - `local`: pulls from `/api/collection/tags` (only tags present in
+ *   the local collection). Clicking a card opens the canonical per-tag
+ *   detail page. This is the default — the page paints instantly from
+ *   SQLite.
  * - `vndb`:  pulls from `/api/tags` which proxies VNDB's `/tag`
  *   endpoint (cached via `cachedFetch` in `lib/vndb.ts`). Clicking a
  *   card goes to the per-tag detail page `/tag/<id>` which then

@@ -6,7 +6,7 @@
  * tests without any React or Next.js runtime.
  *
  * - `/tags?mode=local`  →  browse tags from the local collection;
- *                          clicking a tag goes to `/?tag=<id>`.
+ *                          clicking a tag goes to `/tag/<id>`.
  * - `/tags?mode=vndb`   →  browse every VNDB-indexed tag; clicking a
  *                          tag goes to `/tag/<id>`.
  *
@@ -49,8 +49,8 @@ export function parseTagPageParams(
  * regardless of mode — the per-tag detail page is the canonical
  * destination because it carries Local + VNDB sub-tabs and richer
  * context (description, parent / child tags, sample VNs). The
- * Library `/?tag=<id>` filter remains accessible from the detail
- * page itself but is no longer the primary chip click target.
+ * Library tag filtering remains accessible from the detail page itself
+ * but is no longer the primary chip click target.
  *
  * The `mode` argument is kept on the signature for back-compat with
  * call sites that still thread it through; the resulting URL is the

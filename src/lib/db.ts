@@ -390,6 +390,27 @@ function open(): Database.Database {
     -- cannot serve them.
     CREATE INDEX IF NOT EXISTS idx_vn_activity_occurred ON vn_activity(occurred_at DESC, id DESC);
 
+    -- Global user-action tracker. Distinct from vn_activity (which
+    -- is per-VN audit). Captures user-driven mutations across the
+    -- whole app — collection writes, shelf placements, settings
+    -- changes, backup/import, mapping operations — so the operator
+    -- can review what changed and when, regardless of entity.
+    -- Sensitive payload values are masked at write time by the
+    -- helper module lib/activity.ts.
+    CREATE TABLE IF NOT EXISTS user_activity (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      occurred_at INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      entity TEXT,
+      entity_id TEXT,
+      label TEXT,
+      payload TEXT,
+      actor TEXT NOT NULL DEFAULT 'user'
+    );
+    CREATE INDEX IF NOT EXISTS user_activity_occurred_at ON user_activity (occurred_at DESC);
+    CREATE INDEX IF NOT EXISTS user_activity_kind ON user_activity (kind);
+    CREATE INDEX IF NOT EXISTS user_activity_entity ON user_activity (entity, entity_id);
+
     CREATE TABLE IF NOT EXISTS vn_game_log (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       vn_id        TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
@@ -5732,7 +5753,7 @@ export function listProducerStats(): ProducerStat[] {
  * deduped publisher list set by `setVnPublishers` after walking each
  * release's `producers[]`). Publishers that never also developed the
  * VN are surfaced here even when they're absent from `vn.developers`,
- * so a publisher-only studio (Mangagamer, JAST, …) is rankable.
+ * so a publisher-only studio (Studio X, Studio Y, …) is rankable.
  */
 export function listPublisherStats(): ProducerStat[] {
   const rows = db

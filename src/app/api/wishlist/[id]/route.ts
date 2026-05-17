@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addToVndbWishlist, removeFromVndbWishlist } from '@/lib/vndb';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -39,6 +40,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     if ('needsAuth' in r) {
       return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
     }
+    recordActivity({ kind: 'wishlist.add', entity: 'vn', entityId: id, label: 'Added VNDB wishlist label' });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return vndbErrorResponse(e as Error);
@@ -55,6 +57,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     if ('needsAuth' in r) {
       return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
     }
+    recordActivity({ kind: 'wishlist.remove', entity: 'vn', entityId: id, label: 'Removed VNDB wishlist label' });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return vndbErrorResponse(e as Error);

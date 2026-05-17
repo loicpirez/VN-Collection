@@ -204,9 +204,15 @@ IN_VN=$(/usr/bin/curl -sS --max-time 8 "${BASE}/api/collection?limit=1" 2>/dev/n
   | head -1 \
   | sed -E 's/"id":"//')
 if [ -z "$IN_VN" ]; then
-  IN_VN="v28032"   # fallback, kept compatible with prior runs
+  printf 'browser-qa.sh refusing to run: no in-collection VN found in the QA server response.\n' >&2
+  exit 2
 fi
 printf '%s(in-collection VN probe: %s)%s\n' "$C_DIM" "$IN_VN" "$C_RST"
+
+CHAR_ID=""
+if command -v sqlite3 >/dev/null 2>&1 && [ -n "${DB_PATH:-}" ] && [ -f "$DB_PATH" ]; then
+  CHAR_ID=$(sqlite3 "$DB_PATH" "SELECT substr(cache_key, length('char_full:') + 1) FROM vndb_cache WHERE cache_key LIKE 'char_full:c%' LIMIT 1" 2>/dev/null || true)
+fi
 
 # ── 1. VN detail action group contract on the in-collection VN ───
 #    The VnDetailActionsBar documents an exact contract:
@@ -236,7 +242,7 @@ if [ -n "$VN_HTML" ]; then
   rm -f "$VN_HTML"
 fi
 
-# ── 2. Cover/banner rotation controls on /vn/v28032 ──────────────
+# ── 2. Cover/banner rotation controls on the probed VN ───────────
 #    Aria-label for rotate left/right must match the i18n key for the
 #    rendered locale. We probe all three locale spellings so the
 #    assertion passes regardless of which cookie the dev server has.
@@ -349,7 +355,7 @@ if [ -n "$STAFF_HTML" ]; then
   rm -f "$STAFF_HTML"
 fi
 
-# ── 7. Global spoiler reveal wrappers on /vn/v28032 ──────────────
+# ── 7. Global spoiler reveal wrappers on the probed VN ───────────
 #    Spoiler-tagged content must render through <SpoilerReveal> so
 #    the user-facing toggle works. Look for the `aria-pressed`
 #    attribute the component emits on its tap-target button.
@@ -361,11 +367,14 @@ if [ -n "$VN_HTML" ]; then
   rm -f "$VN_HTML"
 fi
 
-# ── 8. Character spoiler reveal on /character/c84419 ─────────────
+# ── 8. Character spoiler reveal on a cached character ────────────
 #    Same gate plus a description chunk OUTSIDE any wrapper — the
 #    non-spoiler synopsis must render plain.
-printf '\n[8] /character/c84419 spoiler reveal + plain description\n'
-CHAR_HTML=$(fetch_html "/character/c84419")
+printf '\n[8] /character/%s spoiler reveal + plain description\n' "${CHAR_ID:-<none>}"
+if [ -z "$CHAR_ID" ]; then
+  ok "character spoiler probe skipped" "no cached character fixture"
+else
+CHAR_HTML=$(fetch_html "/character/$CHAR_ID")
 if [ -n "$CHAR_HTML" ]; then
   assert_at_least "spoiler-reveal triggers present" \
     "$CHAR_HTML" 'aria-pressed="(true|false)"' 1
@@ -375,6 +384,7 @@ if [ -n "$CHAR_HTML" ]; then
   assert_at_least "non-spoilered description container renders" \
     "$CHAR_HTML" 'class="[^"]*whitespace-pre-wrap' 1
   rm -f "$CHAR_HTML"
+fi
 fi
 
 # ── 9. Settings density: global default + per-page section ───────

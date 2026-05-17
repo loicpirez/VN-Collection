@@ -444,7 +444,7 @@ export default async function ShelfPage({
             })}
 
           {view === 'layout' && (
-            <>
+            <div className="shelf-view-root">
               <header className="mb-3 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
                 <h2 className="inline-flex items-center gap-2 text-base font-bold">
                   <LayoutGrid className="h-5 w-5 text-accent" aria-hidden /> {t.shelfLayout.title}
@@ -455,7 +455,7 @@ export default async function ShelfPage({
                 initialShelves={listShelves()}
                 initialUnplaced={listUnplacedOwnedReleases()}
               />
-            </>
+            </div>
           )}
 
           {view === 'item' && (

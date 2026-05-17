@@ -5,6 +5,7 @@ import {
   placeShelfDisplayItem,
   removeShelfDisplayPlacement,
 } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -74,6 +75,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       vnId: body.vn_id,
       releaseId: body.release_id,
     });
+    recordActivity({
+      kind: 'shelf.display.place',
+      entity: 'shelf_display_slot',
+      entityId: `${sid}:${body.after_row}:${body.position}`,
+      label: 'Placed front display edition',
+      payload: { shelf_id: sid, after_row: body.after_row, position: body.position, vn_id: body.vn_id, release_id: body.release_id },
+    });
     return NextResponse.json({ displays: listShelfDisplaySlots(sid) });
   } catch (e) {
     console.error('shelf display place failed:', (e as Error).message);
@@ -103,5 +111,12 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     return NextResponse.json({ error: 'invalid release_id' }, { status: 400 });
   }
   removeShelfDisplayPlacement(body.vn_id, body.release_id);
+  recordActivity({
+    kind: 'shelf.display.unplace',
+    entity: 'shelf_display_slot',
+    entityId: `${body.vn_id}:${body.release_id}`,
+    label: 'Removed front display placement',
+    payload: { shelf_id: sid, vn_id: body.vn_id, release_id: body.release_id },
+  });
   return NextResponse.json({ displays: listShelfDisplaySlots(sid) });
 }

@@ -28,8 +28,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
  * - Header surfaces the VNDB-side tag metadata (name, category,
  *   description, aliases, vn_count).
  * - Tab strip Local / VNDB:
- *   - Local: count of the operator's collection VNs carrying the tag,
- *     plus the deep-link to `/?tag=<id>` that does the actual filter.
+ *   - Local: collection VNs carrying the tag, with the Library filter
+ *     available as a secondary action.
  *   - VNDB: top-rated VNs with this tag pulled via
  *     `advancedSearchVn({ filters: [tag, '=', [id, 1, 1.2]] }`,
  *     cached via `cachedFetch` in `lib/vndb.ts`.
@@ -51,15 +51,25 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   const tagId = id.toLowerCase();
   const { tab } = parseTagPageParams(sp);
 
-  // Count how many local-collection VNs carry this tag. Same JSON
-  // walk pattern as `listCollectionTags` in lib/db.ts.
-  const row = db
+  const localRows = db
     .prepare(
-      `SELECT COUNT(*) AS n FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
+      `SELECT v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.local_image_thumb,
+              v.image_sexual, v.rating, v.released
+       FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
        WHERE json_extract(je.value, '$.id') = ?`,
     )
-    .get(tagId) as { n: number };
-  const count = row?.n ?? 0;
+    .all(tagId) as Array<{
+      id: string;
+      title: string;
+      alttitle: string | null;
+      image_url: string | null;
+      image_thumb: string | null;
+      local_image_thumb: string | null;
+      image_sexual: number | null;
+      rating: number | null;
+      released: string | null;
+    }>;
+  const count = localRows.length;
   const state = tagPageEmptyState({ tagId, collectionCount: count });
 
   // Best-effort fetch of the VNDB-side metadata for the header. If the
@@ -103,11 +113,26 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
           <TagIcon className="h-6 w-6 text-accent" aria-hidden /> {tagInfo?.name ?? tagId}
         </h1>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider">
         {tagInfo?.category && (
-          <div className="mt-1 text-[11px] uppercase tracking-wider text-accent">
+          <span className="rounded bg-accent/10 px-2 py-0.5 text-accent">
             {t.tags[`cat_${tagInfo.category}` as 'cat_cont' | 'cat_ero' | 'cat_tech']}
-          </div>
+          </span>
         )}
+          {tagInfo && (
+            <>
+              <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
+                {tagInfo.searchable ? t.tagPage.searchable : t.tagPage.notSearchable}
+              </span>
+              <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
+                {tagInfo.applicable ? t.tagPage.applicable : t.tagPage.notApplicable}
+              </span>
+              <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
+                {t.tagPage.vndbCount.replace('{n}', tagInfo.vn_count.toLocaleString())}
+              </span>
+            </>
+          )}
+        </div>
         {tagInfo?.aliases && tagInfo.aliases.length > 0 && (
           <div className="mt-2 text-xs text-muted">{tagInfo.aliases.join(' · ')}</div>
         )}
@@ -172,6 +197,52 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         </div>
       </header>
 
+      {tab === 'local' && (
+        <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
+            {t.tagPage.localMatches}
+          </h2>
+          {localRows.length === 0 ? (
+            <p className="text-sm text-muted">{t.tagPage.localEmpty}</p>
+          ) : (
+            <ul
+              className="grid gap-3"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
+            >
+              {localRows.map((v) => (
+                <li key={v.id}>
+                  <Link
+                    href={`/vn/${v.id}`}
+                    className="group flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
+                  >
+                    <div className="aspect-[2/3] w-full overflow-hidden rounded">
+                      <SafeImage
+                        src={v.image_thumb || v.image_url}
+                        localSrc={v.local_image_thumb}
+                        sexual={v.image_sexual}
+                        alt={v.title}
+                        className="h-full w-full"
+                      />
+                    </div>
+                    <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                      {v.title}
+                    </p>
+                    <div className="flex items-center gap-2 text-[11px] text-muted">
+                      {v.rating != null && (
+                        <span className="inline-flex items-center gap-0.5 text-accent">
+                          <Star className="h-3 w-3 fill-accent" aria-hidden /> {(v.rating / 10).toFixed(1)}
+                        </span>
+                      )}
+                      {v.released?.slice(0, 4) && <span>{v.released.slice(0, 4)}</span>}
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       {tab === 'vndb' && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
@@ -213,15 +284,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
                             <Star className="h-3 w-3 fill-accent" aria-hidden /> {ratingDisplay}
                           </span>
                         )}
-                        {year && (
-                          <Link
-                            href={`/?yearMin=${year}&yearMax=${year}`}
-                            className="hover:text-accent"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {year}
-                          </Link>
-                        )}
+                        {year && <span>{year}</span>}
                       </div>
                     </Link>
                   </li>

@@ -626,13 +626,27 @@ export interface VndbStaff {
   extlinks: VndbExtLink[];
 }
 
-export async function searchStaff(query: string, { results = 30, mainOnly = true } = {}): Promise<VndbStaff[]> {
+export async function searchStaff(
+  query: string,
+  {
+    results = 30,
+    mainOnly = true,
+    role,
+    lang,
+    vn,
+  }: { results?: number; mainOnly?: boolean; role?: string | null; lang?: string | null; vn?: string | null } = {},
+): Promise<VndbStaff[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
   const isId = /^s\d+$/i.test(trimmed);
-  const filter = isId
-    ? (['and', ['id', '=', trimmed.toLowerCase()], mainOnly ? ['ismain', '=', 1] : null].filter(Boolean) as unknown[])
-    : (['and', ['search', '=', trimmed], mainOnly ? ['ismain', '=', 1] : null].filter(Boolean) as unknown[]);
+  const filter = [
+    'and',
+    isId ? ['id', '=', trimmed.toLowerCase()] : ['search', '=', trimmed],
+    mainOnly ? ['ismain', '=', 1] : null,
+    role ? ['role', '=', role] : null,
+    lang ? ['lang', '=', lang] : null,
+    vn ? ['vn', '=', ['id', '=', vn]] : null,
+  ].filter(Boolean) as unknown[];
   const r = await vndbPost<VndbResponse<VndbStaff>>('/staff', {
     filters: filter.length === 2 ? filter[1] : filter,
     fields: STAFF_FIELDS,
