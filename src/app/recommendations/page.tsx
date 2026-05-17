@@ -32,8 +32,61 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeedTagControls } from '@/components/SeedTagControls';
 import { SkeletonCardGrid } from '@/components/Skeleton';
+import { VnSeedPicker, type SeedChipData } from '@/components/VnSeedPicker';
+import { SimilarSeedEmptyState } from '@/components/SimilarSeedEmptyState';
+import { pickSimilarToVnView } from '@/lib/recommend-similar-view';
 import { db } from '@/lib/db';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
+
+/**
+ * Pull the minimum metadata the seed chip needs (title + alttitle + the
+ * first developer + cover thumbnail). Returns `null` when the id is
+ * unknown to the local DB — the caller treats that as an
+ * "invalid seed" condition (the operator can still see the chip with
+ * an error explanation and re-pick).
+ */
+function loadSeedChip(vnId: string): SeedChipData | null {
+  const row = db
+    .prepare(
+      `SELECT id, title, alttitle, released, image_url, image_thumb, image_sexual, developers
+       FROM vn WHERE id = ?`,
+    )
+    .get(vnId) as
+    | {
+        id: string;
+        title: string | null;
+        alttitle: string | null;
+        released: string | null;
+        image_url: string | null;
+        image_thumb: string | null;
+        image_sexual: number | null;
+        developers: string | null;
+      }
+    | undefined;
+  if (!row || !row.title) return null;
+  let developer: string | null = null;
+  try {
+    const devs = row.developers ? (JSON.parse(row.developers) as Array<{ name?: string }>) : [];
+    developer = devs[0]?.name ?? null;
+  } catch {
+    developer = null;
+  }
+  return {
+    id: row.id,
+    title: row.title,
+    alttitle: row.alttitle,
+    released: row.released,
+    developer,
+    image:
+      row.image_url || row.image_thumb
+        ? {
+            url: row.image_url ?? '',
+            thumbnail: row.image_thumb ?? row.image_url ?? '',
+            sexual: row.image_sexual,
+          }
+        : null,
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -106,6 +159,16 @@ export default async function RecommendationsPage({
   const seedVnId = raw.seed && /^(v\d+|egs_\d+)$/i.test(raw.seed)
     ? raw.seed.toLowerCase()
     : undefined;
+  // Seed chip data is loaded synchronously from SQLite so the picker
+  // can render the cover + title on first paint. `null` here means the
+  // id passed validation but the local DB has no row — surfaced as
+  // "invalid seed" so the picker shows an error chip.
+  const seedChip: SeedChipData | null = seedVnId ? loadSeedChip(seedVnId) : null;
+  const similarView =
+    mode === 'similar-to-vn'
+      ? pickSimilarToVnView({ seedVnId, seedRowExists: !!seedChip })
+      : 'results';
+  const seedInvalid = similarView === 'invalid';
 
   // `?tags=g123,g456` pins the seed list and bypasses auto-derivation.
   // Anything not matching `g\d+` is silently dropped so a tampered URL
@@ -213,25 +276,46 @@ export default async function RecommendationsPage({
           includeWishlist={includeWishlist}
           t={t}
         />
+
+        {/* Inline seed-VN picker for `similar-to-vn`. Rendered in the
+            header (alongside the tag picker) when a seed IS already
+            set, so the operator can swap the anchor without leaving
+            the page. The empty-state branch below renders a bigger,
+            full-width copy of the same picker. */}
+        {mode === 'similar-to-vn' && seedChip && !seedInvalid && (
+          <div className="mt-3">
+            <VnSeedPicker initialSeed={seedChip} />
+          </div>
+        )}
       </header>
 
-      <Suspense
-        key={fetchKey}
-        fallback={<SkeletonCardGrid count={12} />}
-      >
-        <ResultsPanel
-          mode={mode}
-          includeEro={includeEro}
-          includeOwned={includeOwned}
-          includeWishlist={includeWishlist}
-          customTagIds={customTagIds}
-          seedVnId={seedVnId}
+      {similarView !== 'results' ? (
+        <SimilarSeedEmptyState
+          invalid={seedInvalid}
+          chip={seedChip}
+          fallbackSeedId={seedInvalid ? seedVnId : undefined}
           t={t}
         />
-      </Suspense>
+      ) : (
+        <Suspense
+          key={fetchKey}
+          fallback={<SkeletonCardGrid count={12} />}
+        >
+          <ResultsPanel
+            mode={mode}
+            includeEro={includeEro}
+            includeOwned={includeOwned}
+            includeWishlist={includeWishlist}
+            customTagIds={customTagIds}
+            seedVnId={seedVnId}
+            t={t}
+          />
+        </Suspense>
+      )}
     </DensityScopeProvider>
   );
 }
+
 
 function ModeTabs({
   current,
@@ -478,13 +562,9 @@ async function ResultsPanel({
     );
   }
 
-  if (mode === 'similar-to-vn' && !seedVnId) {
-    return (
-      <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
-        {t.recommend.modes.similarToVn.needsSeed}
-      </p>
-    );
-  }
+  // `similar-to-vn` without a seed is handled upstream by
+  // `SimilarSeedEmptyState` so the operator gets the in-page picker
+  // instead of an instruction to edit the URL.
 
   if (seeds.length === 0) {
     return (
