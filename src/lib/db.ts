@@ -3703,8 +3703,12 @@ export function searchLocalCharacters({
     .all() as Array<{ cache_key: string; body: string }>;
   const needle = q?.trim().toLowerCase() ?? '';
   const out: Array<{ profile: Record<string, unknown>; voice_languages: string[] }> = [];
+  // `vn_va_credit` carries the VA's language in `va_lang`, not the
+  // bare `lang` column the schema uses on `vn_staff_credit`. The
+  // earlier query referenced the wrong column and crashed any
+  // `/characters` search with `SqliteError: no such column: lang`.
   const langStmt = db.prepare(
-    'SELECT DISTINCT lang FROM vn_va_credit WHERE c_id = ? AND lang IS NOT NULL',
+    'SELECT DISTINCT va_lang AS lang FROM vn_va_credit WHERE c_id = ? AND va_lang IS NOT NULL',
   );
   for (const row of rows) {
     let payload: { profile?: Record<string, unknown> | null } | null = null;
