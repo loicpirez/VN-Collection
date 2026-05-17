@@ -16,6 +16,8 @@ import {
 import {
   parseShelfViewPrefsV1,
   validateShelfViewPrefsV1,
+  parseShelfDisplayOverridesV1,
+  validateShelfDisplayOverridesV1,
 } from '@/lib/shelf-view-prefs';
 import { recordActivity } from '@/lib/activity';
 
@@ -32,6 +34,16 @@ const SAFE_KEYS = new Set([
   'vn_detail_section_layout_v1',
   'series_detail_section_layout_v1',
   'shelf_view_prefs_v1',
+  // Per-shelf override hierarchy on top of `shelf_view_prefs_v1`.
+  // Payload validated via `validateShelfDisplayOverridesV1`; PATCH
+  // and GET handlers below wrap/unwrap the wider shape.
+  'shelf_display_overrides_v1',
+  // App-wide section ordering scopes — share the same versioned-
+  // config pattern as VN/series detail. Added so PATCHes from
+  // staff/character/producer pages can persist a layout.
+  'staff_detail_section_layout_v1',
+  'character_detail_section_layout_v1',
+  'producer_detail_section_layout_v1',
   'vndb_writeback',
   'vndb_backup_url',
   'vndb_backup_enabled',
@@ -118,6 +130,12 @@ export async function GET(req: Request) {
     vn_detail_section_layout_v1: parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1')),
     series_detail_section_layout_v1: parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1')),
     shelf_view_prefs_v1: parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1')),
+    // Wrapped per-shelf overrides. The GET path always returns the
+    // wrapped shape; the legacy `shelf_view_prefs_v1` key above
+    // still carries the global defaults for back-compat callers.
+    shelf_display_overrides_v1: parseShelfDisplayOverridesV1(
+      getAppSetting('shelf_display_overrides_v1'),
+    ),
     vndb_writeback: getAppSetting('vndb_writeback') === '1',
     vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
     // Mask: never echo the raw URL on GET (it can contain auth
@@ -280,6 +298,40 @@ export async function PATCH(req: NextRequest) {
     } else {
       return NextResponse.json(
         { error: 'shelf_view_prefs_v1 must be an object or null' },
+        { status: 400 },
+      );
+    }
+  }
+  if ('shelf_display_overrides_v1' in body) {
+    // Wrapped {global, shelves} payload. Partial merge: a PATCH that
+    // sends only `{shelves: {[id]: {…}}}` keeps the persisted global
+    // intact; conversely a PATCH sending only `{global: …}` keeps
+    // every per-shelf override row intact. `null` resets to defaults.
+    const v = body.shelf_display_overrides_v1;
+    if (v == null) {
+      setAppSetting('shelf_display_overrides_v1', null);
+    } else if (typeof v === 'object' && !Array.isArray(v)) {
+      const current = parseShelfDisplayOverridesV1(
+        getAppSetting('shelf_display_overrides_v1'),
+      );
+      const patch = v as Record<string, unknown>;
+      const merged = {
+        global:
+          patch.global !== undefined && typeof patch.global === 'object'
+            ? patch.global
+            : current.global,
+        shelves:
+          patch.shelves !== undefined && typeof patch.shelves === 'object'
+            ? // Shallow-merge per shelf so a partial `{shelves:{a:…}}`
+              // PATCH doesn't wipe out unrelated overrides.
+              { ...current.shelves, ...(patch.shelves as Record<string, unknown>) }
+            : current.shelves,
+      };
+      const normalized = validateShelfDisplayOverridesV1(merged);
+      setAppSetting('shelf_display_overrides_v1', JSON.stringify(normalized));
+    } else {
+      return NextResponse.json(
+        { error: 'shelf_display_overrides_v1 must be an object or null' },
         { status: 400 },
       );
     }

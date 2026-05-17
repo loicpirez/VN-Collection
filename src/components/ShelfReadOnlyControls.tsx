@@ -1,14 +1,19 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RotateCcw, Sliders, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import {
+  SHELF_DISPLAY_OVERRIDES_EVENT,
   SHELF_VIEW_PREFS_BOUNDS,
   SHELF_TEXT_DENSITIES,
   SHELF_VIEW_PREFS_EVENT,
+  defaultShelfDisplayOverridesV1,
   defaultShelfViewPrefsV1,
+  resolveShelfPrefs,
+  shelfHasOverride,
   shelfViewPrefsDataAttrs,
   shelfViewPrefsCssVars,
+  type ShelfDisplayOverridesV1,
   type ShelfViewPrefsV1,
   type ShelfTextDensity,
   validateShelfViewPrefsV1,
@@ -18,7 +23,24 @@ interface Props {
   initialPrefs: ShelfViewPrefsV1;
   /** Optional override id used when several shelves render on one page. */
   id?: string;
+  /**
+   * When the host is showing a specific shelf (the spatial view's
+   * "current shelf"), pass the shelf id + name so the controls
+   * can offer a "Per-shelf override" mode. When omitted, the
+   * controls operate in global mode only — back-compat with the
+   * release/item views that don't have a single active shelf.
+   */
+  activeShelfId?: string;
+  activeShelfName?: string;
+  /**
+   * The server-rendered hierarchy payload (global + per-shelf
+   * partials). The controls read this once on mount and persist
+   * back to the same key.
+   */
+  initialOverrides?: ShelfDisplayOverridesV1;
 }
+
+type Scope = 'global' | 'shelf';
 
 /**
  * Discreet display-only knobs for the read-only shelf views
@@ -35,17 +57,41 @@ interface Props {
  * dimensions. Resizing the slider on /shelf?view=item must not write
  * to either placement table.
  */
-export function ShelfReadOnlyControls({ initialPrefs, id = 'default' }: Props) {
+export function ShelfReadOnlyControls({
+  initialPrefs,
+  id = 'default',
+  activeShelfId,
+  activeShelfName,
+  initialOverrides,
+}: Props) {
   const t = useT();
   const dict = t.shelfDisplay;
-  const [prefs, setPrefs] = useState<ShelfViewPrefsV1>(initialPrefs);
+  // Hierarchy state. `overrides.global` is the live global; the
+  // per-shelf row (if any) layers over it. `scope` decides which
+  // path a slider write hits. When `activeShelfId` is omitted, only
+  // the global scope is reachable and the selector is hidden.
+  const [overrides, setOverrides] = useState<ShelfDisplayOverridesV1>(
+    initialOverrides ?? { global: initialPrefs, shelves: {} },
+  );
+  const [scope, setScope] = useState<Scope>('global');
+  // `prefs` is the EFFECTIVE prefs visible in the sliders. Derived
+  // from overrides + scope so a single source of truth.
+  const prefs = useMemo<ShelfViewPrefsV1>(() => {
+    if (scope === 'shelf' && activeShelfId) {
+      return resolveShelfPrefs(overrides, activeShelfId);
+    }
+    return overrides.global;
+  }, [scope, overrides, activeShelfId]);
+  const hasOverride = activeShelfId ? shelfHasOverride(overrides, activeShelfId) : false;
   const [open, setOpen] = useState(false);
   const popRef = useRef<HTMLDivElement>(null);
 
-  // Apply the CSS vars to the body so any wrapper below
-  // `.shelf-view-root` reacts. Cleaning up on unmount keeps a leftover
-  // var from leaking to other surfaces (the user navigates to /vn/[id]
-  // where the variables aren't relevant).
+  // Apply the EFFECTIVE prefs to `.shelf-view-root`. The per-shelf
+  // override is captured by `prefs` so when the user is editing a
+  // shelf, the sliders affect THAT shelf only — other shelves remain
+  // on global defaults (when the operator navigates between shelves
+  // via the prev/next links, the next page render mounts this
+  // component with a different activeShelfId).
   useEffect(() => {
     const css = shelfViewPrefsCssVars(prefs);
     const attrs = shelfViewPrefsDataAttrs(prefs);
@@ -64,14 +110,30 @@ export function ShelfReadOnlyControls({ initialPrefs, id = 'default' }: Props) {
     };
   }, [prefs]);
 
-  // Sync with cross-tab / Settings-modal changes.
+  // Sync with cross-tab / Settings-modal changes. Two events:
+  //   - SHELF_VIEW_PREFS_EVENT — legacy global-only path; still
+  //     fired by the Settings modal so we update the `global` slot.
+  //   - SHELF_DISPLAY_OVERRIDES_EVENT — the new hierarchy event
+  //     fired by this very component when it PATCHes the wrapped
+  //     payload. Listeners on other tabs / mounted instances of
+  //     this same component (e.g. inside Settings) keep in sync.
   useEffect(() => {
-    function onChange(e: Event) {
+    function onGlobal(e: Event) {
       const detail = (e as CustomEvent<{ prefs?: ShelfViewPrefsV1 }>).detail;
-      if (detail?.prefs) setPrefs(detail.prefs);
+      if (detail?.prefs) {
+        setOverrides((prev) => ({ ...prev, global: detail.prefs! }));
+      }
     }
-    window.addEventListener(SHELF_VIEW_PREFS_EVENT, onChange);
-    return () => window.removeEventListener(SHELF_VIEW_PREFS_EVENT, onChange);
+    function onHierarchy(e: Event) {
+      const detail = (e as CustomEvent<{ overrides?: ShelfDisplayOverridesV1 }>).detail;
+      if (detail?.overrides) setOverrides(detail.overrides);
+    }
+    window.addEventListener(SHELF_VIEW_PREFS_EVENT, onGlobal);
+    window.addEventListener(SHELF_DISPLAY_OVERRIDES_EVENT, onHierarchy);
+    return () => {
+      window.removeEventListener(SHELF_VIEW_PREFS_EVENT, onGlobal);
+      window.removeEventListener(SHELF_DISPLAY_OVERRIDES_EVENT, onHierarchy);
+    };
   }, []);
 
   // Close on outside click / Escape.
@@ -92,27 +154,121 @@ export function ShelfReadOnlyControls({ initialPrefs, id = 'default' }: Props) {
     };
   }, [open]);
 
-  const persist = useCallback(async (next: ShelfViewPrefsV1) => {
-    const normalized = validateShelfViewPrefsV1(next);
-    setPrefs(normalized);
-    window.dispatchEvent(
-      new CustomEvent(SHELF_VIEW_PREFS_EVENT, { detail: { prefs: normalized } }),
-    );
-    try {
-      await fetch('/api/settings', {
+  /**
+   * Persist a prefs payload. Routes through the right key based on
+   * the active scope: global writes update `shelf_view_prefs_v1`
+   * (legacy compat) AND the wrapped `shelf_display_overrides_v1.global`
+   * so both surfaces stay in sync. Per-shelf writes only touch the
+   * wrapped key — they cannot regress the global.
+   */
+  const persist = useCallback(
+    async (next: ShelfViewPrefsV1) => {
+      const normalized = validateShelfViewPrefsV1(next);
+      if (scope === 'shelf' && activeShelfId) {
+        // Compute the new per-shelf partial: only the keys whose value
+        // diverges from the global are persisted, so a reset (=
+        // matching global) naturally produces `{}` which the API
+        // route drops from `shelves`.
+        const partial: Partial<ShelfViewPrefsV1> = {};
+        for (const k of Object.keys(normalized) as Array<keyof ShelfViewPrefsV1>) {
+          if (normalized[k] !== overrides.global[k]) {
+            // Cast through unknown to satisfy the indexed write — the
+            // key-by-key copy is sound because k is constrained to
+            // ShelfViewPrefsV1's own keys.
+            (partial as Record<string, unknown>)[k as string] = normalized[k];
+          }
+        }
+        const nextOverrides: ShelfDisplayOverridesV1 = {
+          global: overrides.global,
+          shelves: { ...overrides.shelves, [activeShelfId]: partial },
+        };
+        if (Object.keys(partial).length === 0) {
+          delete nextOverrides.shelves[activeShelfId];
+        }
+        setOverrides(nextOverrides);
+        window.dispatchEvent(
+          new CustomEvent(SHELF_DISPLAY_OVERRIDES_EVENT, {
+            detail: { overrides: nextOverrides },
+          }),
+        );
+        try {
+          await fetch('/api/settings', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              shelf_display_overrides_v1: {
+                shelves: { [activeShelfId]: partial },
+              },
+            }),
+          });
+        } catch {
+          // Silent — CSS vars already applied.
+        }
+        return;
+      }
+      // Global scope (default). Patch both keys so legacy consumers
+      // that only read `shelf_view_prefs_v1` see the change too.
+      const nextOverrides: ShelfDisplayOverridesV1 = {
+        global: normalized,
+        shelves: overrides.shelves,
+      };
+      setOverrides(nextOverrides);
+      window.dispatchEvent(
+        new CustomEvent(SHELF_VIEW_PREFS_EVENT, { detail: { prefs: normalized } }),
+      );
+      window.dispatchEvent(
+        new CustomEvent(SHELF_DISPLAY_OVERRIDES_EVENT, {
+          detail: { overrides: nextOverrides },
+        }),
+      );
+      try {
+        await fetch('/api/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shelf_view_prefs_v1: normalized,
+            shelf_display_overrides_v1: { global: normalized },
+          }),
+        });
+      } catch {
+        // Silent — CSS vars already applied.
+      }
+    },
+    [scope, activeShelfId, overrides],
+  );
+
+  /**
+   * Reset semantics:
+   *   - Global scope → restore the canonical defaults.
+   *   - Shelf scope  → drop the per-shelf partial so the shelf
+   *     falls back to the global.
+   */
+  const reset = useCallback(() => {
+    if (scope === 'shelf' && activeShelfId) {
+      const { [activeShelfId]: _drop, ...rest } = overrides.shelves;
+      void _drop;
+      const nextOverrides: ShelfDisplayOverridesV1 = { global: overrides.global, shelves: rest };
+      setOverrides(nextOverrides);
+      window.dispatchEvent(
+        new CustomEvent(SHELF_DISPLAY_OVERRIDES_EVENT, {
+          detail: { overrides: nextOverrides },
+        }),
+      );
+      // Send an empty partial; the API route's shallow-merge keeps
+      // the global intact and drops the empty entry.
+      void fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shelf_view_prefs_v1: normalized }),
-      });
-    } catch {
-      // Silent — the live values already applied via CSS variables.
-      // A failure here just means the next reload reverts.
+        body: JSON.stringify({
+          shelf_display_overrides_v1: {
+            shelves: { [activeShelfId]: {} },
+          },
+        }),
+      }).catch(() => undefined);
+      return;
     }
-  }, []);
-
-  const reset = useCallback(() => {
     void persist(defaultShelfViewPrefsV1());
-  }, [persist]);
+  }, [scope, activeShelfId, overrides, persist]);
 
   return (
     <div className="relative inline-flex" data-shelf-controls-id={id}>
@@ -144,6 +300,55 @@ export function ShelfReadOnlyControls({ initialPrefs, id = 'default' }: Props) {
               <X className="h-3.5 w-3.5" aria-hidden />
             </button>
           </header>
+          {/*
+            Scope selector — only mounted when the host page knows
+            which shelf is currently active. The release / item views
+            don't have a "current shelf" so they only ever edit the
+            global; in that case the scope selector is omitted.
+          */}
+          {activeShelfId && (
+            <div className="mb-3 flex flex-col gap-1 rounded-md border border-border bg-bg-elev/40 p-2 text-[11px]">
+              <div className="flex items-center gap-1 text-muted">
+                <span className="font-bold uppercase tracking-widest text-[10px]">
+                  {dict.scopeLabel}
+                </span>
+                {hasOverride && scope === 'shelf' && (
+                  <span className="rounded bg-accent/15 px-1 text-[9px] font-semibold uppercase tracking-wider text-accent">
+                    {dict.overrideBadge}
+                  </span>
+                )}
+              </div>
+              <div className="inline-flex overflow-hidden rounded-md border border-border">
+                <button
+                  type="button"
+                  onClick={() => setScope('global')}
+                  aria-pressed={scope === 'global'}
+                  className={`flex-1 px-2 py-1 text-xs ${
+                    scope === 'global'
+                      ? 'bg-accent text-bg font-semibold'
+                      : 'bg-bg-elev/40 text-muted hover:text-white'
+                  }`}
+                >
+                  {dict.scopeGlobal}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScope('shelf')}
+                  aria-pressed={scope === 'shelf'}
+                  className={`flex-1 px-2 py-1 text-xs ${
+                    scope === 'shelf'
+                      ? 'bg-accent text-bg font-semibold'
+                      : 'bg-bg-elev/40 text-muted hover:text-white'
+                  }`}
+                  title={activeShelfName ?? undefined}
+                >
+                  {activeShelfName
+                    ? dict.scopeThisShelfNamed.replace('{name}', activeShelfName)
+                    : dict.scopeThisShelf}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-x-3 sm:grid-cols-2">
             <Slider

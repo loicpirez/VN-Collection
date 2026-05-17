@@ -241,3 +241,148 @@ export function shelfViewPrefsDataAttrs(prefs: ShelfViewPrefsV1): Record<string,
 
 /** Event broadcast after a successful PATCH so siblings re-sync. */
 export const SHELF_VIEW_PREFS_EVENT = 'shelf:view-prefs-changed';
+
+// ─────────────────────────────────────────────────────────────────
+// Hierarchy (item 13 in the operator's continuation prompt).
+//
+// `shelf_display_overrides_v1` is a NEW persisted key that wraps
+// the global `ShelfViewPrefsV1` plus an optional per-shelf override
+// map keyed on `shelf_unit.id`. The hierarchy is intentionally
+// shallow (global → per-shelf) — per-row overrides were called
+// out as "do not implement until wired" in the operator's spec.
+//
+// Back-compat: the older `shelf_view_prefs_v1` key keeps working
+// in isolation; `parseShelfDisplayOverridesV1` accepts either the
+// new wrapping shape OR a legacy flat payload and migrates it
+// into `{global, shelves}`. The renderer always asks for an
+// *effective* prefs object via `resolveShelfPrefs(global, shelfId,
+// overrides)`.
+// ─────────────────────────────────────────────────────────────────
+
+export interface ShelfDisplayOverridesV1 {
+  global: ShelfViewPrefsV1;
+  /**
+   * Per-shelf override map. Each value is a *partial* prefs
+   * payload; the resolver layers it over `global` so the operator
+   * can override only the fields they care about. An empty object
+   * is treated as "no override" (back to global).
+   */
+  shelves: Record<string, Partial<ShelfViewPrefsV1>>;
+}
+
+export function defaultShelfDisplayOverridesV1(): ShelfDisplayOverridesV1 {
+  return { global: defaultShelfViewPrefsV1(), shelves: {} };
+}
+
+/**
+ * Validate the wrapped overrides payload, tolerating both the new
+ * `{global, shelves}` shape AND a flat legacy
+ * `ShelfViewPrefsV1` payload (which becomes the `global`).
+ */
+export function validateShelfDisplayOverridesV1(input: unknown): ShelfDisplayOverridesV1 {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return defaultShelfDisplayOverridesV1();
+  }
+  const obj = input as Record<string, unknown>;
+  // Legacy / flat shape — the whole object IS the global prefs.
+  const looksWrapped =
+    obj.global !== undefined || obj.shelves !== undefined;
+  if (!looksWrapped) {
+    return {
+      global: validateShelfViewPrefsV1(input),
+      shelves: {},
+    };
+  }
+  const global = validateShelfViewPrefsV1(obj.global);
+  const rawShelves =
+    obj.shelves && typeof obj.shelves === 'object' && !Array.isArray(obj.shelves)
+      ? (obj.shelves as Record<string, unknown>)
+      : {};
+  const shelves: Record<string, Partial<ShelfViewPrefsV1>> = {};
+  for (const [shelfId, raw] of Object.entries(rawShelves)) {
+    if (!shelfId || typeof shelfId !== 'string') continue;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const partial = pickPartialShelfPrefs(raw as Record<string, unknown>);
+    // Drop empty partials so a "reset to global" PATCH that sent
+    // `{}` doesn't keep the entry around.
+    if (Object.keys(partial).length === 0) continue;
+    shelves[shelfId] = partial;
+  }
+  return { global, shelves };
+}
+
+/**
+ * Project a raw record into a partial prefs payload, dropping
+ * unknown keys and clamping numerics. Used by the per-shelf
+ * override path so the persisted blob can never escape the
+ * documented schema.
+ */
+function pickPartialShelfPrefs(raw: Record<string, unknown>): Partial<ShelfViewPrefsV1> {
+  const out: Partial<ShelfViewPrefsV1> = {};
+  const num = (key: keyof typeof SHELF_VIEW_PREFS_BOUNDS) => {
+    const v = raw[key];
+    if (typeof v !== 'number') return;
+    out[key] = clamp(v, SHELF_VIEW_PREFS_BOUNDS[key].min, SHELF_VIEW_PREFS_BOUNDS[key].max);
+  };
+  num('cellSizePx');
+  num('coverScale');
+  num('gapPx');
+  num('cellWidthPx');
+  num('cellHeightPx');
+  num('rowGapPx');
+  num('sectionGapPx');
+  num('frontDisplaySizePx');
+  if (raw.fitMode === 'contain' || raw.fitMode === 'cover') out.fitMode = raw.fitMode;
+  if (raw.textDensity === 'sm' || raw.textDensity === 'md' || raw.textDensity === 'lg') {
+    out.textDensity = raw.textDensity;
+  }
+  if (typeof raw.showLabels === 'boolean') out.showLabels = raw.showLabels;
+  if (typeof raw.compact === 'boolean') out.compact = raw.compact;
+  return out;
+}
+
+export function parseShelfDisplayOverridesV1(raw: string | null): ShelfDisplayOverridesV1 {
+  if (!raw) return defaultShelfDisplayOverridesV1();
+  try {
+    return validateShelfDisplayOverridesV1(JSON.parse(raw));
+  } catch {
+    return defaultShelfDisplayOverridesV1();
+  }
+}
+
+/**
+ * Compute the effective prefs for a given shelf — layer the
+ * per-shelf partial over the global defaults. When `shelfId` is
+ * `null`, returns the global as-is so consumers that don't know
+ * which shelf they're rendering (e.g. the read-only release view)
+ * can still get a sensible answer.
+ */
+export function resolveShelfPrefs(
+  overrides: ShelfDisplayOverridesV1,
+  shelfId: string | null,
+): ShelfViewPrefsV1 {
+  if (!shelfId) return overrides.global;
+  const partial = overrides.shelves[shelfId];
+  if (!partial) return overrides.global;
+  return validateShelfViewPrefsV1({ ...overrides.global, ...partial });
+}
+
+/**
+ * Returns `true` when at least one field of the per-shelf override
+ * differs from the resolved global. Used by the UI chip to surface
+ * the "this shelf is overridden" state.
+ */
+export function shelfHasOverride(
+  overrides: ShelfDisplayOverridesV1,
+  shelfId: string,
+): boolean {
+  const partial = overrides.shelves[shelfId];
+  if (!partial) return false;
+  return Object.keys(partial).length > 0;
+}
+
+/** Settings key for the wrapping overrides payload. */
+export const SHELF_DISPLAY_OVERRIDES_KEY = 'shelf_display_overrides_v1';
+
+/** Event broadcast after a successful PATCH of the overrides key. */
+export const SHELF_DISPLAY_OVERRIDES_EVENT = 'shelf:display-overrides-changed';

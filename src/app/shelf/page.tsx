@@ -16,7 +16,11 @@ import { ShelfSpatialView } from '@/components/ShelfSpatialView';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { ShelfReadOnlyControls } from '@/components/ShelfReadOnlyControls';
-import { parseShelfViewPrefsV1 } from '@/lib/shelf-view-prefs';
+import {
+  parseShelfDisplayOverridesV1,
+  parseShelfViewPrefsV1,
+  resolveShelfPrefs,
+} from '@/lib/shelf-view-prefs';
 import { getAppSetting } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -212,9 +216,38 @@ export default async function ShelfPage({
                 layout editor owns its own placement geometry and
                 ignores the css variables, so the controls render
                 consistently across all four tabs. */}
-            <ShelfReadOnlyControls
-              initialPrefs={parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1'))}
-            />
+            {(() => {
+              // Server-resolve effective prefs for the currently-
+              // active shelf so the controls panel opens with the
+              // right slider values + the "this shelf" scope picker
+              // is preselected when the shelf carries an override.
+              const overrides = parseShelfDisplayOverridesV1(
+                getAppSetting('shelf_display_overrides_v1'),
+              );
+              const legacyGlobal = parseShelfViewPrefsV1(
+                getAppSetting('shelf_view_prefs_v1'),
+              );
+              const shelvesList = listShelves();
+              const activeShelf = shelvesList[activeShelfNum - 1] ?? null;
+              // `shelf_unit.id` is an INTEGER in SQLite; serialise
+              // to string for the prefs map keys so the persisted
+              // JSON stays platform-portable.
+              const activeShelfKey = activeShelf ? String(activeShelf.id) : '';
+              const effective = activeShelfKey
+                ? resolveShelfPrefs(overrides, activeShelfKey)
+                : overrides.global;
+              return (
+                <ShelfReadOnlyControls
+                  // The legacy single-key payload is the FALLBACK
+                  // when no overrides record exists yet. Once the
+                  // wrapped key is populated it shadows the legacy.
+                  initialPrefs={overrides.shelves[activeShelfKey] ? effective : legacyGlobal}
+                  initialOverrides={overrides}
+                  activeShelfId={activeShelfKey || undefined}
+                  activeShelfName={activeShelf?.name ?? undefined}
+                />
+              );
+            })()}
           </div>
         </div>
       </header>
