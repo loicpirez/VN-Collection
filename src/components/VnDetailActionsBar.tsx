@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   Database,
   ExternalLink,
@@ -104,27 +105,24 @@ function deriveVnDataState(vn: CollectionItem): 'none' | 'partial' | 'complete' 
 }
 
 /**
- * Wrapper classes applied to the primary-buttons row. Tailwind's
- * arbitrary variants are used to enforce a uniform `h-9` height +
- * `py-1.5` padding on every child `.btn` (button or anchor) so the
- * row doesn't drift heights when components mix custom padding into
- * their `btn` class string. `gap-2` matches the spec.
+ * Wrapper classes applied to the primary-buttons row. Uses
+ * `[&>*]:h-9` to enforce a uniform `h-9` height on every direct
+ * child element regardless of whether it renders as `<button>` or
+ * `<a>` — the previous `[&_a.btn]` / `[&_button.btn]` arbitrary
+ * selectors required the exact tag+class combination and silently
+ * missed components that mix the `btn` class in non-canonical ways.
+ * `gap-2` matches the spec.
  */
 const PRIMARY_ROW_CLASSES =
-  'flex flex-wrap items-center gap-2 ' +
-  '[&_a.btn]:h-9 [&_a.btn]:px-3 [&_a.btn]:py-1.5 ' +
-  '[&_button.btn]:h-9 [&_button.btn]:px-3 [&_button.btn]:py-1.5';
+  'flex flex-wrap items-center gap-2 [&>*]:h-9 [&>*]:px-3 [&>*]:py-1.5';
 
 /**
- * Dropdown-cluster classes — same `h-9` lock but tighter horizontal
- * padding so the chevron caret rendered by `<ActionMenu>` reads as
- * part of the trigger rather than an afterthought. `gap-2` between
- * triggers; rows INSIDE each dropdown panel use `gap-1.5` (set on
- * each menu's body separately).
+ * Dropdown-cluster classes — same `h-9` lock via `[&>*]` selectors.
+ * `gap-2` between triggers; rows INSIDE each dropdown panel use
+ * `gap-1.5` (set on each menu's body separately).
  */
 const DROPDOWN_ROW_CLASSES =
-  'flex flex-wrap items-center gap-2 ' +
-  '[&_button.btn]:h-9 [&_button.btn]:px-3 [&_button.btn]:py-1.5';
+  'flex flex-wrap items-center gap-2 [&>*]:h-9 [&>*]:px-3 [&>*]:py-1.5';
 
 export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   const t = await getDict();
@@ -173,7 +171,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           <ListChecks className="h-4 w-4" aria-hidden /> {t.detail.actions.groupTracking}
         </>
       }
-      triggerClassName="btn"
+      triggerClassName="btn h-9 px-3 py-1.5"
       menuClassName="w-56 rounded-lg border border-border bg-bg-card p-1 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -202,7 +200,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           <ExternalLink className="h-4 w-4" aria-hidden /> {t.detail.actions.groupExternal}
         </>
       }
-      triggerClassName="btn"
+      triggerClassName="btn h-9 px-3 py-1.5"
       menuClassName="w-72 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -239,7 +237,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           <ImageIcon className="h-4 w-4" aria-hidden /> {t.detail.actions.groupMedia}
         </>
       }
-      triggerClassName="btn"
+      triggerClassName="btn h-9 px-3 py-1.5"
       menuClassName="w-56 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -288,7 +286,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           <Database className="h-4 w-4" aria-hidden /> {t.detail.actions.groupData}
         </>
       }
-      triggerClassName="btn"
+      triggerClassName="btn h-9 px-3 py-1.5"
       menuClassName="w-72 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -305,7 +303,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           <Link2 className="h-4 w-4" aria-hidden /> {t.detail.actions.groupMapping}
         </>
       }
-      triggerClassName="btn"
+      triggerClassName="btn h-9 px-3 py-1.5"
       menuClassName="w-64 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-right"
     >
@@ -350,8 +348,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
         // `md:ml-auto` combo produced the "detached" look the
         // operator flagged: a horizontal rule above the Remove
         // button on mobile and a far-right anchor on desktop.
-        'flex flex-wrap items-center gap-2 ' +
-        '[&_button.btn]:h-9 [&_button.btn]:px-3 [&_button.btn]:py-1.5'
+        'flex flex-wrap items-center gap-2 [&>*]:h-9 [&>*]:px-3 [&>*]:py-1.5'
       }
     >
       <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />
@@ -383,9 +380,9 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           className={DROPDOWN_ROW_CLASSES}
         >
           {dropdownTriggers.map((trigger, i) => (
-            <span key={i} className="contents">
+            <React.Fragment key={i}>
               {trigger}
-            </span>
+            </React.Fragment>
           ))}
         </div>
       )}

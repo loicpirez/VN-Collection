@@ -25,17 +25,25 @@ const CATEGORIES: { key: 'cont' | 'ero' | 'tech'; tkey: 'cat_cont' | 'cat_ero' |
 interface TagsBrowserProps {
   lastUpdatedAt?: number | null;
   initialMode?: TagsPageMode;
+  /** Pre-fetched scraped VNDB tag hierarchy from the server page.
+   *  When provided, the initial render of VNDB mode skips the
+   *  /api/tags/web-tree fetch and uses this data directly. */
+  initialTree?: VndbTagHomeTree | null;
 }
 
-export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: TagsBrowserProps = {}) {
+export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initialTree = null }: TagsBrowserProps = {}) {
   const t = useT();
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<'' | 'cont' | 'ero' | 'tech'>('');
   const [mode, setMode] = useState<TagsPageMode>(initialMode);
   const [results, setResults] = useState<VndbTag[]>([]);
-  const [homeTree, setHomeTree] = useState<VndbTagHomeTree | null>(null);
+  const [homeTree, setHomeTree] = useState<VndbTagHomeTree | null>(initialTree);
   const [localCounts, setLocalCounts] = useState<Map<string, number>>(new Map());
-  const [loading, setLoading] = useState(true);
+  // If the server pre-fetched the tree and we start in VNDB mode with no
+  // search/filter active, we can render immediately without a skeleton.
+  const [loading, setLoading] = useState(
+    !(initialTree && initialMode === 'vndb'),
+  );
   const [error, setError] = useState<string | null>(null);
   const [staleWarning, setStaleWarning] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -47,6 +55,14 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
     setStaleWarning(null);
     const ctrl = new AbortController();
     const isLocal = mode === 'local';
+    const isVndbBrowse = !isLocal && !q.trim() && !category;
+
+    // When the server pre-fetched the hierarchy (initialTree) and we're
+    // in VNDB browse mode without a forced refresh, skip the web-tree
+    // API call and re-use the SSR data.  We still need the local counts
+    // from /api/collection/tags, so that fetch always fires.
+    const skipTreeFetch = isVndbBrowse && !!initialTree && !refreshNonce;
+
     const handle = setTimeout(async () => {
       try {
         let list: VndbTag[] = [];
@@ -61,7 +77,22 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
             list = list.filter((tag) => tag.name.toLowerCase().includes(lower));
           }
           if (category) list = list.filter((tag) => tag.category === category);
-        } else if (!q.trim() && !category) {
+        } else if (isVndbBrowse) {
+          if (skipTreeFetch) {
+            // Re-use SSR hierarchy — only fetch local counts.
+            const localRes = await fetch('/api/collection/tags', { signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] });
+            const counts = new Map<string, number>();
+            for (const tag of (localRes.tags ?? []) as Array<{ id: string; vn_count: number }>) {
+              counts.set(tag.id, tag.vn_count);
+            }
+            if (alive) setLocalCounts(counts);
+            // Keep the existing homeTree (initialTree); do not overwrite.
+            if (alive) {
+              setResults([]);
+              setLoading(false);
+            }
+            return;
+          }
           const [treeRes, localRes] = await Promise.all([
             fetch(`/api/tags/web-tree${refreshNonce ? '?force=1' : ''}`, { signal: ctrl.signal }),
             fetch('/api/collection/tags', { signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] }),
@@ -101,6 +132,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
       }
     }, isLocal ? 0 : 300);
     return () => { alive = false; ctrl.abort(); clearTimeout(handle); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, category, mode, refreshNonce, t.common.error]);
 
   const switchMode = (next: TagsPageMode) => {

@@ -127,17 +127,16 @@ export function SpoilerReveal({
   const isHidden = effective === 'hidden';
   const isTransient = effective === 'transient';
 
-  // Wrapper class: when hidden, render a dashed-border button-like
-  // tile. When transient, show the children with a soft blur. When
-  // revealed, render the children plain. Important: NO opaque
-  // overlay anywhere — the masked state is a bordered placeholder
-  // with text, never an opaque rectangle.
+  // Wrapper class: cursor and focus ring only. The placeholder span
+  // carries its own dashed-border/padding so the wrapper size does
+  // NOT change when we swap between hidden and revealed — this is the
+  // key fix for the hover-flicker bug: if the wrapper resized on
+  // transition the pointer would move off the now-smaller element and
+  // pointerLeave would fire, snapping back to hidden.
   const wrapperClass = [
-    'group/spoiler inline-block outline-none transition-[filter] duration-150 focus-visible:ring-2 focus-visible:ring-accent',
-    isHidden
-      ? 'cursor-pointer select-none rounded-md border border-dashed border-status-on_hold/60 bg-bg-elev/40 px-2 py-0.5 text-[11px] text-status-on_hold/80 hover:border-status-on_hold'
-      : '',
-    isTransient ? `cursor-pointer ${blurredClassName ?? 'blur-sm'}` : '',
+    'group/spoiler inline-block outline-none focus-visible:ring-2 focus-visible:ring-accent',
+    isHidden ? 'cursor-pointer select-none' : '',
+    isTransient ? 'cursor-pointer' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -160,21 +159,33 @@ export function SpoilerReveal({
         onKeyDown={onKeyDown}
         className={wrapperClass}
       >
-        {isHidden ? (
-          <>
-            {/* Visible placeholder text + lock icon. The actual
-                child stays mounted but visually masked via
-                `sr-only` so screen-readers + page search still
-                find it. NO opaque black rectangle. */}
-            <span className="inline-flex items-center gap-1">
-              <Lock className="h-2.5 w-2.5" aria-hidden />
-              <span>{hiddenLabel ?? t.spoiler.revealOne}</span>
-            </span>
-            <span className="sr-only">{children}</span>
-          </>
-        ) : (
-          children
-        )}
+        {/* Placeholder: always in the DOM, hidden via CSS when
+            not needed. This keeps the wrapper at a stable size
+            so pointer events are not lost on transition. */}
+        <span
+          className={
+            isHidden
+              ? 'inline-flex items-center gap-1 rounded-md border border-dashed border-status-on_hold/60 bg-bg-elev/40 px-2 py-0.5 text-[11px] text-status-on_hold/80 transition-colors hover:border-status-on_hold'
+              : 'hidden'
+          }
+          aria-hidden={!isHidden}
+        >
+          <Lock className="h-2.5 w-2.5" aria-hidden />
+          <span>{hiddenLabel ?? t.spoiler.revealOne}</span>
+        </span>
+        {/* Real content: always rendered; visibility controlled by
+            CSS classes so the DOM is stable across state changes. */}
+        <span
+          className={
+            isHidden
+              ? 'sr-only'
+              : isTransient
+                ? `transition-[filter] duration-150 ${blurredClassName ?? 'blur-sm'}`
+                : ''
+          }
+        >
+          {children}
+        </span>
       </span>
     </SpoilerCascadeContext.Provider>
   );
