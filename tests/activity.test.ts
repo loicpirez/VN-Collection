@@ -149,7 +149,7 @@ describe('round-four activity kinds', () => {
     recordActivity({
       kind,
       entity: 'vn',
-      entityId: 'v9xxxx',
+      entityId: 'v99999',
       label: `Test ${kind}`,
       payload: { note: 'placeholder' },
     });
@@ -163,7 +163,7 @@ describe('round-four activity kinds', () => {
     recordActivity({
       kind,
       entity: 'vn',
-      entityId: 'v9xxxx',
+      entityId: 'v99999',
       payload: { vndb_token: 'placeholder-token-not-real', visible: 'plain' },
     });
     const [row] = listUserActivity({ kind });
@@ -174,7 +174,7 @@ describe('round-four activity kinds', () => {
 
   it.each(NEW_KINDS)('respects VNCOLL_DISABLE_ACTIVITY for %s', (kind) => {
     process.env.VNCOLL_DISABLE_ACTIVITY = '1';
-    recordActivity({ kind, entity: 'vn', entityId: 'v9xxxx', payload: { x: 1 } });
+    recordActivity({ kind, entity: 'vn', entityId: 'v99999', payload: { x: 1 } });
     expect(listUserActivity({ kind })).toHaveLength(0);
   });
 });
@@ -236,29 +236,36 @@ describe('route-level activity integration', () => {
   beforeEach(() => {
     db.prepare('DELETE FROM user_activity').run();
     db.prepare('DELETE FROM vn_aspect_override').run();
+    // The aspect-override table has a FK on `vn(id)`; seed a synthetic
+    // VN row so the integration tests can land overrides for a
+    // placeholder VN id that doesn't conflict with anything in the
+    // operator's real data.
+    db.prepare(
+      "INSERT OR IGNORE INTO vn (id, title, fetched_at) VALUES ('v99999', 'Synthetic test VN', ?)",
+    ).run(Date.now());
   });
 
   it('PATCH /api/vn/[id]/aspect logs aspect.set', async () => {
     const { PATCH } = await import('@/app/api/vn/[id]/aspect/route');
-    const req = new Request('http://localhost/api/vn/v9xxxx/aspect', {
+    const req = new Request('http://localhost/api/vn/v99999/aspect', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aspect_key: '16:9' }),
     }) as unknown as import('next/server').NextRequest;
-    const res = await PATCH(req, { params: Promise.resolve({ id: 'v9xxxx' }) });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'v99999' }) });
     expect(res.status).toBe(200);
     const rows = listUserActivity({ kind: 'aspect.set' });
     expect(rows.length).toBeGreaterThanOrEqual(1);
-    expect(rows[0].entity_id).toBe('v9xxxx');
+    expect(rows[0].entity_id).toBe('v99999');
     expect(rows[0].payload).toContain('16:9');
   });
 
   it('DELETE /api/vn/[id]/aspect logs aspect.clear', async () => {
     const { DELETE } = await import('@/app/api/vn/[id]/aspect/route');
-    const req = new Request('http://localhost/api/vn/v9xxxx/aspect', {
+    const req = new Request('http://localhost/api/vn/v99999/aspect', {
       method: 'DELETE',
     }) as unknown as import('next/server').NextRequest;
-    const res = await DELETE(req, { params: Promise.resolve({ id: 'v9xxxx' }) });
+    const res = await DELETE(req, { params: Promise.resolve({ id: 'v99999' }) });
     expect(res.status).toBe(200);
     expect(listUserActivity({ kind: 'aspect.clear' })).toHaveLength(1);
   });
@@ -268,7 +275,7 @@ describe('route-level activity integration', () => {
     const req = new Request('http://localhost/api/collection/order', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ['v9xxxx', 'v9xxxy'] }),
+      body: JSON.stringify({ ids: ['v99999', 'v99998'] }),
     }) as unknown as import('next/server').NextRequest;
     const res = await PATCH(req);
     expect(res.status).toBe(200);

@@ -20,7 +20,23 @@ export interface RecordActivityInput {
   actor?: string;
 }
 
-const SENSITIVE_KEY_RE = /token|secret|password|key|credential|auth|cookie|backup_url|api/i;
+/**
+ * Mask values whose KEY name is sensitive.
+ *
+ * Anchored on word boundaries (start-of-string OR underscore prefix +
+ * end-of-string) so we mask:
+ *   - bare credential words: `token`, `secret`, `password`, `cookie`,
+ *     `authorization`, `bearer`, `credential`
+ *   - suffix-matched: `vndb_token`, `steam_api_key`, `api_token`,
+ *     `access_token`, `refresh_token`, `backup_url`
+ * and DO NOT mask innocuous keys that contain a sensitive token as a
+ * substring: `aspect_key`, `cache_key`, `entity_key`. The previous
+ * pattern `/key/i` was too greedy and produced a regression where the
+ * `aspect_key` payload field was masked in the activity log, hiding
+ * useful audit information.
+ */
+const SENSITIVE_KEY_RE =
+  /(?:^|_)(?:token|secret|password|credential|cookie|authorization|bearer|backup_url|api_key|api_token|access_token|refresh_token)$/i;
 
 export function maskActivityPayload(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(maskActivityPayload);
