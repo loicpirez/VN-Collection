@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Box,
   CalendarDays,
@@ -142,6 +143,20 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
       // ignore — section is optional
     }
   }, [vnId]);
+
+  // Deep-link support: the shelf popover "Choose platform" chip
+  // navigates here with `?edit_release=<release_id>` so we open the
+  // matching row in editor mode straight away. Without this, the
+  // user lands on a collapsed summary and has to find + click the
+  // pencil icon themselves — the popover's "Choisir la plateforme"
+  // action would feel half-done.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const editRel = searchParams.get('edit_release');
+    if (editRel && owned.some((o) => o.release_id === editRel)) {
+      setEditingId(editRel);
+    }
+  }, [searchParams, owned]);
 
   useEffect(() => {
     const ctrl = new AbortController();

@@ -5,6 +5,7 @@ import {
   isValidLocation,
   listOwnedReleasesWithShelfForVn,
   markReleaseOwned,
+  materializeReleaseMetaForVn,
   setOwnedReleaseAspectOverride,
   unmarkReleaseOwned,
   updateOwnedRelease,
@@ -127,6 +128,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { patch, error } = pickPatch(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   markReleaseOwned(id, validation.normalized, patch);
+  // Pull cached release rows into `release_meta_cache` so the shelf
+  // popover has rel_* data on the very next page load. Without this,
+  // adding an edition from `/release/[id]` or the EditionPicker
+  // leaves `release_meta_cache` empty until the user happens to
+  // visit `/vn/[id]` for that VN — and the popover keeps showing
+  // the "Unknown platform — refresh releases" branch in the
+  // meantime. Idempotent + cheap; falls through cleanly when
+  // `POST /release` was never cached (synthetic ids, brand-new VN).
+  if (/^v\d+$/.test(id)) {
+    try {
+      materializeReleaseMetaForVn(id);
+    } catch {
+      // Best-effort — adding the owned-release row already
+      // succeeded; the materialize step is an optimization, not a
+      // correctness requirement. The shelf popover's refresh
+      // button still works as a fallback.
+    }
+  }
   return NextResponse.json({ owned: listOwnedReleasesWithShelfForVn(id) });
 }
 

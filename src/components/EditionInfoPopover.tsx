@@ -306,7 +306,15 @@ export function EditionInfoTrigger({
                     <span>{t.form.ownedPlatform}:</span>{' '}
                     <span className="text-status-on_hold">{t.form.ownedPlatformUnset}</span>
                     <Link
-                      href={`/vn/${data.vn_id}#owned-editions`}
+                      // Anchor must match the section id registered
+                      // in src/lib/vn-detail-layout.ts (`my-editions`).
+                      // The popover Link previously pointed at
+                      // `#owned-editions`, which doesn't exist as a
+                      // section id — clicking did nothing.
+                      // `?edit_release=...` opens the matching
+                      // EditionEditor immediately so the platform
+                      // <select> is one click away, not three.
+                      href={`/vn/${data.vn_id}?edit_release=${encodeURIComponent(data.release_id)}#my-editions`}
                       onPointerDown={stop}
                       onMouseDown={stop}
                       onClick={(e) => e.stopPropagation()}
