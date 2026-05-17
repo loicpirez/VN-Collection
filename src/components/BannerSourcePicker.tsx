@@ -6,6 +6,7 @@ import { Check, Image as ImageIcon, ImagePlus, Link as LinkIcon, Loader2, Rotate
 import { SafeImage } from './SafeImage';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { dispatchBannerChanged } from '@/lib/cover-banner-events';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
 interface Props {
@@ -72,6 +73,18 @@ export function BannerSourcePicker({
         body: JSON.stringify(value ? { source, value } : { source }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      // Broadcast for the HeroBanner mounted above us. `cover` is a
+      // server-resolved source (the route picks the right path from
+      // the row), so we don't have a precise newSrc/newLocal here —
+      // fire null/null and let the router.refresh deliver the
+      // truth on the next paint. For `url`/`screenshot`/`release`/
+      // `path` we DO have `value`, so listeners can repaint instantly.
+      const isRemote = typeof value === 'string' && /^https?:\/\//i.test(value);
+      dispatchBannerChanged({
+        vnId,
+        newSrc: source === 'cover' ? null : (isRemote ? value ?? null : null),
+        newLocal: source === 'cover' ? null : (isRemote ? null : value ?? null),
+      });
       toast.success(t.toast.bannerSaved);
       setOpen(false);
       startTransition(() => router.refresh());
@@ -87,6 +100,9 @@ export function BannerSourcePicker({
     try {
       const r = await fetch(`/api/collection/${vnId}/banner`, { method: 'DELETE' });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      // Reset → null src + null rotation so HeroBanner falls back to
+      // the auto-derived blurred cover.
+      dispatchBannerChanged({ vnId, newSrc: null, newLocal: null, position: null, rotation: 0 });
       toast.success(t.toast.bannerReset);
       setOpen(false);
       startTransition(() => router.refresh());
@@ -108,6 +124,8 @@ export function BannerSourcePicker({
       fd.append('file', file);
       const r = await fetch(`/api/collection/${vnId}/banner`, { method: 'POST', body: fd });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      const payload = (await r.json().catch(() => ({}))) as { banner?: string | null };
+      dispatchBannerChanged({ vnId, newSrc: null, newLocal: payload.banner ?? null });
       toast.success(t.toast.bannerSaved);
       setOpen(false);
       startTransition(() => router.refresh());

@@ -1,10 +1,16 @@
 'use client';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Crosshair, EyeOff, Loader2, RotateCcw, ShieldAlert, X } from 'lucide-react';
+import { Check, Crosshair, EyeOff, Loader2, RotateCcw, RotateCw, ShieldAlert, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { useToast } from './ToastProvider';
+import {
+  VN_BANNER_CHANGED_EVENT,
+  type VnBannerChangedDetail,
+  dispatchBannerChanged,
+} from '@/lib/cover-banner-events';
+import { buildRotationStyle } from './SafeImage';
 
 interface Props {
   vnId: string;
@@ -15,6 +21,8 @@ interface Props {
   inCollection: boolean;
   /** Sexual content flag of the underlying image, for blur-R18 handling. */
   sexual?: number | null;
+  /** Persisted rotation (0/90/180/270). Default 0. */
+  initialRotation?: 0 | 90 | 180 | 270;
 }
 
 const DEFAULT_POSITION = '50% 50%';
@@ -24,7 +32,7 @@ function clamp(n: number): number {
   return Math.max(0, Math.min(100, n));
 }
 
-export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollection, sexual }: Props) {
+export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollection, sexual, initialRotation = 0 }: Props) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -38,12 +46,112 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   const [position, setPosition] = useState<string>(initialPosition || DEFAULT_POSITION);
   const [draftPosition, setDraftPosition] = useState<string>(position);
   const [error, setError] = useState<string | null>(null);
+  // Optimistic local mirror of the banner src + rotation so cover/banner
+  // mutations from elsewhere (MediaGallery, BannerSourcePicker) repaint
+  // the hero immediately, before router.refresh() has resolved the
+  // server tree. The "Set as banner" event payload includes `newSrc`
+  // and `newLocal`; we prefer `newLocal` (served via /api/files/<path>)
+  // when it's present, falling back to `newSrc`.
+  const [liveSrc, setLiveSrc] = useState<string | null>(src);
+  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
   const ref = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const draggingRef = useRef(false);
 
   useEffect(() => {
     setPosition(initialPosition || DEFAULT_POSITION);
   }, [initialPosition]);
+
+  // Keep `liveSrc` and `rotation` synced with the server-rendered prop
+  // whenever a router.refresh() lands new data. Without this the
+  // optimistic state from a previous event would survive past a real
+  // server update.
+  useEffect(() => {
+    setLiveSrc(src);
+  }, [src]);
+  useEffect(() => {
+    setRotation(initialRotation);
+  }, [initialRotation]);
+
+  // Listen for vn:banner-changed dispatched by sibling mutation
+  // surfaces. Scoped to this vnId so navigating to another VN in the
+  // same session doesn't accidentally re-skin the wrong banner.
+  useEffect(() => {
+    function onChanged(e: Event) {
+      const detail = (e as CustomEvent<VnBannerChangedDetail>).detail;
+      if (!detail || detail.vnId !== vnId) return;
+      // `newLocal` is a relative storage path → served via /api/files/.
+      // Otherwise fall back to the remote URL or `null` for reset.
+      const next = detail.newLocal ? `/api/files/${detail.newLocal}` : (detail.newSrc ?? null);
+      setLiveSrc(next);
+      if (typeof detail.rotation === 'number') {
+        setRotation(detail.rotation as 0 | 90 | 180 | 270);
+      }
+      if (typeof detail.position === 'string' || detail.position === null) {
+        setPosition(detail.position || DEFAULT_POSITION);
+      }
+    }
+    window.addEventListener(VN_BANNER_CHANGED_EVENT, onChanged as EventListener);
+    return () => window.removeEventListener(VN_BANNER_CHANGED_EVENT, onChanged as EventListener);
+  }, [vnId]);
+
+  // Local size snapshot for rotation scaling math. Matches what
+  // SafeImage's ResizeObserver does internally; here we measure the
+  // hero container directly because the hero uses a plain `<img>`
+  // (not SafeImage) for object-position drag support.
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    if (rotation !== 90 && rotation !== 270) {
+      setContainerSize(null);
+      return;
+    }
+    const el = ref.current;
+    if (!el) return;
+    if (typeof ResizeObserver === 'undefined') {
+      const r = el.getBoundingClientRect();
+      setContainerSize({ w: r.width, h: r.height });
+      return;
+    }
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const r = entry.contentRect;
+        setContainerSize({ w: r.width, h: r.height });
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [rotation]);
+
+  async function rotateBy(delta: 90 | -90) {
+    if (busy) return;
+    const prevRotation = rotation;
+    const next = (((rotation + delta) % 360) + 360) % 360 as 0 | 90 | 180 | 270;
+    // Optimistic update first; revert on failure.
+    setRotation(next);
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/collection/${vnId}/banner`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rotation: next }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || t.common.error);
+      }
+      dispatchBannerChanged({ vnId, newSrc: liveSrc, newLocal: null, rotation: next });
+      toast.success(t.toast.bannerSaved);
+      startTransition(() => router.refresh());
+    } catch (e) {
+      setRotation(prevRotation);
+      const msg = (e as Error).message;
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function fromEvent(e: { clientX: number; clientY: number }): string | null {
     const el = ref.current;
@@ -152,10 +260,11 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         editing ? 'cursor-crosshair touch-none' : ''
       }`}
     >
-      {src ? (
+      {liveSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={src}
+          ref={imgRef}
+          src={liveSrc}
           alt=""
           aria-hidden
           draggable={false}
@@ -168,7 +277,14 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                   ? 'scale-110 blur-xl opacity-50'
                   : ''
           }`}
-          style={{ objectPosition: activePos }}
+          style={{
+            objectPosition: activePos,
+            // Rotation transform is composed onto whatever scale/blur
+            // the className above adds. `buildRotationStyle` returns
+            // `{}` when rotation is 0 so the existing blur classes
+            // keep working unchanged.
+            ...buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null),
+          }}
         />
       ) : (
         <div className="pointer-events-none h-full w-full bg-gradient-to-b from-bg-elev to-bg-card" />
@@ -212,7 +328,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         </>
       )}
 
-      {inCollection && src && (
+      {inCollection && liveSrc && (
         <div
           className={`absolute right-3 top-3 z-10 flex flex-wrap items-center gap-1.5 transition-opacity ${
             editing
@@ -225,17 +341,44 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
           onClick={(e) => e.stopPropagation()}
         >
           {!editing ? (
-            <button
-              type="button"
-              onClick={() => {
-                setDraftPosition(position);
-                setEditing(true);
-              }}
-              className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
-              title={t.banner.adjust}
-            >
-              <Crosshair className="h-3 w-3" /> {t.banner.adjust}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftPosition(position);
+                  setEditing(true);
+                }}
+                className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
+                title={t.banner.adjust}
+              >
+                <Crosshair className="h-3 w-3" /> {t.banner.adjust}
+              </button>
+              {/*
+                Per-banner rotation controls. Persisted via the PATCH
+                banner endpoint; on success a vn:banner-changed event
+                fires so siblings (CoverEditOverlay etc.) flip too.
+              */}
+              <button
+                type="button"
+                onClick={() => rotateBy(-90)}
+                disabled={busy}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
+                title={t.coverActions.rotateLeft}
+                aria-label={t.coverActions.rotateLeft}
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => rotateBy(90)}
+                disabled={busy}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
+                title={t.coverActions.rotateRight}
+                aria-label={t.coverActions.rotateRight}
+              >
+                <RotateCw className="h-3 w-3" />
+              </button>
+            </>
           ) : (
             <>
               <span className="rounded-md bg-bg-card/90 px-2 py-1 font-mono text-[10px] text-muted shadow-card backdrop-blur">

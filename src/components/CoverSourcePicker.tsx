@@ -7,6 +7,7 @@ import { SafeImage } from './SafeImage';
 import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { dispatchCoverChanged } from '@/lib/cover-banner-events';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
 interface Props {
@@ -114,6 +115,17 @@ export function CoverSourcePicker({
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
       await pinCustomPref();
+      // Optimistic broadcast so the rendered hero / cards repaint
+      // before router.refresh() comes back. `value` may be either a
+      // remote URL or a relative storage path; split on the scheme
+      // prefix so listeners can pick the right /api/files/ vs URL
+      // rendering path.
+      const isRemote = /^https?:\/\//i.test(value);
+      dispatchCoverChanged({
+        vnId,
+        newSrc: isRemote ? value : null,
+        newLocal: isRemote ? null : value,
+      });
       toast.success(t.toast.coverSaved);
       setOpen(false);
       startTransition(() => router.refresh());
@@ -137,6 +149,10 @@ export function CoverSourcePicker({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: 'vndb' }),
       }).catch(() => undefined);
+      // Tell every mounted listener the custom cover is gone so the
+      // hero falls back to the VNDB image immediately rather than
+      // after the next router refresh resolves.
+      dispatchCoverChanged({ vnId, newSrc: vndbImage, newLocal: null });
       toast.success(t.toast.coverReset);
       setOpen(false);
       startTransition(() => router.refresh());
@@ -161,6 +177,10 @@ export function CoverSourcePicker({
         body: JSON.stringify({ image: 'egs' }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      // Don't know the resolved EGS URL here (the EGS resolver is
+      // server-side) so just nudge listeners; the router.refresh
+      // pickup will deliver the right src on the next render.
+      dispatchCoverChanged({ vnId, newSrc: null, newLocal: null });
       toast.success(t.toast.coverSaved);
       setOpen(false);
       startTransition(() => router.refresh());
@@ -182,7 +202,12 @@ export function CoverSourcePicker({
       fd.append('file', file);
       const r = await fetch(`/api/collection/${vnId}/cover`, { method: 'POST', body: fd });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      const payload = (await r.json().catch(() => ({}))) as { cover?: string | null };
       await pinCustomPref();
+      // The cover route returns the new storage path; surface it so
+      // listeners can repaint immediately. The path is local — the
+      // remote URL is `null` since this came from an upload.
+      dispatchCoverChanged({ vnId, newSrc: null, newLocal: payload.cover ?? null });
       toast.success(t.toast.coverSaved);
       setOpen(false);
       startTransition(() => router.refresh());
