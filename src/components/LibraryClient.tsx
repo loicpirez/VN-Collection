@@ -2,7 +2,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, Check, CheckSquare, ChevronDown, Circle, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, Check, CheckSquare, ChevronDown, Circle, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { toCardData } from './cardData';
 import { SkeletonCardGrid } from './Skeleton';
@@ -95,6 +95,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const seriesId = searchParams.get('series') ?? '';
   const urlTag = searchParams.get('tag') ?? '';
   const urlPlace = searchParams.get('place') ?? '';
+  const urlEdition = searchParams.get('edition') ?? '';
   const urlYearMin = searchParams.get('yearMin') ?? '';
   const urlYearMax = searchParams.get('yearMax') ?? '';
   const urlDumped = searchParams.get('dumped') ?? '';
@@ -268,6 +269,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     if (seriesId) params.set('series', seriesId);
     if (urlTag) params.set('tag', urlTag);
     if (urlPlace) params.set('place', urlPlace);
+    if (urlEdition) params.set('edition', urlEdition);
     if (urlYearMin) params.set('yearMin', urlYearMin);
     if (urlYearMax) params.set('yearMax', urlYearMax);
     if (urlDumped === '1' || urlDumped === '0') params.set('dumped', urlDumped);
@@ -297,7 +299,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     };
     // join the multi-select aspect set for a stable string identity
     // so changing 4:3 ↔ 16:9 re-fetches.
-  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlYearMin, urlYearMax, urlDumped, urlAspectSet.join(','), urlQ, sort, order, refreshKey, t.common.error]);
+  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlEdition, urlYearMin, urlYearMax, urlDumped, urlAspectSet.join(','), urlQ, sort, order, refreshKey, t.common.error]);
 
   function clearAll() {
     router.replace('/', { scroll: false });
@@ -310,7 +312,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   );
   const totalH = Math.round(stats.playtime_minutes / 60);
   const hasFilters =
-    !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlYearMin || !!urlYearMax || urlAspectSet.length > 0 || urlDumped === '1' || urlDumped === '0';
+    !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlEdition || !!urlYearMin || !!urlYearMax || urlAspectSet.length > 0 || urlDumped === '1' || urlDumped === '0';
   const yearLabel = urlYearMin && urlYearMax
     ? urlYearMin === urlYearMax
       ? urlYearMin
@@ -692,6 +694,16 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               icon={<Home className="h-3 w-3" aria-hidden />}
               label={urlPlace}
               onClear={() => setParam('place', null)}
+              t={t}
+            />
+          )}
+          {urlEdition && (
+            <FilterChip
+              icon={<Package className="h-3 w-3" aria-hidden />}
+              label={
+                (t.editions as Record<string, string>)[urlEdition] ?? urlEdition
+              }
+              onClear={() => setParam('edition', null)}
               t={t}
             />
           )}

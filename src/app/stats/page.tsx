@@ -64,10 +64,14 @@ export default async function StatsPage() {
   const myH = Math.round(my.playtime_minutes / 60);
   const myAvg = my.avg_user_rating != null ? (my.avg_user_rating / 10).toFixed(1) : '—';
 
+  // Each donut slice doubles as a deep-link into the Library
+  // filtered by that status. The chart legend renders as `<Link>`s
+  // when `href` is set; rows without href stay plain spans.
   const statusDonut = my.byStatus.map((s) => ({
     label: t.status[s.status as keyof typeof t.status] ?? s.status,
     value: s.n,
     color: STATUS_COLORS[s.status] ?? '#64748b',
+    href: `/?status=${encodeURIComponent(s.status)}`,
   }));
 
   // Last 12 months for the playtime/finished chart
@@ -223,10 +227,17 @@ export default async function StatsPage() {
 
         {agg.byEdition.some((d) => d.edition !== 'none') && (
           <Card title={t.charts.byEdition} icon={<Package className="h-5 w-5 text-accent" />}>
+            {/* Edition rows → /?edition=<type>. Library accepts
+                the param and filters via `collection.edition_type`.
+                The 'none' bucket is skipped (no actionable view). */}
             <HBarChart
               data={agg.byEdition.map((d) => ({
                 label: t.editions[d.edition as keyof typeof t.editions] ?? d.edition,
                 value: d.count,
+                href:
+                  d.edition === 'none'
+                    ? undefined
+                    : `/?edition=${encodeURIComponent(d.edition)}`,
               }))}
             />
           </Card>

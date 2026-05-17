@@ -3,6 +3,7 @@ import {
   countListMembershipsByVn,
   db,
   getStats,
+  isValidEditionType,
   isValidStatus,
   listCollection,
   materializeAspectForCollectionVns,
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
   const publisher = sp.get('publisher') ?? '';
   const tag = sp.get('tag') ?? '';
   const place = sp.get('place') ?? '';
+  const edition = sp.get('edition') ?? '';
   const seriesRaw = sp.get('series');
   const yearMinRaw = sp.get('yearMin');
   const yearMaxRaw = sp.get('yearMax');
@@ -61,6 +63,9 @@ export async function GET(req: NextRequest) {
 
   if (status && !isValidStatus(status)) {
     return NextResponse.json({ error: 'invalid status' }, { status: 400 });
+  }
+  if (edition && !isValidEditionType(edition)) {
+    return NextResponse.json({ error: 'invalid edition' }, { status: 400 });
   }
   if (aspectInvalid.length > 0) {
     return NextResponse.json(
@@ -120,6 +125,7 @@ export async function GET(req: NextRequest) {
     series: series && Number.isFinite(series) ? series : undefined,
     tag: tag || undefined,
     place: place || undefined,
+    edition: edition && isValidEditionType(edition) ? edition : undefined,
     yearMin: yearMin && Number.isFinite(yearMin) ? yearMin : undefined,
     yearMax: yearMax && Number.isFinite(yearMax) ? yearMax : undefined,
     dumped: dumpedRaw === '1' ? true : dumpedRaw === '0' ? false : undefined,

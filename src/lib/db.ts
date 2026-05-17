@@ -2590,6 +2590,13 @@ export interface ListOptions {
   series?: number;
   tag?: string;
   place?: string;
+  /**
+   * Filter by `collection.edition_type`. Used by the stats page's
+   * "By edition" chart to deep-link from a slice into the matching
+   * Library view. Callers must pass a valid `EditionType` — the
+   * route handler validates against the enum.
+   */
+  edition?: EditionType;
   yearMin?: number;
   yearMax?: number;
   dumped?: boolean;
@@ -2630,6 +2637,7 @@ export function listCollection({
   series,
   tag,
   place,
+  edition,
   yearMin,
   yearMax,
   dumped,
@@ -2733,6 +2741,10 @@ export function listCollection({
       AND EXISTS (SELECT 1 FROM json_each(c.physical_location) WHERE value = ?)
     )`);
     params.push(place);
+  }
+  if (edition) {
+    where.push('c.edition_type = ?');
+    params.push(edition);
   }
   if (typeof yearMin === 'number') {
     where.push("substr(v.released, 1, 4) >= ?");
