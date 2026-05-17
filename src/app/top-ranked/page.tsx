@@ -21,50 +21,15 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: dict.topRanked.title };
 }
 
-type Tab = 'vndb' | 'egs';
+import {
+  MIN_VOTES_PRESETS,
+  parseMinVotes,
+  parsePage,
+  parseTab,
+  type TopRankedTab as Tab,
+} from '@/lib/top-ranked-query';
 
 const PAGE_SIZE = 50;
-
-function parseTab(value: string | undefined): Tab {
-  return value === 'egs' ? 'egs' : 'vndb';
-}
-
-function parsePage(value: string | undefined): number {
-  // Clamp to [1, 20]. VNDB's `votecount >= 50` tail goes well past
-  // 1000 entries; EGS even further. 20 pages × 50 = 1000 rows of
-  // headroom; the user can cap there. Default to page 1 on garbage.
-  if (!value) return 1;
-  const n = Math.floor(Number(value));
-  if (!Number.isFinite(n) || n < 1) return 1;
-  return Math.min(20, n);
-}
-
-/**
- * Pre-set min-votes options exposed in the UI. The default per tab
- * is kept (VNDB_TOP_MIN_VOTES / EGS_TOP_MIN_VOTES); higher thresholds
- * shrink the tail towards "only well-known titles", lower ones
- * surface long-tail entries. Anything outside this set is clamped to
- * the nearest preset so the URL stays canonical.
- */
-const MIN_VOTES_PRESETS: readonly number[] = [50, 100, 250, 500, 1000];
-
-function parseMinVotes(value: string | undefined, fallback: number): number {
-  if (!value) return fallback;
-  const n = Math.floor(Number(value));
-  if (!Number.isFinite(n) || n < 1) return fallback;
-  // Snap to the closest preset so cache keys converge and the chip
-  // stays meaningful regardless of arbitrary user-typed values.
-  let best = MIN_VOTES_PRESETS[0];
-  let bestDist = Math.abs(n - best);
-  for (const candidate of MIN_VOTES_PRESETS) {
-    const d = Math.abs(n - candidate);
-    if (d < bestDist) {
-      best = candidate;
-      bestDist = d;
-    }
-  }
-  return best;
-}
 
 export default async function TopRankedPage({
   searchParams,
