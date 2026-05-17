@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { computeSteamSuggestions, fetchOwnedGames, recordSync } from '@/lib/steam';
 import { updateCollection, isInCollection } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -49,6 +50,17 @@ export async function POST(req: NextRequest) {
     updateCollection(a.vn_id, { playtime_minutes: minutes });
     recordSync(a.vn_id, minutes);
     applied += 1;
+  }
+  try {
+    recordActivity({
+      kind: 'steam.sync-apply',
+      entity: 'steam',
+      entityId: null,
+      label: 'Applied Steam playtime sync',
+      payload: { applied, requested: body.applies.length },
+    });
+  } catch (e) {
+    console.error('[steam:sync] activity log failed:', (e as Error).message);
   }
   return NextResponse.json({ applied });
 }

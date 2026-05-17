@@ -60,23 +60,23 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   try {
     const r = await patchUlistEntry(id, patch);
     if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
-    // VNDB writeback — record the change. Payload includes only
-    // the *fields* the user touched, never the raw notes / vote
-    // body, so the activity log stays useful without ballooning.
     try {
       recordActivity({
-        kind: 'vndb.writeback',
+        kind: 'vndb-status.update',
         entity: 'vn',
         entityId: id,
-        label: id,
+        label: 'Updated VNDB ulist entry',
+        // Payload carries only field NAMES and label-id counts, never
+        // the user's raw notes/vote body — the round-4-followup
+        // contract requires this and the test suite pins it.
         payload: {
           changed: Object.keys(patch),
-          labels_set: patch.labels_set ?? null,
-          labels_unset: patch.labels_unset ?? null,
+          labels_set_count: patch.labels_set?.length ?? 0,
+          labels_unset_count: patch.labels_unset?.length ?? 0,
         },
       });
-    } catch {
-      // Never let a logging failure surface to the user.
+    } catch (e) {
+      console.error(`[vndb-status:${id}] activity log failed:`, (e as Error).message);
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -92,14 +92,13 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
     try {
       recordActivity({
-        kind: 'vndb.writeback',
+        kind: 'vndb-status.remove',
         entity: 'vn',
         entityId: id,
-        label: id,
-        payload: { action: 'delete-entry' },
+        label: 'Removed VNDB ulist entry',
       });
-    } catch {
-      // Never let a logging failure surface to the user.
+    } catch (e) {
+      console.error(`[vndb-status:${id}] activity log failed:`, (e as Error).message);
     }
     return NextResponse.json({ ok: true });
   } catch (e) {

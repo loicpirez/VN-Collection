@@ -7,6 +7,7 @@ import {
   type SourceField,
   type SourcePrefMap,
 } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 
 export const dynamic = 'force-dynamic';
@@ -40,5 +41,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     next[key as SourceField] = value as SourceChoice;
   }
   setSourcePref(id, next);
+  try {
+    recordActivity({
+      kind: 'collection.source-pref',
+      entity: 'vn',
+      entityId: id,
+      label: 'Updated source preference',
+      payload: { changed: Object.keys(body) },
+    });
+  } catch (e) {
+    console.error(`[source-pref:${id}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ pref: getSourcePref(id) });
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addVnToSeries, getSeries, isInCollection, removeVnFromSeries } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 import { walkSeriesRelations } from '@/lib/series-detect';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +35,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       idx += 1;
     }
   }
+  try {
+    recordActivity({
+      kind: 'series.link',
+      entity: 'series',
+      entityId: String(sid),
+      label: 'Linked VN to series',
+      payload: { added_count: added.length, expanded: !!body.expand },
+    });
+  } catch (e) {
+    console.error(`[series:${sid}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ series: getSeries(sid), added });
 }
 
@@ -42,5 +54,16 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   const sid = parseSeriesId(id);
   if (sid == null) return NextResponse.json({ error: 'invalid series id' }, { status: 400 });
   removeVnFromSeries(sid, vnId);
+  try {
+    recordActivity({
+      kind: 'series.unlink',
+      entity: 'series',
+      entityId: String(sid),
+      label: 'Unlinked VN from series',
+      payload: { vn_id: vnId },
+    });
+  } catch (e) {
+    console.error(`[series:${sid}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ series: getSeries(sid) });
 }

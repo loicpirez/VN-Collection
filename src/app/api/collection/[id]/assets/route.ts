@@ -13,6 +13,7 @@ import { downloadFullRelationsForVn } from '@/lib/relations-full';
 import { scrapeProducersForVn } from '@/lib/scrape-producer-relations';
 import { scrapeTagDagForVn } from '@/lib/scrape-tag-dag';
 import { scrapeCharactersForVn } from '@/lib/scrape-character-instances';
+import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 
 export const dynamic = 'force-dynamic';
@@ -150,6 +151,23 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       materializeReleaseMetaForVn(id);
     } catch (e) {
       console.error(`[assets:${id}] release-meta materialize failed:`, (e as Error).message);
+    }
+    if (refresh) {
+      try {
+        recordActivity({
+          kind: 'download.refresh',
+          entity: 'vn',
+          entityId: id,
+          label: 'Refreshed VN assets',
+          payload: {
+            screenshot_count: result.screenshots.length,
+            release_image_count: result.releaseImages.length,
+            egs_warning: egsWarning?.kind ?? null,
+          },
+        });
+      } catch (e) {
+        console.error(`[assets:${id}] activity log failed:`, (e as Error).message);
+      }
     }
     return NextResponse.json({
       ok: true,

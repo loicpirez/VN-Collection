@@ -44,19 +44,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!game) {
       return NextResponse.json({ error: 'EGS game not found' }, { status: 404 });
     }
-    // Mapping created — record so the audit trail shows
-    // "operator pinned VN→EGS" events. EGS ids are not secrets,
-    // safe to include in the payload.
     try {
       recordActivity({
-        kind: 'mapping.vn-egs',
+        kind: 'vn.egs-link',
         entity: 'vn',
         entityId: id,
-        label: game.gamename ?? null,
-        payload: { egs_id: egsId, action: 'pin' },
+        label: 'Pinned EGS counterpart',
+        payload: { egs_id: egsId },
       });
-    } catch {
-      // Logging failure must never break the user write.
+    } catch (e) {
+      console.error(`[vn-egs:${id}] activity log failed:`, (e as Error).message);
     }
     return NextResponse.json({ game, source: 'manual' as const });
   } catch (e) {
@@ -84,18 +81,16 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     raw === 'manual-none' ? 'manual-none' :
     raw === 'clear-manual' ? 'clear-manual' : 'auto';
   clearEgsCache(id, mode);
-  // Record the clear; useful to distinguish "I cleared the
-  // cache" from "I pinned no-EGS-counterpart".
   try {
     recordActivity({
-      kind: 'mapping.vn-egs',
+      kind: 'vn.egs-unlink',
       entity: 'vn',
       entityId: id,
-      label: id,
-      payload: { action: 'clear', mode },
+      label: 'Cleared EGS link',
+      payload: { mode },
     });
-  } catch {
-    // ignore
+  } catch (e) {
+    console.error(`[vn-egs:${id}] activity log failed:`, (e as Error).message);
   }
   return NextResponse.json({ ok: true, mode });
 }

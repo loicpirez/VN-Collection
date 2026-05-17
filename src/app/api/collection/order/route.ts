@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resetCollectionCustomOrder, setCollectionCustomOrder } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,6 +20,17 @@ export async function PATCH(req: NextRequest) {
   }
   try {
     setCollectionCustomOrder(ids);
+    try {
+      recordActivity({
+        kind: 'collection.custom-order',
+        entity: 'collection',
+        entityId: null,
+        label: 'Saved custom order',
+        payload: { count: ids.length },
+      });
+    } catch (e) {
+      console.error('[collection/order] activity log failed:', (e as Error).message);
+    }
     return NextResponse.json({ ok: true, count: ids.length });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
@@ -28,6 +40,17 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE() {
   try {
     resetCollectionCustomOrder();
+    try {
+      recordActivity({
+        kind: 'collection.custom-order',
+        entity: 'collection',
+        entityId: null,
+        label: 'Cleared custom order',
+        payload: { action: 'reset' },
+      });
+    } catch (e) {
+      console.error('[collection/order] activity log failed:', (e as Error).message);
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

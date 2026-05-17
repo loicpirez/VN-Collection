@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { fetchProducerAssociations, invalidateProducerAssociations } from '@/lib/producer-associations';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -29,6 +30,21 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       { ok: false, error: 'VNDB unavailable', upstreamFailed: true },
       { status: 502 },
     );
+  }
+  try {
+    recordActivity({
+      kind: 'producer.refresh',
+      entity: 'producer',
+      entityId: id,
+      label: 'Refreshed producer associations',
+      payload: {
+        developers: result.developerVns.length,
+        publishers: result.publisherVns.length,
+        stale: result.stale,
+      },
+    });
+  } catch (e) {
+    console.error(`[producer:${id}] activity log failed:`, (e as Error).message);
   }
   return NextResponse.json({
     ok: true,

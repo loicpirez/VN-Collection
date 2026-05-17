@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRoute, isInCollection, listRoutesForVn, reorderRoutes } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const name = (body.name ?? '').trim().slice(0, 200);
   if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 });
   const created = createRoute(id, name);
+  try {
+    recordActivity({
+      kind: 'collection.route-add',
+      entity: 'vn',
+      entityId: id,
+      label: 'Added route',
+      payload: { route_id: created.id, completed: !!created.completed },
+    });
+  } catch (e) {
+    console.error(`[routes:${id}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ route: created, routes: listRoutesForVn(id) });
 }
 
@@ -35,5 +47,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: 'ids must be integer array' }, { status: 400 });
   }
   reorderRoutes(id, body.ids);
+  try {
+    recordActivity({
+      kind: 'collection.route-update',
+      entity: 'vn',
+      entityId: id,
+      label: 'Reordered routes',
+      payload: { count: body.ids.length },
+    });
+  } catch (e) {
+    console.error(`[routes:${id}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ routes: listRoutesForVn(id) });
 }

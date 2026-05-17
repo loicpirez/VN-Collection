@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteSeries, getSeries, updateSeries } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   const s = updateSeries(n, body);
   if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  try {
+    recordActivity({
+      kind: 'series.update',
+      entity: 'series',
+      entityId: String(n),
+      label: 'Updated series',
+      payload: { changed: Object.keys(body) },
+    });
+  } catch (e) {
+    console.error(`[series:${n}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ series: getSeries(n) });
 }
 
@@ -60,7 +72,18 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   const { id } = await ctx.params;
   const n = parseId(id);
   if (n == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  if (!getSeries(n)) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  const existing = getSeries(n);
+  if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 });
   deleteSeries(n);
+  try {
+    recordActivity({
+      kind: 'series.delete',
+      entity: 'series',
+      entityId: String(n),
+      label: existing.name,
+    });
+  } catch (e) {
+    console.error(`[series:${n}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ ok: true });
 }

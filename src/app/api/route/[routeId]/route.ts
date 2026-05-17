@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteRoute, getRoute, updateRoute, type RoutePatch } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,20 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ routeId: 
   }
   if ('notes' in body) fields.notes = (body.notes as string | null) || null;
   const updated = updateRoute(id, fields);
+  try {
+    recordActivity({
+      kind: 'collection.route-update',
+      entity: 'vn',
+      entityId: updated?.vn_id ?? null,
+      label: 'Updated route',
+      payload: {
+        route_id: id,
+        completed: 'completed' in fields ? !!fields.completed : undefined,
+      },
+    });
+  } catch (e) {
+    console.error(`[route:${id}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ route: updated });
 }
 
@@ -45,7 +60,19 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ routeId
   const { routeId } = await ctx.params;
   const id = parseId(routeId);
   if (id == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  const existing = getRoute(id);
   const ok = deleteRoute(id);
   if (!ok) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  try {
+    recordActivity({
+      kind: 'collection.route-delete',
+      entity: 'vn',
+      entityId: existing?.vn_id ?? null,
+      label: 'Deleted route',
+      payload: { route_id: id, completed: existing ? !!existing.completed : undefined },
+    });
+  } catch (e) {
+    console.error(`[route:${id}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ ok: true });
 }

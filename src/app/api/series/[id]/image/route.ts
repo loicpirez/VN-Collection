@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSeries, updateSeries } from '@/lib/db';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
+import { recordActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,5 +53,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
   if (kind === 'banner') updateSeries(sid, { banner_path: path });
   else updateSeries(sid, { cover_path: path });
+  try {
+    recordActivity({
+      kind: 'series.image-upload',
+      entity: 'series',
+      entityId: String(sid),
+      label: `Uploaded series ${kind}`,
+      payload: { kind, bytes: file.size },
+    });
+  } catch (e) {
+    console.error(`[series:${sid}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ path });
 }

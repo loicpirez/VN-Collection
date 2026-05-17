@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteSteamLink, isInCollection, listSteamLinks, setSteamLink } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,17 @@ export async function POST(req: NextRequest) {
     steamName: body.steam_name,
     source: 'manual',
   });
+  try {
+    recordActivity({
+      kind: 'steam.link',
+      entity: 'vn',
+      entityId: body.vn_id,
+      label: 'Pinned Steam app to VN',
+      payload: { appid: body.appid, source: 'manual' },
+    });
+  } catch (e) {
+    console.error('[steam:link] activity log failed:', (e as Error).message);
+  }
   return NextResponse.json({ link });
 }
 
@@ -48,5 +60,15 @@ export async function DELETE(req: NextRequest) {
   }
   const ok = deleteSteamLink(vnId);
   if (!ok) return NextResponse.json({ error: 'not linked' }, { status: 404 });
+  try {
+    recordActivity({
+      kind: 'steam.unlink',
+      entity: 'vn',
+      entityId: vnId,
+      label: 'Removed Steam pin',
+    });
+  } catch (e) {
+    console.error('[steam:unlink] activity log failed:', (e as Error).message);
+  }
   return NextResponse.json({ ok: true });
 }

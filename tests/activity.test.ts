@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/lib/db';
 import { listActivityKinds, listUserActivity, maskActivityPayload, recordActivity } from '@/lib/activity';
 
@@ -93,3 +93,187 @@ describe('user activity', () => {
   });
 });
 
+/**
+ * Round-four kind coverage. For every new activity kind added by the
+ * round-four sweep, assert:
+ *   - It lands in `listUserActivity` + `listActivityKinds` after a write.
+ *   - The masker still hides any sensitive-shaped keys carried in the
+ *     payload (defence in depth — none of the new kinds carry secrets
+ *     today, but a future field rename shouldn't silently leak).
+ *   - The disable env var no-ops the write.
+ */
+const NEW_KINDS = [
+  'collection.source-pref',
+  'collection.custom-description',
+  'collection.game-log-add',
+  'collection.game-log-update',
+  'collection.game-log-delete',
+  'collection.route-add',
+  'collection.route-update',
+  'collection.route-delete',
+  'collection.custom-order',
+  'aspect.set',
+  'aspect.clear',
+  'download.refresh',
+  'series.create',
+  'series.update',
+  'series.delete',
+  'series.link',
+  'series.unlink',
+  'series.image-upload',
+  'reading-goal.set',
+  'steam.link',
+  'steam.unlink',
+  'steam.sync-apply',
+  'cache.invalidate',
+  'producer.refresh',
+  'producer.logo-set',
+  'producer.logo-clear',
+  'staff.full-download',
+  'vn.egs-link',
+  'vn.egs-unlink',
+  'egs.vndb-link',
+  'egs.vndb-unlink',
+  'egs.sync-apply',
+  'vndb-status.update',
+  'vndb-status.remove',
+] as const;
+
+describe('round-four activity kinds', () => {
+  afterEach(() => {
+    db.prepare('DELETE FROM user_activity').run();
+    delete process.env.VNCOLL_DISABLE_ACTIVITY;
+  });
+
+  it.each(NEW_KINDS)('records kind %s and surfaces it in listActivityKinds', (kind) => {
+    recordActivity({
+      kind,
+      entity: 'vn',
+      entityId: 'v9xxxx',
+      label: `Test ${kind}`,
+      payload: { note: 'placeholder' },
+    });
+    const rows = listUserActivity({ kind });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe(kind);
+    expect(listActivityKinds()).toContain(kind);
+  });
+
+  it.each(NEW_KINDS)('masks sensitive-shaped payload values for %s', (kind) => {
+    recordActivity({
+      kind,
+      entity: 'vn',
+      entityId: 'v9xxxx',
+      payload: { vndb_token: 'placeholder-token-not-real', visible: 'plain' },
+    });
+    const [row] = listUserActivity({ kind });
+    expect(row.payload).toContain('[masked]');
+    expect(row.payload).not.toContain('placeholder-token-not-real');
+    expect(row.payload).toContain('"visible":"plain"');
+  });
+
+  it.each(NEW_KINDS)('respects VNCOLL_DISABLE_ACTIVITY for %s', (kind) => {
+    process.env.VNCOLL_DISABLE_ACTIVITY = '1';
+    recordActivity({ kind, entity: 'vn', entityId: 'v9xxxx', payload: { x: 1 } });
+    expect(listUserActivity({ kind })).toHaveLength(0);
+  });
+});
+
+describe('round-four route source-pin', () => {
+  // Source-pinned fallback for routes whose handler instrumentation we
+  // assert by reading the route file. These tests catch refactors that
+  // drop the `recordActivity(...)` call without realising the kind
+  // string anchors the activity log.
+  const ROUTE_KIND_MATRIX: Array<[string, string]> = [
+    ['src/app/api/collection/[id]/source-pref/route.ts', 'collection.source-pref'],
+    ['src/app/api/collection/[id]/custom-description/route.ts', 'collection.custom-description'],
+    ['src/app/api/collection/[id]/game-log/route.ts', 'collection.game-log-add'],
+    ['src/app/api/collection/[id]/game-log/route.ts', 'collection.game-log-update'],
+    ['src/app/api/collection/[id]/game-log/route.ts', 'collection.game-log-delete'],
+    ['src/app/api/collection/[id]/routes/route.ts', 'collection.route-add'],
+    ['src/app/api/collection/[id]/routes/route.ts', 'collection.route-update'],
+    ['src/app/api/route/[routeId]/route.ts', 'collection.route-update'],
+    ['src/app/api/route/[routeId]/route.ts', 'collection.route-delete'],
+    ['src/app/api/vn/[id]/aspect/route.ts', 'aspect.set'],
+    ['src/app/api/vn/[id]/aspect/route.ts', 'aspect.clear'],
+    ['src/app/api/collection/order/route.ts', 'collection.custom-order'],
+    ['src/app/api/collection/[id]/assets/route.ts', 'download.refresh'],
+    ['src/app/api/series/route.ts', 'series.create'],
+    ['src/app/api/series/[id]/route.ts', 'series.update'],
+    ['src/app/api/series/[id]/route.ts', 'series.delete'],
+    ['src/app/api/series/[id]/vn/[vnId]/route.ts', 'series.link'],
+    ['src/app/api/series/[id]/vn/[vnId]/route.ts', 'series.unlink'],
+    ['src/app/api/series/[id]/image/route.ts', 'series.image-upload'],
+    ['src/app/api/reading-goal/route.ts', 'reading-goal.set'],
+    ['src/app/api/steam/link/route.ts', 'steam.link'],
+    ['src/app/api/steam/link/route.ts', 'steam.unlink'],
+    ['src/app/api/steam/sync/route.ts', 'steam.sync-apply'],
+    ['src/app/api/vndb/cache/route.ts', 'cache.invalidate'],
+    ['src/app/api/producer/[id]/refresh/route.ts', 'producer.refresh'],
+    ['src/app/api/producer/[id]/logo/route.ts', 'producer.logo-set'],
+    ['src/app/api/producer/[id]/logo/route.ts', 'producer.logo-clear'],
+    ['src/app/api/staff/[id]/download/route.ts', 'staff.full-download'],
+    ['src/app/api/vn/[id]/erogamescape/route.ts', 'vn.egs-link'],
+    ['src/app/api/vn/[id]/erogamescape/route.ts', 'vn.egs-unlink'],
+    ['src/app/api/egs/[id]/vndb/route.ts', 'egs.vndb-link'],
+    ['src/app/api/egs/[id]/vndb/route.ts', 'egs.vndb-unlink'],
+    ['src/app/api/egs/sync/route.ts', 'egs.sync-apply'],
+    ['src/app/api/vn/[id]/vndb-status/route.ts', 'vndb-status.update'],
+    ['src/app/api/vn/[id]/vndb-status/route.ts', 'vndb-status.remove'],
+  ];
+
+  it.each(ROUTE_KIND_MATRIX)('%s mentions kind %s', async (path, kind) => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(path, 'utf8');
+    expect(src).toContain('recordActivity');
+    expect(src).toContain(kind);
+  });
+});
+
+// Route-level integration tests for a representative subset. The
+// remaining kinds are pinned via the source-pin matrix above.
+describe('route-level activity integration', () => {
+  beforeEach(() => {
+    db.prepare('DELETE FROM user_activity').run();
+    db.prepare('DELETE FROM vn_aspect_override').run();
+  });
+
+  it('PATCH /api/vn/[id]/aspect logs aspect.set', async () => {
+    const { PATCH } = await import('@/app/api/vn/[id]/aspect/route');
+    const req = new Request('http://localhost/api/vn/v9xxxx/aspect', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aspect_key: '16:9' }),
+    }) as unknown as import('next/server').NextRequest;
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'v9xxxx' }) });
+    expect(res.status).toBe(200);
+    const rows = listUserActivity({ kind: 'aspect.set' });
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    expect(rows[0].entity_id).toBe('v9xxxx');
+    expect(rows[0].payload).toContain('16:9');
+  });
+
+  it('DELETE /api/vn/[id]/aspect logs aspect.clear', async () => {
+    const { DELETE } = await import('@/app/api/vn/[id]/aspect/route');
+    const req = new Request('http://localhost/api/vn/v9xxxx/aspect', {
+      method: 'DELETE',
+    }) as unknown as import('next/server').NextRequest;
+    const res = await DELETE(req, { params: Promise.resolve({ id: 'v9xxxx' }) });
+    expect(res.status).toBe(200);
+    expect(listUserActivity({ kind: 'aspect.clear' })).toHaveLength(1);
+  });
+
+  it('PATCH /api/collection/order logs collection.custom-order', async () => {
+    const { PATCH } = await import('@/app/api/collection/order/route');
+    const req = new Request('http://localhost/api/collection/order', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ['v9xxxx', 'v9xxxy'] }),
+    }) as unknown as import('next/server').NextRequest;
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const rows = listUserActivity({ kind: 'collection.custom-order' });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].payload).toContain('"count":2');
+  });
+});

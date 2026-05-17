@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { countFinishedInYear, getReadingGoal, setReadingGoal } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,5 +18,17 @@ export async function POST(req: NextRequest) {
   const year = typeof body.year === 'number' && Number.isInteger(body.year) ? body.year : new Date().getFullYear();
   const target = typeof body.target === 'number' ? body.target : NaN;
   if (!Number.isFinite(target)) return NextResponse.json({ error: 'target required' }, { status: 400 });
-  return NextResponse.json({ goal: setReadingGoal(year, target) });
+  const goal = setReadingGoal(year, target);
+  try {
+    recordActivity({
+      kind: 'reading-goal.set',
+      entity: 'reading-goal',
+      entityId: String(year),
+      label: `Set ${year} reading goal`,
+      payload: { year, target },
+    });
+  } catch (e) {
+    console.error('[reading-goal] activity log failed:', (e as Error).message);
+  }
+  return NextResponse.json({ goal });
 }

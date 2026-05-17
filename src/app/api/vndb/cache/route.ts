@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cacheStats, clearCache, deleteCacheByPathPrefix, pruneExpiredCache } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { recordActivity } from '@/lib/activity';
+
+function logCacheInvalidate(payload: Record<string, unknown>) {
+  try {
+    recordActivity({
+      kind: 'cache.invalidate',
+      entity: 'cache',
+      entityId: null,
+      label: 'Invalidated VNDB cache',
+      payload,
+    });
+  } catch (e) {
+    console.error('[vndb-cache] activity log failed:', (e as Error).message);
+  }
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +38,7 @@ export async function DELETE(req: NextRequest) {
 
   if (mode === 'expired') {
     const removed = pruneExpiredCache();
+    logCacheInvalidate({ mode, removed });
     return NextResponse.json({ ok: true, removed, mode });
   }
   if (mode === 'prefix' && prefix) {
@@ -39,8 +55,10 @@ export async function DELETE(req: NextRequest) {
       );
     }
     const removed = deleteCacheByPathPrefix(prefix);
+    logCacheInvalidate({ mode, prefix, removed });
     return NextResponse.json({ ok: true, removed, mode, prefix });
   }
   const removed = clearCache();
+  logCacheInvalidate({ mode: 'all', removed });
   return NextResponse.json({ ok: true, removed, mode: 'all' });
 }

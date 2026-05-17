@@ -6,7 +6,28 @@ import {
   listGameLogForVn,
   updateGameLogEntry,
 } from '@/lib/db';
+import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
+
+function logGameLogActivity(
+  kind: 'collection.game-log-add' | 'collection.game-log-update' | 'collection.game-log-delete',
+  id: string,
+  label: string,
+  minutes: number | null,
+  hasNote: boolean,
+) {
+  try {
+    recordActivity({
+      kind,
+      entity: 'vn',
+      entityId: id,
+      label,
+      payload: { minutes, hasNote },
+    });
+  } catch (e) {
+    console.error(`[game-log:${id}] activity log failed:`, (e as Error).message);
+  }
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -50,6 +71,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       : null;
   try {
     const entry = addGameLogEntry(id, body.note, at, minutes);
+    logGameLogActivity('collection.game-log-add', id, 'Added game-log entry', minutes, !!body.note);
     return NextResponse.json({ entry });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
@@ -81,6 +103,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   try {
     const entry = updateGameLogEntry(eid, patch);
     if (!entry) return NextResponse.json({ error: 'entry not found' }, { status: 404 });
+    const minutes =
+      patch.session_minutes === undefined
+        ? entry.session_minutes ?? null
+        : patch.session_minutes ?? null;
+    const hasNote = patch.note !== undefined ? !!patch.note : !!entry.note;
+    logGameLogActivity('collection.game-log-update', id, 'Updated game-log entry', minutes, hasNote);
     return NextResponse.json({ entry });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
@@ -98,5 +126,6 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   }
   const ok = deleteGameLogEntry(eid);
   if (!ok) return NextResponse.json({ error: 'entry not found' }, { status: 404 });
+  logGameLogActivity('collection.game-log-delete', id, 'Deleted game-log entry', null, false);
   return NextResponse.json({ ok: true });
 }

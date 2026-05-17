@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getProducer, setProducerLogo, upsertProducer } from '@/lib/db';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
+import { recordActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -37,6 +38,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     throw e;
   }
   setProducerLogo(id, path);
+  try {
+    recordActivity({
+      kind: 'producer.logo-set',
+      entity: 'producer',
+      entityId: id,
+      label: 'Uploaded producer logo',
+      payload: { bytes: file.size },
+    });
+  } catch (e) {
+    console.error(`[producer:${id}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ producer: getProducer(id) });
 }
 
@@ -47,5 +59,15 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     return NextResponse.json({ error: 'producer not found' }, { status: 404 });
   }
   setProducerLogo(id, null);
+  try {
+    recordActivity({
+      kind: 'producer.logo-clear',
+      entity: 'producer',
+      entityId: id,
+      label: 'Cleared producer logo',
+    });
+  } catch (e) {
+    console.error(`[producer:${id}] activity log failed:`, (e as Error).message);
+  }
   return NextResponse.json({ producer: getProducer(id) });
 }
