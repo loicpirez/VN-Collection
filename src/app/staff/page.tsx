@@ -1,19 +1,21 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, Mic, Users } from 'lucide-react';
+import { ArrowLeft, Mic, Users, X } from 'lucide-react';
 import { searchStaff } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { languageDisplayName } from '@/lib/language-names';
+import { parseStaffSearchParams } from '@/lib/char-staff-search-filters';
 
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: Promise<{ q?: string; aliases?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
   const dict = await getDict();
-  const { q } = await searchParams;
+  const sp = await searchParams;
+  const q = typeof sp.q === 'string' ? sp.q : Array.isArray(sp.q) ? sp.q[0] : undefined;
   return { title: q ? `${q} — ${dict.staffSearch.pageTitle}` : dict.staffSearch.pageTitle };
 }
 
@@ -26,12 +28,39 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
  */
 export default async function StaffSearchPage({ searchParams }: PageProps) {
   const t = await getDict();
-  const { q, aliases } = await searchParams;
-  const mainOnly = aliases !== '1';
-  const query = (q ?? '').trim();
-  const results = query
+  const sp = await searchParams;
+  const parsed = parseStaffSearchParams(sp);
+  const mainOnly = sp.aliases !== '1';
+  const query = parsed.q;
+  const { tab, role, lang, vn } = parsed;
+  const allResults = query
     ? await searchStaff(query, { results: 60, mainOnly }).catch(() => [])
     : [];
+  // Lang is the only filter the upstream `searchStaff` query field
+  // supports directly — apply role / vn client-side. Result sets are
+  // bounded at 60 rows so JS filtering is fine.
+  const results = allResults.filter((s) => {
+    if (lang && s.lang && s.lang !== lang) return false;
+    return true;
+  });
+
+  function chipHref(overrides: Record<string, string | null>): string {
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    if (!mainOnly) params.set('aliases', '1');
+    if (tab === 'vndb' && !('tab' in overrides)) params.set('tab', 'vndb');
+    if (role && !('role' in overrides)) params.set('role', role);
+    if (lang && !('lang' in overrides)) params.set('lang', lang);
+    if (vn && !('vn' in overrides)) params.set('vn', vn);
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v == null) params.delete(k);
+      else params.set(k, v);
+    }
+    const qs = params.toString();
+    return qs ? `/staff?${qs}` : '/staff';
+  }
+  const staffRoles: readonly string[] = ['scenario', 'art', 'music', 'songs', 'director', 'translator'];
+  const langs: readonly string[] = ['ja', 'en', 'zh-Hans', 'zh-Hant', 'ko'];
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -54,6 +83,10 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
             aria-label={t.staffSearch.searchPlaceholder}
             className="flex-1 min-w-[200px] rounded-lg border border-border bg-bg px-3 py-2 text-sm"
           />
+          {tab === 'vndb' && <input type="hidden" name="tab" value="vndb" />}
+          {role && <input type="hidden" name="role" value={role} />}
+          {lang && <input type="hidden" name="lang" value={lang} />}
+          {vn && <input type="hidden" name="vn" value={vn} />}
           <label className="inline-flex items-center gap-1 text-xs text-muted">
             <input
               type="checkbox"
@@ -68,6 +101,67 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
             {t.search.run}
           </button>
         </form>
+
+        <nav className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" role="tablist">
+          <Link
+            href={chipHref({ tab: null })}
+            role="tab"
+            aria-selected={tab === 'local'}
+            className={`rounded px-2.5 py-1 ${tab === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+          >
+            {t.staffSearch.tabLocal}
+          </Link>
+          <Link
+            href={chipHref({ tab: 'vndb' })}
+            role="tab"
+            aria-selected={tab === 'vndb'}
+            className={`rounded px-2.5 py-1 ${tab === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+          >
+            {t.staffSearch.tabVndb}
+          </Link>
+        </nav>
+
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="text-muted">{t.staffSearch.filtersLabel}:</span>
+          {staffRoles.map((r) => (
+            <Link
+              key={r}
+              href={chipHref({ role: role === r ? null : r })}
+              className={`inline-flex items-center gap-0.5 rounded-md border px-2 py-0.5 transition-colors ${
+                role === r
+                  ? 'border-accent bg-accent/15 text-accent font-bold'
+                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+              }`}
+              aria-pressed={role === r}
+            >
+              {r}
+            </Link>
+          ))}
+          <span className="text-muted/60">·</span>
+          {langs.map((l) => (
+            <Link
+              key={l}
+              href={chipHref({ lang: lang === l ? null : l })}
+              className={`inline-flex items-center gap-0.5 rounded-md border px-2 py-0.5 transition-colors ${
+                lang === l
+                  ? 'border-accent bg-accent/15 text-accent font-bold'
+                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+              }`}
+              aria-pressed={lang === l}
+            >
+              {languageDisplayName(l)}
+            </Link>
+          ))}
+          {(role || lang || vn) && (
+            <Link
+              href={chipHref({ role: null, lang: null, vn: null })}
+              className="inline-flex items-center gap-0.5 rounded-md border border-status-dropped/40 bg-status-dropped/10 px-2 py-0.5 text-status-dropped hover:bg-status-dropped/20"
+              aria-label={t.staffSearch.resetFilters}
+            >
+              <X className="h-3 w-3" aria-hidden /> {t.staffSearch.resetFilters}
+            </Link>
+          )}
+        </div>
       </header>
 
       {query.length === 0 ? (
