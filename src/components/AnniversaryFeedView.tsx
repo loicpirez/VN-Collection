@@ -60,6 +60,7 @@ export function AnniversaryFeedView({ title, yearsAgoTemplate, emptyHint, entrie
           busy={busy}
           onCollapseToggle={toggleCollapsed}
           onHide={hide}
+          sectionLabel={title}
         />
       </div>
       {/*

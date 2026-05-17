@@ -106,11 +106,16 @@ export function TagPicker({
           <span className="text-[11px] italic text-muted">{t.tagPicker.empty}</span>
         )}
         {tags.map((tag) => (
+          // Raw VNDB tag ids (e.g. `g133`) were previously rendered as
+          // the leading span — implementation detail leaking into the
+          // primary recommendations UI. The id is preserved on the
+          // `title` attribute and the React `key` for power users /
+          // automation; only the human-readable name is visible.
           <span
             key={tag.id}
             className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] text-accent"
+            title={tag.id}
           >
-            <span className="font-mono opacity-60">{tag.id}</span>
             <span>{tag.name}</span>
             <button
               type="button"
@@ -154,16 +159,19 @@ export function TagPicker({
             const already = pickedIds.has(hit.id);
             return (
               <li key={hit.id}>
+                {/* Autocomplete row: raw `gNNN` id dropped from the
+                    visible label. Kept on the `title` attribute so
+                    keyboard / hover reveal it. */}
                 <button
                   type="button"
                   onClick={() => add(hit)}
                   disabled={already}
+                  title={hit.id}
                   className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[11px] ${
                     already ? 'text-muted opacity-50' : 'hover:bg-bg-elev hover:text-accent'
                   }`}
                 >
                   <Plus className="h-3 w-3 shrink-0" aria-hidden />
-                  <span className="font-mono text-[10px] opacity-60">{hit.id}</span>
                   <span className="flex-1 truncate">{hit.name}</span>
                   <span className="rounded bg-bg-elev px-1 py-0 text-[10px] uppercase tracking-wider text-muted">
                     {hit.category}

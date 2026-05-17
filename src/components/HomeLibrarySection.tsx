@@ -63,6 +63,7 @@ export function HomeLibraryControlsSection({
           busy={busy}
           onCollapseToggle={toggleCollapsed}
           onHide={hide}
+          sectionLabel={t.homeLayout.sectionLabels['library-controls']}
         />
       </header>
       {!isCollapsed && <LibraryClient mode="controls-only" />}
@@ -88,7 +89,32 @@ export function HomeLibraryGridSection({
     // own chevron + menu (collapsed by default = false from the
     // versioned layout config) so a power user can hide only the
     // grid when working through filter combinations.
-    <section className="mt-3" aria-label="library-grid">
+    <GridSectionInner
+      state={state}
+      busy={busy}
+      isCollapsed={isCollapsed}
+      toggleCollapsed={toggleCollapsed}
+      hide={hide}
+    />
+  );
+}
+
+function GridSectionInner({
+  state,
+  busy,
+  isCollapsed,
+  toggleCollapsed,
+  hide,
+}: {
+  state: HomeSectionState;
+  busy: boolean;
+  isCollapsed: boolean;
+  toggleCollapsed: () => void;
+  hide: () => void;
+}) {
+  const t = useT();
+  return (
+    <section className="mt-3" aria-label={t.homeLayout.sectionLabels['library-grid']}>
       {/* Discrete inline controls — top-right, dim by default,
           full opacity on hover. No banner heading: the controls-
           section heading above already says "Ma bibliothèque". */}
@@ -98,6 +124,7 @@ export function HomeLibraryGridSection({
           busy={busy}
           onCollapseToggle={toggleCollapsed}
           onHide={hide}
+          sectionLabel={t.homeLayout.sectionLabels['library-grid']}
         />
       </div>
       {!isCollapsed && <LibraryClient mode="grid-only" />}

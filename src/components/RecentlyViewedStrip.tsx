@@ -39,6 +39,7 @@ export function RecentlyViewedStrip({ initialState }: Props) {
           onHide={hide}
           onClearData={clear}
           clearLabel={t.recently.clear}
+          sectionLabel={t.recently.title}
         />
       </div>
       {!isCollapsed && (

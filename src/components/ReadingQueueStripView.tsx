@@ -45,6 +45,7 @@ export function ReadingQueueStripView({ title, entries, initialState }: Props) {
           busy={busy}
           onCollapseToggle={toggleCollapsed}
           onHide={hide}
+          sectionLabel={title}
         />
       </div>
       {!isCollapsed && (

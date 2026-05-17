@@ -106,6 +106,15 @@ interface ControlsProps {
   onClearData?: () => void;
   /** Label for the clear menu entry; falls back to the generic key. */
   clearLabel?: string;
+  /**
+   * Human-readable section name appended to the chevron + menu aria-
+   * labels. Without it, four sibling strips ("Recently viewed",
+   * "Reading queue", "Anniversary", "Library") render four identical
+   * "Réduire" / "Options de la section" announcements — screen-reader
+   * users cannot tell which strip they're on. Provide the section
+   * title here.
+   */
+  sectionLabel?: string;
 }
 
 /**
@@ -120,6 +129,7 @@ export function HomeSectionControls({
   onHide,
   onClearData,
   clearLabel,
+  sectionLabel,
 }: ControlsProps) {
   const t = useT();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -145,32 +155,50 @@ export function HomeSectionControls({
 
   return (
     <div ref={containerRef} className="relative inline-flex items-center gap-1">
-      <button
-        type="button"
-        onClick={onCollapseToggle}
-        disabled={busy}
-        aria-expanded={!state.collapsed}
-        aria-label={state.collapsed ? t.homeSections.expand : t.homeSections.collapse}
-        title={state.collapsed ? t.homeSections.expand : t.homeSections.collapse}
-        className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-50"
-      >
-        {state.collapsed
-          ? <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-          : <ChevronDown className="h-3.5 w-3.5" aria-hidden />}
-      </button>
-      <button
-        type="button"
-        onClick={() => setMenuOpen((v) => !v)}
-        disabled={busy}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        aria-controls={menuId}
-        aria-label={t.homeSections.menuLabel}
-        title={t.homeSections.menuLabel}
-        className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-50"
-      >
-        <MoreVertical className="h-3.5 w-3.5" aria-hidden />
-      </button>
+      {(() => {
+        // Compose section-specific aria-labels. Without
+        // `sectionLabel`, fall back to the generic phrases so the
+        // component is still safe to mount from older call sites.
+        const collapseLabel = sectionLabel
+          ? `${t.homeSections.collapse} — ${sectionLabel}`
+          : t.homeSections.collapse;
+        const expandLabel = sectionLabel
+          ? `${t.homeSections.expand} — ${sectionLabel}`
+          : t.homeSections.expand;
+        const optionsLabel = sectionLabel
+          ? `${t.homeSections.menuLabel} — ${sectionLabel}`
+          : t.homeSections.menuLabel;
+        return (
+          <>
+            <button
+              type="button"
+              onClick={onCollapseToggle}
+              disabled={busy}
+              aria-expanded={!state.collapsed}
+              aria-label={state.collapsed ? expandLabel : collapseLabel}
+              title={state.collapsed ? expandLabel : collapseLabel}
+              className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-50"
+            >
+              {state.collapsed
+                ? <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                : <ChevronDown className="h-3.5 w-3.5" aria-hidden />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              disabled={busy}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-controls={menuId}
+              aria-label={optionsLabel}
+              title={optionsLabel}
+              className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-50"
+            >
+              <MoreVertical className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </>
+        );
+      })()}
       {menuOpen && (
         <div
           id={menuId}
