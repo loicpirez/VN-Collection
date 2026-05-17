@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, ArrowDown, CheckCircle2, HardDriveDownload, MinusCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowDown, CheckCircle2, HardDriveDownload, MinusCircle, PackageOpen, Plus, XCircle } from 'lucide-react';
 import { getDumpSummary, listDumpStatus } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,13 +14,51 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: dict.dumped.pageTitle };
 }
 
-type DumpTab = 'all' | 'complete' | 'partial' | 'none';
-const TABS: DumpTab[] = ['all', 'complete', 'partial', 'none'];
+/**
+ * /dumped redesign. The earlier layout collapsed two distinct
+ * states into the same "Not dumped" tab: (a) VNs with owned
+ * editions where none are flagged dumped, and (b) VNs in the
+ * collection that have NO owned editions at all. The latter is
+ * not a dump-progress signal — it's a tracking gap — so we now
+ * split the tabs into five buckets and tag (b) with a CTA that
+ * routes back to the VN's "My editions" anchor.
+ *
+ * Tabs (URL: `?tab=`):
+ *   - `all` (default) — every VN being TRACKED for dump status
+ *     (collection.dumped=1 OR ≥1 owned edition). The "no
+ *     editions" rows are explicitly excluded so the default
+ *     view stops surfacing 0/0 rows.
+ *   - `complete` — fully dumped (collection.dumped=1 OR every
+ *     owned edition has dumped=1).
+ *   - `partial` — ≥1 dumped edition, not all.
+ *   - `missing` — has ≥1 owned edition, zero dumped, and the
+ *     VN-level collection.dumped flag is not set.
+ *   - `none` — VN in collection with NO owned editions and
+ *     collection.dumped=0. Hidden from the `all` tab.
+ */
+type DumpTab = 'all' | 'complete' | 'partial' | 'missing' | 'none';
+const TABS: DumpTab[] = ['all', 'complete', 'partial', 'missing', 'none'];
 
 function parseTab(raw: string | string[] | undefined): DumpTab {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  if (v === 'complete' || v === 'partial' || v === 'none') return v;
+  if (v === 'complete' || v === 'partial' || v === 'missing' || v === 'none') return v;
   return 'all';
+}
+
+type BucketKey = Exclude<DumpTab, 'all'>;
+
+/**
+ * Single source of truth for per-row classification. Pulled out
+ * of the JSX so both the per-tab counters and the row filter
+ * use the same logic — drift between the two would surface as
+ * "tab says 3, list shows 4".
+ */
+function classify(e: ReturnType<typeof listDumpStatus>[number]): BucketKey {
+  if (e.collection_dumped) return 'complete';
+  if (e.total_editions === 0) return 'none';
+  if (e.dumped_editions === e.total_editions) return 'complete';
+  if (e.dumped_editions === 0) return 'missing';
+  return 'partial';
 }
 
 export default async function DumpedPage({
@@ -34,39 +73,31 @@ export default async function DumpedPage({
   const summary = getDumpSummary();
   const entries = listDumpStatus();
 
-  // Classify each VN as 'complete' | 'partial' | 'none'. A VN is
-  // 'complete' when EITHER its owned editions are all dumped OR
-  // `collection.dumped = 1` is set on the VN itself. The latter is
-  // the same flag the Library `?dumped=1` filter reads — without
-  // it, the dumped page used to say 0 while Library showed several
-  // dumped VNs.
-  function classify(e: typeof entries[number]): 'complete' | 'partial' | 'none' {
-    if (e.collection_dumped) return 'complete';
-    if (e.total_editions === 0) return 'none';
-    if (e.dumped_editions === e.total_editions) return 'complete';
-    if (e.dumped_editions === 0) return 'none';
-    return 'partial';
-  }
-
   // Pre-compute per-tab counts so the chips show "{tab} · {n}" without
   // re-filtering inside the JSX. Counts are independent of the active
-  // tab — they represent the underlying distribution.
+  // tab. The `all` count excludes the `none` bucket (per the spec —
+  // the default view shouldn't surface 0/0 rows). Every other tab
+  // shows the number of rows that match its own classification.
   const counts = entries.reduce(
     (acc, e) => {
-      acc.all += 1;
       const c = classify(e);
       acc[c] += 1;
+      // `all` mirrors "every tracked VN" — the union of every
+      // bucket except `none`.
+      if (c !== 'none') acc.all += 1;
       return acc;
     },
-    { all: 0, complete: 0, partial: 0, none: 0 },
+    { all: 0, complete: 0, partial: 0, missing: 0, none: 0 },
   );
 
-  // Filter entries to the active tab. `none` includes both
-  // "no editions tracked yet" and "all editions undumped" because the
-  // user's mental model is "haven't dumped this VN".
+  // Filter entries to the active tab. The `all` tab now hides
+  // `none` rows so the default view focuses on real dump
+  // progress. `none` rows remain reachable via the explicit
+  // tab (where the CTA invites the user to add an edition).
   const filtered = entries.filter((e) => {
-    if (tab === 'all') return true;
-    return classify(e) === tab;
+    const c = classify(e);
+    if (tab === 'all') return c !== 'none';
+    return c === tab;
   });
 
   const tabPct = (key: DumpTab): string => {
@@ -78,7 +109,8 @@ export default async function DumpedPage({
     all: <HardDriveDownload className="h-3.5 w-3.5" aria-hidden />,
     complete: <CheckCircle2 className="h-3.5 w-3.5 text-status-completed" aria-hidden />,
     partial: <MinusCircle className="h-3.5 w-3.5 text-status-on_hold" aria-hidden />,
-    none: <XCircle className="h-3.5 w-3.5 text-status-dropped" aria-hidden />,
+    missing: <XCircle className="h-3.5 w-3.5 text-status-dropped" aria-hidden />,
+    none: <PackageOpen className="h-3.5 w-3.5 text-muted" aria-hidden />,
   } as const;
 
   return (
@@ -114,7 +146,7 @@ export default async function DumpedPage({
       </header>
 
       {entries.length > 0 && (
-        <>
+        <DensityScopeProvider scope="dumped">
           <nav
             className="mb-4 flex flex-wrap gap-2"
             aria-label={t.dumped.tabsLabel}
@@ -145,7 +177,7 @@ export default async function DumpedPage({
             })}
           </nav>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <CardDensitySlider />
+            <CardDensitySlider scope="dumped" />
           </div>
 
           {filtered.length === 0 ? (
@@ -158,12 +190,9 @@ export default async function DumpedPage({
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
             >
               {filtered.map((e) => {
-                // Reflect the same classification the tabs use:
-                // collection.dumped=1 is a complete signal even
-                // when the user has zero owned editions.
-                const fullyDumped =
-                  e.collection_dumped ||
-                  (e.total_editions > 0 && e.dumped_editions === e.total_editions);
+                const bucket = classify(e);
+                const fullyDumped = bucket === 'complete';
+                const noEditions = bucket === 'none';
                 const pct = e.collection_dumped
                   ? 100
                   : e.total_editions === 0
@@ -200,28 +229,58 @@ export default async function DumpedPage({
                         <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
                           {e.vn_title}
                         </p>
-                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted">
-                          {fullyDumped ? (
-                            <>
-                              <CheckCircle2 className="h-3 w-3 text-status-completed" aria-hidden />
-                              {t.dumped.allDone}
-                            </>
-                          ) : (
-                            <>
-                              <ArrowDown className="h-3 w-3" aria-hidden />
-                              {e.dumped_editions} / {e.total_editions}
-                            </>
-                          )}
-                        </p>
-                        {e.total_editions > 0 && (
-                          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev">
-                            <div
-                              className={`h-full transition-[width] ${
-                                fullyDumped ? 'bg-status-completed' : 'bg-accent'
-                              }`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
+                        {noEditions ? (
+                          /*
+                           * The "no editions" state is a tracking
+                           * gap, not a dump signal — so we replace
+                           * the misleading "0/0" with an explicit
+                           * label and a CTA that links to the VN's
+                           * `#my-editions` anchor. Clicking the
+                           * CTA used to require navigating to the
+                           * VN page and scrolling manually.
+                           */
+                          <>
+                            <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted">
+                              <PackageOpen className="h-3 w-3" aria-hidden />
+                              {t.dumped.noEditions}
+                            </p>
+                            <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent group-hover:underline">
+                              <Plus className="h-3 w-3" aria-hidden />
+                              {t.dumped.addEditionCta}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted">
+                              {fullyDumped ? (
+                                <>
+                                  <CheckCircle2 className="h-3 w-3 text-status-completed" aria-hidden />
+                                  {t.dumped.allDone}
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowDown className="h-3 w-3" aria-hidden />
+                                  {/*
+                                   * Hide the counter entirely when
+                                   * there are no owned editions (the
+                                   * "0/0" was visually noisy and led
+                                   * to the same redesign request).
+                                   */}
+                                  {e.dumped_editions} / {e.total_editions}
+                                </>
+                              )}
+                            </p>
+                            {e.total_editions > 0 && (
+                              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev">
+                                <div
+                                  className={`h-full transition-[width] ${
+                                    fullyDumped ? 'bg-status-completed' : 'bg-accent'
+                                  }`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </Link>
@@ -230,7 +289,7 @@ export default async function DumpedPage({
               })}
             </ul>
           )}
-        </>
+        </DensityScopeProvider>
       )}
     </div>
   );
