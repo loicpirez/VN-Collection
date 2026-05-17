@@ -39,15 +39,48 @@ function parsePage(value: string | undefined): number {
   return Math.min(20, n);
 }
 
+/**
+ * Pre-set min-votes options exposed in the UI. The default per tab
+ * is kept (VNDB_TOP_MIN_VOTES / EGS_TOP_MIN_VOTES); higher thresholds
+ * shrink the tail towards "only well-known titles", lower ones
+ * surface long-tail entries. Anything outside this set is clamped to
+ * the nearest preset so the URL stays canonical.
+ */
+const MIN_VOTES_PRESETS: readonly number[] = [50, 100, 250, 500, 1000];
+
+function parseMinVotes(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  // Snap to the closest preset so cache keys converge and the chip
+  // stays meaningful regardless of arbitrary user-typed values.
+  let best = MIN_VOTES_PRESETS[0];
+  let bestDist = Math.abs(n - best);
+  for (const candidate of MIN_VOTES_PRESETS) {
+    const d = Math.abs(n - candidate);
+    if (d < bestDist) {
+      best = candidate;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
 export default async function TopRankedPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; page?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string; min?: string }>;
 }) {
   const t = await getDict();
-  const { tab: rawTab, page: rawPage } = await searchParams;
+  const { tab: rawTab, page: rawPage, min: rawMin } = await searchParams;
   const tab = parseTab(rawTab);
   const page = parsePage(rawPage);
+  // Per-tab min-votes threshold. The Bayesian-weighted ORDER BY in
+  // both fetchers means the chart is meaningful at any threshold, so
+  // we let the operator dial it from the toolbar. Each preset has
+  // its own cache key, so switching is free after the first fetch.
+  const minDefault = tab === 'egs' ? EGS_TOP_MIN_VOTES : VNDB_TOP_MIN_VOTES;
+  const minVotes = parseMinVotes(rawMin, minDefault);
   // Per-tab freshness: previously the chip showed MAX(vndb, egs)
   // which misled the operator on the inactive tab (e.g. EGS tab
   // chip reading "just now" when only VNDB was refreshed). Read
@@ -96,29 +129,47 @@ export default async function TopRankedPage({
             {t.topRanked.tabEgs}
           </TabLink>
         </nav>
-        <div className="mt-2 space-y-0.5 text-[10px] text-muted">
-          <p>
-            {tab === 'vndb' ? t.topRanked.methodVndb : t.topRanked.methodEgs}
-          </p>
-          <p>
-            {tab === 'vndb'
-              ? t.topRanked.thresholdVndb.replace('{n}', String(VNDB_TOP_MIN_VOTES))
-              : t.topRanked.thresholdEgs.replace('{n}', String(EGS_TOP_MIN_VOTES))}
-          </p>
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
+          <div className="space-y-0.5 text-[10px] text-muted">
+            <p>
+              {tab === 'vndb' ? t.topRanked.methodVndb : t.topRanked.methodEgs}
+            </p>
+            <p>
+              {tab === 'vndb'
+                ? t.topRanked.thresholdVndb.replace('{n}', minVotes.toLocaleString())
+                : t.topRanked.thresholdEgs.replace('{n}', minVotes.toLocaleString())}
+            </p>
+          </div>
+          {/* URL-driven min-votes chips. Server-rendered <a>s instead
+              of a <select> + onChange so the page stays a server
+              component and the URL is shareable. Clicking a chip
+              swaps the active preset and resets `page` to 1 (a deeper
+              page may not exist at the new threshold). */}
+          <MinVotesChips currentTab={tab} currentMin={minVotes} t={t} />
         </div>
       </header>
 
-      <Suspense key={`${tab}-${page}`} fallback={<SkeletonCardGrid count={12} />}>
-        <TabContent tab={tab} page={page} t={t} />
+      <Suspense key={`${tab}-${page}-${minVotes}`} fallback={<SkeletonCardGrid count={12} />}>
+        <TabContent tab={tab} page={page} minVotes={minVotes} t={t} />
       </Suspense>
     </div>
   );
 }
 
-async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Dictionary }) {
+async function TabContent({
+  tab,
+  page,
+  minVotes,
+  t,
+}: {
+  tab: Tab;
+  page: number;
+  minVotes: number;
+  t: Dictionary;
+}) {
   try {
     if (tab === 'egs') {
-      const { rows, hasMore, stale, fetchedAt } = await fetchEgsTopRankedPage(page, PAGE_SIZE);
+      const { rows, hasMore, stale, fetchedAt } = await fetchEgsTopRankedPage(page, PAGE_SIZE, minVotes);
       if (rows.length === 0) {
         return <EmptyState message={t.topRanked.emptyEgs} hint={t.topRanked.emptyEgsHint} />;
       }
@@ -135,11 +186,11 @@ async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Diction
         <>
           {stale && <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} />}
           <EgsSection rows={rows} covers={covers} t={t} startRank={(page - 1) * PAGE_SIZE} />
-          <Paginator tab={tab} page={page} hasMore={hasMore} t={t} />
+          <Paginator tab={tab} page={page} minVotes={minVotes} hasMore={hasMore} t={t} />
         </>
       );
     }
-    const { rows, hasMore, stale, fetchedAt } = await fetchVndbTopRankedPage(page, PAGE_SIZE);
+    const { rows, hasMore, stale, fetchedAt } = await fetchVndbTopRankedPage(page, PAGE_SIZE, minVotes);
     if (rows.length === 0) {
       return <EmptyState message={t.topRanked.emptyVndb} />;
     }
@@ -147,7 +198,7 @@ async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Diction
       <>
         {stale && <StaleVndbBanner fetchedAt={fetchedAt ?? null} t={t} />}
         <VndbSection rows={rows} t={t} startRank={(page - 1) * PAGE_SIZE} />
-        <Paginator tab={tab} page={page} hasMore={hasMore} t={t} />
+        <Paginator tab={tab} page={page} minVotes={minVotes} hasMore={hasMore} t={t} />
       </>
     );
   } catch (e) {
@@ -234,19 +285,25 @@ function EmptyState({ message, hint }: { message: string; hint?: string }) {
 function Paginator({
   tab,
   page,
+  minVotes,
   hasMore,
   t,
 }: {
   tab: Tab;
   page: number;
+  minVotes: number;
   hasMore: boolean;
   t: Dictionary;
 }) {
   const startRank = (page - 1) * PAGE_SIZE + 1;
   const endRank = page * PAGE_SIZE;
-  const baseQs = tab === 'egs' ? 'tab=egs' : 'tab=vndb';
-  const prevHref = `/top-ranked?${baseQs}${page > 2 ? `&page=${page - 1}` : ''}`;
-  const nextHref = `/top-ranked?${baseQs}&page=${page + 1}`;
+  const tabQs = tab === 'egs' ? 'tab=egs' : 'tab=vndb';
+  const defaultMin = tab === 'egs' ? EGS_TOP_MIN_VOTES : VNDB_TOP_MIN_VOTES;
+  // Drop the `?min=` segment when it matches the tab default so URLs
+  // stay short for the common case.
+  const minSeg = minVotes !== defaultMin ? `&min=${minVotes}` : '';
+  const prevHref = `/top-ranked?${tabQs}${page > 2 ? `&page=${page - 1}` : ''}${minSeg}`;
+  const nextHref = `/top-ranked?${tabQs}&page=${page + 1}${minSeg}`;
   return (
     <nav
       className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-bg-card/60 px-3 py-2 text-xs"
@@ -284,6 +341,53 @@ function Paginator({
         )}
       </div>
     </nav>
+  );
+}
+
+/**
+ * Server-rendered chip row for the min-votes threshold. Each chip is
+ * a `<Link>` so the page stays a Server Component and the URL stays
+ * shareable. Switching threshold resets `page=1` because the deeper
+ * pages may not exist at the new threshold (and the ranking order
+ * shuffles anyway).
+ */
+function MinVotesChips({
+  currentTab,
+  currentMin,
+  t,
+}: {
+  currentTab: Tab;
+  currentMin: number;
+  t: Dictionary;
+}) {
+  const tabQs = currentTab === 'egs' ? 'tab=egs' : 'tab=vndb';
+  const defaultMin = currentTab === 'egs' ? EGS_TOP_MIN_VOTES : VNDB_TOP_MIN_VOTES;
+  return (
+    <div
+      className="inline-flex flex-wrap items-center gap-1 text-[10px]"
+      aria-label={t.topRanked.minVotesLabel}
+    >
+      <span className="text-muted">{t.topRanked.minVotesLabel}</span>
+      {MIN_VOTES_PRESETS.map((preset) => {
+        const isActive = preset === currentMin;
+        const minSeg = preset !== defaultMin ? `&min=${preset}` : '';
+        const href = `/top-ranked?${tabQs}${minSeg}`;
+        return (
+          <Link
+            key={preset}
+            href={href}
+            aria-pressed={isActive}
+            className={`inline-flex items-center rounded border px-1.5 py-0.5 tabular-nums transition-colors ${
+              isActive
+                ? 'border-accent bg-accent/20 text-accent font-bold'
+                : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+            }`}
+          >
+            {preset.toLocaleString()}
+          </Link>
+        );
+      })}
+    </div>
   );
 }
 
