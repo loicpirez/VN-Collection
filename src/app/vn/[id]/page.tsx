@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { cache } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Box, ChevronRight, Download, ExternalLink, Globe, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, Box, ChevronRight, ExternalLink, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
 import {
   deriveVnAspectDisplay,
   deriveVnAspectKey,
@@ -36,7 +36,6 @@ import { MediaGallery } from '@/components/MediaGallery';
 import { CoverUploader } from '@/components/CoverUploader';
 import { BannerControls } from '@/components/BannerControls';
 import { HeroBanner } from '@/components/HeroBanner';
-import { DownloadAssetsButton } from '@/components/DownloadAssetsButton';
 import { MarkdownView } from '@/components/MarkdownNotes';
 import { CharactersSection } from '@/components/CharactersSection';
 import { CastSection } from '@/components/CastSection';
@@ -46,18 +45,12 @@ import { ReadingSpeedBadge } from '@/components/ReadingSpeedBadge';
 import { ActivityTimeline } from '@/components/ActivityTimeline';
 import { SeriesAutoSuggest } from '@/components/SeriesAutoSuggest';
 import { detectSeriesForVn } from '@/lib/series-detect';
-import { QueueButton } from '@/components/QueueButton';
 import { SessionPanel } from '@/components/SessionPanel';
-import { FavoriteToggleButton } from '@/components/FavoriteToggleButton';
-import { ListsPickerButton } from '@/components/ListsPickerButton';
-import { CoverSourcePicker } from '@/components/CoverSourcePicker';
 import { CoverEditOverlay } from '@/components/CoverEditOverlay';
-import { BannerSourcePicker } from '@/components/BannerSourcePicker';
 import { VnListMemberships } from '@/components/VnListMemberships';
 import { PlaytimeCompare } from '@/components/PlaytimeCompare';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
-import { AnimeChip } from '@/components/AnimeChip';
-import { CoverQuickActions } from '@/components/CoverQuickActions';
+import { VnDetailActionsBar } from '@/components/VnDetailActionsBar';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
 import { QuotesSection } from '@/components/QuotesSection';
@@ -67,8 +60,6 @@ import { RelationsSection } from '@/components/RelationsSection';
 import { RecordRecentView } from '@/components/RecordRecentView';
 import { TitleLine } from '@/components/TitleLine';
 import { EgsPanel } from '@/components/EgsPanel';
-import { LinkToVndbButton } from '@/components/LinkToVndbButton';
-import { CompareWithButton } from '@/components/CompareWithButton';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
 import { MatchBadges } from '@/components/MatchBadges';
 import { VndbStatusPanel } from '@/components/VndbStatusPanel';
@@ -604,84 +595,19 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
 
             <VnTagChips tags={vn.tags ?? []} max={16} />
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              {!vn.id.startsWith('egs_') && (
-                <a href={`https://vndb.org/${vn.id}`} target="_blank" rel="noopener noreferrer" className="btn">
-                  <ExternalLink className="h-4 w-4" /> {t.detail.viewOnVndb}
-                </a>
-              )}
-              {egsRow?.egs_id && (
-                <a
-                  href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${egsRow.egs_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn"
-                >
-                  <ExternalLink className="h-4 w-4" /> {t.detail.viewOnEgs}
-                </a>
-              )}
-              {vn.id.startsWith('egs_') && (
-                <LinkToVndbButton vnId={vn.id} seedQuery={vn.alttitle?.trim() || vn.title} />
-              )}
-              <CompareWithButton currentVnId={vn.id} />
-              {(vn.extlinks ?? []).slice(0, 8).map((l) => (
-                <a
-                  key={l.url}
-                  href={l.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 text-xs text-muted hover:border-accent hover:text-accent"
-                  title={l.label}
-                >
-                  <ExternalLink className="h-3 w-3" /> {l.label}
-                </a>
-              ))}
-              {inCol && vn.download_url && (
-                <a
-                  href={vn.download_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-primary"
-                  title={vn.download_url}
-                >
-                  <Download className="h-4 w-4" /> {t.form.downloadOpen}
-                </a>
-              )}
-              <CoverQuickActions vnId={vn.id} inCollection={inCol} />
-              {inCol && (
-                <CoverSourcePicker
-                  vnId={vn.id}
-                  vndbImage={vn.image_url}
-                  egsId={egsRow?.egs_id ?? null}
-                  currentCustomCover={vn.custom_cover ?? null}
-                  screenshots={vn.screenshots ?? []}
-                  releaseImages={vn.release_images ?? []}
-                />
-              )}
-              {inCol && (
-                <BannerSourcePicker
-                  vnId={vn.id}
-                  currentBanner={vn.banner_image ?? null}
-                  coverRemote={vn.image_url}
-                  coverLocal={vn.local_image || vn.local_image_thumb}
-                  coverSexual={vn.image_sexual ?? null}
-                  screenshots={vn.screenshots ?? []}
-                  releaseImages={vn.release_images ?? []}
-                />
-              )}
-              {inCol && <DownloadAssetsButton vnId={vn.id} />}
-              {inCol && <QueueButton vnId={vn.id} />}
-              {inCol && (
-                <FavoriteToggleButton
-                  vnId={vn.id}
-                  initial={!!vn.favorite}
-                  inCollection
-                  variant="inline"
-                />
-              )}
-              <ListsPickerButton vnId={vn.id} variant="inline" />
-              {inCol && <AnimeChip vnId={vn.id} />}
-            </div>
+            {/*
+              The detail-page action bar used to be a flat `flex-wrap`
+              row mixing tracking, sync, media, and destructive
+              affordances. The regrouped <VnDetailActionsBar>
+              renders the SAME set of buttons split into 6 labeled
+              clusters with a thin vertical separator between each,
+              so the cognitive load of scanning the row drops
+              dramatically on dense VN pages. Each cluster carries an
+              aria-label for screen readers; the visual labels
+              themselves stay implicit to avoid doubling the row
+              height.
+            */}
+            <VnDetailActionsBar vn={vn} inCollection={inCol} egsRow={egsRow} />
             {inCol && (
               <SmartStatusHint
                 vnId={vn.id}

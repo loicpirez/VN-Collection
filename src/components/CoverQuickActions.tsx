@@ -10,6 +10,18 @@ interface Props {
   vnId: string;
   /** When true, the VN is in the local collection; we surface a Remove button instead of Add. */
   inCollection: boolean;
+  /**
+   * Which sub-controls to render:
+   *   - `'all'` (default): renders both the local-collection toggle AND the
+   *     VNDB wishlist heart, matching the original combined behavior.
+   *   - `'tracking'`: renders the wishlist heart, plus the Add button when the
+   *     VN is not yet in the local collection. Hides the Remove button so the
+   *     dangerous action can live in its own group.
+   *   - `'danger'`: renders ONLY the Remove button when the VN is in the
+   *     local collection. Used by the Dangerous cluster on the VN detail
+   *     page so the destructive action sits visually apart from tracking.
+   */
+  mode?: 'all' | 'tracking' | 'danger';
 }
 
 interface WishlistState {
@@ -39,7 +51,7 @@ interface WishlistState {
  * independently: the wishlist state is fetched from VNDB on mount and
  * never derived from the local status.
  */
-export function CoverQuickActions({ vnId, inCollection }: Props) {
+export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
   const t = useT();
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -146,26 +158,35 @@ export function CoverQuickActions({ vnId, inCollection }: Props) {
     }
   }
 
+  // Mode filters: `tracking` hides the destructive Remove button (which is
+  // owned by the Dangerous cluster); `danger` renders ONLY the Remove
+  // button. `all` keeps the original combined output for any caller that
+  // hasn't migrated to the regrouped actions bar.
+  const showCollectionToggle = mode === 'all' || (mode === 'tracking' && !inCollection) || (mode === 'danger' && inCollection);
+  const showWishlist = mode !== 'danger';
+
   return (
     <>
-      {!inCollection ? (
-        <button type="button" className="btn btn-primary" onClick={addToCollection} disabled={busy !== null}>
-          {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          {t.coverActions.addToCollection}
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="btn"
-          onClick={removeFromCollection}
-          disabled={busy !== null}
-          title={t.coverActions.removeFromCollection}
-        >
-          {busy === 'remove' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-status-dropped" />}
-          {t.coverActions.removeFromCollection}
-        </button>
+      {showCollectionToggle && (
+        !inCollection ? (
+          <button type="button" className="btn btn-primary" onClick={addToCollection} disabled={busy !== null}>
+            {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {t.coverActions.addToCollection}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={removeFromCollection}
+            disabled={busy !== null}
+            title={t.coverActions.removeFromCollection}
+          >
+            {busy === 'remove' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            {t.coverActions.removeFromCollection}
+          </button>
+        )
       )}
-      {wishlistSupported && (wishlist.loading || wishlist.available) && (
+      {showWishlist && wishlistSupported && (wishlist.loading || wishlist.available) && (
         <button
           type="button"
           className={`btn ${wishlist.onWishlist ? 'btn-primary' : ''}`}
