@@ -1,15 +1,24 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Clock, ExternalLink, Link2, Loader2, RefreshCw, Search, Sparkles, Star, Trash2, Users, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
+import { brandHref, yearHref } from '@/lib/egs-links';
 
 interface EgsGame {
   id: number;
   gamename: string;
+  /** Brand / publisher display name surfaced by the EGS payload. */
+  brand_name?: string | null;
+  /** Numeric brand FK on EGS — never a VNDB id. The brand link uses
+   *  `brandHref(null, brand_name)` until the VNDB mapping is known. */
+  brand_id?: number | null;
+  /** Manufacturer / model tag (often a platform code on console releases). */
+  model?: string | null;
   median: number | null;
   average: number | null;
   dispersion: number | null;
@@ -255,7 +264,48 @@ export function EgsPanel({
           </div>
         </div>
 
-        <div className="mb-3 line-clamp-2 text-sm font-semibold">{game.gamename}</div>
+        <div className="mb-2 line-clamp-2 text-sm font-semibold">{game.gamename}</div>
+
+        {/*
+          Clickable metadata strip — brand and release year are first-
+          class tokens on every EGS surface now. The brand chip routes
+          to the matching `/producer/<id>` when the EGS row carries a
+          VNDB-mapped producer id; otherwise it falls back to a name
+          search so the user lands on the right candidate set. Year
+          deep-links into the Library year filter. The strip stays
+          hidden when no token is renderable.
+        */}
+        {(game.brand_name || game.sellday) && (
+          <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+            {game.brand_name && (() => {
+              const href = brandHref(null, game.brand_name);
+              return href ? (
+                <Link
+                  href={href}
+                  className="inline-flex items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
+                  title={game.brand_name}
+                >
+                  {game.brand_name}
+                </Link>
+              ) : (
+                <span className="text-muted">{game.brand_name}</span>
+              );
+            })()}
+            {game.sellday && (() => {
+              const href = yearHref(game.sellday);
+              return href ? (
+                <Link
+                  href={href}
+                  className="inline-flex items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 tabular-nums text-muted hover:border-accent hover:text-accent"
+                >
+                  {game.sellday.slice(0, 4)}
+                </Link>
+              ) : (
+                <span className="tabular-nums text-muted">{game.sellday}</span>
+              );
+            })()}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat

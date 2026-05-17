@@ -13,6 +13,7 @@ import { RefreshPageButton } from '@/components/RefreshPageButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
+import { brandHref, yearHref } from '@/lib/egs-links';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
@@ -608,11 +609,39 @@ function EgsSection({
                       {t.topRanked.voteCount.replace('{n}', r.count.toLocaleString())}
                     </span>
                   )}
-                  {r.sellday && <span className="tabular-nums">{r.sellday.slice(0, 4)}</span>}
+                  {/* Year token deep-links into the Library year
+                      filter so the operator can pivot from a top-
+                      ranked card to "what else came out in 2018?"
+                      without re-typing the range. */}
+                  {r.sellday && (() => {
+                    const href = yearHref(r.sellday);
+                    return href ? (
+                      <Link href={href} className="tabular-nums hover:text-accent">
+                        {r.sellday.slice(0, 4)}
+                      </Link>
+                    ) : (
+                      <span className="tabular-nums">{r.sellday.slice(0, 4)}</span>
+                    );
+                  })()}
                 </div>
-                {r.brand_name && (
-                  <p className="mt-0.5 line-clamp-1 text-[10px] text-muted">{r.brand_name}</p>
-                )}
+                {/* Brand chip → producer page when the EGS brand id
+                    happens to match a VNDB producer; falls back to a
+                    name-search so the operator lands on the right
+                    candidate set even without a VNDB mapping. */}
+                {r.brand_name && (() => {
+                  const href = brandHref(null, r.brand_name);
+                  return href ? (
+                    <Link
+                      href={href}
+                      className="mt-0.5 line-clamp-1 text-[10px] text-muted hover:text-accent"
+                      title={r.brand_name}
+                    >
+                      {r.brand_name}
+                    </Link>
+                  ) : (
+                    <p className="mt-0.5 line-clamp-1 text-[10px] text-muted">{r.brand_name}</p>
+                  );
+                })()}
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <a
                     href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${r.egs_id}`}

@@ -13,6 +13,7 @@ import { RefreshPageButton } from '@/components/RefreshPageButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
+import { brandHref, yearHref } from '@/lib/egs-links';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
@@ -544,8 +545,33 @@ function AnticipatedSection({
                   )}
                 </div>
                 <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
-                  <span className="rounded bg-bg-card px-2 py-0.5 font-mono uppercase tracking-wider text-accent">{a.sellday}</span>
-                  {a.brand_name && <span className="line-clamp-1">{a.brand_name}</span>}
+                  {/* Sellday chip → year-range Library filter. The
+                      chip displays the full EGS date (YYYY-MM-DD)
+                      but the link narrows the operator's view to
+                      that year. */}
+                  {(() => {
+                    const href = yearHref(a.sellday);
+                    return href ? (
+                      <Link
+                        href={href}
+                        className="rounded bg-bg-card px-2 py-0.5 font-mono uppercase tracking-wider text-accent hover:bg-accent/15"
+                      >
+                        {a.sellday}
+                      </Link>
+                    ) : (
+                      <span className="rounded bg-bg-card px-2 py-0.5 font-mono uppercase tracking-wider text-accent">{a.sellday}</span>
+                    );
+                  })()}
+                  {a.brand_name && (() => {
+                    const href = brandHref(null, a.brand_name);
+                    return href ? (
+                      <Link href={href} className="line-clamp-1 hover:text-accent" title={a.brand_name}>
+                        {a.brand_name}
+                      </Link>
+                    ) : (
+                      <span className="line-clamp-1">{a.brand_name}</span>
+                    );
+                  })()}
                 </div>
                 <div className="mb-3 flex flex-wrap gap-1.5 text-[10px]">
                   <span className="inline-flex items-center gap-1 rounded-md bg-accent/15 px-2 py-1 font-bold text-accent">
