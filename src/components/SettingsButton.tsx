@@ -327,6 +327,15 @@ export function SettingsButton() {
 
                 {activeTab === 'display' && (
                   <div className="space-y-5">
+                    {/*
+                      IA bucket: "Global defaults". Image / title /
+                      density preferences that ship app-wide. Per-
+                      page overrides live in the dedicated subsection
+                      below so the hierarchy is explicit (item 9).
+                    */}
+                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted">
+                      {t.settings.iaGlobalDefaults}
+                    </h3>
                     <div className="grid gap-4 md:grid-cols-2">
                       <Toggle
                         label={t.settings.hideImages}
@@ -347,20 +356,14 @@ export function SettingsButton() {
                         onChange={(v) => set('preferNativeTitle', v)}
                       />
                     </div>
-                    {/*
-                      Density panel — split into two sections so the
-                      operator can tell that the legacy global default
-                      (`cardDensityPx`) only seeds pages that have NOT
-                      been touched. Scoped overrides live below, each
-                      with a Reset button that drops the override; the
-                      bulk "Reset all per-page" + "Reset everything"
-                      buttons sit at the bottom.
-                    */}
                     <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
                       <span className="text-sm font-semibold">{t.settings.cardDensityDefault}</span>
                       <span className="text-[11px] text-muted">{t.settings.cardDensityDefaultHint}</span>
                       <GlobalCardDensitySlider className="mt-1 self-start" />
                     </div>
+                    <h3 className="mt-2 text-[11px] font-bold uppercase tracking-widest text-muted">
+                      {t.settings.iaPerPageOverrides}
+                    </h3>
                     <PerPageDensityPanel />
                   </div>
                 )}
