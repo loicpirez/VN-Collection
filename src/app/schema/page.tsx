@@ -4,6 +4,7 @@ import { ArrowLeft, FileCode2, RefreshCw } from 'lucide-react';
 import { getSchema } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { SchemaBrowser } from '@/components/SchemaBrowser';
+import { SchemaEgsSection } from '@/components/SchemaEgsSection';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,11 @@ export default async function SchemaPage() {
           <RefreshCw className="h-3 w-3" aria-hidden /> {t.schemaPage.cacheHint}
         </p>
       </header>
+
+      {/* EGS schema section — rendered above the VNDB browser so the
+          operator's most-recent additions (manual mappings, fetched_at
+          on the user's own EGS data) surface immediately. */}
+      <SchemaEgsSection />
 
       {error ? (
         <p className="rounded-xl border border-status-dropped/50 bg-status-dropped/10 p-4 text-sm text-status-dropped">
