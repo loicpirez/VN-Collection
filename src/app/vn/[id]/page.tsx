@@ -49,6 +49,7 @@ import { detectSeriesForVn } from '@/lib/series-detect';
 import { SessionPanel } from '@/components/SessionPanel';
 import { CoverEditOverlay } from '@/components/CoverEditOverlay';
 import { CoverHero } from '@/components/CoverHero';
+import { CoverRotationButtons } from '@/components/CoverRotationButtons';
 import { VnListMemberships } from '@/components/VnListMemberships';
 import { PlaytimeCompare } from '@/components/PlaytimeCompare';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
@@ -316,6 +317,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   custom={customPoster}
                   sexual={vn.image_sexual ?? null}
                   alt={vn.title}
+                  initialRotation={vn.cover_rotation}
                 />
               ) : (
                 <div className="relative">
@@ -349,6 +351,22 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 comparison view owns the image.
               */}
               {inCol && (egsPosterHas || customPosterHas) && <CoverEditOverlay vnId={vn.id} />}
+              {/*
+                Standalone rotation overlay. Mounts for every in-
+                collection VN, regardless of which display branch
+                (`<CoverHero>` simple vs `<CoverCompare>` compare)
+                rendered the actual cover. This fixes the regression
+                where rotating the cover was only possible on the
+                simple-branch path; users with a custom or EGS cover
+                had no rotation surface at all on the actual cover.
+              */}
+              {inCol && (
+                <CoverRotationButtons
+                  vnId={vn.id}
+                  initialRotation={vn.cover_rotation}
+                  anchor="bottom-right"
+                />
+              )}
             </div>
           </div>
 

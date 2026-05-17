@@ -78,8 +78,10 @@ export default async function TagPage({ params, searchParams }: PageProps) {
 
   // Top VNs by VNDB rating for the tag — only fetched when the VNDB
   // tab is active to keep the local-tab path on the SQLite-only fast
-  // path. Filter syntax: `['tag', '=', [id, lie, spoiler]]` where
-  // `1.2` keeps a soft "the VN really has this tag" threshold.
+  // path. Filter shape per KANA.md is the 3-tuple
+  // `['tag', '=', [id, maxSpoiler(int), minTagLevel(float)]]`. The
+  // `fetchTopVnsByTag` helper applies a `1.2` floor on tag level so
+  // weak/voted-down placements are dropped.
   let topVndb: Array<{
     id: string;
     title: string;

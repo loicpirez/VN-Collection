@@ -53,7 +53,21 @@ const SELF_BASENAME = 'docs-no-real-titles.test.ts';
 
 function walkMd(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
-    if (name === 'node_modules' || name === '.next' || name === 'data.old' || name === '.git') continue;
+    // Skip dirs that are either heavyweight or user-private. `API_DOCS/`
+    // is the operator's local copy of upstream API references (VNDB +
+    // EGS) — gitignored, never source-controlled, and the upstream docs
+    // themselves contain real titles by definition. Scanning them would
+    // produce a false positive against authoritative reference text.
+    if (
+      name === 'node_modules' ||
+      name === '.next' ||
+      name === 'data.old' ||
+      name === '.git' ||
+      name === 'API_DOCS' ||
+      name === '.qa' ||
+      name === 'logs' ||
+      name === '.claude'
+    ) continue;
     const full = join(dir, name);
     const stat = statSync(full);
     if (stat.isDirectory()) walkMd(full, out);

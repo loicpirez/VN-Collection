@@ -845,16 +845,23 @@ export async function getTag(id: string): Promise<VndbTag | null> {
  * the regular `cachedFetch` so repeated visits to a tag detail page are
  * served from the local SQLite cache.
  *
- * Uses the documented VNDB filter shape `['tag', '=', [id, lie, spoiler]]`.
- * The default `1.2` lie threshold keeps the soft "the VN really has this
- * tag" cutoff per the round-2 spec.
+ * VNDB Kana spec (API_DOCS/KANA.md): the tag filter value is either a
+ * plain id OR a 3-tuple `[id, maxSpoiler, minTagLevel]` where
+ * `maxSpoiler` is an integer 0/1/2 and `minTagLevel` is a float in
+ * `[0, 3]`. The previous code passed `[id, lieThreshold, spoiler]`
+ * which put the float `1.2` into the integer spoiler slot, returning
+ * `400 Invalid 'tag' filter: Invalid value.` for VNDB-mode tag pages.
  */
 export async function fetchTopVnsByTag(
   tagId: string,
-  { results = 24, lieThreshold = 1.2, spoiler = 1 }: { results?: number; lieThreshold?: number; spoiler?: number } = {},
+  { results = 24, lieThreshold = 1.2, spoiler = 1 }: { results?: number; lieThreshold?: number; spoiler?: 0 | 1 | 2 } = {},
 ): Promise<VndbResponse<Omit<import('./types').VndbSearchHit, 'in_collection'>>> {
   return vndbPost('/vn', {
-    filters: ['tag', '=', [tagId.toLowerCase(), lieThreshold, spoiler]],
+    // Order per KANA.md example `["g505", 2, 1.2]`:
+    //   1. tag id
+    //   2. maxSpoiler (integer 0/1/2)
+    //   3. minTagLevel (float [0, 3])
+    filters: ['tag', '=', [tagId.toLowerCase(), spoiler, lieThreshold]],
     fields: VN_SEARCH_FIELDS,
     sort: 'rating',
     reverse: true,

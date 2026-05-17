@@ -19,6 +19,7 @@ import {
   MEDIA_MENU_MIN_WIDTH_REM,
   decideMediaMenuHorizontal,
 } from './media-menu-helpers';
+import { PortalPopover } from './PortalPopover';
 import { SafeImage } from './SafeImage';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
@@ -603,18 +604,27 @@ function TileKebab({
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden />
       </button>
-      {open && (
+      {/*
+        Portal-mounted dropdown — escapes the tile's
+        `overflow-hidden` clipping so the menu never gets sliced
+        by the image bounds. The old in-tile absolute-positioned
+        version was cropped by the `aspect-[2/3]` /
+        `aspect-video` parent, which is exactly the regression
+        the operator flagged ("partial labels inside the image").
+      */}
+      <PortalPopover
+        open={open}
+        onClose={() => setOpen(false)}
+        triggerRef={triggerRef}
+        label={t.media.actionsMenu}
+        panelClassName="rounded-md border border-border bg-bg-card p-1 text-xs shadow-card"
+      >
         <div
           ref={menuRef}
           role="menu"
           aria-label={t.media.actionsMenu}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
-          className={`absolute z-30 rounded-md border border-border bg-bg-card p-1 text-xs shadow-card ${
-            placement.vertical === 'above' ? 'bottom-9 mb-1' : 'top-9 mt-1'
-          } ${placement.horizontal === 'right' ? 'left-1.5' : 'right-1.5'} ${
-            placed ? 'visible opacity-100' : 'invisible opacity-0'
-          }`}
           style={{
             minWidth: `${MEDIA_MENU_MIN_WIDTH_REM}rem`,
             maxWidth: `${MEDIA_MENU_MAX_WIDTH_REM}rem`,
@@ -696,7 +706,7 @@ function TileKebab({
             <span className="truncate whitespace-nowrap">{t.media.openOriginalShort}</span>
           </a>
         </div>
-      )}
+      </PortalPopover>
     </>
   );
 }

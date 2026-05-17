@@ -109,9 +109,10 @@ export default async function SimilarPage({
   const perTag = await Promise.all(
     seedTags.map((tag) =>
       vndbAdvancedSearchRaw({
+        // KANA.md: tuple is [id, maxSpoiler(int 0-2), minTagLevel(float 0-3)].
         filters: [
           'and',
-          ['tag', '=', [tag.id, 1, 1.2]],
+          ['tag', '=', [tag.id, 1, 1.2]],   // 1 = spoiler-minor, 1.2 = min vote
           ['votecount', '>=', 30],
           ['id', '!=', seed.id],
         ],

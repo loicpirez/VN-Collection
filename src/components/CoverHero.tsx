@@ -1,15 +1,10 @@
 'use client';
-import { useEffect, useRef, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { RotateCcw, RotateCw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { SafeImage } from './SafeImage';
 import { CoverEditOverlay } from './CoverEditOverlay';
-import { useT } from '@/lib/i18n/client';
-import { useToast } from './ToastProvider';
 import {
   VN_COVER_CHANGED_EVENT,
   type VnCoverChangedDetail,
-  dispatchCoverChanged,
 } from '@/lib/cover-banner-events';
 
 interface Props {
@@ -57,14 +52,9 @@ export function CoverHero({
   inCollection,
   className = 'aspect-[2/3] w-full rounded-xl shadow-card',
 }: Props) {
-  const t = useT();
-  const toast = useToast();
-  const router = useRouter();
-  const [, startTransition] = useTransition();
   const [remote, setRemote] = useState<string | null>(initialRemote);
   const [local, setLocal] = useState<string | null>(initialLocal);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
-  const [busy, setBusy] = useState(false);
   // Keep client state synced with server-rendered props on refresh.
   useEffect(() => setRemote(initialRemote), [initialRemote]);
   useEffect(() => setLocal(initialLocal), [initialLocal]);
@@ -104,32 +94,6 @@ export function CoverHero({
     return () => window.removeEventListener(VN_COVER_CHANGED_EVENT, onChanged as EventListener);
   }, [vnId]);
 
-  async function rotateBy(delta: 90 | -90) {
-    if (busy) return;
-    const prev = rotation;
-    const next = ((((rotation + delta) % 360) + 360) % 360) as 0 | 90 | 180 | 270;
-    setRotation(next); // optimistic
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/collection/${vnId}/cover`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rotation: next }),
-      });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error || t.common.error);
-      }
-      dispatchCoverChanged({ vnId, newSrc: remote, newLocal: local, rotation: next });
-      startTransition(() => router.refresh());
-    } catch (e) {
-      setRotation(prev);
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="group relative">
       <SafeImage
@@ -141,72 +105,13 @@ export function CoverHero({
         className={className}
         priority
       />
-      {inCollection && (
-        <>
-          <CoverEditOverlay vnId={vnId} />
-          {/*
-            Per-cover rotation buttons. Same visibility rules as
-            CoverEditOverlay (hover/focus on desktop, always on touch)
-            so the cover doesn't carry persistent UI clutter.
-          */}
-          <div className="absolute right-2 top-12 z-30 flex flex-col items-end gap-1 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-            <button
-              type="button"
-              onClick={() => rotateBy(-90)}
-              disabled={busy}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50"
-              title={t.coverActions.rotateLeft}
-              aria-label={t.coverActions.rotateLeft}
-            >
-              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-            </button>
-            <button
-              type="button"
-              onClick={() => rotateBy(90)}
-              disabled={busy}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50"
-              title={t.coverActions.rotateRight}
-              aria-label={t.coverActions.rotateRight}
-            >
-              <RotateCw className="h-3.5 w-3.5" aria-hidden />
-            </button>
-            {rotation !== 0 && (
-              <button
-                type="button"
-                onClick={async () => {
-                  if (busy) return;
-                  const prev = rotation;
-                  setRotation(0);
-                  setBusy(true);
-                  try {
-                    const res = await fetch(`/api/collection/${vnId}/cover`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ rotation: 0 }),
-                    });
-                    if (!res.ok) {
-                      const err = (await res.json().catch(() => ({}))) as { error?: string };
-                      throw new Error(err.error || t.common.error);
-                    }
-                    dispatchCoverChanged({ vnId, newSrc: remote, newLocal: local, rotation: 0 });
-                    startTransition(() => router.refresh());
-                  } catch (e) {
-                    setRotation(prev);
-                    toast.error((e as Error).message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy}
-                className="rounded-md bg-bg-card/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted shadow-card backdrop-blur hover:text-white disabled:opacity-50"
-                title={t.coverActions.resetRotation}
-              >
-                {rotation}°
-              </button>
-            )}
-          </div>
-        </>
-      )}
+      {inCollection && <CoverEditOverlay vnId={vnId} />}
+      {/*
+        The standalone `<CoverRotationButtons>` is mounted by the VN
+        detail page next to this hero so both display branches
+        (simple here, compare in `<CoverCompare>`) get the same
+        rotation surface. We no longer carry an inline duplicate.
+      */}
     </div>
   );
 }

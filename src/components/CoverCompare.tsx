@@ -1,11 +1,15 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, GitCompareArrows, Loader2 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { resolveField, type SourceChoice } from '@/lib/source-resolve';
+import {
+  VN_COVER_CHANGED_EVENT,
+  type VnCoverChangedDetail,
+} from '@/lib/cover-banner-events';
 
 interface Poster {
   remote: string | null;
@@ -23,6 +27,14 @@ interface Props {
   alt: string;
   /** Tailwind class added to each image wrapper. */
   imageClassName?: string;
+  /**
+   * Persisted `vn.cover_rotation` from the server render. Applied to
+   * the resolved-active image only (not the compare-mode column
+   * thumbnails, which need to stay upright for comparison). Updates
+   * via the shared `vn:cover-changed` event when sibling controls
+   * mutate rotation.
+   */
+  initialRotation?: 0 | 90 | 180 | 270;
 }
 
 type Column = 'vndb' | 'egs' | 'custom';
@@ -68,6 +80,7 @@ export function CoverCompare({
   sexual,
   alt,
   imageClassName = 'aspect-[2/3] w-full rounded-xl shadow-card',
+  initialRotation = 0,
 }: Props) {
   const t = useT();
   const toast = useToast();
@@ -75,6 +88,24 @@ export function CoverCompare({
   const [pending, startTransition] = useTransition();
   const [compareOpen, setCompareOpen] = useState(false);
   const [optimistic, setOptimistic] = useState<SourceChoice>(current);
+  // Track rotation as live state so the active cover repaints
+  // instantly when the standalone `<CoverRotationButtons>` (mounted
+  // by the VN detail page) dispatches `vn:cover-changed`. Re-syncs
+  // with the server-rendered `initialRotation` on router.refresh.
+  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
+  useEffect(() => setRotation(initialRotation), [initialRotation]);
+  useEffect(() => {
+    function onChanged(e: Event) {
+      const detail = (e as CustomEvent<VnCoverChangedDetail>).detail;
+      if (!detail || detail.vnId !== vnId) return;
+      if (typeof detail.rotation === 'number') {
+        setRotation(detail.rotation as 0 | 90 | 180 | 270);
+      }
+    }
+    window.addEventListener(VN_COVER_CHANGED_EVENT, onChanged as EventListener);
+    return () =>
+      window.removeEventListener(VN_COVER_CHANGED_EVENT, onChanged as EventListener);
+  }, [vnId]);
 
   const vndbHas = hasPoster(vndb);
   const egsHas = hasPoster(egs);
@@ -114,6 +145,10 @@ export function CoverCompare({
           localSrc={active.local}
           alt={alt}
           sexual={sexual}
+          // Persisted cover rotation. Compare-mode column thumbnails
+          // below stay un-rotated on purpose — the user is comparing
+          // raw candidates, not the resolved active view.
+          rotation={rotation}
           className={imageClassName}
         />
         {canCompare && (

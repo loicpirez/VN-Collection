@@ -24,8 +24,14 @@ function read(rel: string): string {
   return readFileSync(join(ROOT, rel), 'utf8');
 }
 
-describe('CoverHero — rotation buttons', () => {
-  const src = read('src/components/CoverHero.tsx');
+describe('CoverRotationButtons — VN cover rotation overlay', () => {
+  // Rotation UI moved out of `CoverHero` into a dedicated component
+  // so it mounts on BOTH cover branches (the simple `<CoverHero>`
+  // path AND the `<CoverCompare>` source-comparison path). The old
+  // tests asserted against `CoverHero.tsx` directly and broke when
+  // the buttons were extracted; the new contract targets the
+  // dedicated component.
+  const src = read('src/components/CoverRotationButtons.tsx');
 
   it('imports both rotation icons', () => {
     expect(src).toMatch(/RotateCcw/);
@@ -44,7 +50,7 @@ describe('CoverHero — rotation buttons', () => {
   it('wires rotate-right onClick to rotateBy\\(90\\)', () => {
     expect(src).toMatch(/onClick=\{\(\)\s*=>\s*rotateBy\(90\)\}/);
   });
-  it('rotateBy issues a PATCH against the cover API', () => {
+  it('issues a PATCH against the cover API', () => {
     expect(src).toMatch(/\/api\/collection\/\$\{vnId\}\/cover/);
     expect(src).toMatch(/method: 'PATCH'/);
     expect(src).toMatch(/JSON\.stringify\(\{ rotation: next \}\)/);
@@ -52,6 +58,17 @@ describe('CoverHero — rotation buttons', () => {
   it('exposes a reset affordance when rotation is non-zero', () => {
     expect(src).toMatch(/rotation !== 0/);
     expect(src).toMatch(/t\.coverActions\.resetRotation/);
+  });
+});
+
+describe('VN detail page mounts the rotation overlay for both cover branches', () => {
+  const src = read('src/app/vn/[id]/page.tsx');
+  it('renders <CoverRotationButtons> alongside the cover container', () => {
+    expect(src).toMatch(/<CoverRotationButtons\b/);
+    // The overlay is always gated by `inCol`; the mount must sit
+    // OUTSIDE the `(egsPosterHas || customPosterHas) ?` ternary so
+    // the simple and compare branches both get it.
+    expect(src).toMatch(/initialRotation=\{vn\.cover_rotation\}/);
   });
 });
 
