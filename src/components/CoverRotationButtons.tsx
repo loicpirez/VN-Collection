@@ -121,6 +121,7 @@ export function CoverRotationButtons({
 
   return (
     <div
+      data-testid="cover-rotation-controls"
       className={[
         'pointer-events-auto absolute z-30 flex flex-col items-end gap-1',
         positionClass,
@@ -150,18 +151,16 @@ export function CoverRotationButtons({
       >
         <RotateCw className="h-3.5 w-3.5" aria-hidden />
       </button>
-      {rotation !== 0 && (
-        <button
-          type="button"
-          onClick={() => apply(0)}
-          disabled={busy}
-          aria-label={t.coverActions.resetRotation}
-          title={t.coverActions.resetRotation}
-          className="rounded-md bg-bg-card/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted shadow-card backdrop-blur hover:text-white disabled:opacity-50"
-        >
-          {rotation}°
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => apply(0)}
+        disabled={busy || rotation === 0}
+        aria-label={t.coverActions.resetRotation}
+        title={t.coverActions.resetRotation}
+        className="rounded-md bg-bg-card/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-45"
+      >
+        {rotation}°
+      </button>
     </div>
   );
 }

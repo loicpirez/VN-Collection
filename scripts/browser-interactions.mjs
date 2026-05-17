@@ -58,6 +58,17 @@ async function firstVisible(locator) {
   return locator.first();
 }
 
+async function waitForEnabled(locator, timeout = 10000) {
+  const started = Date.now();
+  while (Date.now() - started < timeout) {
+    if ((await locator.count()) > 0 && (await locator.isVisible().catch(() => false)) && !(await locator.isDisabled().catch(() => true))) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error('control did not become enabled');
+}
+
 check('detail pages do not crash across RSC boundary', async (page) => {
   for (const url of ['/character/c84419', '/character/c90980', '/staff/s12799', '/staff/s1073?scope=collection', '/producer/p604']) {
     await gotoClean(page, url);
@@ -67,7 +78,11 @@ check('detail pages do not crash across RSC boundary', async (page) => {
 check('settings modal tabs are reachable and non-empty', async (page) => {
   for (const url of ['/', '/shelf', '/vn/v26180']) {
     await gotoClean(page, url);
-    const trigger = page.getByRole('button', { name: /Réglages|Settings|設定/i }).first();
+    const trigger = page
+      .locator(
+        'button[aria-haspopup="dialog"][aria-label="Affichage"], button[aria-haspopup="dialog"][aria-label="Display"], button[aria-haspopup="dialog"][aria-label="表示"]',
+      )
+      .first();
     await trigger.click();
     const dialog = page.getByRole('dialog');
     await dialog.waitFor({ state: 'visible', timeout: 10000 });
@@ -79,31 +94,65 @@ check('settings modal tabs are reachable and non-empty', async (page) => {
       const panelText = (await dialog.innerText()).trim();
       assert(panelText.length > 80, `settings tab ${label} in ${url} is empty/orphan`);
     }
+    await dialog.getByRole('tab', { name: labels[0] }).click();
     const text = await dialog.innerText();
-    assert(/Défauts globaux|Global defaults|デフォルト/.test(text), 'global defaults heading missing');
-    assert(/Surcharge par page|Per-page overrides|ページ別/.test(text), 'per-page density heading missing');
+    assert(/Défauts globaux|Global defaults|デフォルト/i.test(text), 'global defaults heading missing');
+    assert(/Surcharges? par page|Per-page overrides|ページ別/i.test(text), 'per-page density heading missing');
     await page.keyboard.press('Escape');
   }
 });
 
 check('cover rotation clicks change visible transform and persist/reset', async (page) => {
   await gotoClean(page, '/vn/v26180');
-  const right = page.getByRole('button', { name: /Pivoter à droite|Rotate right|右に回転/i }).first();
-  await right.click({ force: true });
-  await page.waitForTimeout(800);
-  const rotated = await page.locator('main img[style*="rotate(90deg)"], main img[style*="rotate(270deg)"], main img[style*="rotate(180deg)"]').count();
-  assert(rotated > 0, 'cover rotation did not change an image transform');
+  await page.evaluate(async () => {
+    await fetch('/api/collection/v26180/cover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'url', value: 'https://t.vndb.org/cv/60/93160.jpg' }),
+    });
+    await fetch('/api/collection/v26180/cover', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rotation: 0 }),
+    });
+  });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined);
-  const persisted = await page.locator('main img[style*="rotate("]').count();
-  assert(persisted > 0, 'cover rotation did not persist after reload');
-  const reset = page.getByRole('button', { name: /Réinitialiser la rotation|Reset rotation|回転をリセット/i }).first();
+  const controls = page.locator('[data-testid="cover-rotation-controls"]').first();
+  await controls.waitFor({ state: 'visible', timeout: 10000 });
+  await controls.scrollIntoViewIfNeeded();
+  const coverGroup = controls.locator('xpath=ancestor::div[contains(@class,"group")][1]');
+  const coverImage = coverGroup.locator('img').first();
+  await coverImage.waitFor({ state: 'visible', timeout: 10000 });
+  const right = controls.getByRole('button', { name: /Pivoter à droite|Rotate right|右に回転/i }).first();
+  await right.click({ force: true });
+  await page.waitForTimeout(800);
+  const rotatedTransform = await coverImage.evaluate((img) => img.getAttribute('style') || '');
+  assert(/rotate\((90|180|270)deg\)/.test(rotatedTransform), 'cover rotation did not change the active cover image transform');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined);
+  const persistedTransform = await page
+    .locator('[data-testid="cover-rotation-controls"]')
+    .first()
+    .locator('xpath=ancestor::div[contains(@class,"group")][1]')
+    .locator('img')
+    .first()
+    .evaluate((img) => img.getAttribute('style') || '');
+  assert(/rotate\((90|180|270)deg\)/.test(persistedTransform), 'cover rotation did not persist after reload');
+  const reset = page.locator('[data-testid="cover-rotation-controls"]').first().getByRole('button', { name: /Réinitialiser la rotation|Reset rotation|回転をリセット/i }).first();
+  await waitForEnabled(reset);
   await reset.click({ force: true });
   await page.waitForTimeout(800);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined);
-  const stillRotated = await page.locator('main img[style*="rotate("]').count();
-  assert(stillRotated === 0, 'cover rotation reset did not persist');
+  const resetTransform = await page
+    .locator('[data-testid="cover-rotation-controls"]')
+    .first()
+    .locator('xpath=ancestor::div[contains(@class,"group")][1]')
+    .locator('img')
+    .first()
+    .evaluate((img) => img.getAttribute('style') || '');
+  assert(!/rotate\((90|180|270)deg\)/.test(resetTransform), 'cover rotation reset did not persist');
 });
 
 check('media action menu opens in a portal and is not clipped', async (page) => {
@@ -146,7 +195,11 @@ check('character and staff filters browse actual results', async (page) => {
   await gotoClean(page, '/characters?hasVoice=1&vaLang=ja');
   assert(await page.locator('a[href^="/character/"]').count() > 0, 'character VA-language browse returned no character links');
   await gotoClean(page, '/characters?q=c90980');
-  assert(await page.locator('a[href="/character/c90980"], a[href^="/character/c90980?"]').count() > 0, 'character id search did not expose c90980');
+  assert(
+    /\/character\/c90980(?:$|\?)/.test(page.url()) ||
+      (await page.locator('a[href="/character/c90980"], a[href^="/character/c90980?"]').count()) > 0,
+    'character id search did not route to or expose c90980',
+  );
   await gotoClean(page, '/staff?q=&role=translator&lang=ja');
   assert(await page.locator('a[href^="/staff/"]').count() > 0, 'staff role/lang filter returned no staff links');
 });
@@ -167,7 +220,7 @@ check('VNDB tag hierarchy skeleton, tree, click routing, and pagination', async 
   await page.waitForSelector('text=Meilleurs VN avec ce tag, text=Top VNs with this tag', { timeout: 20000 }).catch(() => undefined);
   const next = page.getByRole('link', { name: /Suivant|Next|次/i }).first();
   if (await next.count()) {
-    await next.click();
+    await next.click({ force: true });
     await page.waitForURL(/page=2/);
   }
   await page.unroute('**/api/tags/web-tree**').catch(() => undefined);
@@ -175,16 +228,17 @@ check('VNDB tag hierarchy skeleton, tree, click routing, and pagination', async 
 
 check('recommendation seed picker updates URL and explanation exists', async (page) => {
   await gotoClean(page, '/recommendations?mode=similar-to-vn');
-  const input = page.locator('input').filter({ hasText: '' }).first();
-  await input.fill('v28032').catch(async () => {
-    const anyInput = page.locator('input').first();
-    await anyInput.fill('v28032');
-  });
-  await page.waitForTimeout(1000);
-  const seedLink = page.locator('a[href*="seed=v28032"], button:has-text("v28032")').first();
-  if (await seedLink.count()) await seedLink.click();
-  await page.waitForTimeout(1000);
-  assert(page.url().includes('seed=v28032') || await page.locator('text=v28032').count() > 0, 'seed picker did not select/update visible seed');
+  const input = page.locator('[data-testid="vn-seed-picker"] input[role="combobox"]').first();
+  await input.fill('v28032');
+  const seedOption = page.locator('[role="option"] button[title="v28032"]').first();
+  await seedOption.waitFor({ state: 'visible', timeout: 15000 });
+  await seedOption.click();
+  await page.waitForURL(/seed=v28032/, { timeout: 15000 }).catch(() => undefined);
+  assert(
+    page.url().includes('seed=v28032') ||
+      (await page.locator('[data-testid="vn-seed-chip"][data-seed-id="v28032"]').count()) > 0,
+    'seed picker did not select/update visible seed',
+  );
   assert(await page.locator('text=/Pourquoi|Why|理由/i').count() > 0, 'recommendation explanation panel missing');
 });
 
@@ -194,13 +248,13 @@ check('shelf display controls change rendered CSS variables', async (page) => {
   await root.waitFor({ state: 'visible', timeout: 10000 });
   const before = await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--shelf-cell-w-px') || el.style.getPropertyValue('--shelf-cell-w-px'));
   await page.getByRole('button', { name: /Options d'affichage de l'étagère|Shelf display options|表示/i }).first().click();
-  const slider = page.locator('input[type="range"]').first();
-  await slider.evaluate((el) => {
-    const input = el;
-    input.value = String(Math.min(Number(input.max), Number(input.value) + Number(input.step || 4) * 4));
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+  const dialog = page.getByRole('dialog', { name: /Options d'affichage de l'étagère|Shelf display options|表示/i }).first();
+  await dialog.waitFor({ state: 'visible', timeout: 10000 });
+  const slider = dialog.locator('input[type="range"]').first();
+  const current = Number(await slider.inputValue());
+  const max = Number(await slider.getAttribute('max'));
+  const step = Number(await slider.getAttribute('step')) || 4;
+  await slider.fill(String(Math.min(max, current + step * 4)));
   await page.waitForTimeout(800);
   const after = await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--shelf-cell-w-px') || el.style.getPropertyValue('--shelf-cell-w-px'));
   assert(before !== after, `shelf cell width CSS variable did not change (${before} -> ${after})`);
@@ -230,7 +284,11 @@ check('EGS cards do not overflow desktop viewport', async (page) => {
 });
 
 const browser = await launchBrowser();
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+await context.addInitScript(() => {
+  window.localStorage.setItem('vn_tour_completed_v1', '1');
+});
+const page = await context.newPage();
 page.setDefaultTimeout(15000);
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
@@ -263,6 +321,7 @@ for (const { name, fn } of checks) {
   }
 }
 
+await context.close();
 await browser.close();
 console.log('');
 console.log(`Interaction QA summary: PASS=${pass} FAIL=${fail}`);
