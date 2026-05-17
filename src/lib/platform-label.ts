@@ -24,8 +24,14 @@ export const PLATFORM_LABELS: Readonly<Record<string, string>> = {
   win: 'Windows',
   mac: 'macOS',
   lin: 'Linux',
-  nds: 'Nintendo DS',
+  dos: 'MS-DOS',
+  // VNDB uses `n3d` (NOT `3ds`) for Nintendo 3DS; both forms map to
+  // the same label so we tolerate either if the upstream enum
+  // changes. The `n3d` form is the one actually in
+  // production `release.platforms` payloads.
   '3ds': 'Nintendo 3DS',
+  n3d: 'Nintendo 3DS',
+  nds: 'Nintendo DS',
   wii: 'Wii',
   wiu: 'Wii U',
   swi: 'Nintendo Switch',
@@ -38,10 +44,12 @@ export const PLATFORM_LABELS: Readonly<Record<string, string>> = {
   psv: 'PlayStation Vita',
   xb1: 'Xbox',
   x36: 'Xbox 360',
+  xb3: 'Xbox 360',  // VNDB alias seen in real payloads.
   xbo: 'Xbox One',
   xxs: 'Xbox Series X/S',
   and: 'Android',
   ios: 'iOS',
+  mob: 'Mobile',     // Generic-mobile bucket on older VNDB rows.
   bdp: 'Blu-ray Player',
   web: 'Web',
   dvd: 'DVD Player',
@@ -56,6 +64,7 @@ export const PLATFORM_LABELS: Readonly<Record<string, string>> = {
   pcf: 'PC-FX',
   p88: 'PC-8800',
   p98: 'PC-9800',
+  x68: 'X68000',    // Sharp X68000.
   sat: 'Sega Saturn',
   scd: 'Sega CD',
   sfc: 'Super Famicom',

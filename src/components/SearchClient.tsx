@@ -377,8 +377,25 @@ export function SearchClient() {
         <input
           ref={inputRef}
           className="input pl-9"
-          placeholder={source === 'egs' ? t.search.egsPlaceholder : t.search.placeholder}
-          aria-label={source === 'egs' ? t.search.egsPlaceholder : t.search.placeholder}
+          placeholder={
+            // Three-way placeholder — the previous fall-through
+            // showed the VNDB hint while the user had the Local tab
+            // active, which incorrectly suggested the input would
+            // hit VNDB. Local mode now points at the operator's
+            // own collection; EGS mode is unchanged.
+            source === 'egs'
+              ? t.search.egsPlaceholder
+              : source === 'local'
+                ? t.search.localPlaceholder
+                : t.search.placeholder
+          }
+          aria-label={
+            source === 'egs'
+              ? t.search.egsPlaceholder
+              : source === 'local'
+                ? t.search.localPlaceholder
+                : t.search.placeholder
+          }
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {

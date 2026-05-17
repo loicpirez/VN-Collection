@@ -470,6 +470,7 @@ export const dictionaries = {
     search: {
       placeholder: 'Rechercher un Visual Novel sur VNDB (titre, ou ID v90017…)',
       egsPlaceholder: 'Rechercher sur ErogameScape (titre japonais ou romaji)…',
+      localPlaceholder: 'Chercher dans ta collection locale (titre, notes, citations…)',
       egsSourceHint: 'Pour les jeux absents de VNDB. Ajoute via EGS uniquement (entrée VN synthétique).',
       localSourceHint: 'Recherche dans tes notes perso, synopsis et citations sauvegardées.',
       tabVndb: 'VNDB',
@@ -2744,6 +2745,7 @@ export const dictionaries = {
     search: {
       placeholder: 'Search a Visual Novel on VNDB (title, or ID v90017…)',
       egsPlaceholder: 'Search ErogameScape (Japanese or romaji title)…',
+      localPlaceholder: 'Search your local collection (title, notes, quotes…)',
       egsSourceHint: 'For games missing from VNDB. Adds via EGS only (synthetic VN entry).',
       localSourceHint: 'Search your personal notes, custom synopses, and saved quotes.',
       tabVndb: 'VNDB',
@@ -5015,6 +5017,7 @@ export const dictionaries = {
     search: {
       placeholder: 'VNDB を検索（タイトルまたは ID v90017…）',
       egsPlaceholder: 'ErogameScape を検索（日本語またはローマ字）…',
+      localPlaceholder: 'ローカルのコレクションを検索（タイトル・メモ・引用…）',
       egsSourceHint: 'VNDB にない作品向け。EGS のみで（合成 VN エントリとして）追加します。',
       localSourceHint: 'マイメモ、カスタムあらすじ、保存済み名言を検索します。',
       tabVndb: 'VNDB',

@@ -1,5 +1,12 @@
 'use client';
-import { useCallback, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Lock } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
@@ -12,38 +19,59 @@ interface Props {
   perSectionOverride?: 0 | 1 | 2 | null;
   /** Localised label rendered on the masked placeholder. */
   hiddenLabel?: string;
-  /** When set, the child is rendered with this className while
-   *  blurred (so the layout doesn't collapse to a tiny pill). */
+  /** Extra blur classes when transiently revealing (default `blur-sm`). */
   blurredClassName?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 /**
- * Shared spoiler gate component. Rules (centralised in
- * `lib/spoiler-reveal.ts`):
- *   - Default visibility is driven by the global `spoilerLevel`
- *     setting + an optional per-section override raised through
- *     `perSectionOverride`.
- *   - Pointer hover (desktop) and keyboard focus reveal transiently;
- *     leaving / blurring re-hides. The shown content stays in the
- *     DOM but is blurred so screen readers + page search can still
- *     find it.
- *   - A touch tap toggles a persistent reveal for THAT node until
- *     the next reload (no `localStorage`, scoped to render lifetime).
- *     We detect touch via `pointerType === 'touch'` on `pointerUp`
- *     so a mouse click is NOT treated as a tap-toggle.
- *   - Enter on a focused node also toggles the tap state — keyboard
- *     parity with the touch gesture.
+ * Cascade context.
  *
- * Applied surfaces:
- *   - VN tag chips (`VnTagChips`)
- *   - Character traits (CharacterMetaClient)
- *   - VNDB synopsis spoiler BBCode (`VndbMarkup` `[spoiler]` block)
- *   - Anything else that has a `spoiler` integer column.
+ * When an outer `<SpoilerReveal>` resolves to `revealed`, every
+ * descendant `<SpoilerReveal>` whose level is `≤` the ancestor's
+ * level also shows as revealed regardless of its own gate state.
+ * Without this, the old code left nested `[spoiler]` blocks inside
+ * a revealed tag chip blurred — the operator's "double-hidden text
+ * after reveal" report.
  *
- * NOT applied: VNDB quote scores. The schema doesn't ship a
- * per-quote spoiler flag today; gating quotes here would require
- * an upstream change. Left out per the blocker spec.
+ * The context only ever escalates visibility, never demotes it.
+ */
+interface SpoilerCascade {
+  ancestorRevealedLevel: 0 | 1 | 2;
+}
+const SpoilerCascadeContext = createContext<SpoilerCascade>({ ancestorRevealedLevel: -1 as 0 });
+
+/**
+ * Shared spoiler gate component.
+ *
+ * Rule fixes vs. the prior implementation:
+ *
+ *   1. The masked + revealed states render through the SAME wrapper
+ *      element. Previously we returned a fresh `<span>` for the
+ *      hidden branch and a different `<span>` for the
+ *      transient/revealed branch. React unmounted the first wrapper
+ *      the moment hover fired, the cursor was still over the *old*
+ *      element, and the new element didn't receive a fresh
+ *      pointerEnter — so the gate flickered back to hidden and
+ *      stayed "black-blocked". The single-wrapper layout keeps the
+ *      listener attached across state transitions.
+ *
+ *   2. Children stay in the DOM in every state. Hidden replaces the
+ *      visible content with a localised `aria-label` + a small lock
+ *      icon, but the underlying children remain so SR users still
+ *      hear "spoiler — press to reveal" and screen-search can index
+ *      the page. No more wholesale "█████" replacement, which the
+ *      operator saw as a persistent black block.
+ *
+ *   3. `SpoilerCascadeContext` propagates the ancestor's revealed
+ *      level downward. A nested `<SpoilerReveal level=2>` inside a
+ *      revealed `<SpoilerReveal level=2>` is automatically marked
+ *      revealed too — the cascade prevents double-hiding.
+ *
+ *   4. Sexual-content tags use the same gate (no separate
+ *      "blackout" CSS branch). They render through `<SpoilerReveal
+ *      level={2}>` per the existing call sites, and now obey the
+ *      same hover / focus / tap rules.
  */
 export function SpoilerReveal({
   level,
@@ -57,6 +85,7 @@ export function SpoilerReveal({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [tapped, setTapped] = useState(false);
+  const ancestor = useContext(SpoilerCascadeContext);
 
   const visibility = spoilerVisibility({
     globalSetting: settings.spoilerLevel,
@@ -67,12 +96,12 @@ export function SpoilerReveal({
     perSectionOverride,
   });
 
+  // Cascade override — an ancestor at >= my level overrides me to
+  // revealed. Never lowers; only ever escalates.
+  const effective: 'hidden' | 'transient' | 'revealed' =
+    ancestor.ancestorRevealedLevel >= level ? 'revealed' : visibility;
+
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLSpanElement>) => {
-    // Touch / pen → toggle a persistent reveal. Mouse clicks bypass
-    // so the hover-to-reveal UX is preserved (a mouse user
-    // accidentally clicking on a chip wouldn't want a persistent
-    // toggle). Pen is grouped with touch since the gesture model
-    // matches (no hover-only surface to depend on).
     if (e.pointerType === 'touch' || e.pointerType === 'pen') {
       setTapped((v) => !v);
     }
@@ -84,52 +113,69 @@ export function SpoilerReveal({
     }
   }, []);
 
-  // ARIA: when hidden, advertise the gate as a button-like control.
-  // When revealed, the wrapper is just a presentation span. Either
-  // way `aria-hidden` on the underlying child is wrong (screen
-  // reader users want to know what was hidden), so we expose a
-  // localised label on the wrapper instead.
-  if (visibility === 'hidden') {
-    return (
+  // Build the cascade value for descendants. If THIS node ends up
+  // revealed (either base-revealed or via hover/focus/tap),
+  // descendants up to my level are also treated revealed.
+  const nextCascade = useMemo<SpoilerCascade>(() => {
+    if (effective === 'revealed' || effective === 'transient') {
+      return { ancestorRevealedLevel: Math.max(level, ancestor.ancestorRevealedLevel) as 0 | 1 | 2 };
+    }
+    return ancestor;
+  }, [effective, level, ancestor]);
+
+  // ---- Hidden / transient / revealed → SAME wrapper ----------------
+  const isHidden = effective === 'hidden';
+  const isTransient = effective === 'transient';
+
+  // Wrapper class: when hidden, render a dashed-border button-like
+  // tile. When transient, show the children with a soft blur. When
+  // revealed, render the children plain. Important: NO opaque
+  // overlay anywhere — the masked state is a bordered placeholder
+  // with text, never an opaque rectangle.
+  const wrapperClass = [
+    'group/spoiler inline-block outline-none transition-[filter] duration-150 focus-visible:ring-2 focus-visible:ring-accent',
+    isHidden
+      ? 'cursor-pointer select-none rounded-md border border-dashed border-status-on_hold/60 bg-bg-elev/40 px-2 py-0.5 text-[11px] text-status-on_hold/80 hover:border-status-on_hold'
+      : '',
+    isTransient ? `cursor-pointer ${blurredClassName ?? 'blur-sm'}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <SpoilerCascadeContext.Provider value={nextCascade}>
       <span
-        role="button"
+        role={isHidden ? 'button' : undefined}
         tabIndex={0}
-        aria-pressed={false}
-        aria-label={hiddenLabel ?? t.spoiler.revealOne}
-        title={hiddenLabel ?? t.spoiler.revealOne}
+        aria-pressed={isHidden ? false : tapped}
+        aria-label={isHidden ? hiddenLabel ?? t.spoiler.revealOne : undefined}
+        title={isHidden ? hiddenLabel ?? t.spoiler.revealOne : undefined}
+        data-spoiler-state={effective}
+        data-spoiler-level={level}
         onPointerEnter={() => setHovered(true)}
         onPointerLeave={() => setHovered(false)}
         onPointerUp={onPointerUp}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onKeyDown={onKeyDown}
-        className="inline-flex select-none items-center gap-1 rounded-md border border-dashed border-status-on_hold/60 bg-bg-elev/40 px-2 py-0.5 text-[11px] text-status-on_hold/80 outline-none transition-colors hover:border-status-on_hold focus-visible:ring-2 focus-visible:ring-accent"
+        className={wrapperClass}
       >
-        <Lock className="h-2.5 w-2.5" aria-hidden />
-        <span className="font-mono" aria-hidden>{'█'.repeat(4)}</span>
+        {isHidden ? (
+          <>
+            {/* Visible placeholder text + lock icon. The actual
+                child stays mounted but visually masked via
+                `sr-only` so screen-readers + page search still
+                find it. NO opaque black rectangle. */}
+            <span className="inline-flex items-center gap-1">
+              <Lock className="h-2.5 w-2.5" aria-hidden />
+              <span>{hiddenLabel ?? t.spoiler.revealOne}</span>
+            </span>
+            <span className="sr-only">{children}</span>
+          </>
+        ) : (
+          children
+        )}
       </span>
-    );
-  }
-  const isTransient = visibility === 'transient';
-  return (
-    <span
-      tabIndex={0}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
-      onPointerUp={onPointerUp}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      onKeyDown={onKeyDown}
-      // `transition` keeps the unblur smooth so revealing-by-hover
-      // isn't a jarring flash. `aria-pressed` reflects the tap
-      // toggle so screen readers know the state.
-      aria-pressed={tapped}
-      data-spoiler-state={visibility}
-      className={`inline-block outline-none transition-[filter] duration-150 focus-visible:ring-2 focus-visible:ring-accent ${
-        isTransient && !tapped ? `${blurredClassName ?? 'blur-sm'} cursor-pointer` : ''
-      }`}
-    >
-      {children}
-    </span>
+    </SpoilerCascadeContext.Provider>
   );
 }
