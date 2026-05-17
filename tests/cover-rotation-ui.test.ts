@@ -55,8 +55,8 @@ describe('CoverRotationButtons — VN cover rotation overlay', () => {
     expect(src).toMatch(/method: 'PATCH'/);
     expect(src).toMatch(/JSON\.stringify\(\{ rotation: next \}\)/);
   });
-  it('exposes a reset affordance when rotation is non-zero', () => {
-    expect(src).toMatch(/rotation !== 0/);
+  it('exposes an always-mounted reset affordance that is disabled at 0deg', () => {
+    expect(src).toMatch(/disabled=\{busy \|\| rotation === 0\}/);
     expect(src).toMatch(/t\.coverActions\.resetRotation/);
   });
 });
