@@ -1,8 +1,20 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowDown, Box, CircleDollarSign, ExternalLink, Info, MapPin } from 'lucide-react';
+import {
+  ArrowDown,
+  Box,
+  CircleDollarSign,
+  Edit3,
+  ExternalLink,
+  Info,
+  Loader2,
+  MapPin,
+  RefreshCw,
+} from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useToast } from './ToastProvider';
+import { useRouter } from 'next/navigation';
 
 /**
  * Data needed to render the popover. Strict subset of `ShelfEntry`
@@ -96,7 +108,12 @@ export function EditionInfoTrigger({
   groupHoverScope?: string;
 }) {
   const t = useT();
+  const toast = useToast();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Track in-flight refresh so the button shows a spinner and we
+  // don't fire duplicate POSTs while the first is pending.
+  const [refreshing, setRefreshing] = useState(false);
   const [placement, setPlacement] = useState<{
     vertical: 'below' | 'above';
     horizontal: 'left' | 'right';
@@ -278,26 +295,85 @@ export function EditionInfoTrigger({
                 );
               }
               if (data.rel_platforms.length > 1) {
+                // Multi-platform release, no pin → real action that
+                // navigates to the VN page's owned-editions section,
+                // where the EditionEditor select lets the user pick.
+                // Previously the popover only showed dead "(N options)"
+                // text — the acceptance gate flagged that as
+                // unactionable.
                 return (
-                  <div>
-                    {t.form.ownedPlatform}:{' '}
+                  <div className="inline-flex flex-wrap items-center gap-1">
+                    <span>{t.form.ownedPlatform}:</span>{' '}
                     <span className="text-status-on_hold">{t.form.ownedPlatformUnset}</span>
-                    <span
-                      className="ml-1 text-[10px] opacity-70"
+                    <Link
+                      href={`/vn/${data.vn_id}#owned-editions`}
+                      onPointerDown={stop}
+                      onMouseDown={stop}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-0.5 rounded border border-accent/40 bg-accent/10 px-1 py-0.5 text-[9px] uppercase tracking-wider text-accent hover:bg-accent/20"
                       title={data.rel_platforms.join(' · ').toUpperCase()}
                     >
-                      ({t.shelfLayout.releaseHasOptions.replace('{n}', String(data.rel_platforms.length))})
-                    </span>
+                      <Edit3 className="h-2.5 w-2.5" aria-hidden />
+                      {t.form.choosePlatform}
+                    </Link>
                   </div>
                 );
               }
               // Release metadata not materialized yet — never
-              // widen to vn_platforms here. The user can refresh
-              // the VN's releases or set owned_platform manually.
+              // widen to vn_platforms here. Surface an actual
+              // "Refresh releases" button (POSTs to the assets
+              // refresh endpoint, which re-fetches release rows and
+              // re-runs materializeReleaseMetaForVn). The fallback
+              // for synthetic ids (no remote releases possible)
+              // skips the button.
+              const isSynthetic = data.release_id.startsWith('synthetic:');
               return (
-                <div>
-                  {t.form.ownedPlatform}:{' '}
-                  <span className="text-muted">{t.shelfLayout.platformUnknown}</span>
+                <div className="inline-flex flex-wrap items-center gap-1">
+                  <span>{t.form.ownedPlatform}:</span>{' '}
+                  <span className="text-muted">{t.shelfLayout.platformUnknownLabel}</span>
+                  {!isSynthetic && (
+                    <button
+                      type="button"
+                      onPointerDown={stop}
+                      onMouseDown={stop}
+                      disabled={refreshing}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (refreshing) return;
+                        setRefreshing(true);
+                        try {
+                          const r = await fetch(
+                            `/api/collection/${data.vn_id}/assets?refresh=true`,
+                            { method: 'POST' },
+                          );
+                          if (!r.ok) {
+                            const body = (await r.json().catch(() => ({}))) as { error?: string };
+                            throw new Error(body.error || t.common.error);
+                          }
+                          toast.success(t.toast.saved);
+                          // The server-rendered popover data is
+                          // stale until the parent re-fetches. A
+                          // router.refresh() invalidates the RSC
+                          // cache so the next paint reads the
+                          // freshly-materialized release_meta_cache.
+                          router.refresh();
+                        } catch (err) {
+                          toast.error((err as Error).message);
+                        } finally {
+                          setRefreshing(false);
+                        }
+                      }}
+                      className="inline-flex items-center gap-0.5 rounded border border-border bg-bg-elev/50 px-1 py-0.5 text-[9px] uppercase tracking-wider text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                      title={t.shelfLayout.refreshReleases}
+                    >
+                      {refreshing ? (
+                        <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden />
+                      ) : (
+                        <RefreshCw className="h-2.5 w-2.5" aria-hidden />
+                      )}
+                      {t.shelfLayout.refreshReleases}
+                    </button>
+                  )}
                 </div>
               );
             })()}
