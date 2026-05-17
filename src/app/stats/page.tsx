@@ -335,7 +335,7 @@ export default async function StatsPage() {
 
 /**
  * Two side-by-side bar charts surfacing the top developers and top
- * publishers in the user's collection. The two rankings come from
+ * publishers in the collection. The two rankings come from
  * separate joins (vn.developers vs vn.publishers) so a
  * publisher-only studio appears under publishers without polluting
  * the developer side, matching VNDB's release-level role model.

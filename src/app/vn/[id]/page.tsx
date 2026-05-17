@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { cache } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Box, ChevronRight, ExternalLink, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, Box, ChevronRight, ExternalLink, HardDriveDownload, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
 import {
   deriveVnAspectDisplay,
   deriveVnAspectKey,
@@ -90,12 +90,12 @@ function fmtMinutes(m: number | null | undefined): string {
  * (EGS top-ranked map links, recommendations of non-collection
  * VNs, etc.). Opening such a link used to render
  *   <title>v12345 · VN Collection</title>
- * while the page body itself showed the correct title, which the
- * user reported as the "vn(id) - VN Collection" bug.
+ * while the page body itself showed the correct title — manual QA
+ * flagged this as the "vn(id) - VN Collection" bug.
  *
- * The function never auto-adds the VN to the user's collection —
+ * The function never auto-adds the VN to the collection —
  * `upsertVn` writes to the `vn` cache table only. Membership in
- * `collection` stays under the user's explicit control.
+ * `collection` stays under explicit operator control.
  */
 const loadVn = cache(
   async (id: string): Promise<{ vn: CollectionItem | null; error: string | null }> => {
@@ -381,7 +381,32 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
               {vn.released && (
                 <div>
                   <dt className="label">{t.detail.released}</dt>
-                  <dd className="font-semibold">{vn.released}</dd>
+                  <dd className="font-semibold">
+                    {/*
+                      Wrap the release date in a Link that pre-fills
+                      the Library year filter. The 4-digit prefix
+                      (which VNDB returns even for partial dates like
+                      "2024-09") is the canonical bucket key the
+                      `?yearMin=/yearMax=` chips on /stats already
+                      use, so the action stays consistent across
+                      surfaces. The raw date keeps full precision in
+                      the visible text.
+                    */}
+                    {(() => {
+                      const year = vn.released.slice(0, 4);
+                      if (/^\d{4}$/.test(year)) {
+                        return (
+                          <Link
+                            href={`/?yearMin=${year}&yearMax=${year}`}
+                            className="transition-colors hover:text-accent"
+                          >
+                            {vn.released}
+                          </Link>
+                        );
+                      }
+                      return vn.released;
+                    })()}
+                  </dd>
                 </div>
               )}
               {vn.devstatus != null && vn.devstatus !== 0 && (
@@ -505,6 +530,24 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                           · {aspectDisplay.width}×{aspectDisplay.height}
                         </span>
                       )}
+                      {/*
+                        Secondary chip — links to the Library
+                        pre-filtered by this aspect key. The
+                        primary anchor (above) jumps to the
+                        override editor on the same page; this
+                        complementary chip lets the reader
+                        pivot outward to "every VN at this
+                        ratio" without scrolling first.
+                      */}
+                      {!isUnknown && (
+                        <Link
+                          href={`/?aspect=${encodeURIComponent(aspectDisplay.aspect)}`}
+                          className="rounded-md border border-border bg-bg-elev/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-accent"
+                          title={t.detail.aspectFilterLibrary}
+                        >
+                          {t.detail.aspectFilterLibraryShort}
+                        </Link>
+                      )}
                       {sourceLabel && (
                         <span className="rounded-md border border-border bg-bg-elev/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">
                           {sourceLabel}
@@ -590,6 +633,24 @@ export default async function VnDetail({ params }: { params: Promise<{ id: strin
                     {s.name}
                   </Link>
                 ))}
+                {/*
+                  Dumped chip — links to `/?dumped=1` so the user can
+                  jump back to every VN flagged dumped from the detail
+                  view. Renders only when the dumped flag is set; the
+                  inverse state is conveyed by the chip's absence
+                  rather than a "not dumped" pill, matching the
+                  established pattern for binary tracking flags
+                  (favorite, started, finished).
+                */}
+                {vn.dumped && (
+                  <Link
+                    href="/?dumped=1"
+                    className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent transition-colors hover:border-accent hover:bg-accent/20"
+                    title={t.form.dumpedHint}
+                  >
+                    <HardDriveDownload className="h-3 w-3" aria-hidden /> {t.form.dumped}
+                  </Link>
+                )}
               </div>
             )}
 
