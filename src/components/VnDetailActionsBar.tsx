@@ -1,6 +1,7 @@
-import { Download, ExternalLink } from 'lucide-react';
+import { Database, ExternalLink, MoreHorizontal } from 'lucide-react';
 import type { CollectionItem, ReleaseImage, Screenshot } from '@/lib/types';
 import { getDict } from '@/lib/i18n/server';
+import { ActionMenu } from './ActionMenu';
 import { AnimeChip } from './AnimeChip';
 import { BannerSourcePicker } from './BannerSourcePicker';
 import { CompareWithButton } from './CompareWithButton';
@@ -13,27 +14,29 @@ import { ListsPickerButton } from './ListsPickerButton';
 import { QueueButton } from './QueueButton';
 
 /**
- * Six-cluster action toolbar for the VN detail page.
+ * Detail-page action toolbar, regrouped per the second-round manual
+ * QA. The earlier inline-cluster layout still rendered every button
+ * above the fold — the External-links column alone could spill into a
+ * 12-wide row on a tag-heavy VN. The new layout keeps only the
+ * primary tracking affordances (favorite, wishlist heart, queue,
+ * Lists) visible and folds the rest into labeled dropdowns:
  *
- * The flat row of mixed-concern buttons (download, refresh, edit, cover,
- * banner, remove, lists, queue, favorite, …) used to render as a single
- * `flex-wrap` blob — the manual QA review flagged that the visual
- * clutter made it impossible to scan. This wrapper groups every
- * existing button into 6 labeled clusters separated by a thin vertical
- * divider, without removing any functionality.
+ *   1. Collection  — status/add/remove + wishlist + favorite + queue + lists
+ *   2. Tracking    — series suggestions live inside <SeriesAutoSuggest>;
+ *                    we only host the `<AnimeChip>` informational pill here
+ *                    so it stays beside the tracked-state controls
+ *   3. External    — every VNDB extlink, plus VNDB / EGS / migration links,
+ *                    rendered as an icon grid INSIDE a single dropdown
+ *   4. Media       — cover / banner source pickers (open their own dialogs)
+ *   5. Data        — download missing + full refresh wrapped together
+ *   6. More        — compare, EGS↔VNDB migration, mapping affordances
  *
- *   1. Tracking      — favorite / wishlist heart / informational chips
- *   2. Inventory     — reading queue + user lists
- *   3. Media         — cover & banner source pickers
- *   4. Refresh/Sync  — assets re-download + every external resource link
- *                      (VNDB / EGS / extlinks / EGS-to-VNDB migration)
- *   5. Activity      — comparison & launch (download URL anchor)
- *   6. Dangerous     — Remove from collection, styled as `btn-danger`
- *
- * Groups whose conditional content is empty (e.g. Dangerous when the
- * VN isn't in the collection, or Refresh when there are no external
- * links and no assets button) collapse entirely so we don't render
- * stray separators.
+ * Each cluster keeps its own `role="group"` so screen readers still
+ * announce the grouping; only the primary cluster (Collection) is
+ * always inline. The destructive Remove stays anchored to the right
+ * via `md:ml-auto` and goes through `<CoverQuickActions mode='danger'>`
+ * which already pairs with the shared <ConfirmDialog> for the
+ * irreversible delete.
  */
 interface Props {
   /** Full VN row — used to derive titles, extlinks, custom banner, etc. */
@@ -47,17 +50,23 @@ interface Props {
 export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   const t = await getDict();
   const isEgsOnly = vn.id.startsWith('egs_');
-  // Each group renders as a fragment so we can short-circuit empty
-  // groups without leaving an orphan separator behind. The `groups`
-  // array collects only the non-empty ones and the renderer below
-  // intersperses the dividers.
   const screenshots: Screenshot[] = vn.screenshots ?? [];
   const releaseImages: ReleaseImage[] = vn.release_images ?? [];
-  const extlinks = (vn.extlinks ?? []).slice(0, 8);
-  const hasDownloadUrl = inCollection && !!vn.download_url;
+  // Show every external link inside the dropdown — the manual QA
+  // explicitly called out the 12-wide flat row as the worst offender
+  // when a VN advertises a long Wikipedia / Wikidata / MobyGames /
+  // IGDB / HowLongToBeat / GameFAQs / VGMdb / ACDB chain.
+  const extlinks = vn.extlinks ?? [];
+  const hasExtlinks = extlinks.length > 0;
+  const showExternalMenu = !isEgsOnly || hasExtlinks || !!egsRow?.egs_id;
 
-  const tracking = (
-    <ActionGroup label={t.detail.actions.groupTracking}>
+  // ── Cluster 1: Collection (always inline) ────────────────────────
+  // Two-to-four primary buttons above the fold: favorite, wishlist,
+  // queue, Lists. Add/Remove still ride inside <CoverQuickActions>
+  // (`mode='tracking'` for Add, `mode='danger'` for Remove) so the
+  // confirm dialog plumbing stays in one place.
+  const collection = (
+    <ActionGroup label={t.detail.actions.groupCollection}>
       {inCollection && (
         <FavoriteToggleButton
           vnId={vn.id}
@@ -67,26 +76,68 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
         />
       )}
       <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="tracking" />
-      {inCollection && <AnimeChip vnId={vn.id} />}
-    </ActionGroup>
-  );
-
-  // Inventory only makes sense once the VN is tracked locally; the
-  // reading-queue endpoint requires a `collection` row and the lists
-  // popover is only meaningful for owned VNs.
-  const inventory = inCollection ? (
-    <ActionGroup label={t.detail.actions.groupInventory}>
-      <QueueButton vnId={vn.id} />
-      <ListsPickerButton vnId={vn.id} variant="inline" />
-    </ActionGroup>
-  ) : (
-    // Lists picker can still attach a wishlisted VN to user-curated lists
-    // without an explicit collection row, so we surface it here too.
-    <ActionGroup label={t.detail.actions.groupInventory}>
+      {inCollection && <QueueButton vnId={vn.id} />}
       <ListsPickerButton vnId={vn.id} variant="inline" />
     </ActionGroup>
   );
 
+  // ── Cluster 2: Tracking (informational) ─────────────────────────
+  // The notes/save tracking editor and series-membership pickers
+  // live in `<EditForm>` and `<SeriesAutoSuggest>`, both rendered
+  // outside this bar by the VN page itself. The only thing left
+  // here is the AnimeChip — a passive informational badge that
+  // pairs naturally with the tracked-state controls.
+  const tracking = inCollection ? (
+    <ActionGroup label={t.detail.actions.groupTracking}>
+      <AnimeChip vnId={vn.id} />
+    </ActionGroup>
+  ) : null;
+
+  // ── Cluster 3: External links (single dropdown) ─────────────────
+  // The trigger sits inline; the menu body is an icon grid where
+  // each cell shows the lucide `ExternalLink` glyph plus the label.
+  // VNDB / EGS / EGS-to-VNDB migration anchors live at the top of
+  // the grid so they're the most prominent options.
+  const external = showExternalMenu ? (
+    <ActionMenu
+      label={t.detail.actions.groupExternal}
+      trigger={
+        <>
+          <ExternalLink className="h-4 w-4" aria-hidden /> {t.detail.actions.groupExternal}
+        </>
+      }
+      triggerClassName="btn"
+      menuClassName="w-72 rounded-lg border border-border bg-bg-card p-2 shadow-card"
+      defaultPlacement="bottom-left"
+    >
+      <div
+        className="grid grid-cols-2 gap-1"
+        role="group"
+        aria-label={t.detail.actions.groupExternal}
+      >
+        {!isEgsOnly && (
+          <ExternalLinkGridItem
+            href={`https://vndb.org/${vn.id}`}
+            label={t.detail.viewOnVndb}
+          />
+        )}
+        {egsRow?.egs_id && (
+          <ExternalLinkGridItem
+            href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${egsRow.egs_id}`}
+            label={t.detail.viewOnEgs}
+          />
+        )}
+        {extlinks.map((l) => (
+          <ExternalLinkGridItem key={l.url} href={l.url} label={l.label} />
+        ))}
+      </div>
+    </ActionMenu>
+  ) : null;
+
+  // ── Cluster 4: Media ─────────────────────────────────────────────
+  // Both source pickers open their own dialogs — keep the triggers
+  // inline so the labels stay visible. Hidden until the VN is in the
+  // collection because the underlying writes target `collection`.
   const media = inCollection ? (
     <ActionGroup label={t.detail.actions.groupMedia}>
       <CoverSourcePicker
@@ -109,89 +160,88 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
     </ActionGroup>
   ) : null;
 
-  // Refresh/sync bundles every "talk to upstream / external resources"
-  // affordance: explicit re-download, the VNDB / EGS detail pages, the
-  // optional EGS-to-VNDB id migration, plus the raw extlinks list.
-  const sync = (
-    <ActionGroup label={t.detail.actions.groupSync}>
-      {inCollection && <DownloadAssetsButton vnId={vn.id} />}
-      {!isEgsOnly && (
-        <a
-          href={`https://vndb.org/${vn.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn"
-        >
-          <ExternalLink className="h-4 w-4" /> {t.detail.viewOnVndb}
-        </a>
-      )}
-      {egsRow?.egs_id && (
-        <a
-          href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${egsRow.egs_id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn"
-        >
-          <ExternalLink className="h-4 w-4" /> {t.detail.viewOnEgs}
-        </a>
-      )}
-      {isEgsOnly && (
-        <LinkToVndbButton vnId={vn.id} seedQuery={vn.alttitle?.trim() || vn.title} />
-      )}
-      {extlinks.map((l) => (
-        <a
-          key={l.url}
-          href={l.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 text-xs text-muted hover:border-accent hover:text-accent"
-          title={l.label}
-        >
-          <ExternalLink className="h-3 w-3" /> {l.label}
-        </a>
-      ))}
-    </ActionGroup>
+  // ── Cluster 5: Data / download ───────────────────────────────────
+  // The existing <DownloadAssetsButton> renders TWO buttons (missing
+  // + full refresh). Folding both inside a single dropdown removes
+  // them from the always-visible row while keeping the same handlers.
+  // We re-render the component inside the menu body; the popover
+  // closes automatically when the user clicks either inner button
+  // (via the bubbling click handler on <ActionMenu>'s panel).
+  const data = inCollection ? (
+    <ActionMenu
+      label={t.detail.actions.groupData}
+      trigger={
+        <>
+          <Database className="h-4 w-4" aria-hidden /> {t.detail.actions.groupData}
+        </>
+      }
+      triggerClassName="btn"
+      menuClassName="w-64 rounded-lg border border-border bg-bg-card p-2 shadow-card"
+      defaultPlacement="bottom-left"
+    >
+      {/*
+        Padding wrapper keeps the existing DownloadAssetsButton's
+        own `flex-wrap gap-2` layout from butting against the menu's
+        rounded border. The data-menu-keep-open attribute is NOT set
+        here — the menu auto-closes on click of either inner button,
+        matching the user expectation that the dropdown collapses
+        after a single action.
+      */}
+      <DownloadAssetsButton vnId={vn.id} />
+    </ActionMenu>
+  ) : null;
+
+  // ── Cluster 6: More (compare / mapping) ──────────────────────────
+  // Compare and the EGS-to-VNDB id migration both open large modals,
+  // so wrapping them in a "More" menu trades a single click for a
+  // much cleaner default row. CompareWithButton manages its own
+  // Dialog; LinkToVndbButton only appears for synthetic egs_* ids.
+  const more = (
+    <ActionMenu
+      label={t.detail.actions.groupMore}
+      trigger={
+        <>
+          <MoreHorizontal className="h-4 w-4" aria-hidden /> {t.detail.actions.groupMore}
+        </>
+      }
+      triggerClassName="btn"
+      menuClassName="w-56 rounded-lg border border-border bg-bg-card p-2 shadow-card"
+      defaultPlacement="bottom-right"
+    >
+      {/*
+        Each row is a self-contained component that owns its own
+        click handler. The menu's bubbling onClick closes the
+        dropdown on any internal anchor/button activation.
+      */}
+      <div className="flex flex-col gap-1">
+        <CompareWithButton currentVnId={vn.id} />
+        {isEgsOnly && (
+          <LinkToVndbButton vnId={vn.id} seedQuery={vn.alttitle?.trim() || vn.title} />
+        )}
+      </div>
+    </ActionMenu>
   );
 
-  // Activity covers analysis & launch — comparing this VN against
-  // others, plus the "open my own download" shortcut.
-  const activity = (
-    <ActionGroup label={t.detail.actions.groupActivity}>
-      <CompareWithButton currentVnId={vn.id} />
-      {hasDownloadUrl && (
-        <a
-          href={vn.download_url ?? '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-primary"
-          title={vn.download_url ?? undefined}
-        >
-          <Download className="h-4 w-4" /> {t.form.downloadOpen}
-        </a>
-      )}
-    </ActionGroup>
-  );
-
-  // Dangerous is rendered last (rightmost on wide screens) and houses
-  // ONLY the destructive Remove button. Hidden entirely until the VN is
-  // in the collection — there's nothing to destroy otherwise.
+  // ── Destructive (rendered last, pushed right) ────────────────────
   const dangerous = inCollection ? (
     <ActionGroup label={t.detail.actions.groupDangerous} tone="danger">
       <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />
     </ActionGroup>
   ) : null;
 
-  const groups = [tracking, inventory, media, sync, activity, dangerous].filter(Boolean);
+  // Build the linear list, skipping empty clusters so we never render
+  // a stray separator.
+  const blocks = [collection, tracking, external, media, data, more, dangerous].filter(Boolean);
 
   return (
     <nav
       aria-label={t.detail.actions.ariaLabel}
       className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"
     >
-      {groups.map((g, i) => (
+      {blocks.map((g, i) => (
         <div key={i} className="contents">
           {g}
-          {i < groups.length - 1 && (
+          {i < blocks.length - 1 && (
             <span
               aria-hidden
               className="hidden h-7 w-px shrink-0 self-center bg-border/70 md:inline-block"
@@ -204,13 +254,10 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
 }
 
 /**
- * Single action cluster. Tags the wrapping `<div>` as a labeled
- * region (`role="group"` + `aria-label`) so screen readers can
- * announce the cluster's intent. The visible label itself is
- * intentionally omitted from the layout — the action verbs in each
- * button stay the primary signal; the visual separator + the aria
- * label are enough to convey grouping without doubling the row
- * height with redundant section headings.
+ * Single action cluster shell. Same role/`aria-label` contract as the
+ * pre-regroup version, but the `tone='danger'` variant now pushes the
+ * cluster right-aligned on `md+` so the destructive Remove button
+ * sits visually apart.
  */
 function ActionGroup({
   label,
@@ -231,5 +278,27 @@ function ActionGroup({
     >
       {children}
     </div>
+  );
+}
+
+/**
+ * Grid cell inside the External-links dropdown. Renders the lucide
+ * `ExternalLink` glyph + a label, opens in a new tab with `rel`
+ * hardening. The label is truncated with a tooltip carrying the full
+ * text so a long Wikipedia / Wikidata URL doesn't break the layout.
+ */
+function ExternalLinkGridItem({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      role="menuitem"
+      className="inline-flex items-center gap-1.5 truncate rounded-md border border-border bg-bg-elev px-2 py-1.5 text-xs text-muted hover:border-accent hover:text-accent"
+      title={label}
+    >
+      <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+      <span className="truncate">{label}</span>
+    </a>
   );
 }
