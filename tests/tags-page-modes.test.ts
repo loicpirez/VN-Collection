@@ -39,17 +39,22 @@ describe('parseTagPageParams', () => {
 });
 
 describe('tagChipHref', () => {
-  it('local mode sends to the Library filter', () => {
-    expect(tagChipHref('local', 'g9001')).toBe('/?tag=g9001');
+  // Updated contract: every chip click lands on the per-tag detail
+  // page so the operator gets description, parent/child tags, and
+  // both Local + VNDB sub-tabs without first paying a round-trip
+  // through the Library filter. The Library filter remains
+  // reachable from the detail page.
+  it('local mode lands on the per-tag detail page', () => {
+    expect(tagChipHref('local', 'g9001')).toBe('/tag/g9001');
   });
 
-  it('vndb mode sends to the per-tag detail page', () => {
-    expect(tagChipHref('vndb', 'g9001')).toBe('/tag/g9001');
+  it('vndb mode lands on the per-tag detail page with the vndb sub-tab', () => {
+    expect(tagChipHref('vndb', 'g9001')).toBe('/tag/g9001?tab=vndb');
   });
 
   it('lowercases the tag id so paths stay canonical', () => {
-    expect(tagChipHref('local', 'G42')).toBe('/?tag=g42');
-    expect(tagChipHref('vndb', 'G42')).toBe('/tag/g42');
+    expect(tagChipHref('local', 'G42')).toBe('/tag/g42');
+    expect(tagChipHref('vndb', 'G42')).toBe('/tag/g42?tab=vndb');
   });
 });
 

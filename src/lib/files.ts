@@ -15,7 +15,14 @@ import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 // snapshot per Node process). Tests rotate cwd via a fresh
 // `mkdtemp` per worker so this is fine — but a runtime `chdir`
 // elsewhere would NOT update the value. Don't call `chdir`.
-export const STORAGE_ROOT = `${process.cwd()}/data/storage`;
+//
+// `STORAGE_ROOT` honours an optional `STORAGE_ROOT` env var so that
+// browser QA / smoke runs can point at a snapshot directory and
+// never touch the operator's real cover / banner / character mirror.
+// The env override is the FIRST guard against `yarn qa` mutating
+// the production data dir; the DB itself is similarly gated by
+// `DB_PATH` in lib/db.ts.
+export const STORAGE_ROOT = process.env.STORAGE_ROOT?.trim() || `${process.cwd()}/data/storage`;
 export const STORAGE_DIRS = {
   vnImage: 'vn',
   vnScreenshot: 'vn-sc',

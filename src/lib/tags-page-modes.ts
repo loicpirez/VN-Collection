@@ -45,15 +45,23 @@ export function parseTagPageParams(
 }
 
 /**
- * Where a tag chip should send the operator depending on which mode the
- * `/tags` page is currently in. Local mode sends straight to the
- * Library filter; VNDB mode sends to the rich `/tag/[id]` detail page
- * which can drill into VNDB-wide results.
+ * Where a tag chip on /tags should send the operator. ALWAYS `/tag/<id>`
+ * regardless of mode — the per-tag detail page is the canonical
+ * destination because it carries Local + VNDB sub-tabs and richer
+ * context (description, parent / child tags, sample VNs). The
+ * Library `/?tag=<id>` filter remains accessible from the detail
+ * page itself but is no longer the primary chip click target.
+ *
+ * The `mode` argument is kept on the signature for back-compat with
+ * call sites that still thread it through; the resulting URL is the
+ * same in both modes, with `?tab=vndb` appended when the user is
+ * already in VNDB browse mode so the detail page lands on the
+ * matching sub-tab.
  */
 export function tagChipHref(mode: TagsPageMode, tagId: string): string {
   const id = tagId.toLowerCase();
-  if (mode === 'vndb') return `/tag/${encodeURIComponent(id)}`;
-  return `/?tag=${encodeURIComponent(id)}`;
+  if (mode === 'vndb') return `/tag/${encodeURIComponent(id)}?tab=vndb`;
+  return `/tag/${encodeURIComponent(id)}`;
 }
 
 /** Switch URL for the mode tab strip on `/tags`. */

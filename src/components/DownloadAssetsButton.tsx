@@ -7,19 +7,31 @@ import { useT } from '@/lib/i18n/client';
 type EgsWarningKind = 'network' | 'server' | 'throttled' | 'blocked';
 
 /**
- * Per-VN data downloader. Two modes:
- *   - "Missing only" (default click): hits the assets endpoint without
- *     `refresh=true`. VNDB + EGS rows are reused from cache and only files
- *     that don't already exist locally are downloaded.
- *   - "Full refresh": adds `refresh=true` — invalidates VNDB + EGS rows,
- *     re-fetches everything, re-mirrors every image whether or not the
- *     local file is present.
+ * Three possible data states for the VN. The button labels switch
+ * based on this so the operator never sees "Tout re-télécharger" on
+ * a VN that has never been downloaded.
  *
- * A successful VNDB-side download may still surface an EGS warning when EGS
- * itself was unreachable — kept visible so the user knows their data didn't
- * silently desync.
+ *   - `none`     — no local cache row at all (or every key field is
+ *                  empty). Primary CTA: "Télécharger les données".
+ *   - `partial`  — vn row exists but `fetched_at` is stale (older
+ *                  than ~24h) OR critical fields are empty. Primary
+ *                  CTA: "Mettre à jour".
+ *   - `complete` — vn row is fresh. Primary CTA stays the legacy
+ *                  "Tout re-télécharger" for a force-refresh.
+ *
+ * Callers (`VnDetailActionsBar`) compute the state server-side and
+ * pass it down so the button render matches the actual cache
+ * state without a separate fetch.
  */
-export function DownloadAssetsButton({ vnId }: { vnId: string }) {
+export type VnDataState = 'none' | 'partial' | 'complete';
+
+interface Props {
+  vnId: string;
+  /** Defaults to 'complete' so existing call sites keep the old label set. */
+  dataState?: VnDataState;
+}
+
+export function DownloadAssetsButton({ vnId, dataState = 'complete' }: Props) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -55,26 +67,51 @@ export function DownloadAssetsButton({ vnId }: { vnId: string }) {
 
   const busy = mode !== null;
 
+  // Primary-button label set per data state. The "no data" case
+  // collapses the two-button row into a single "Download data" CTA
+  // because "missing only" is meaningless when nothing is cached.
+  const primaryLabel =
+    mode === 'missing'
+      ? t.assets.downloading
+      : dataState === 'none'
+        ? t.assets.downloadData
+        : dataState === 'partial'
+          ? t.assets.downloadUpdate
+          : t.assets.downloadMissing;
+  const primaryHint =
+    dataState === 'none'
+      ? t.assets.downloadDataHint
+      : dataState === 'partial'
+        ? t.assets.downloadUpdateHint
+        : t.assets.missingHint;
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button
         className="btn"
         onClick={() => go(false)}
         disabled={busy || pending}
-        title={t.assets.missingHint}
+        title={primaryHint}
       >
         {mode === 'missing' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
-        {mode === 'missing' ? t.assets.downloading : t.assets.downloadMissing}
+        {primaryLabel}
       </button>
-      <button
-        className="btn"
-        onClick={() => go(true)}
-        disabled={busy || pending}
-        title={t.assets.fullHint}
-      >
-        {mode === 'full' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-        {mode === 'full' ? t.assets.downloading : t.assets.downloadFull}
-      </button>
+      {/*
+        Force-refresh button is hidden when there's no data yet (the
+        single "Download data" primary is enough). It re-appears once
+        the VN has cached metadata so the operator can re-fetch.
+      */}
+      {dataState !== 'none' && (
+        <button
+          className="btn"
+          onClick={() => go(true)}
+          disabled={busy || pending}
+          title={t.assets.fullHint}
+        >
+          {mode === 'full' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {mode === 'full' ? t.assets.downloading : t.assets.downloadFull}
+        </button>
+      )}
       {error && <span className="text-xs text-status-dropped">{error}</span>}
       {info && <span className="text-xs text-status-completed">{info}</span>}
       {egsWarning && (

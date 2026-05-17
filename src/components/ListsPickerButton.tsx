@@ -127,7 +127,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
   const hasMembership = (memberCount ?? 0) > 0;
   const triggerClass =
     variant === 'inline'
-      ? `inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-white`
+      ? `inline-flex h-9 items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-white`
       : `absolute right-2 top-11 z-30 inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[10px] font-bold uppercase tracking-wider shadow-card backdrop-blur transition-opacity hover:bg-bg-card ${
           hasMembership
             ? 'bg-accent text-bg !opacity-100'

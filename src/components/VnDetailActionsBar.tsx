@@ -73,6 +73,37 @@ interface Props {
 }
 
 /**
+ * Compute the tri-state download label for a VN. The data state
+ * controls the primary CTA inside the Data cluster:
+ *   - `none`     → "Télécharger les données" / "Download data"
+ *   - `partial`  → "Mettre à jour" / "Update data"
+ *   - `complete` → "Télécharger ce qui manque" / "Download missing"
+ *
+ * Heuristics, ordered:
+ *   1. No `fetched_at` at all (or 0) → none.
+ *   2. Missing primary metadata (title is the synthetic id form) → none.
+ *   3. `fetched_at` older than 30 days OR no local cover OR no platforms
+ *      list → partial.
+ *   4. Otherwise → complete.
+ *
+ * Synthetic / EGS-only ids (`egs_*`) bypass VNDB and always read as
+ * `complete` here — the Data cluster gates them out via `!isEgsOnly`
+ * upstream, so the value never reaches the DownloadAssetsButton.
+ */
+function deriveVnDataState(vn: CollectionItem): 'none' | 'partial' | 'complete' {
+  if (vn.id.startsWith('egs_')) return 'complete';
+  if (!vn.fetched_at || vn.fetched_at === 0) return 'none';
+  if (!vn.title || vn.title === vn.id) return 'none';
+  const AGE_30D_MS = 30 * 24 * 60 * 60 * 1000;
+  const ageMs = Date.now() - vn.fetched_at;
+  const stale = ageMs > AGE_30D_MS;
+  const missingCover = !vn.local_image && !vn.local_image_thumb;
+  const missingPlatforms = !vn.platforms || vn.platforms.length === 0;
+  if (stale || missingCover || missingPlatforms) return 'partial';
+  return 'complete';
+}
+
+/**
  * Wrapper classes applied to the primary-buttons row. Tailwind's
  * arbitrary variants are used to enforce a uniform `h-9` height +
  * `py-1.5` padding on every child `.btn` (button or anchor) so the
@@ -254,7 +285,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
       menuClassName="w-72 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
-      <DownloadAssetsButton vnId={vn.id} />
+      <DownloadAssetsButton vnId={vn.id} dataState={deriveVnDataState(vn)} />
     </ActionMenu>
   ) : null;
 
