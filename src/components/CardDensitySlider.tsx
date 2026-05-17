@@ -1,37 +1,158 @@
 'use client';
 import { useId } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { LayoutGrid, Maximize2, Minimize2, RotateCcw } from 'lucide-react';
 import {
   CARD_DENSITY_DEFAULT,
   CARD_DENSITY_MAX,
   CARD_DENSITY_MIN,
+  type DensityScope,
   clampCardDensity,
+  resolveScopedDensity,
   useDisplaySettings,
 } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
 
 /**
- * Slider controlling the min cell width of every shared multi-VN grid.
+ * Slider controlling the min cell width of the listing grid on a
+ * SINGLE surface. The `scope` prop identifies which slot in
+ * `settings.density` this slider reads / writes, so changing the
+ * value here does NOT bleed into other pages.
  *
  * The value flows into a grid-template-columns rule via
- * `cardGridColumns(cardDensityPx)`. Smaller value -> more columns ->
+ * `cardGridColumns(density)`. Smaller value -> more columns ->
  * denser display. The pref is persisted to localStorage + cookie via
  * `useDisplaySettings()` so it's instantly picked up by the server on
  * the next navigation (no flash-of-different-density on load).
  *
- * Used on /wishlist, /recommendations, /top-ranked, /upcoming, /dumped,
- * /egs, /similar (and any future card grid that uses the same wrapper).
- * The library has its own dedicated dense toggle; this slider doesn't
- * touch that one.
+ * URL override: when a `?density=N` search param is present, the
+ * slider reflects that value and (because the URL win-out is read
+ * inside `resolveScopedDensity`) writes will simply update the
+ * scoped setting — the URL param continues to override on subsequent
+ * reads until the user removes it. Shareable views aren't disrupted.
  */
-export function CardDensitySlider({ className = '' }: { className?: string }) {
+export function CardDensitySlider({
+  scope,
+  className = '',
+  showHint = false,
+}: {
+  scope: DensityScope;
+  className?: string;
+  /** Render the scope-specific hint copy alongside the slider. */
+  showHint?: boolean;
+}) {
+  const t = useT();
+  const { settings, set } = useDisplaySettings();
+  const search = useSearchParams();
+  const id = useId();
+  const urlDensity = search?.get('density') ?? null;
+  const value = resolveScopedDensity(settings, scope, urlDensity);
+  const scoped = settings.density?.[scope];
+  // The Reset button clears the scoped override and lets the value
+  // fall back to `cardDensityPx`. Disable when there's nothing to
+  // reset (no scoped key) AND the active value already matches the
+  // default so the user gets immediate visual feedback.
+  const canReset = scoped != null;
+
+  const writeScoped = (next: number) => {
+    const clamped = clampCardDensity(next);
+    set('density', { ...(settings.density ?? {}), [scope]: clamped });
+  };
+
+  const clearScoped = () => {
+    const nextDensity = { ...(settings.density ?? {}) };
+    delete nextDensity[scope];
+    set('density', nextDensity);
+  };
+
+  return (
+    <div
+      className={`inline-flex items-center gap-2 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] ${className}`}
+    >
+      <label htmlFor={id} className="inline-flex items-center gap-1 text-muted">
+        <LayoutGrid className="h-3 w-3" aria-hidden />
+        <span>{t.cardDensity.label}</span>
+      </label>
+      <button
+        type="button"
+        onClick={() => writeScoped(value - 20)}
+        aria-label={t.cardDensity.denser}
+        title={t.cardDensity.denser}
+        className="tap-target-tight rounded p-1 text-muted hover:text-accent"
+      >
+        <Minimize2 className="h-3 w-3" aria-hidden />
+      </button>
+      <input
+        id={id}
+        type="range"
+        min={CARD_DENSITY_MIN}
+        max={CARD_DENSITY_MAX}
+        step={10}
+        value={value}
+        onChange={(e) => writeScoped(Number(e.target.value))}
+        aria-valuemin={CARD_DENSITY_MIN}
+        aria-valuemax={CARD_DENSITY_MAX}
+        aria-valuenow={value}
+        aria-label={t.cardDensity.label}
+        className="h-1.5 w-28 cursor-pointer accent-accent"
+      />
+      <button
+        type="button"
+        onClick={() => writeScoped(value + 20)}
+        aria-label={t.cardDensity.larger}
+        title={t.cardDensity.larger}
+        className="tap-target-tight rounded p-1 text-muted hover:text-accent"
+      >
+        <Maximize2 className="h-3 w-3" aria-hidden />
+      </button>
+      <span className="ml-0.5 w-9 text-right text-[10px] tabular-nums text-muted">
+        {value}px
+      </span>
+      {/*
+        Reset clears the scoped override so the value falls back to
+        the global default. Disabled when there's no override stored
+        for this scope.
+      */}
+      <button
+        type="button"
+        onClick={() => {
+          if (canReset) clearScoped();
+          else set('cardDensityPx', CARD_DENSITY_DEFAULT);
+        }}
+        disabled={!canReset && value === CARD_DENSITY_DEFAULT}
+        aria-label={t.cardDensity.reset}
+        title={t.cardDensity.reset}
+        className="tap-target-tight rounded p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
+      >
+        <RotateCcw className="h-3 w-3" aria-hidden />
+      </button>
+      {showHint && (
+        <span className="ml-1 hidden text-[10px] text-muted/80 lg:inline">
+          {t.cardDensity.scopeHint}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Slider that edits the legacy global default (`cardDensityPx`).
+ * Used by the Settings → Display panel — every scope without an
+ * explicit override falls back to this value, so dialing it gives
+ * users a global baseline without forcing each surface's slider.
+ *
+ * The scoped slider (`<CardDensitySlider scope=…>`) is what every
+ * listing page mounts.
+ */
+export function GlobalCardDensitySlider({ className = '' }: { className?: string }) {
   const t = useT();
   const { settings, set } = useDisplaySettings();
   const id = useId();
   const value = clampCardDensity(settings.cardDensityPx);
-
   return (
-    <div className={`inline-flex items-center gap-2 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] ${className}`}>
+    <div
+      className={`inline-flex items-center gap-2 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] ${className}`}
+    >
       <label htmlFor={id} className="inline-flex items-center gap-1 text-muted">
         <LayoutGrid className="h-3 w-3" aria-hidden />
         <span>{t.cardDensity.label}</span>
@@ -71,13 +192,6 @@ export function CardDensitySlider({ className = '' }: { className?: string }) {
       <span className="ml-0.5 w-9 text-right text-[10px] tabular-nums text-muted">
         {value}px
       </span>
-      {/*
-        Reset to the project-wide default (CARD_DENSITY_DEFAULT in
-        settings/client.tsx). Disabled when already at default so the
-        affordance reads as "press to undo my change" rather than a
-        live button that does nothing. Closes the "Reset density to
-        default" gap the user flagged as missing from every page.
-      */}
       <button
         type="button"
         onClick={() => set('cardDensityPx', CARD_DENSITY_DEFAULT)}
@@ -93,9 +207,11 @@ export function CardDensitySlider({ className = '' }: { className?: string }) {
 }
 
 /**
- * Returns a CSS grid-template-columns string with the user's card
- * density applied. Use this in `style={{ gridTemplateColumns: ... }}`
- * for any grid that consumes the shared density pref.
+ * Returns a CSS grid-template-columns string with the given density.
+ * Use this in `style={{ gridTemplateColumns: ... }}` for grids on
+ * client surfaces that already resolve the scoped value through
+ * `resolveScopedDensity()` — pass the resolved px value, not the raw
+ * `cardDensityPx` setting (that would leak the legacy global).
  */
 export function cardGridColumns(densityPx: number, fill: 'auto-fill' | 'auto-fit' = 'auto-fill'): string {
   const safe = clampCardDensity(densityPx);

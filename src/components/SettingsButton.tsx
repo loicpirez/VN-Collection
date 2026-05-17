@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Check, Download, Eye, EyeOff, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
-import { CardDensitySlider } from './CardDensitySlider';
+import { GlobalCardDensitySlider } from './CardDensitySlider';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import {
@@ -342,7 +342,7 @@ export function SettingsButton() {
                     <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
                       <span className="text-sm font-semibold">{t.settings.cardDensityTitle}</span>
                       <span className="text-[11px] text-muted">{t.settings.cardDensityDesc}</span>
-                      <CardDensitySlider className="mt-1 self-start" />
+                      <GlobalCardDensitySlider className="mt-1 self-start" />
                     </div>
                   </div>
                 )}
