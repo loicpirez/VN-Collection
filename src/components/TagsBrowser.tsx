@@ -107,28 +107,43 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local' }: Tag
         <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
       </header>
 
+      {/*
+        The tab strip renders as `<Link>` so the URL contract
+        (`/tags` for local, `/tags?mode=vndb` for VNDB) is the
+        SOURCE of truth, not the local component state. Crawlers,
+        the browser-QA script, and screen readers all see the
+        href directly. The onClick handler still flips local state
+        synchronously to avoid a full page reload, but the URL
+        side-effect goes through router.replace via switchMode.
+      */}
       <nav
         className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
         role="tablist"
       >
-        <button
-          type="button"
-          onClick={() => switchMode('local')}
+        <Link
+          href={tagsPageHref('local')}
           role="tab"
           aria-selected={mode === 'local'}
+          onClick={(e) => {
+            e.preventDefault();
+            switchMode('local');
+          }}
           className={`rounded px-2.5 py-1 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabLocal}
-        </button>
-        <button
-          type="button"
-          onClick={() => switchMode('vndb')}
+        </Link>
+        <Link
+          href={tagsPageHref('vndb')}
           role="tab"
           aria-selected={mode === 'vndb'}
+          onClick={(e) => {
+            e.preventDefault();
+            switchMode('vndb');
+          }}
           className={`rounded px-2.5 py-1 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabVndb}
-        </button>
+        </Link>
       </nav>
 
       <div className="mb-6 flex flex-wrap gap-2">

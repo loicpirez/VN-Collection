@@ -150,19 +150,22 @@ export default async function StaffPage({
               </a>
             </div>
             {aliases.length > 0 && (
-              <div className="mt-3">
+              <section className="mt-3" aria-label={t.staff.aliasesLabel}>
                 <div className="text-[10px] uppercase tracking-wider text-muted">{t.staff.aliasesLabel}</div>
-                <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                <ul className="mt-1 flex flex-wrap gap-1.5 text-xs" role="list">
                   {aliases.map((a) => (
-                    <span key={a.aid} className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
+                    <li
+                      key={a.aid}
+                      className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5"
+                    >
                       <span className="text-white/85">{a.name}</span>
                       {a.latin && a.latin !== a.name && (
                         <span className="ml-1 text-[10px] text-muted">({a.latin})</span>
                       )}
-                    </span>
+                    </li>
                   ))}
-                </div>
-              </div>
+                </ul>
+              </section>
             )}
             {description && (
               <div className="mt-3">
