@@ -2101,6 +2101,8 @@ export const dictionaries = {
       save: 'Enregistrer',
       saved: 'Mise en page sauvegardée',
       saveError: 'Échec de la sauvegarde',
+      collapseSection: 'Réduire par défaut',
+      expandSection: 'Agrandir par défaut',
     },
     shelfDisplay: {
       title: 'Options d\'affichage de l\'étagère',
@@ -4500,6 +4502,8 @@ export const dictionaries = {
       save: 'Save',
       saved: 'Layout saved',
       saveError: 'Failed to save layout',
+      collapseSection: 'Collapse by default',
+      expandSection: 'Expand by default',
     },
     shelfDisplay: {
       title: 'Shelf display options',
@@ -6898,6 +6902,8 @@ export const dictionaries = {
       save: '保存',
       saved: 'レイアウト保存済み',
       saveError: '保存に失敗しました',
+      collapseSection: 'デフォルトで折りたたむ',
+      expandSection: 'デフォルトで展開する',
     },
     shelfDisplay: {
       title: '棚の表示オプション',

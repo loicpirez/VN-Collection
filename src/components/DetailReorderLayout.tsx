@@ -36,6 +36,8 @@ import { useToast } from './ToastProvider';
 export interface DetailSection {
   id: string;
   node: React.ReactNode;
+  /** Display label used in edit mode and as the collapsed-section header. */
+  label?: string;
 }
 
 export interface SectionLayoutV1 {
@@ -135,6 +137,16 @@ export function DetailReorderLayout({
     }));
   }
 
+  function toggleCollapsed(id: string) {
+    setDraft((prev) => ({
+      ...prev,
+      sections: {
+        ...prev.sections,
+        [id]: { ...prev.sections[id], collapsed: !(prev.sections[id]?.collapsed ?? false) },
+      },
+    }));
+  }
+
   const save = useCallback(async () => {
     setSaving(true);
     try {
@@ -168,9 +180,19 @@ export function DetailReorderLayout({
   if (!editing) {
     return (
       <>
-        {orderedSections.map(({ id, node, visible }) =>
-          visible ? <div key={id}>{node}</div> : null,
-        )}
+        {orderedSections.map(({ id, node, visible }) => {
+          if (!visible) return null;
+          const isCollapsed = layout.sections[id]?.collapsed ?? false;
+          const sec = sections.find((s) => s.id === id);
+          if (isCollapsed && sec?.label) {
+            return (
+              <CollapsibleSectionHeader key={id} label={sec.label}>
+                {node}
+              </CollapsibleSectionHeader>
+            );
+          }
+          return <div key={id}>{node}</div>;
+        })}
         <div className="mt-4 flex justify-end">
           <button
             type="button"
@@ -204,15 +226,22 @@ export function DetailReorderLayout({
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={draft.order} strategy={verticalListSortingStrategy}>
-          {orderedSections.map(({ id, node, visible }) => (
-            <SortableSection
-              key={id}
-              id={id}
-              node={node}
-              visible={visible}
-              onToggleVisible={() => toggleVisible(id)}
-            />
-          ))}
+          {orderedSections.map(({ id, node, visible }) => {
+            const sec = sections.find((s) => s.id === id);
+            const collapsed = draft.sections[id]?.collapsed ?? false;
+            return (
+              <SortableSection
+                key={id}
+                id={id}
+                node={node}
+                visible={visible}
+                label={sec?.label}
+                collapsed={collapsed}
+                onToggleVisible={() => toggleVisible(id)}
+                onToggleCollapsed={sec?.label ? () => toggleCollapsed(id) : undefined}
+              />
+            );
+          })}
         </SortableContext>
       </DndContext>
     </div>
@@ -223,12 +252,18 @@ function SortableSection({
   id,
   node,
   visible,
+  label,
+  collapsed,
   onToggleVisible,
+  onToggleCollapsed,
 }: {
   id: string;
   node: React.ReactNode;
   visible: boolean;
+  label?: string;
+  collapsed: boolean;
   onToggleVisible: () => void;
+  onToggleCollapsed?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
@@ -238,6 +273,18 @@ function SortableSection({
     <div ref={setNodeRef} style={style} className="relative">
       {/* Floating edit-mode controls — don't touch the section's own chrome */}
       <div className="absolute right-2 top-2 z-30 flex items-center gap-1">
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
+            title={collapsed ? t.layout.expandSection : t.layout.collapseSection}
+          >
+            {collapsed
+              ? <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+              : <ChevronDown className="h-3.5 w-3.5" aria-hidden />}
+          </button>
+        )}
         <button
           type="button"
           onClick={onToggleVisible}
@@ -256,9 +303,43 @@ function SortableSection({
           <GripVertical className="h-3.5 w-3.5" aria-hidden />
         </button>
       </div>
+      {label && (
+        <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted/60 select-none pl-1">
+          {label}
+        </div>
+      )}
       <div className={visible ? '' : 'opacity-30 pointer-events-none select-none'}>
         {node}
       </div>
     </div>
   );
+}
+
+function CollapsibleSectionHeader({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useLocalCollapse(false);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mb-2 flex w-full items-center gap-2 text-left text-xs font-bold uppercase tracking-widest text-muted hover:text-white transition-colors"
+      >
+        {open
+          ? <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          : <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+        {label}
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
+function useLocalCollapse(initial: boolean): [boolean, React.Dispatch<React.SetStateAction<boolean>>] {
+  return useState(initial);
 }
