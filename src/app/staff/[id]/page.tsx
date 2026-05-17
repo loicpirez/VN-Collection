@@ -357,12 +357,14 @@ function VnCard({
         vn.in_collection ? 'border-accent/40' : 'border-border'
       } hover:border-accent`}
     >
-      {/* Density-aware row cover. */}
+      {/* Density-aware row cover. Multiplier matches the
+          producer / top-ranked / upcoming row card formula so all
+          row-style cards scale at the same rate as the slider. */}
       <Link
         href={`/vn/${vn.id}`}
         className="block shrink-0 overflow-hidden rounded"
         style={{
-          width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.32), 160px)',
+          width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
           aspectRatio: '2 / 3',
         }}
       >

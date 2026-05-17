@@ -151,11 +151,15 @@ function RoleSection({
                 href={`/vn/${v.id}`}
                 className="group flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 pr-10 transition-colors hover:border-accent"
               >
-                {/* Density-aware row cover (was hard `h-16 w-11`). */}
+                {/* Density-aware row cover. The multiplier mirrors
+                    the staff / top-ranked / upcoming row card formula
+                    (`* 0.42`) so the cover visibly scales when the
+                    slider moves instead of staying frozen at a
+                    small thumbnail size. */}
                 <div
                   className="shrink-0 overflow-hidden rounded"
                   style={{
-                    width: 'clamp(44px, calc(var(--card-density-px, 220px) * 0.22), 120px)',
+                    width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
                     aspectRatio: '2 / 3',
                   }}
                 >

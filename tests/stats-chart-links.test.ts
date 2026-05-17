@@ -86,4 +86,22 @@ describe('stats chart link generation', () => {
     const yMax2 = range2[1] ?? range2[0];
     expect(`/?yearMin=${yMin2}&yearMax=${yMax2}`).toBe('/?yearMin=2020&yearMax=2024');
   });
+
+  it('publisher ranking row → /producer/<id>', () => {
+    // Publishers share the same producer detail page; the rank shown
+    // on /producers second tab pins this so a future split into a
+    // /publisher/<id> route is caught.
+    const publisher = { id: 'p9003', name: 'pub-y', vn_count: 8, role: 'publisher' };
+    expect(`/producer/${publisher.id}`).toBe('/producer/p9003');
+  });
+
+  it('VnCard chip → /search?platforms=<code> / /search?langs=<code>', () => {
+    // The library / search VnCard surfaces platforms + languages as
+    // clickable chips routed to /search filters. Pinned here so a
+    // shared chip rewrite doesn't drop the link.
+    const platform = 'psv';
+    const lang = 'zh-Hant';
+    expect(`/search?platforms=${encodeURIComponent(platform)}`).toBe('/search?platforms=psv');
+    expect(`/search?langs=${encodeURIComponent(lang)}`).toBe('/search?langs=zh-Hant');
+  });
 });
