@@ -113,30 +113,45 @@ export default async function StaffPage({
             )}
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
               {profile?.lang && (
-                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
+                <Link
+                  href={`/staff?lang=${encodeURIComponent(profile.lang)}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 hover:border-accent hover:text-accent"
+                  title={profile.lang}
+                >
                   <Globe className="h-3 w-3" aria-hidden />
                   {languageDisplayName(profile.lang)}
-                </span>
+                </Link>
               )}
               {gender && (
-                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
+                <Link
+                  href={`/staff?sex=${encodeURIComponent(gender)}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 hover:border-accent hover:text-accent"
+                >
                   <User className="h-3 w-3" aria-hidden />
                   {t.staff.gender}:{' '}
                   {gender === 'f' ? t.staff.genderF : gender === 'm' ? t.staff.genderM : gender}
-                </span>
+                </Link>
               )}
-              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 lowercase">
+              <a
+                href="#production-credits"
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 lowercase hover:border-accent hover:text-accent"
+                title={t.staff.productionCredits}
+              >
                 <Users className="h-3 w-3" aria-hidden />
                 {production.length} {t.staff.vnCount} · {t.staff.productionCredits}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 lowercase">
+              </a>
+              <a
+                href="#voice-credits"
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 lowercase hover:border-accent hover:text-accent"
+                title={t.staff.voiceCredits}
+              >
                 <Mic2 className="h-3 w-3" aria-hidden />
                 {voice.length} {t.staff.vnCount} · {t.staff.voiceCredits}
-              </span>
+              </a>
             </div>
             {aliases.length > 0 && (
               <div className="mt-3">
-                <div className="text-[10px] uppercase tracking-wider text-muted">{t.staff.aliases}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted">{t.staff.aliasesLabel}</div>
                 <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
                   {aliases.map((a) => (
                     <span key={a.aid} className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5">
@@ -150,23 +165,29 @@ export default async function StaffPage({
               </div>
             )}
             {description && (
-              <div className="mt-3 whitespace-pre-wrap text-xs text-white/80">
-                <VndbMarkup text={description} />
+              <div className="mt-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted">{t.staff.descriptionLabel}</div>
+                <div className="mt-1 whitespace-pre-wrap text-xs text-white/80">
+                  <VndbMarkup text={description} />
+                </div>
               </div>
             )}
             {extlinks.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
-                {extlinks.map((l) => (
-                  <a
-                    key={l.url}
-                    href={l.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
-                  >
-                    {l.label}
-                  </a>
-                ))}
+              <div className="mt-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted">{t.staff.extlinksLabel}</div>
+                <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                  {extlinks.map((l) => (
+                    <a
+                      key={l.url}
+                      href={l.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
+                    >
+                      {l.label}
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -213,7 +234,7 @@ export default async function StaffPage({
       )}
 
       {voice.length > 0 && (
-        <section className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+        <section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Mic2 className="h-4 w-4 text-accent" /> {t.staff.voiceCredits}
             <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {voice.length}</span>
@@ -279,7 +300,7 @@ export default async function StaffPage({
       )}
 
       {groupedProduction.length > 0 && (
-        <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+        <section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Users className="h-4 w-4 text-accent" /> {t.staff.productionCredits}
             <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {production.length}</span>
@@ -406,7 +427,15 @@ function VnCard({
               <Star className="h-3 w-3 fill-accent" /> {ratingDisplay}
             </span>
           )}
-          {year && <span>{year}</span>}
+          {year && (
+            <Link
+              href={`/?yearMin=${year}&yearMax=${year}`}
+              className="hover:border-accent hover:text-accent"
+              title={year}
+            >
+              {year}
+            </Link>
+          )}
           {vn.in_collection && (
             <span
               className="inline-flex items-center gap-0.5 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent"

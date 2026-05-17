@@ -50,7 +50,13 @@ export async function StaffSection({ staff }: { staff: StaffEntry[] }) {
         {groups.map((g) => (
           <div key={g.role}>
             <dt className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted">
-              {t.staff[ROLE_KEY[g.role]]}
+              <Link
+                href={`/staff?role=${encodeURIComponent(g.role)}`}
+                className="hover:text-accent"
+                title={g.role}
+              >
+                {t.staff[ROLE_KEY[g.role]]}
+              </Link>
             </dt>
             <dd className="flex flex-wrap gap-1.5">
               {g.entries.map((s, i) => (
