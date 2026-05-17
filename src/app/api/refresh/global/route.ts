@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, materializeReleaseMetaForVn } from '@/lib/db';
 import { startJob, tickJob, finishJob, recordError, setJobCurrent } from '@/lib/download-status';
 import { fetchEgsAnticipated, fetchEgsTopRanked } from '@/lib/erogamescape';
 import { getGlobalStats, getAuthInfo, getSchema, searchTags, searchTraits } from '@/lib/vndb';
@@ -76,6 +76,26 @@ export async function POST(req: NextRequest) {
     "cache_key LIKE '% /trait|%' OR " +
     "cache_key LIKE '% /vn:top-ranked:%'",
   );
+  // Wipe the materialised per-release metadata too. The shelf
+  // popover / owned-editions surfaces read from `release_meta_cache`
+  // (not the raw `POST /release` JSON), so without this step the
+  // global refresh would re-fetch every release payload AND the
+  // surfaces would keep rendering the stale platforms / languages
+  // until the per-VN `materializeReleaseMetaForVn` ran. We bust
+  // here and re-materialize per-VN below.
+  const bustReleaseMeta = db.prepare('DELETE FROM release_meta_cache');
+  // VN ids in the collection — every one gets its own materialize
+  // job so the operator can see progress per-VN in the global
+  // download status panel. Restricted to real `vNNN` ids; synthetic
+  // `egs_*` entries are no-ops inside the materializer.
+  const collectionVnIds = (
+    db.prepare(
+      `SELECT vn_id FROM collection WHERE vn_id LIKE 'v%'
+       ORDER BY vn_id`,
+    ).all() as Array<{ vn_id: string }>
+  )
+    .map((r) => r.vn_id)
+    .filter((id) => /^v\d+$/.test(id));
   // Each task has a stable `name` plus the existing run() closure.
   // The name is broadcast through `setJobCurrent` so the
   // DownloadStatusBar's "Now: …" hint shows precisely what is being
@@ -83,6 +103,10 @@ export async function POST(req: NextRequest) {
   // refresh" with no detail, which manual QA flagged as opaque).
   const tasks: Array<{ name: string; run: () => Promise<unknown> }> = [
     { name: 'Cache rows (bust)', run: async () => { bust.run(); } },
+    {
+      name: 'Release metadata cache (bust)',
+      run: async () => { bustReleaseMeta.run(); },
+    },
     { name: 'EGS anticipated (top 100)', run: () => fetchEgsAnticipated(100) },
     { name: 'EGS top-ranked (top 100)',  run: () => fetchEgsTopRanked(100) },
     { name: 'VNDB top-ranked (top 100)', run: () => fetchVndbTopRanked(100) },
@@ -96,6 +120,17 @@ export async function POST(req: NextRequest) {
     // hanging on the now-deleted older value.
     { name: 'Tags · default search',      run: () => searchTags('', { results: 60 }) },
     { name: 'Traits · default search',    run: () => searchTraits('', { results: 60 }) },
+    // One job per collection VN — the materializer scans cached
+    // `POST /release` payloads (re-populated above for VNs that
+    // appear in the upcoming / top-ranked refetches) and upserts
+    // a fresh row per linked release. Synthetic `egs_*` ids are
+    // already filtered out above. The job label includes the VN
+    // id so the operator can see exactly which row is being
+    // rebuilt in the download-status panel.
+    ...collectionVnIds.map((vnId) => ({
+      name: `Release metadata · ${vnId}`,
+      run: async () => { materializeReleaseMetaForVn(vnId); },
+    })),
   ];
 
   // Tagged `cache-refresh` (not `vndb-pull`) because this fan-out also
