@@ -1671,7 +1671,7 @@ export const dictionaries = {
       roleLabels: { scenario: 'Scénario', chardesign: 'Design perso', art: 'Art', music: 'Musique', songs: 'Chansons', director: 'Direction', producer: 'Production', staff: 'Staff', translator: 'Traduction' },
       scopeLabel: 'Portée',
       scopeAll: 'Tout',
-      scopeCollection: 'Ma collection',
+      scopeCollection: 'Locale',
       localVnCount: '{n} VN local',
     },
     schemaPage: {
@@ -3973,7 +3973,7 @@ export const dictionaries = {
       roleLabels: { scenario: 'Scenario', chardesign: 'Char design', art: 'Art', music: 'Music', songs: 'Songs', director: 'Director', producer: 'Producer', staff: 'Staff', translator: 'Translator' },
       scopeLabel: 'Scope',
       scopeAll: 'All',
-      scopeCollection: 'My collection',
+      scopeCollection: 'Local',
       localVnCount: '{n} local VN',
     },
     schemaPage: {
@@ -6272,7 +6272,7 @@ export const dictionaries = {
       roleLabels: { scenario: 'シナリオ', chardesign: 'キャラデザ', art: '原画', music: '音楽', songs: '主題歌', director: '監督', producer: 'プロデュース', staff: 'スタッフ', translator: '翻訳' },
       scopeLabel: '範囲',
       scopeAll: 'すべて',
-      scopeCollection: 'マイコレ',
+      scopeCollection: 'ローカル',
       localVnCount: 'ローカル {n} VN',
     },
     schemaPage: {
