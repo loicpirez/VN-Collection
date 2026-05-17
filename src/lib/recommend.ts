@@ -26,10 +26,64 @@ export function parseRecommendMode(raw: string | null | undefined): RecommendMod
     : DEFAULT_RECOMMEND_MODE;
 }
 
+/**
+ * Tag ids that are so universal across visual novels that allowing them to
+ * dominate the seed pool collapses every "personalised" recommendation to
+ * the same three suggestions. Each id is multiplied by its penalty value
+ * during seed ranking (penalty ∈ (0, 1), so tags here always rank LOWER
+ * than a non-generic tag with the same raw count).
+ *
+ * The list is intentionally short — only well-known structural tags
+ * (engine / protagonist sex / setting) and the most over-applied heroine
+ * archetypes. Operators who actually love these tags can pin them via the
+ * `?tags=…` custom-seed URL — penalties only apply to AUTO-derived seeds.
+ *
+ * Sources: VNDB tag pages https://vndb.org/g134 / g630 / g69 / g1166 …
+ */
+export const GENERIC_TAG_PENALTY_MAP: Record<string, number> = {
+  g134: 0.2, // ADV (engine / format — almost every VN)
+  g630: 0.3, // Male Protagonist
+  g69: 0.4, // High School Student Heroine
+  g1166: 0.5, // Tsundere Heroine
+  g1167: 0.5, // Dandere Heroine
+  g540: 0.5, // Genki Heroine
+  g541: 0.5, // Kuudere Heroine
+  g542: 0.5, // Yandere Heroine
+};
+
+/**
+ * Apply the generic-tag penalty multiplier to a raw weight. Tags not in
+ * the map pass through unchanged.
+ */
+export function applyGenericPenalty(tagId: string, weight: number): number {
+  const mul = GENERIC_TAG_PENALTY_MAP[tagId];
+  return mul == null ? weight : weight * mul;
+}
+
 export interface RecommendationSeed {
   tagId: string;
   name: string;
   weight: number;
+  /** Distinct seed VN ids that contributed this tag. Lets the UI render
+   *  a "shared by N of your VNs" hint and lets the rotation logic
+   *  pick top-2 contributors per recommendation. */
+  contributors?: string[];
+  /** Raw (pre-penalty) weight, kept so the explanation panel can show
+   *  both numbers side-by-side. */
+  rawWeight?: number;
+}
+
+/** Per-seed-class counts surfaced in the explanation panel. */
+export interface SignalCounts {
+  finished: number;
+  rated: number;
+  favorite: number;
+  queue: number;
+  wishlist: number;
+  /** Distinct VNs across every signal class — what the algorithm actually
+   *  sampled. The sum of individual counts will exceed this when a VN
+   *  qualifies under multiple classes. */
+  total: number;
 }
 
 export interface Recommendation {
@@ -54,6 +108,14 @@ export interface Recommendation {
    *  label=5). Same caveat as `inCollection`: only meaningful when
    *  `includeWishlist` is set. */
   inWishlist?: boolean;
+  /** Up to two seed VNs that most contributed to this recommendation,
+   *  ordered by their per-seed weight. Used by the card "Because you
+   *  liked X / Y" chip so the seed actually rotates between rows. */
+  contributors?: Array<{ id: string; title: string }>;
+  /** Studios / developers shared with at least three seeds. */
+  studioOverlap?: number;
+  /** Scenarist / staff shared with at least three seeds. */
+  staffOverlap?: number;
 }
 
 export interface RecommendOptions {
@@ -90,12 +152,26 @@ export interface RecommendOptions {
    * cache row exists the helper silently treats the wishlist as empty.
    */
   includeWishlist?: boolean;
+  /**
+   * When true (default), the wishlist is folded into the SEED pool too —
+   * wishlisted VNs supply seed tags alongside finished / rated / favourite.
+   * Set false to mirror the original behaviour. Exposed so the
+   * /recommendations page can wire a Settings toggle + URL param.
+   */
+  useWishlist?: boolean;
 }
 
 export interface RecommendResult {
   seeds: RecommendationSeed[];
   results: Recommendation[];
   mode: RecommendMode;
+  /** Per-class seed counts so the explanation panel can report
+   *  "5 finished + 3 rated + 2 favorite = 8 distinct VNs sampled". */
+  signalCounts?: SignalCounts;
+  /** Same shape as `seeds`, but capturing the picture BEFORE the
+   *  generic-tag penalty multiplier was applied. Lets the panel show
+   *  what would have ranked without the broadening pass. */
+  rawSeeds?: RecommendationSeed[];
 }
 
 /**
@@ -126,6 +202,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
     seedVnId,
     includeOwned = false,
     includeWishlist = false,
+    useWishlist = true,
   } = opts;
 
   // `similar-to-vn` always needs a seed VN; without one the page has
@@ -142,8 +219,13 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
     const results = await runRecommendForSeeds(seeds, resultLimit, {
       mode,
       exclude,
+      seedTitles: new Map([[seedVnId, getVnTitle(seedVnId) ?? seedVnId]]),
     });
-    return { seeds, results: stampOwnershipFlags(results, includeOwned, includeWishlist), mode };
+    return {
+      seeds,
+      results: stampOwnershipFlags(results, includeOwned, includeWishlist),
+      mode,
+    };
   }
 
   // Custom-seeds bypass for the non-similar modes: lets the operator
@@ -155,20 +237,308 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
     const results = await runRecommendForSeeds(customSeeds, resultLimit, {
       mode,
       exclude,
+      seedTitles: new Map(),
     });
-    return { seeds: customSeeds, results: stampOwnershipFlags(results, includeOwned, includeWishlist), mode };
+    return {
+      seeds: customSeeds,
+      results: stampOwnershipFlags(results, includeOwned, includeWishlist),
+      mode,
+    };
   }
 
-  // Auto-derive seeds from the operator's top-rated collection entries.
-  const seeds = deriveSeedsFromTopRated(seedLimit, tagLimit, includeEro);
-  if (seeds.length === 0) return { seeds: [], results: [], mode };
+  // Auto-derive seeds from the operator's broader signal pool: every
+  // finished VN, every rated >= 70 VN, every favourite, every reading
+  // queue entry, plus optional wishlist. Tags shared across multiple
+  // seed VNs get a multi-source boost; generic tags get penalised.
+  const union = buildSeedUnion(useWishlist);
+  if (union.vns.size === 0) {
+    return {
+      seeds: [],
+      results: [],
+      mode,
+      signalCounts: union.counts,
+    };
+  }
+  const { seeds, rawSeeds } = deriveSeedsFromUnion(union, seedLimit, tagLimit, includeEro);
+  if (seeds.length === 0) {
+    return {
+      seeds: [],
+      results: [],
+      mode,
+      signalCounts: union.counts,
+      rawSeeds,
+    };
+  }
 
   const exclude = collectExclusions(includeOwned, includeWishlist);
+  const seedTitles = new Map<string, string>();
+  for (const [vnId, info] of union.vns) {
+    if (info.title) seedTitles.set(vnId, info.title);
+  }
   const results = await runRecommendForSeeds(seeds, resultLimit, {
     mode,
     exclude,
+    seedTitles,
+    studioCount: union.studioCount,
+    staffCount: union.staffCount,
   });
-  return { seeds, results: stampOwnershipFlags(results, includeOwned, includeWishlist), mode };
+  return {
+    seeds,
+    results: stampOwnershipFlags(results, includeOwned, includeWishlist),
+    mode,
+    signalCounts: union.counts,
+    rawSeeds,
+  };
+}
+
+interface SeedVnInfo {
+  title: string | null;
+  rating: number; // 0..100; uses rating if available else 70 default
+  tags: Array<{ id: string; name: string; rating?: number; spoiler?: number; category?: string | null }>;
+  developers: string[];
+  staff: string[];
+  /** Why this VN entered the pool. */
+  signals: Array<'completed' | 'rated' | 'favorite' | 'queue' | 'wishlist'>;
+}
+
+interface SeedUnion {
+  vns: Map<string, SeedVnInfo>;
+  counts: SignalCounts;
+  studioCount: Map<string, number>;
+  staffCount: Map<string, number>;
+}
+
+/**
+ * Collect every VN that the operator has signaled positive interest in.
+ * Five overlapping signal classes (a VN can light up several):
+ *   - finished — `collection.status = 'completed'`
+ *   - rated    — `collection.user_rating >= 70`
+ *   - favorite — `collection.favorite = 1`
+ *   - queue    — `reading_queue` (the "play next" list)
+ *   - wishlist — VNDB ulist label=5, gated behind `useWishlist`
+ */
+function buildSeedUnion(useWishlist: boolean): SeedUnion {
+  const vns = new Map<string, SeedVnInfo>();
+  const counts: SignalCounts = {
+    finished: 0,
+    rated: 0,
+    favorite: 0,
+    queue: 0,
+    wishlist: 0,
+    total: 0,
+  };
+
+  function touch(vnId: string, signal: SeedVnInfo['signals'][number], rating: number | null): void {
+    let info = vns.get(vnId);
+    if (!info) {
+      const row = db
+        .prepare(
+          `SELECT title, tags, developers, staff FROM vn WHERE id = ?`,
+        )
+        .get(vnId) as
+        | { title: string | null; tags: string | null; developers: string | null; staff: string | null }
+        | undefined;
+      let tags: SeedVnInfo['tags'] = [];
+      let developers: string[] = [];
+      let staff: string[] = [];
+      try {
+        tags = row?.tags ? JSON.parse(row.tags) : [];
+      } catch {
+        tags = [];
+      }
+      try {
+        const devs = row?.developers ? (JSON.parse(row.developers) as Array<{ id?: string; name?: string }>) : [];
+        developers = devs.map((d) => d.id ?? d.name ?? '').filter((s) => s.length > 0);
+      } catch {
+        developers = [];
+      }
+      try {
+        const staffRaw = row?.staff ? (JSON.parse(row.staff) as Array<{ id?: string; aid?: string | number; name?: string }>) : [];
+        staff = staffRaw.map((s) => s.id ?? (s.aid != null ? String(s.aid) : s.name ?? '')).filter((s) => s.length > 0);
+      } catch {
+        staff = [];
+      }
+      info = {
+        title: row?.title ?? null,
+        rating: rating ?? 70,
+        tags,
+        developers,
+        staff,
+        signals: [],
+      };
+      vns.set(vnId, info);
+    } else if (rating != null && rating > info.rating) {
+      info.rating = rating;
+    }
+    if (!info.signals.includes(signal)) info.signals.push(signal);
+  }
+
+  // finished
+  try {
+    const rows = db
+      .prepare(
+        `SELECT vn_id, user_rating FROM collection WHERE status = 'completed'`,
+      )
+      .all() as Array<{ vn_id: string; user_rating: number | null }>;
+    for (const r of rows) {
+      touch(r.vn_id, 'completed', r.user_rating);
+      counts.finished += 1;
+    }
+  } catch {
+    // table may not exist yet in fresh DBs; treat as zero contributions
+  }
+
+  // rated >= 70
+  try {
+    const rows = db
+      .prepare(
+        `SELECT vn_id, user_rating FROM collection WHERE user_rating IS NOT NULL AND user_rating >= 70`,
+      )
+      .all() as Array<{ vn_id: string; user_rating: number }>;
+    for (const r of rows) {
+      touch(r.vn_id, 'rated', r.user_rating);
+      counts.rated += 1;
+    }
+  } catch {
+    // ignore
+  }
+
+  // favorite
+  try {
+    const rows = db
+      .prepare(`SELECT vn_id, user_rating FROM collection WHERE favorite = 1`)
+      .all() as Array<{ vn_id: string; user_rating: number | null }>;
+    for (const r of rows) {
+      touch(r.vn_id, 'favorite', r.user_rating);
+      counts.favorite += 1;
+    }
+  } catch {
+    // ignore
+  }
+
+  // reading queue
+  try {
+    const rows = db.prepare(`SELECT vn_id FROM reading_queue`).all() as Array<{ vn_id: string }>;
+    for (const r of rows) {
+      touch(r.vn_id, 'queue', null);
+      counts.queue += 1;
+    }
+  } catch {
+    // ignore
+  }
+
+  // wishlist (gated)
+  if (useWishlist) {
+    for (const id of readCachedWishlistIds()) {
+      touch(id, 'wishlist', null);
+      counts.wishlist += 1;
+    }
+  }
+
+  counts.total = vns.size;
+
+  // Derived: studio + staff overlap counters, keyed on raw id.
+  const studioCount = new Map<string, number>();
+  const staffCount = new Map<string, number>();
+  for (const info of vns.values()) {
+    for (const d of new Set(info.developers)) {
+      studioCount.set(d, (studioCount.get(d) ?? 0) + 1);
+    }
+    for (const s of new Set(info.staff)) {
+      staffCount.set(s, (staffCount.get(s) ?? 0) + 1);
+    }
+  }
+
+  return { vns, counts, studioCount, staffCount };
+}
+
+interface DerivedSeeds {
+  seeds: RecommendationSeed[];
+  rawSeeds: RecommendationSeed[];
+}
+
+/**
+ * Weight every tag across the union of seed VNs. The base weight is the
+ * sum of `(user_rating ?? 70) / 100` across every VN where the tag
+ * appears. Tags that appear in ≥ 2 distinct seed VNs get a 1.5x
+ * multi-source multiplier so genuinely shared themes float to the top.
+ * Generic tags (see `GENERIC_TAG_PENALTY_MAP`) are downweighted last
+ * so they always rank below an organic non-generic tag with the same
+ * raw weight.
+ */
+function deriveSeedsFromUnion(
+  union: SeedUnion,
+  seedLimit: number,
+  tagLimit: number,
+  includeEro: boolean,
+): DerivedSeeds {
+  interface Acc {
+    name: string;
+    weight: number;
+    contributors: Set<string>;
+  }
+  const tagAcc = new Map<string, Acc>();
+
+  // Sort seed VNs by rating descending so seedLimit caps the strongest
+  // signals first. Wishlist / queue items (rating = 70 baseline) come
+  // after explicitly rated ones.
+  const sortedVns = Array.from(union.vns.entries()).sort(
+    (a, b) => b[1].rating - a[1].rating,
+  );
+  // Cap at seedLimit so a huge collection doesn't blow out the seed-tag
+  // weights. Smaller pools naturally consume everything they have.
+  const consumed = sortedVns.slice(0, Math.min(seedLimit, sortedVns.length));
+
+  for (const [vnId, info] of consumed) {
+    const ranked = info.tags
+      .filter((t) => (t.spoiler ?? 0) === 0 && (includeEro || t.category !== 'ero'))
+      .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+      .slice(0, 5);
+    const seedContribution = (info.rating || 70) / 100;
+    for (const t of ranked) {
+      let acc = tagAcc.get(t.id);
+      if (!acc) {
+        acc = { name: t.name, weight: 0, contributors: new Set() };
+        tagAcc.set(t.id, acc);
+      }
+      acc.weight += seedContribution;
+      acc.contributors.add(vnId);
+    }
+  }
+
+  const rawSeedsAll: RecommendationSeed[] = [];
+  const seedsAll: RecommendationSeed[] = [];
+  for (const [tagId, acc] of tagAcc) {
+    const sharedBoost = acc.contributors.size >= 2 ? 1.5 : 1;
+    const rawWeight = acc.weight * sharedBoost;
+    const finalWeight = applyGenericPenalty(tagId, rawWeight);
+    const contributors = Array.from(acc.contributors);
+    rawSeedsAll.push({ tagId, name: acc.name, weight: rawWeight, contributors });
+    seedsAll.push({
+      tagId,
+      name: acc.name,
+      weight: finalWeight,
+      contributors,
+      rawWeight,
+    });
+  }
+  rawSeedsAll.sort((a, b) => b.weight - a.weight);
+  seedsAll.sort((a, b) => b.weight - a.weight);
+  return {
+    seeds: seedsAll.slice(0, tagLimit),
+    rawSeeds: rawSeedsAll.slice(0, tagLimit),
+  };
+}
+
+function getVnTitle(vnId: string): string | null {
+  try {
+    const row = db.prepare(`SELECT title FROM vn WHERE id = ?`).get(vnId) as
+      | { title: string | null }
+      | undefined;
+    return row?.title ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -276,42 +646,6 @@ function buildCustomSeeds(customTagIds: string[]): RecommendationSeed[] {
   }));
 }
 
-function deriveSeedsFromTopRated(seedLimit: number, tagLimit: number, includeEro: boolean): RecommendationSeed[] {
-  const rows = db
-    .prepare(`
-      SELECT v.id, c.user_rating, v.tags AS tags_json
-      FROM collection c JOIN vn v ON v.id = c.vn_id
-      WHERE c.user_rating IS NOT NULL AND c.user_rating >= 70
-      ORDER BY c.user_rating DESC, c.updated_at DESC
-      LIMIT ?
-    `)
-    .all(seedLimit) as Array<{ id: string; user_rating: number; tags_json: string | null }>;
-
-  const tagWeights = new Map<string, { name: string; weight: number }>();
-  for (const r of rows) {
-    let tags: Array<{ id: string; name: string; rating: number; category?: string | null }> = [];
-    try { tags = r.tags_json ? JSON.parse(r.tags_json) : []; } catch { tags = []; }
-    // Per-VN: keep the top-3 by VNDB tag rating; drop ero tags by default.
-    const ranked = tags
-      .filter((t) => includeEro || t.category !== 'ero')
-      .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-      .slice(0, 3);
-    for (const t of ranked) {
-      const cur = tagWeights.get(t.id);
-      const add = r.user_rating / 100;
-      if (cur) {
-        cur.weight += add;
-      } else {
-        tagWeights.set(t.id, { name: t.name, weight: add });
-      }
-    }
-  }
-  return Array.from(tagWeights.entries())
-    .map(([tagId, { name, weight }]) => ({ tagId, name, weight }))
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, tagLimit);
-}
-
 /**
  * Pull the top-N tags from a specific VN's local tag list. Used by
  * `similar-to-vn` mode (the same shape `/similar` already employs).
@@ -347,6 +681,7 @@ function deriveSeedsFromVn(
         tagId: id,
         name: found?.name ?? id,
         weight: found?.rating ?? 1,
+        contributors: [vnId],
       };
     });
   }
@@ -354,7 +689,7 @@ function deriveSeedsFromVn(
     .filter((t) => (t.spoiler ?? 0) === 0 && (includeEro || t.category !== 'ero'))
     .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
     .slice(0, tagLimit)
-    .map((t) => ({ tagId: t.id, name: t.name, weight: t.rating ?? 1 }));
+    .map((t) => ({ tagId: t.id, name: t.name, weight: t.rating ?? 1, contributors: [vnId] }));
 }
 
 /**
@@ -366,7 +701,19 @@ function deriveSeedsFromVn(
 async function runRecommendForSeeds(
   seeds: RecommendationSeed[],
   resultLimit: number,
-  { mode, exclude }: { mode: RecommendMode; exclude: Set<string> },
+  {
+    mode,
+    exclude,
+    seedTitles,
+    studioCount,
+    staffCount,
+  }: {
+    mode: RecommendMode;
+    exclude: Set<string>;
+    seedTitles: Map<string, string>;
+    studioCount?: Map<string, number>;
+    staffCount?: Map<string, number>;
+  },
 ): Promise<Recommendation[]> {
   if (seeds.length === 0) return [];
 
@@ -375,7 +722,11 @@ async function runRecommendForSeeds(
   // modes still apply the loose `votecount >= 50` floor.
   const minVotesUpstream = mode === 'highly-rated' ? 100 : 50;
 
-  const aggregate = new Map<string, Recommendation>();
+  interface Aggregated extends Recommendation {
+    /** Per-contributor weight accumulator for the rotation chip. */
+    _contribWeights: Map<string, number>;
+  }
+  const aggregate = new Map<string, Aggregated>();
   const settled = await Promise.all(
     seeds.map((seed) =>
       vndbAdvancedSearchRaw({
@@ -412,6 +763,7 @@ async function runRecommendForSeeds(
           developers: (h.developers ?? []).map((d) => ({ name: d.name })),
           score: 0,
           matchedTags: [],
+          _contribWeights: new Map(),
         };
         aggregate.set(h.id, entry);
       }
@@ -419,18 +771,49 @@ async function runRecommendForSeeds(
       // ranking depends only on tag-overlap count + the VNDB tag
       // rating contribution; `because-you-liked` and the seeded
       // similar mode keep the weighted sum.
-      if (mode === 'tag-based') {
-        entry.score += 1;
-      } else {
-        entry.score += seed.weight;
-      }
+      const inc = mode === 'tag-based' ? 1 : seed.weight;
+      entry.score += inc;
       if (!entry.matchedTags.some((m) => m.id === seed.tagId)) {
         entry.matchedTags.push({ id: seed.tagId, name: seed.name });
+      }
+      // Spread the seed's incremental score across its contributors so
+      // we know which seed VNs actually drove each candidate. Each
+      // contributor receives an equal share of the increment.
+      const contribs = seed.contributors ?? [];
+      const share = contribs.length > 0 ? inc / contribs.length : 0;
+      for (const c of contribs) {
+        entry._contribWeights.set(c, (entry._contribWeights.get(c) ?? 0) + share);
       }
     }
   }
 
   let results = Array.from(aggregate.values());
+
+  // Studio / staff overlap signals — only meaningful when the auto
+  // pipeline supplied counters. ≥ 3 distinct seeds touching the same
+  // studio/staffer counts as a real pattern.
+  if (studioCount || staffCount) {
+    for (const r of results) {
+      let so = 0;
+      // VNDB hit shape only includes developer name (not id) at this
+      // layer; match by name. Local studioCount keys may be ids OR
+      // names depending on what `developers` JSON stored, so we
+      // tolerate either.
+      for (const d of r.developers) {
+        const byName = studioCount?.get(d.name) ?? 0;
+        if (byName >= 3) so = Math.max(so, byName);
+      }
+      if (so > 0) {
+        r.studioOverlap = so;
+        r.score += Math.min(so, 5) * 0.25;
+      }
+    }
+    // Staff overlap is not available on the upstream hit shape today
+    // (no staff field requested in REC_FIELDS) — we surface the
+    // counter on the result so the explanation panel can mention it
+    // but the per-card boost stays zero.
+    void staffCount;
+  }
 
   // Mode-specific post-fetch filters.
   if (mode === 'hidden-gems') {
@@ -439,7 +822,20 @@ async function runRecommendForSeeds(
     results = results.filter((r) => (r.rating ?? 0) >= 80 && (r.votecount ?? 0) >= 100);
   }
 
-  return results
+  const ranked = results
     .sort((a, b) => b.score - a.score || (b.rating ?? 0) - (a.rating ?? 0))
     .slice(0, resultLimit);
+
+  // Strip the internal contributor weights and convert to public
+  // top-2 contributor objects so the card chip can render
+  // "Because you liked X (or Y)" without exposing the accumulator.
+  return ranked.map((r): Recommendation => {
+    const { _contribWeights, ...rest } = r;
+    const top = Array.from(_contribWeights.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([id]) => ({ id, title: seedTitles.get(id) ?? id }))
+      .filter((c) => c.id && c.title);
+    return { ...rest, contributors: top.length > 0 ? top : undefined };
+  });
 }

@@ -1,18 +1,17 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, ExternalLink, Flame, Globe, Library as LibraryIcon } from 'lucide-react';
+import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, Flame, Globe, Library as LibraryIcon } from 'lucide-react';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRelease } from '@/lib/upcoming';
 import { EgsUnreachable, fetchEgsAnticipatedPage, type EgsAnticipated } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
-import { SafeImage } from '@/components/SafeImage';
-import { SkeletonCardGrid, SkeletonRows } from '@/components/Skeleton';
+import { SkeletonRows } from '@/components/Skeleton';
 import { RefreshPageButton } from '@/components/RefreshPageButton';
-import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
+import { UpcomingCard, type UpcomingCardData } from '@/components/UpcomingCard';
 import { brandHref, yearHref } from '@/lib/egs-links';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
@@ -351,6 +350,15 @@ function loadLocalCovers(rows: UpcomingRelease[]): Map<string, LocalVnCover> {
   return map;
 }
 
+function loadCollectionMembership(ids: string[]): Set<string> {
+  if (ids.length === 0) return new Set();
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
+    .all(...ids) as Array<{ vn_id: string }>;
+  return new Set(rows.map((r) => r.vn_id));
+}
+
 function ReleasesSection({
   rows,
   empty,
@@ -366,6 +374,8 @@ function ReleasesSection({
     );
   }
   const localCovers = loadLocalCovers(rows);
+  const vnIds = rows.flatMap((r) => r.vns.map((v) => v.id)).filter((id) => /^v\d+$/i.test(id));
+  const inCollectionIds = loadCollectionMembership(vnIds);
   const grouped = groupByMonth(rows);
   return (
     <>
@@ -392,51 +402,28 @@ function ReleasesSection({
             // the slider can take the column count below 240px.
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 240px)), 1fr))' }}
           >
-            {rels.map((r) => (
-              <li key={r.id}>
-                <div className="flex gap-3 rounded-lg border border-border bg-bg-elev/30 p-3">
-                  {r.vns[0] && (() => {
-                    const v = r.vns[0];
-                    const local = localCovers.get(v.id);
-                    const remoteFromRel = v.image?.url || v.image?.thumbnail || null;
-                    const finalRemote = remoteFromRel || local?.url || local?.thumb || null;
-                    const finalLocal = local?.local || local?.local_thumb || null;
-                    const finalSexual = v.image?.sexual ?? local?.sexual ?? null;
-                    return (
-                      <Link
-                        href={`/vn/${v.id}`}
-                        className="block shrink-0 overflow-hidden rounded"
-                        style={{
-                          // Floor 64px so the cover can shrink at
-                          // dense slider values; multiplier 0.42
-                          // (was 0.34) so it visibly grows at the
-                          // wide end. Max 200px keeps the cover
-                          // from dwarfing its text block.
-                          width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
-                          aspectRatio: '2 / 3',
-                        }}
-                      >
-                        <SafeImage
-                          src={finalRemote}
-                          localSrc={finalLocal}
-                          sexual={finalSexual}
-                          alt={r.title}
-                          className="h-full w-full"
-                        />
-                      </Link>
-                    );
-                  })()}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-baseline gap-2">
-                      <span className="font-bold">{r.title}</span>
-                      <span className="rounded bg-bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-accent">
-                        {r.released}
-                      </span>
-                    </div>
-                    {r.alttitle && r.alttitle !== r.title && (
-                      <div className="text-[11px] text-muted">{r.alttitle}</div>
-                    )}
-                    <div className="mt-1 text-[11px] text-muted">
+            {rels.map((r) => {
+              const v = r.vns[0];
+              const local = v ? localCovers.get(v.id) : undefined;
+              const remoteFromRel = v?.image?.url || v?.image?.thumbnail || null;
+              const finalRemote = remoteFromRel || local?.url || local?.thumb || null;
+              const finalLocal = local?.local || local?.local_thumb || null;
+              const finalSexual = v?.image?.sexual ?? local?.sexual ?? null;
+              const data: UpcomingCardData = {
+                id: v?.id ?? r.id,
+                vndbId: v?.id ?? null,
+                egsId: null,
+                title: r.title,
+                alttitle: r.alttitle,
+                released: r.released,
+                coverUrl: finalRemote,
+                coverLocal: finalLocal,
+                coverSexual: finalSexual,
+                inCollection: v ? inCollectionIds.has(v.id) : false,
+                variant: 'compact',
+                meta: (
+                  <>
+                    <div className="text-[11px] text-muted">
                       {r.producers.filter((p) => p.id).slice(0, 3).map((p, i, arr) => (
                         <Link key={p.id} href={`/producer/${p.id}`} className="hover:text-accent">
                           {p.name}{i < arr.length - 1 ? ' · ' : ''}
@@ -448,18 +435,15 @@ function ReleasesSection({
                       {r.freeware && <span className="rounded bg-accent-blue/25 px-1.5 py-0.5 uppercase text-accent-blue">{t.releases.freeware}</span>}
                       {r.has_ero && <span className="rounded bg-status-dropped/25 px-1.5 py-0.5 uppercase text-status-dropped">{t.releases.hasEro}</span>}
                     </div>
-                    <a
-                      href={`https://vndb.org/${r.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent"
-                    >
-                      <ExternalLink className="h-3 w-3" /> VNDB
-                    </a>
-                  </div>
-                </div>
-              </li>
-            ))}
+                  </>
+                ),
+              };
+              return (
+                <li key={r.id}>
+                  <UpcomingCard data={data} t={t} />
+                </li>
+              );
+            })}
           </ul>
         </section>
       ))}
@@ -481,74 +465,31 @@ function AnticipatedSection({
   if (rows.length === 0) {
     return <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">{t.upcoming.emptyAnticipated}</p>;
   }
+  const vndbIds = rows.map((a) => a.vndb_id).filter((id): id is string => !!id);
+  const inCollectionIds = loadCollectionMembership(vndbIds);
   return (
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-4 sm:p-5">
       <p className="mb-4 text-[11px] text-muted">{t.upcoming.anticipatedSubtitle}</p>
-      {/* Density-responsive grid: column min is the slider value with
-          a hard floor of 320px (these cards carry more text than
-          poster-only cards, so they need more horizontal room than
-          the library default). The slider can still grow them to
-          larger sizes. */}
       <ol
         className="grid gap-4 lg:gap-5"
-        // Density-aware grid — removed `max(280px, ...)` floor.
         style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 280px)), 1fr))' }}
       >
         {rows.map((a, i) => {
-          // Prefer the VNDB cover when the anticipated row carries a
-          // vndb_id and VNDB returned an image for it. Falls back to the
-          // EGS resolver chain only when there's no VNDB mapping.
           const vndbCover = a.vndb_id ? vndbCovers.get(a.vndb_id) ?? null : null;
           const coverSrc = vndbCover?.url ?? `/api/egs-cover/${a.egs_id}`;
           const coverSexual = vndbCover?.sexual ?? null;
-          const coverHref = a.vndb_id
-            ? `/vn/${a.vndb_id}`
-            : `https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${a.egs_id}`;
-          return (
-            <li
-              key={a.egs_id}
-              className="group flex gap-4 rounded-xl border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent sm:p-4"
-            >
-              <div
-                className="relative shrink-0"
-                style={{
-                  // Cover follows the density slider so a wider
-                  // card gets a proportionally larger cover instead
-                  // of tiny image + huge whitespace. The floor was
-                  // 96px which clamped the cover frozen at the
-                  // default slider position (220); we lower the
-                  // floor and bump the multiplier so the cover
-                  // moves at every slider tick.
-                  width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.45), 220px)',
-                }}
-              >
-                <Link
-                  href={coverHref}
-                  target={a.vndb_id ? undefined : '_blank'}
-                  rel={a.vndb_id ? undefined : 'noopener noreferrer'}
-                  className="block aspect-[2/3] w-full overflow-hidden rounded-lg shadow-card"
-                >
-                  <SafeImage src={coverSrc} alt={a.gamename} sexual={coverSexual} className="h-full w-full" />
-                </Link>
-                <span className="absolute -left-2 -top-2 flex h-8 min-w-8 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-bg shadow-card">
-                  {startRank + i + 1}
-                </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 flex flex-wrap items-baseline gap-2">
-                  {a.vndb_id ? (
-                    <Link href={`/vn/${a.vndb_id}`} className="line-clamp-2 text-base font-bold hover:text-accent">
-                      {a.gamename}
-                    </Link>
-                  ) : (
-                    <span className="line-clamp-2 text-base font-bold">{a.gamename}</span>
-                  )}
-                </div>
-                <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
-                  {/* Sellday chip → year-range Library filter. The
-                      chip displays the full EGS date (YYYY-MM-DD)
-                      but the link narrows the operator's view to
-                      that year. */}
+          const cardData: UpcomingCardData = {
+            id: a.vndb_id ?? `egs_${a.egs_id}`,
+            vndbId: a.vndb_id,
+            egsId: a.egs_id,
+            title: a.gamename,
+            coverUrl: coverSrc,
+            coverSexual,
+            inCollection: a.vndb_id ? inCollectionIds.has(a.vndb_id) : false,
+            variant: 'wide',
+            meta: (
+              <>
+                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
                   {(() => {
                     const href = yearHref(a.sellday);
                     return href ? (
@@ -573,7 +514,7 @@ function AnticipatedSection({
                     );
                   })()}
                 </div>
-                <div className="mb-3 flex flex-wrap gap-1.5 text-[10px]">
+                <div className="mb-1 flex flex-wrap gap-1.5 text-[10px]">
                   <span className="inline-flex items-center gap-1 rounded-md bg-accent/15 px-2 py-1 font-bold text-accent">
                     <span className="opacity-70">{t.upcoming.willBuy}</span>
                     <span className="text-sm">{a.will_buy}</span>
@@ -587,33 +528,15 @@ function AnticipatedSection({
                     <span className="text-sm">{a.watching}</span>
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                  <a
-                    href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${a.egs_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-muted hover:text-accent"
-                  >
-                    <ExternalLink className="h-3 w-3" /> EGS
-                  </a>
-                  {a.vndb_id && (
-                    <a
-                      href={`https://vndb.org/${a.vndb_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-muted hover:text-accent"
-                    >
-                      <ExternalLink className="h-3 w-3" /> VNDB
-                    </a>
-                  )}
-                  <MapEgsToVndbButton
-                    egsId={a.egs_id}
-                    gamename={a.gamename}
-                    vndbId={a.vndb_id}
-                    variant="compact"
-                  />
-                </div>
-              </div>
+              </>
+            ),
+          };
+          return (
+            <li key={a.egs_id} className="relative">
+              <span className="absolute -left-2 -top-2 z-10 flex h-8 min-w-8 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-bg shadow-card">
+                {startRank + i + 1}
+              </span>
+              <UpcomingCard data={cardData} t={t} />
             </li>
           );
         })}

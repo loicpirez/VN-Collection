@@ -25,6 +25,7 @@ import {
   type Recommendation,
   type RecommendMode,
   type RecommendationSeed,
+  type SignalCounts,
 } from '@/lib/recommend';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
@@ -537,6 +538,8 @@ async function ResultsPanel({
   t: Dictionary;
 }) {
   let seeds: RecommendationSeed[] = [];
+  let rawSeeds: RecommendationSeed[] | undefined;
+  let signalCounts: SignalCounts | undefined;
   let results: Recommendation[] = [];
   let error: string | null = null;
   try {
@@ -549,6 +552,8 @@ async function ResultsPanel({
       seedVnId,
     });
     seeds = r.seeds;
+    rawSeeds = r.rawSeeds;
+    signalCounts = r.signalCounts;
     results = r.results;
   } catch (e) {
     error = (e as Error).message;
@@ -582,7 +587,145 @@ async function ResultsPanel({
     );
   }
 
-  return <ResultsGrid mode={mode} results={results} t={t} />;
+  return (
+    <>
+      <RecommendExplanationPanel
+        mode={mode}
+        seeds={seeds}
+        rawSeeds={rawSeeds}
+        signalCounts={signalCounts}
+        includeOwned={includeOwned}
+        includeWishlist={includeWishlist}
+        includeEro={includeEro}
+        t={t}
+      />
+      <ResultsGrid mode={mode} results={results} t={t} />
+    </>
+  );
+}
+
+/**
+ * Explanation panel rendered above the result grid. Surfaces:
+ *   - Total source VNs sampled (with per-class breakdown).
+ *   - Top source tags before and after the generic-tag penalty pass.
+ *   - Active owned/wishlist filter chips.
+ *   - Mode label.
+ * Renders nothing when there's nothing to explain (custom-tags branch,
+ * similar-to-vn branch — both have their own explainer already).
+ */
+function RecommendExplanationPanel({
+  mode,
+  seeds,
+  rawSeeds,
+  signalCounts,
+  includeOwned,
+  includeWishlist,
+  includeEro,
+  t,
+}: {
+  mode: RecommendMode;
+  seeds: RecommendationSeed[];
+  rawSeeds: RecommendationSeed[] | undefined;
+  signalCounts: SignalCounts | undefined;
+  includeOwned: boolean;
+  includeWishlist: boolean;
+  includeEro: boolean;
+  t: Dictionary;
+}) {
+  if (!signalCounts || signalCounts.total === 0) return null;
+  const modeMeta = MODE_META[mode];
+  const modeLabel = t.recommend.modes[modeMeta.i18nKey].label;
+  const explain = t.recommend.explain;
+  const rawTop = (rawSeeds ?? []).slice(0, 4);
+  const finalTop = seeds.slice(0, 4);
+  const demoted = rawTop.filter(
+    (s) => !finalTop.some((f) => f.tagId === s.tagId),
+  );
+  return (
+    <section
+      className="mb-4 rounded-xl border border-border bg-bg-card p-3 sm:p-4 text-[12px]"
+      aria-label={explain.title}
+    >
+      <h2 className="mb-2 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted">
+        <ListChecks className="h-3.5 w-3.5 text-accent" aria-hidden /> {explain.title}
+      </h2>
+      <p className="text-muted">
+        <span className="font-semibold text-white">
+          {explain.totalSources.replace('{n}', String(signalCounts.total))}
+        </span>{' '}
+        <span className="opacity-80">
+          ({explain.breakdown
+            .replace('{finished}', String(signalCounts.finished))
+            .replace('{rated}', String(signalCounts.rated))
+            .replace('{favorite}', String(signalCounts.favorite))
+            .replace('{queue}', String(signalCounts.queue))
+            .replace('{wishlist}', String(signalCounts.wishlist))})
+        </span>
+      </p>
+      {finalTop.length > 0 && (
+        <div className="mt-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted">{explain.topTagsAfter}</p>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {finalTop.map((s) => (
+              <span
+                key={s.tagId}
+                title={s.tagId}
+                className="inline-flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent"
+              >
+                {s.name}
+                <span className="font-mono opacity-70">{s.weight.toFixed(1)}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {demoted.length > 0 && (
+        <div className="mt-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted">{explain.topTagsDemoted}</p>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {demoted.map((s) => (
+              <span
+                key={s.tagId}
+                title={s.tagId}
+                className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-[10px] text-muted line-through opacity-70"
+              >
+                {s.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+        <span className="rounded bg-bg-elev/40 px-1.5 py-0.5 font-bold uppercase tracking-wider text-muted">
+          {explain.modeLabel.replace('{label}', modeLabel)}
+        </span>
+        {includeOwned && (
+          <span className="rounded bg-status-completed/15 px-1.5 py-0.5 text-status-completed">
+            {explain.filterOwnedOn}
+          </span>
+        )}
+        {!includeOwned && (
+          <span className="rounded bg-bg-elev/40 px-1.5 py-0.5 text-muted">
+            {explain.filterOwnedOff}
+          </span>
+        )}
+        {includeWishlist ? (
+          <span className="rounded bg-accent/15 px-1.5 py-0.5 text-accent">
+            {explain.filterWishlistOn}
+          </span>
+        ) : (
+          <span className="rounded bg-bg-elev/40 px-1.5 py-0.5 text-muted">
+            {explain.filterWishlistOff}
+          </span>
+        )}
+        {includeEro && (
+          <span className="rounded bg-status-dropped/15 px-1.5 py-0.5 text-status-dropped">
+            {explain.filterEroOn}
+          </span>
+        )}
+      </div>
+    </section>
+  );
 }
 
 function ResultsGrid({
@@ -613,6 +756,15 @@ function ResultsGrid({
           return true;
         });
         const reason = renderReason(mode, uniqueMatched.length, ratingForReason, votesForReason, t);
+        const contributorChip =
+          (mode === 'because-you-liked' || mode === 'hidden-gems' || mode === 'highly-rated') &&
+          r.contributors && r.contributors.length > 0
+            ? r.contributors.length >= 2
+              ? t.recommend.contributorReasonTwo
+                  .replace('{a}', r.contributors[0]!.title)
+                  .replace('{b}', r.contributors[1]!.title)
+              : t.recommend.contributorReasonOne.replace('{a}', r.contributors[0]!.title)
+            : null;
         return (
           <li key={r.id}>
             <Link
@@ -660,6 +812,9 @@ function ResultsGrid({
                 )}
                 {reason && (
                   <p className="mt-0.5 text-[10px] text-accent/80">{reason}</p>
+                )}
+                {contributorChip && (
+                  <p className="mt-0.5 line-clamp-1 text-[10px] text-muted">{contributorChip}</p>
                 )}
                 {r.developers[0]?.name && (
                   <p className="line-clamp-1 text-[11px] text-muted">{r.developers[0].name}</p>
