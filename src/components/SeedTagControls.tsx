@@ -1,5 +1,5 @@
 'use client';
-import { useCallback } from 'react';
+import { useCallback, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { TagPicker } from './TagPicker';
 import { useT } from '@/lib/i18n/client';
@@ -39,6 +39,11 @@ export function SeedTagControls({
   const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
+  // `useTransition` lets the picker show a pending opacity dim while
+  // the server re-fetches the new result list. Without the transition
+  // the chip changes feel instant but the underlying card grid lingers
+  // on the previous data until the new render lands.
+  const [isPending, startTransition] = useTransition();
 
   const setTags = useCallback(
     (next: SeedTag[]) => {
@@ -53,7 +58,9 @@ export function SeedTagControls({
         params.set(paramName, ids.join(','));
       }
       const qs = params.toString();
-      router.replace(qs ? `?${qs}` : '?', { scroll: false });
+      startTransition(() => {
+        router.replace(qs ? `?${qs}` : '?', { scroll: false });
+      });
     },
     [paramName, preserveParams, router, searchParams],
   );
@@ -69,12 +76,17 @@ export function SeedTagControls({
   }));
 
   return (
-    <TagPicker
-      tags={asPickerTags}
-      onChange={(next) => setTags(next.map((tag) => ({ id: tag.id, name: tag.name })))}
-      category={category}
-      label={label ?? t.recommend.seedsLabel}
-      hint={hint ?? t.recommend.seedsHint}
-    />
+    <div
+      className={isPending ? 'transition-opacity duration-200 opacity-60' : 'transition-opacity duration-200'}
+      aria-busy={isPending || undefined}
+    >
+      <TagPicker
+        tags={asPickerTags}
+        onChange={(next) => setTags(next.map((tag) => ({ id: tag.id, name: tag.name })))}
+        category={category}
+        label={label ?? t.recommend.seedsLabel}
+        hint={hint ?? t.recommend.seedsHint}
+      />
+    </div>
   );
 }
