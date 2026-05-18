@@ -750,9 +750,11 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 - `POST /api/refresh/global` **busts before re-fetching** so the
   re-fetch actually moves `fetched_at` forward. Bust patterns mirror
   what the route then re-populates: `egs:cover-resolved:%`,
-  `anticipated:%`, `% /stats|%`, `% /schema|%`, `% /authinfo|%`,
-  `% /release|%`, `% /release:%`, `% /producer|%`, `% /producer:%`,
-  `% /tag|%`, `% /trait|%`. Without this step the freshness chip
+  `egs:anticipated:%`, `egs:top-ranked:%`, `% /stats|%`,
+  `% /schema|%`, `% /authinfo|%`, `% /release|%`,
+  `% /release:upcoming|%`, `% /release:upcoming-all|%`,
+  `% /producer|%`, `% /tag|%`, `% /trait|%`,
+  `% /vn:top-ranked:%`. Without this step the freshness chip
   would show a refresh but the actual data wouldn't change.
 
 ### Time-ago formatting

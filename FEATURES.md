@@ -662,7 +662,7 @@ The button:
 - Reads `lastUpdatedAt` server-side via `getCacheFreshness(patterns)`
   — `SELECT MAX(fetched_at) FROM vndb_cache WHERE cache_key LIKE …`.
   Patterns anchor on the actual key format `{METHOD} {path}|{METHOD}|{hash}`
-  (e.g. `'% /tag|%'`, `'tag_full:%'`, `'anticipated:%'`).
+  (e.g. `'% /tag|%'`, `'tag_full:%'`, `'egs:anticipated:%'`).
 - Renders a tiered relative-time chip ("Data Xh ago") via the shared
   `timeAgo()` util. `now` defaults to `lastUpdatedAt` on the server so
   the SSR first paint reads "just now" instead of a raw timestamp;
@@ -672,10 +672,12 @@ The button:
   Pages with purely-local SQL (`/stats`, `/data`, `/producers`) don't
   carry the chip — a freshness reading there would be meaningless.
 - Clicking Refresh calls `POST /api/refresh/global`, which **busts the
-  relevant cache rows first** (`egs:cover-resolved:%`, `anticipated:%`,
-  `% /stats|%`, `% /schema|%`, `% /authinfo|%`, `% /release|%`,
-  `% /release:%`, `% /producer|%`, `% /producer:%`, `% /tag|%`,
-  `% /trait|%`) then re-fetches each (EGS anticipated top 100, VNDB
+  relevant cache rows first** (`egs:cover-resolved:%`,
+  `egs:anticipated:%`, `egs:top-ranked:%`, `% /stats|%`,
+  `% /schema|%`, `% /authinfo|%`, `% /release|%`,
+  `% /release:upcoming|%`, `% /release:upcoming-all|%`,
+  `% /producer|%`, `% /tag|%`, `% /trait|%`,
+  `% /vn:top-ranked:%`) then re-fetches each (EGS anticipated top 100, VNDB
   stats / schema / authinfo, upcoming collection + global, default
   tag/trait searches). Without the bust step the helpers would just
   read the still-fresh cache and `fetched_at` wouldn't move forward —
