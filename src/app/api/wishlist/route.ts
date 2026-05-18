@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { fetchAuthenticatedWishlist } from '@/lib/vndb';
 import { getEgsForVns, isInCollectionMany } from '@/lib/db';
 
@@ -34,6 +35,6 @@ export async function GET() {
     }));
     return NextResponse.json({ items });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    return upstreamError('wishlist', err);
   }
 }

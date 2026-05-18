@@ -9,6 +9,7 @@ import {
 import type { Status } from '@/lib/types';
 import { EgsUnreachable, fetchEgsGame, linkEgsToVn } from '@/lib/erogamescape';
 import { recordActivity } from '@/lib/activity';
+import { upstreamError } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -28,7 +29,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     game = await fetchEgsGame(egsId);
   } catch (e) {
     if (e instanceof EgsUnreachable) {
-      return NextResponse.json({ error: `EGS ${e.kind}: ${e.message}` }, { status: 502 });
+      // R5-129: the EgsUnreachable.kind classifies the failure
+      // (network / timeout / 5xx) and is safe to surface; the
+      // underlying e.message can include the raw HTTP body and
+      // belongs only in the server log. `upstreamError` logs the
+      // full diagnostic detail and returns a generic 502 to the
+      // client.
+      return upstreamError(`egs/${egsId}/add (${e.kind})`, e);
     }
     throw e;
   }

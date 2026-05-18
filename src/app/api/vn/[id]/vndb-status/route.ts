@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import {
   deleteUlistEntry,
   fetchUlistEntry,
@@ -32,7 +33,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     }
     return NextResponse.json({ entry, labels });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return upstreamError('vn/[id]/vndb-status', e);
   }
 }
 
@@ -80,7 +81,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return upstreamError('vn/[id]/vndb-status', e);
   }
 }
 
@@ -102,6 +103,6 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return upstreamError('vn/[id]/vndb-status', e);
   }
 }

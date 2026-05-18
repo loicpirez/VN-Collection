@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { getCharacter } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,6 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     if (!character) return NextResponse.json({ error: 'not found' }, { status: 404 });
     return NextResponse.json({ character });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    return upstreamError('character/[id]', err);
   }
 }

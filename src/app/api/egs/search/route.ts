@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { EgsUnreachable, searchEgsCandidates } from '@/lib/erogamescape';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,6 @@ export async function GET(req: NextRequest) {
         { status: 503 },
       );
     }
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return upstreamError('egs/search', e);
   }
 }

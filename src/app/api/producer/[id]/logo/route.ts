@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { getProducer, setProducerLogo, upsertProducer } from '@/lib/db';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (!fresh) return NextResponse.json({ error: 'producer not found' }, { status: 404 });
       upsertProducer(fresh);
     } catch (err) {
-      return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+      return upstreamError('producer/[id]/logo', err);
     }
   }
 

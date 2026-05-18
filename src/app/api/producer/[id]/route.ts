@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { getProducer as getProducerLocal, upsertProducer } from '@/lib/db';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 
@@ -22,6 +23,6 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ producer: getProducerLocal(id) });
   } catch (err) {
     if (cached) return NextResponse.json({ producer: cached, warning: (err as Error).message });
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    return upstreamError('producer/[id]', err);
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import {
   addToCollection,
   getCollectionItem,
@@ -149,7 +150,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         console.error(`[collection:${vn.id}] producer fan-out failed:`, (e as Error).message);
       });
     } catch (err) {
-      return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+      return upstreamError('collection/[id]', err);
     }
   }
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

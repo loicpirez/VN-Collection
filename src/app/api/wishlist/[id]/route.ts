@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addToVndbWishlist, removeFromVndbWishlist } from '@/lib/vndb';
 import { recordActivity } from '@/lib/activity';
+import { upstreamError } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -16,18 +17,20 @@ export const runtime = 'nodejs';
  * whether it lives in the user's local collection — and vice versa.
  */
 
-function vndbErrorResponse(e: Error): NextResponse {
+function vndbErrorResponse(e: Error, label: string): NextResponse {
   // VNDB's PATCH /ulist returns 401 when the token lacks the `listwrite`
   // permission. Translate that into something actionable instead of the
   // raw 'VNDB PATCH … -> 401: Unauthorized' string.
-  const msg = e.message;
-  if (/401/.test(msg)) {
+  if (/401/.test(e.message)) {
     return NextResponse.json(
       { error: 'VNDB token does not have listwrite permission. Regenerate it on vndb.org/u/tokens with listwrite enabled.' },
       { status: 401 },
     );
   }
-  return NextResponse.json({ error: msg }, { status: 502 });
+  // R5-129: was returning `{ error: e.message }` (raw upstream
+  // text). Funnel through upstreamError so the raw VNDB body
+  // reaches the server log only.
+  return upstreamError(label, e);
 }
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -43,7 +46,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     recordActivity({ kind: 'wishlist.add', entity: 'vn', entityId: id, label: 'Added VNDB wishlist label' });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return vndbErrorResponse(e as Error);
+    return vndbErrorResponse(e as Error, `wishlist/${id}`);
   }
 }
 
@@ -60,6 +63,6 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     recordActivity({ kind: 'wishlist.remove', entity: 'vn', entityId: id, label: 'Removed VNDB wishlist label' });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return vndbErrorResponse(e as Error);
+    return vndbErrorResponse(e as Error, `wishlist/${id}`);
   }
 }

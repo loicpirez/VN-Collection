@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { downloadFullStaffInfo } from '@/lib/staff-full';
 import { recordActivity } from '@/lib/activity';
 
@@ -33,6 +34,6 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       fetched_at: data.fetched_at,
     });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return upstreamError('staff/[id]/download', e);
   }
 }

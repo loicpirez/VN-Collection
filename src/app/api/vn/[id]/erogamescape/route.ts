@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { clearEgsCache, linkEgsToVn, resolveEgsForVn } from '@/lib/erogamescape';
 import { getVnEgsLink } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         : null,
     });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return upstreamError('vn/[id]/erogamescape', e);
   }
 }
 
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     return NextResponse.json({ game, source: 'manual' as const });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return upstreamError('vn/[id]/erogamescape', e);
   }
 }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { getGlobalStats } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,6 @@ export async function GET() {
     const stats = await getGlobalStats();
     return NextResponse.json({ stats });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    return upstreamError('vndb/stats', err);
   }
 }

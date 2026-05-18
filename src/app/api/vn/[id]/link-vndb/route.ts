@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { getCollectionItem, migrateVnId, upsertVn } from '@/lib/db';
 import { getVn } from '@/lib/vndb';
 import { recordActivity } from '@/lib/activity';
@@ -43,6 +44,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
     return NextResponse.json({ ok: true, vn_id: target });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return upstreamError('vn/[id]/link-vndb', e);
   }
 }

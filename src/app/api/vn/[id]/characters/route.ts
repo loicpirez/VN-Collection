@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { getCharactersForVn } from '@/lib/vndb';
 import { getCharacterImages } from '@/lib/db';
 
@@ -16,6 +17,6 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     }));
     return NextResponse.json({ characters: enriched });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    return upstreamError('vn/[id]/characters', err);
   }
 }

@@ -15,6 +15,7 @@ import { scrapeTagDagForVn } from '@/lib/scrape-tag-dag';
 import { scrapeCharactersForVn } from '@/lib/scrape-character-instances';
 import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
+import { upstreamError } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -68,10 +69,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       upsertVn(fresh);
     } catch (e) {
-      return NextResponse.json(
-        { error: `failed to hydrate VN from VNDB: ${(e as Error).message}` },
-        { status: 502 },
-      );
+      // R5-129: was leaking `(e as Error).message` (e.g. raw VNDB
+      // 5xx body). Funnel through upstreamError so the upstream
+      // text only reaches the server log.
+      return upstreamError(`collection/${id}/assets:hydrate`, e);
     }
   }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { upstreamError } from '@/lib/api-error';
 import { getAppSetting, getCharacterImage, getRandomLocalQuote, getVnCover } from '@/lib/db';
 import { getRandomQuote } from '@/lib/vndb';
 
@@ -77,6 +78,6 @@ export async function GET() {
     }
     return NextResponse.json({ quote, source: 'all' as const });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    return upstreamError('vndb/quote/random', err);
   }
 }
