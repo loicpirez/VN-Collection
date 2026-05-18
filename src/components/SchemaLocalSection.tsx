@@ -1,6 +1,7 @@
 import { Database } from 'lucide-react';
 import { listLocalSqliteSchema } from '@/lib/schema-local';
 import { getDict } from '@/lib/i18n/server';
+import { CollapsibleSummary } from './CollapsibleSummary';
 
 export async function SchemaLocalSection() {
   const t = await getDict();
@@ -13,9 +14,11 @@ export async function SchemaLocalSection() {
       <p className="mt-1 text-xs text-muted">{t.schemaLocal.sub}</p>
       <div className="mt-4 space-y-3">
         {tables.map((table) => (
-          <details key={table.name} className="rounded-lg border border-border bg-bg-elev/30">
-            <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">
-              {table.name} <span className="text-xs font-normal text-muted">({table.columns.length})</span>
+          <details key={table.name} className="group rounded-lg border border-border bg-bg-elev/30">
+            <summary className="cursor-pointer list-none px-3 py-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+              <CollapsibleSummary>
+                {table.name} <span className="text-xs font-normal text-muted">({table.columns.length})</span>
+              </CollapsibleSummary>
             </summary>
             <div className="overflow-x-auto border-t border-border">
               <table className="w-full min-w-[560px] text-left text-xs">

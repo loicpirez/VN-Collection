@@ -7,6 +7,7 @@ import { BOX_TYPES, EDITION_TYPES, LOCATIONS, STATUSES, type BoxType, type Editi
 import { StatusIcon } from './StatusIcon';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
+import { CollapsibleSummary } from './CollapsibleSummary';
 
 interface Props {
   selectedIds: string[];
@@ -219,9 +220,11 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
       )}
 
       {errors.length > 0 && (
-        <details className="mt-2">
-          <summary className="cursor-pointer text-xs text-status-dropped">
-            {errors.length} {t.bulkEdit.errors}
+        <details className="group mt-2">
+          <summary className="cursor-pointer list-none text-xs text-status-dropped [&::-webkit-details-marker]:hidden">
+            <CollapsibleSummary>
+              {errors.length} {t.bulkEdit.errors}
+            </CollapsibleSummary>
           </summary>
           <ul className="mt-1 max-h-24 overflow-y-auto text-[10px] text-status-dropped">
             {errors.map((e, i) => (

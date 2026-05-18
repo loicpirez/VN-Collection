@@ -5,6 +5,7 @@ import { CheckSquare, CloudDownload, Loader2, RefreshCw, RotateCcw, X } from 'lu
 import { useT } from '@/lib/i18n/client';
 import { Dialog } from './Dialog';
 import { SelectiveFullDownload, type SelectiveDownloadFilters } from './SelectiveFullDownload';
+import { CollapsibleSummary } from './CollapsibleSummary';
 
 /** URL params the selective-download modal forwards to /api/collection. */
 const FORWARDED_PARAMS = [
@@ -355,9 +356,11 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
                 <RotateCcw className="h-3 w-3" />
                 {t.bulk.retryFailed.replace('{n}', String(failures.length))}
               </button>
-              <details className="mt-2">
-                <summary className="cursor-pointer text-[11px] text-muted hover:text-white">
-                  {t.bulk.viewFailures} ({failures.length})
+              <details className="group mt-2">
+                <summary className="cursor-pointer list-none text-[11px] text-muted hover:text-white [&::-webkit-details-marker]:hidden">
+                  <CollapsibleSummary>
+                    {t.bulk.viewFailures} ({failures.length})
+                  </CollapsibleSummary>
                 </summary>
                 <ul className="mt-1 max-h-32 overflow-y-auto text-[10px] text-status-dropped">
                   {failures.map((f) => (

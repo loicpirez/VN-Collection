@@ -377,9 +377,12 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 <MatchBadges egsOnly={vn.id.startsWith('egs_')} egs={egsRow} t={t} />
                 <TitleLine title={vn.title} alttitle={vn.alttitle} />
                 {(vn.titles ?? []).length > 1 && (
-                  <details className="mt-1 text-[11px]">
+                  <details className="group mt-1 text-[11px]">
                     <summary className="inline-flex cursor-pointer items-center gap-1 text-muted hover:text-white [&::-webkit-details-marker]:hidden [list-style:none]">
-                      <ChevronRight className="h-3 w-3 transition-transform" aria-hidden />
+                      <ChevronRight
+                        className="h-3 w-3 transition-transform duration-150 group-open:rotate-90"
+                        aria-hidden
+                      />
                       <span className="font-bold uppercase tracking-wider">{t.detail.titlesAll}</span>
                       <span className="ml-1 opacity-70">({(vn.titles ?? []).length})</span>
                     </summary>

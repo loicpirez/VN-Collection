@@ -7,6 +7,7 @@ import { useConfirm } from './ConfirmDialog';
 import { DateInput } from './DateInput';
 import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
+import { CollapsibleSummary } from './CollapsibleSummary';
 
 import { readApiError } from '@/lib/api-error-read';
 interface Label {
@@ -299,9 +300,9 @@ function UlistDetailsEditor({
   }
 
   return (
-    <details className="mt-3 rounded-lg border border-border bg-bg-elev/20 p-3 text-xs">
-      <summary className="cursor-pointer text-muted hover:text-white">
-        {t.vndbStatus.detailsToggle}
+    <details className="group mt-3 rounded-lg border border-border bg-bg-elev/20 p-3 text-xs">
+      <summary className="cursor-pointer list-none text-muted hover:text-white [&::-webkit-details-marker]:hidden">
+        <CollapsibleSummary>{t.vndbStatus.detailsToggle}</CollapsibleSummary>
       </summary>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1">

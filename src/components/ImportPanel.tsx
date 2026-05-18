@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { CheckCircle2, Database as DbIcon, Loader2, Upload } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
+import { CollapsibleSummary } from './CollapsibleSummary';
 
 interface JsonSummary {
   vns_upserted: number;
@@ -136,8 +137,12 @@ export function ImportPanel() {
             <li>{t.dataMgmt.importCounts.seriesVn}: <b className="text-white">{summary.data.series_links}</b></li>
           </ul>
           {summary.data.errors.length > 0 && (
-            <details className="mt-2">
-              <summary className="cursor-pointer text-status-dropped">{summary.data.errors.length} {t.dataMgmt.importCounts.errors}</summary>
+            <details className="group mt-2">
+              <summary className="cursor-pointer list-none text-status-dropped [&::-webkit-details-marker]:hidden">
+                <CollapsibleSummary>
+                  {summary.data.errors.length} {t.dataMgmt.importCounts.errors}
+                </CollapsibleSummary>
+              </summary>
               <ul className="mt-1 max-h-32 overflow-y-auto text-[10px]">
                 {summary.data.errors.map((e, i) => <li key={i}>{e}</li>)}
               </ul>
@@ -158,9 +163,11 @@ export function ImportPanel() {
             ))}
           </ul>
           {summary.data.skipped.length > 0 && (
-            <details className="mt-2">
-              <summary className="cursor-pointer text-muted">
-                {summary.data.skipped.length} {t.dataMgmt.restoreSkipped}
+            <details className="group mt-2">
+              <summary className="cursor-pointer list-none text-muted [&::-webkit-details-marker]:hidden">
+                <CollapsibleSummary>
+                  {summary.data.skipped.length} {t.dataMgmt.restoreSkipped}
+                </CollapsibleSummary>
               </summary>
               <ul className="mt-1 max-h-32 overflow-y-auto text-[10px]">
                 {summary.data.skipped.map((s) => (

@@ -11,6 +11,7 @@ import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { OpenSettingsButton } from '@/components/OpenSettingsButton';
 import { RecentActivityStrip } from '@/components/RecentActivityStrip';
 import { SelectiveFullDownload } from '@/components/SelectiveFullDownload';
+import { CollapsibleSummary } from '@/components/CollapsibleSummary';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,9 +82,11 @@ export default async function DataPage() {
           />
         </div>
 
-        <details className="rounded-lg border border-border bg-bg-elev/30 px-3 py-2 text-xs">
-          <summary className="cursor-pointer text-muted">
-            <KeyRound className="mr-1 inline h-3 w-3" /> {t.dataMgmt.statusRows}
+        <details className="group rounded-lg border border-border bg-bg-elev/30 px-3 py-2 text-xs">
+          <summary className="cursor-pointer list-none text-muted [&::-webkit-details-marker]:hidden">
+            <CollapsibleSummary>
+              <KeyRound className="inline h-3 w-3" /> {t.dataMgmt.statusRows}
+            </CollapsibleSummary>
           </summary>
           <table className="mt-2 w-full">
             <tbody>

@@ -33,6 +33,7 @@ import {
   type VnSectionId,
   type VnSectionState,
 } from '@/lib/vn-detail-layout';
+import { CollapsibleSummary } from './CollapsibleSummary';
 import {
   CHARACTER_DETAIL_LAYOUT_EVENT,
   CHARACTER_SECTION_IDS,
@@ -607,9 +608,11 @@ export function SettingsButton() {
                             </ul>
                           )}
                           {pullDiff.unmatched.length > 0 && (
-                            <details className="text-[10px] text-muted">
-                              <summary className="cursor-pointer">
-                                {t.settings.vndbPullUnmatched.replace('{count}', String(pullDiff.unmatched.length))}
+                            <details className="group text-[10px] text-muted">
+                              <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                                <CollapsibleSummary>
+                                  {t.settings.vndbPullUnmatched.replace('{count}', String(pullDiff.unmatched.length))}
+                                </CollapsibleSummary>
                               </summary>
                               <ul className="mt-1 space-y-0.5 pl-3">
                                 {pullDiff.unmatched.map((u) => (
