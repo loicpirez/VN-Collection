@@ -23,6 +23,7 @@ import {
   type OwnedEditionsChangedDetail,
 } from './ReleaseOwnedToggle';
 import type { VndbRelease } from '@/lib/vndb-types';
+import { safeHref } from '@/lib/safe-href';
 
 const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> = {
   1: 'voiced1',
@@ -349,17 +350,23 @@ export function ReleasesSection({
                   )}
                   {r.extlinks.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {r.extlinks.slice(0, 6).map((l) => (
-                        <a
-                          key={l.url}
-                          href={l.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2 py-0.5 text-[11px] text-muted hover:border-accent hover:text-accent"
-                        >
-                          <ExternalLink className="h-3 w-3" /> {l.label}
-                        </a>
-                      ))}
+                      {r.extlinks.slice(0, 6).map((l) => {
+                        // R5-124: drop non-http(s) extlinks. See
+                        // lib/safe-href.ts for the rationale.
+                        const href = safeHref(l.url);
+                        if (!href) return null;
+                        return (
+                          <a
+                            key={l.url}
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2 py-0.5 text-[11px] text-muted hover:border-accent hover:text-accent"
+                          >
+                            <ExternalLink className="h-3 w-3" /> {l.label}
+                          </a>
+                        );
+                      })}
                     </div>
                   )}
                 </li>

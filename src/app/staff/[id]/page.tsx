@@ -20,6 +20,7 @@ import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/Staff
 import { readStaffFullCache } from '@/lib/staff-full';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { languageDisplayName } from '@/lib/language-names';
+import { safeHref } from '@/lib/safe-href';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
 import {
   STAFF_DETAIL_LAYOUT_EVENT,
@@ -195,17 +196,24 @@ export default async function StaffPage({
               <div className="mt-3">
                 <div className="text-[10px] uppercase tracking-wider text-muted">{t.staff.extlinksLabel}</div>
                 <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
-                  {extlinks.map((l) => (
-                    <a
-                      key={l.url}
-                      href={l.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
-                    >
-                      {l.label}
-                    </a>
-                  ))}
+                  {extlinks.map((l) => {
+                    // R5-124: drop non-http(s) extlinks before they
+                    // reach the DOM. See lib/safe-href.ts for the
+                    // rationale.
+                    const href = safeHref(l.url);
+                    if (!href) return null;
+                    return (
+                      <a
+                        key={l.url}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
+                      >
+                        {l.label}
+                      </a>
+                    );
+                  })}
                 </div>
               </div>
             )}

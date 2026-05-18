@@ -8,6 +8,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { LangFlag } from '@/components/LangFlag';
 import { ReleaseOwnedToggle } from '@/components/ReleaseOwnedToggle';
 import { VndbMarkup } from '@/components/VndbMarkup';
+import { safeHref } from '@/lib/safe-href';
 
 export const dynamic = 'force-dynamic';
 
@@ -282,17 +283,25 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
         {release.extlinks.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-1.5">
-            {release.extlinks.map((l) => (
-              <a
-                key={l.url}
-                href={l.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs text-muted hover:border-accent hover:text-accent"
-              >
-                <ExternalLink className="h-3 w-3" /> {l.label}
-              </a>
-            ))}
+            {release.extlinks.map((l) => {
+              // R5-124: refuse to emit non-http(s) hrefs into the
+              // DOM. VNDB extlinks are scraped from many sources;
+              // an upstream regression that yielded a `javascript:`
+              // URL would otherwise become a clickable XSS vector.
+              const href = safeHref(l.url);
+              if (!href) return null;
+              return (
+                <a
+                  key={l.url}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs text-muted hover:border-accent hover:text-accent"
+                >
+                  <ExternalLink className="h-3 w-3" /> {l.label}
+                </a>
+              );
+            })}
           </div>
         )}
       </header>

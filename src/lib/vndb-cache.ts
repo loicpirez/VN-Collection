@@ -161,6 +161,18 @@ async function doFetch<T>(
   ttlMs: number,
   cached?: CacheRow | null,
 ): Promise<FetchResult<T>> {
+  // R5-125: gate the PRIMARY URL through the SSRF allowlist
+  // before issuing any request. `mirrorUrl()` (used below) already
+  // re-checks the rewritten URL, but the unrewritten path was an
+  // implicit-trust gap: a caller that constructed an arbitrary
+  // `https://api.vndb.org/...` would always pass, while a regressed
+  // caller that built `http://169.254.169.254/...` would have hit
+  // throttledFetch unguarded. The allowlist enforces both the
+  // host AND the http(s)-only scheme rule, so the catch-all
+  // refuses anything that isn't a known upstream.
+  if (!isAllowedHttpTarget(url)) {
+    throw new Error(`vndb-cache: refusing fetch to non-allowlisted URL ${url}`);
+  }
   // Auth-bearing calls must hit the primary — the mirror is read-only and
   // does not have the user's token / list data.
   const isAuthed = !!new Headers(init.headers).get('Authorization');

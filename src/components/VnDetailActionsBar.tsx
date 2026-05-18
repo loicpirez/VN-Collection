@@ -20,6 +20,7 @@ import { LinkToVndbButton } from './LinkToVndbButton';
 import { ListsPickerButton } from './ListsPickerButton';
 import { MapVnToEgsButton } from './MapVnToEgsButton';
 import { QueueButton } from './QueueButton';
+import { safeHref } from '@/lib/safe-href';
 
 /**
  * Detail-page action toolbar — third acceptance-gate rework.
@@ -420,9 +421,15 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
  * text so a long URL doesn't break the layout.
  */
 function ExternalLinkGridItem({ href, label }: { href: string; label: string }) {
+  // R5-124: every dynamic extlink the actions toolbar emits flows
+  // through here, so this is the cheapest place to gate hrefs that
+  // came from upstream VNDB/EGS data. Non-http(s) URLs render
+  // nothing — the rest of the cluster stays intact.
+  const safe = safeHref(href);
+  if (!safe) return null;
   return (
     <a
-      href={href}
+      href={safe}
       target="_blank"
       rel="noopener noreferrer"
       role="menuitem"

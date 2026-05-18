@@ -15,6 +15,7 @@ import { ProducerVnsSections } from '@/components/ProducerVnsSections';
 import { readScrapedProducerInfo } from '@/lib/scrape-producer-relations';
 import type { ProducerRow } from '@/lib/types';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
+import { safeHref } from '@/lib/safe-href';
 import {
   PRODUCER_DETAIL_LAYOUT_EVENT,
   PRODUCER_DETAIL_SETTINGS_KEY,
@@ -180,17 +181,23 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
               >
                 <ExternalLink className="h-3.5 w-3.5" /> VNDB
               </a>
-              {producer.extlinks.map((l) => (
-                <a
-                  key={l.url}
-                  href={l.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" /> {l.label}
-                </a>
-              ))}
+              {producer.extlinks.map((l) => {
+                // R5-124: drop non-http(s) extlinks before they reach
+                // the DOM. See lib/safe-href.ts for the rationale.
+                const href = safeHref(l.url);
+                if (!href) return null;
+                return (
+                  <a
+                    key={l.url}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> {l.label}
+                  </a>
+                );
+              })}
             </section>
           ),
         });
