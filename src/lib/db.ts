@@ -570,6 +570,39 @@ function open(): Database.Database {
       PRIMARY KEY (character_id, vn_id)
     );
     CREATE INDEX IF NOT EXISTS idx_character_vn_index_vn ON character_vn_index(vn_id);
+
+    -- R5-138: derived flat indexes for the four JSON columns the
+    -- library filter touches every render. The previous filter
+    -- shape was a full row-by-row json_each scan of v.tags /
+    -- v.developers / v.publishers for every tag / developer /
+    -- publisher filter on /api/collection. With these tables
+    -- the filter collapses to an EXISTS over a tiny indexed
+    -- (tag_id, vn_id) lookup. The rebuild helpers further down
+    -- repopulate these tables inside the upsertVn transaction;
+    -- a marker-gated backfill scans existing rows once at
+    -- startup.
+    CREATE TABLE IF NOT EXISTS vn_tag_index (
+      vn_id    TEXT NOT NULL,
+      tag_id   TEXT NOT NULL,
+      spoiler  INTEGER NOT NULL DEFAULT 0,
+      category TEXT,
+      PRIMARY KEY (vn_id, tag_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_tag_index_tag ON vn_tag_index(tag_id);
+
+    CREATE TABLE IF NOT EXISTS vn_developer_index (
+      vn_id       TEXT NOT NULL,
+      producer_id TEXT NOT NULL,
+      PRIMARY KEY (vn_id, producer_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_developer_index_pid ON vn_developer_index(producer_id);
+
+    CREATE TABLE IF NOT EXISTS vn_publisher_index (
+      vn_id       TEXT NOT NULL,
+      producer_id TEXT NOT NULL,
+      PRIMARY KEY (vn_id, producer_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_publisher_index_pid ON vn_publisher_index(producer_id);
   `);
   // Remove the redundant index from older builds.
   db.exec(`DROP INDEX IF EXISTS idx_shelf_slot_item`);
@@ -894,6 +927,68 @@ function open(): Database.Database {
     })();
   }
 
+  // R5-138 backfill: populate `vn_tag_index` / `vn_developer_index`
+  // / `vn_publisher_index` from existing `vn` rows. Marker-gated so
+  // it only runs once. Mirrors the staff_va_credits_v1 shape: parse
+  // each VN's JSON columns and INSERT into the index tables.
+  const tagIndexBackfilled = (db
+    .prepare(`SELECT value FROM app_setting WHERE key = 'vn_tag_index_v1'`)
+    .get() as { value: string | null } | undefined)?.value;
+  if (tagIndexBackfilled !== '1') {
+    const rows = db.prepare(
+      `SELECT id, tags, developers, publishers FROM vn
+       WHERE tags IS NOT NULL OR developers IS NOT NULL OR publishers IS NOT NULL`,
+    ).all() as Array<{ id: string; tags: string | null; developers: string | null; publishers: string | null }>;
+    const delTag = db.prepare('DELETE FROM vn_tag_index WHERE vn_id = ?');
+    const delDev = db.prepare('DELETE FROM vn_developer_index WHERE vn_id = ?');
+    const delPub = db.prepare('DELETE FROM vn_publisher_index WHERE vn_id = ?');
+    const insTag = db.prepare(
+      'INSERT OR IGNORE INTO vn_tag_index (vn_id, tag_id, spoiler, category) VALUES (?, ?, ?, ?)',
+    );
+    const insDev = db.prepare('INSERT OR IGNORE INTO vn_developer_index (vn_id, producer_id) VALUES (?, ?)');
+    const insPub = db.prepare('INSERT OR IGNORE INTO vn_publisher_index (vn_id, producer_id) VALUES (?, ?)');
+    db.transaction(() => {
+      for (const r of rows) {
+        delTag.run(r.id);
+        delDev.run(r.id);
+        delPub.run(r.id);
+        // Surface parse failures so a single corrupt row doesn't
+        // silently zero out an entire index.
+        try {
+          const tags = r.tags ? (JSON.parse(r.tags) as Array<{ id?: unknown; spoiler?: unknown; category?: unknown }>) : [];
+          for (const t of tags) {
+            const id = typeof t?.id === 'string' ? t.id : null;
+            if (!id) continue;
+            const spoiler = typeof t.spoiler === 'number' ? t.spoiler : 0;
+            const category = typeof t.category === 'string' ? t.category : null;
+            insTag.run(r.id, id, spoiler, category);
+          }
+        } catch (e) {
+          console.warn(`[migrate] vn ${r.id} has malformed tags JSON: ${(e as Error).message}`);
+        }
+        try {
+          const devs = r.developers ? (JSON.parse(r.developers) as Array<{ id?: unknown }>) : [];
+          for (const d of devs) {
+            const id = typeof d?.id === 'string' ? d.id : null;
+            if (id) insDev.run(r.id, id);
+          }
+        } catch (e) {
+          console.warn(`[migrate] vn ${r.id} has malformed developers JSON: ${(e as Error).message}`);
+        }
+        try {
+          const pubs = r.publishers ? (JSON.parse(r.publishers) as Array<{ id?: unknown }>) : [];
+          for (const p of pubs) {
+            const id = typeof p?.id === 'string' ? p.id : null;
+            if (id) insPub.run(r.id, id);
+          }
+        } catch (e) {
+          console.warn(`[migrate] vn ${r.id} has malformed publishers JSON: ${(e as Error).message}`);
+        }
+      }
+      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_tag_index_v1', '1')`).run();
+    })();
+  }
+
   global.__vndb_db = db;
   return db;
 }
@@ -1155,7 +1250,57 @@ function buildUpsertVnTx(): (vn: RawVnPayload) => void {
     fetched_at: Date.now(),
   });
   rebuildStaffVaCredits(vn.id, (vn.staff as StaffEntry[] | undefined) ?? [], (vn.va as VaEntry[] | undefined) ?? []);
+  // R5-138: rebuild the derived tag + developer indexes so
+  // `listCollection`'s tag / developer filters can hit a flat
+  // (vn_id, X_id) index instead of walking every row's JSON
+  // column. The publisher index is maintained in
+  // `setVnPublishers` (publishers are computed at release-fetch
+  // time, not part of RawVnPayload).
+  rebuildVnTagIndex(vn.id, (vn.tags as Array<{ id?: unknown; spoiler?: unknown; category?: unknown }> | undefined) ?? []);
+  rebuildVnDeveloperIndex(vn.id, (vn.developers as Array<{ id?: unknown }> | undefined) ?? []);
   });
+}
+
+/**
+ * R5-138: flatten `vn.tags[]` into `vn_tag_index`. Called from
+ * `upsertVn` inside the transaction so the index is always in
+ * sync with the JSON column.
+ */
+function rebuildVnTagIndex(
+  vnId: string,
+  tags: Array<{ id?: unknown; spoiler?: unknown; category?: unknown }>,
+): void {
+  db.prepare('DELETE FROM vn_tag_index WHERE vn_id = ?').run(vnId);
+  const ins = db.prepare(
+    'INSERT OR IGNORE INTO vn_tag_index (vn_id, tag_id, spoiler, category) VALUES (?, ?, ?, ?)',
+  );
+  for (const t of tags) {
+    const id = typeof t?.id === 'string' ? t.id : null;
+    if (!id) continue;
+    const spoiler = typeof t.spoiler === 'number' ? t.spoiler : 0;
+    const category = typeof t.category === 'string' ? t.category : null;
+    ins.run(vnId, id, spoiler, category);
+  }
+}
+
+/**
+ * R5-138: flatten `vn.developers[]` into `vn_developer_index`.
+ * The developers column on a VN row is a JSON array of
+ * `{ id, name }`. The publisher index is maintained separately
+ * in `setVnPublishers` (different write path).
+ */
+function rebuildVnDeveloperIndex(
+  vnId: string,
+  developers: Array<{ id?: unknown }>,
+): void {
+  db.prepare('DELETE FROM vn_developer_index WHERE vn_id = ?').run(vnId);
+  const insDev = db.prepare(
+    'INSERT OR IGNORE INTO vn_developer_index (vn_id, producer_id) VALUES (?, ?)',
+  );
+  for (const d of developers) {
+    const id = typeof d?.id === 'string' ? d.id : null;
+    if (id) insDev.run(vnId, id);
+  }
 }
 
 export function upsertVn(vn: RawVnPayload): void {
@@ -1654,8 +1799,23 @@ export function setVnPublishers(vnId: string, publishers: { id: string; name: st
     if (!p.id || !p.name) continue;
     if (!dedup.has(p.id)) dedup.set(p.id, { id: p.id, name: p.name });
   }
-  const json = JSON.stringify(Array.from(dedup.values()));
-  db.prepare('UPDATE vn SET publishers = ? WHERE id = ?').run(json, vnId);
+  const list = Array.from(dedup.values());
+  const json = JSON.stringify(list);
+  // R5-138: keep `vn_publisher_index` in sync with the JSON
+  // column. The publishers list is computed at release-fetch
+  // time (not part of `RawVnPayload`), so the upsertVn rebuild
+  // doesn't run here — we maintain the index in this writer
+  // instead.
+  db.transaction(() => {
+    db.prepare('UPDATE vn SET publishers = ? WHERE id = ?').run(json, vnId);
+    db.prepare('DELETE FROM vn_publisher_index WHERE vn_id = ?').run(vnId);
+    const ins = db.prepare(
+      'INSERT OR IGNORE INTO vn_publisher_index (vn_id, producer_id) VALUES (?, ?)',
+    );
+    for (const p of list) {
+      ins.run(vnId, p.id);
+    }
+  })();
 }
 
 export interface CharacterImageRecord {
@@ -2993,16 +3153,21 @@ export function listCollection({
     where.push("(v.title LIKE ? ESCAPE '\\' OR v.alttitle LIKE ? ESCAPE '\\')");
     params.push(`%${safe}%`, `%${safe}%`);
   }
+  // R5-138: filter against the flat derived indexes instead of
+  // walking each VN's JSON column with json_each. The index
+  // tables (`vn_developer_index`, `vn_publisher_index`,
+  // `vn_tag_index`) are populated inside `upsertVn` and
+  // backfilled at startup via the `vn_tag_index_v1` marker.
   if (producer) {
-    where.push("EXISTS (SELECT 1 FROM json_each(v.developers) WHERE json_extract(value, '$.id') = ?)");
+    where.push('EXISTS (SELECT 1 FROM vn_developer_index WHERE vn_id = c.vn_id AND producer_id = ?)');
     params.push(producer);
   }
   if (publisher) {
-    where.push("EXISTS (SELECT 1 FROM json_each(COALESCE(v.publishers, '[]')) WHERE json_extract(value, '$.id') = ?)");
+    where.push('EXISTS (SELECT 1 FROM vn_publisher_index WHERE vn_id = c.vn_id AND producer_id = ?)');
     params.push(publisher);
   }
   if (tag) {
-    where.push("EXISTS (SELECT 1 FROM json_each(v.tags) WHERE json_extract(value, '$.id') = ?)");
+    where.push('EXISTS (SELECT 1 FROM vn_tag_index WHERE vn_id = c.vn_id AND tag_id = ?)');
     params.push(tag);
   }
   if (place) {
