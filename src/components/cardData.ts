@@ -50,31 +50,3 @@ export function toCardData(it: CollectionItem): CardData {
   return data;
 }
 
-/**
- * Convenience helper for callers that have a partial row (e.g. raw
- * VNDB payload before `upsertVn` materialises it). Anything missing
- * from `partial` is null/undefined in the result.
- */
-export function toCardDataLite(partial: Partial<CollectionItem> & { id: string; title: string }): CardData {
-  return {
-    id: partial.id,
-    title: partial.title,
-    alttitle: partial.alttitle ?? null,
-    poster: partial.image_url ?? partial.image_thumb ?? null,
-    localPoster: partial.local_image ?? partial.local_image_thumb ?? null,
-    customCover: partial.custom_cover ?? null,
-    sexual: partial.image_sexual ?? null,
-    released: partial.released ?? null,
-    egs_median: partial.egs?.median ?? null,
-    egs_playtime_minutes: partial.egs?.playtime_median_minutes ?? null,
-    rating: partial.rating ?? null,
-    user_rating: partial.user_rating ?? null,
-    playtime_minutes: partial.playtime_minutes ?? 0,
-    length_minutes: partial.length_minutes ?? null,
-    status: partial.status as Status | undefined,
-    favorite: partial.favorite ?? false,
-    developers: partial.developers ?? [],
-    publishers: partial.publishers ?? [],
-    isFanDisc: (partial.relations ?? []).some((r) => r.relation === 'orig'),
-  };
-}

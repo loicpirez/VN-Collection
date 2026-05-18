@@ -188,7 +188,3 @@ export function finishJob(jobId: string): void {
 export function listJobs(): DownloadJob[] {
   return Array.from(jobs.values()).sort((a, b) => b.started_at - a.started_at);
 }
-
-export function activeJobs(): DownloadJob[] {
-  return listJobs().filter((j) => j.finished_at == null);
-}
