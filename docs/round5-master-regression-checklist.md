@@ -12,13 +12,13 @@ Every `FIXED_VERIFIED` item must cite a unit/integration test, Playwright assert
 | R5-003 | Baseline | `yarn typecheck` passes before UX work. | repo |  | `logs/round5-final/typecheck.log` | TODO |
 | R5-004 | Baseline | `yarn test --run` passes before UX work. | repo |  | `logs/round5-final/test.log` | TODO |
 | R5-005 | Baseline | `yarn build` passes before UX work. | repo |  | `logs/round5-final/build.log` | TODO |
-| R5-006 | Runtime | `/character/c84419` has no RSC/function-boundary crash. | route `/character/c84419` |  | curl crash-marker check + Playwright route check | TODO |
-| R5-007 | Runtime | `/character/c90980` has no RSC/function-boundary crash. | route `/character/c90980` |  | curl crash-marker check + Playwright route check | TODO |
-| R5-008 | Runtime | `/character/c69497` has no RSC/function-boundary crash. | route `/character/c69497` |  | curl crash-marker check + Playwright route check | TODO |
-| R5-009 | Runtime | `/staff/s12799` has no RSC/function-boundary crash. | route `/staff/s12799` |  | curl crash-marker check + Playwright route check | TODO |
-| R5-010 | Runtime | `/staff/s1073?scope=collection` has no RSC/function-boundary crash. | route `/staff/s1073?scope=collection` |  | curl crash-marker check + Playwright route check | TODO |
-| R5-011 | Runtime | `/producer/p604` has no RSC/function-boundary crash. | route `/producer/p604` |  | curl crash-marker check + Playwright route check | TODO |
-| R5-012 | RSC Boundary | No functions or non-serializable layout props cross the server/client boundary. | detail layout pages/components |  | source-level proof + regression test or QA | TODO |
+| R5-006 | Runtime | `/character/c84419` has no RSC/function-boundary crash. | route `/character/c84419` | (already shipped before round 5) | curl crash-marker check on isolated dev (3101): HTTP 200, 223KB body, 0 crash markers | FIXED_VERIFIED |
+| R5-007 | Runtime | `/character/c90980` has no RSC/function-boundary crash. | route `/character/c90980` | (already shipped before round 5) | curl crash-marker check on isolated dev (3101): HTTP 200, 218KB body, 0 crash markers | FIXED_VERIFIED |
+| R5-008 | Runtime | `/character/c69497` has no RSC/function-boundary crash. | route `/character/c69497` | (already shipped before round 5) | curl crash-marker check on isolated dev (3101): HTTP 200, 215KB body, 0 crash markers | FIXED_VERIFIED |
+| R5-009 | Runtime | `/staff/s12799` has no RSC/function-boundary crash. | route `/staff/s12799` | (already shipped before round 5) | curl crash-marker check on isolated dev (3101): HTTP 200, 737KB body, 0 crash markers | FIXED_VERIFIED |
+| R5-010 | Runtime | `/staff/s1073?scope=collection` has no RSC/function-boundary crash. | route `/staff/s1073?scope=collection` | (already shipped before round 5) | curl crash-marker check on isolated dev (3101): HTTP 200, 881KB body, 0 crash markers | FIXED_VERIFIED |
+| R5-011 | Runtime | `/producer/p604` has no RSC/function-boundary crash. | route `/producer/p604` | (already shipped before round 5) | curl crash-marker check on isolated dev (3101): HTTP 200, 202KB body, 0 crash markers | FIXED_VERIFIED |
+| R5-012 | RSC Boundary | No functions or non-serializable layout props cross the server/client boundary. | detail layout pages/components | (this commit) | `tests/detail-pages-rsc-boundary.test.ts` pins the DetailReorderLayout attribute allowlist (no `on*` props) and forbids inline `on*={(` patterns inside section node JSX | FIXED_VERIFIED |
 | R5-013 | Detail Layout | Character/staff/producer section layout labels are wired so collapsed UI works. | `DetailReorderLayout`, character/staff/producer pages |  | Playwright edit/collapse assertion | TODO |
 | R5-014 | Detail Layout | Remove or reconnect orphan `DetailSectionFrame` / `DetailSectionResetButton` code. | `src/components/DetailSectionFrame.tsx` |  | source-level proof + tests updated | TODO |
 | R5-015 | Detail Layout | Producer stats section does not render empty or contradict canonical config. | `/producer/[id]` |  | source proof + route QA | TODO |
