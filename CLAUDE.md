@@ -317,7 +317,7 @@ vn_route         PK id (auto)
                   vn_id, name, completed, completed_date, order_index, notes,
                   created_at, updated_at
 
-character_image  PK character_id      — local mirror of VNDB character images
+character_image  PK char_id           — local mirror of VNDB character images
                                        (populated by downloadCharacterImages())
                   url, local_path, fetched_at
 

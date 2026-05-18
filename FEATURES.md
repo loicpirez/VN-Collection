@@ -1440,7 +1440,7 @@ filled.
 | `vn_activity` | Reading-log audit trail | id, vn_id, kind, payload JSON, occurred_at |
 | `vn_game_log` | Free-form timestamped journal | id, vn_id FK, note, logged_at, session_minutes, created_at, updated_at |
 | `owned_release` | Physical / digital inventory | composite PK (vn_id, release_id); columns: location, edition_label, condition, price_paid, currency, acquired_date, purchase_place, dumped, notes |
-| `character_image` | Local mirror of VNDB character images | character_id PK, local_path, original_url, fetched_at |
+| `character_image` | Local mirror of VNDB character images | char_id PK, url, local_path, fetched_at |
 | `shelf_unit` | One per "real shelf" the user models | id, name, cols, rows, order_index, created_at, updated_at |
 | `shelf_slot` | Sparse placement table (one row per occupied cell) | composite PK (shelf_id, row, col); UNIQUE(vn_id, release_id); FK on (vn_id, release_id) cascades from owned_release |
 | `shelf_display_slot` | Face-out / front-display shelf slots | composite PK (shelf_id, after_row, position); UNIQUE(vn_id, release_id); FK on (vn_id, release_id) cascades from owned_release |
