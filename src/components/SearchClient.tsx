@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronDown, ChevronUp, Database, FileText, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
+import { ChevronDown, ChevronUp, Circle, Database, FileText, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
 import { TextualSearchPanel } from './TextualSearchPanel';
@@ -418,7 +418,15 @@ export function SearchClient() {
           >
             <SlidersHorizontal className="h-4 w-4" />
             {t.search.advanced}
-            {advActive && <span className="rounded-full bg-bg/30 px-1.5 text-[10px]">●</span>}
+            {advActive && (
+              // R5-152: Lucide `<Circle>` filled via `fill-current` —
+              // screen readers announce it as the labelled dot
+              // rather than the bare Unicode `●` glyph.
+              <Circle
+                className="h-2 w-2 fill-current opacity-80"
+                aria-label={t.search.advancedActive}
+              />
+            )}
             {advOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
           {advActive && (

@@ -21,7 +21,21 @@
 import { describe, expect, it } from 'vitest';
 import { readJsonObject } from '@/lib/api-body';
 import type { NextRequest } from 'next/server';
-import { execSync } from 'node:child_process';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+const ROOT = join(__dirname, '..');
+
+function* walkApi(dir: string): Generator<string> {
+  for (const entry of readdirSync(dir)) {
+    const p = join(dir, entry);
+    const s = statSync(p);
+    if (s.isDirectory()) yield* walkApi(p);
+    else if (/\.(tsx?|jsx?)$/.test(entry)) yield p;
+  }
+}
+
+const UNSAFE_REQ_JSON = /await\s+req\.json\(\)\.catch\(\(\)\s*=>\s*\(\{\}\)\)/;
 
 function fakeReq(body: unknown): NextRequest {
   return {
@@ -64,16 +78,11 @@ describe('readJsonObject — R5-148 behaviour', () => {
 
 describe('R5-148 sweep — no unsafe `(await req.json().catch(...))` survives under src/app/api/', () => {
   it('no unsafe pattern remains', () => {
-    let out = '';
-    try {
-      out = execSync(
-        `grep -rnE 'await req\\.json\\(\\)\\.catch\\(\\(\\) => \\(\\{\\}\\)\\)' src/app/api/`,
-        { cwd: process.cwd(), encoding: 'utf8' },
-      );
-    } catch (e) {
-      // grep exits 1 when no matches — that's the green path.
-      out = (e as { stdout?: string }).stdout ?? '';
+    const offenders: string[] = [];
+    for (const path of walkApi(join(ROOT, 'src/app/api'))) {
+      const src = readFileSync(path, 'utf8');
+      if (UNSAFE_REQ_JSON.test(src)) offenders.push(path.slice(ROOT.length + 1));
     }
-    expect(out.trim()).toBe('');
+    expect(offenders).toEqual([]);
   });
 });

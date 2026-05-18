@@ -17,15 +17,22 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readApiError } from '@/lib/api-error-read';
-import { execSync } from 'node:child_process';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
-const ROOT = process.cwd().endsWith('vndb-collection-new')
-  ? process.cwd()
-  : (() => {
-      // tests run with CWD at the repo root from `yarn test`; this
-      // branch is a paranoia fallback for IDE runners.
-      return execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
-    })();
+const ROOT = join(__dirname, '..');
+
+function* walkSrc(dir: string): Generator<string> {
+  for (const entry of readdirSync(dir)) {
+    const p = join(dir, entry);
+    const s = statSync(p);
+    if (s.isDirectory()) yield* walkSrc(p);
+    else if (/\.(tsx?|jsx?)$/.test(entry)) yield p;
+  }
+}
+
+const LEAKY_CATCH_FALLBACK = /await\s+[a-zA-Z_][a-zA-Z_0-9]*\.json\(\)\.catch\(\(\)\s*=>\s*\(\{\}\)\)\)\.error/;
+const LEAKY_BARE_JSON = /await\s+[a-zA-Z_][a-zA-Z_0-9]*\.json\(\)\)\.error/;
 
 describe('readApiError — R5-147 behaviour', () => {
   it('returns the server-supplied error string when present', async () => {
@@ -57,30 +64,20 @@ describe('readApiError — R5-147 behaviour', () => {
 
 describe('R5-147 sweep — no untyped .error access survives in src/', () => {
   it('no `(await *.json().catch(() => ({}))).error` pattern remains', () => {
-    // Use grep -E and tolerate a zero-match exit status (1).
-    let out = '';
-    try {
-      out = execSync(
-        `grep -rnE 'await [a-zA-Z_]+\\.json\\(\\)\\.catch\\(\\(\\) => \\(\\{\\}\\)\\)\\)\\.error' src/`,
-        { cwd: ROOT, encoding: 'utf8' },
-      );
-    } catch (e) {
-      // grep exits 1 when no matches — that's the green path.
-      out = (e as { stdout?: string }).stdout ?? '';
+    const offenders: string[] = [];
+    for (const path of walkSrc(join(ROOT, 'src'))) {
+      const src = readFileSync(path, 'utf8');
+      if (LEAKY_CATCH_FALLBACK.test(src)) offenders.push(path.slice(ROOT.length + 1));
     }
-    expect(out.trim()).toBe('');
+    expect(offenders).toEqual([]);
   });
 
   it('no `(await *.json()).error` pattern survives (without .catch)', () => {
-    let out = '';
-    try {
-      out = execSync(
-        `grep -rnE 'await [a-zA-Z_]+\\.json\\(\\)\\)\\.error' src/`,
-        { cwd: ROOT, encoding: 'utf8' },
-      );
-    } catch (e) {
-      out = (e as { stdout?: string }).stdout ?? '';
+    const offenders: string[] = [];
+    for (const path of walkSrc(join(ROOT, 'src'))) {
+      const src = readFileSync(path, 'utf8');
+      if (LEAKY_BARE_JSON.test(src)) offenders.push(path.slice(ROOT.length + 1));
     }
-    expect(out.trim()).toBe('');
+    expect(offenders).toEqual([]);
   });
 });

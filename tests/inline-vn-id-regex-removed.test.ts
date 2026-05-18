@@ -1,13 +1,27 @@
 /**
  * R5-120 pin: every `/^v\d+$/` (and case-insensitive `/^v\d+$/i`)
  * inline regex test has been replaced with `isVndbVnId(...)` from
- * `@/lib/vn-id`. The strict variant is distinct from the existing
- * `isValidVnId` (which also accepts synthetic `egs_*` ids) so a
- * sweep can't widen the contract by accident.
+ * `@/lib/vn-id-shape`. The strict variant is distinct from the
+ * existing `isValidVnId` (which also accepts synthetic `egs_*`
+ * ids) so a sweep can't widen the contract by accident.
  */
 import { describe, expect, it } from 'vitest';
 import { isVndbVnId, isValidVnId, VN_ID_RE, VNDB_VN_ID_RE } from '@/lib/vn-id-shape';
-import { execSync } from 'node:child_process';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+const ROOT = join(__dirname, '..');
+
+function* walkSrc(dir: string): Generator<string> {
+  for (const entry of readdirSync(dir)) {
+    const p = join(dir, entry);
+    const s = statSync(p);
+    if (s.isDirectory()) yield* walkSrc(p);
+    else if (/\.(tsx?|jsx?|mjs)$/.test(entry)) yield p;
+  }
+}
+
+const INLINE_VN_ID_RE_TEST = /\/\^v\\d\+\$\/i?\.test\(/;
 
 describe('isVndbVnId — R5-120 helper behaviour', () => {
   it('accepts canonical v\\d+ ids', () => {
@@ -38,25 +52,16 @@ describe('isVndbVnId — R5-120 helper behaviour', () => {
 });
 
 describe('R5-120 sweep — no inline `/^v\\d+$/.test(...)` survives', () => {
-  it('no inline regex test pattern remains under src/ (except the helper itself)', () => {
-    let out = '';
-    try {
-      out = execSync(
-        `grep -rnE '/\\^v\\\\d\\+\\$/i?\\.test\\(' src/`,
-        { cwd: process.cwd(), encoding: 'utf8' },
-      );
-    } catch (e) {
-      out = (e as { stdout?: string }).stdout ?? '';
+  it('no inline regex test pattern remains under src/ (except the helper modules)', () => {
+    const offenders: string[] = [];
+    for (const path of walkSrc(join(ROOT, 'src'))) {
+      const rel = path.slice(ROOT.length + 1);
+      // The helper modules themselves are allowed to reference
+      // the literal (that's where the regex lives).
+      if (rel === 'src/lib/vn-id.ts' || rel === 'src/lib/vn-id-shape.ts') continue;
+      const src = readFileSync(path, 'utf8');
+      if (INLINE_VN_ID_RE_TEST.test(src)) offenders.push(rel);
     }
-    // Only the helper modules themselves may reference the literal.
-    const offenders = out
-      .trim()
-      .split('\n')
-      .filter(Boolean)
-      .filter((line) =>
-        !line.startsWith('src/lib/vn-id.ts:') &&
-        !line.startsWith('src/lib/vn-id-shape.ts:'),
-      );
     expect(offenders).toEqual([]);
   });
 });
