@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { addVnToSeries, getSeries, isInCollection, removeVnFromSeries } from '@/lib/db';
+import { addVnToSeries, getSeries, isInCollection, isInCollectionMany, removeVnFromSeries } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { walkSeriesRelations } from '@/lib/series-detect';
 
@@ -27,9 +27,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const added: string[] = [vnId];
   if (body.expand) {
     const related = walkSeriesRelations(vnId);
+    // R5-142: one batched membership lookup for the relation graph.
+    // The previous per-relation `isInCollection(r.id)` was a single
+    // SELECT per node in a graph that can easily reach 20-30 nodes
+    // for long-running series (Higurashi-style arc chains).
+    const ownedRelatedSet = isInCollectionMany(related.map((r) => r.id));
     let idx = baseIndex + 1;
     for (const r of related) {
-      if (!isInCollection(r.id)) continue;
+      if (!ownedRelatedSet.has(r.id)) continue;
       addVnToSeries(sid, r.id, idx);
       added.push(r.id);
       idx += 1;

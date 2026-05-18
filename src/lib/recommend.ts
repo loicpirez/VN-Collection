@@ -347,16 +347,112 @@ function buildSeedUnion(useWishlist: boolean): SeedUnion {
     total: 0,
   };
 
+  // R5-140: collect every (vnId, signal, rating) event first so the
+  // `vn` table read can happen in a SINGLE bulk `WHERE id IN (...)`
+  // query. The previous `touch()` issued one `SELECT title, tags,
+  // developers, staff FROM vn WHERE id = ?` per VN per signal — a
+  // 500-VN collection with three positive signals each meant ~1500
+  // round-trips for the seed pool. The bulk fetch caps it at one
+  // query (or a handful of 500-id chunks for very large pools).
+  type SignalEvent = {
+    vnId: string;
+    signal: SeedVnInfo['signals'][number];
+    rating: number | null;
+  };
+  const events: SignalEvent[] = [];
+
+  // finished
+  try {
+    const rows = db
+      .prepare(
+        `SELECT vn_id, user_rating FROM collection WHERE status = 'completed'`,
+      )
+      .all() as Array<{ vn_id: string; user_rating: number | null }>;
+    for (const r of rows) {
+      events.push({ vnId: r.vn_id, signal: 'completed', rating: r.user_rating });
+      counts.finished += 1;
+    }
+  } catch {
+    // table may not exist yet in fresh DBs; treat as zero contributions
+  }
+
+  // rated >= 70
+  try {
+    const rows = db
+      .prepare(
+        `SELECT vn_id, user_rating FROM collection WHERE user_rating IS NOT NULL AND user_rating >= 70`,
+      )
+      .all() as Array<{ vn_id: string; user_rating: number }>;
+    for (const r of rows) {
+      events.push({ vnId: r.vn_id, signal: 'rated', rating: r.user_rating });
+      counts.rated += 1;
+    }
+  } catch {
+    // ignore
+  }
+
+  // favorite
+  try {
+    const rows = db
+      .prepare(`SELECT vn_id, user_rating FROM collection WHERE favorite = 1`)
+      .all() as Array<{ vn_id: string; user_rating: number | null }>;
+    for (const r of rows) {
+      events.push({ vnId: r.vn_id, signal: 'favorite', rating: r.user_rating });
+      counts.favorite += 1;
+    }
+  } catch {
+    // ignore
+  }
+
+  // reading queue
+  try {
+    const rows = db.prepare(`SELECT vn_id FROM reading_queue`).all() as Array<{ vn_id: string }>;
+    for (const r of rows) {
+      events.push({ vnId: r.vn_id, signal: 'queue', rating: null });
+      counts.queue += 1;
+    }
+  } catch {
+    // ignore
+  }
+
+  // wishlist (gated)
+  if (useWishlist) {
+    for (const id of readCachedWishlistIds()) {
+      events.push({ vnId: id, signal: 'wishlist', rating: null });
+      counts.wishlist += 1;
+    }
+  }
+
+  // R5-140: one bulk `SELECT … WHERE id IN (…)` instead of N
+  // per-VN scans. Chunked at 500 to stay below SQLite's older
+  // 999-parameter cap (mirroring `isInCollectionMany`).
+  const distinctIds = Array.from(new Set(events.map((e) => e.vnId)));
+  type VnRow = {
+    id: string;
+    title: string | null;
+    tags: string | null;
+    developers: string | null;
+    staff: string | null;
+  };
+  const rowsById = new Map<string, VnRow>();
+  if (distinctIds.length > 0) {
+    const CHUNK = 500;
+    for (let i = 0; i < distinctIds.length; i += CHUNK) {
+      const chunk = distinctIds.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      const rows = db
+        .prepare(
+          `SELECT id, title, tags, developers, staff FROM vn WHERE id IN (${placeholders})`,
+        )
+        .all(...chunk) as VnRow[];
+      for (const r of rows) rowsById.set(r.id, r);
+    }
+  }
+
   function touch(vnId: string, signal: SeedVnInfo['signals'][number], rating: number | null): void {
     let info = vns.get(vnId);
     if (!info) {
-      const row = db
-        .prepare(
-          `SELECT title, tags, developers, staff FROM vn WHERE id = ?`,
-        )
-        .get(vnId) as
-        | { title: string | null; tags: string | null; developers: string | null; staff: string | null }
-        | undefined;
+      const row = rowsById.get(vnId);
       let tags: SeedVnInfo['tags'] = [];
       let developers: string[] = [];
       let staff: string[] = [];
@@ -392,67 +488,7 @@ function buildSeedUnion(useWishlist: boolean): SeedUnion {
     if (!info.signals.includes(signal)) info.signals.push(signal);
   }
 
-  // finished
-  try {
-    const rows = db
-      .prepare(
-        `SELECT vn_id, user_rating FROM collection WHERE status = 'completed'`,
-      )
-      .all() as Array<{ vn_id: string; user_rating: number | null }>;
-    for (const r of rows) {
-      touch(r.vn_id, 'completed', r.user_rating);
-      counts.finished += 1;
-    }
-  } catch {
-    // table may not exist yet in fresh DBs; treat as zero contributions
-  }
-
-  // rated >= 70
-  try {
-    const rows = db
-      .prepare(
-        `SELECT vn_id, user_rating FROM collection WHERE user_rating IS NOT NULL AND user_rating >= 70`,
-      )
-      .all() as Array<{ vn_id: string; user_rating: number }>;
-    for (const r of rows) {
-      touch(r.vn_id, 'rated', r.user_rating);
-      counts.rated += 1;
-    }
-  } catch {
-    // ignore
-  }
-
-  // favorite
-  try {
-    const rows = db
-      .prepare(`SELECT vn_id, user_rating FROM collection WHERE favorite = 1`)
-      .all() as Array<{ vn_id: string; user_rating: number | null }>;
-    for (const r of rows) {
-      touch(r.vn_id, 'favorite', r.user_rating);
-      counts.favorite += 1;
-    }
-  } catch {
-    // ignore
-  }
-
-  // reading queue
-  try {
-    const rows = db.prepare(`SELECT vn_id FROM reading_queue`).all() as Array<{ vn_id: string }>;
-    for (const r of rows) {
-      touch(r.vn_id, 'queue', null);
-      counts.queue += 1;
-    }
-  } catch {
-    // ignore
-  }
-
-  // wishlist (gated)
-  if (useWishlist) {
-    for (const id of readCachedWishlistIds()) {
-      touch(id, 'wishlist', null);
-      counts.wishlist += 1;
-    }
-  }
+  for (const e of events) touch(e.vnId, e.signal, e.rating);
 
   counts.total = vns.size;
 

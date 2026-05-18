@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Boxes, ExternalLink, Globe, Languages, Mic2, Package, Shield } from 'lucide-react';
 import { getRelease, type VndbRelease } from '@/lib/vndb';
-import { getCollectionItem, getOwnedRelease, isInCollection, upsertReleaseResolutionCache } from '@/lib/db';
+import { getCollectionItem, getOwnedRelease, isInCollectionMany, upsertReleaseResolutionCache } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { LangFlag } from '@/components/LangFlag';
@@ -91,8 +91,12 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
   // Owned-inventory shortcut: if any of the VNs linked to this release is in
   // the collection, surface a quick toggle/edit panel here.
+  // R5-142: one batched `IN (...)` membership lookup instead of N
+  // single-row SELECTs on releases that list many VNs (compilations,
+  // anthologies, etc.).
+  const ownedSet = isInCollectionMany(release.vns.map((v) => v.id));
   const ownedContexts = release.vns
-    .filter((v) => isInCollection(v.id))
+    .filter((v) => ownedSet.has(v.id))
     .map((v) => ({
       vnId: v.id,
       owned: getOwnedRelease(v.id, release.id),
