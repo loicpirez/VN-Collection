@@ -15,6 +15,7 @@ import { UpcomingCard, type UpcomingCardData } from '@/components/UpcomingCard';
 import { brandHref, yearHref } from '@/lib/egs-links';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -320,7 +321,7 @@ interface LocalVnCover {
  */
 function loadLocalCovers(rows: UpcomingRelease[]): Map<string, LocalVnCover> {
   const ids = Array.from(
-    new Set(rows.flatMap((r) => r.vns.map((v) => v.id)).filter((id) => /^v\d+$/i.test(id))),
+    new Set(rows.flatMap((r) => r.vns.map((v) => v.id)).filter((id) => isVndbVnId(id))),
   );
   if (ids.length === 0) return new Map();
   const placeholders = ids.map(() => '?').join(',');
@@ -374,7 +375,7 @@ function ReleasesSection({
     );
   }
   const localCovers = loadLocalCovers(rows);
-  const vnIds = rows.flatMap((r) => r.vns.map((v) => v.id)).filter((id) => /^v\d+$/i.test(id));
+  const vnIds = rows.flatMap((r) => r.vns.map((v) => v.id)).filter((id) => isVndbVnId(id));
   const inCollectionIds = loadCollectionMembership(vnIds);
   const grouped = groupByMonth(rows);
   return (

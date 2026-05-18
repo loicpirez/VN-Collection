@@ -1,3 +1,4 @@
+import { isVndbVnId } from '@/lib/vn-id';
 /**
  * URL-state helpers for the `/characters` and `/staff` search pages.
  *
@@ -97,7 +98,7 @@ export function parseCharacterSearchParams(
     : null;
   const spoiler = parseSpoiler(pickFirst(raw.spoiler));
   const vnRaw = pickFirst(raw.vn) ?? null;
-  const vn = vnRaw && /^v\d+$/i.test(vnRaw) ? vnRaw.toLowerCase() : null;
+  const vn = vnRaw && isVndbVnId(vnRaw) ? vnRaw.toLowerCase() : null;
   return { tab, q, role, sex, spoiler, vn };
 }
 
@@ -114,7 +115,7 @@ export function parseStaffSearchParams(
   // characters with optional `-Variant` suffix.
   const lang = langRaw && /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/i.test(langRaw) ? langRaw : null;
   const vnRaw = pickFirst(raw.vn) ?? null;
-  const vn = vnRaw && /^v\d+$/i.test(vnRaw) ? vnRaw.toLowerCase() : null;
+  const vn = vnRaw && isVndbVnId(vnRaw) ? vnRaw.toLowerCase() : null;
   const scope: StaffSearchScope = pickFirst(raw.scope) === 'collection' ? 'collection' : 'all';
   return { tab, q, role, lang, vn, scope };
 }

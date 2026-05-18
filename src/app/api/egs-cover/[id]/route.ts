@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { fetchEgsGame } from '@/lib/erogamescape';
 import { isAllowedHttpTarget as isAllowedTarget } from '@/lib/url-allowlist';
 
+import { isVndbVnId } from '@/lib/vn-id';
 /**
  * Cover resolver for EGS games. EGS records external-shop ids on each game
  * (DMM, Suruga-ya, DLsite, gyutto, banner_url) but stores no cover of its
@@ -156,7 +157,7 @@ async function readRawWithFallback(egsId: number): Promise<RawRow> {
 }
 
 function vndbCoverFor(vnId: string | null | undefined, origin: string): string | null {
-  if (!vnId || !/^v\d+$/i.test(vnId)) return null;
+  if (!vnId || !isVndbVnId(vnId)) return null;
   const row = db
     .prepare('SELECT image_url, local_image FROM vn WHERE id = ?')
     .get(vnId) as { image_url: string | null; local_image: string | null } | undefined;

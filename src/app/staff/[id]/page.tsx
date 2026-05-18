@@ -29,6 +29,7 @@ import {
   parseStaffDetailLayoutV1,
 } from '@/lib/staff-detail-layout';
 
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 
 const ROLE_ORDER = ['scenario', 'chardesign', 'art', 'music', 'songs', 'director', 'producer', 'staff'] as const;
@@ -460,7 +461,7 @@ function VnCard({
   const ratingDisplay = vn.rating != null ? (vn.rating / 10).toFixed(1) : null;
   // VNDB id format `vN` only — egs_* synthetic ids don't have a
   // public VNDB page. Hide the external link in that case.
-  const vndbUrl = /^v\d+$/i.test(vn.id) ? `https://vndb.org/${vn.id}` : null;
+  const vndbUrl = isVndbVnId(vn.id) ? `https://vndb.org/${vn.id}` : null;
   return (
     <div
       className={`flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors ${

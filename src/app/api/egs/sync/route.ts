@@ -3,6 +3,7 @@ import { applyEgsSuggestions, computeEgsSuggestions } from '@/lib/egs-sync';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(body.vn_ids)) {
     return NextResponse.json({ error: 'vn_ids must be an array' }, { status: 400 });
   }
-  const picks = body.vn_ids.filter((s): s is string => typeof s === 'string' && /^v\d+$/i.test(s));
+  const picks = body.vn_ids.filter((s): s is string => typeof s === 'string' && isVndbVnId(s));
   if (picks.length === 0) return NextResponse.json({ applied: 0 });
   const result = await applyEgsSuggestions(picks);
   try {

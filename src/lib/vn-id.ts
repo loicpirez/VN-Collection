@@ -21,3 +21,17 @@ export function validateVnIdOr400(id: string | null | undefined): NextResponse |
   }
   return null;
 }
+
+/**
+ * R5-120 — strict VNDB-only variant. Use in API routes that talk
+ * directly to VNDB (link-vndb, vndb-status, series link, etc.)
+ * where a synthetic `egs_*` id has no upstream record to operate
+ * on. Splitting from `VN_ID_RE` keeps the EGS-id surfaces
+ * separate so a one-letter copy-paste can't widen the contract
+ * silently.
+ */
+export const VNDB_VN_ID_RE = /^v\d+$/i;
+
+export function isVndbVnId(id: string | null | undefined): id is string {
+  return typeof id === 'string' && VNDB_VN_ID_RE.test(id);
+}

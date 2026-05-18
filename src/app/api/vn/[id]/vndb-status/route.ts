@@ -10,6 +10,7 @@ import {
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -22,7 +23,7 @@ export const runtime = 'nodejs';
  */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!/^v\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  if (!isVndbVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {
     const labels = await fetchUlistLabels();
     if (typeof labels === 'object' && 'needsAuth' in labels) {
@@ -40,7 +41,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!/^v\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  if (!isVndbVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const patch: UlistPatch = {};
   if (Array.isArray(body.labels_set)) {
@@ -88,7 +89,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!/^v\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  if (!isVndbVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {
     const r = await deleteUlistEntry(id);
     if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });

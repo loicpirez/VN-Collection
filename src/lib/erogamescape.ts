@@ -14,6 +14,7 @@ import {
 } from './db';
 import { getReleasesForVn } from './vndb';
 
+import { isVndbVnId } from '@/lib/vn-id';
 /**
  * Erogamescape (EGS) integration. EGS exposes a public SQL form that returns CSV;
  * we use it instead of HTML scraping for reliability.
@@ -552,7 +553,7 @@ export async function resolveEgsForVn(
   const { force = false, allowSearch = true } = opts;
 
   // Manual override beats everything else.
-  if (/^v\d+$/.test(vnId)) {
+  if (isVndbVnId(vnId)) {
     const manual = getVnEgsLink(vnId);
     if (manual) {
       if (manual.egs_id == null) {
@@ -685,7 +686,7 @@ export function clearEgsCache(
   mode: 'auto' | 'manual-none' | 'clear-manual' = 'auto',
 ): void {
   clearEgsForVn(vnId);
-  if (!/^v\d+$/.test(vnId)) return;
+  if (!isVndbVnId(vnId)) return;
   if (mode === 'manual-none') {
     setVnEgsLink(vnId, null);
   } else if (mode === 'clear-manual') {
@@ -790,7 +791,7 @@ export async function linkEgsToVn(vnId: string, egsId: number): Promise<EgsGame 
   persistGame(vnId, game, 'manual');
   // Pin the manual mapping at the override layer so cache refresh /
   // re-auto-match can't silently undo the user's choice.
-  if (/^v\d+$/.test(vnId)) setVnEgsLink(vnId, egsId);
+  if (isVndbVnId(vnId)) setVnEgsLink(vnId, egsId);
   return game;
 }
 
@@ -952,7 +953,7 @@ export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]
       gamename: r[idx('gamename')] ?? '',
       brand_name: r[idx('brand_name')] || null,
       sellday: r[idx('sellday')] ?? '',
-      vndb_id: /^v\d+$/.test(vndb) ? vndb : null,
+      vndb_id: isVndbVnId(vndb) ? vndb : null,
       will_buy: toNumber(r[idx('will_buy')]) ?? 0,
       probably_buy: toNumber(r[idx('probably')]) ?? 0,
       watching: toNumber(r[idx('watching')]) ?? 0,
@@ -1059,7 +1060,7 @@ export async function fetchEgsAnticipatedPage(
       gamename: r[idx('gamename')] ?? '',
       brand_name: r[idx('brand_name')] || null,
       sellday: r[idx('sellday')] ?? '',
-      vndb_id: /^v\d+$/.test(vndb) ? vndb : null,
+      vndb_id: isVndbVnId(vndb) ? vndb : null,
       will_buy: toNumber(r[idx('will_buy')]) ?? 0,
       probably_buy: toNumber(r[idx('probably')]) ?? 0,
       watching: toNumber(r[idx('watching')]) ?? 0,
@@ -1247,7 +1248,7 @@ export async function fetchEgsTopRanked(
       banner_url: r[idx('banner_url')] || null,
       okazu: toBool(r[idx('okazu')]) === true,
       erogame: toBool(r[idx('erogame')]) === true,
-      vndb_id: /^v\d+$/.test(vndb) ? vndb : null,
+      vndb_id: isVndbVnId(vndb) ? vndb : null,
     });
   }
   writeCache(cacheK, out, EGS_TOP_TTL_MS);
@@ -1366,7 +1367,7 @@ export async function fetchEgsTopRankedPage(
       banner_url: r[idx('banner_url')] || null,
       okazu: toBool(r[idx('okazu')]) === true,
       erogame: toBool(r[idx('erogame')]) === true,
-      vndb_id: /^v\d+$/.test(vndb) ? vndb : null,
+      vndb_id: isVndbVnId(vndb) ? vndb : null,
     });
   }
   const hasMore = parsed.length > safeSize;

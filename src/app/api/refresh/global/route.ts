@@ -8,6 +8,7 @@ import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection } from '@/lib/upco
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
 
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
     ).all() as Array<{ vn_id: string }>
   )
     .map((r) => r.vn_id)
-    .filter((id) => /^v\d+$/.test(id));
+    .filter((id) => isVndbVnId(id));
   // Each task has a stable `name` plus the existing run() closure.
   // The name is broadcast through `setJobCurrent` so the
   // DownloadStatusBar's "Now: …" hint shows precisely what is being

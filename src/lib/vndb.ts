@@ -3,6 +3,7 @@ import { cachedFetch, invalidateByPath, invalidateKey, readCachedJson, TTL } fro
 import { throttledFetch } from './vndb-throttle';
 import type { Screenshot, VndbSearchHit } from './types';
 
+import { isVndbVnId } from '@/lib/vn-id';
 export const VNDB_API = 'https://api.vndb.org/kana';
 
 /**
@@ -215,7 +216,7 @@ export async function searchVn(
   { results = 30, page = 1 }: { results?: number; page?: number } = {},
 ): Promise<VndbResponse<Omit<VndbSearchHit, 'in_collection'>>> {
   const trimmed = query.trim();
-  const isId = /^v\d+$/i.test(trimmed);
+  const isId = isVndbVnId(trimmed);
   return vndbPost('/vn', {
     filters: isId ? ['id', '=', trimmed.toLowerCase()] : ['search', '=', trimmed],
     fields: VN_SEARCH_FIELDS,
@@ -1048,7 +1049,7 @@ export async function getRandomQuote(): Promise<VndbQuote | null> {
  * shape capping `or` clauses at ~50 predicates means we batch.
  */
 export async function getRandomQuoteForVns(vnIds: string[]): Promise<VndbQuote | null> {
-  const filtered = vnIds.filter((id) => /^v\d+$/i.test(id));
+  const filtered = vnIds.filter((id) => isVndbVnId(id));
   if (filtered.length === 0) return null;
   // Random-pick one VN and ask EGS-style: VNDB rejects huge `or` blocks otherwise.
   const pick = filtered[Math.floor(Math.random() * filtered.length)];
@@ -1103,7 +1104,7 @@ export interface VndbCoverInfo {
 }
 export async function fetchVnCovers(ids: string[]): Promise<Map<string, VndbCoverInfo>> {
   const out = new Map<string, VndbCoverInfo>();
-  const cleaned = Array.from(new Set(ids.filter((id) => /^v\d+$/i.test(id))));
+  const cleaned = Array.from(new Set(ids.filter((id) => isVndbVnId(id))));
   if (cleaned.length === 0) return out;
   // VNDB rejects `or` clauses with fewer than 2 predicates.
   const filters = cleaned.length === 1
@@ -1261,7 +1262,7 @@ export async function fetchAuthenticatedWishlist(): Promise<VndbUlistEntry[] | {
 export async function addToVndbWishlist(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
   const token = readVndbToken();
   if (!token) return { needsAuth: true };
-  if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
+  if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'PATCH',
     headers: authHeaders(),
@@ -1292,7 +1293,7 @@ export async function addToVndbWishlist(vnId: string): Promise<{ ok: true } | { 
 export async function removeFromVndbWishlist(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
   const token = readVndbToken();
   if (!token) return { needsAuth: true };
-  if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
+  if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'PATCH',
     headers: authHeaders(),
@@ -1344,7 +1345,7 @@ export interface VndbUlistEntryDetail {
 export async function fetchUlistEntry(vnId: string): Promise<VndbUlistEntryDetail | null | { needsAuth: true }> {
   const auth = await getAuthInfo();
   if (!auth) return { needsAuth: true };
-  if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
+  if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   const r = await vndbPost<{ results: VndbUlistEntryDetail[] }>(
     '/ulist',
     {
@@ -1376,7 +1377,7 @@ export interface UlistPatch {
 export async function patchUlistEntry(vnId: string, patch: UlistPatch): Promise<{ ok: true } | { needsAuth: true }> {
   const token = readVndbToken();
   if (!token) return { needsAuth: true };
-  if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
+  if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'PATCH',
     headers: authHeaders(),
@@ -1398,7 +1399,7 @@ export async function patchUlistEntry(vnId: string, patch: UlistPatch): Promise<
 export async function deleteUlistEntry(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
   const token = readVndbToken();
   if (!token) return { needsAuth: true };
-  if (!/^v\d+$/i.test(vnId)) throw new Error('invalid vn id');
+  if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'DELETE',
     headers: authHeaders(),

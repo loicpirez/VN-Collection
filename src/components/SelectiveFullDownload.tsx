@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Check, CloudDownload, Loader2, Search } from 'lucid
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
+import { isVndbVnId } from '@/lib/vn-id';
 interface CollectionRow {
   id: string;
   title: string;
@@ -122,7 +123,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
       const r = await fetch(`/api/collection?${params.toString()}`, { cache: 'no-store' });
       if (!r.ok) throw new Error(await r.text());
       const data = (await r.json()) as { items?: CollectionRow[] };
-      const list = (data.items ?? []).filter((it) => /^v\d+$/i.test(it.id));
+      const list = (data.items ?? []).filter((it) => isVndbVnId(it.id));
       setRows(list);
     } catch (e) {
       toast.error((e as Error).message || t.common.error);

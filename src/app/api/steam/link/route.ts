@@ -3,6 +3,7 @@ import { deleteSteamLink, isInCollection, listSteamLinks, setSteamLink } from '@
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
     appid?: unknown;
     steam_name?: unknown;
   };
-  if (typeof body.vn_id !== 'string' || !/^v\d+$/i.test(body.vn_id)) {
+  if (typeof body.vn_id !== 'string' || !isVndbVnId(body.vn_id)) {
     return NextResponse.json({ error: 'vn_id required (must be a VNDB id)' }, { status: 400 });
   }
   if (typeof body.appid !== 'number' || !Number.isInteger(body.appid) || body.appid <= 0) {

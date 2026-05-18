@@ -7,6 +7,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
 import { readApiError } from '@/lib/api-error-read';
+import { isVndbVnId } from '@/lib/vn-id';
 interface Props {
   vnId: string;
   /** When true, the VN is in the local collection; we surface a Remove button instead of Add. */
@@ -66,7 +67,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
   });
 
   // VNDB wishlist isn't meaningful for synthetic egs_* VNs (no VNDB id).
-  const wishlistSupported = /^v\d+$/i.test(vnId);
+  const wishlistSupported = isVndbVnId(vnId);
 
   useEffect(() => {
     if (!wishlistSupported) {

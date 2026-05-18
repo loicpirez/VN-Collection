@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
+import { isVndbVnId } from '@/lib/vn-id';
 export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
   const t = useT();
   const router = useRouter();
@@ -15,7 +16,7 @@ export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
   async function add() {
     setError(null);
     const id = vnId.trim().toLowerCase();
-    if (!/^v\d+$/.test(id)) {
+    if (!isVndbVnId(id)) {
       setError(t.series.invalidVnId);
       return;
     }

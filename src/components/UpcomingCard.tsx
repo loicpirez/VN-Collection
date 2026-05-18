@@ -5,6 +5,7 @@ import { MapEgsToVndbButton } from './MapEgsToVndbButton';
 import { AddMissingVnButton } from './AddMissingVnButton';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
+import { isVndbVnId } from '@/lib/vn-id';
 /**
  * Shared card used by every tab on `/upcoming` (collection / all / anticipated).
  *
@@ -81,7 +82,7 @@ export function UpcomingCard({
   // Resolve which VNDB id the card actually targets. Prefer the
   // explicit `vndbId`, fall back to the row id when it already looks
   // like a VNDB id.
-  const resolvedVnId = vndbId ?? (/^v\d+$/i.test(id) ? id : null);
+  const resolvedVnId = vndbId ?? (isVndbVnId(id) ? id : null);
   const internalHref = resolvedVnId ? `/vn/${resolvedVnId}` : null;
   const externalHref = resolvedVnId
     ? `https://vndb.org/${resolvedVnId}`

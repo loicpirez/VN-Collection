@@ -13,6 +13,7 @@ import {
 } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
 
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 
 const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [
@@ -107,7 +108,7 @@ export async function GET(req: NextRequest) {
     // VNs from the Library page. Materializing here makes the
     // Library agree with the VN detail page.
     for (const id of allVnIds) {
-      if (/^v\d+$/.test(id)) {
+      if (isVndbVnId(id)) {
         materializeReleaseAspectsForVn(id);
         materializeReleaseMetaForVn(id);
       }

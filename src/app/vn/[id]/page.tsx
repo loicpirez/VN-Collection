@@ -77,6 +77,7 @@ import { VnTagChips } from '@/components/VnTagChips';
 import { VnTagsGroupedView } from '@/components/VnTagsGroupedView';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 const CACHE_MS = 24 * 3600 * 1000;
 
@@ -210,7 +211,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   // here, before any aspect-aware component renders. Both the
   // identity metadata row AND the AspectOverrideControl below read
   // the same derived state — they MUST agree.
-  if (/^v\d+$/.test(vn.id)) {
+  if (isVndbVnId(vn.id)) {
     materializeReleaseAspectsForVn(vn.id);
     // Harvest the rest of the per-release metadata (platforms,
     // languages, release date, GTIN, …) from cached POST /release
@@ -564,7 +565,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 response body.
               */}
               {(() => {
-                const aspectDisplay = /^v\d+$/.test(vn.id)
+                const aspectDisplay = isVndbVnId(vn.id)
                   ? deriveVnAspectDisplay(vn.id)
                   : { aspect: 'unknown' as const, aspects: [], width: null, height: null, source: 'unknown' as const };
                 const isUnknown = aspectDisplay.aspect === 'unknown';
@@ -919,7 +920,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           // render (see materializeReleaseAspectsForVn invocation
           // above the identity metadata block). Both surfaces use
           // the same derived data.
-          const initialOverride = /^v\d+$/.test(vn.id) ? getVnAspectOverride(vn.id) : null;
+          const initialOverride = isVndbVnId(vn.id) ? getVnAspectOverride(vn.id) : null;
           const initialDerived = deriveVnAspectKey(vn.id);
           sections.push({
             id: 'aspect-override',

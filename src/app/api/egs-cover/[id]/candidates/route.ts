@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -79,7 +80,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     out.push({ source: 'banner', url: raw.banner_url.trim(), label: 'EGS banner' });
   }
 
-  if (raw.vn_id && /^v\d+$/i.test(raw.vn_id)) {
+  if (raw.vn_id && isVndbVnId(raw.vn_id)) {
     const vn = db
       .prepare('SELECT image_url, local_image FROM vn WHERE id = ?')
       .get(raw.vn_id) as { image_url: string | null; local_image: string | null } | undefined;

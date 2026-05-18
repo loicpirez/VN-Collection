@@ -2,6 +2,7 @@ import { Tv } from 'lucide-react';
 import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
 import { getDict } from '@/lib/i18n/server';
 
+import { isVndbVnId } from '@/lib/vn-id';
 /**
  * Surfaces an "Anime adaptation exists" chip on the VN detail page when
  * VNDB flags the VN with has_anime. We probe the filter rather than the
@@ -11,7 +12,7 @@ import { getDict } from '@/lib/i18n/server';
  * Skips entirely for egs_-only synthetic ids since VNDB has no record.
  */
 export async function AnimeChip({ vnId }: { vnId: string }) {
-  if (!/^v\d+$/i.test(vnId)) return null;
+  if (!isVndbVnId(vnId)) return null;
   const t = await getDict();
   let hasAnime = false;
   try {

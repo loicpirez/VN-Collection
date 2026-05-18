@@ -5,6 +5,7 @@ import { downloadFullProducerForVn } from '@/lib/producer-full';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { isVndbVnId } from '@/lib/vn-id';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 600;
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'vn_ids must be an array' }, { status: 400 });
   }
   const ids = body.vn_ids.filter(
-    (s): s is string => typeof s === 'string' && /^v\d+$/i.test(s),
+    (s): s is string => typeof s === 'string' && isVndbVnId(s),
   );
   if (ids.length === 0) {
     return NextResponse.json({ queued: 0 });

@@ -2,6 +2,7 @@ import 'server-only';
 import { db } from './db';
 import { vndbAdvancedSearchRaw } from './vndb-recommend';
 
+import { isVndbVnId } from '@/lib/vn-id';
 export type RecommendMode =
   | 'because-you-liked'
   | 'tag-based'
@@ -669,7 +670,7 @@ function readCachedWishlistIds(): Set<string> {
           ...(entry.label_ids ?? []),
           ...(entry.labels ?? []).map((label) => (typeof label === 'number' ? label : label.id)).filter((id): id is number => typeof id === 'number'),
         ];
-        if (entry.id && /^v\d+$/.test(entry.id) && labels.includes(5)) ids.add(entry.id);
+        if (entry.id && isVndbVnId(entry.id) && labels.includes(5)) ids.add(entry.id);
       }
     }
   } catch {

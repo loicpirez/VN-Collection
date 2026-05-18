@@ -1,3 +1,4 @@
+import { isVndbVnId } from '@/lib/vn-id';
 /**
  * Centralised URL helpers for every clickable EGS surface token.
  *
@@ -48,7 +49,7 @@ export function yearHref(value: string | null | undefined): string | null {
 /** Local VN detail page when the EGS row carries a VNDB cross-link. */
 export function vnHref(vndbId: string | null | undefined): string | null {
   if (!vndbId) return null;
-  if (!/^v\d+$/i.test(vndbId)) return null;
+  if (!isVndbVnId(vndbId)) return null;
   return `/vn/${vndbId.toLowerCase()}`;
 }
 

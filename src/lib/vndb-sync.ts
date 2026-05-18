@@ -5,6 +5,7 @@ import { fetchUlistByLabel, getAuthInfo } from './vndb';
 import { throttledFetch } from './vndb-throttle';
 import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 
+import { isVndbVnId } from '@/lib/vn-id';
 /**
  * Two-way sync between local status and VNDB list labels.
  * The mapping is one-way directional but consistent so reading remote
@@ -52,7 +53,7 @@ export async function pushStatusToVndb(
   status: Status | null,
   token: string,
 ): Promise<VndbWriteResult> {
-  if (!/^v\d+$/i.test(vnId)) return { ok: false, message: 'not a vndb id' };
+  if (!isVndbVnId(vnId)) return { ok: false, message: 'not a vndb id' };
   // Compute which labels to set + unset based on the new status.
   const ALL = Object.values(VNDB_LABELS);
   const target = status ? VNDB_LABELS[status] : null;

@@ -5,6 +5,7 @@ import { getVn } from '@/lib/vndb';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { isVndbVnId } from '@/lib/vn-id';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
   const body = (await readJsonObject(req)) as { vndb_id?: unknown };
   const target = typeof body.vndb_id === 'string' ? body.vndb_id.toLowerCase() : '';
-  if (!/^v\d+$/i.test(target)) {
+  if (!isVndbVnId(target)) {
     return NextResponse.json({ error: 'vndb_id must look like vNNN' }, { status: 400 });
   }
 

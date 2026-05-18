@@ -3,6 +3,7 @@ import { addToVndbWishlist, removeFromVndbWishlist } from '@/lib/vndb';
 import { recordActivity } from '@/lib/activity';
 import { upstreamError } from '@/lib/api-error';
 
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -35,7 +36,7 @@ function vndbErrorResponse(e: Error, label: string): NextResponse {
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!/^v\d+$/i.test(id)) {
+  if (!isVndbVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   try {
@@ -52,7 +53,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!/^v\d+$/i.test(id)) {
+  if (!isVndbVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   try {

@@ -1833,7 +1833,7 @@ export interface EgsVnLink {
 }
 
 export function setVnEgsLink(vnId: string, egsId: number | null, note?: string | null): void {
-  if (!/^v\d+$/.test(vnId)) throw new Error('invalid vn id');
+  if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   if (egsId !== null && (!Number.isInteger(egsId) || egsId <= 0)) {
     throw new Error('invalid egs id');
   }
@@ -1860,7 +1860,7 @@ export function clearVnEgsLink(vnId: string): void {
 
 export function setEgsVnLink(egsId: number, vnId: string | null, note?: string | null): void {
   if (!Number.isInteger(egsId) || egsId <= 0) throw new Error('invalid egs id');
-  if (vnId !== null && !/^v\d+$/.test(vnId)) throw new Error('invalid vn id');
+  if (vnId !== null && !isVndbVnId(vnId)) throw new Error('invalid vn id');
   db.prepare(
     `INSERT INTO egs_vn_link (egs_id, vn_id, note, updated_at)
      VALUES (?, ?, ?, ?)
@@ -1902,6 +1902,7 @@ export function listAllEgsVnLinks(): Map<number, string | null> {
 // compiling, but there's only one source of truth — adding a new
 // choice in source-resolve propagates everywhere.
 import type { SourceChoice as SourceChoiceCanonical } from './source-resolve';
+import { isVndbVnId } from '@/lib/vn-id';
 export type SourceChoice = SourceChoiceCanonical;
 export type SourceField = 'title' | 'description' | 'image' | 'brand' | 'rating' | 'playtime';
 
@@ -2447,7 +2448,7 @@ function buildUpdateCollectionTx(): (vnId: string, fields: CollectionPatch) => v
  */
 export async function maybePushStatusToVndb(vnId: string, status: Status | null | undefined): Promise<void> {
   if (status === undefined) return;
-  if (!/^v\d+$/i.test(vnId)) return;
+  if (!isVndbVnId(vnId)) return;
   const enabled = getAppSetting('vndb_writeback') === '1';
   if (!enabled) return;
   const token = getAppSetting('vndb_token');
@@ -3266,7 +3267,7 @@ function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {
  * and a subsequent page render will pick it up.
  */
 export function materializeReleaseAspectsForVn(vnId: string): void {
-  if (!/^v\d+$/.test(vnId)) return;
+  if (!isVndbVnId(vnId)) return;
   // Short-circuit when this VN already has any non-unknown signal
   // — no point scanning the cache when we already know the answer.
   const existing = db
@@ -3399,7 +3400,7 @@ export function getReleaseMeta(releaseId: string): ReleaseMetaRow | null {
  * derived aspect-key requires structured parsing.
  */
 export function materializeReleaseMetaForVn(vnId: string): void {
-  if (!/^v\d+$/.test(vnId)) return;
+  if (!isVndbVnId(vnId)) return;
   // R5-132: short-circuit when `release_meta_cache` already has rows
   // for this vn AND those rows are newer than the latest matching
   // `vndb_cache` row. This drops the per-VN cost from "scan the

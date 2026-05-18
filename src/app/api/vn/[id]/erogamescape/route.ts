@@ -5,6 +5,7 @@ import { getVnEgsLink } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { isVndbVnId } from '@/lib/vn-id';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const force = sp.get('refresh') === '1';
   try {
     const { game, source } = await resolveEgsForVn(id, { force, allowSearch });
-    const manual = /^v\d+$/.test(id) ? getVnEgsLink(id) : null;
+    const manual = isVndbVnId(id) ? getVnEgsLink(id) : null;
     return NextResponse.json({
       game,
       source,

@@ -3,6 +3,7 @@ import { clearEgsVnLink, getEgsVnLink, setEgsVnLink } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { isVndbVnId } from '@/lib/vn-id';
 function logEgsVndbLink(
   kind: 'egs.vndb-link' | 'egs.vndb-unlink',
   egsId: number,
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     logEgsVndbLink('egs.vndb-link', egsId, { pinned: 'none' });
     return NextResponse.json({ ok: true, link: getEgsVnLink(egsId) });
   }
-  if (typeof raw !== 'string' || !/^v\d+$/.test(raw)) {
+  if (typeof raw !== 'string' || !isVndbVnId(raw)) {
     return NextResponse.json({ error: 'invalid vndb_id' }, { status: 400 });
   }
   setEgsVnLink(egsId, raw);

@@ -3,6 +3,7 @@ import { db, getAppSetting, upsertVn } from './db';
 import { getVn } from './vndb';
 import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 
+import { isVndbVnId } from '@/lib/vn-id';
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
 function fanoutEnabled(): boolean {
@@ -31,7 +32,7 @@ export async function downloadFullRelationsForVn(
   } catch {
     return { scanned: 0, downloaded: 0 };
   }
-  const rels = (parsed.relations ?? []).filter((r) => /^v\d+$/i.test(r?.id ?? ''));
+  const rels = (parsed.relations ?? []).filter((r) => isVndbVnId(r?.id ?? ''));
   if (rels.length === 0) return { scanned: 0, downloaded: 0 };
 
   const now = Date.now();

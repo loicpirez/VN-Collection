@@ -12,7 +12,7 @@ import {
   type OwnedReleasePatch,
 } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
-import { validateVnIdOr400 } from '@/lib/vn-id';
+import { validateVnIdOr400, isVndbVnId } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // the "Unknown platform — refresh releases" branch in the
   // meantime. Idempotent + cheap; falls through cleanly when
   // `POST /release` was never cached (synthetic ids, brand-new VN).
-  if (/^v\d+$/.test(id)) {
+  if (isVndbVnId(id)) {
     try {
       materializeReleaseMetaForVn(id);
     } catch {
