@@ -10,11 +10,13 @@ import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
+import { precheckContentLength } from '@/lib/upload-precheck';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const POSITION_RE = /^-?\d+(?:\.\d+)?%\s+-?\d+(?:\.\d+)?%$/;
+const MAX_BANNER_BYTES = 15 * 1024 * 1024;
 
 /**
  * Set the banner from any source.
@@ -39,11 +41,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const ct = req.headers.get('content-type') ?? '';
 
   if (ct.startsWith('multipart/form-data')) {
+    // R5-122: reject oversized payloads BEFORE buffering the multipart
+    // body into memory via `req.formData()`.
+    const tooLarge = precheckContentLength(req, MAX_BANNER_BYTES);
+    if (tooLarge) return tooLarge;
     const fd = await req.formData().catch(() => null);
     if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
     const file = fd.get('file');
     if (!(file instanceof File)) return NextResponse.json({ error: 'missing file' }, { status: 400 });
-    if (file.size > 15 * 1024 * 1024) {
+    if (file.size > MAX_BANNER_BYTES) {
       return NextResponse.json({ error: 'file too large (max 15MB)' }, { status: 400 });
     }
     let path: string;

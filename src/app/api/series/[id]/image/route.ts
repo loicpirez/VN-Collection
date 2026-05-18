@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSeries, updateSeries } from '@/lib/db';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { recordActivity } from '@/lib/activity';
+import { precheckContentLength } from '@/lib/upload-precheck';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const MAX_SERIES_IMAGE_BYTES = 15 * 1024 * 1024;
 
 /**
  * Upload a cover or banner for a series. Expects multipart/form-data with:
@@ -28,6 +31,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!ct.startsWith('multipart/form-data')) {
     return NextResponse.json({ error: 'expected multipart/form-data' }, { status: 400 });
   }
+  // R5-122: reject oversized payloads BEFORE buffering the multipart
+  // body into memory via `req.formData()`.
+  const tooLarge = precheckContentLength(req, MAX_SERIES_IMAGE_BYTES);
+  if (tooLarge) return tooLarge;
   const fd = await req.formData().catch(() => null);
   if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
   const file = fd.get('file');
@@ -39,7 +46,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
   const kind = kindRaw;
   if (!(file instanceof File)) return NextResponse.json({ error: 'missing file' }, { status: 400 });
-  if (file.size > 15 * 1024 * 1024) {
+  if (file.size > MAX_SERIES_IMAGE_BYTES) {
     return NextResponse.json({ error: 'file too large (max 15MB)' }, { status: 400 });
   }
   let path: string;

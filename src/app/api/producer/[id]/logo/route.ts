@@ -3,9 +3,12 @@ import { getProducer, setProducerLogo, upsertProducer } from '@/lib/db';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { recordActivity } from '@/lib/activity';
+import { precheckContentLength } from '@/lib/upload-precheck';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -21,11 +24,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
   }
 
+  // R5-122: reject oversized payloads BEFORE buffering the multipart
+  // body into memory via `req.formData()`.
+  const tooLarge = precheckContentLength(req, MAX_LOGO_BYTES);
+  if (tooLarge) return tooLarge;
   const fd = await req.formData().catch(() => null);
   if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
   const file = fd.get('file');
   if (!(file instanceof File)) return NextResponse.json({ error: 'missing file' }, { status: 400 });
-  if (file.size > 5 * 1024 * 1024) {
+  if (file.size > MAX_LOGO_BYTES) {
     return NextResponse.json({ error: 'file too large (max 5MB)' }, { status: 400 });
   }
   let path: string;

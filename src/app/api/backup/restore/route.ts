@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { restoreFromSqliteFile } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
+import { precheckContentLength } from '@/lib/upload-precheck';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +23,10 @@ export async function POST(req: NextRequest) {
   if (!ct.startsWith('multipart/form-data')) {
     return NextResponse.json({ error: 'expected multipart/form-data' }, { status: 400 });
   }
+  // R5-122: reject oversized payloads BEFORE buffering the multipart
+  // body into memory via `req.formData()`.
+  const tooLarge = precheckContentLength(req, MAX_UPLOAD_BYTES);
+  if (tooLarge) return tooLarge;
   const fd = await req.formData();
   const file = fd.get('file');
   if (!(file instanceof File)) {

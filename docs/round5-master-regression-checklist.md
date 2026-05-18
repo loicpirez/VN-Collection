@@ -128,7 +128,7 @@ Every `FIXED_VERIFIED` item must cite a unit/integration test, Playwright assert
 | R5-119 | Security | Settings activity records changed keys, not full raw values. | `/api/settings`, activity |  | unit tests | TODO |
 | R5-120 | Security | Replace inline ID regexes with helper validators where practical. | API routes |  | source proof + tests | TODO |
 | R5-121 | Security | VNDB sync writes use allowlist guard or cachedFetch-equivalent hardening. | `vndb-sync`, `vndb.ts` |  | unit/source proof | TODO |
-| R5-122 | Security | Multipart routes pre-check Content-Length before `req.formData()`. | cover/banner/logo/series/backup/import routes |  | security tests | TODO |
+| R5-122 | Security | Multipart routes pre-check Content-Length before `req.formData()`. | cover/banner/logo/series/backup/import routes | (this commit) | shared helper `src/lib/upload-precheck.ts:precheckContentLength`; wired into cover (10MB), banner (15MB), producer logo (5MB), series image (15MB), backup restore (1GB); import already had a hand-rolled equivalent. `tests/upload-precheck.test.ts` (5 tests) covers cap / no-header / non-numeric / zero / negative paths | FIXED_VERIFIED |
 | R5-123 | Security | Advanced search numeric ranges are clamped. | `/api/search/advanced` |  | unit tests | TODO |
 | R5-124 | Security | Dynamic extlink URLs pass safeHref allowlist across release/producer/staff/sections/actions. | link surfaces |  | unit tests + source proof | TODO |
 | R5-125 | Security | `vndb-cache.ts:doFetch` gates primary URL through SSRF allowlist. | `vndb-cache.ts` |  | unit tests | TODO |
