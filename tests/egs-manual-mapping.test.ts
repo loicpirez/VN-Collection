@@ -19,12 +19,12 @@ describe('manual EGS <-> VNDB mapping helpers', () => {
       `INSERT OR IGNORE INTO vn (id, title, fetched_at) VALUES (?, ?, ?)`,
     );
     ins.run('v999', 'Fake VN 999', Date.now());
-    ins.run('v1000', 'Fake VN 1000', Date.now());
+    ins.run('v9100', 'Fake VN 9100', Date.now());
   });
 
   beforeEach(() => {
     clearVnEgsLink('v999');
-    clearVnEgsLink('v1000');
+    clearVnEgsLink('v9100');
     clearEgsVnLink(9000);
     clearEgsVnLink(9001);
     clearEgsVnLink(9002);

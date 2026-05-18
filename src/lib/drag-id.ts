@@ -4,7 +4,7 @@
  * The encoding is intentionally string-based so each draggable carries
  * its own type tag plus all the data we need without consulting any
  * external map. Pipe (`|`) is the delimiter — the original colon (`:`)
- * collided with synthetic release ids (`synthetic:v1234`) and produced
+ * collided with synthetic release ids (`synthetic:vNNNNN`) and produced
  * silent drag failures when the splitter mis-counted segments.
  *
  *   pool|<vnId>|<releaseId>

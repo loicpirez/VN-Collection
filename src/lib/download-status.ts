@@ -33,9 +33,9 @@ export interface DownloadJob {
   done: number;
   /**
    * Short identifier of the item currently being fetched, e.g. a staff
-   * id `s1234` or a character id `c5678`. Surfaced in the
+   * id `sNNNN` or a character id `cNNNN`. Surfaced in the
    * DownloadStatusBar so the user sees exactly what's downloading
-   * instead of only "Staff for v123 (3/12)". Cleared when the job
+   * instead of only "Staff for vNNN (3/12)". Cleared when the job
    * finishes.
    */
   current_item?: string | null;

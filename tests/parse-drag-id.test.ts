@@ -8,7 +8,7 @@ import { parseDisplayCellId, parseDragId } from '@/lib/drag-id';
  * before users see it.
  *
  * Critical guardrail: the original delimiter was `:`, which collided
- * with synthetic release ids (`synthetic:v1234`) and produced silent
+ * with synthetic release ids (`synthetic:vNNNNN`) and produced silent
  * drag-drop failures. The new delimiter is `|`.
  */
 

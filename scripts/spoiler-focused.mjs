@@ -10,9 +10,15 @@
  * Exits 0 on success, 1 on any failure.
  */
 import { chromium } from 'playwright';
+import { QA_IDS } from './qa-ids.mjs';
 
 const BASE = process.env.BASE || 'http://localhost:3101';
-const URLS = ['/vn/v32132', '/vn/v4327', '/character/c69497', '/vn/v5262'];
+const URLS = [
+  `/vn/${QA_IDS.VN_SPOILER_BBCODE_ALT}`,
+  `/vn/${QA_IDS.VN_SPOILER_BBCODE}`,
+  `/character/${QA_IDS.CHARACTER_DESCRIPTION_SPOILER}`,
+  `/vn/${QA_IDS.VN_SPOILER_BBCODE_3}`,
+];
 
 let pass = 0;
 let fail = 0;

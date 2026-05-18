@@ -9,9 +9,14 @@
  * touch the full qa:interactions suite.
  */
 import { chromium } from 'playwright';
+import { QA_IDS } from './qa-ids.mjs';
 
 const BASE = process.env.BASE || 'http://localhost:3101';
-const URLS = ['/vn/v26180', '/vn/v28032', '/vn/v4327'];
+const URLS = [
+  `/vn/${QA_IDS.VN_TOOLBAR}`,
+  `/vn/${QA_IDS.VN_SIMILAR_SEED}`,
+  `/vn/${QA_IDS.VN_SPOILER_BBCODE}`,
+];
 const VIEWPORT = { width: 1280, height: 900 };
 const HARD_TILE_CAP_PX = 360;
 

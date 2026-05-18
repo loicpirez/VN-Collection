@@ -35,22 +35,22 @@ describe('getSchemaEgsSummary', () => {
   it('aggregates row counts + max(fetched_at) for each table', () => {
     const now = Date.now();
     // Seed two placeholder VN rows so the FK on egs_game / vn_egs_link
-    // resolves. Titles are synthetic ("Title Y" / "Title Z").
+    // resolves. Titles are synthetic ("Title Y_TEST" / "Title Z_TEST").
     db.prepare(
       `INSERT OR IGNORE INTO vn (id, title, fetched_at) VALUES (?, ?, ?)`,
-    ).run('v1001', 'Title Y', now);
+    ).run('v9101', 'Title Y_TEST', now);
     db.prepare(
       `INSERT OR IGNORE INTO vn (id, title, fetched_at) VALUES (?, ?, ?)`,
-    ).run('v1002', 'Title Z', now);
+    ).run('v9102', 'Title Z_TEST', now);
     db.prepare(
       `INSERT OR IGNORE INTO vn (id, title, fetched_at) VALUES (?, ?, ?)`,
     ).run('v9000', 'Title W', now);
     db.prepare(
       `INSERT INTO egs_game (vn_id, egs_id, gamename, fetched_at) VALUES (?, ?, ?, ?)`,
-    ).run('v1001', 100, 'Title Y', now - 1000);
+    ).run('v9101', 100, 'Title Y_TEST', now - 1000);
     db.prepare(
       `INSERT INTO egs_game (vn_id, egs_id, gamename, fetched_at) VALUES (?, ?, ?, ?)`,
-    ).run('v1002', 200, 'Title Z', now);
+    ).run('v9102', 200, 'Title Z_TEST', now);
 
     db.prepare(
       `INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
