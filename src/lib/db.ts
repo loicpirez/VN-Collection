@@ -4823,19 +4823,32 @@ function clampShelfDim(n: number, fallback: number): number {
 }
 
 export function listShelves(): ShelfUnitWithCount[] {
-  // Count regular grid slots and face-out display slots together:
-  // to the user both mean "this owned edition is placed somewhere
-  // on a shelf". Subqueries avoid multiplying counts across the two
-  // placement tables.
+  // R5-143: count regular grid slots + face-out display slots in a
+  // single CTE/GROUP BY pass instead of two correlated subqueries
+  // per shelf. The previous shape fired two `COUNT(*) WHERE shelf_id
+  // = u.id` subqueries per shelf row (O(N_shelves) subquery
+  // evaluations, each a separate scan); the CTE aggregates each
+  // placement table ONCE, unions the per-shelf totals, sums them
+  // inside the CTE, and the outer query is a single LEFT JOIN on
+  // `shelf_id`. Same `placed_count` semantics (both placement kinds
+  // are summed; missing shelves coalesce to 0) — covered by
+  // `tests/shelf-layout.test.ts:listShelves counts display slots
+  // as placed editions`.
   return db
     .prepare(`
+      WITH placement_counts AS (
+        SELECT shelf_id, SUM(c) AS c
+        FROM (
+          SELECT shelf_id, COUNT(*) AS c FROM shelf_slot GROUP BY shelf_id
+          UNION ALL
+          SELECT shelf_id, COUNT(*) AS c FROM shelf_display_slot GROUP BY shelf_id
+        )
+        GROUP BY shelf_id
+      )
       SELECT u.id, u.name, u.cols, u.rows, u.order_index, u.created_at, u.updated_at,
-             (
-               SELECT COUNT(*) FROM shelf_slot s WHERE s.shelf_id = u.id
-             ) + (
-               SELECT COUNT(*) FROM shelf_display_slot d WHERE d.shelf_id = u.id
-             ) AS placed_count
+             COALESCE(p.c, 0) AS placed_count
       FROM shelf_unit u
+      LEFT JOIN placement_counts p ON p.shelf_id = u.id
       ORDER BY u.order_index ASC, u.id ASC
     `)
     .all() as ShelfUnitWithCount[];
