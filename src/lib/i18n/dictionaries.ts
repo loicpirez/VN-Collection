@@ -630,6 +630,7 @@ export const dictionaries = {
       removeTag: 'Retirer {v}',
     },
     detail: {
+      emptySection: 'Aucune donnée pour cette section pour le moment.',
       ratingOf10: '/10',
       votes: 'votes',
       myRatingLabel: 'Ma note',
@@ -3080,6 +3081,7 @@ export const dictionaries = {
       removeTag: 'Remove {v}',
     },
     detail: {
+      emptySection: 'No data for this section yet.',
       ratingOf10: '/10',
       votes: 'votes',
       myRatingLabel: 'My rating',
@@ -5527,6 +5529,7 @@ export const dictionaries = {
       removeTag: '{v} を削除',
     },
     detail: {
+      emptySection: 'このセクションのデータはまだありません。',
       ratingOf10: '/10',
       votes: '票',
       myRatingLabel: '自分の評価',

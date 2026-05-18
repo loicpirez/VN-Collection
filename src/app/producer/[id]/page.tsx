@@ -205,14 +205,30 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
           ),
         });
 
+        // R5-235: `stats` is in the canonical PRODUCER_SECTION_IDS so
+        // the user can enable/disable/reorder it in Settings → Page
+        // layout. We MUST push it whenever it's marked visible —
+        // otherwise the UI lies (the user sees the section listed in
+        // Settings but nothing renders on the page). Render a small
+        // empty-state placeholder when no scraped data is available so
+        // the user knows the section exists and is empty rather than
+        // wondering why their layout setting has no effect.
         const scrapedInfo = readScrapedProducerInfo(producer.id);
-        if (scrapedInfo && scrapedInfo.relations.length > 0) {
-          producerSections.push({
-            id: 'stats',
-            label: sectionLabels.stats,
-            node: <ProducerScrapedRelations pid={producer.id} t={t} />,
-          });
-        }
+        producerSections.push({
+          id: 'stats',
+          label: sectionLabels.stats,
+          node:
+            scrapedInfo && scrapedInfo.relations.length > 0 ? (
+              <ProducerScrapedRelations pid={producer.id} t={t} />
+            ) : (
+              <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
+                  {sectionLabels.stats}
+                </h3>
+                <p className="text-sm text-muted">{t.detail.emptySection}</p>
+              </section>
+            ),
+        });
 
         return (
           <DetailReorderLayout

@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Mic2, Star, Users } from 'lucide-react';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
-import { findCharacterSiblings, getVasForCharacter, getAppSetting } from '@/lib/db';
+import { findCharacterSiblings, getVasForCharacter, getAppSetting, isInCollectionMany } from '@/lib/db';
+import { Check } from 'lucide-react';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
@@ -129,6 +130,10 @@ export default async function CharacterPage({
   const sortedVns = dedupAppearances(char.vns).sort(
     (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9),
   );
+  // R5-238: which of the appears-in VNs are in the operator's local
+  // collection? One batched IN-query lets the card add a visible
+  // in-collection chip without N+1 SELECTs.
+  const appearsInOwned = isInCollectionMany(sortedVns.map((v) => v.id));
   // "Also voiced by" comes from local vn_va_credit (covers every VN the
   // user has fetched). VNDB doesn't expose per-VN voiced data on the
   // character endpoint, so we don't try to cross-reference unowned VNs.
@@ -341,9 +346,15 @@ export default async function CharacterPage({
                   const year = v.released?.slice(0, 4);
                   const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
                   const role = t.characters.roles[v.role as keyof typeof t.characters.roles] ?? v.role;
+                  const owned = appearsInOwned.has(v.id);
                   return (
                     <li key={`${v.id}-${v.role}`}>
-                      <Link href={`/vn/${v.id}`} className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent">
+                      <Link
+                        href={`/vn/${v.id}`}
+                        className={`group flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors hover:border-accent ${
+                          owned ? 'border-accent/40' : 'border-border'
+                        }`}
+                      >
                         <div className="shrink-0 overflow-hidden rounded" style={{ width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.32), 160px)', aspectRatio: '2 / 3' }}>
                           <SafeImage src={v.image?.thumbnail || v.image?.url || null} sexual={v.image?.sexual ?? null} alt={v.title ?? v.id} className="h-full w-full" />
                         </div>
@@ -352,6 +363,16 @@ export default async function CharacterPage({
                             <span className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">{v.title ?? v.id}</span>
                             <span className="shrink-0 rounded bg-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">{role}</span>
                           </div>
+                          {/* R5-238: visible owned chip when this
+                              appears-in VN is in the local collection.
+                              The border-accent/40 tint already hints at
+                              ownership, but a chip is more discoverable
+                              and matches the staff-credits surface. */}
+                          {owned && (
+                            <span className="mt-1 inline-flex items-center gap-0.5 rounded bg-status-completed/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-status-completed">
+                              <Check className="h-2.5 w-2.5" aria-hidden /> {t.staff.ownedLabel}
+                            </span>
+                          )}
                           {v.alttitle && v.alttitle !== v.title && (
                         <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">{v.alttitle}</div>
                       )}

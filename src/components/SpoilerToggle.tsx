@@ -51,9 +51,14 @@ export function SpoilerToggle() {
     2: t.spoiler.lvl2,
   };
 
-  // The lit state for the icon is "are there any non-default safety
-  // gates active" — spoilerLevel != 0 OR any nsfw setting is loosened.
-  const lit = settings.spoilerLevel !== 0 || !settings.blurR18 || !settings.hideSexual;
+  // R5-232: lit should only fire when the user has actually loosened
+  // a safety gate from its default state. Defaults are
+  // `{ spoilerLevel: 0, blurR18: true, hideSexual: false }`.
+  // `hideSexual` defaulting to `false` means "no hard filter" — that
+  // is the default behaviour, not a loosened gate. Including it in
+  // the lit calc made the Eye icon fire on every fresh session and
+  // contradicted the "None" text label next to it.
+  const lit = settings.spoilerLevel !== 0 || !settings.blurR18;
 
   function openFullSettings() {
     setOpen(false);

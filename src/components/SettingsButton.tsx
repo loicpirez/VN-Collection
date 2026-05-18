@@ -411,6 +411,44 @@ export function SettingsButton() {
 
                 {activeTab === 'content' && (
                   <div className="grid gap-4 md:grid-cols-2">
+                    {/*
+                      R5-225: the tab is titled "Spoiler / Content"
+                      but previously contained ONLY content gates
+                      (blurR18, hideSexual, nsfwThreshold). Add an
+                      explicit spoiler-level radio so the tab name
+                      matches its body. The same control is mirrored
+                      in the navbar popover (<SpoilerToggle/>); both
+                      write to `settings.spoilerLevel` so they stay
+                      in sync via the shared settings store.
+                    */}
+                    <fieldset className="md:col-span-2 flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
+                      <legend className="px-1 text-sm font-semibold">
+                        {t.spoiler.title}
+                      </legend>
+                      <p className="text-[11px] text-muted">{t.spoiler.hint}</p>
+                      <div role="radiogroup" aria-label={t.spoiler.title} className="grid grid-cols-3 gap-2">
+                        {[0, 1, 2].map((lvl) => {
+                          const label =
+                            lvl === 0 ? t.spoiler.lvl0 : lvl === 1 ? t.spoiler.lvl1 : t.spoiler.lvl2;
+                          return (
+                            <button
+                              key={lvl}
+                              type="button"
+                              role="radio"
+                              aria-checked={settings.spoilerLevel === lvl}
+                              onClick={() => set('spoilerLevel', lvl as 0 | 1 | 2)}
+                              className={`rounded-md border px-2 py-1.5 text-xs font-semibold transition-colors ${
+                                settings.spoilerLevel === lvl
+                                  ? 'border-accent bg-accent/15 text-accent'
+                                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent/40 hover:text-white'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
                     <Toggle
                       label={t.settings.blurR18}
                       description={t.settings.blurR18Desc}

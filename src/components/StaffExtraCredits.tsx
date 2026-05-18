@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CloudDownload, Star } from 'lucide-react';
+import { CloudDownload, Check, Star } from 'lucide-react';
 import { isInCollectionMany } from '@/lib/db';
 import { downloadFullStaffInfo, readStaffFullCache } from '@/lib/staff-full';
 import { getDict } from '@/lib/i18n/server';
@@ -64,6 +64,7 @@ export async function StaffExtraCredits({
                 <ExternalVnCard
                   vn={{ id: c.id, title: c.title, alttitle: c.alttitle, released: c.released, rating: c.rating, image_url: c.image_url, image_thumb: c.image_thumb }}
                   inCollection={inCollectionIds.has(c.id)}
+                  ownedLabel={t.staff.ownedLabel}
                 >
                   <ul className="mt-2 space-y-1 text-[11px] text-muted">
                     {c.characters.map((ch) => (
@@ -90,6 +91,7 @@ export async function StaffExtraCredits({
                 <ExternalVnCard
                   vn={{ id: c.id, title: c.title, alttitle: c.alttitle, released: c.released, rating: c.rating, image_url: c.image_url, image_thumb: c.image_thumb }}
                   inCollection={inCollectionIds.has(c.id)}
+                  ownedLabel={t.staff.ownedLabel}
                 >
                   <div className="mt-1 text-[10px] text-muted">
                     {c.roles.map((r) => roleLabel(r.role, t.staff)).join(' · ')}
@@ -121,6 +123,7 @@ export function StaffExtraCreditsSkeleton() {
 function ExternalVnCard({
   vn,
   inCollection,
+  ownedLabel,
   children,
 }: {
   vn: {
@@ -133,6 +136,8 @@ function ExternalVnCard({
     rating: number | null;
   };
   inCollection: boolean;
+  /** Localised "in collection" chip label (e.g. `t.staff.ownedLabel`). */
+  ownedLabel: string;
   children?: React.ReactNode;
 }) {
   const year = vn.released?.slice(0, 4);
@@ -147,9 +152,19 @@ function ExternalVnCard({
         <SafeImage src={vn.image_url || vn.image_thumb} alt={vn.title} className="h-full w-full" />
       </Link>
       <div className="min-w-0 flex-1">
-        <Link href={`/vn/${vn.id}`} className="line-clamp-2 text-xs font-bold transition-colors hover:text-accent">
-          {vn.title}
-        </Link>
+        <div className="flex items-baseline justify-between gap-2">
+          <Link href={`/vn/${vn.id}`} className="line-clamp-2 text-xs font-bold transition-colors hover:text-accent">
+            {vn.title}
+          </Link>
+          {inCollection && (
+            // R5-237: mirror the local-credits surface — render an
+            // explicit Star + "owned" chip so the inCollection state
+            // is visible at a glance, not just a subtle border tint.
+            <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-accent/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
+              <Check className="h-2.5 w-2.5" aria-hidden /> {ownedLabel}
+            </span>
+          )}
+        </div>
         {vn.alttitle && vn.alttitle !== vn.title && (
           <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">{vn.alttitle}</div>
         )}
