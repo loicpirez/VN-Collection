@@ -3709,14 +3709,13 @@ export function searchLocalCharacters({
     )
     .all() as Array<{ cache_key: string; body: string }>;
   const needle = q?.trim().toLowerCase() ?? '';
-  const out: Array<{ profile: Record<string, unknown>; voice_languages: string[] }> = [];
-  // `vn_va_credit` carries the VA's language in `va_lang`, not the
-  // bare `lang` column the schema uses on `vn_staff_credit`. The
-  // earlier query referenced the wrong column and crashed any
-  // `/characters` search with `SqliteError: no such column: lang`.
-  const langStmt = db.prepare(
-    'SELECT DISTINCT va_lang AS lang FROM vn_va_credit WHERE c_id = ? AND va_lang IS NOT NULL',
-  );
+  // First pass: parse the cache payloads and build the matched
+  // profile list WITHOUT issuing per-row VA-language queries. This
+  // keeps the inner loop O(N) on JSON parsing only; the language
+  // lookup is amortised across all matches via a single batched
+  // SELECT (R5-063).
+  type Match = { id: string; profile: Record<string, unknown> };
+  const matches: Match[] = [];
   for (const row of rows) {
     let payload: { profile?: Record<string, unknown> | null } | null = null;
     try {
@@ -3735,11 +3734,48 @@ export function searchLocalCharacters({
       if (!haystack.includes(needle)) continue;
     }
     const id = typeof profile.id === 'string' ? profile.id : '';
-    const langs = id
-      ? (langStmt.all(id) as Array<{ lang: string }>).map((r) => r.lang).filter(Boolean)
-      : [];
-    out.push({ profile, voice_languages: langs });
-    if (out.length >= limit) break;
+    matches.push({ id, profile });
+    if (matches.length >= limit) break;
+  }
+  // Single batched VA-language fetch — one query (or one per 500
+  // ids) instead of one per matched character. `vn_va_credit`
+  // carries the VA's language in `va_lang` (not the `lang` column
+  // the schema uses on `vn_staff_credit`); the earlier per-row
+  // query referenced the wrong column and crashed any
+  // `/characters` search with `SqliteError: no such column: lang`.
+  //
+  // Chunked at 500 placeholders to stay under SQLite's
+  // SQLITE_MAX_VARIABLE_NUMBER cap; matches the convention in
+  // `isInCollectionMany` / `getEgsForVns`.
+  const idsWithProfile = matches.filter((m) => m.id !== '').map((m) => m.id);
+  const langByCid = new Map<string, string[]>();
+  const CHUNK = 500;
+  for (let i = 0; i < idsWithProfile.length; i += CHUNK) {
+    const chunk = idsWithProfile.slice(i, i + CHUNK);
+    if (chunk.length === 0) break;
+    const placeholders = chunk.map(() => '?').join(',');
+    const langRows = db
+      .prepare(
+        `SELECT c_id, va_lang
+           FROM vn_va_credit
+           WHERE c_id IN (${placeholders})
+             AND va_lang IS NOT NULL`,
+      )
+      .all(...chunk) as Array<{ c_id: string; va_lang: string | null }>;
+    for (const r of langRows) {
+      if (!r.va_lang) continue;
+      const arr = langByCid.get(r.c_id);
+      if (arr) {
+        if (!arr.includes(r.va_lang)) arr.push(r.va_lang);
+      } else {
+        langByCid.set(r.c_id, [r.va_lang]);
+      }
+    }
+  }
+  const out: Array<{ profile: Record<string, unknown>; voice_languages: string[] }> = [];
+  for (const m of matches) {
+    const langs = m.id ? (langByCid.get(m.id) ?? []) : [];
+    out.push({ profile: m.profile, voice_languages: langs });
   }
   return out;
 }
