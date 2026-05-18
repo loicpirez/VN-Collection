@@ -180,9 +180,18 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         </div>
       </header>
 
-      <Suspense fallback={<TagWebDetailSkeleton />}>
-        <TagWebDetailBlock tagId={tagId} />
-      </Suspense>
+      {/*
+        R5-228: the VNDB hierarchy block belongs to the VNDB tab.
+        Render it inside the `tab === 'vndb'` branch only — the
+        previous unconditional render bled VNDB hierarchy chips into
+        the Local tab, making the IA misleading. The Local tab is
+        now exclusively about the operator's collection matches.
+      */}
+      {tab === 'vndb' && (
+        <Suspense fallback={<TagWebDetailSkeleton />}>
+          <TagWebDetailBlock tagId={tagId} />
+        </Suspense>
+      )}
 
       {tab === 'local' && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">

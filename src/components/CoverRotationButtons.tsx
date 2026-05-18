@@ -119,16 +119,24 @@ export function CoverRotationButtons({
         ? 'right-2 bottom-2'
         : 'left-2 bottom-2';
 
+  // R5-226: the reset control must always be visible when a non-zero
+  // rotation is active — the user explicitly flagged the hover-gating
+  // of the rotation degree chip as the regression. Rotate-left /
+  // rotate-right buttons still hide on desktop until hover (they are
+  // discovered via the rotation chip and clicked once-per-quarter,
+  // not as a primary affordance).
+  const hasRotation = rotation !== 0;
   return (
     <div
       data-testid="cover-rotation-controls"
       className={[
         'pointer-events-auto absolute z-30 flex flex-col items-end gap-1',
         positionClass,
-        // Desktop: hidden until the cover container is hovered or
-        // contains keyboard focus. Touch / mobile: always visible
-        // (the parent `.group` carries the hover handle).
-        'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100',
+        // Hide the WHOLE container on desktop only when there's no
+        // active rotation. As soon as the user rotates, the cluster
+        // stays visible (with the rotation chip as the anchor) so
+        // the reset is always reachable without hovering the cover.
+        hasRotation ? '' : 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100',
       ].join(' ')}
     >
       <button
@@ -137,7 +145,11 @@ export function CoverRotationButtons({
         disabled={busy}
         aria-label={t.coverActions.rotateLeft}
         title={t.coverActions.rotateLeft}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50"
+        // Rotate buttons keep the hover-fade so the cover is not
+        // permanently visually cluttered when no rotation is set.
+        className={`inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50 ${
+          hasRotation ? 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100' : ''
+        }`}
       >
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RotateCcw className="h-3.5 w-3.5" aria-hidden />}
       </button>
@@ -147,7 +159,9 @@ export function CoverRotationButtons({
         disabled={busy}
         aria-label={t.coverActions.rotateRight}
         title={t.coverActions.rotateRight}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50"
+        className={`inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50 ${
+          hasRotation ? 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100' : ''
+        }`}
       >
         <RotateCw className="h-3.5 w-3.5" aria-hidden />
       </button>
@@ -157,6 +171,11 @@ export function CoverRotationButtons({
         disabled={busy || rotation === 0}
         aria-label={t.coverActions.resetRotation}
         title={t.coverActions.resetRotation}
+        data-rotation-active={hasRotation ? 'true' : 'false'}
+        // R5-226: the reset chip is ALWAYS visible on the rotation
+        // anchor. When no rotation is active it's a passive '0°'
+        // readout (disabled). When the user has rotated, the chip
+        // stays visible so they can reset without hovering.
         className="rounded-md bg-bg-card/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-45"
       >
         {rotation}°

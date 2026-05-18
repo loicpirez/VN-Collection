@@ -105,24 +105,33 @@ function deriveVnDataState(vn: CollectionItem): 'none' | 'partial' | 'complete' 
 }
 
 /**
- * Wrapper classes applied to the primary-buttons row. Uses
- * `[&>*]:h-9` to enforce a uniform `h-9` height on every direct
- * child element regardless of whether it renders as `<button>` or
- * `<a>` — the previous `[&_a.btn]` / `[&_button.btn]` arbitrary
- * selectors required the exact tag+class combination and silently
- * missed components that mix the `btn` class in non-canonical ways.
- * `gap-2` matches the spec.
+ * Wrapper classes applied to the primary-buttons row.
+ *
+ * R5-227 — the previous `[&>*]:h-9 [&>*]:px-3 [&>*]:py-1.5` rule
+ * applied PADDING to every direct child, including the
+ * `<ActionMenu>` wrapper `<span>`. With `box-sizing: border-box`
+ * the wrapper's content area shrank by 12 px vertical, and the
+ * inner `btn h-9 …` button overflowed the wrapper. Adjacent
+ * plain `<button>` children (no wrapper) sat at exactly 36 px,
+ * so the two clusters drifted by ~6 px each side.
+ *
+ * Fix: height is enforced via descendant selectors that find the
+ * actual interactive element (`button`, `a`, `input`) instead of
+ * `[&>*]`. Padding is left to the `btn` class on each interactive
+ * element itself. The row only enforces gap + flex.
  */
 const PRIMARY_ROW_CLASSES =
-  'flex flex-wrap items-center gap-2 [&>*]:h-9 [&>*]:px-3 [&>*]:py-1.5';
+  'flex flex-wrap items-center gap-2 [&_button]:h-9 [&_a.btn]:h-9 [&_a.btn-primary]:h-9 [&_a.btn-danger]:h-9';
 
 /**
- * Dropdown-cluster classes — same `h-9` lock via `[&>*]` selectors.
- * `gap-2` between triggers; rows INSIDE each dropdown panel use
- * `gap-1.5` (set on each menu's body separately).
+ * Dropdown-cluster classes — same descendant-selector pattern so a
+ * `<span>` wrapper around an `<ActionMenu>` trigger doesn't
+ * inherit padding/height. `gap-2` between triggers; rows INSIDE
+ * each dropdown panel use `gap-1.5` (set on each menu's body
+ * separately).
  */
 const DROPDOWN_ROW_CLASSES =
-  'flex flex-wrap items-center gap-2 [&>*]:h-9 [&>*]:px-3 [&>*]:py-1.5';
+  'flex flex-wrap items-center gap-2 [&_button]:h-9 [&_a.btn]:h-9';
 
 export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   const t = await getDict();

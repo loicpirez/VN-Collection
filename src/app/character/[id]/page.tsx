@@ -202,9 +202,15 @@ export default async function CharacterPage({
       </div>
 
       {(() => {
+        // R5-222: thread localised section labels into each
+        // DetailSection so <DetailReorderLayout>'s collapse-by-
+        // default headers + edit-mode chevrons have something to
+        // render. The dictionaries already define every label.
+        const sectionLabels = t.characterLayout.sectionLabels;
         const characterSections: DetailSection[] = [];
         if (siblings.length > 0) characterSections.push({
           id: 'siblings',
+          label: sectionLabels.siblings,
           node: (
             <section className="mt-6 rounded-xl border border-accent/30 bg-accent/5 p-4">
               <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
@@ -233,6 +239,7 @@ export default async function CharacterPage({
         });
         if (char.description) characterSections.push({
           id: 'description',
+          label: sectionLabels.description,
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
@@ -242,9 +249,14 @@ export default async function CharacterPage({
             </section>
           ),
         });
-        characterSections.push({ id: 'meta', node: <CharacterMetaClient char={char} /> });
+        characterSections.push({
+          id: 'meta',
+          label: sectionLabels.meta,
+          node: <CharacterMetaClient char={char} />,
+        });
         if (scraped && scraped.instances.length > 0) characterSections.push({
           id: 'instances',
+          label: sectionLabels.instances,
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
@@ -266,6 +278,7 @@ export default async function CharacterPage({
         });
         if (scraped && scraped.voiced_by.length > 0) characterSections.push({
           id: 'voiced-by-all',
+          label: sectionLabels['voiced-by-all'],
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
@@ -286,6 +299,7 @@ export default async function CharacterPage({
         });
         if (vas.length > 0) characterSections.push({
           id: 'also-voiced-by',
+          label: sectionLabels['also-voiced-by'],
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
@@ -316,6 +330,7 @@ export default async function CharacterPage({
         });
         if (sortedVns.length > 0) characterSections.push({
           id: 'appears-in',
+          label: sectionLabels['appears-in'],
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">

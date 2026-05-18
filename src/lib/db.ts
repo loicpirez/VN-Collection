@@ -1397,20 +1397,37 @@ export interface CharacterSibling {
  * names with at least 2 characters and excludes the original c_id.
  */
 export function findCharacterSiblings(charId: string): CharacterSibling[] {
-  const me = db
-    .prepare('SELECT c_name, c_original FROM vn_va_credit WHERE c_id = ? LIMIT 1')
-    .get(charId) as { c_name: string; c_original: string | null } | undefined;
-  if (!me || !me.c_name || me.c_name.length < 2) return [];
+  // R5-233: collect EVERY known display name + original for this
+  // character id (different VNs may spell the same recurring
+  // character differently — kana vs. romaji, translation variants).
+  // The previous `LIMIT 1` was non-deterministic without ORDER BY
+  // and missed siblings under alternate spellings.
+  const candidateNames = db
+    .prepare('SELECT DISTINCT c_name FROM vn_va_credit WHERE c_id = ? AND c_name IS NOT NULL AND length(c_name) >= 2')
+    .all(charId) as Array<{ c_name: string }>;
+  const candidateOriginals = db
+    .prepare('SELECT DISTINCT c_original FROM vn_va_credit WHERE c_id = ? AND c_original IS NOT NULL AND length(c_original) >= 2')
+    .all(charId) as Array<{ c_original: string }>;
+  const names = new Set<string>(candidateNames.map((r) => r.c_name));
+  for (const r of candidateOriginals) names.add(r.c_original);
+  if (names.size === 0) return [];
 
+  // R5-236: the heading says "Same name in your collection" so the
+  // SQL must JOIN collection — only VNs the operator actually owns
+  // belong in the result. The previous query joined vn only, which
+  // surfaced VNs from cached relations / EGS-only synthetic rows /
+  // never-collected lookup results.
+  const placeholders = Array.from(names).map(() => '?').join(',');
   const rows = db
     .prepare(`
       SELECT va.c_id, va.c_name, va.c_original, va.c_image_url, va.vn_id, v.title AS vn_title
       FROM vn_va_credit va
       JOIN vn v ON v.id = va.vn_id
-      WHERE va.c_name = ? AND va.c_id != ?
-      ORDER BY v.released DESC NULLS LAST
+      JOIN collection c ON c.vn_id = va.vn_id
+      WHERE (va.c_name IN (${placeholders}) OR va.c_original IN (${placeholders})) AND va.c_id != ?
+      ORDER BY v.released DESC NULLS LAST, va.c_id ASC
     `)
-    .all(me.c_name, charId) as Array<{
+    .all(...Array.from(names), ...Array.from(names), charId) as Array<{
       c_id: string;
       c_name: string;
       c_original: string | null;

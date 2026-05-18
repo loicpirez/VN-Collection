@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { fetchAuthenticatedWishlist } from '@/lib/vndb';
-import { getEgsForVns, isInCollection } from '@/lib/db';
+import { getEgsForVns, isInCollectionMany } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,11 +14,17 @@ export async function GET() {
     // contains the fields you queried (no `vn.id` — it's silently dropped).
     // Echo the id into the nested `vn` object so existing client code that
     // reads `it.vn.id` keeps working without a coordinated rename.
-    const egsMap = getEgsForVns(result.map((e) => e.id));
+    //
+    // R5-234: replace the per-row `isInCollection(e.id)` with a single
+    // batched `isInCollectionMany(ids)` call so a 200-item wishlist no
+    // longer triggers 200 single-row SELECTs.
+    const ids = result.map((e) => e.id);
+    const ownedSet = isInCollectionMany(ids);
+    const egsMap = getEgsForVns(ids);
     const items = result.map((e) => ({
       ...e,
       vn: { ...e.vn, id: e.id },
-      in_collection: isInCollection(e.id),
+      in_collection: ownedSet.has(e.id),
       egs: egsMap.get(e.id)
         ? {
             median: egsMap.get(e.id)!.median,

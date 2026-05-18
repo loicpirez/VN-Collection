@@ -24,7 +24,10 @@ interface EgsCandidate {
 }
 
 const COMMON_LANGS = ['en', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'fr', 'de', 'es', 'it', 'ru'];
-const COMMON_PLATFORMS = ['win', 'lin', 'mac', 'ios', 'and', 'web', 'swi', 'ps4', 'ps5', 'psv', 'psp', 'xb1', 'xbs', 'n3d'];
+// R5-230: VNDB enumerates Xbox Series X/S as 'xxs', not 'xbs'. The
+// previous 'xbs' chip rendered as raw `XBS` (label fallback uppercase)
+// and the search payload sent 'xbs' to VNDB which never matched.
+const COMMON_PLATFORMS = ['win', 'lin', 'mac', 'ios', 'and', 'web', 'swi', 'ps4', 'ps5', 'psv', 'psp', 'xb1', 'xxs', 'n3d'];
 
 
 interface AdvParams {

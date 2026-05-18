@@ -240,13 +240,19 @@ export default async function StaffPage({
       </header>
 
       {(() => {
+        // R5-222: thread localised section labels through so
+        // DetailReorderLayout's collapse-by-default headers and
+        // edit-mode chevrons have something to render.
+        const sectionLabels = t.staffLayout.sectionLabels;
         const staffSections: DetailSection[] = [];
         if (voice.length > 0) staffSections.push({
           id: 'timeline',
+          label: sectionLabels.timeline,
           node: <div className="mb-6"><VaTimeline sid={id} /></div>,
         });
         if (voice.length > 0) staffSections.push({
           id: 'voice-credits',
+          label: sectionLabels['voice-credits'],
           node: <section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Mic2 className="h-4 w-4 text-accent" /> {t.staff.voiceCredits}
@@ -313,6 +319,7 @@ export default async function StaffPage({
         });
         if (groupedProduction.length > 0) staffSections.push({
           id: 'production-credits',
+          label: sectionLabels['production-credits'],
           node: (
             <section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
@@ -338,6 +345,7 @@ export default async function StaffPage({
         });
         staffSections.push({
           id: 'extra-credits',
+          label: sectionLabels['extra-credits'],
           node: (
             <Suspense fallback={<StaffExtraCreditsSkeleton />}>
               <StaffExtraCredits sid={id} knownProdVnIds={knownProdVnIds} knownVaVnIds={knownVaVnIds} />

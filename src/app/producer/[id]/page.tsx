@@ -146,11 +146,16 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
       </div>
 
       {(() => {
+        // R5-222: thread localised section labels through so
+        // DetailReorderLayout's collapse-by-default headers and
+        // edit-mode chevrons have something to render.
+        const sectionLabels = t.producerLayout.sectionLabels;
         const producerSections: DetailSection[] = [];
 
         if (producer.description) {
           producerSections.push({
             id: 'description',
+            label: sectionLabels.description,
             node: (
               <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
@@ -164,6 +169,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
 
         producerSections.push({
           id: 'extlinks',
+          label: sectionLabels.extlinks,
           node: (
             <section className="mb-8 flex flex-wrap gap-2">
               <a
@@ -191,6 +197,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
 
         producerSections.push({
           id: 'works',
+          label: sectionLabels.works,
           node: (
             <Suspense fallback={<ProducerVnsSkeleton />}>
               <ProducerVnsSections producerId={producer.id} />
@@ -202,6 +209,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
         if (scrapedInfo && scrapedInfo.relations.length > 0) {
           producerSections.push({
             id: 'stats',
+            label: sectionLabels.stats,
             node: <ProducerScrapedRelations pid={producer.id} t={t} />,
           });
         }

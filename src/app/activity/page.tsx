@@ -165,11 +165,15 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   const kinds = listActivityKinds();
   const sysRowsAll = listUserActivity({ q: q || null, kind: kind || null, entity: entity || null, limit: offset + PAGE_SIZE + 1 });
   const sysRows = sysRowsAll.slice(offset, offset + PAGE_SIZE);
-  const sysHasMore = sysRowsAll.length > PAGE_SIZE;
+  // R5-223: "Next" must compare against `offset + PAGE_SIZE`, not the
+  // bare `PAGE_SIZE` — `sysRowsAll.length > PAGE_SIZE` evaluated true
+  // for any user with > 50 events total, even on the last page (where
+  // no further rows exist beyond the current slice).
+  const sysHasMore = sysRowsAll.length > offset + PAGE_SIZE;
 
   const vnRowsAll = listRecentActivity(offset + PAGE_SIZE + 1);
   const vnRows = vnRowsAll.slice(offset, offset + PAGE_SIZE);
-  const vnHasMore = vnRowsAll.length > PAGE_SIZE;
+  const vnHasMore = vnRowsAll.length > offset + PAGE_SIZE;
 
   const fmt = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' });
   const statusLabels = t.status as Record<string, string>;

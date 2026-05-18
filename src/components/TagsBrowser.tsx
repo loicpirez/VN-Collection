@@ -129,7 +129,13 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         }
         if (alive) {
           setResults(list);
-          setHomeTree(tree);
+          // R5-224: never clobber `homeTree` to null. Only set it
+          // when we actually fetched a tree (the VNDB-browse path).
+          // The Local branch leaves `tree=null`; we used to call
+          // `setHomeTree(null)` from there and lose the SSR tree,
+          // so a subsequent Local → VNDB tab switch landed on an
+          // empty state.
+          if (tree !== null) setHomeTree(tree);
         }
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
