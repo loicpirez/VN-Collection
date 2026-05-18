@@ -1,4 +1,4 @@
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
  * Centralised URL helpers for every clickable EGS surface token.
  *

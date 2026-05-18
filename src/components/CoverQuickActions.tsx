@@ -7,7 +7,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
 import { readApiError } from '@/lib/api-error-read';
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 interface Props {
   vnId: string;
   /** When true, the VN is in the local collection; we surface a Remove button instead of Add. */

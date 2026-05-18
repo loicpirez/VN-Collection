@@ -5,7 +5,7 @@ import { MapEgsToVndbButton } from './MapEgsToVndbButton';
 import { AddMissingVnButton } from './AddMissingVnButton';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
  * Shared card used by every tab on `/upcoming` (collection / all / anticipated).
  *

@@ -13,7 +13,7 @@ import {
 } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 
 const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [

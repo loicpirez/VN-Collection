@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
   const t = useT();
   const router = useRouter();

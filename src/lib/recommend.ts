@@ -2,7 +2,7 @@ import 'server-only';
 import { db } from './db';
 import { vndbAdvancedSearchRaw } from './vndb-recommend';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export type RecommendMode =
   | 'because-you-liked'
   | 'tag-based'

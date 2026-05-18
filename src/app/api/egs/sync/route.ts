@@ -3,7 +3,7 @@ import { applyEgsSuggestions, computeEgsSuggestions } from '@/lib/egs-sync';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 

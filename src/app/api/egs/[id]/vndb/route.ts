@@ -3,7 +3,7 @@ import { clearEgsVnLink, getEgsVnLink, setEgsVnLink } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 function logEgsVndbLink(
   kind: 'egs.vndb-link' | 'egs.vndb-unlink',
   egsId: number,

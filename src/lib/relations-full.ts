@@ -3,7 +3,7 @@ import { db, getAppSetting, upsertVn } from './db';
 import { getVn } from './vndb';
 import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
 function fanoutEnabled(): boolean {

@@ -5,7 +5,7 @@ import { fetchUlistByLabel, getAuthInfo } from './vndb';
 import { throttledFetch } from './vndb-throttle';
 import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
  * Two-way sync between local status and VNDB list labels.
  * The mapping is one-way directional but consistent so reading remote

@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { fetchEgsGame } from '@/lib/erogamescape';
 import { isAllowedHttpTarget as isAllowedTarget } from '@/lib/url-allowlist';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
  * Cover resolver for EGS games. EGS records external-shop ids on each game
  * (DMM, Suruga-ya, DLsite, gyutto, banner_url) but stores no cover of its

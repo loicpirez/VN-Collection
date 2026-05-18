@@ -29,7 +29,7 @@ import {
   parseStaffDetailLayoutV1,
 } from '@/lib/staff-detail-layout';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 
 const ROLE_ORDER = ['scenario', 'chardesign', 'art', 'music', 'songs', 'director', 'producer', 'staff'] as const;

@@ -1902,7 +1902,7 @@ export function listAllEgsVnLinks(): Map<number, string | null> {
 // compiling, but there's only one source of truth — adding a new
 // choice in source-resolve propagates everywhere.
 import type { SourceChoice as SourceChoiceCanonical } from './source-resolve';
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export type SourceChoice = SourceChoiceCanonical;
 export type SourceField = 'title' | 'description' | 'image' | 'brand' | 'rating' | 'playtime';
 

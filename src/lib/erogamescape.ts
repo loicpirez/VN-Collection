@@ -14,7 +14,7 @@ import {
 } from './db';
 import { getReleasesForVn } from './vndb';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
  * Erogamescape (EGS) integration. EGS exposes a public SQL form that returns CSV;
  * we use it instead of HTML scraping for reliability.

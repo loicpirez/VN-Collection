@@ -2,7 +2,7 @@ import { Tv } from 'lucide-react';
 import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
 import { getDict } from '@/lib/i18n/server';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
  * Surfaces an "Anime adaptation exists" chip on the VN detail page when
  * VNDB flags the VN with has_anime. We probe the filter rather than the

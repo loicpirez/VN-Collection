@@ -3,7 +3,7 @@ import { addToVndbWishlist, removeFromVndbWishlist } from '@/lib/vndb';
 import { recordActivity } from '@/lib/activity';
 import { upstreamError } from '@/lib/api-error';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 

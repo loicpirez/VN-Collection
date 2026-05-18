@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, Check, CloudDownload, Loader2, Search } from 'lucid
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 interface CollectionRow {
   id: string;
   title: string;

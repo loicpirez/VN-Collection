@@ -77,7 +77,7 @@ import { VnTagChips } from '@/components/VnTagChips';
 import { VnTagsGroupedView } from '@/components/VnTagsGroupedView';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 const CACHE_MS = 24 * 3600 * 1000;
 

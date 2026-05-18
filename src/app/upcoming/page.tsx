@@ -15,7 +15,7 @@ import { UpcomingCard, type UpcomingCardData } from '@/components/UpcomingCard';
 import { brandHref, yearHref } from '@/lib/egs-links';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {

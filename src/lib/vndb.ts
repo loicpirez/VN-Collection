@@ -3,7 +3,7 @@ import { cachedFetch, invalidateByPath, invalidateKey, readCachedJson, TTL } fro
 import { throttledFetch } from './vndb-throttle';
 import type { Screenshot, VndbSearchHit } from './types';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export const VNDB_API = 'https://api.vndb.org/kana';
 
 /**

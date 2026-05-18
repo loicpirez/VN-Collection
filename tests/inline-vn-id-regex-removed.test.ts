@@ -6,7 +6,7 @@
  * sweep can't widen the contract by accident.
  */
 import { describe, expect, it } from 'vitest';
-import { isVndbVnId, isValidVnId, VN_ID_RE, VNDB_VN_ID_RE } from '@/lib/vn-id';
+import { isVndbVnId, isValidVnId, VN_ID_RE, VNDB_VN_ID_RE } from '@/lib/vn-id-shape';
 import { execSync } from 'node:child_process';
 
 describe('isVndbVnId — R5-120 helper behaviour', () => {
@@ -48,12 +48,15 @@ describe('R5-120 sweep — no inline `/^v\\d+$/.test(...)` survives', () => {
     } catch (e) {
       out = (e as { stdout?: string }).stdout ?? '';
     }
-    // Only the helper module itself may reference the literal.
+    // Only the helper modules themselves may reference the literal.
     const offenders = out
       .trim()
       .split('\n')
       .filter(Boolean)
-      .filter((line) => !line.startsWith('src/lib/vn-id.ts:'));
+      .filter((line) =>
+        !line.startsWith('src/lib/vn-id.ts:') &&
+        !line.startsWith('src/lib/vn-id-shape.ts:'),
+      );
     expect(offenders).toEqual([]);
   });
 });

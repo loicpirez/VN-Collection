@@ -4,7 +4,7 @@ import { recordActivity } from '@/lib/activity';
 import { walkSeriesRelations } from '@/lib/series-detect';
 
 import { readJsonObject } from '@/lib/api-body';
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 
 function parseSeriesId(s: string): number | null {

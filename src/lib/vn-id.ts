@@ -1,37 +1,28 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
+import {
+  VN_ID_RE,
+  VNDB_VN_ID_RE,
+  isValidVnId,
+  isVndbVnId,
+} from './vn-id-shape';
+
+// Re-export the pure validators so server callers can keep
+// importing from `@/lib/vn-id` exactly as before. The actual
+// implementations live in `./vn-id-shape` (no `'server-only'`),
+// which is what client components import directly.
+export { VN_ID_RE, VNDB_VN_ID_RE, isValidVnId, isVndbVnId };
 
 /**
- * Canonical VN identifier shape. Accepts:
- *   - VNDB ids: `v\d+` (`v90017`, `v25634`)
- *   - Synthetic EGS-only ids: `egs_\d+` (`egs_12345`)
- *
- * Used by every `/api/*` dynamic route that takes a VN id, so a
- * garbage path component fails fast with a 400 before any DB lookup.
+ * Server-only: build a 400 `NextResponse` when the id is invalid.
+ * Uses `next/server`'s `NextResponse`, so it cannot be imported
+ * from client components — `validateVnIdOr400` stays here and the
+ * `'server-only'` guard at the top of the file blocks any
+ * accidental client import.
  */
-export const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
-
-export function isValidVnId(id: string | null | undefined): id is string {
-  return typeof id === 'string' && VN_ID_RE.test(id);
-}
-
 export function validateVnIdOr400(id: string | null | undefined): NextResponse | null {
   if (!isValidVnId(id)) {
     return NextResponse.json({ error: 'invalid vn id' }, { status: 400 });
   }
   return null;
-}
-
-/**
- * R5-120 — strict VNDB-only variant. Use in API routes that talk
- * directly to VNDB (link-vndb, vndb-status, series link, etc.)
- * where a synthetic `egs_*` id has no upstream record to operate
- * on. Splitting from `VN_ID_RE` keeps the EGS-id surfaces
- * separate so a one-letter copy-paste can't widen the contract
- * silently.
- */
-export const VNDB_VN_ID_RE = /^v\d+$/i;
-
-export function isVndbVnId(id: string | null | undefined): id is string {
-  return typeof id === 'string' && VNDB_VN_ID_RE.test(id);
 }

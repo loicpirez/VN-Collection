@@ -1,4 +1,4 @@
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
  * URL-state helpers for the `/characters` and `/staff` search pages.
  *

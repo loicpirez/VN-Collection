@@ -8,7 +8,7 @@ import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection } from '@/lib/upco
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
 
-import { isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 300;

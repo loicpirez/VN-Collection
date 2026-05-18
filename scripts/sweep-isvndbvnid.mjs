@@ -37,22 +37,28 @@ for (const rel of grep) {
   next = next.replace(/\/\^v\\d\+\$\/i?\.test\(/g, 'isVndbVnId(');
   if (next === orig) continue;
 
-  if (!/from\s+['"]@\/lib\/vn-id['"]/.test(next)) {
+  // NOTE: `@/lib/vn-id` is `'server-only'` (it builds NextResponse
+  // for `validateVnIdOr400`). Client components import the pure
+  // helpers from `@/lib/vn-id-shape` so they don't drag the
+  // server-only guard into the browser bundle. The sweep
+  // defaults to the shape module; server callers that need the
+  // server-only wrapper can swap the path back manually.
+  if (!/from\s+['"]@\/lib\/(vn-id|vn-id-shape)['"]/.test(next)) {
     const importLines = [...next.matchAll(/^import[^;]*;\s*$/gm)];
     if (importLines.length > 0) {
       const lastImport = importLines[importLines.length - 1];
       const insertAt = lastImport.index + lastImport[0].length;
-      next = next.slice(0, insertAt) + `\nimport { isVndbVnId } from '@/lib/vn-id';` + next.slice(insertAt);
+      next = next.slice(0, insertAt) + `\nimport { isVndbVnId } from '@/lib/vn-id-shape';` + next.slice(insertAt);
     } else {
-      next = `import { isVndbVnId } from '@/lib/vn-id';\n` + next;
+      next = `import { isVndbVnId } from '@/lib/vn-id-shape';\n` + next;
     }
   } else {
-    // The file already imports something from vn-id — extend the
-    // existing destructured import if `isVndbVnId` isn't already
-    // in the list.
-    if (!/\{[^}]*\bisVndbVnId\b[^}]*\}\s*from\s*['"]@\/lib\/vn-id['"]/.test(next)) {
+    // The file already imports something from vn-id / vn-id-shape
+    // — extend the existing destructured import if `isVndbVnId`
+    // isn't already in the list.
+    if (!/\{[^}]*\bisVndbVnId\b[^}]*\}\s*from\s*['"]@\/lib\/(vn-id|vn-id-shape)['"]/.test(next)) {
       next = next.replace(
-        /import\s*\{\s*([^}]*)\s*\}\s*from\s*(['"]@\/lib\/vn-id['"])/,
+        /import\s*\{\s*([^}]*)\s*\}\s*from\s*(['"]@\/lib\/(?:vn-id|vn-id-shape)['"])/,
         (_m, inner, src) => `import { ${inner.trim().replace(/,?\s*$/, '')}, isVndbVnId } from ${src}`,
       );
     }
