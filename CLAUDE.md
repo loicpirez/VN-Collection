@@ -257,11 +257,10 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET | `/api/places` | Distinct values seen in `owned_release.physical_location` |
 | GET/POST | `/api/reading-goal` | Per-year target; POST upserts the row. |
 | GET/POST/DELETE/PATCH | `/api/reading-queue` | Personal "play next" queue; POST adds, DELETE removes, PATCH reorders. |
-| GET/POST/DELETE/PATCH | `/api/saved-filters` (+ `/[id]` for DELETE) | Pinned URL-param presets above the library filters. PATCH reorders. |
+| GET/POST/PATCH/DELETE | `/api/saved-filters` | Pinned URL-param presets above the library filters. DELETE uses `?id=N`, PATCH reorders via `{ ids: number[] }`. No `/[id]` subroute exists. |
 | GET | `/api/egs/sync` | Suggestions table for the EGS reviews fan-out (paired with POST below) |
 | POST | `/api/egs/sync` | Apply EGS reviews / playtime sync for confirmed rows |
 | GET | `/api/series/[id]/image` | Series cover / banner asset |
-| GET/POST/DELETE | `/api/series/[id]/vn/[vnId]` | Per-VN series membership (POST link, DELETE unlink). |
 | POST | `/api/search/textual` | Server-side filtered text search |
 | POST | `/api/staff/[id]/download` | Trigger full VNDB credit-list fan-out for a staff profile |
 | GET | `/api/steam/library` / `POST /api/steam/link` / `POST /api/steam/sync` | Steam integration endpoints |
