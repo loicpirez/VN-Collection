@@ -25,18 +25,29 @@ interface Props {
 /**
  * VNDB-style "gated tag chip" with hover/focus preview + click-to-reveal.
  *
- * Behaviour matches the operator's spec:
- *   - When `level > currentSpoilerLevel` or `sexual && !showSexual` the
- *     chip renders as a text placeholder (lock + localised hidden label).
- *   - **Desktop hover and keyboard focus reveal the actual readable
- *     chip text transiently.** When the pointer leaves / blur fires
- *     the chip re-masks itself — no persistent change.
- *   - **Click / tap (or Enter/Space)** persists the reveal until the
- *     user clicks the "Hide" affordance. Persistent reveal also
- *     activates the underlying `<Link>` so the chip behaves as a
- *     normal navigation chip on the second interaction.
+ * Stable-root design (R5-218 fix):
+ *
+ *   - The **outer `<span data-spoiler-state>` is rendered in every state**
+ *     (hidden / transient / revealed). The inner element type changes
+ *     (a `<button>` while gated, a `<Link>` once revealed) but the
+ *     wrapper survives all transitions. This guarantees that any QA /
+ *     Playwright handle on `[data-spoiler-state]` stays valid across a
+ *     hover → click sequence — the previous design lost the click on a
+ *     now-detached `<button>` node when the user clicked to reveal.
+ *
+ *   - Desktop hover and keyboard focus reveal the actual chip text
+ *     transiently (the inner `<button>` shows the children, not the
+ *     "Hidden content" placeholder). The wrapper's `data-spoiler-state`
+ *     flips to `"transient"`.
+ *
+ *   - Click / tap / Enter / Space persists the reveal. The wrapper's
+ *     `data-spoiler-state` flips to `"revealed"` and the inner element
+ *     switches to a navigable `<Link>`. A small "Hide" button appears
+ *     alongside so the user can re-mask without reloading.
+ *
  *   - Reveal state is local to the chip; reload re-redacts.
- *   - The chip never shows the legacy "block-character" placeholder
+ *
+ *   - The chip never shows the legacy block-character placeholder
  *     — the operator's "persistent black block" regression.
  */
 export function SpoilerChip({
@@ -62,90 +73,116 @@ export function SpoilerChip({
   const onPointerLeave = useCallback(() => setHovered(false), []);
   const onFocus = useCallback(() => setFocused(true), []);
   const onBlur = useCallback(() => setFocused(false), []);
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLSpanElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (shouldHide && !revealed) {
+          e.preventDefault();
+          setRevealed(true);
+        }
+      }
+    },
+    [shouldHide, revealed],
+  );
+  const onWrapperClick = useCallback(
+    (e: React.MouseEvent<HTMLSpanElement>) => {
+      if (!shouldHide || revealed) return;
+      if (e.detail === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setRevealed(true);
+    },
+    [shouldHide, revealed],
+  );
 
-  if (shouldHide && !revealed) {
-    // Either masked (no hover/focus) or transient preview (hover/focus
-    // active). Both states render through the SAME element so we don't
-    // lose pointer events on transition — same fix as SpoilerReveal.
-    const isPreview = hovered || focused;
-    return (
-      <button
-        type="button"
-        onClick={() => setRevealed(true)}
-        onPointerEnter={onPointerEnter}
-        onPointerLeave={onPointerLeave}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        // `aria-pressed=false` advertises the reveal state so screen-
-        // reader users can hear when a chip is hidden vs. revealed.
-        // Pairs with the `aria-pressed=true` set on the revealed chip
-        // below so the toggle is symmetric.
-        aria-pressed={false}
-        className={`group inline-flex items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-status-on_hold ${
-          isPreview
-            ? 'border-status-on_hold/40 text-status-on_hold'
-            : 'border-dashed border-status-on_hold/60 text-status-on_hold/80'
-        }`}
-        title={isPreview ? t.spoiler.hideHint : hiddenLabel}
-        aria-label={t.spoiler.revealOne}
-        data-spoiler-state={isPreview ? 'transient' : 'hidden'}
-      >
-        <Lock className="h-2.5 w-2.5" aria-hidden />
-        {isPreview ? (
-          // Transient preview — show the real chip content so the
-          // operator can actually READ the tag while hovering. No
-          // navigation yet (the chip is still a <button>).
-          <span className="inline-flex items-center gap-1">{children}</span>
-        ) : (
-          // Masked — localised text label, never block-characters.
-          <span>{hiddenLabel}</span>
-        )}
-      </button>
-    );
-  }
+  // Compute the visible state advertised on the wrapper. Hidden = masked
+  // with no hover/focus and no click. Transient = hover/focus while still
+  // gated. Revealed = the operator clicked through OR the chip was never
+  // gated.
+  const effectiveState: 'hidden' | 'transient' | 'revealed' =
+    !shouldHide || revealed
+      ? 'revealed'
+      : hovered || focused
+        ? 'transient'
+        : 'hidden';
 
-  // Either always-visible (no spoiler/sexual gating) or already revealed.
+  // While gated (button branch), preview state should show the real
+  // children behind the lock — so the operator can read the tag during
+  // hover/focus and decide whether to click to persist.
   const isStillSpoilery = level > 0 || sexual;
-  // When the chip was gated and the user revealed it, expose a small
-  // explicit "Hide" affordance next to the chip — without it, the
-  // user can re-hide only by reloading the page (the spec explicitly
-  // requires a Hide gesture once a chip has been revealed).
   const wasGatedAndRevealed = shouldHide && revealed;
+
   return (
-    <span className="inline-flex items-stretch">
-      <Link
-        href={href}
-        // `aria-pressed=true` only meaningful while the chip is
-        // toggled-revealed (it WAS gated, the user opted in). Plain
-        // always-visible chips don't surface a pressed state.
-        aria-pressed={wasGatedAndRevealed ? true : undefined}
-        className={`inline-flex items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-accent hover:text-accent ${
-          lie
-            ? 'border-status-on_hold/40 text-status-on_hold'
-            : level > 0
-              ? 'border-status-on_hold/30 text-status-on_hold/90'
-              : sexual
-                ? 'border-status-dropped/30 text-status-dropped'
-                : 'border-border text-muted'
-        }`}
-        title={title ?? (lie ? t.detail.tagLie : level > 0 ? t.spoiler.title : undefined)}
-      >
-        {isStillSpoilery && <Lock className="h-2.5 w-2.5 opacity-60" aria-hidden />}
-        {children}
-        {lie && <AlertTriangle className="h-2.5 w-2.5" aria-label={t.detail.tagLie} />}
-        {level > 0 && !lie && <span className="text-[9px]" aria-hidden>!</span>}
-      </Link>
-      {wasGatedAndRevealed && (
+    <span
+      className="inline-flex items-stretch"
+      data-spoiler-state={effectiveState}
+      onClick={onWrapperClick}
+      onKeyDown={onKeyDown}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+      onFocus={onFocus}
+      onBlur={onBlur}
+    >
+      {effectiveState !== 'revealed' ? (
         <button
           type="button"
-          onClick={() => setRevealed(false)}
-          aria-label={t.spoiler.hideOne}
-          aria-pressed={true}
-          title={t.spoiler.hideOne}
-          className="-ml-px inline-flex items-center rounded-r-md border border-l-0 border-border bg-bg-elev/40 px-1 text-muted hover:border-accent hover:text-accent"
+          onClick={() => setRevealed(true)}
+          aria-pressed={false}
+          aria-label={t.spoiler.revealOne}
+          className={`group inline-flex items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-status-on_hold ${
+            effectiveState === 'transient'
+              ? 'border-status-on_hold/40 text-status-on_hold'
+              : 'border-dashed border-status-on_hold/60 text-status-on_hold/80'
+          }`}
+          title={effectiveState === 'transient' ? t.spoiler.hideHint : hiddenLabel}
         >
-          <EyeOff className="h-2.5 w-2.5" aria-hidden />
+          <Lock className="h-2.5 w-2.5" aria-hidden />
+          {effectiveState === 'transient' ? (
+            // Transient preview — show the real chip content so the
+            // operator can read the tag during hover/focus.
+            <span className="inline-flex items-center gap-1">{children}</span>
+          ) : (
+            // Masked — localised text label, no block-characters.
+            <span>{hiddenLabel}</span>
+          )}
         </button>
+      ) : (
+        <>
+          <Link
+            href={href}
+            aria-pressed={wasGatedAndRevealed ? true : undefined}
+            className={`inline-flex items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-accent hover:text-accent ${
+              lie
+                ? 'border-status-on_hold/40 text-status-on_hold'
+                : level > 0
+                  ? 'border-status-on_hold/30 text-status-on_hold/90'
+                  : sexual
+                    ? 'border-status-dropped/30 text-status-dropped'
+                    : 'border-border text-muted'
+            }`}
+            title={title ?? (lie ? t.detail.tagLie : level > 0 ? t.spoiler.title : undefined)}
+          >
+            {isStillSpoilery && <Lock className="h-2.5 w-2.5 opacity-60" aria-hidden />}
+            {children}
+            {lie && <AlertTriangle className="h-2.5 w-2.5" aria-label={t.detail.tagLie} />}
+            {level > 0 && !lie && <span className="text-[9px]" aria-hidden>!</span>}
+          </Link>
+          {wasGatedAndRevealed && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setRevealed(false);
+              }}
+              aria-label={t.spoiler.hideOne}
+              aria-pressed={true}
+              title={t.spoiler.hideOne}
+              className="-ml-px inline-flex items-center rounded-r-md border border-l-0 border-border bg-bg-elev/40 px-1 text-muted hover:border-accent hover:text-accent"
+            >
+              <EyeOff className="h-2.5 w-2.5" aria-hidden />
+            </button>
+          )}
+        </>
       )}
     </span>
   );
