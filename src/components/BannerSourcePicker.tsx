@@ -9,6 +9,7 @@ import { useToast } from './ToastProvider';
 import { dispatchBannerChanged } from '@/lib/cover-banner-events';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
   /** Current custom banner path/URL — null when none is set. */
@@ -72,7 +73,7 @@ export function BannerSourcePicker({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(value ? { source, value } : { source }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       // Broadcast for the HeroBanner mounted above us. `cover` is a
       // server-resolved source (the route picks the right path from
       // the row), so we don't have a precise newSrc/newLocal here —
@@ -99,7 +100,7 @@ export function BannerSourcePicker({
     setBusy(true);
     try {
       const r = await fetch(`/api/collection/${vnId}/banner`, { method: 'DELETE' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       // Reset → null src + null rotation so HeroBanner falls back to
       // the auto-derived blurred cover.
       dispatchBannerChanged({ vnId, newSrc: null, newLocal: null, position: null, rotation: 0 });
@@ -123,7 +124,7 @@ export function BannerSourcePicker({
       const fd = new FormData();
       fd.append('file', file);
       const r = await fetch(`/api/collection/${vnId}/banner`, { method: 'POST', body: fd });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const payload = (await r.json().catch(() => ({}))) as { banner?: string | null };
       dispatchBannerChanged({ vnId, newSrc: null, newLocal: payload.banner ?? null });
       toast.success(t.toast.bannerSaved);

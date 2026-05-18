@@ -5,6 +5,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
 
+import { readApiError } from '@/lib/api-error-read';
 /**
  * Per-VN aspect-ratio override + display. Surfaces the currently
  * derived aspect (manual / per-edition / cached release resolution /
@@ -75,7 +76,7 @@ export function AspectOverrideControl({
         headers: next ? { 'Content-Type': 'application/json' } : undefined,
         body: next ? JSON.stringify({ aspect_key: next }) : undefined,
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as {
         override: { aspect_key: AspectKey; note: string | null } | null;
         derived: AspectKey;

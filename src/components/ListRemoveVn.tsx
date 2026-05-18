@@ -5,6 +5,7 @@ import { Loader2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
+import { readApiError } from '@/lib/api-error-read';
 export function ListRemoveVn({ listId, vnId }: { listId: number; vnId: string }) {
   const t = useT();
   const router = useRouter();
@@ -19,7 +20,7 @@ export function ListRemoveVn({ listId, vnId }: { listId: number; vnId: string })
       const r = await fetch(`/api/lists/${listId}/items?vn=${encodeURIComponent(vnId)}`, {
         method: 'DELETE',
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);

@@ -9,6 +9,7 @@ import { useT } from '@/lib/i18n/client';
 import { useDisplaySettings } from '@/lib/settings/client';
 import type { VndbCharacter } from '@/lib/vndb-types';
 
+import { readApiError } from '@/lib/api-error-read';
 const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
 
 function ageString(ch: VndbCharacter, t: ReturnType<typeof useT>): string[] {
@@ -53,7 +54,7 @@ export function CharactersSection({
     setError(null);
     fetch(`/api/vn/${vnId}/characters`, { signal: ac.signal })
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         return r.json();
       })
       .then((d: { characters: VndbCharacter[] }) => {

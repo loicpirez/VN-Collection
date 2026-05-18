@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatMinutes } from '@/lib/format';
 import { useToast } from './ToastProvider';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Suggestion {
   vn_id: string;
   vn_title: string;
@@ -67,7 +68,7 @@ export function EgsSyncBlock() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ egs_username: username.trim() || null }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       setUsernameDirty(false);
     } catch (e) {
@@ -81,7 +82,7 @@ export function EgsSyncBlock() {
     setComputing(true);
     try {
       const r = await fetch('/api/egs/sync', { cache: 'no-store' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { needsConfig?: boolean; suggestions: Suggestion[] };
       setNeedsConfig(!!d.needsConfig);
       setSuggestions(d.suggestions);
@@ -102,7 +103,7 @@ export function EgsSyncBlock() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_ids: Array.from(picks) }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { applied: number };
       toast.success(`${t.egsSync.appliedSummary} (${d.applied})`);
       setSuggestions([]);

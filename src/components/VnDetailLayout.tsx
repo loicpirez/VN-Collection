@@ -40,6 +40,7 @@ import {
   type VnSectionState,
 } from '@/lib/vn-detail-layout';
 
+import { readApiError } from '@/lib/api-error-read';
 export interface VnDetailSection {
   /** Stable id matching `VnSectionId` — also the key used in the layout config. */
   id: VnSectionId;
@@ -146,7 +147,7 @@ export function VnDetailLayout({ vnId, initialLayout, sections }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_detail_section_layout_v1: draft }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       // Round-trip through the validator locally too so what we
       // optimistically apply matches what the server stored.
       const normalized = validateVnDetailLayoutV1(draft);

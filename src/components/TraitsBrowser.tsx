@@ -8,6 +8,7 @@ import { useT } from '@/lib/i18n/client';
 import { stripVndbMarkup } from './VndbMarkup';
 import type { VndbTrait } from '@/lib/vndb-types';
 
+import { readApiError } from '@/lib/api-error-read';
 export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null } = {}) {
   const t = useT();
   const [q, setQ] = useState('');
@@ -27,7 +28,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
           ? '/api/collection/traits'
           : `/api/traits?${new URLSearchParams({ q, results: '60' })}`;
         const r = await fetch(url, { signal: ctrl.signal });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         const d = await r.json();
         let list: VndbTrait[] = d.traits;
         if (onlyMine && q.trim()) {

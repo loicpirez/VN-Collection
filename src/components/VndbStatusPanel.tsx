@@ -8,6 +8,7 @@ import { DateInput } from './DateInput';
 import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Label {
   id: number;
   label: string;
@@ -50,7 +51,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
       const r = await fetch(`/api/vn/${vnId}/vndb-status`, { cache: 'no-store', signal });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as State & { needsAuth?: boolean };
       if (signal?.aborted) return;
       setState({ entry: d.entry, labels: d.labels ?? [], needsAuth: !!d.needsAuth });
@@ -105,7 +106,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(has ? { labels_unset: [labelId] } : { labels_set: [labelId] }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       await load();
       // Re-pull the server component so the rest of the VN page (status
@@ -124,7 +125,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     setPendingClear(true);
     try {
       const r = await fetch(`/api/vn/${vnId}/vndb-status`, { method: 'DELETE' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.removed);
       await load();
       startTransition(() => router.refresh());
@@ -286,7 +287,7 @@ function UlistDetailsEditor({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       dirty.current = false;
       await onSaved();

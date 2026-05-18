@@ -67,6 +67,7 @@ import {
 } from '@/lib/series-detail-layout';
 import { startTour } from './TutorialTour';
 
+import { readApiError } from '@/lib/api-error-read';
 type SortKey =
   | 'updated_at'
   | 'added_at'
@@ -209,7 +210,7 @@ export function SettingsButton() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       await loadServer();
     } catch (e) {

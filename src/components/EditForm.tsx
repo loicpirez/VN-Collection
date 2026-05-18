@@ -13,6 +13,7 @@ import { TagInput } from './TagInput';
 import { BOX_TYPES, EDITION_TYPES, LOCATIONS, STATUSES, type BoxType, type EditionType, type Location, type Status } from '@/lib/types';
 import type { CollectionItem, SeriesRow } from '@/lib/types';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vn: CollectionItem;
   inCollection: boolean;
@@ -134,7 +135,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     setError(null);
     try {
       const res = await fetch(`/api/series/${seriesId}/vn/${vn.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || t.common.error);
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
       setSeriesPickerId('');
       startTransition(() => router.refresh());
     } catch (e) {

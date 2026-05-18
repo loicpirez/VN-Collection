@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/client';
 import { timeAgo } from '@/lib/time-ago';
 import { useToast } from './ToastProvider';
 
+import { readApiError } from '@/lib/api-error-read';
 /**
  * Re-fetch every page-level cache the browse / discovery pages depend
  * on (EGS anticipated, VNDB stats, upcoming releases, etc.) and then
@@ -56,7 +57,7 @@ export function RefreshPageButton({
     setBusy(true);
     try {
       const r = await fetch('/api/refresh/global', { method: 'POST' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const body = (await r.json()) as { done: number; failed: number; total: number };
       if (body.failed > 0) {
         toast.error(t.refreshPage.partial

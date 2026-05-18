@@ -5,6 +5,7 @@ import { Check, Loader2, Plus } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 /**
  * Small "+" affordance for missing-VN rows on the producer completion
  * panel. Triggers POST /api/collection/{vnId} with status=planning and
@@ -31,7 +32,7 @@ export function AddMissingVnButton({ vnId }: { vnId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'planning' }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.added);
       setDone(true);
       startTransition(() => router.refresh());

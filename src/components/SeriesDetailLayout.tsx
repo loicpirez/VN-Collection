@@ -40,6 +40,7 @@ import {
   type SeriesSectionState,
 } from '@/lib/series-detail-layout';
 
+import { readApiError } from '@/lib/api-error-read';
 export interface SeriesDetailSection {
   id: SeriesSectionId;
   node: React.ReactNode;
@@ -116,7 +117,7 @@ export function SeriesDetailLayout({ initialLayout, sections }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ series_detail_section_layout_v1: draft }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const normalized = validateSeriesDetailLayoutV1(draft);
       setLayout(normalized);
       setDraft(normalized);

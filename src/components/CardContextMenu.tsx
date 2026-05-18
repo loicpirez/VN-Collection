@@ -8,6 +8,7 @@ import { useT } from '@/lib/i18n/client';
 import { STATUSES, type Status } from '@/lib/types';
 import { StatusIcon } from './StatusIcon';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
   status: Status | null | undefined;
@@ -93,7 +94,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       onChange?.();
       startTransition(() => router.refresh());

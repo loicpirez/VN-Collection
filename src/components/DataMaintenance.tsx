@@ -7,6 +7,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { SkeletonRows } from './Skeleton';
 
+import { readApiError } from '@/lib/api-error-read';
 interface DupGroup {
   prefix: string;
   ids: string[];
@@ -58,7 +59,7 @@ export function DataMaintenance() {
     setRefreshing(id);
     try {
       const r = await fetch(`/api/collection/${id}/assets?refresh=true`, { method: 'POST' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       router.refresh();
       load();

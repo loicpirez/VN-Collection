@@ -7,6 +7,7 @@ import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { resolveField, type SourceChoice } from '@/lib/source-resolve';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Developer {
   id: string;
   name: string;
@@ -53,7 +54,7 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ brand: next }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {

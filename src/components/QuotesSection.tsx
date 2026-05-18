@@ -8,6 +8,7 @@ import { VndbMarkup } from './VndbMarkup';
 import { useT } from '@/lib/i18n/client';
 import type { VndbQuote } from '@/lib/vndb-types';
 
+import { readApiError } from '@/lib/api-error-read';
 export function QuotesSection({
   vnId,
   initialOpen = false,
@@ -31,7 +32,7 @@ export function QuotesSection({
     setError(null);
     fetch(`/api/vn/${vnId}/quotes`, { signal: ac.signal })
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         return r.json();
       })
       .then((d: { quotes: VndbQuote[] }) => {

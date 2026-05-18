@@ -18,6 +18,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 type Kind = 'status' | 'rating' | 'playtime' | 'favorite' | 'started' | 'finished' | 'note' | 'manual';
 
 interface Entry {
@@ -131,7 +132,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: trimmed }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const data = (await r.json()) as { entry: Entry };
       setEntries((cur) => [data.entry, ...cur]);
       setText('');
@@ -148,7 +149,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
     if (!ok) return;
     try {
       const r = await fetch(`/api/collection/${vnId}/activity?entry=${id}`, { method: 'DELETE' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       setEntries((cur) => cur.filter((e) => e.id !== id));
       startTransition(() => router.refresh());
     } catch (e) {

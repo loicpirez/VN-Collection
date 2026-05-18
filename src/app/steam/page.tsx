@@ -8,6 +8,7 @@ import { useToast } from '@/components/ToastProvider';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { SkeletonRows } from '@/components/Skeleton';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Suggestion {
   vn_id: string;
   vn_title: string;
@@ -125,7 +126,7 @@ export default function SteamSyncPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ applies }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { applied: number };
       toast.success(t.steam.applied.replace('{n}', String(d.applied)));
       await refresh();
@@ -154,7 +155,7 @@ export default function SteamSyncPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: vnId, appid, steam_name: name }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.steam.linked);
       await refresh();
     } catch (e) {

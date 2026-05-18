@@ -9,6 +9,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
 import { brandHref, yearHref } from '@/lib/egs-links';
 
+import { readApiError } from '@/lib/api-error-read';
 interface EgsGame {
   id: number;
   gamename: string;
@@ -92,7 +93,7 @@ export function EgsPanel({
       try {
         const url = `/api/vn/${vnId}/erogamescape${force ? '?refresh=1' : ''}`;
         const r = await fetch(url, { cache: 'no-store', signal });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         const d = (await r.json()) as { game: EgsGame | null; source: Source };
         if (signal?.aborted) return;
         setGame(d.game);
@@ -438,7 +439,7 @@ function EgsPicker({
     setLoading(true);
     try {
       const r = await fetch(`/api/egs/search?q=${encodeURIComponent(q)}&limit=20`);
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { candidates: EgsCandidate[] };
       setCandidates(d.candidates);
     } catch (e) {
@@ -464,7 +465,7 @@ function EgsPicker({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ egs_id: c.id }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { game: EgsGame; source: Source };
       onPicked(d.game, d.source);
       toast.success(t.toast.saved);

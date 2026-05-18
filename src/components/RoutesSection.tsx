@@ -7,6 +7,7 @@ import { useConfirm } from './ConfirmDialog';
 import type { RouteRow } from '@/lib/types';
 import type { VndbCharacter } from '@/lib/vndb-types';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
   inCollection: boolean;
@@ -101,7 +102,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { routes: RouteRow[] };
       setRoutes(d.routes);
       setDraft('');
@@ -122,7 +123,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await reload();
       startTransition(() => router.refresh());
     } catch (err) {

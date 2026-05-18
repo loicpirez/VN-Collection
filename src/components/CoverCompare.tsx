@@ -11,6 +11,7 @@ import {
   type VnCoverChangedDetail,
 } from '@/lib/cover-banner-events';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Poster {
   remote: string | null;
   local: string | null;
@@ -128,7 +129,7 @@ export function CoverCompare({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: next }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {

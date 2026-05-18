@@ -11,6 +11,7 @@ import {
   type HomeSectionState,
 } from '@/lib/home-section-layout';
 
+import { readApiError } from '@/lib/api-error-read';
 /**
  * Hook that wraps a home-page section's visibility / collapse state and
  * exposes setters that persist to `app_setting.home_section_layout_v1`
@@ -59,7 +60,7 @@ export function useHomeSection(id: HomeSectionId, initialState?: HomeSectionStat
             home_section_layout_v1: { sections: { [id]: next } },
           }),
         });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         window.dispatchEvent(
           new CustomEvent(HOME_LAYOUT_EVENT, { detail: { sections: { [id]: next } } }),
         );

@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/client';
 import { PortalPopover } from './PortalPopover';
 import { useToast } from './ToastProvider';
 
+import { readApiError } from '@/lib/api-error-read';
 interface UserList {
   id: number;
   name: string;
@@ -88,7 +89,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
         headers: isMember ? undefined : { 'Content-Type': 'application/json' },
         body: isMember ? undefined : JSON.stringify({ vn_id: vnId }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(
         (isMember ? t.lists.removedFrom : t.lists.addedTo).replace('{name}', list.name),
       );
@@ -110,7 +111,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const { list } = (await r.json()) as { list: UserList };
       setLists((cur) => (cur ? [list, ...cur] : [list]));
       setNewName('');

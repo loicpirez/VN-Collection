@@ -18,6 +18,7 @@ import { timeAgo } from '@/lib/time-ago';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
+import { readApiError } from '@/lib/api-error-read';
 export interface GameLogEntry {
   id: number;
   vn_id: string;
@@ -98,7 +99,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
           session_minutes: attachSession && liveSessionMinutes > 0 ? liveSessionMinutes : null,
         }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const data = (await r.json()) as { entry: GameLogEntry };
       setEntries((cur) => [data.entry, ...cur]);
       setText('');
@@ -133,7 +134,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: editingId, note: trimmed }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const data = (await r.json()) as { entry: GameLogEntry };
       setEntries((cur) => cur.map((e) => (e.id === editingId ? data.entry : e)));
       cancelEdit();
@@ -150,7 +151,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
     if (!ok) return;
     try {
       const r = await fetch(`/api/collection/${vnId}/game-log?entry=${id}`, { method: 'DELETE' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       setEntries((cur) => cur.filter((e) => e.id !== id));
       startTransition(() => router.refresh());
     } catch (e) {

@@ -7,6 +7,7 @@ import { QuoteAvatar } from './QuoteAvatar';
 import { useT } from '@/lib/i18n/client';
 import type { VndbQuote } from '@/lib/vndb-types';
 
+import { readApiError } from '@/lib/api-error-read';
 export function QuoteFooter() {
   const t = useT();
   const [quote, setQuote] = useState<VndbQuote | null>(null);
@@ -20,7 +21,7 @@ export function QuoteFooter() {
     setError(null);
     try {
       const r = await fetch('/api/vndb/quote/random', { cache: 'no-store' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = await r.json();
       setQuote(d.quote);
     } catch (e) {

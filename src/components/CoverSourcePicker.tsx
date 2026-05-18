@@ -10,6 +10,7 @@ import { useToast } from './ToastProvider';
 import { dispatchCoverChanged } from '@/lib/cover-banner-events';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
   /** VNDB's default image URL — clicking "use VNDB" clears any override. */
@@ -131,7 +132,7 @@ export function CoverSourcePicker({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source, value }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await pinCustomPref();
       // Optimistic broadcast so the rendered hero / cards repaint
       // before router.refresh() comes back. `value` may be either a
@@ -161,7 +162,7 @@ export function CoverSourcePicker({
       // so the hero resolver picks vndbPoster regardless of what custom
       // / EGS columns contain.
       const r = await fetch(`/api/collection/${vnId}/cover`, { method: 'DELETE' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await fetch(`/api/collection/${vnId}/source-pref`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -194,7 +195,7 @@ export function CoverSourcePicker({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: 'egs' }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       // Don't know the resolved EGS URL here (the EGS resolver is
       // server-side) so just nudge listeners; the router.refresh
       // pickup will deliver the right src on the next render.
@@ -225,7 +226,7 @@ export function CoverSourcePicker({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rotation: next }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       // Same broadcast pattern as <CoverHero>: the listeners
       // already handle a rotation-only update without touching
       // src/local, so omit those and let the consumer keep
@@ -251,7 +252,7 @@ export function CoverSourcePicker({
       const fd = new FormData();
       fd.append('file', file);
       const r = await fetch(`/api/collection/${vnId}/cover`, { method: 'POST', body: fd });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const payload = (await r.json().catch(() => ({}))) as { cover?: string | null };
       await pinCustomPref();
       // The cover route returns the new storage path; surface it so

@@ -7,6 +7,7 @@ import { useT } from '@/lib/i18n/client';
 import { resolveField, type SourceChoice } from '@/lib/source-resolve';
 import { VndbMarkup } from './VndbMarkup';
 
+import { readApiError } from '@/lib/api-error-read';
 type Field = 'description' | 'brand' | 'image';
 
 interface Props {
@@ -68,7 +69,7 @@ export function FieldCompare({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: next }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {

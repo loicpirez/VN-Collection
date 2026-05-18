@@ -5,6 +5,7 @@ import { Loader2, Plus } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
+import { readApiError } from '@/lib/api-error-read';
 const VN_ID = /^v\d+$/i;
 const EGS_ID = /^egs_\d+$/i;
 
@@ -30,7 +31,7 @@ export function ListAddVnForm({ listId }: { listId: number }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: trimmed }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       setValue('');
       startTransition(() => router.refresh());
     } catch (e) {

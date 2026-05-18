@@ -16,6 +16,7 @@ import {
   type TagsPageMode,
 } from '@/lib/tags-page-modes';
 
+import { readApiError } from '@/lib/api-error-read';
 const CATEGORIES: { key: 'cont' | 'ero' | 'tech'; tkey: 'cat_cont' | 'cat_ero' | 'cat_tech' }[] = [
   { key: 'cont', tkey: 'cat_cont' },
   { key: 'ero', tkey: 'cat_ero' },
@@ -76,7 +77,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         let tree: VndbTagHomeTree | null = null;
         if (isLocal) {
           const res = await fetch('/api/collection/tags', { signal: ctrl.signal });
-          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || t.common.error);
+          if (!res.ok) throw new Error(await readApiError(res, t.common.error));
           const d = await res.json();
           list = d.tags ?? [];
           if (q.trim()) {

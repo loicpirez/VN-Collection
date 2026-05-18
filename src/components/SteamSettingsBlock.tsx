@@ -4,6 +4,7 @@ import { Loader2, Save } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
+import { readApiError } from '@/lib/api-error-read';
 interface ServerSettings {
   steam_api_key?: { hasKey: boolean; preview: string | null };
   steam_id?: string;
@@ -54,7 +55,7 @@ export function SteamSettingsBlock() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       setKey('');
       await load();

@@ -6,6 +6,7 @@ import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   seriesId: number;
   initialName: string;
@@ -53,7 +54,7 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
       form.append('file', file);
       form.append('kind', kind);
       const r = await fetch(`/api/series/${seriesId}/image`, { method: 'POST', body: form });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const data = (await r.json()) as { path: string };
       if (kind === 'cover') setCoverPath(data.path);
       else setBannerPath(data.path);
@@ -77,7 +78,7 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
           banner_path: bannerPath,
         }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {

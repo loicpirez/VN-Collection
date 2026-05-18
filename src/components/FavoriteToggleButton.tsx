@@ -5,6 +5,7 @@ import { Heart, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
   /** Whether the VN is currently favorited (for optimistic UI). */
@@ -47,14 +48,14 @@ export function FavoriteToggleButton({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'planning' }),
         });
-        if (!r0.ok) throw new Error((await r0.json().catch(() => ({}))).error || t.common.error);
+        if (!r0.ok) throw new Error(await readApiError(r0, t.common.error));
       }
       const r = await fetch(`/api/collection/${vnId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ favorite: next }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(next ? t.toast.favoriteAdded : t.toast.favoriteRemoved);
       startTransition(() => router.refresh());
     } catch (err) {

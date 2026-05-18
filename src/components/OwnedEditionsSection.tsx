@@ -37,6 +37,7 @@ import { BOX_TYPES, LOCATIONS, type BoxType, type Location } from '@/lib/types';
 import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
 import type { VndbRelease } from '@/lib/vndb-types';
 
+import { readApiError } from '@/lib/api-error-read';
 interface OwnedEdition {
   vn_id: string;
   release_id: string;
@@ -219,7 +220,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ release_id: releaseId }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await reload();
       setAdderOpen(false);
       setEditingId(releaseId);
@@ -273,7 +274,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ release_id: releaseId, ...patch }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { owned: OwnedEdition[] };
       setOwned(d.owned);
       toast.success(t.toast.saved);

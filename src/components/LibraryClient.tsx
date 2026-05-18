@@ -13,6 +13,7 @@ import { SortableGrid } from './SortableGrid';
 import { RandomPickButton } from './RandomPickButton';
 import { SAVED_FILTERS_OPEN_EVENT, SavedFilters } from './SavedFilters';
 import { HOME_LAYOUT_OPEN_EVENT } from './HomeLayoutEditorTrigger';
+import { readApiError } from '@/lib/api-error-read';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -280,7 +281,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     params.set('order', order);
     fetch(`/api/collection?${params}`, { signal: ctrl.signal })
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json()).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         return r.json();
       })
       .then((data) => {

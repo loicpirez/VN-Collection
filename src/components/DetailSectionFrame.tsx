@@ -14,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import type { SectionLayoutV1, SectionState } from '@/lib/section-layout';
 
+import { readApiError } from '@/lib/api-error-read';
 /**
  * Shared per-section wrapper for the app-wide section-ordering
  * system (item 15). Drops onto staff / character / producer detail
@@ -147,7 +148,7 @@ export function DetailSectionFrame<Id extends string>({
             },
           }),
         });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         window.dispatchEvent(
           new CustomEvent(EVENT_BY_SCOPE[scope], {
             detail: {
@@ -372,7 +373,7 @@ export function DetailSectionResetButton({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [SETTINGS_KEY_BY_SCOPE[scope]]: null }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       window.dispatchEvent(
         new CustomEvent(EVENT_BY_SCOPE[scope], { detail: { reset: true } }),
       );

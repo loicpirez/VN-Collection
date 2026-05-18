@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
+import { readApiError } from '@/lib/api-error-read';
 interface List {
   id: number;
   name: string;
@@ -29,7 +30,7 @@ export function ListCardActions({ list }: { list: List }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);
@@ -65,7 +66,7 @@ export function ListCardActions({ list }: { list: List }) {
     setBusy(true);
     try {
       const r = await fetch(`/api/lists/${list.id}`, { method: 'DELETE' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);

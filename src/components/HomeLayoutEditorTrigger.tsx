@@ -29,6 +29,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useDialogA11y } from './Dialog';
 
+import { readApiError } from '@/lib/api-error-read';
 /**
  * Custom event name dispatched by sibling components to open the
  * home-layout editor dialog. Multiple call sites can request the
@@ -99,7 +100,7 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ home_section_layout_v1: patch }),
         });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: patch }));
         router.refresh();
       } catch (e) {
@@ -137,7 +138,7 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
       body: JSON.stringify({ home_section_layout_v1: null }),
     })
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: { reset: true } }));
         router.refresh();
         setOpen(false);

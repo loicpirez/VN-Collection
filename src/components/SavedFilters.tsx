@@ -5,6 +5,7 @@ import { Bookmark, BookmarkPlus, ChevronDown, Filter as FilterIcon, Loader2, Pin
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Filter {
   id: number;
   name: string;
@@ -115,7 +116,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, params }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       setNameOpen(false);
       setDraftName('');

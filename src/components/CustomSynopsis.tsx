@@ -7,6 +7,7 @@ import { useConfirm } from './ConfirmDialog';
 import { VndbMarkup } from './VndbMarkup';
 import { useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
   label: string;
@@ -44,7 +45,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text.trim() || null }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       setEditing(false);
       startTransition(() => router.refresh());
@@ -65,7 +66,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: null }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       setText('');
       setEditing(false);
       toast.success(t.toast.saved);

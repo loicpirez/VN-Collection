@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
   /** Current playtime in minutes; used as the base when adding the elapsed value. */
@@ -103,7 +104,7 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playtime_minutes: currentMinutes + min }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       reset();
       router.refresh();

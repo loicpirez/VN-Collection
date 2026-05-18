@@ -14,6 +14,7 @@ import { useToast } from './ToastProvider';
 import { useDialogA11y } from './Dialog';
 import { useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 interface EgsCandidate {
   id: number;
   gamename: string;
@@ -129,7 +130,7 @@ export function MapVnToEgsButton({
         });
       }
       if (!r.ok) {
-        throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        throw new Error(await readApiError(r, t.common.error));
       }
       toast.success(t.mapVn.savedToast);
       setOpen(false);

@@ -5,6 +5,7 @@ import { Bookmark, Check, Loader2, Plus, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Suggestion {
   existing: { id: number; name: string }[];
   suggestedName: string | null;
@@ -45,7 +46,7 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expand: true }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.seriesAutoSuggest.added);
       startTransition(() => router.refresh());
     } catch (e) {
@@ -64,14 +65,14 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: suggestion.suggestedName }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const data = (await r.json()) as { series: { id: number } };
       const link = await fetch(`/api/series/${data.series.id}/vn/${vnId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expand: true }),
       });
-      if (!link.ok) throw new Error((await link.json().catch(() => ({}))).error || t.common.error);
+      if (!link.ok) throw new Error(await readApiError(link, t.common.error));
       toast.success(t.seriesAutoSuggest.created);
       startTransition(() => router.refresh());
     } catch (e) {

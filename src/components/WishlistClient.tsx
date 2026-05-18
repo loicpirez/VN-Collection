@@ -12,6 +12,7 @@ import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client'
 import { useSearchParams } from 'next/navigation';
 import { useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc';
 type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'status';
 
@@ -197,7 +198,7 @@ export function WishlistClient() {
     async (signal?: AbortSignal) => {
       try {
         const r = await fetch('/api/wishlist', { cache: 'no-store', signal });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         const d = (await r.json()) as { needsAuth?: boolean; items: WishlistItem[] };
         if (signal?.aborted) return;
         if (d.needsAuth) {
@@ -361,7 +362,7 @@ export function WishlistClient() {
       setRemovingId(id);
       try {
         const r = await fetch(`/api/wishlist/${id}`, { method: 'DELETE' });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         setItems((prev) => prev.filter((x) => x.vn.id !== id));
         toast.success(t.wishlist.removeOneDone);
       } catch (e) {

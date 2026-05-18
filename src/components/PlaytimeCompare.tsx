@@ -6,6 +6,7 @@ import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import type { SourceChoice } from '@/lib/source-resolve';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
   /** Currently persisted preference for `image`-style playtime resolution. */
@@ -94,7 +95,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playtime: next }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {

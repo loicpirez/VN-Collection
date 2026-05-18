@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
+import { readApiError } from '@/lib/api-error-read';
 /**
  * Page-wide drag-and-drop receiver. Mounts a fixed overlay that only
  * appears while the user is dragging a file over the document. Drop forwards
@@ -66,7 +67,7 @@ export function DropImport() {
         fd.append('file', file);
         const url = isDb ? '/api/backup/restore' : '/api/collection/import';
         const r = await fetch(url, { method: 'POST', body: fd });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         toast.success(t.dropImport.ok);
         router.refresh();
       } catch (e) {

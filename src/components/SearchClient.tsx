@@ -13,6 +13,7 @@ import { platformLabel } from '@/lib/platform-label';
 import { useT } from '@/lib/i18n/client';
 import type { VndbSearchHit } from '@/lib/types';
 
+import { readApiError } from '@/lib/api-error-read';
 type SearchSource = 'vndb' | 'egs' | 'local';
 
 interface EgsCandidate {
@@ -274,7 +275,7 @@ export function SearchClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'planning' }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { vn_id: string };
       setAddedEgsIds((prev) => new Set(prev).add(c.id));
       toast.success(t.toast.added);
@@ -311,7 +312,7 @@ export function SearchClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.search.errorPrefix);
+      if (!r.ok) throw new Error(await readApiError(r, t.search.errorPrefix));
       const data = await r.json();
       setResults(data.results);
     } catch (e) {

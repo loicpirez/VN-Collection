@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 type Choice = 'auto' | 'vndb' | 'egs';
 type Field = 'description' | 'image' | 'brand' | 'title' | 'rating' | 'playtime';
 
@@ -40,7 +41,7 @@ export function SourceSwitcher({ vnId, field, current, vndbAvailable, egsAvailab
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: next }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       startTransition(() => router.refresh());
     } catch (e) {
       setOptimistic(current);

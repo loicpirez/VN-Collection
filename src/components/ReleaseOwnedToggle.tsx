@@ -5,6 +5,7 @@ import { ArrowRight, Check, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 /**
  * Custom event broadcast by every component that mutates owned-edition
  * state for a VN. Listeners (OwnedEditionsSection, ReleasesSection,
@@ -59,7 +60,7 @@ export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
             body: JSON.stringify({ release_id: releaseId }),
           };
       const r = await fetch(url, init);
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const nowOwned = !owned;
       setOwned(nowOwned);
       toast.success(nowOwned ? t.toast.added : t.toast.removed);

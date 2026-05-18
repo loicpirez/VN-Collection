@@ -6,6 +6,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useT } from '@/lib/i18n/client';
 
+import { readApiError } from '@/lib/api-error-read';
 interface SearchHit {
   id: string;
   title: string;
@@ -80,7 +81,7 @@ export function LinkToVndbButton({ vnId, seedQuery }: { vnId: string; seedQuery:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vndb_id: targetId }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.linkVndb.done);
       // The synthetic vn row is gone — navigate to the real one.
       router.replace(`/vn/${targetId}`);

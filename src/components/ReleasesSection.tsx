@@ -25,6 +25,7 @@ import {
 import type { VndbRelease } from '@/lib/vndb-types';
 import { safeHref } from '@/lib/safe-href';
 
+import { readApiError } from '@/lib/api-error-read';
 const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> = {
   1: 'voiced1',
   2: 'voiced2',
@@ -67,7 +68,7 @@ export function ReleasesSection({
     setError(null);
     fetch(`/api/vn/${vnId}/releases`, { signal: ac.signal })
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         return r.json();
       })
       .then((d: { releases: VndbRelease[] }) => {

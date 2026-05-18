@@ -6,6 +6,7 @@ import { ListChecks, Loader2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
+import { readApiError } from '@/lib/api-error-read';
 interface ListChip {
   id: number;
   name: string;
@@ -34,7 +35,7 @@ export function VnListMemberships({ vnId, lists }: { vnId: string; lists: ListCh
         `/api/lists/${list.id}/items?vn=${encodeURIComponent(vnId)}`,
         { method: 'DELETE' },
       );
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.lists.removedFrom.replace('{name}', list.name));
       startTransition(() => router.refresh());
     } catch (e) {

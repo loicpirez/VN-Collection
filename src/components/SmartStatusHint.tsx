@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
   status: string | null | undefined;
@@ -41,7 +42,7 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed', finished_date: new Date().toISOString().slice(0, 10) }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {

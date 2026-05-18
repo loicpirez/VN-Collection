@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
+import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
   /** When true, the VN is in the local collection; we surface a Remove button instead of Add. */
@@ -114,7 +115,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'planning' }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.added);
       startTransition(() => router.refresh());
     } catch (e) {
@@ -148,7 +149,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
       const r = await fetch(`/api/wishlist/${vnId}`, {
         method: wasOn ? 'DELETE' : 'POST',
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       setWishlist((prev) => ({ ...prev, onWishlist: !wasOn }));
       toast.success(wasOn ? t.coverActions.unwishlisted : t.coverActions.wishlisted);
     } catch (e) {
