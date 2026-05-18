@@ -8,7 +8,7 @@ import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
 import { SkeletonRows } from '@/components/Skeleton';
-import { RefreshPageButton } from '@/components/RefreshPageButton';
+import { RefreshScopeButton } from '@/components/RefreshScopeButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { UpcomingCard, type UpcomingCardData } from '@/components/UpcomingCard';
@@ -92,7 +92,13 @@ export default async function UpcomingPage({
           </div>
           <div className="flex items-center gap-2">
             <CardDensitySlider scope="upcoming" />
-            <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
+            {tab === 'anticipated' ? (
+              <RefreshScopeButton scope="upcoming-anticipated" lastUpdatedAt={lastUpdatedAt} />
+            ) : tab === 'all' ? (
+              <RefreshScopeButton scope="upcoming-all" lastUpdatedAt={lastUpdatedAt} />
+            ) : (
+              <RefreshScopeButton scope="upcoming-collection" lastUpdatedAt={lastUpdatedAt} />
+            )}
           </div>
         </div>
         <nav className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">

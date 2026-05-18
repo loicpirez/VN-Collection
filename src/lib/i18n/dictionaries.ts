@@ -616,6 +616,40 @@ export const dictionaries = {
       lastUpdatedDays: 'il y a {n} j',
       lastUpdatedLabel: 'Données',
     },
+    refreshScope: {
+      tagsList: {
+        cta: 'Rafraîchir les tags',
+        title: 'Vider le cache de l’index des tags (résultats de recherche + détails de tag)',
+      },
+      traitsList: {
+        cta: 'Rafraîchir les traits',
+        title: 'Vider le cache de l’index des traits (résultats de recherche + détails de trait)',
+      },
+      tagDetail: {
+        cta: 'Rafraîchir ce tag',
+        title: 'Vider le cache de ce tag uniquement (détail VNDB + arbre scrapé)',
+      },
+      upcomingAnticipated: {
+        cta: 'Rafraîchir l’anticipation',
+        title: 'Vider le cache « Anticipé » EGS uniquement',
+      },
+      upcomingCollection: {
+        cta: 'Rafraîchir « à venir » (collection)',
+        title: 'Vider le cache des sorties à venir limité à votre collection',
+      },
+      upcomingAll: {
+        cta: 'Rafraîchir « à venir » (tout VNDB)',
+        title: 'Vider le cache des sorties à venir tous VN VNDB confondus',
+      },
+      topRanked: {
+        cta: 'Rafraîchir le classement',
+        title: 'Vider les caches du top VNDB et EGS',
+      },
+      schema: {
+        cta: 'Rafraîchir le schéma',
+        title: 'Vider le cache du schéma VNDB',
+      },
+    },
     playtime: {
       vndb: 'VNDB',
       egs: 'EGS',
@@ -3071,6 +3105,40 @@ export const dictionaries = {
       lastUpdatedDays: '{n}d ago',
       lastUpdatedLabel: 'Data',
     },
+    refreshScope: {
+      tagsList: {
+        cta: 'Refresh tags',
+        title: 'Bust the tag-index cache only (search results + tag detail rows)',
+      },
+      traitsList: {
+        cta: 'Refresh traits',
+        title: 'Bust the trait-index cache only (search results + trait detail rows)',
+      },
+      tagDetail: {
+        cta: 'Refresh this tag',
+        title: 'Bust THIS tag’s cache only (VNDB detail + scraped DAG)',
+      },
+      upcomingAnticipated: {
+        cta: 'Refresh anticipated',
+        title: 'Bust the EGS anticipated cache only',
+      },
+      upcomingCollection: {
+        cta: 'Refresh upcoming (collection)',
+        title: 'Bust the upcoming-releases cache restricted to your collection',
+      },
+      upcomingAll: {
+        cta: 'Refresh upcoming (all VNDB)',
+        title: 'Bust the upcoming-releases cache across every VNDB VN',
+      },
+      topRanked: {
+        cta: 'Refresh top-ranked',
+        title: 'Bust the VNDB + EGS top-ranked caches',
+      },
+      schema: {
+        cta: 'Refresh schema',
+        title: 'Bust the VNDB schema cache',
+      },
+    },
     playtime: {
       vndb: 'VNDB',
       egs: 'EGS',
@@ -5522,6 +5590,40 @@ export const dictionaries = {
       lastUpdatedHours: '{n}時間前',
       lastUpdatedDays: '{n}日前',
       lastUpdatedLabel: 'データ',
+    },
+    refreshScope: {
+      tagsList: {
+        cta: 'タグを再取得',
+        title: 'タグ索引のキャッシュのみを破棄（検索結果＋タグ詳細行）',
+      },
+      traitsList: {
+        cta: 'トレイトを再取得',
+        title: 'トレイト索引のキャッシュのみを破棄（検索結果＋トレイト詳細行）',
+      },
+      tagDetail: {
+        cta: 'このタグを再取得',
+        title: 'このタグのキャッシュのみを破棄（VNDB詳細＋スクレイプDAG）',
+      },
+      upcomingAnticipated: {
+        cta: '期待度を再取得',
+        title: 'EGSの期待作キャッシュのみを破棄',
+      },
+      upcomingCollection: {
+        cta: '今後の予定（コレクション）を再取得',
+        title: 'コレクション内に限定した今後リリースキャッシュを破棄',
+      },
+      upcomingAll: {
+        cta: '今後の予定（VNDB全体）を再取得',
+        title: 'VNDB全体の今後リリースキャッシュを破棄',
+      },
+      topRanked: {
+        cta: 'ランキングを再取得',
+        title: 'VNDB／EGSの上位ランキングキャッシュを破棄',
+      },
+      schema: {
+        cta: 'スキーマを再取得',
+        title: 'VNDBスキーマキャッシュを破棄',
+      },
     },
     playtime: {
       vndb: 'VNDB',

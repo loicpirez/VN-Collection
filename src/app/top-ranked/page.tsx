@@ -9,7 +9,7 @@ import { getDict } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
-import { RefreshPageButton } from '@/components/RefreshPageButton';
+import { RefreshScopeButton } from '@/components/RefreshScopeButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
@@ -73,7 +73,7 @@ export default async function TopRankedPage({
           </div>
           <div className="flex items-center gap-2">
             <CardDensitySlider scope="topRanked" />
-            <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
+            <RefreshScopeButton scope="top-ranked" lastUpdatedAt={lastUpdatedAt} />
           </div>
         </div>
         <nav

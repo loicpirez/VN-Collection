@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Library, Loader2, Search, Sparkles } from 'lucide-react';
-import { RefreshPageButton } from './RefreshPageButton';
+import { RefreshScopeButton } from './RefreshScopeButton';
 import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import { stripVndbMarkup } from './VndbMarkup';
@@ -62,7 +62,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
           <h1 className="text-2xl font-bold">{t.traits.pageTitle}</h1>
           <p className="text-sm text-muted">{t.traits.pageSubtitle}</p>
         </div>
-        <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
+        <RefreshScopeButton scope="traits-list" lastUpdatedAt={lastUpdatedAt} />
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">

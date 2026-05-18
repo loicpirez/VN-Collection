@@ -7050,9 +7050,12 @@ export function deleteCacheByPathPrefix(pathPrefix: string): number {
 
 /**
  * Most-recent `fetched_at` across cache rows whose `cache_key` matches any
- * of the supplied LIKE patterns (e.g. `'anticipated:%'`, `'/release|%'`).
- * Returns null when no row matches — the page has never been cached at all.
- * Used by <RefreshPageButton/> to render "Refreshed Xh ago".
+ * of the supplied LIKE patterns (e.g. `'egs:anticipated:%'`,
+ * `'% /release|%'`). Returns null when no row matches — the page has
+ * never been cached at all. Used by `<RefreshScopeButton/>` to render
+ * the "Data Xh ago" chip; patterns should mirror the scope's bust
+ * patterns from `src/lib/refresh-scopes.ts:REFRESH_SCOPES` so the
+ * freshness display and the refresh action stay in sync.
  */
 export function getCacheFreshness(patterns: string[]): number | null {
   if (patterns.length === 0) return null;

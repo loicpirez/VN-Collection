@@ -5,43 +5,46 @@ import { Clock, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { timeAgo } from '@/lib/time-ago';
 import { useToast } from './ToastProvider';
-
 import { readApiError } from '@/lib/api-error-read';
+
 /**
- * Re-fetch every page-level cache the browse / discovery pages depend
- * on (EGS anticipated, VNDB stats, upcoming releases, etc.) and then
- * router.refresh() the current page so the server components re-render
- * with the new data. Standalone button — drops in on /producers,
- * /tags, /traits, /upcoming, /stats, /data, /year, /quotes,
- * /brand-overlap, /recommendations, /shelf, /similar.
+ * R5-058 / R5-106 / R5-215 — context-specific refresh button.
  *
- * `lastUpdatedAt` (epoch-ms) is the most recent `fetched_at` from the
- * cache rows powering the current page. Computed server-side by the
- * caller via `getCacheFreshness()` and rendered as a relative-time
- * chip next to the button so the user always sees how stale the data
- * is at a glance.
+ * Where `<RefreshPageButton/>` blindly POSTs to `/api/refresh/global`
+ * (which busts every page-level cache + re-fetches all of them),
+ * this variant POSTs to `/api/refresh/scope` with a registered
+ * scope id. Only the cache rows for THIS page are busted; the page
+ * re-renders via `router.refresh()` and re-fetches the busted rows
+ * lazily.
+ *
+ * Each scope id maps to:
+ *   - A list of `cache_key LIKE` patterns (see
+ *     `src/lib/refresh-scopes.ts`).
+ *   - Label / tooltip i18n strings under
+ *     `refreshScope.<scope>.{title, cta}` so the tooltip explicitly
+ *     reflects WHAT is refreshed instead of the generic
+ *     "Re-download global data" text.
  */
-export function RefreshPageButton({
-  className = '',
+export function RefreshScopeButton({
+  scope,
+  params,
   lastUpdatedAt,
+  className = '',
 }: {
-  className?: string;
-  /**
-   * Most-recent `fetched_at` (epoch-ms) for the cache rows powering this
-   * page. When omitted (or undefined) the freshness chip is hidden
-   * entirely — pages with on-demand or local-only data shouldn't pretend
-   * to have a meaningful freshness reading. Pass `null` to explicitly
-   * render a "never downloaded" chip.
-   */
+  /** Scope id registered in `REFRESH_SCOPES`. */
+  scope: string;
+  /** Optional template params, e.g. `{ gid: 'g73' }` for
+   *  `tag-detail`. Unbound `{param}` placeholders cause a 400. */
+  params?: Record<string, string>;
+  /** Most-recent `fetched_at` for the cache rows this scope refreshes.
+   *  When omitted the freshness chip is hidden. */
   lastUpdatedAt?: number | null;
-} = {}) {
+  className?: string;
+}) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  // `now` starts at lastUpdatedAt itself so the SSR render of the chip
-  // reads "just now" instead of a raw `toLocaleString()` timestamp. Once
-  // the client mounts we tick every 30s for live updates.
   const [now, setNow] = useState<number>(
     typeof lastUpdatedAt === 'number' ? lastUpdatedAt : Date.now(),
   );
@@ -53,19 +56,23 @@ export function RefreshPageButton({
     return () => clearInterval(tick);
   }, []);
 
+  // Lookup the scope-specific labels. Falls back to the generic
+  // refreshPage strings if the scope's labels are missing, so a
+  // mis-named scope doesn't render an empty button.
+  const scopeLabels = (t.refreshScope as Record<string, { title?: string; cta?: string } | undefined>)?.[scope];
+  const ctaText = scopeLabels?.cta ?? t.refreshPage.cta;
+  const titleText = scopeLabels?.title ?? t.refreshPage.title;
+
   async function run() {
     setBusy(true);
     try {
-      const r = await fetch('/api/refresh/global', { method: 'POST' });
+      const r = await fetch('/api/refresh/scope', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope, params: params ?? {} }),
+      });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const body = (await r.json()) as { done: number; failed: number; total: number };
-      if (body.failed > 0) {
-        toast.error(t.refreshPage.partial
-          .replace('{done}', String(body.done))
-          .replace('{total}', String(body.total)));
-      } else {
-        toast.success(t.refreshPage.done);
-      }
+      toast.success(t.refreshPage.done);
       startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);
@@ -74,9 +81,6 @@ export function RefreshPageButton({
     }
   }
 
-  // Undefined → page is local-only or on-demand, no freshness chip.
-  // null → page tracks a remote cache that's never been populated.
-  // number → real timestamp, render relative time.
   const showChip = lastUpdatedAt !== undefined;
   return (
     <div className={`inline-flex flex-wrap items-center gap-2 ${className}`}>
@@ -86,10 +90,11 @@ export function RefreshPageButton({
         onClick={run}
         disabled={busy}
         className="btn"
-        title={t.refreshPage.title}
+        title={titleText}
+        data-refresh-scope={scope}
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-        {t.refreshPage.cta}
+        {ctaText}
       </button>
     </div>
   );

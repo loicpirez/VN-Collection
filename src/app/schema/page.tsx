@@ -7,7 +7,7 @@ import { getDict } from '@/lib/i18n/server';
 import { SchemaBrowser } from '@/components/SchemaBrowser';
 import { SchemaEgsSection } from '@/components/SchemaEgsSection';
 import { SchemaLocalSection } from '@/components/SchemaLocalSection';
-import { RefreshPageButton } from '@/components/RefreshPageButton';
+import { RefreshScopeButton } from '@/components/RefreshScopeButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,11 +35,12 @@ export default async function SchemaPage() {
     error = (e as Error).message;
   }
 
-  // Most-recent fetched_at across the schema-related cache rows.
-  // The VNDB schema cache lives under `% /schema|%`; we add the
-  // authinfo and stats endpoints too so the freshness chip
-  // reflects every cached endpoint surfaced on this page.
-  const lastUpdatedAt = getCacheFreshness(['% /schema|%', '% /authinfo|%', '% /stats|%']);
+  // R5-058/R5-215: scope the freshness chip to the schema cache
+  // ONLY (not authinfo / stats — those are unrelated to this page
+  // and were inflating the chip's "Data Xh ago" reading). The
+  // scoped refresh button below busts the same pattern so the
+  // freshness display and the refresh action stay in sync.
+  const lastUpdatedAt = getCacheFreshness(['% /schema|%']);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -61,8 +62,10 @@ export default async function SchemaPage() {
             was never mounted. Either the copy was a lie or the
             button got removed in a refactor; the user-visible
             fix is to actually surface the control.
+            R5-215: scoped to the `schema` cache only (not the
+            full `/api/refresh/global` fan-out).
           */}
-          <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
+          <RefreshScopeButton scope="schema" lastUpdatedAt={lastUpdatedAt} />
         </div>
         <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted/80">
           <RefreshCw className="h-3 w-3" aria-hidden /> {t.schemaPage.cacheHint}

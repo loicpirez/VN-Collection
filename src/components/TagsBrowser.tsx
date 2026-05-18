@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, Tags } from 'lucide-react';
-import { RefreshPageButton } from './RefreshPageButton';
+import { RefreshScopeButton } from './RefreshScopeButton';
 import { SkeletonRows } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import { stripVndbMarkup } from './VndbMarkup';
@@ -171,7 +171,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
             {t.tags.refreshHierarchy}
           </button>
         )}
-        <RefreshPageButton lastUpdatedAt={lastUpdatedAt} />
+        <RefreshScopeButton scope="tags-list" lastUpdatedAt={lastUpdatedAt} />
       </header>
 
       <nav className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" role="tablist">
