@@ -122,7 +122,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         {tagInfo?.description && (
           <div className="mt-3 text-xs text-white/80">
             <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">{t.tagPage.description}</div>
-            <VndbMarkup text={tagInfo.description} />
+            <VndbMarkup text={tagInfo.description} spoilerLabel={t.spoiler.markupSummary} />
           </div>
         )}
         <p className="mt-3 text-sm text-muted">

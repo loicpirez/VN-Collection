@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, EyeOff, Lock } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -23,15 +23,21 @@ interface Props {
 }
 
 /**
- * VNDB-style "hidden chip" with click-to-reveal:
+ * VNDB-style "gated tag chip" with hover/focus preview + click-to-reveal.
+ *
+ * Behaviour matches the operator's spec:
  *   - When `level > currentSpoilerLevel` or `sexual && !showSexual` the
- *     chip renders as a blurred placeholder with a lock icon.
- *   - Click anywhere on the placeholder to unblur just that chip.
- *   - Once revealed, a warning-toned border + lock-marker stays so the
- *     user always knows this content is spoilery, mirroring vndb.org's
- *     "showspoil" toggle UX.
- *   - The reveal state is local to the chip (no global side-effect);
- *     reload re-redacts.
+ *     chip renders as a text placeholder (lock + localised hidden label).
+ *   - **Desktop hover and keyboard focus reveal the actual readable
+ *     chip text transiently.** When the pointer leaves / blur fires
+ *     the chip re-masks itself — no persistent change.
+ *   - **Click / tap (or Enter/Space)** persists the reveal until the
+ *     user clicks the "Hide" affordance. Persistent reveal also
+ *     activates the underlying `<Link>` so the chip behaves as a
+ *     normal navigation chip on the second interaction.
+ *   - Reveal state is local to the chip; reload re-redacts.
+ *   - The chip never shows the legacy "block-character" placeholder
+ *     — the operator's "persistent black block" regression.
  */
 export function SpoilerChip({
   level,
@@ -48,25 +54,52 @@ export function SpoilerChip({
   const isHiddenBySexual = !showSexual && sexual;
   const shouldHide = isHiddenBySpoiler || isHiddenBySexual;
   const [revealed, setRevealed] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const hiddenLabel = isHiddenBySexual ? t.spoiler.showSexual : t.spoiler.markupSummary;
+
+  const onPointerEnter = useCallback(() => setHovered(true), []);
+  const onPointerLeave = useCallback(() => setHovered(false), []);
+  const onFocus = useCallback(() => setFocused(true), []);
+  const onBlur = useCallback(() => setFocused(false), []);
 
   if (shouldHide && !revealed) {
+    // Either masked (no hover/focus) or transient preview (hover/focus
+    // active). Both states render through the SAME element so we don't
+    // lose pointer events on transition — same fix as SpoilerReveal.
+    const isPreview = hovered || focused;
     return (
       <button
         type="button"
         onClick={() => setRevealed(true)}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+        onFocus={onFocus}
+        onBlur={onBlur}
         // `aria-pressed=false` advertises the reveal state so screen-
         // reader users can hear when a chip is hidden vs. revealed.
         // Pairs with the `aria-pressed=true` set on the revealed chip
-        // below so the toggle is symmetric. `aria-label` flips between
-        // "Reveal" and "Hide" in step with the state — the visible
-        // label-less placeholder needs an accessible name either way.
+        // below so the toggle is symmetric.
         aria-pressed={false}
-        className="group inline-flex items-center gap-1 rounded-md border border-dashed border-status-on_hold/60 bg-bg-elev/40 px-2 py-0.5 text-[11px] text-status-on_hold/80 transition-colors hover:border-status-on_hold hover:text-status-on_hold"
-        title={isHiddenBySexual ? t.spoiler.showSexual : t.spoiler.title}
+        className={`group inline-flex items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-status-on_hold ${
+          isPreview
+            ? 'border-status-on_hold/40 text-status-on_hold'
+            : 'border-dashed border-status-on_hold/60 text-status-on_hold/80'
+        }`}
+        title={isPreview ? t.spoiler.hideHint : hiddenLabel}
         aria-label={t.spoiler.revealOne}
+        data-spoiler-state={isPreview ? 'transient' : 'hidden'}
       >
         <Lock className="h-2.5 w-2.5" aria-hidden />
-        <span className="font-mono">{'█'.repeat(4)}</span>
+        {isPreview ? (
+          // Transient preview — show the real chip content so the
+          // operator can actually READ the tag while hovering. No
+          // navigation yet (the chip is still a <button>).
+          <span className="inline-flex items-center gap-1">{children}</span>
+        ) : (
+          // Masked — localised text label, never block-characters.
+          <span>{hiddenLabel}</span>
+        )}
       </button>
     );
   }

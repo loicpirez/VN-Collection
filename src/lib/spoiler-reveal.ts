@@ -9,16 +9,16 @@
  *   - `nodeLevel`     the spoiler level of the wrapped node.
  *   - `isHovered`     pointer hover (desktop) — transient reveal.
  *   - `isFocused`     keyboard focus — transient reveal.
- *   - `isTapped`      mobile/tap toggled reveal — persistent on the
- *                     node until the user re-taps or the page reloads.
+ *   - `isTapped`      click/tap toggled reveal — persistent and fully
+ *                     readable until the user toggles it again.
  *   - `perSectionOverride?` optional `?spoil=1|2` URL override that
  *      raises the global setting just for the current page section.
  *
  * Returns the visibility verdict:
  *   - `'hidden'`   → fully masked (blurred placeholder).
  *   - `'revealed'` → fully visible, no transient gate.
- *   - `'transient'`→ shown right now thanks to hover/focus/tap but
- *      will re-hide once the gate ends.
+ *   - `'transient'`→ shown right now thanks to hover/focus but will
+ *      re-hide once the gate ends.
  *
  * Why a separate function: the same logic powers tag chips, character
  * traits, synopsis BBCode spoilers, and any other place that gates a
@@ -46,7 +46,7 @@ export function spoilerVisibility(input: SpoilerVisibilityInput): SpoilerVisibil
   // everything" privacy intent.
   const effective = Math.max(globalSetting, perSectionOverride ?? 0) as 0 | 1 | 2;
   if (nodeLevel <= effective) return 'revealed';
-  if (isTapped) return 'transient';
+  if (isTapped) return 'revealed';
   if (isHovered || isFocused) return 'transient';
   return 'hidden';
 }

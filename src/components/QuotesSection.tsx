@@ -91,7 +91,7 @@ export function QuotesSection({
                   markup nodes, not the raw string.
                 */}
                 <span className="block whitespace-pre-wrap text-sm">
-                  “<VndbMarkup text={q.quote} />”
+                  “<VndbMarkup text={q.quote} spoilerLabel={t.spoiler.markupSummary} />”
                 </span>
                 {q.character && (
                   // Right-aligned citation row: avatar + character

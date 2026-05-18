@@ -31,7 +31,7 @@ describe('character page — description is not gated at the top level', () => {
   const src = read('src/app/character/[id]/page.tsx');
 
   it('renders the description via <VndbMarkup>', () => {
-    expect(src).toMatch(/<VndbMarkup text=\{char\.description\} \/>/);
+    expect(src).toMatch(/<VndbMarkup text=\{char\.description\} spoilerLabel=\{t\.spoiler\.markupSummary\} \/>/);
   });
 
   it('never wraps the description in a <SpoilerReveal>', () => {
@@ -68,12 +68,52 @@ describe('SpoilerChip — aria-pressed and hide affordance', () => {
   it('exposes a localised "Reveal spoiler" aria-label on the gated state', () => {
     expect(src).toMatch(/aria-label=\{t\.spoiler\.revealOne\}/);
   });
+  it('does not render block-character redaction placeholders', () => {
+    expect(src).not.toMatch(/█/);
+  });
   it('exposes a localised "Hide spoiler" aria-label on the hide button', () => {
     expect(src).toMatch(/aria-label=\{t\.spoiler\.hideOne\}/);
   });
   it('reveals via setRevealed(true) and hides via setRevealed(false)', () => {
     expect(src).toMatch(/setRevealed\(true\)/);
     expect(src).toMatch(/setRevealed\(false\)/);
+  });
+});
+
+describe('InlineSpoilerReveal — global setting resync + hover preview', () => {
+  const meta = read('src/components/CharacterMetaClient.tsx');
+
+  it('resets local reveal overrides when autoReveal changes', () => {
+    expect(meta).toMatch(/useEffect\(\(\) => \{\s*setLocalRevealed\(null\);[\s\S]*?\}, \[autoReveal\]\)/);
+  });
+
+  it('uses text labels instead of block-character redaction', () => {
+    expect(meta).not.toMatch(/█/);
+  });
+
+  it('wires hover / focus state so hover reveals readable text', () => {
+    // Per the operator rule "hover reveals actual visible text", the
+    // inline placeholder must attach pointer-enter / leave / focus
+    // / blur handlers so it transiently shows the readable value.
+    expect(meta).toMatch(/onPointerEnter=\{\(\) => setHovered\(true\)\}/);
+    expect(meta).toMatch(/onPointerLeave=\{\(\) => setHovered\(false\)\}/);
+    expect(meta).toMatch(/onFocus=\{\(\) => setFocused\(true\)\}/);
+    expect(meta).toMatch(/onBlur=\{\(\) => setFocused\(false\)\}/);
+  });
+});
+
+describe('SpoilerChip — hover/focus preview parity with SpoilerReveal', () => {
+  const src = read('src/components/SpoilerChip.tsx');
+
+  it('wires hover and focus handlers on the gated state', () => {
+    expect(src).toMatch(/onPointerEnter=\{onPointerEnter\}/);
+    expect(src).toMatch(/onPointerLeave=\{onPointerLeave\}/);
+    expect(src).toMatch(/onFocus=\{onFocus\}/);
+    expect(src).toMatch(/onBlur=\{onBlur\}/);
+  });
+
+  it('exposes data-spoiler-state for QA/Playwright assertions', () => {
+    expect(src).toMatch(/data-spoiler-state=/);
   });
 });
 

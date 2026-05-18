@@ -578,7 +578,7 @@ export const dictionaries = {
       hint: 'Filtre global appliqué aux tags, traits et fiches personnages — comme sur VNDB.',
       revealOne: 'Révéler ce spoiler',
       hideOne: 'Masquer à nouveau',
-      markupSummary: 'spoiler',
+      markupSummary: 'Contenu masqué',
       hidden: 'Masqué',
       reveal: 'Afficher',
       hideHint: 'Toucher / cliquer pour masquer à nouveau',

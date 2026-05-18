@@ -64,4 +64,25 @@ describe('SpoilerReveal — cascade + single-wrapper invariants', () => {
     // exact form depends on the implementation — match either.
     expect(SOURCE).toMatch(/'sr-only'/);
   });
+
+  it('hover / focus reveal renders actual readable content (no blur default)', () => {
+    // The user requirement is that hover/focus reveals **actual
+    // visible text** — not a blurred placeholder. The transient
+    // branch must default to an empty className (or whatever the
+    // call site opts into via transientClassName), never blur-sm.
+    expect(SOURCE).not.toMatch(/transientClassName \?\? ['"]blur-sm['"]/);
+    // The default for transient must be no extra effect.
+    expect(SOURCE).toMatch(/transientClassName\s*\?\?\s*''/);
+  });
+
+  it('click/tap triggers a persistent reveal, not a transient one', () => {
+    // The SpoilerReveal element MUST wire an onClick handler — not
+    // only onPointerUp — so mouse users get persistence on click.
+    expect(SOURCE).toMatch(/onClick={onClick}/);
+    expect(SOURCE).toMatch(/onPointerUp={onPointerUp}/);
+  });
+
+  it('keyboard Enter / Space toggles persistent reveal', () => {
+    expect(SOURCE).toMatch(/e\.key === 'Enter' \|\| e\.key === ' '/);
+  });
 });

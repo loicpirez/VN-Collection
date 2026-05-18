@@ -38,8 +38,8 @@ describe('spoilerVisibility', () => {
     expect(v({ globalSetting: 0, nodeLevel: 2, isFocused: true })).toBe('transient');
   });
 
-  it('reveals transiently when tap-toggled (mobile / pen)', () => {
-    expect(v({ globalSetting: 0, nodeLevel: 2, isTapped: true })).toBe('transient');
+  it('fully reveals when click/tap toggled', () => {
+    expect(v({ globalSetting: 0, nodeLevel: 2, isTapped: true })).toBe('revealed');
   });
 
   it('per-section override raises the effective level', () => {
@@ -55,10 +55,10 @@ describe('spoilerVisibility', () => {
   });
 
   it('tap state survives hover end (persistent until re-tapped)', () => {
-    // Hover false + tap true → still transient. The component re-hides
-    // only when the user re-taps (component-level state), so the
-    // visibility verdict here just needs to acknowledge the tap.
-    expect(v({ globalSetting: 0, nodeLevel: 2, isHovered: false, isTapped: true })).toBe('transient');
+    // Hover false + tap true → still fully revealed. The component re-hides
+    // only when the user re-taps (component-level state), so the visibility
+    // verdict here must stay readable after pointer hover ends.
+    expect(v({ globalSetting: 0, nodeLevel: 2, isHovered: false, isTapped: true })).toBe('revealed');
   });
 });
 

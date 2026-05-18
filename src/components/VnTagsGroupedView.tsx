@@ -8,6 +8,7 @@ import { useDisplaySettings } from '@/lib/settings/client';
 import { SpoilerChip } from './SpoilerChip';
 import {
   filterAndGroupTags,
+  spoilerModeToLevel,
   tagLinks,
   type RawVnTag,
   type TagSpoilerMode,
@@ -53,7 +54,14 @@ export function VnTagsGroupedView({ tags }: Props) {
   });
 
   if (!tags || tags.length === 0) return null;
-  const grouped = filterAndGroupTags(tags, { spoilerMode, view });
+  // Tags are no longer filtered by spoiler level — they are always
+  // listed and each `<SpoilerChip>` masks itself if the local
+  // section threshold is below the tag's spoiler level. The toggle
+  // therefore only controls how many chips render unmasked by
+  // default; the operator can still hover/focus/click any masked
+  // chip to peek.
+  const grouped = filterAndGroupTags(tags, { view });
+  const sectionLevel = spoilerModeToLevel(spoilerMode);
   const total = grouped.cont.length + grouped.ero.length + grouped.tech.length;
   if (total === 0) {
     return (
@@ -91,13 +99,28 @@ export function VnTagsGroupedView({ tags }: Props) {
       </div>
 
       {grouped.cont.length > 0 && (
-        <TagSection title={t.vnTags.categoryContent} tags={grouped.cont} settings={settings} />
+        <TagSection
+          title={t.vnTags.categoryContent}
+          tags={grouped.cont}
+          settings={settings}
+          sectionLevel={sectionLevel}
+        />
       )}
       {grouped.ero.length > 0 && (
-        <TagSection title={t.vnTags.categorySexual} tags={grouped.ero} settings={settings} />
+        <TagSection
+          title={t.vnTags.categorySexual}
+          tags={grouped.ero}
+          settings={settings}
+          sectionLevel={sectionLevel}
+        />
       )}
       {grouped.tech.length > 0 && (
-        <TagSection title={t.vnTags.categoryTechnical} tags={grouped.tech} settings={settings} />
+        <TagSection
+          title={t.vnTags.categoryTechnical}
+          tags={grouped.tech}
+          settings={settings}
+          sectionLevel={sectionLevel}
+        />
       )}
     </div>
   );
@@ -107,11 +130,18 @@ function TagSection({
   title,
   tags,
   settings,
+  sectionLevel,
 }: {
   title: string;
   tags: RawVnTag[];
   settings: { spoilerLevel: number; showSexualTraits: boolean };
+  sectionLevel: 0 | 1 | 2;
 }) {
+  // The per-section level is the MAX of the global spoiler setting
+  // and the local toggle — promoting (not demoting) the threshold
+  // so a user with global=2 always sees content even when the local
+  // toggle is "none".
+  const effectiveLevel = Math.max(settings.spoilerLevel, sectionLevel) as 0 | 1 | 2;
   return (
     <div>
       <h4 className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted">
@@ -126,7 +156,7 @@ function TagSection({
                 level={tag.spoiler}
                 sexual={tag.category === 'ero'}
                 lie={tag.lie}
-                currentSpoilerLevel={settings.spoilerLevel}
+                currentSpoilerLevel={effectiveLevel}
                 showSexual={settings.showSexualTraits}
                 href={links.libraryHref}
                 title={`${tag.name} — ${tag.rating.toFixed(1)} / 3`}

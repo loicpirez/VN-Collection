@@ -155,7 +155,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
               <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
                 <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
-                  <VndbMarkup text={producer.description} />
+                  <VndbMarkup text={producer.description} spoilerLabel={t.spoiler.markupSummary} />
                 </div>
               </section>
             ),

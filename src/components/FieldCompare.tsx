@@ -248,9 +248,10 @@ export function FieldCompare({
  * O(N) sticky-regex tokenizer, but free is better than cheap.
  */
 const Body = memo(function Body({ text }: { text: string }) {
+  const t = useT();
   return (
     <div className="whitespace-pre-wrap leading-relaxed text-white/85">
-      <VndbMarkup text={text} />
+      <VndbMarkup text={text} spoilerLabel={t.spoiler.markupSummary} />
     </div>
   );
 });

@@ -237,7 +237,7 @@ export default async function CharacterPage({
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
               <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
-                <VndbMarkup text={char.description} />
+                <VndbMarkup text={char.description} spoilerLabel={t.spoiler.markupSummary} />
               </div>
             </section>
           ),

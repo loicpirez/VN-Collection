@@ -10,7 +10,7 @@ import { normalizeVndbHref } from '@/lib/vndb-link-normalize';
  *
  *   - `[url=…]label[/url]`           external anchor (target=_blank, scheme-allowlisted)
  *   - `[b]` / `[i]` / `[u]` / `[s]`  strong / em / underline / strike
- *   - `[spoiler]…[/spoiler]`         native `<details>` (no JS needed)
+ *   - `[spoiler]…[/spoiler]`         shared SpoilerReveal gate (hover/focus previews, click/tap persists)
  *   - bare `http(s)://…`             autolinked
  *   - `\n`                           `<br />`
  *
@@ -183,12 +183,12 @@ function renderTokens(tokens: Token[], spoilerLabel: string, keyPrefix = 'm'): R
 export function VndbMarkup({
   text,
   className,
-  spoilerLabel = 'spoiler',
+  spoilerLabel,
 }: {
   text: string | null | undefined;
   className?: string;
-  /** Localised summary text for `[spoiler]…[/spoiler]`. Server pages pass `t.spoiler.markupSummary`. */
-  spoilerLabel?: string;
+  /** Localised summary text for `[spoiler]…[/spoiler]`. */
+  spoilerLabel: string;
 }) {
   if (!text) return null;
   const tokens = tokenize(text);

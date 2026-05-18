@@ -180,7 +180,7 @@ export default async function StaffPage({
               <div className="mt-3">
                 <div className="text-[10px] uppercase tracking-wider text-muted">{t.staff.descriptionLabel}</div>
                 <div className="mt-1 whitespace-pre-wrap text-xs text-white/80">
-                  <VndbMarkup text={description} />
+                  <VndbMarkup text={description} spoilerLabel={t.spoiler.markupSummary} />
                 </div>
               </div>
             )}

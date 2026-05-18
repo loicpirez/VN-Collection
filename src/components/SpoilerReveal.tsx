@@ -19,8 +19,14 @@ interface Props {
   perSectionOverride?: 0 | 1 | 2 | null;
   /** Localised label rendered on the masked placeholder. */
   hiddenLabel?: string;
-  /** Extra blur classes when transiently revealing (default `blur-sm`). */
-  blurredClassName?: string;
+  /**
+   * Optional CSS classes applied to the visible content while the
+   * spoiler is in `transient` (hover/focus) state. The operator's
+   * rule is that hover/focus reveal **actual readable text** — so
+   * the default is `''` (no blur). Override only when a specific
+   * call site wants a softer preview (e.g. nested sexual chips).
+   */
+  transientClassName?: string;
   children: ReactNode;
 }
 
@@ -60,8 +66,8 @@ const SpoilerCascadeContext = createContext<SpoilerCascade>({ ancestorRevealedLe
  *      visible content with a localised `aria-label` + a small lock
  *      icon, but the underlying children remain so SR users still
  *      hear "spoiler — press to reveal" and screen-search can index
- *      the page. No more wholesale "█████" replacement, which the
- *      operator saw as a persistent black block.
+ *      the page. No more wholesale block-character replacement,
+ *      which the operator saw as a persistent black block.
  *
  *   3. `SpoilerCascadeContext` propagates the ancestor's revealed
  *      level downward. A nested `<SpoilerReveal level=2>` inside a
@@ -71,13 +77,13 @@ const SpoilerCascadeContext = createContext<SpoilerCascade>({ ancestorRevealedLe
  *   4. Sexual-content tags use the same gate (no separate
  *      "blackout" CSS branch). They render through `<SpoilerReveal
  *      level={2}>` per the existing call sites, and now obey the
- *      same hover / focus / tap rules.
+ *      same hover / focus / click / tap rules.
  */
 export function SpoilerReveal({
   level,
   perSectionOverride = null,
   hiddenLabel,
-  blurredClassName,
+  transientClassName,
   children,
 }: Props) {
   const t = useT();
@@ -101,20 +107,25 @@ export function SpoilerReveal({
   const effective: 'hidden' | 'transient' | 'revealed' =
     ancestor.ancestorRevealedLevel >= level ? 'revealed' : visibility;
 
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLSpanElement>) => {
-    if (e.pointerType === 'touch' || e.pointerType === 'pen') {
-      setTapped((v) => !v);
-    }
+  const toggleTapped = useCallback(() => {
+    setTapped((v) => !v);
   }, []);
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLSpanElement>) => {
+    if (e.pointerType === 'touch' || e.pointerType === 'pen') toggleTapped();
+  }, [toggleTapped]);
+  const onClick = useCallback((e: React.MouseEvent<HTMLSpanElement>) => {
+    if (e.detail === 0) return;
+    toggleTapped();
+  }, [toggleTapped]);
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLSpanElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      setTapped((v) => !v);
+      toggleTapped();
     }
   }, []);
 
   // Build the cascade value for descendants. If THIS node ends up
-  // revealed (either base-revealed or via hover/focus/tap),
+  // revealed (either base-revealed or via hover/focus/click/tap),
   // descendants up to my level are also treated revealed.
   const nextCascade = useMemo<SpoilerCascade>(() => {
     if (effective === 'revealed' || effective === 'transient') {
@@ -154,6 +165,7 @@ export function SpoilerReveal({
         onPointerEnter={() => setHovered(true)}
         onPointerLeave={() => setHovered(false)}
         onPointerUp={onPointerUp}
+        onClick={onClick}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onKeyDown={onKeyDown}
@@ -173,14 +185,23 @@ export function SpoilerReveal({
           <Lock className="h-2.5 w-2.5" aria-hidden />
           <span>{hiddenLabel ?? t.spoiler.revealOne}</span>
         </span>
-        {/* Real content: always rendered; visibility controlled by
-            CSS classes so the DOM is stable across state changes. */}
+        {/*
+          Real content: always rendered; visibility controlled by
+          CSS classes so the DOM is stable across state changes.
+
+          The user requirement is that hover/focus reveals **actual
+          readable text**. So `transient` defaults to no blur, just
+          the raw content. Call sites that want a softer preview
+          (rare) can opt in via `transientClassName`. The previous
+          `blur-sm` default was the "hover did not reveal actual
+          readable text" regression.
+        */}
         <span
           className={
             isHidden
               ? 'sr-only'
               : isTransient
-                ? `transition-[filter] duration-150 ${blurredClassName ?? 'blur-sm'}`
+                ? transientClassName ?? ''
                 : ''
           }
         >

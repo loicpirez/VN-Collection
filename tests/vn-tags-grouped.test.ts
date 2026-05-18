@@ -7,7 +7,12 @@
  * Synthetic ids / names only.
  */
 import { describe, expect, it } from 'vitest';
-import { filterAndGroupTags, tagLinks, type RawVnTag } from '@/lib/vn-tags-grouped';
+import {
+  filterAndGroupTags,
+  spoilerModeToLevel,
+  tagLinks,
+  type RawVnTag,
+} from '@/lib/vn-tags-grouped';
 
 function tag(o: Partial<RawVnTag> & { id: string }): RawVnTag {
   return {
@@ -28,7 +33,7 @@ describe('filterAndGroupTags', () => {
         tag({ id: 'g2', rating: 2.9, category: 'cont' }),
         tag({ id: 'g3', rating: 2.0, category: 'tech' }),
       ],
-      { spoilerMode: 'all', view: 'all' },
+      { view: 'all' },
     );
     expect(result.cont.map((t) => t.id)).toEqual(['g2', 'g1']);
     expect(result.tech.map((t) => t.id)).toEqual(['g3']);
@@ -43,56 +48,40 @@ describe('filterAndGroupTags', () => {
         tag({ id: 'g3', category: 'tech' }),
         tag({ id: 'g4', category: null }),
       ],
-      { spoilerMode: 'all', view: 'all' },
+      { view: 'all' },
     );
     expect(result.cont.map((t) => t.id).sort()).toEqual(['g1', 'g4']);
     expect(result.ero.map((t) => t.id)).toEqual(['g2']);
     expect(result.tech.map((t) => t.id)).toEqual(['g3']);
   });
 
-  it('spoiler=none drops anything with spoiler > 0', () => {
-    const result = filterAndGroupTags(
-      [
-        tag({ id: 'g1', spoiler: 0 }),
-        tag({ id: 'g2', spoiler: 1 }),
-        tag({ id: 'g3', spoiler: 2 }),
-      ],
-      { spoilerMode: 'none', view: 'all' },
-    );
-    expect(result.cont.map((t) => t.id)).toEqual(['g1']);
+  // Spoiler tags must never be filtered out of the grouped result —
+  // the chip masks them and the operator can reveal individually.
+  it('does not drop spoiler tags regardless of mode (chip handles gating)', () => {
+    const input = [
+      tag({ id: 'g1', spoiler: 0 }),
+      tag({ id: 'g2', spoiler: 1 }),
+      tag({ id: 'g3', spoiler: 2 }),
+    ];
+    const result = filterAndGroupTags(input, { view: 'all' });
+    expect(result.cont.map((t) => t.id).sort()).toEqual(['g1', 'g2', 'g3']);
   });
 
-  it('spoiler=minor keeps spoiler 0+1 but drops 2', () => {
-    const result = filterAndGroupTags(
-      [
-        tag({ id: 'g1', spoiler: 0 }),
-        tag({ id: 'g2', spoiler: 1 }),
-        tag({ id: 'g3', spoiler: 2 }),
-      ],
-      { spoilerMode: 'minor', view: 'all' },
-    );
-    expect(result.cont.map((t) => t.id).sort()).toEqual(['g1', 'g2']);
-  });
-
-  it('spoiler=all keeps every tag (UI then blurs spoiler-2)', () => {
-    const result = filterAndGroupTags(
-      [
-        tag({ id: 'g1', spoiler: 0 }),
-        tag({ id: 'g2', spoiler: 2 }),
-      ],
-      { spoilerMode: 'all', view: 'all' },
-    );
-    expect(result.cont.length).toBe(2);
-  });
-
-  it('summary view keeps only the top-12 tags by rating, AFTER spoiler filtering', () => {
+  it('summary view keeps only the top-12 tags by rating', () => {
     const many: RawVnTag[] = Array.from({ length: 30 }, (_, i) =>
       tag({ id: `g${i + 1}`, rating: 3 - i * 0.05, category: 'cont' }),
     );
-    const result = filterAndGroupTags(many, { spoilerMode: 'all', view: 'summary' });
+    const result = filterAndGroupTags(many, { view: 'summary' });
     expect(result.cont.length).toBe(12);
-    // Top-rated row preserved.
     expect(result.cont[0]?.id).toBe('g1');
+  });
+});
+
+describe('spoilerModeToLevel', () => {
+  it('maps the local toggle to the chip threshold', () => {
+    expect(spoilerModeToLevel('none')).toBe(0);
+    expect(spoilerModeToLevel('minor')).toBe(1);
+    expect(spoilerModeToLevel('all')).toBe(2);
   });
 });
 

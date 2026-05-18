@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
@@ -19,7 +19,8 @@ interface Props {
  * via <SpoilerChip/>; click to unblur just that trait. The "spoiler sex"
  * and "spoiler gender" lines each have their own click-to-reveal button
  * so the user can flip them individually without changing the global
- * level.
+ * level. Local overrides reset when the global spoiler setting changes,
+ * keeping these rows in sync with the navbar preference.
  */
 export function CharacterMetaClient({ char }: Props) {
   const t = useT();
@@ -92,28 +93,48 @@ function InlineSpoilerReveal({
   autoReveal: boolean;
 }) {
   const t = useT();
-  const [revealed, setRevealed] = useState(autoReveal);
+  const [localRevealed, setLocalRevealed] = useState<boolean | null>(null);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    setLocalRevealed(null);
+  }, [autoReveal]);
   if (!value) return null;
+  const persistRevealed = localRevealed ?? autoReveal;
+  // Transient reveal — hover/focus shows the actual readable value.
+  // Persistent reveal sticks until the user explicitly hides.
+  const effectiveRevealed = persistRevealed || hovered || focused;
   return (
     <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-status-on_hold">
       <span className="font-bold uppercase tracking-wider">{label}:</span>
-      {revealed ? (
+      {persistRevealed ? (
         <span>{value}</span>
       ) : (
         <button
           type="button"
-          onClick={() => setRevealed(true)}
-          className="inline-flex items-center gap-1 rounded border border-dashed border-status-on_hold/60 bg-bg-elev/40 px-1.5 py-0.5 text-status-on_hold/80 hover:border-status-on_hold hover:text-status-on_hold"
+          onClick={() => setLocalRevealed(true)}
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          className={`inline-flex items-center gap-1 rounded border bg-bg-elev/40 px-1.5 py-0.5 transition-colors hover:border-status-on_hold ${
+            effectiveRevealed
+              ? 'border-status-on_hold/40 text-status-on_hold'
+              : 'border-dashed border-status-on_hold/60 text-status-on_hold/80'
+          }`}
           aria-label={t.spoiler.revealOne}
+          aria-pressed={false}
+          data-spoiler-state={effectiveRevealed ? 'transient' : 'hidden'}
+          title={effectiveRevealed ? t.spoiler.hideHint : t.spoiler.markupSummary}
         >
           <EyeOff className="h-3 w-3" />
-          <span className="font-mono">█████</span>
+          <span>{effectiveRevealed ? value : t.spoiler.markupSummary}</span>
         </button>
       )}
-      {revealed && (
+      {persistRevealed && (
         <button
           type="button"
-          onClick={() => setRevealed(false)}
+          onClick={() => setLocalRevealed(false)}
           className="ml-1 text-muted/70 hover:text-muted"
           aria-label={t.spoiler.hideOne}
         >

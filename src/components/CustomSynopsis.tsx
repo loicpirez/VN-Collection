@@ -182,7 +182,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
         path, no plain-text bypass.
       */}
       <div className="whitespace-pre-wrap leading-relaxed text-white/85">
-        <VndbMarkup text={current} />
+        <VndbMarkup text={current} spoilerLabel={t.spoiler.markupSummary} />
       </div>
       {showSources && (
         <div className="mt-4 rounded-md border border-border bg-bg-elev/20 p-3">
