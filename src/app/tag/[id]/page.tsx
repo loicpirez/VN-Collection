@@ -129,22 +129,25 @@ export default async function TagPage({ params, searchParams }: PageProps) {
           {state.isEmpty ? t.tagPage.emptyHint : t.tagPage.countHint.replace('{n}', String(count))}
         </p>
 
+        {/*
+          R5-156: navigates between URL states — plain `<nav>` +
+          `aria-current="page"`. No `role="tablist"` /
+          `role="tab"` without matching `role="tabpanel"`.
+        */}
         <nav
           className="mt-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
-          role="tablist"
+          aria-label={t.tagPage.tabLocal}
         >
           <Link
             href={tagPageTabHref(tagId, 'local')}
-            role="tab"
-            aria-selected={tab === 'local'}
+            aria-current={tab === 'local' ? 'page' : undefined}
             className={`rounded px-2.5 py-1 ${tab === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
           >
             {t.tagPage.tabLocal} ({count})
           </Link>
           <Link
             href={tagPageTabHref(tagId, 'vndb')}
-            role="tab"
-            aria-selected={tab === 'vndb'}
+            aria-current={tab === 'vndb' ? 'page' : undefined}
             className={`rounded px-2.5 py-1 ${tab === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
           >
             {t.tagPage.tabVndb}

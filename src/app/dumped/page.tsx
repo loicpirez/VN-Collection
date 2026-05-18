@@ -173,10 +173,17 @@ export default async function DumpedPage({
 
       {entries.length > 0 && (
         <DensityScopeProvider scope="dumped">
+          {/*
+            R5-156: these chips navigate to a different URL state
+            (full route reload), not to a sibling tabpanel inside
+            the current view. WAI-ARIA forbids `role="tab"` /
+            `role="tablist"` without matching `role="tabpanel"`
+            siblings, so the strip is plain `<nav>` + `<Link>` with
+            `aria-current="page"` marking the active route.
+          */}
           <nav
             className="mb-4 flex flex-wrap gap-2"
             aria-label={t.dumped.tabsLabel}
-            role="tablist"
           >
             {TABS.map((key) => {
               const isActive = tab === key;
@@ -184,8 +191,7 @@ export default async function DumpedPage({
                 <Link
                   key={key}
                   href={key === 'all' ? '/dumped' : `/dumped?tab=${key}`}
-                  role="tab"
-                  aria-selected={isActive}
+                  aria-current={isActive ? 'page' : undefined}
                   className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
                     isActive
                       ? 'border-accent bg-accent/15 text-accent'

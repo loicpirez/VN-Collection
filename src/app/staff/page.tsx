@@ -169,43 +169,47 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
           </button>
         </form>
 
-        <nav className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" role="tablist">
+        {/*
+          R5-156: both chip strips below navigate to URL state
+          (full route re-render with new searchParams), not to a
+          sibling tabpanel inside the current view. Plain `<nav>`
+          + `aria-current="page"` on the active link is the right
+          shape; `role="tablist"` / `role="tab"` without matching
+          tabpanels misled screen readers.
+        */}
+        <nav className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" aria-label={t.staffSearch.tabLocal}>
           <Link
             href={chipHref({ tab: null })}
-            role="tab"
-            aria-selected={tab === 'local'}
+            aria-current={tab === 'local' ? 'page' : undefined}
             className={`rounded px-2.5 py-1 ${tab === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
           >
             {t.staffSearch.tabLocal}
           </Link>
           <Link
             href={chipHref({ tab: 'vndb' })}
-            role="tab"
-            aria-selected={tab === 'vndb'}
+            aria-current={tab === 'vndb' ? 'page' : undefined}
             className={`rounded px-2.5 py-1 ${tab === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
           >
             {t.staffSearch.tabVndb}
           </Link>
         </nav>
 
-        <div className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" role="tablist" aria-label={t.staffSearch.scopeLabel}>
+        <nav className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" aria-label={t.staffSearch.scopeLabel}>
           <Link
             href={chipHref({ scope: null })}
-            role="tab"
-            aria-selected={scope === 'all'}
+            aria-current={scope === 'all' ? 'page' : undefined}
             className={`rounded px-2.5 py-1 ${scope === 'all' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
           >
             {t.staffSearch.scopeAll}
           </Link>
           <Link
             href={chipHref({ scope: 'collection' })}
-            role="tab"
-            aria-selected={scope === 'collection'}
+            aria-current={scope === 'collection' ? 'page' : undefined}
             className={`rounded px-2.5 py-1 ${scope === 'collection' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
           >
             {t.staffSearch.scopeCollection}
           </Link>
-        </div>
+        </nav>
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className="text-muted">{t.staffSearch.filtersLabel}:</span>

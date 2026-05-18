@@ -329,8 +329,13 @@ function ModeTabs({
 }) {
   return (
     <nav
+      // R5-156: this strip navigates between full URL states
+      // (each mode is its own route render), not between sibling
+      // tabpanels inside the current view. WAI-ARIA forbids
+      // `role="tablist"` without matching tabpanels — plain `<nav>`
+      // with `aria-label` + `aria-current="page"` on the active
+      // link is the correct shape.
       className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
-      role="tablist"
       aria-label={t.recommend.modePicker.label}
     >
       {RECOMMEND_MODES.map((id) => {
@@ -346,8 +351,6 @@ function ModeTabs({
           <Link
             key={id}
             href={href}
-            role="tab"
-            aria-selected={active}
             aria-current={active ? 'page' : undefined}
             title={hint}
             className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 transition-colors ${

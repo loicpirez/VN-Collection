@@ -77,9 +77,10 @@ export default async function TopRankedPage({
           </div>
         </div>
         <nav
+          // R5-156: navigates to a different URL state — plain
+          // `<nav>` + `aria-current="page"` on the active link.
           className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
           aria-label={t.topRanked.tabsLabel}
-          role="tablist"
         >
           <TabLink
             href="/top-ranked"
@@ -372,8 +373,6 @@ function TabLink({
   return (
     <Link
       href={href}
-      role="tab"
-      aria-selected={active}
       aria-current={active ? 'page' : undefined}
       className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 transition-colors ${
         active ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'

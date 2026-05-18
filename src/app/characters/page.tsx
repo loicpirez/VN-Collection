@@ -169,13 +169,18 @@ export default async function CharactersPage({ searchParams }: PageProps) {
           </button>
         </form>
 
-        <nav className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" role="tablist">
+        {/*
+          R5-156: navigates between URL states (full route render
+          with new searchParams). Plain `<nav>` + `aria-current=
+          "page"` on the active link — no `role="tablist"` /
+          `role="tab"` without matching `tabpanel`.
+        */}
+        <nav className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" aria-label={t.charactersSearch.tabLocal}>
           {(['local', 'vndb', 'combined'] as const).map((tk) => (
             <Link
               key={tk}
               href={characterBrowseHref(params, { tab: tk === 'local' ? null : tk })}
-              role="tab"
-              aria-selected={tab === tk}
+              aria-current={tab === tk ? 'page' : undefined}
               className={`rounded px-2.5 py-1 ${tab === tk ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
             >
               {tk === 'local' ? t.charactersSearch.tabLocal : tk === 'vndb' ? t.charactersSearch.tabVndb : t.charactersSearch.tabCombined}
