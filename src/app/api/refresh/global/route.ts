@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, materializeReleaseMetaForVn } from '@/lib/db';
+import { db, materializeReleaseMetaForCollectionVns } from '@/lib/db';
 import { startJob, tickJob, finishJob, recordError, setJobCurrent } from '@/lib/download-status';
 import { fetchEgsAnticipated, fetchEgsTopRanked } from '@/lib/erogamescape';
 import { getGlobalStats, getAuthInfo, getSchema, searchTags, searchTraits } from '@/lib/vndb';
@@ -121,17 +121,18 @@ export async function POST(req: NextRequest) {
     // hanging on the now-deleted older value.
     { name: 'Tags · default search',      run: () => searchTags('', { results: 60 }) },
     { name: 'Traits · default search',    run: () => searchTraits('', { results: 60 }) },
-    // One job per collection VN — the materializer scans cached
-    // `POST /release` payloads (re-populated above for VNs that
-    // appear in the upcoming / top-ranked refetches) and upserts
-    // a fresh row per linked release. Synthetic `egs_*` ids are
-    // already filtered out above. The job label includes the VN
-    // id so the operator can see exactly which row is being
-    // rebuilt in the download-status panel.
-    ...collectionVnIds.map((vnId) => ({
-      name: `Release metadata · ${vnId}`,
-      run: async () => { materializeReleaseMetaForVn(vnId); },
-    })),
+    // R5-133: ONE cache-wide pass replaces the previous N per-VN
+    // jobs. The new helper scans cached `POST /release` payloads
+    // once, dispatches each release to every owned VN listed in
+    // `vns[]`, and upserts inside a single transaction. The SSE
+    // chatter drops from N ticks to one tick, and the cost scales
+    // O(cached release rows) instead of O(collection size × cached
+    // release rows). Synthetic `egs_*` ids are already filtered out
+    // above (`collectionVnIds`).
+    {
+      name: 'Release metadata · all collection VNs',
+      run: async () => { materializeReleaseMetaForCollectionVns(collectionVnIds); },
+    },
   ];
 
   // Tagged `cache-refresh` (not `vndb-pull`) because this fan-out also

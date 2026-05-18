@@ -3275,9 +3275,11 @@ export function materializeReleaseAspectsForVn(vnId: string): void {
     )
     .get(vnId);
   if (existing) return;
-  // Walk every cached `POST /release` payload looking for this VN.
+  // R5-132: anchor the LIKE prefix so the PK index serves the lookup.
+  // The cache_key shape is `<pathTag>|<METHOD>|<hash>` and the only
+  // pathTag written by `vndbPost('/release', …)` is `POST /release`.
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE '% /release|%' LIMIT 200`)
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%' LIMIT 200`)
     .all() as Array<{ body: string }>;
   let wrote = 0;
   for (const row of rows) {
@@ -3398,8 +3400,36 @@ export function getReleaseMeta(releaseId: string): ReleaseMetaRow | null {
  */
 export function materializeReleaseMetaForVn(vnId: string): void {
   if (!/^v\d+$/.test(vnId)) return;
+  // R5-132: short-circuit when `release_meta_cache` already has rows
+  // for this vn AND those rows are newer than the latest matching
+  // `vndb_cache` row. This drops the per-VN cost from "scan the
+  // entire release cache + JSON.parse each row + upsert N rows"
+  // (5,000,000 inspections worst case across 1000 VNs) to a single
+  // index lookup. The aspect-materialise helper above uses the same
+  // pattern.
+  const freshest = db
+    .prepare(
+      `SELECT MAX(fetched_at) AS latest FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`,
+    )
+    .get() as { latest: number | null } | undefined;
+  if (freshest?.latest) {
+    const haveFresh = db
+      .prepare(
+        `SELECT 1 FROM release_meta_cache WHERE vn_id = ? AND fetched_at >= ? LIMIT 1`,
+      )
+      .get(vnId, freshest.latest);
+    if (haveFresh) return;
+  }
+  // R5-132: anchor the `LIKE` prefix so the `vndb_cache` PRIMARY KEY
+  // index serves it (instead of a leading-wildcard `% /release|%`
+  // which forced a full table scan). The cache key shape is
+  // `<pathTag>|<METHOD>|<hash>` and `vndbPost('/release', …)` writes
+  // `POST /release|POST|…`; colon-suffixed pathTags like
+  // `POST /release:steam` are intentionally excluded — they carry a
+  // smaller payload tuned to a different filter shape and would
+  // dilute the materialisation result.
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE '% /release|%' LIMIT 200`)
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%' LIMIT 200`)
     .all() as Array<{ body: string }>;
   const now = Date.now();
   const upsert = db.prepare(`
@@ -3519,6 +3549,155 @@ export function materializeReleaseMetaForVn(vnId: string): void {
           AND json_array_length(rm.platforms) = 1
       )
   `).run(vnId);
+}
+
+/**
+ * R5-133 — cache-wide single-pass materialisation for the global
+ * refresh route. Instead of N per-VN `materializeReleaseMetaForVn`
+ * jobs (each one scanning the entire `vndb_cache` LIKE-anchored
+ * to `POST /release|%`), read every cached body ONCE, iterate
+ * `results[]`, dispatch each release to every VN it lists, and
+ * upsert in a single transaction.
+ *
+ * Returns the number of releases upserted across all collection
+ * VNs (mostly for telemetry).
+ */
+export function materializeReleaseMetaForCollectionVns(vnIds: string[]): number {
+  if (vnIds.length === 0) return 0;
+  const ownedSet = new Set(vnIds);
+  const rows = db
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%' LIMIT 200`)
+    .all() as Array<{ body: string }>;
+  const now = Date.now();
+  const upsert = db.prepare(`
+    INSERT INTO release_meta_cache (
+      release_id, vn_id, title, alttitle, platforms, languages, released,
+      minage, patch, freeware, uncensored, official, has_ero, voiced,
+      engine, notes, gtin, catalog, resolution, media, producers, extlinks,
+      fetched_at
+    ) VALUES (
+      @release_id, @vn_id, @title, @alttitle, @platforms, @languages, @released,
+      @minage, @patch, @freeware, @uncensored, @official, @has_ero, @voiced,
+      @engine, @notes, @gtin, @catalog, @resolution, @media, @producers, @extlinks,
+      @fetched_at
+    )
+    ON CONFLICT(release_id) DO UPDATE SET
+      vn_id = excluded.vn_id,
+      title = excluded.title,
+      alttitle = excluded.alttitle,
+      platforms = excluded.platforms,
+      languages = excluded.languages,
+      released = excluded.released,
+      minage = excluded.minage,
+      patch = excluded.patch,
+      freeware = excluded.freeware,
+      uncensored = excluded.uncensored,
+      official = excluded.official,
+      has_ero = excluded.has_ero,
+      voiced = excluded.voiced,
+      engine = excluded.engine,
+      notes = excluded.notes,
+      gtin = excluded.gtin,
+      catalog = excluded.catalog,
+      resolution = excluded.resolution,
+      media = excluded.media,
+      producers = excluded.producers,
+      extlinks = excluded.extlinks,
+      fetched_at = excluded.fetched_at
+  `);
+  let upserts = 0;
+  const tx = db.transaction(() => {
+    for (const row of rows) {
+      let parsed: { results?: unknown[] } | null = null;
+      try {
+        parsed = JSON.parse(row.body) as { results?: unknown[] };
+      } catch {
+        continue;
+      }
+      if (!parsed?.results || !Array.isArray(parsed.results)) continue;
+      for (const r of parsed.results) {
+        if (!r || typeof r !== 'object') continue;
+        const rel = r as Record<string, unknown>;
+        const id = rel.id;
+        if (typeof id !== 'string' || !/^r\d+$/i.test(id)) continue;
+        const vns = Array.isArray(rel.vns) ? (rel.vns as Array<{ id?: unknown }>) : [];
+        // Dispatch this release to every owned VN it lists. A release
+        // can be linked to multiple VNs (omnibus / anthology) so we
+        // upsert one row per (vn_id, release_id). The previous
+        // per-VN scan picked one VN at a time; the cache-wide scan
+        // visits each release exactly once.
+        for (const v of vns) {
+          if (!v || typeof v.id !== 'string') continue;
+          const vnId = v.id;
+          if (!ownedSet.has(vnId)) continue;
+          try {
+            const platforms = Array.isArray(rel.platforms)
+              ? (rel.platforms as unknown[]).filter((x): x is string => typeof x === 'string')
+              : [];
+            const languages = Array.isArray(rel.languages) ? rel.languages : [];
+            let resolution: string | null = null;
+            if (typeof rel.resolution === 'string') resolution = rel.resolution;
+            else if (Array.isArray(rel.resolution) && rel.resolution.length === 2) {
+              const [w, h] = rel.resolution as [unknown, unknown];
+              if (typeof w === 'number' && typeof h === 'number') resolution = `${w}x${h}`;
+            }
+            upsert.run({
+              release_id: id.toLowerCase(),
+              vn_id: vnId,
+              title: typeof rel.title === 'string' ? rel.title : null,
+              alttitle: typeof rel.alttitle === 'string' ? rel.alttitle : null,
+              platforms: JSON.stringify(platforms),
+              languages: JSON.stringify(languages),
+              released: typeof rel.released === 'string' ? rel.released : null,
+              minage: typeof rel.minage === 'number' ? rel.minage : null,
+              patch: rel.patch ? 1 : 0,
+              freeware: rel.freeware ? 1 : 0,
+              uncensored: rel.uncensored == null ? null : rel.uncensored ? 1 : 0,
+              official: rel.official === false ? 0 : 1,
+              has_ero: rel.has_ero ? 1 : 0,
+              voiced: typeof rel.voiced === 'number' ? rel.voiced : null,
+              engine: typeof rel.engine === 'string' ? rel.engine : null,
+              notes: typeof rel.notes === 'string' ? rel.notes : null,
+              gtin: typeof rel.gtin === 'string' ? rel.gtin : null,
+              catalog: typeof rel.catalog === 'string' ? rel.catalog : null,
+              resolution,
+              media: JSON.stringify(Array.isArray(rel.media) ? rel.media : []),
+              producers: JSON.stringify(Array.isArray(rel.producers) ? rel.producers : []),
+              extlinks: JSON.stringify(Array.isArray(rel.extlinks) ? rel.extlinks : []),
+              fetched_at: now,
+            });
+            upserts++;
+          } catch {
+            // Skip this row but keep scanning.
+          }
+        }
+      }
+    }
+    // Layer C autofill — single pass over every owned_release row
+    // whose release just gained a singleton platform list, scoped
+    // by the input vn id list.
+    const placeholders = vnIds.map(() => '?').join(',');
+    db.prepare(`
+      UPDATE owned_release
+      SET owned_platform = (
+        SELECT json_extract(rm.platforms, '$[0]')
+        FROM release_meta_cache rm
+        WHERE rm.release_id = owned_release.release_id
+          AND json_valid(rm.platforms)
+          AND json_array_length(rm.platforms) = 1
+      )
+      WHERE vn_id IN (${placeholders})
+        AND owned_platform IS NULL
+        AND EXISTS (
+          SELECT 1 FROM release_meta_cache rm
+          WHERE rm.release_id = owned_release.release_id
+            AND json_valid(rm.platforms)
+            AND json_array_length(rm.platforms) = 1
+        )
+    `).run(...vnIds);
+  });
+  tx();
+  return upserts;
 }
 
 export function materializeAspectForCollectionVns(vnIds: string[]): void {
