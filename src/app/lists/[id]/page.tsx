@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ListChecks, Pin } from 'lucide-react';
 import {
+  countListMembershipsByVn,
   db,
   getUserList,
   listUserListItems,
@@ -28,6 +29,7 @@ function listCardData(
   row: VnRow,
   developers: { id?: string; name: string }[],
   publishers: { id?: string; name: string }[],
+  listCount: number,
 ): CardData {
   const cached = listRowCache.get(row);
   if (cached) return cached;
@@ -48,6 +50,10 @@ function listCardData(
     favorite: !!row.favorite,
     developers,
     publishers,
+    // R5-114: preload the ListsPicker membership-count chip so the
+    // badge renders immediately on the list page (the popover-open
+    // round-trip was the only thing populating it before).
+    listCount,
   };
   listRowCache.set(row, data);
   return data;
@@ -111,6 +117,12 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const t = await getDict();
   const items = listUserListItems(listId);
   const rows = loadCards(items);
+  // R5-114: preload the ListsPicker membership-count chip on every
+  // card via the same compact `vn_id → list_count` map the
+  // `/api/collection` route uses. Without this annotation, every
+  // card on `/lists/[id]` mounted the chip with zero and only
+  // populated the badge after the popover opened.
+  const listCounts = countListMembershipsByVn();
 
   return (
     <DensityScopeProvider scope="lists">
@@ -170,7 +182,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
               <div key={it.vn_id} className="group relative">
                 <ListRemoveVn listId={list.id} vnId={it.vn_id} />
                 {row ? (
-                  <VnCard data={listCardData(row, developers, publishers)} />
+                  <VnCard data={listCardData(row, developers, publishers, listCounts.get(it.vn_id) ?? 0)} />
                 ) : (
                   <StubCard vnId={it.vn_id} />
                 )}
