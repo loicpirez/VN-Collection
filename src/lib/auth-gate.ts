@@ -1,5 +1,23 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
+
+/**
+ * R5-131 — constant-time comparison for the admin-token check.
+ *
+ * Plain `===` on user-supplied input leaks the token byte-by-byte
+ * via response timing. Use `crypto.timingSafeEqual` so two strings
+ * of equal length compare in O(length) wall-clock time regardless
+ * of where they first diverge. Returns `false` immediately when
+ * the lengths differ (timing-safe by design — the attacker only
+ * learns the expected length, not the contents).
+ */
+function timingSafeStrEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
+}
 
 /**
  * Self-hosted single-user app gate. The destructive / sensitive
@@ -37,12 +55,16 @@ import { NextResponse } from 'next/server';
  *   if (denied) return denied;
  */
 export function requireLocalhostOrToken(req: Request): NextResponse | null {
-  // 1) Admin token override (when configured).
+  // 1) Admin token override (when configured). Compares via
+  //    timing-safe equality (R5-131) so the response time doesn't
+  //    leak the token byte-by-byte to a network attacker who can
+  //    measure request timing.
   const adminToken = process.env.VN_ADMIN_TOKEN?.trim();
   if (adminToken) {
     const bearer = req.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
     const header = req.headers.get('x-admin-token')?.trim();
-    if (bearer === adminToken || header === adminToken) return null;
+    if (bearer && timingSafeStrEqual(bearer, adminToken)) return null;
+    if (header && timingSafeStrEqual(header, adminToken)) return null;
   }
 
   // 2) Loopback check. Inspect the URL host (set by Next from the

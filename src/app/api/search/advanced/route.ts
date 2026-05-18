@@ -30,11 +30,25 @@ function parseAdvancedBody(raw: unknown): { ok: true; opts: AdvancedSearchOption
       out[key] = v as string[];
     }
   }
+  // R5-123: clamp numeric ranges so a wild client value doesn't
+  // generate a VNDB filter like `[released, >=, '9999999999-01-01']`
+  // and bubble back a confusing 502.
+  const RANGE: Record<string, { min: number; max: number }> = {
+    lengthMin: { min: 1, max: 5 },
+    lengthMax: { min: 1, max: 5 },
+    yearMin: { min: 1900, max: 2100 },
+    yearMax: { min: 1900, max: 2100 },
+    ratingMin: { min: 0, max: 100 },
+    results: { min: 1, max: 100 },
+    page: { min: 1, max: 100 },
+  };
   for (const key of ['lengthMin', 'lengthMax', 'yearMin', 'yearMax', 'ratingMin', 'results', 'page'] as const) {
     if (key in r) {
       const v = r[key];
       if (typeof v !== 'number' || !Number.isFinite(v)) return { ok: false, error: `invalid ${key}` };
-      out[key] = v;
+      const range = RANGE[key];
+      const clamped = Math.max(range.min, Math.min(range.max, v));
+      out[key] = clamped;
     }
   }
   for (const key of ['hasScreenshot', 'hasReview', 'hasAnime', 'reverse'] as const) {
