@@ -185,15 +185,17 @@ export function MediaGallery({
 
       <div
         className="grid gap-2"
-        // Thumbnail grid now reads the same `--card-density-px`
-        // variable every listing page mounts (scoped via
-        // `density.vnMedia` in the slider). The previous fixed
-        // 140px ignored the slider entirely on the VN detail page,
-        // so users that dial density up for /library still got the
-        // packed 140px grid on the Médias section.
+        // R5-221: cap the tile MAX width so a row with few tiles
+        // doesn't grow each tile to fill the entire grid (the
+        // regression where one screenshot rendered at full native
+        // resolution because `1fr` let the only tile in a row
+        // expand unbounded). Use the same density variable as
+        // every listing page so the slider still drives the tile
+        // size, but clamp the upper bound to a sane multiple of
+        // the density so 1-2 tiles never balloon to 1000+px.
         style={{
           gridTemplateColumns:
-            'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), 1fr))',
+            'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), calc(var(--card-density-px, 220px) * 0.85)))',
         }}
         role="list"
         aria-label={t.media.itemsLabel}
