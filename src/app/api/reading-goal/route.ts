@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { countFinishedInYear, getReadingGoal, setReadingGoal } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { year?: unknown; target?: unknown };
+  const body = (await readJsonObject(req)) as { year?: unknown; target?: unknown };
   const year = typeof body.year === 'number' && Number.isInteger(body.year) ? body.year : new Date().getFullYear();
   const target = typeof body.target === 'number' ? body.target : NaN;
   if (!Number.isFinite(target)) return NextResponse.json({ error: 'target required' }, { status: 400 });

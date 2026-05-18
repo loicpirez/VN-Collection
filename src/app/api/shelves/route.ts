@@ -7,6 +7,7 @@ import {
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonObject(req)) as {
     name?: unknown;
     cols?: unknown;
     rows?: unknown;
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { order?: unknown };
+  const body = (await readJsonObject(req)) as { order?: unknown };
   if (!Array.isArray(body.order) || body.order.some((v) => typeof v !== 'number')) {
     return NextResponse.json({ error: 'order must be number[]' }, { status: 400 });
   }

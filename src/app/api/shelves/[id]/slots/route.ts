@@ -7,6 +7,7 @@ import {
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const shelf = getShelf(sid);
   if (!shelf) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonObject(req)) as {
     row?: unknown;
     col?: unknown;
     vn_id?: unknown;
@@ -106,7 +107,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonObject(req)) as {
     vn_id?: unknown;
     release_id?: unknown;
   };

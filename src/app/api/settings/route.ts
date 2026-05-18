@@ -33,6 +33,7 @@ import {
 } from '@/lib/shelf-view-prefs';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -174,7 +175,7 @@ export async function PATCH(req: NextRequest) {
   // /vn or /producer call through their server.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonObject(req)) as Record<string, unknown>;
   for (const key of Object.keys(body)) {
     if (!SAFE_KEYS.has(key)) {
       return NextResponse.json({ error: `unknown setting: ${key}` }, { status: 400 });

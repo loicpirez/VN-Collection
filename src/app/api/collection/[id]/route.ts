@@ -22,6 +22,7 @@ import { downloadFullProducerForVn } from '@/lib/producer-full';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 600;
@@ -153,7 +154,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return upstreamError('collection/[id]', err);
     }
   }
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonObject(req)) as Record<string, unknown>;
   const { fields, error } = pickFields(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   addToCollection(id, fields);
@@ -182,7 +183,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonObject(req)) as Record<string, unknown>;
   const { fields, error } = pickFields(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
   updateCollection(id, fields);

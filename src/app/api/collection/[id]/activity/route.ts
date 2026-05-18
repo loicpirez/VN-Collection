@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { addManualActivity, deleteActivity, isInCollection, listActivityForVn } from '@/lib/db';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as { text?: unknown; occurred_at?: unknown };
+  const body = (await readJsonObject(req)) as { text?: unknown; occurred_at?: unknown };
   if (typeof body.text !== 'string' || body.text.trim().length === 0) {
     return NextResponse.json({ error: 'text required' }, { status: 400 });
   }

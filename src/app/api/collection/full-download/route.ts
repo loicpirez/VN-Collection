@@ -4,6 +4,7 @@ import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 600;
@@ -19,7 +20,7 @@ export const maxDuration = 600;
  * 3+ 429s) keeps the rate sane no matter how many VNs were picked.
  */
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { vn_ids?: unknown };
+  const body = (await readJsonObject(req)) as { vn_ids?: unknown };
   if (!Array.isArray(body.vn_ids)) {
     return NextResponse.json({ error: 'vn_ids must be an array' }, { status: 400 });
   }

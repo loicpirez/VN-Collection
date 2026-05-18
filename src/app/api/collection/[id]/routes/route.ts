@@ -3,6 +3,7 @@ import { createRoute, isInCollection, listRoutesForVn, reorderRoutes } from '@/l
 import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as { name?: string };
+  const body = (await readJsonObject(req)) as { name?: string };
   const name = (body.name ?? '').trim().slice(0, 200);
   if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 });
   const created = createRoute(id, name);
@@ -42,7 +43,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as { ids?: number[] };
+  const body = (await readJsonObject(req)) as { ids?: number[] };
   if (!Array.isArray(body.ids) || body.ids.some((n) => !Number.isInteger(n))) {
     return NextResponse.json({ error: 'ids must be integer array' }, { status: 400 });
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { deleteRoute, getRoute, updateRoute, type RoutePatch } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 function parseId(s: string): number | null {
@@ -23,7 +24,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ routeId: 
   const id = parseId(routeId);
   if (id == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   if (!getRoute(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonObject(req)) as Record<string, unknown>;
   const fields: RoutePatch = {};
   if ('name' in body) {
     if (typeof body.name !== 'string') return NextResponse.json({ error: 'name must be string' }, { status: 400 });

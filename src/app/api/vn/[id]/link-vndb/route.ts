@@ -4,6 +4,7 @@ import { getCollectionItem, migrateVnId, upsertVn } from '@/lib/db';
 import { getVn } from '@/lib/vndb';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!getCollectionItem(id)) {
     return NextResponse.json({ error: 'synthetic entry not in collection' }, { status: 404 });
   }
-  const body = (await req.json().catch(() => ({}))) as { vndb_id?: unknown };
+  const body = (await readJsonObject(req)) as { vndb_id?: unknown };
   const target = typeof body.vndb_id === 'string' ? body.vndb_id.toLowerCase() : '';
   if (!/^v\d+$/i.test(target)) {
     return NextResponse.json({ error: 'vndb_id must look like vNNN' }, { status: 400 });

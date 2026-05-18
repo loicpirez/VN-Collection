@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { deleteSeries, getSeries, updateSeries } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 function parseId(s: string): number | null {
@@ -37,7 +38,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { id } = await ctx.params;
   const n = parseId(id);
   if (n == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonObject(req)) as {
     name?: string;
     description?: string | null;
     cover_path?: string | null;

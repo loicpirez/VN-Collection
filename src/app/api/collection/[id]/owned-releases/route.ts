@@ -15,6 +15,7 @@ import { isAspectKey } from '@/lib/aspect-ratio';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 const VALID_CONDITIONS = new Set(['new', 'used', 'sealed', 'opened', 'damaged']);
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonObject(req)) as Record<string, unknown>;
   const validation = validateReleaseId(String(body.release_id ?? ''), id);
   if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
   const { patch, error } = pickPatch(body);
@@ -162,7 +163,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonObject(req)) as Record<string, unknown>;
   const validation = validateReleaseId(String(body.release_id ?? ''), id);
   if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
   const { patch, error } = pickPatch(body);

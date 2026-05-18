@@ -3,6 +3,7 @@ import { isInCollection, setCustomDescription } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 function logActivity(id: string, text: string | null) {
@@ -20,7 +21,7 @@ function logActivity(id: string, text: string | null) {
 }
 
 async function applyPatch(req: NextRequest, id: string): Promise<NextResponse> {
-  const body = (await req.json().catch(() => ({}))) as { text?: unknown };
+  const body = (await readJsonObject(req)) as { text?: unknown };
   const raw = body.text;
   if (raw != null && typeof raw !== 'string') {
     return NextResponse.json({ error: 'text must be a string or null' }, { status: 400 });

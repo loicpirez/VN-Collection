@@ -9,6 +9,7 @@ import {
 import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 
+import { readJsonObject } from '@/lib/api-body';
 function logGameLogActivity(
   kind: 'collection.game-log-add' | 'collection.game-log-update' | 'collection.game-log-delete',
   id: string,
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonObject(req)) as {
     note?: unknown;
     logged_at?: unknown;
     session_minutes?: unknown;
@@ -83,7 +84,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonObject(req)) as {
     id?: unknown;
     note?: unknown;
     logged_at?: unknown;

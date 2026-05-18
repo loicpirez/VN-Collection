@@ -3,6 +3,7 @@ import { computeSteamSuggestions, fetchOwnedGames, recordSync } from '@/lib/stea
 import { updateCollection, isInCollection } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -40,7 +41,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { applies?: { vn_id?: unknown; playtime_minutes?: unknown }[] };
+  const body = (await readJsonObject(req)) as { applies?: { vn_id?: unknown; playtime_minutes?: unknown }[] };
   if (!Array.isArray(body.applies)) return NextResponse.json({ error: 'applies array required' }, { status: 400 });
   let applied = 0;
   for (const a of body.applies) {

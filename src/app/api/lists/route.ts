@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createUserList, listUserLists } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -10,7 +11,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonObject(req)) as {
     name?: unknown;
     description?: unknown;
     color?: unknown;

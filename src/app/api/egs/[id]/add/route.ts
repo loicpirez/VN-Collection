@@ -11,6 +11,7 @@ import { EgsUnreachable, fetchEgsGame, linkEgsToVn } from '@/lib/erogamescape';
 import { recordActivity } from '@/lib/activity';
 import { upstreamError } from '@/lib/api-error';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   await linkEgsToVn(vnId, egsId);
 
   // Optional initial collection state passed by the caller (status, favorite…).
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonObject(req)) as Record<string, unknown>;
   const patch: CollectionPatch = {
     status: isValidStatus(body.status) ? (body.status as Status) : 'planning',
   };

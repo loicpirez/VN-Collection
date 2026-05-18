@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { deleteSteamLink, isInCollection, listSteamLinks, setSteamLink } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -16,7 +17,7 @@ export async function GET() {
  * auto-scan can re-link it later.
  */
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonObject(req)) as {
     vn_id?: unknown;
     appid?: unknown;
     steam_name?: unknown;

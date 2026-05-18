@@ -6,6 +6,7 @@ import { validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ item: getCollectionItem(id), cover: path });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { source?: string; value?: string };
+  const body = (await readJsonObject(req)) as { source?: string; value?: string };
   const source = body.source;
   const value = body.value;
 
@@ -124,7 +125,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!getCollectionItem(id)) {
     return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   }
-  const body = (await req.json().catch(() => ({}))) as { rotation?: unknown };
+  const body = (await readJsonObject(req)) as { rotation?: unknown };
   if (typeof body.rotation !== 'number' || !Number.isFinite(body.rotation)) {
     return NextResponse.json({ error: 'rotation must be a number' }, { status: 400 });
   }

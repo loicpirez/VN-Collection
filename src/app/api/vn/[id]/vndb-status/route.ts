@@ -9,6 +9,7 @@ import {
 } from '@/lib/vndb';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -40,7 +41,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!/^v\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonObject(req)) as Record<string, unknown>;
   const patch: UlistPatch = {};
   if (Array.isArray(body.labels_set)) {
     patch.labels_set = body.labels_set.map((n) => Number(n)).filter((n) => Number.isInteger(n));

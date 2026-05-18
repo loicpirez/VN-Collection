@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSavedFilter, deleteSavedFilter, listSavedFilters, reorderSavedFilters } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -9,7 +10,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { name?: unknown; params?: unknown };
+  const body = (await readJsonObject(req)) as { name?: unknown; params?: unknown };
   if (typeof body.name !== 'string' || !body.name.trim()) {
     return NextResponse.json({ error: 'name required' }, { status: 400 });
   }
@@ -44,7 +45,7 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { ids?: unknown };
+  const body = (await readJsonObject(req)) as { ids?: unknown };
   if (!Array.isArray(body.ids) || body.ids.some((x) => typeof x !== 'number')) {
     return NextResponse.json({ error: 'ids array required' }, { status: 400 });
   }

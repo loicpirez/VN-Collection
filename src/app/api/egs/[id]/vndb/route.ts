@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { clearEgsVnLink, getEgsVnLink, setEgsVnLink } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 function logEgsVndbLink(
   kind: 'egs.vndb-link' | 'egs.vndb-unlink',
   egsId: number,
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (egsId == null) {
     return NextResponse.json({ error: 'invalid egs id' }, { status: 400 });
   }
-  const body = (await req.json().catch(() => ({}))) as { vndb_id?: string | null };
+  const body = (await readJsonObject(req)) as { vndb_id?: string | null };
   const raw = body.vndb_id;
   if (raw === null) {
     setEgsVnLink(egsId, null);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSeries, listSeries } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -9,7 +10,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { name?: string; description?: string };
+  const body = (await readJsonObject(req)) as { name?: string; description?: string };
   const name = body.name?.trim();
   if (!name) return NextResponse.json({ error: 'missing name' }, { status: 400 });
   try {

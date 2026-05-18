@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { addVnToList, getUserList, removeVnFromList, reorderListItems } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
   if (!getUserList(listId)) return NextResponse.json({ error: 'list not found' }, { status: 404 });
 
-  const body = (await req.json().catch(() => ({}))) as { vn_id?: unknown; note?: unknown; order?: unknown };
+  const body = (await readJsonObject(req)) as { vn_id?: unknown; note?: unknown; order?: unknown };
   if (typeof body.order === 'object' && Array.isArray((body.order as unknown[]) ?? null)) {
     const ids = (body.order as unknown[]).filter((s): s is string => typeof s === 'string' && VN_ID_RE.test(s));
     reorderListItems(listId, ids);

@@ -3,6 +3,7 @@ import { addVnToSeries, getSeries, isInCollection, isInCollectionMany, removeVnF
 import { recordActivity } from '@/lib/activity';
 import { walkSeriesRelations } from '@/lib/series-detect';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
 function parseSeriesId(s: string): number | null {
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!getSeries(sid)) return NextResponse.json({ error: 'series not found' }, { status: 404 });
   if (!/^v\d+$/i.test(vnId)) return NextResponse.json({ error: 'invalid vn id' }, { status: 400 });
   if (!isInCollection(vnId)) return NextResponse.json({ error: 'add VN to collection first' }, { status: 400 });
-  const body = (await req.json().catch(() => ({}))) as { order_index?: number; expand?: boolean };
+  const body = (await readJsonObject(req)) as { order_index?: number; expand?: boolean };
   const baseIndex = typeof body.order_index === 'number' ? body.order_index : 0;
   addVnToSeries(sid, vnId, baseIndex);
 

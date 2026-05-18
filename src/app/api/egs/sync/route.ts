@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { applyEgsSuggestions, computeEgsSuggestions } from '@/lib/egs-sync';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -11,7 +12,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { vn_ids?: unknown };
+  const body = (await readJsonObject(req)) as { vn_ids?: unknown };
   if (!Array.isArray(body.vn_ids)) {
     return NextResponse.json({ error: 'vn_ids must be an array' }, { status: 400 });
   }

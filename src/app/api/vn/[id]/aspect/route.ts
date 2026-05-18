@@ -4,6 +4,7 @@ import { ASPECT_KEYS, isAspectKey } from '@/lib/aspect-ratio';
 import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 
+import { readJsonObject } from '@/lib/api-body';
 function logAspect(kind: 'aspect.set' | 'aspect.clear', id: string, aspectKey?: string) {
   try {
     recordActivity({
@@ -45,7 +46,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonObject(req)) as Record<string, unknown>;
   const raw = body.aspect_key;
   if (raw == null) {
     setVnAspectOverride({ vnId: id, aspectKey: null });

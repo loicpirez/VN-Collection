@@ -4,6 +4,7 @@ import { clearEgsCache, linkEgsToVn, resolveEgsForVn } from '@/lib/erogamescape'
 import { getVnEgsLink } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
+import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!/^(v\d+|egs_\d+)$/i.test(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
-  const body = (await req.json().catch(() => ({}))) as { egs_id?: number };
+  const body = (await readJsonObject(req)) as { egs_id?: number };
   const egsId = Number(body.egs_id);
   if (!Number.isInteger(egsId) || egsId <= 0) {
     return NextResponse.json({ error: 'invalid egs_id' }, { status: 400 });
