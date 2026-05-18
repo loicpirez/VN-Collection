@@ -1478,6 +1478,98 @@ export function findCharacterSiblings(charId: string): CharacterSibling[] {
   return Array.from(byChar.values());
 }
 
+export interface StaffSibling {
+  sid: string;
+  name: string;
+  original: string | null;
+  /** VNs in the operator's collection where this candidate sid is credited. */
+  vns: { vn_id: string; vn_title: string }[];
+}
+
+/**
+ * R5-239 — conservative cross-sid sibling discovery for `/staff/[id]`.
+ *
+ * VNDB occasionally splits the same person across multiple `sNNN` ids
+ * (rename, region split, alias drift, etc.). The platform does not
+ * expose a structured cross-sid mapping in the staff payload, so we
+ * cannot offer an authoritative merge. The helper below errs on the
+ * side of false negatives:
+ *
+ *   1. Collect every display `name` and `original` known for the
+ *      input `sid` from `vn_staff_credit` AND `vn_va_credit` (the
+ *      VA table holds an `aid` + alias-id link plus the
+ *      `va_name`/`va_original` columns that act as siblings of
+ *      the staff name when the same person voice-acts under a
+ *      pen name in another VN).
+ *   2. Match other `sid`s that share at least one of those names.
+ *   3. JOIN `collection` so only VNs the operator actually owns are
+ *      surfaced — the section heading is explicitly about
+ *      "Possible matches in your collection".
+ *   4. Drop the input sid from the result and dedupe by sid.
+ *
+ * Caller is responsible for labelling the surface "Possible match"
+ * and NOT auto-merging.
+ */
+export function findStaffSiblings(sid: string): StaffSibling[] {
+  // Display + original names for this sid, across both credit tables.
+  const staffNames = db
+    .prepare('SELECT DISTINCT name FROM vn_staff_credit WHERE sid = ? AND name IS NOT NULL AND length(name) >= 2')
+    .all(sid) as Array<{ name: string }>;
+  const staffOriginals = db
+    .prepare('SELECT DISTINCT original FROM vn_staff_credit WHERE sid = ? AND original IS NOT NULL AND length(original) >= 2')
+    .all(sid) as Array<{ original: string }>;
+  const vaNames = db
+    .prepare('SELECT DISTINCT va_name FROM vn_va_credit WHERE sid = ? AND va_name IS NOT NULL AND length(va_name) >= 2')
+    .all(sid) as Array<{ va_name: string }>;
+  const vaOriginals = db
+    .prepare('SELECT DISTINCT va_original FROM vn_va_credit WHERE sid = ? AND va_original IS NOT NULL AND length(va_original) >= 2')
+    .all(sid) as Array<{ va_original: string }>;
+  const names = new Set<string>();
+  for (const r of staffNames) names.add(r.name);
+  for (const r of staffOriginals) names.add(r.original);
+  for (const r of vaNames) names.add(r.va_name);
+  for (const r of vaOriginals) names.add(r.va_original);
+  if (names.size === 0) return [];
+
+  const placeholders = Array.from(names).map(() => '?').join(',');
+  const rows = db
+    .prepare(`
+      SELECT sc.sid, sc.name, sc.original, sc.vn_id, v.title AS vn_title
+      FROM vn_staff_credit sc
+      JOIN vn v ON v.id = sc.vn_id
+      JOIN collection c ON c.vn_id = sc.vn_id
+      WHERE (sc.name IN (${placeholders}) OR sc.original IN (${placeholders})) AND sc.sid != ?
+      UNION
+      SELECT va.sid, va.va_name AS name, va.va_original AS original, va.vn_id, v.title AS vn_title
+      FROM vn_va_credit va
+      JOIN vn v ON v.id = va.vn_id
+      JOIN collection c ON c.vn_id = va.vn_id
+      WHERE (va.va_name IN (${placeholders}) OR va.va_original IN (${placeholders})) AND va.sid != ?
+      ORDER BY vn_title, sid
+    `)
+    .all(
+      ...Array.from(names),
+      ...Array.from(names),
+      sid,
+      ...Array.from(names),
+      ...Array.from(names),
+      sid,
+    ) as Array<{ sid: string; name: string; original: string | null; vn_id: string; vn_title: string }>;
+
+  const bySid = new Map<string, StaffSibling>();
+  for (const r of rows) {
+    let entry = bySid.get(r.sid);
+    if (!entry) {
+      entry = { sid: r.sid, name: r.name, original: r.original, vns: [] };
+      bySid.set(r.sid, entry);
+    }
+    if (!entry.vns.some((v) => v.vn_id === r.vn_id)) {
+      entry.vns.push({ vn_id: r.vn_id, vn_title: r.vn_title });
+    }
+  }
+  return Array.from(bySid.values());
+}
+
 export function getVasForCharacter(charId: string): CharacterVoiceCredit[] {
   const rows = db.prepare(`
     SELECT va.sid, va.va_name, va.va_original, va.va_lang,

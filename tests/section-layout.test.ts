@@ -97,6 +97,7 @@ describe('staff-detail-layout wrapper matches the factory contract', () => {
   it('exposes the canonical staff section ids', () => {
     expect(STAFF_SECTION_IDS).toEqual([
       'timeline',
+      'siblings',
       'voice-credits',
       'production-credits',
       'extra-credits',

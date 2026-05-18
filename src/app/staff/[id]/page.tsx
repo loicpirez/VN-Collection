@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Filter, Globe, Mic2, Star, User, Users } from 'lucide-react';
 import {
+  findStaffSiblings,
   getAppSetting,
   getStaffProfileFromCredits,
   listStaffProductionCredits,
@@ -73,6 +74,12 @@ export default async function StaffPage({
     ? allVoice.filter((c) => c.vn.in_collection)
     : allVoice;
   if (!profile && production.length === 0 && voice.length === 0) notFound();
+
+  // R5-239: surface other VNDB staff ids that share a name/original
+  // with this profile AND appear in the operator's collection. The
+  // helper returns only owned VNs and is intentionally conservative
+  // (no auto-merge). The UI labels every row "Possible match".
+  const staffSiblings = findStaffSiblings(id);
 
   const totalAll = allProduction.length + allVoice.length;
   const totalCol =
@@ -249,6 +256,41 @@ export default async function StaffPage({
           id: 'timeline',
           label: sectionLabels.timeline,
           node: <div className="mb-6"><VaTimeline sid={id} /></div>,
+        });
+        if (staffSiblings.length > 0) staffSections.push({
+          id: 'siblings',
+          label: sectionLabels.siblings,
+          node: (
+            <section className="mb-6 rounded-xl border border-accent/30 bg-accent/5 p-4 sm:p-5">
+              <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
+                <Users className="h-4 w-4" /> {t.staff.siblingsTitle}
+              </h3>
+              <p className="mb-3 text-[11px] text-muted">{t.staff.siblingsHint}</p>
+              <ul className="space-y-1.5 text-xs">
+                {staffSiblings.map((sib) => (
+                  <li key={sib.sid} className="flex flex-wrap items-baseline gap-2">
+                    <span className="inline-flex items-center gap-1 rounded bg-accent/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
+                      {t.staff.siblingsPossibleMatch}
+                    </span>
+                    <Link href={`/staff/${sib.sid}`} className="font-bold hover:text-accent">{sib.name}</Link>
+                    <span className="font-mono text-[10px] text-muted">{sib.sid}</span>
+                    {sib.original && sib.original !== sib.name && (
+                      <span className="text-[11px] text-muted">{sib.original}</span>
+                    )}
+                    <span className="text-muted">·</span>
+                    <span className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+                      {sib.vns.map((v, i) => (
+                        <span key={v.vn_id}>
+                          <Link href={`/vn/${v.vn_id}`} className="hover:text-accent">{v.vn_title}</Link>
+                          {i < sib.vns.length - 1 && <span className="text-muted">,</span>}
+                        </span>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ),
         });
         if (voice.length > 0) staffSections.push({
           id: 'voice-credits',

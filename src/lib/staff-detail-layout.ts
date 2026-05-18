@@ -16,6 +16,7 @@ import { createSectionLayoutModule } from './section-layout';
  */
 export const STAFF_SECTION_IDS = [
   'timeline',
+  'siblings',
   'voice-credits',
   'production-credits',
   'extra-credits',
