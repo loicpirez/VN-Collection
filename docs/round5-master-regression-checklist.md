@@ -170,8 +170,8 @@ Every `FIXED_VERIFIED` item must cite a unit/integration test, Playwright assert
 | R5-161 | A11y | Scroll fades and safe-area bottom are added where needed. | compare/heatmap/schema/shelf/bottom fixed elements |  | viewport QA | TODO |
 | R5-162 | i18n | Hardcoded English/user-facing strings are moved to dictionaries. | components/pages |  | source proof + build | TODO |
 | R5-163 | i18n | Raw enum strings go through label helpers. | activity/release/compare/owned editions/aspect |  | tests/source proof | TODO |
-| R5-164 | Docs | Duplicate/conflicting `/api/series/[id]/vn/[vnId]` API row removed. | `CLAUDE.md` |  | source proof | TODO |
-| R5-165 | Docs | Nonexistent saved-filters subroute doc fixed. | `CLAUDE.md` |  | source proof | TODO |
+| R5-164 | Docs | Duplicate/conflicting `/api/series/[id]/vn/[vnId]` API row removed. | `CLAUDE.md` | 3fc25ab | Removed the duplicate row at line 264 that incorrectly added `GET` to the method list. The remaining row at line 221 (`POST/DELETE`) matches the actual route surface in `src/app/api/series/[id]/vn/[vnId]/route.ts` (only `export async function POST` + `export async function DELETE`) | FIXED_VERIFIED |
+| R5-165 | Docs | Nonexistent saved-filters subroute doc fixed. | `CLAUDE.md` | 3fc25ab | Doc previously claimed `/api/saved-filters/[id] for DELETE` but no `src/app/api/saved-filters/[id]/` subroute exists. Updated to describe the real `?id=N` query-param DELETE pattern + `{ ids: number[] }` PATCH reorder | FIXED_VERIFIED |
 | R5-166 | Docs | README quick-start directory matches repo. | `README.md` |  | source proof | TODO |
 | R5-167 | Docs | Tutorial/features primary nav claims match actual nav and Discover includes Lists. | `FEATURES.md`, `TUTORIAL.md` |  | source proof | TODO |
 | R5-168 | Docs | Data & Stats nav group includes Dumped and Activity. | `FEATURES.md`, `TUTORIAL.md` |  | source proof | TODO |
