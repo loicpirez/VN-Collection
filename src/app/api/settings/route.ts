@@ -449,7 +449,13 @@ export async function PATCH(req: NextRequest) {
       setAppSetting('egs_username', null);
     } else if (typeof v === 'string') {
       const trimmed = v.trim();
-      if (trimmed.length > 64 || /[\s'"\\]/.test(trimmed)) {
+      // R5-128: tighten the validator to match the downstream
+      // EGS lookup constraint in `lib/erogamescape.ts`
+      // (`/^[A-Za-z0-9_]{1,32}$/`). Previously the PATCH accepted
+      // any character set as long as it lacked whitespace/quotes
+      // — a username like `foo.bar` would be stored but every
+      // subsequent fetch silently returned empty results.
+      if (!/^[A-Za-z0-9_]{1,32}$/.test(trimmed)) {
         return NextResponse.json({ error: 'invalid EGS username' }, { status: 400 });
       }
       setAppSetting('egs_username', trimmed);

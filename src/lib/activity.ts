@@ -52,11 +52,28 @@ export function maskActivityPayload(value: unknown): unknown {
   return out;
 }
 
+// R5-127: hard cap on serialised activity payloads. The `payload`
+// JSON is stored as TEXT in `user_activity` and was previously
+// bound only by the table-row size. A pathological import / EGS
+// scrape could write a multi-megabyte blob per row. Cap at 8 KB
+// and replace overflow with a `{ truncated: true, size: N }`
+// stub so the row stays useful for "what kind of event happened"
+// without ballooning the table.
+const ACTIVITY_PAYLOAD_MAX_BYTES = 8 * 1024;
+
+function safePayloadJson(payload: unknown): string | null {
+  if (payload == null) return null;
+  const masked = maskActivityPayload(payload);
+  const raw = JSON.stringify(masked);
+  if (raw.length <= ACTIVITY_PAYLOAD_MAX_BYTES) return raw;
+  return JSON.stringify({ truncated: true, size: raw.length });
+}
+
 export function recordActivity(input: RecordActivityInput): void {
   if (process.env.VNCOLL_DISABLE_ACTIVITY === '1') return;
   const kind = input.kind.trim();
   if (!kind) return;
-  const payload = input.payload == null ? null : JSON.stringify(maskActivityPayload(input.payload));
+  const payload = safePayloadJson(input.payload);
   db.prepare(
     `INSERT INTO user_activity (occurred_at, kind, entity, entity_id, label, payload, actor)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
