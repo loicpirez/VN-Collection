@@ -777,13 +777,13 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           type="button"
           className={`btn inline-flex items-center gap-1 ${sort === 'custom' ? 'btn-primary' : ''}`}
           onClick={() => setParam('sort', sort === 'custom' ? null : 'custom')}
+          // R5-099/153: keep `aria-label` on the button so the
+          // icon-only state below lg has an accessible name. The
+          // visible text label still appears at lg+.
+          aria-label={sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
           title={t.library.customSortHint}
         >
           <GripVertical className="h-4 w-4" />
-          {/* Hide the long FR label below lg to keep the toolbar
-              from wrapping into a 3-row stack. The icon + title
-              still convey the action; the title attribute carries
-              the help text for screen readers. */}
           <span className="hidden lg:inline">
             {sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
           </span>
@@ -821,6 +821,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             type="button"
             onClick={() => set('denseLibrary', !settings.denseLibrary)}
             className={`btn ${settings.denseLibrary ? 'btn-primary' : ''}`}
+            // R5-099: aria-label for icon-only below lg.
+            aria-label={settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
             title={t.library.denseToggle}
           >
             <LayoutGrid className="h-4 w-4" />
@@ -840,6 +842,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                 else setSelectMode(true);
               }}
               className={`btn ${selectMode ? 'btn-primary' : ''}`}
+              // R5-099: aria-label for icon-only below lg.
+              aria-label={selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
               title={t.bulkEdit.toggleSelectMode}
             >
               <CheckSquare className="h-4 w-4" />

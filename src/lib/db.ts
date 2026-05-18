@@ -59,14 +59,36 @@ interface ColInfo {
   name: string;
 }
 
+// R5-141: cache the column set per table so repeated `ensureColumn`
+// calls during cold-start (`~32` of them per `open()`) don't fire
+// `PRAGMA table_info(...)` once per call. The cache is keyed by
+// table name and is reset for each `open()` call via the function
+// reference below.
+let tableColsCache: Map<string, Set<string>> | null = null;
+
 function ensureColumn(db: Database.Database, table: string, column: string, ddl: string): void {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as ColInfo[];
-  if (!cols.some((c) => c.name === column)) {
+  if (!tableColsCache) tableColsCache = new Map<string, Set<string>>();
+  let cols = tableColsCache.get(table);
+  if (!cols) {
+    const rows = db.prepare(`PRAGMA table_info(${table})`).all() as ColInfo[];
+    cols = new Set(rows.map((c) => c.name));
+    tableColsCache.set(table, cols);
+  }
+  if (!cols.has(column)) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+    // Update the cache so subsequent ensureColumn calls in the same
+    // session see the new column without re-issuing PRAGMA.
+    cols.add(column);
   }
 }
 
 function open(): Database.Database {
+  // R5-141: reset the column cache on every open() — the cache is
+  // bound to the connection's schema state, and HMR can swap the
+  // connection out from under us. Clearing here means the first
+  // ensureColumn() call against each table re-issues PRAGMA once,
+  // then subsequent calls in the same session reuse the set.
+  tableColsCache = null;
   // HMR resilience: reuse the cached connection if it exists, but
   // ALWAYS re-run the idempotent migration body below. A long-running
   // `next dev` process keeps `global.__vndb_db` across Turbopack

@@ -276,6 +276,11 @@ export function ShelfReadOnlyControls({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
+        // R5-091: keep `title` AND add `aria-label` so the icon-only
+        // trigger on small viewports still has an accessible name
+        // (title attributes are not reliably announced by screen
+        // readers).
+        aria-label={dict.title}
         title={dict.title}
         className="tap-target-tight inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
       >

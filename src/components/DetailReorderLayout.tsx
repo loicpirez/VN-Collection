@@ -285,6 +285,7 @@ function SortableSection({
           type="button"
           onClick={onToggleVisible}
           className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
+          aria-label={visible ? t.layout.hideSection : t.layout.showSection}
           title={visible ? t.layout.hideSection : t.layout.showSection}
         >
           {visible ? <Eye className="h-3.5 w-3.5" aria-hidden /> : <EyeOff className="h-3.5 w-3.5" aria-hidden />}
