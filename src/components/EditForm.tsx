@@ -297,10 +297,12 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
             <input
               className="input"
               type="url"
+              inputMode="url"
               placeholder={t.form.downloadUrlPlaceholder}
               value={downloadUrl}
               onChange={(e) => setDownloadUrl(e.target.value)}
               maxLength={2000}
+              aria-label={t.form.downloadUrl}
             />
             <span className="text-[10px] text-muted/70">{t.form.downloadUrlHint}</span>
           </label>

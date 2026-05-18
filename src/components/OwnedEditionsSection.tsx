@@ -819,11 +819,13 @@ function EditionEditor({
           <input
             className="input"
             type="number"
+            inputMode="numeric"
             min={1}
             step={1}
             value={aspectWidth}
             onChange={(e) => setAspectWidth(e.target.value)}
             placeholder="1280"
+            aria-label={t.aspect.width}
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -831,11 +833,13 @@ function EditionEditor({
           <input
             className="input"
             type="number"
+            inputMode="numeric"
             min={1}
             step={1}
             value={aspectHeight}
             onChange={(e) => setAspectHeight(e.target.value)}
             placeholder="720"
+            aria-label={t.aspect.height}
           />
         </label>
         <label className="flex flex-col gap-1">
