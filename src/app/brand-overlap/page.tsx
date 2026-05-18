@@ -59,10 +59,23 @@ async function Result({ a, b }: { a: string; b: string }) {
   const t = await getDict();
   const result = await findBrandStaffOverlap(a, b);
   if (result.needsMoreData) {
+    // R5-110: the empty state explains the missing-cache gap AND
+    // links to each producer's page so the user can trigger the
+    // context-specific staff fan-out (`/producer/[id]` runs its
+    // own per-producer download — no global refresh).
     return (
-      <p className="rounded-xl border border-status-on_hold/40 bg-status-on_hold/10 p-6 text-sm">
-        {t.brandOverlap.needsMoreData}
-      </p>
+      <div className="rounded-xl border border-status-on_hold/40 bg-status-on_hold/10 p-6 text-sm">
+        <p>{t.brandOverlap.needsMoreData}</p>
+        <p className="mt-2 text-xs text-muted">
+          <Link href={`/producer/${a}`} className="font-bold text-accent hover:underline">
+            {result.a?.name ?? a}
+          </Link>
+          {' · '}
+          <Link href={`/producer/${b}`} className="font-bold text-accent hover:underline">
+            {result.b?.name ?? b}
+          </Link>
+        </p>
+      </div>
     );
   }
 
@@ -82,7 +95,21 @@ async function Result({ a, b }: { a: string; b: string }) {
       </header>
 
       {result.entries.length === 0 ? (
-        <p className="text-sm text-muted">{t.brandOverlap.empty}</p>
+        // R5-110: the zero-match empty state also points back to
+        // each producer so the user has a clear next step (more
+        // VNs to download) instead of a dead-end message.
+        <div className="text-sm text-muted">
+          <p>{t.brandOverlap.empty}</p>
+          <p className="mt-1 text-xs">
+            <Link href={`/producer/${a}`} className="hover:text-accent">
+              {result.a?.name ?? a}
+            </Link>
+            {' · '}
+            <Link href={`/producer/${b}`} className="hover:text-accent">
+              {result.b?.name ?? b}
+            </Link>
+          </p>
+        </div>
       ) : (
         <ul className="space-y-2">
           {result.entries.map((e) => (
