@@ -81,7 +81,10 @@ export function ListCardActions({ list }: { list: List }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-md p-1 text-muted opacity-0 transition-opacity hover:bg-bg-elev hover:text-white focus:opacity-100 group-hover:opacity-100"
+        // R5-150: the menu trigger must always render on touch
+        // viewports. `md:` prefix keeps the desktop hover-reveal
+        // pattern while exposing the button on mobile / tablet.
+        className="rounded-md p-1 text-muted transition-opacity hover:bg-bg-elev hover:text-white focus:opacity-100 md:opacity-0 md:group-hover:opacity-100"
         aria-haspopup="menu"
         aria-expanded={open}
       >
