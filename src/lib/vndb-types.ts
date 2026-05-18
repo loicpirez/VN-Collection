@@ -19,7 +19,24 @@ export interface VndbCharacter {
   sex: [string | null, string | null] | null;
   gender: [string | null, string | null] | null;
   vns: VndbCharacterVn[];
-  traits: { id: string; name: string; group_name: string; spoiler: number; sexual: boolean }[];
+  traits: {
+    id: string;
+    name: string;
+    group_name: string;
+    spoiler: number;
+    sexual: boolean;
+    /**
+     * R5-231: VNDB's `POST /character` returns `lie: boolean` per
+     * trait — true when the trait is something the character
+     * pretends about (e.g., a heroine claiming to be 18 when she
+     * isn't). Surfacing it lets the chip render the AlertTriangle
+     * "lie tag" tooltip via `<SpoilerChip lie>`. The flag was
+     * missing from this truncated type, so `CharactersSection`
+     * could never pass it to the chip; the character's own page
+     * (`/character/[id]`) reads the full payload and was fine.
+     */
+    lie?: boolean;
+  }[];
   localImage?: string | null;
 }
 

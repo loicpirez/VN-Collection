@@ -151,6 +151,13 @@ export function CharactersSection({
                               href={`/trait/${encodeURIComponent(tr.id)}`}
                               level={tr.spoiler ?? 0}
                               sexual={!!tr.sexual}
+                              // R5-231: VNDB's per-character trait
+                              // payload includes a `lie` boolean for
+                              // traits the character pretends about.
+                              // Pass it through so the chip renders
+                              // the AlertTriangle "lie tag" hint that
+                              // /character/[id] already shows.
+                              lie={!!tr.lie}
                               currentSpoilerLevel={settings.spoilerLevel}
                               showSexual={settings.showSexualTraits}
                             >
