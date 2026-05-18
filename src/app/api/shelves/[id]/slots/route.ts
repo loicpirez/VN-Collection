@@ -55,6 +55,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   ) {
     return NextResponse.json({ error: 'row/col/vn_id/release_id required' }, { status: 400 });
   }
+  // R5-094: vn_id must match the canonical shape (`v<digits>` or
+  // `egs_<digits>`). The downstream `placeShelfItem` validates by
+  // `owned_release` existence, but a strict format check here keeps
+  // the contract symmetric with every other vn-id-bearing route
+  // (`lists/[id]/items`, `reading-queue`, `collection/order`).
+  if (!/^(v\d+|egs_\d+)$/i.test(body.vn_id)) {
+    return NextResponse.json({ error: 'invalid vn_id' }, { status: 400 });
+  }
   // release id must be either rNN or `synthetic:vNN`; the caller's vn
   // id must match the synthetic suffix when present.
   if (

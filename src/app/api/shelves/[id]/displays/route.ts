@@ -61,6 +61,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       { status: 400 },
     );
   }
+  // R5-095: vn_id must match the canonical shape (`v<digits>` or
+  // `egs_<digits>`). Symmetric with `slots/route.ts` and every
+  // other vn-id-bearing route.
+  if (!/^(v\d+|egs_\d+)$/i.test(body.vn_id)) {
+    return NextResponse.json({ error: 'invalid vn_id' }, { status: 400 });
+  }
   if (
     !/^r\d+$/i.test(body.release_id) &&
     body.release_id !== `synthetic:${body.vn_id}`
