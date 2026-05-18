@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
@@ -87,6 +87,48 @@ interface WishlistItem {
 // — keeps `React.memo(VnCard)` from re-rendering every wishlist card
 // whenever a sibling state (search query, sort change) ticks.
 const wishlistCache = new WeakMap<WishlistItem, CardData>();
+
+/**
+ * R5-137: stable-callback wrapper for `VnCard` inside the wishlist
+ * grid. Mirrors the `MemoCard` pattern in `LibraryClient` — the
+ * outer component passes stable `onSelect(id)` / `onAdded(id)` /
+ * `onRemove(id)` callbacks, and this wrapper creates the per-card
+ * arrow inside its own `useCallback` so sibling state ticks (search
+ * input, sort change) don't re-render every card.
+ */
+const MemoWishlistCard = memo(function MemoWishlistCard({
+  id,
+  data,
+  selectable,
+  selected,
+  canRemove,
+  onSelect,
+  onAdded,
+  onRemove,
+}: {
+  id: string;
+  data: CardData;
+  selectable: boolean;
+  selected: boolean;
+  canRemove: boolean;
+  onSelect: (id: string) => void;
+  onAdded: (id: string) => void;
+  onRemove: (id: string) => void | Promise<void>;
+}) {
+  const handleSelect = useCallback(() => onSelect(id), [onSelect, id]);
+  const handleRemove = useCallback(() => onRemove(id), [onRemove, id]);
+  return (
+    <VnCard
+      enableAdd
+      selectable={selectable}
+      selected={selected}
+      onSelect={handleSelect}
+      onAdded={onAdded}
+      onRemoveFromWishlist={canRemove ? handleRemove : undefined}
+      data={data}
+    />
+  );
+});
 
 function wishlistCardData(it: WishlistItem): CardData {
   const cached = wishlistCache.get(it);
@@ -191,19 +233,36 @@ export function WishlistClient() {
     setRefreshing(false);
   }, [load]);
 
-  function toggleSelected(id: string) {
+  // R5-137: every per-card callback flows through a stable
+  // `useCallback` + functional `setState` so `React.memo(VnCard)`
+  // (and the local `MemoWishlistCard` wrapper below) can skip
+  // re-renders driven by sibling state changes (search query,
+  // sort, group). Functional updaters mean no dep on `items` /
+  // `selected`, so the callback identity stays the same across
+  // renders.
+  const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }
+  }, []);
 
-  function clearSelection() {
+  const clearSelection = useCallback(() => {
     setSelected(new Set());
     setSelectMode(false);
-  }
+  }, []);
+
+  // R5-137: `handleAdded` is a single allocation per WishlistClient
+  // instance; passing it to every card replaces the old
+  // `onAdded={(id) => setItems(…)}` arrow that was re-created on
+  // every render and defeated React.memo on VnCard.
+  const handleAdded = useCallback((id: string) => {
+    setItems((prev) =>
+      prev.map((x) => (x.vn.id === id ? { ...x, in_collection: true } : x)),
+    );
+  }, []);
 
   async function deleteSelected() {
     if (selected.size === 0) return;
@@ -287,19 +346,32 @@ export function WishlistClient() {
       .map(([key, items]) => ({ key, items }));
   }, [sorted, group, t.wishlist.groupUnknown, t.wishlist.groupOwned, t.wishlist.groupTodo]);
 
-  async function removeOne(id: string) {
-    setRemovingId(id);
-    try {
-      const r = await fetch(`/api/wishlist/${id}`, { method: 'DELETE' });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
-      setItems((prev) => prev.filter((x) => x.vn.id !== id));
-      toast.success(t.wishlist.removeOneDone);
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setRemovingId(null);
-    }
-  }
+  // R5-137: `removeOne` is a stable `useCallback` so the
+  // `onRemoveFromWishlist` arrow rendered per card can read it
+  // without changing identity each render. `t.*` strings are
+  // stable per locale (the dictionary is the same object), so
+  // deps don't churn between cards. `removingId` is intentionally
+  // omitted from deps — we read the latest value via a ref so a
+  // tap on card B while card A is still removing doesn't get
+  // blocked by a stale closure capture.
+  const removingIdRef = useRef(removingId);
+  removingIdRef.current = removingId;
+  const removeOne = useCallback(
+    async (id: string) => {
+      setRemovingId(id);
+      try {
+        const r = await fetch(`/api/wishlist/${id}`, { method: 'DELETE' });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || t.common.error);
+        setItems((prev) => prev.filter((x) => x.vn.id !== id));
+        toast.success(t.wishlist.removeOneDone);
+      } catch (e) {
+        toast.error((e as Error).message);
+      } finally {
+        setRemovingId(null);
+      }
+    },
+    [t.common.error, t.wishlist.removeOneDone, toast],
+  );
 
   return (
     <DensityScopeProvider scope="wishlist">
@@ -430,23 +502,16 @@ export function WishlistClient() {
                 style={{ gridTemplateColumns: cardGridColumns(density) }}
               >
                 {g.items.map((it) => (
-                  <VnCard
+                  <MemoWishlistCard
                     key={it.id}
-                    enableAdd
+                    id={it.vn.id}
+                    data={wishlistCardData(it)}
                     selectable={selectMode}
                     selected={selected.has(it.vn.id)}
-                    onSelect={() => toggleSelected(it.vn.id)}
-                    onAdded={(id) =>
-                      setItems((prev) =>
-                        prev.map((x) => (x.vn.id === id ? { ...x, in_collection: true } : x)),
-                      )
-                    }
-                    onRemoveFromWishlist={
-                      it.in_collection && removingId !== it.vn.id
-                        ? () => removeOne(it.vn.id)
-                        : undefined
-                    }
-                    data={wishlistCardData(it)}
+                    canRemove={it.in_collection && removingId !== it.vn.id}
+                    onSelect={toggleSelected}
+                    onAdded={handleAdded}
+                    onRemove={removeOne}
                   />
                 ))}
               </div>
