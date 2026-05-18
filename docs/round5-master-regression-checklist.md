@@ -142,10 +142,10 @@ Every `FIXED_VERIFIED` item must cite a unit/integration test, Playwright assert
 | R5-133 | Performance | `/api/refresh/global` replaces per-VN release metadata jobs with one cache-wide pass and avoids SSE spam. | global refresh route/db |  | tests/source proof | TODO |
 | R5-134 | Performance | `invalidateAggregateStats()` runs after `importData`. | `db.ts` | (this commit) | `src/lib/db.ts:importData` now calls `invalidateAggregateStats()` after `trx()`; full test suite green | FIXED_VERIFIED |
 | R5-135 | Performance | `invalidateAggregateStats()` runs after `migrateVnId`. | `db.ts` | (this commit) | `src/lib/db.ts:migrateVnId` invalidates after the `foreign_keys = ON` restore so the next `getAggregateStats()` recomputes from post-migration data | FIXED_VERIFIED |
-| R5-136 | Performance | `physical_location` JSON migration is app_setting-marker-gated, hoists prepared statement, and runs in transaction. | `db.ts` |  | migration test | TODO |
+| R5-136 | Performance | `physical_location` JSON migration is app_setting-marker-gated, hoists prepared statement, and runs in transaction. | `db.ts` | (this commit) | `src/lib/db.ts:694-720` migration now gated on `app_setting.key='phys_loc_json_migration_v1'`, hoists `updateStmt`, runs in `db.transaction(...)`; full test suite (902 tests) passes | FIXED_VERIFIED |
 | R5-137 | Performance | `WishlistClient` uses stable callback/ref pattern. | `WishlistClient` |  | component/source proof | TODO |
 | R5-138 | Performance | `listCollection` JSON filters have a materialization/index plan or implemented indexes. | db/docs |  | tests or `docs/perf-action-plan.md` | TODO |
-| R5-139 | Performance | `upcoming.ts` watched producer scan is restricted to VNs in collection. | `upcoming.ts` |  | unit test | TODO |
+| R5-139 | Performance | `upcoming.ts` watched producer scan is restricted to VNs in collection. | `upcoming.ts` | (this commit) | `src/lib/upcoming.ts:41-49` `SELECT developers FROM vn WHERE id IN (SELECT vn_id FROM collection)` — over-pull eliminated; 902 tests pass | FIXED_VERIFIED |
 | R5-140 | Performance | `recommend.ts:touch()` bulk-fetches seed VN payloads. | `recommend.ts` |  | unit/query-count test | TODO |
 | R5-141 | Performance | `PRAGMA table_info` results are cached inside `open/ensureColumn`. | `db.ts` |  | migration/unit test | TODO |
 | R5-142 | Performance | Per-row `isInCollection` replaced with `isInCollectionMany` in recommend, release page, and series route. | recommend/release/series |  | source proof + tests | TODO |

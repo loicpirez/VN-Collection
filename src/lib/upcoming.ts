@@ -39,7 +39,14 @@ const REL_FIELDS = [
  * library.
  */
 function watchedProducerIds(): string[] {
-  const rows = db.prepare(`SELECT developers FROM vn`).all() as { developers: string | null }[];
+  // R5-139: restrict the scan to VNs in the local collection. The
+  // previous query read every cached `vn` row (relations, EGS-only
+  // synthetic, never-collected lookup results) and over-pulled the
+  // producer set, polluting "what's upcoming from MY developers"
+  // with brands the user doesn't actually own.
+  const rows = db
+    .prepare(`SELECT developers FROM vn WHERE id IN (SELECT vn_id FROM collection)`)
+    .all() as { developers: string | null }[];
   const set = new Set<string>();
   for (const r of rows) {
     if (!r.developers) continue;

@@ -693,15 +693,34 @@ function open(): Database.Database {
 
   // Legacy migration: physical_location used to be a free-form string.
   // Convert any non-JSON value into a JSON array (split on commas).
-  const legacy = db
-    .prepare(`SELECT vn_id, physical_location FROM collection WHERE physical_location IS NOT NULL AND NOT json_valid(physical_location)`)
-    .all() as { vn_id: string; physical_location: string }[];
-  for (const r of legacy) {
-    const parts = r.physical_location.split(',').map((s) => s.trim()).filter(Boolean);
-    db.prepare(`UPDATE collection SET physical_location = ? WHERE vn_id = ?`).run(
-      parts.length ? JSON.stringify(parts) : null,
-      r.vn_id,
-    );
+  //
+  // R5-136: gate on an `app_setting` marker so the (cheap but
+  // unnecessary) full-table scan + JSON validity check doesn't fire
+  // on every cold start once nothing's left to convert. Also hoist
+  // the prepared statement out of the loop so it's not rebuilt on
+  // every legacy row.
+  if (db.prepare(`SELECT value FROM app_setting WHERE key = 'phys_loc_json_migration_v1'`).get() == null) {
+    const legacy = db
+      .prepare(`SELECT vn_id, physical_location FROM collection WHERE physical_location IS NOT NULL AND NOT json_valid(physical_location)`)
+      .all() as { vn_id: string; physical_location: string }[];
+    if (legacy.length > 0) {
+      const updateStmt = db.prepare(
+        `UPDATE collection SET physical_location = ? WHERE vn_id = ?`,
+      );
+      const run = db.transaction(() => {
+        for (const r of legacy) {
+          const parts = r.physical_location
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+          updateStmt.run(parts.length ? JSON.stringify(parts) : null, r.vn_id);
+        }
+      });
+      run();
+    }
+    db.prepare(
+      `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('phys_loc_json_migration_v1', '1')`,
+    ).run();
   }
 
   // Legacy migration: EGS-only synthetic ids used `egs:NNN` (colon). The
