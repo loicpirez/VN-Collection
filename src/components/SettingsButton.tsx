@@ -351,9 +351,20 @@ export function SettingsButton() {
                     return (
                       <button
                         key={tab}
+                        // R5-102: each tab carries the explicit
+                        // `id` + `aria-controls` pair the panel
+                        // below references via `aria-labelledby`,
+                        // closing the tab/tabpanel wiring loop. The
+                        // roving `tabIndex` (active=0, others=-1)
+                        // keeps arrow-key navigation off until the
+                        // active tab is focused — required by WAI-
+                        // ARIA's authoring practices for tablists.
+                        id={`settings-tab-${tab}`}
                         type="button"
                         role="tab"
                         aria-selected={active}
+                        aria-controls={`settings-panel-${tab}`}
+                        tabIndex={active ? 0 : -1}
                         onClick={() => setActiveTab(tab)}
                         className={`tap-target-tight inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
                           active
@@ -368,7 +379,12 @@ export function SettingsButton() {
                 </nav>
 
                 {activeTab === 'display' && (
-                  <div className="space-y-5">
+                  <div
+                    role="tabpanel"
+                    id="settings-panel-display"
+                    aria-labelledby="settings-tab-display"
+                    className="space-y-5"
+                  >
                     {/*
                       IA bucket: "Global defaults". Image / title /
                       density preferences that ship app-wide. Per-
@@ -411,7 +427,12 @@ export function SettingsButton() {
                 )}
 
                 {activeTab === 'content' && (
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div
+                    role="tabpanel"
+                    id="settings-panel-content"
+                    aria-labelledby="settings-tab-content"
+                    className="grid gap-4 md:grid-cols-2"
+                  >
                     {/*
                       R5-225: the tab is titled "Spoiler / Content"
                       but previously contained ONLY content gates
@@ -480,7 +501,12 @@ export function SettingsButton() {
                 )}
 
                 {activeTab === 'account' && (
-                <div className="space-y-4">
+                <div
+                  role="tabpanel"
+                  id="settings-panel-account"
+                  aria-labelledby="settings-tab-account"
+                  className="space-y-4"
+                >
                   <h3 className="mb-1 inline-flex items-center gap-2 text-sm font-bold">
                     <KeyRound className="h-4 w-4 text-accent" aria-hidden />
                     {t.settings.vndbTokenTitle}
@@ -661,7 +687,12 @@ export function SettingsButton() {
                 )}
 
                 {activeTab === 'automation' && (
-                <div className="space-y-4">
+                <div
+                  role="tabpanel"
+                  id="settings-panel-automation"
+                  aria-labelledby="settings-tab-automation"
+                  className="space-y-4"
+                >
                   <div>
                     <h3 className="mb-1 text-sm font-bold">{t.settings.automationTitle}</h3>
                     <p className="mb-3 text-[11px] text-muted">{t.settings.automationDesc}</p>
@@ -693,7 +724,12 @@ export function SettingsButton() {
                 )}
 
                 {activeTab === 'integrations' && (
-                <div className="space-y-6">
+                <div
+                  role="tabpanel"
+                  id="settings-panel-integrations"
+                  aria-labelledby="settings-tab-integrations"
+                  className="space-y-6"
+                >
                   <section>
                     <h3 className="mb-1 text-sm font-bold">{t.settings.steamTitle}</h3>
                     <p className="mb-3 text-[11px] text-muted">{t.settings.steamDesc}</p>
@@ -824,7 +860,12 @@ export function SettingsButton() {
                 )}
 
                 {activeTab === 'library' && (
-                <div className="space-y-2">
+                <div
+                  role="tabpanel"
+                  id="settings-panel-library"
+                  aria-labelledby="settings-tab-library"
+                  className="space-y-2"
+                >
                   <h3 className="mb-1 text-sm font-bold">{t.settings.libraryDefaultsTitle}</h3>
                   <p className="mb-3 text-[11px] text-muted">{t.settings.libraryDefaultsDesc}</p>
                   <div className="grid gap-3 sm:grid-cols-3">
@@ -875,14 +916,25 @@ export function SettingsButton() {
                 )}
 
                 {activeTab === 'home' && (
-                  <HomeLayoutPanel
-                    layout={server?.home_section_layout_v1 ?? DEFAULT_HOME_LAYOUT}
-                    onChange={(next) => saveServer({ home_section_layout_v1: next })}
-                  />
+                  <div
+                    role="tabpanel"
+                    id="settings-panel-home"
+                    aria-labelledby="settings-tab-home"
+                  >
+                    <HomeLayoutPanel
+                      layout={server?.home_section_layout_v1 ?? DEFAULT_HOME_LAYOUT}
+                      onChange={(next) => saveServer({ home_section_layout_v1: next })}
+                    />
+                  </div>
                 )}
 
                 {activeTab === 'vn-page' && (
-                  <div className="space-y-4">
+                  <div
+                    role="tabpanel"
+                    id="settings-panel-vn-page"
+                    aria-labelledby="settings-tab-vn-page"
+                    className="space-y-4"
+                  >
                     <VnLayoutPanel
                       layout={server?.vn_detail_section_layout_v1 ?? defaultVnDetailLayoutV1()}
                       onSave={(next) => saveServer({ vn_detail_section_layout_v1: next })}
