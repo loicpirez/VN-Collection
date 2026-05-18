@@ -152,7 +152,14 @@ export default async function DumpedPage({
               <Stat label={t.dumped.fullyDumpedVns} value={summary.fullyDumpedVns} />
               <Stat label={t.dumped.percent} value={`${summary.editionPct}%`} accent />
             </div>
-            <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-bg-elev">
+            <div
+              role="progressbar"
+              aria-valuenow={summary.editionPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={t.dumped.percent}
+              className="mt-4 h-2 w-full overflow-hidden rounded-full bg-bg-elev"
+            >
               <div
                 className="h-full bg-accent transition-[width]"
                 style={{ width: `${summary.editionPct}%` }}
@@ -320,7 +327,16 @@ export default async function DumpedPage({
                               ) : null}
                             </p>
                             {e.total_editions > 0 && (
-                              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev">
+                              <div
+                                role="progressbar"
+                                aria-valuenow={pct}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-label={t.dumped.counter
+                                  .replace('{n}', String(e.dumped_editions))
+                                  .replace('{m}', String(e.total_editions))}
+                                className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev"
+                              >
                                 <div
                                   className={`h-full transition-[width] ${
                                     fullyDumped ? 'bg-status-completed' : 'bg-accent'

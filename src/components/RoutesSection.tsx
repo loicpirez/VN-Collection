@@ -207,7 +207,14 @@ export function RoutesSection({ vnId, inCollection }: Props) {
           )}
         </h3>
         {total > 0 && (
-          <div className="hidden h-1 w-32 overflow-hidden rounded-full bg-bg-elev sm:block">
+          <div
+            role="progressbar"
+            aria-valuenow={pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={t.routes.completedCount}
+            className="hidden h-1 w-32 overflow-hidden rounded-full bg-bg-elev sm:block"
+          >
             <div
               className="h-full bg-status-completed transition-[width] duration-300"
               style={{ width: `${pct}%` }}

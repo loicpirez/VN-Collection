@@ -93,7 +93,14 @@ export default async function YearPage({
             </span>
             <span className="font-mono text-xs text-muted">{progress}%</span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-bg-elev">
+          <div
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={t.year.goalProgress.replace('{n}', String(review.completed)).replace('{m}', String(goal!.target))}
+            className="h-2 w-full overflow-hidden rounded-full bg-bg-elev"
+          >
             <div className="h-full bg-accent transition-[width]" style={{ width: `${progress}%` }} />
           </div>
         </section>

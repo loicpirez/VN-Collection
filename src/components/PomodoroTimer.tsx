@@ -145,7 +145,14 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
       >
         {mm}:{ss}
       </div>
-      <div className="mb-2 h-1 w-full overflow-hidden rounded-full bg-bg-elev">
+      <div
+        role="progressbar"
+        aria-valuenow={Math.round(pct)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={t.pomodoro.label}
+        className="mb-2 h-1 w-full overflow-hidden rounded-full bg-bg-elev"
+      >
         <div className="h-full bg-accent transition-[width]" style={{ width: `${pct}%` }} />
       </div>
       <div className="flex flex-wrap gap-1.5">

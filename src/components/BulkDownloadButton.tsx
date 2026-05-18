@@ -318,7 +318,14 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
               )}
             </div>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-elev">
+          <div
+            role="progressbar"
+            aria-valuenow={Math.round(pct)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={t.bulk.runningTitle}
+            className="h-1.5 w-full overflow-hidden rounded-full bg-bg-elev"
+          >
             <div
               className={`h-full transition-[width] duration-200 ${aborted ? 'bg-status-on_hold' : finished ? 'bg-status-completed' : 'bg-accent'}`}
               style={{ width: `${pct}%` }}

@@ -205,7 +205,14 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
             <Loader2 className="h-3 w-3 animate-spin" />
             {progress.done}/{progress.total}
           </div>
-          <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-bg-elev">
+          <div
+            role="progressbar"
+            aria-valuenow={Math.round(pct)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${progress.done}/${progress.total}`}
+            className="mt-1 h-1 w-full overflow-hidden rounded-full bg-bg-elev"
+          >
             <div className="h-full bg-accent transition-[width] duration-150" style={{ width: `${pct}%` }} />
           </div>
         </div>
