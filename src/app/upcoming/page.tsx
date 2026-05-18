@@ -398,9 +398,17 @@ function ReleasesSection({
           */}
           <ul
             className="grid gap-3"
-            // Density-aware grid — removed `max(240px, ...)` floor so
-            // the slider can take the column count below 240px.
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 240px)), 1fr))' }}
+            // R5-219: Upcoming uses horizontal cards (cover + metadata
+            // side-by-side). Slider-down to 120 produced sub-150px
+            // cards that collapsed the metadata column. Floor the
+            // lower bound to 280px so cards stay readable, and clamp
+            // the upper bound (calc(...) * 1.4, max 600px) so a sparse
+            // row doesn't grow each card to fill the viewport (the
+            // sibling regression to MediaGallery's `1fr` overflow).
+            style={{
+              gridTemplateColumns:
+                'repeat(auto-fill, minmax(min(100%, max(280px, var(--card-density-px, 240px))), min(600px, calc(var(--card-density-px, 240px) * 1.4))))',
+            }}
           >
             {rels.map((r) => {
               const v = r.vns[0];
@@ -472,7 +480,13 @@ function AnticipatedSection({
       <p className="mb-4 text-[11px] text-muted">{t.upcoming.anticipatedSubtitle}</p>
       <ol
         className="grid gap-4 lg:gap-5"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 280px)), 1fr))' }}
+        // R5-219: anticipated grid uses the same min-floor + max-clamp
+        // pattern as the upcoming list to keep cards readable at low
+        // density and prevent a sparse row from ballooning.
+        style={{
+          gridTemplateColumns:
+            'repeat(auto-fill, minmax(min(100%, max(280px, var(--card-density-px, 280px))), min(600px, calc(var(--card-density-px, 280px) * 1.4))))',
+        }}
       >
         {rows.map((a, i) => {
           const vndbCover = a.vndb_id ? vndbCovers.get(a.vndb_id) ?? null : null;

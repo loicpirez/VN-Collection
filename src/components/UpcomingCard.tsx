@@ -94,9 +94,15 @@ export function UpcomingCard({
       data-testid="upcoming-card"
       data-variant={variant}
       className={
+        // R5-219: `items-start` prevents the default `align-items:
+        // stretch` from overriding the cover frame's `aspect-ratio: 2/3`
+        // when the metadata column is taller than the cover. Without
+        // this, a tall card (e.g. with multi-line title + producers +
+        // tags) stretched the cover to match the row height, producing
+        // a 2:3.x or 2:4 aspect instead of the intended 2:3.
         variant === 'wide'
-          ? 'group flex gap-4 rounded-xl border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent sm:p-4'
-          : 'flex gap-3 rounded-lg border border-border bg-bg-elev/30 p-3'
+          ? 'group flex items-start gap-4 rounded-xl border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent sm:p-4'
+          : 'flex items-start gap-3 rounded-lg border border-border bg-bg-elev/30 p-3'
       }
     >
       <div
