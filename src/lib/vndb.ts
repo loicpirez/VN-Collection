@@ -898,6 +898,17 @@ export async function getCharactersForTrait(
   traitId: string,
   { results = 60, includeSpoiler = false }: { results?: number; includeSpoiler?: boolean } = {},
 ): Promise<VndbCharacter[]> {
+  // R5-216: trait filter tuple order per KANA.md (POST /character):
+  //   ['trait', '=', traitId]               — any spoiler level
+  //   ['trait', '=', [traitId, maxSpoiler]] — gate at maxSpoiler
+  //                                           (0=none, 1=minor,
+  //                                           2=major). This is
+  //                                           the same shape as
+  //                                           the `tag` filter
+  //                                           (id, maxSpoiler,
+  //                                           minLevel) minus
+  //                                           the minLevel third
+  //                                           tuple position.
   const filter = includeSpoiler ? ['trait', '=', traitId] : ['trait', '=', [traitId, 0]];
   const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
     filters: filter,

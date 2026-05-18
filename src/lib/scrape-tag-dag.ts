@@ -6,14 +6,18 @@ import { finishJob, recordError, startJob, tickJob } from './download-status';
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
 /**
- * The tag system on VNDB is a DAG: each tag can have multiple parents
- * and children. The Kana API offers no way to fetch that graph; it lives
- * only on the /g{id} page. Scrape it so the user's local copy isn't
- * truncated.
+ * R5-216: VNDB hierarchy gap. The tag system on VNDB is a DAG —
+ * each tag can have multiple parents and children. The Kana API
+ * (see https://api.vndb.org/kana) exposes `POST /tag` but the
+ * response carries only the tag's own metadata; there is no
+ * parent / child relationship surface anywhere in the KANA
+ * schema. The graph lives only on the public HTML `/g{id}`
+ * page. Scrape it so the user's local copy isn't truncated.
  *
- * Parents live in <li class="parent"> entries; children sit in the table
- * underneath. We capture every linked tag id on the page that isn't the
- * tag itself and classify by which UL/section they live in.
+ * Parents live in <li class="parent"> entries; children sit in
+ * the table underneath. We capture every linked tag id on the
+ * page that isn't the tag itself and classify by which UL/section
+ * they live in.
  */
 
 export interface ScrapedTagDagNode {

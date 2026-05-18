@@ -27,10 +27,23 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
  */
 
 const EGS_BASE = 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki';
-// EGS's SQL form is at `sql_for_erogamer_form.php` (the bare `sql_for_erogamer.php`
-// is a 404). The form requires POST; GET just re-renders the input HTML.
-// Response is always an HTML table — there's no CSV / JSON output, the
-// `format` query param is silently ignored. We parse the <tr>/<td> structure.
+// R5-216: EGS constraints (none of these are documented anywhere
+// outside the form's HTML source — keep this comment honest).
+//   - SQL form path is `sql_for_erogamer_form.php`; the bare
+//     `sql_for_erogamer.php` is a 404 even though the site's
+//     own footer links to it.
+//   - The form REQUIRES POST. GET just re-renders the input
+//     HTML, no SQL execution.
+//   - Response is ALWAYS an HTML table — there's no CSV /
+//     JSON output. The `format` query parameter is silently
+//     ignored; we parse the `<tr>/<td>` structure.
+//   - The SQL is executed against EGS's snapshot DB so any
+//     query you'd write against PostgreSQL works, but the
+//     row count cap is ~10 000 (the form truncates above that
+//     without telling you).
+//   - Identifiers in the SQL must be quoted lowercase — EGS's
+//     PostgreSQL is case-sensitive and the public schema uses
+//     lowercase column names. (Mixed-case `GameName` fails.)
 const SQL_ENDPOINT = `${EGS_BASE}/sql_for_erogamer_form.php`;
 const CACHE_TTL_MS = 24 * 3600 * 1000;
 const FETCH_TIMEOUT_MS = 15000;
