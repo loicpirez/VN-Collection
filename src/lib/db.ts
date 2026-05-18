@@ -1943,6 +1943,12 @@ export function migrateVnId(fromId: string, toId: string): void {
   } finally {
     db.pragma('foreign_keys = ON');
   }
+  // R5-135: migrating a vn_id rewrites the `collection` table, which
+  // is the source-of-truth for aggregate stats (byEdition, byLocation,
+  // byYear, byLanguage, ratingDistribution). Bust the snapshot so the
+  // next `getAggregateStats()` call recomputes from the post-migration
+  // state instead of serving the pre-migration cache for up to 30s.
+  invalidateAggregateStats();
 }
 
 /** Stamp a VN row with the `egs_only` flag (used for EGS-sourced synthetic entries). */
@@ -6861,6 +6867,12 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
     }
   });
   trx();
+  // R5-134: importData writes directly to `collection` via inline
+  // INSERT/UPDATE (bypassing addToCollection / updateCollection /
+  // removeFromCollection, which each call invalidateAggregateStats()).
+  // Bust the snapshot so `getAggregateStats()` reflects imported data
+  // immediately instead of serving up to 30s of stale numbers.
+  invalidateAggregateStats();
   return summary;
 }
 

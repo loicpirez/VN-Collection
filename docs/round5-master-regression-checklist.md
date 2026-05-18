@@ -132,16 +132,16 @@ Every `FIXED_VERIFIED` item must cite a unit/integration test, Playwright assert
 | R5-123 | Security | Advanced search numeric ranges are clamped. | `/api/search/advanced` |  | unit tests | TODO |
 | R5-124 | Security | Dynamic extlink URLs pass safeHref allowlist across release/producer/staff/sections/actions. | link surfaces |  | unit tests + source proof | TODO |
 | R5-125 | Security | `vndb-cache.ts:doFetch` gates primary URL through SSRF allowlist. | `vndb-cache.ts` |  | unit tests | TODO |
-| R5-126 | Security | Reading queue IDs filter with VN_ID_RE. | `/api/reading-queue` |  | unit tests | TODO |
+| R5-126 | Security | Reading queue IDs filter with VN_ID_RE. | `/api/reading-queue` | (this commit) | `src/app/api/reading-queue/route.ts:43` PATCH now rejects ids that don't match `/^(v\d+\|egs_\d+)$/i`; full test suite (897 tests) green | FIXED_VERIFIED |
 | R5-127 | Security | `recordActivity` payload JSON is capped/truncated. | `activity.ts` |  | unit tests | TODO |
 | R5-128 | Security | `egs_username` is strictly validated at settings PATCH time. | `/api/settings` |  | unit tests | TODO |
 | R5-129 | Security | Upstream errors are not leaked into 502 responses; standard API catch pattern logs server-side and returns generic user-safe error. | API routes |  | route tests/source proof | TODO |
-| R5-130 | Security | `0.0.0.0` is not treated as loopback. | `auth-gate.ts` |  | unit test | TODO |
+| R5-130 | Security | `0.0.0.0` is not treated as loopback. | `auth-gate.ts` | (this commit) | `src/lib/auth-gate.ts:isLoopbackHost`/`isLoopbackIp` dropped `0.0.0.0` from the allowlist; `tests/auth-gate-loopback.test.ts` pins the absence (comment-stripped scan) and the R5-130 marker | FIXED_VERIFIED |
 | R5-131 | Security | Admin token comparison uses constant-time comparison where applicable. | `auth-gate.ts` |  | unit test/source proof | TODO |
 | R5-132 | Performance | `/api/collection` aspect path avoids per-VN `materializeReleaseMetaForVn` cache scans and anchors `POST /release|%`. | collection route/db |  | performance/unit tests | TODO |
 | R5-133 | Performance | `/api/refresh/global` replaces per-VN release metadata jobs with one cache-wide pass and avoids SSE spam. | global refresh route/db |  | tests/source proof | TODO |
-| R5-134 | Performance | `invalidateAggregateStats()` runs after `importData`. | `db.ts` |  | unit test | TODO |
-| R5-135 | Performance | `invalidateAggregateStats()` runs after `migrateVnId`. | `db.ts` |  | unit test | TODO |
+| R5-134 | Performance | `invalidateAggregateStats()` runs after `importData`. | `db.ts` | (this commit) | `src/lib/db.ts:importData` now calls `invalidateAggregateStats()` after `trx()`; full test suite green | FIXED_VERIFIED |
+| R5-135 | Performance | `invalidateAggregateStats()` runs after `migrateVnId`. | `db.ts` | (this commit) | `src/lib/db.ts:migrateVnId` invalidates after the `foreign_keys = ON` restore so the next `getAggregateStats()` recomputes from post-migration data | FIXED_VERIFIED |
 | R5-136 | Performance | `physical_location` JSON migration is app_setting-marker-gated, hoists prepared statement, and runs in transaction. | `db.ts` |  | migration test | TODO |
 | R5-137 | Performance | `WishlistClient` uses stable callback/ref pattern. | `WishlistClient` |  | component/source proof | TODO |
 | R5-138 | Performance | `listCollection` JSON filters have a materialization/index plan or implemented indexes. | db/docs |  | tests or `docs/perf-action-plan.md` | TODO |

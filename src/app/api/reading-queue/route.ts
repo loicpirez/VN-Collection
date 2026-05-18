@@ -40,7 +40,15 @@ export async function DELETE(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { ids?: unknown };
-  if (!Array.isArray(body.ids) || body.ids.some((x) => typeof x !== 'string')) {
+  // R5-126: each id must match the canonical vn-id shape. Without this
+  // filter `reorderReadingQueue` is called with arbitrary strings —
+  // SQL-safe (parameter-bound UPDATE) but it lets a malformed payload
+  // silently no-op against `reading_queue` rows, masking client bugs
+  // and admitting non-vn-id strings into the audit payload.
+  if (
+    !Array.isArray(body.ids) ||
+    body.ids.some((x) => typeof x !== 'string' || !/^(v\d+|egs_\d+)$/i.test(x as string))
+  ) {
     return NextResponse.json({ error: 'ids array required' }, { status: 400 });
   }
   reorderReadingQueue(body.ids as string[]);

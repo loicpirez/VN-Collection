@@ -69,20 +69,25 @@ export function requireLocalhostOrToken(req: Request): NextResponse | null {
 
 function isLoopbackHost(host: string): boolean {
   // Strip optional port; URL.hostname already drops the port but
-  // future call sites may pass a raw Host header.
+  // future call sites may pass a raw Host header. R5-130 dropped
+  // `0.0.0.0` from the allowlist — `0.0.0.0` is the "any
+  // interface" / "unspecified" address, NOT loopback. Treating it
+  // as loopback would let a future deployment that listens on
+  // 0.0.0.0 and forwards `Host: 0.0.0.0` accidentally bypass the
+  // auth gate.
   const h = host.split(':')[0].toLowerCase();
   return (
     h === 'localhost' ||
     h === '127.0.0.1' ||
     h === '::1' ||
-    h === '[::1]' ||
-    h === '0.0.0.0'
+    h === '[::1]'
   );
 }
 
 function isLoopbackIp(ip: string): boolean {
+  // R5-130: same fix here. `0.0.0.0` is not loopback.
   const v = ip.replace(/^\[|\]$/g, '');
-  if (v === '127.0.0.1' || v === '::1' || v === '0.0.0.0') return true;
+  if (v === '127.0.0.1' || v === '::1') return true;
   if (v.startsWith('127.')) return true;
   return false;
 }
