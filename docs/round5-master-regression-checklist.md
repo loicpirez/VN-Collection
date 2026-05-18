@@ -151,7 +151,7 @@ Every `FIXED_VERIFIED` item must cite a unit/integration test, Playwright assert
 | R5-142 | Performance | Per-row `isInCollection` replaced with `isInCollectionMany` in recommend, release page, and series route. | recommend/release/series |  | source proof + tests | TODO |
 | R5-143 | Performance | `listShelves` placed_count uses CTE/GROUP BY instead of correlated subqueries. | `db.ts` |  | unit test | TODO |
 | R5-144 | Performance | `listCollectionForCards()` or equivalent slim projection avoids over-parsing heavy JSON for library grid, or action plan documents migration. | collection/db |  | perf test or action plan | TODO |
-| R5-145 | Performance | Duplicate `fmtMinutes` helpers are consolidated. | format consumers |  | source proof/tests | TODO |
+| R5-145 | Performance | Duplicate `fmtMinutes` helpers are consolidated. | format consumers | (this commit) | `src/app/activity/page.tsx:formatMinutes` now delegates to `lib/format:fmt(m, {emptyValue:'allow_zero', fallback:'0m'})` — the duplicate inline reimpl that drifted from the shared helper is replaced; `vn/[id]`, `compare`, `EgsSyncBlock` already alias the shared helper | FIXED_VERIFIED |
 | R5-146 | Performance | `/api/wishlist` uses `isInCollectionMany`, not N+1 queries. | `/api/wishlist` |  | source proof/query test | TODO |
 | R5-147 | Type Safety | API/client JSON error parsing is typed; no `.error` access on `Response.json()` any. | components/API clients |  | typecheck + source proof | TODO |
 | R5-148 | Type Safety | Structured request body parsing handles `null` bodies and unknown input consistently. | API routes |  | tests | TODO |

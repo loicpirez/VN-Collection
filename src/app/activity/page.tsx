@@ -4,6 +4,10 @@ import { Activity, Filter, Search } from 'lucide-react';
 import { listActivityKinds, listUserActivity } from '@/lib/activity';
 import { listRecentActivity, type RecentActivityEntry } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
+// R5-145 cleanup: route through the canonical helper in `lib/format`
+// so the activity feed inherits the same empty-state rules as every
+// other "Xh Ym" surface.
+import { formatMinutes as fmt } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,10 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 function formatMinutes(m: number): string {
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  const rem = m % 60;
-  return rem === 0 ? `${h}h` : `${h}h ${rem}m`;
+  return fmt(m, { emptyValue: 'allow_zero', fallback: '0m' });
 }
 
 function VnActivitySummary({
