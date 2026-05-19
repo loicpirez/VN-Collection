@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowLeft, Sparkles, Star } from 'lucide-react';
 import { getCollectionItem } from '@/lib/db';
 import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
+import { applyGenericPenalty } from '@/lib/recommend';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -84,9 +85,14 @@ export default async function SimilarPage({
     .filter((s) => /^g\d+$/.test(s));
   const usingCustomSeeds = customTagIds.length > 0;
 
+  // Sort by penalty-adjusted weight so generic tags (Male Protagonist,
+  // ADV, Romance, etc.) are demoted in favour of distinctive ones.
+  // Take top 10 candidates first, then apply penalty and re-sort to
+  // pick the 6 most distinctive seeds (not just the 6 most popular).
   const autoSeedTags = (seed.tags ?? [])
     .filter((tg) => tg.spoiler === 0 && tg.category !== 'ero')
-    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+    .map((tg) => ({ ...tg, _effective: applyGenericPenalty(tg.id, tg.rating ?? 1) }))
+    .sort((a, b) => b._effective - a._effective)
     .slice(0, 6);
 
   // When custom seeds are pinned, look up their names from the seed

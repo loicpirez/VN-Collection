@@ -58,9 +58,15 @@ export const GENERIC_TAG_PENALTY_MAP: Record<string, number> = {
   g153: 0.35, // School Life (second-most common setting)
   g73:  0.4,  // Comedy (very common genre — rarely the distinguishing factor)
   g2:   0.35, // Slice of Life (broad umbrella — doesn't indicate specific taste)
+  g9:   0.35, // Female Protagonist (very common — not taste-specific)
+  g1:   0.35, // Dating Sim (genre umbrella, not distinctive)
+  g47:  0.35, // Nukige (format, not taste-specific within the genre)
+  g170: 0.4,  // Fantasy (extremely broad genre)
 
   // --- Common VN mechanics that appear in most titles ---
   g117: 0.45, // Multiple Endings (nearly universal; not taste-specific)
+  g1002: 0.45, // Branching Paths
+  g575: 0.45, // Voiced Protagonist
 
   // --- Over-applied heroine archetypes ---
   g69:   0.4,  // High School Student Heroine
@@ -69,6 +75,12 @@ export const GENERIC_TAG_PENALTY_MAP: Record<string, number> = {
   g540:  0.5,  // Genki Heroine
   g541:  0.5,  // Kuudere Heroine
   g542:  0.5,  // Yandere Heroine
+
+  // --- Broad protagonist / character archetypes ---
+  g814:  0.4,  // Student Protagonist
+  g815:  0.4,  // High School Student Protagonist
+  g32:   0.4,  // Protagonist with Childhood Friend
+  g1037: 0.45, // Harem Protagonist
 };
 
 /**
@@ -213,8 +225,8 @@ export interface RecommendResult {
  */
 export async function recommendVns(opts: RecommendOptions = {}): Promise<RecommendResult> {
   const {
-    seedLimit = 10,
-    tagLimit = 6,
+    seedLimit = 15,
+    tagLimit = 8,
     resultLimit = 24,
     includeEro = false,
     customTagIds,
@@ -549,7 +561,7 @@ function deriveSeedsFromUnion(
     const ranked = info.tags
       .filter((t) => (t.spoiler ?? 0) === 0 && (includeEro || t.category !== 'ero'))
       .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-      .slice(0, 8);
+      .slice(0, 12);
     const seedContribution = (info.rating || 70) / 100;
     for (const t of ranked) {
       let acc = tagAcc.get(t.id);
@@ -773,10 +785,11 @@ async function runRecommendForSeeds(
 ): Promise<Recommendation[]> {
   if (seeds.length === 0) return [];
 
-  // `highly-rated` lifts the VNDB-side filter to `votecount >= 100`
-  // so the upstream query already restricts to popular titles. Other
-  // modes still apply the loose `votecount >= 50` floor.
-  const minVotesUpstream = mode === 'highly-rated' ? 100 : 50;
+  // Mode-specific upstream vote floor. `highly-rated` restricts to
+  // popular titles (≥100 votes). `hidden-gems` uses a low floor (≥5)
+  // to catch genuinely obscure VNs before the post-fetch votecount
+  // filter clips them. Other modes use the standard ≥50 floor.
+  const minVotesUpstream = mode === 'highly-rated' ? 100 : mode === 'hidden-gems' ? 5 : 50;
 
   interface Aggregated extends Recommendation {
     /** Per-contributor weight accumulator for the rotation chip. */
@@ -873,7 +886,7 @@ async function runRecommendForSeeds(
 
   // Mode-specific post-fetch filters.
   if (mode === 'hidden-gems') {
-    results = results.filter((r) => (r.votecount ?? 0) < 200);
+    results = results.filter((r) => (r.votecount ?? 0) < 100);
   } else if (mode === 'highly-rated') {
     results = results.filter((r) => (r.rating ?? 0) >= 80 && (r.votecount ?? 0) >= 100);
   }

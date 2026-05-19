@@ -135,20 +135,20 @@ describe('recommendVns() — modes', () => {
   });
 
   describe('hidden-gems', () => {
-    it('filters out any hit with votecount >= 200', async () => {
+    it('filters out any hit with votecount >= 100', async () => {
       seedSingleHighRated();
       POOL.set('g9001', [
         { id: 'v99100', title: 'popular', rating: 85, votecount: 500 },
-        { id: 'v99101', title: 'gem-A', rating: 80, votecount: 150 },
-        { id: 'v99102', title: 'gem-B', rating: 78, votecount: 199 },
-        { id: 'v99103', title: 'edge-200', rating: 80, votecount: 200 },
+        { id: 'v99101', title: 'gem-A', rating: 80, votecount: 50 },
+        { id: 'v99102', title: 'gem-B', rating: 78, votecount: 99 },
+        { id: 'v99103', title: 'edge-100', rating: 80, votecount: 100 },
       ]);
       const r = await recommendVns({ mode: 'hidden-gems' });
       const ids = r.results.map((x) => x.id);
       expect(ids).toContain('v99101');
       expect(ids).toContain('v99102');
       expect(ids).not.toContain('v99100');
-      // The cutoff is strictly `< 200`, so a row at exactly 200 must drop.
+      // The cutoff is strictly `< 100`, so a row at exactly 100 must drop.
       expect(ids).not.toContain('v99103');
     });
   });
