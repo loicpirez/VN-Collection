@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { ArrowLeft, ArrowLeftRight, Mic2, Users } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, Mic2, Star, Users } from 'lucide-react';
 import { findBrandStaffOverlap } from '@/lib/brand-overlap';
+import { isInCollectionMany } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { roleLabel } from '@/lib/staff-roles';
 import { BrandOverlapPicker } from '@/components/BrandOverlapPicker';
@@ -79,6 +80,13 @@ async function Result({ a, b }: { a: string; b: string }) {
     );
   }
 
+  // R5-209: mark in-collection VNs across both producer credit
+  // lists so the user can tell at a glance which overlap items
+  // they already own. One batched lookup per render.
+  const ownedSet = isInCollectionMany(
+    result.entries.flatMap((e) => [...e.aCredits, ...e.bCredits].map((c) => c.vn_id)),
+  );
+
   return (
     <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
       <header className="mb-4 flex flex-wrap items-baseline gap-3 text-sm">
@@ -132,7 +140,14 @@ async function Result({ a, b }: { a: string; b: string }) {
                   <ul className="space-y-0.5">
                     {e.aCredits.slice(0, 4).map((c, i) => (
                       <li key={`${c.vn_id}-${i}`}>
-                        <Link href={`/vn/${c.vn_id}`} className="hover:text-accent">{c.title}</Link>
+                        <Link
+                          href={`/vn/${c.vn_id}`}
+                          className={ownedSet.has(c.vn_id) ? 'inline-flex items-center gap-1 text-accent hover:text-white' : 'hover:text-accent'}
+                          data-in-collection={ownedSet.has(c.vn_id) ? 'true' : undefined}
+                        >
+                          {ownedSet.has(c.vn_id) && <Star className="h-2.5 w-2.5 fill-accent" aria-hidden />}
+                          {c.title}
+                        </Link>
                         {c.roles.length > 0 && (
                           <span className="ml-1 text-muted">· {formatRoles(c.roles, t)}</span>
                         )}
@@ -148,7 +163,14 @@ async function Result({ a, b }: { a: string; b: string }) {
                   <ul className="space-y-0.5">
                     {e.bCredits.slice(0, 4).map((c, i) => (
                       <li key={`${c.vn_id}-${i}`}>
-                        <Link href={`/vn/${c.vn_id}`} className="hover:text-accent">{c.title}</Link>
+                        <Link
+                          href={`/vn/${c.vn_id}`}
+                          className={ownedSet.has(c.vn_id) ? 'inline-flex items-center gap-1 text-accent hover:text-white' : 'hover:text-accent'}
+                          data-in-collection={ownedSet.has(c.vn_id) ? 'true' : undefined}
+                        >
+                          {ownedSet.has(c.vn_id) && <Star className="h-2.5 w-2.5 fill-accent" aria-hidden />}
+                          {c.title}
+                        </Link>
                         {c.roles.length > 0 && (
                           <span className="ml-1 text-muted">· {formatRoles(c.roles, t)}</span>
                         )}
