@@ -1748,6 +1748,7 @@ export const dictionaries = {
       cacheHint: 'Mis en cache via `/api/refresh/global` ; clique sur Refresh sur cette page pour le rafraîchir.',
       filterPlaceholder: 'Filtrer par nom de clé ou valeur (ex. "platform", "ja", "duration")…',
       empty: 'Schéma vide ou indisponible.',
+      vndbTitle: 'Base VNDB globale',
     },
     shelfSpatial: {
       empty: 'Aucune étagère configurée.',
@@ -4238,6 +4239,7 @@ export const dictionaries = {
       cacheHint: 'Cached via /api/refresh/global; hit Refresh on this page to renew.',
       filterPlaceholder: 'Filter by key name or value (e.g. "platform", "ja", "duration")…',
       empty: 'Schema empty or unavailable.',
+      vndbTitle: 'Global VNDB database',
     },
     shelfSpatial: {
       empty: 'No shelves configured yet.',
@@ -6725,6 +6727,7 @@ export const dictionaries = {
       cacheHint: '/api/refresh/global でキャッシュされます。このページで更新可能。',
       filterPlaceholder: 'キー名や値で絞り込み（例：「platform」「ja」「duration」）…',
       empty: 'スキーマが空または取得不可です。',
+      vndbTitle: 'VNDB 全体',
     },
     shelfSpatial: {
       empty: 'まだ本棚が設定されていません。',

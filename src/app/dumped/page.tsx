@@ -106,11 +106,15 @@ export default async function DumpedPage({
     return c === tab;
   });
 
+  // Percentages use counts.all (tracked VNs, excludes "no editions") as
+  // the denominator so complete+partial+missing sum to ≤100%. The `none`
+  // tab uses entries.length (whole collection) since its tracked-set is
+  // the full collection. The `all` tab is always 100% of the tracked set.
   const tabPct = (key: DumpTab): string => {
-    const total = entries.length;
-    if (total === 0) return '0';
     if (key === 'all') return '100';
-    return Math.min(100, Math.round((counts[key] / total) * 100)).toString();
+    const denom = key === 'none' ? entries.length : counts.all;
+    if (denom === 0) return '0';
+    return Math.min(100, Math.round((counts[key] / denom) * 100)).toString();
   };
 
   const tabIcon = {

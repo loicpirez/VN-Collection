@@ -79,6 +79,7 @@ export default async function SchemaPage() {
           pretending the counts are the remote EGS schema itself. */}
       <SchemaEgsSection />
 
+      <h2 className="mb-3 mt-6 text-base font-bold">{t.schemaPage.vndbTitle}</h2>
       {error ? (
         <p className="rounded-xl border border-status-dropped/50 bg-status-dropped/10 p-4 text-sm text-status-dropped">
           {error}

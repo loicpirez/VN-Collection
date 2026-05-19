@@ -9,7 +9,6 @@ import { DataMaintenance } from '@/components/DataMaintenance';
 import { DropImport } from '@/components/DropImport';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { OpenSettingsButton } from '@/components/OpenSettingsButton';
-import { RecentActivityStrip } from '@/components/RecentActivityStrip';
 import { SelectiveFullDownload } from '@/components/SelectiveFullDownload';
 import { CollapsibleSummary } from '@/components/CollapsibleSummary';
 
@@ -40,7 +39,14 @@ export default async function DataPage() {
         </div>
       </header>
 
-      <RecentActivityStrip />
+      <div className="mb-4">
+        <Link
+          href="/activity"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-muted transition-colors hover:border-accent hover:text-accent"
+        >
+          <Activity className="h-4 w-4" aria-hidden /> {t.nav.activity} →
+        </Link>
+      </div>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
