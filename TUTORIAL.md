@@ -449,10 +449,10 @@ Tabbed-style sections:
 The top nav has four always-visible primary links plus three category
 dropdowns:
 
-- **Primary** — Library, Wishlist, Lists, Search
-- **Discover** — Upcoming, Top-ranked, For you, Quotes
+- **Primary** — Library, Wishlist, Search
+- **Discover** — Upcoming, Top-ranked, For you, Quotes, Lists
 - **Browse** — Producers, Series, Tags, Traits, Characters, Staff, Year, Labels
-- **Data & Stats** — Stats, Shelf, Steam, EGS, Schema, Data
+- **Data & Stats** — Stats, Shelf, Dumped, Activity, Steam, EGS, Schema, Data
 
 On phones / narrow windows the whole nav collapses into a single
 hamburger sheet. The **closed-eye icon** (content-controls hub),

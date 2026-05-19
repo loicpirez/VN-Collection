@@ -788,11 +788,11 @@ Drop a `.json` or `.db` file anywhere on `/data` to trigger the import.
 | `Escape` | Close menus / dialogs |
 
 ### Grouped responsive navbar ✅
-The top nav has four always-visible primary links (Library / Wishlist /
-Lists / Search) plus three category dropdowns:
-  - **Discover** — Upcoming, For you, Quotes
+The top nav has three always-visible primary links (Library / Wishlist /
+Search) plus three category dropdowns:
+  - **Discover** — Upcoming, Top-ranked, For you, Quotes, Lists
   - **Browse** — Producers, Series, Tags, Traits, Characters, Staff, Year, Labels
-  - **Data & Stats** — Stats, Shelf, Steam, EGS, Schema, Data
+  - **Data & Stats** — Stats, Shelf, Dumped, Activity, Steam, EGS, Schema, Data
 
 The right edge carries the closed-eye content-controls hub, the
 language switcher and the settings gear — all three remain visible
