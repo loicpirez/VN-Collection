@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, ArrowDown, CheckCircle2, HardDriveDownload, LayoutGrid, MinusCircle, PackageOpen, Plus, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, HardDriveDownload, LayoutGrid, PackageOpen, Plus, XCircle } from 'lucide-react';
 import { getDumpSummary, listDumpStatus, listVnIdsOnShelf } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
@@ -31,18 +31,16 @@ export async function generateMetadata(): Promise<Metadata> {
  *     view stops surfacing 0/0 rows.
  *   - `complete` — fully dumped (collection.dumped=1 OR every
  *     owned edition has dumped=1).
- *   - `partial` — ≥1 dumped edition, not all.
- *   - `missing` — has ≥1 owned edition, zero dumped, and the
- *     VN-level collection.dumped flag is not set.
- *   - `none` — VN in collection with NO owned editions and
- *     collection.dumped=0. Hidden from the `all` tab.
+ *   - `missing` — has ≥1 owned edition, not marked dumped.
+ *   - `none` — VN in collection with NO owned editions.
+ *     Hidden from the `all` tab.
  */
-type DumpTab = 'all' | 'complete' | 'partial' | 'missing' | 'none';
-const TABS: DumpTab[] = ['all', 'complete', 'partial', 'missing', 'none'];
+type DumpTab = 'all' | 'complete' | 'missing' | 'none';
+const TABS: DumpTab[] = ['all', 'complete', 'missing', 'none'];
 
 function parseTab(raw: string | string[] | undefined): DumpTab {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  if (v === 'complete' || v === 'partial' || v === 'missing' || v === 'none') return v;
+  if (v === 'complete' || v === 'missing' || v === 'none') return v;
   return 'all';
 }
 
@@ -57,9 +55,7 @@ type BucketKey = Exclude<DumpTab, 'all'>;
 function classify(e: ReturnType<typeof listDumpStatus>[number]): BucketKey {
   if (e.collection_dumped) return 'complete';
   if (e.total_editions === 0) return 'none';
-  if (e.dumped_editions === e.total_editions) return 'complete';
-  if (e.dumped_editions === 0) return 'missing';
-  return 'partial';
+  return 'missing';
 }
 
 export default async function DumpedPage({
@@ -93,7 +89,7 @@ export default async function DumpedPage({
       if (c !== 'none') acc.all += 1;
       return acc;
     },
-    { all: 0, complete: 0, partial: 0, missing: 0, none: 0 },
+    { all: 0, complete: 0, missing: 0, none: 0 },
   );
 
   // Filter entries to the active tab. The `all` tab now hides
@@ -106,10 +102,6 @@ export default async function DumpedPage({
     return c === tab;
   });
 
-  // Percentages use counts.all (tracked VNs, excludes "no editions") as
-  // the denominator so complete+partial+missing sum to ≤100%. The `none`
-  // tab uses entries.length (whole collection) since its tracked-set is
-  // the full collection. The `all` tab is always 100% of the tracked set.
   const tabPct = (key: DumpTab): string => {
     if (key === 'all') return '100';
     const denom = key === 'none' ? entries.length : counts.all;
@@ -117,10 +109,11 @@ export default async function DumpedPage({
     return Math.min(100, Math.round((counts[key] / denom) * 100)).toString();
   };
 
+  const vnPct = summary.totalVns === 0 ? 0 : Math.min(100, Math.round((summary.fullyDumpedVns / summary.totalVns) * 100));
+
   const tabIcon = {
     all: <HardDriveDownload className="h-3.5 w-3.5" aria-hidden />,
     complete: <CheckCircle2 className="h-3.5 w-3.5 text-status-completed" aria-hidden />,
-    partial: <MinusCircle className="h-3.5 w-3.5 text-status-on_hold" aria-hidden />,
     missing: <XCircle className="h-3.5 w-3.5 text-status-dropped" aria-hidden />,
     none: <PackageOpen className="h-3.5 w-3.5 text-muted" aria-hidden />,
   } as const;
@@ -136,29 +129,16 @@ export default async function DumpedPage({
           <HardDriveDownload className="h-6 w-6 text-accent" aria-hidden /> {t.dumped.pageTitle}
         </h1>
         <p className="mt-1 text-sm text-muted">{t.dumped.pageSubtitle}</p>
-        {/*
-          Edition-level data-model disclaimer. The operator flagged
-          per-row counters like `Ai Kiss 0 / 2` as confusing because
-          they read at first glance as if the VN itself is half-
-          dumped. The model is per-owned-edition; this banner +
-          the row counter unit make that explicit at every
-          rendering surface.
-        */}
-        <p className="mt-2 inline-flex items-start gap-1 rounded-md bg-bg-elev/50 px-2 py-1 text-[11px] text-muted">
-          {t.dumped.modelHint}
-        </p>
-
-        {summary.totalEditions > 0 || summary.fullyDumpedVns > 0 ? (
+        {summary.totalVns > 0 ? (
           <>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat label={t.dumped.totalEditions} value={summary.totalEditions} />
-              <Stat label={t.dumped.dumpedEditions} value={summary.dumpedEditions} />
-              <Stat label={t.dumped.fullyDumpedVns} value={summary.fullyDumpedVns} />
-              <Stat label={t.dumped.percent} value={`${summary.editionPct}%`} accent />
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <Stat label={t.dumped.totalVns} value={summary.totalVns} />
+              <Stat label={t.dumped.dumpedVns} value={summary.fullyDumpedVns} />
+              <Stat label={t.dumped.percent} value={`${vnPct}%`} accent />
             </div>
             <div
               role="progressbar"
-              aria-valuenow={summary.editionPct}
+              aria-valuenow={vnPct}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-label={t.dumped.percent}
@@ -166,7 +146,7 @@ export default async function DumpedPage({
             >
               <div
                 className="h-full bg-accent transition-[width]"
-                style={{ width: `${summary.editionPct}%` }}
+                style={{ width: `${vnPct}%` }}
               />
             </div>
           </>
@@ -235,19 +215,7 @@ export default async function DumpedPage({
                 // `collection.dumped` can leave a transient overshoot
                 // before the next materializer pass). Clamp to [0,100]
                 // so the bar never overflows its track.
-                const rawPct = e.collection_dumped
-                  ? 100
-                  : e.total_editions === 0
-                  ? 0
-                  : Math.round((e.dumped_editions / e.total_editions) * 100);
-                const pct = Math.max(0, Math.min(100, rawPct));
                 const onShelfHere = onShelf.has(e.vn_id);
-                // The "0/0" counter was visually noisy and gave no
-                // dump signal — `total_editions === 0` rows route
-                // through the `noEditions` branch (CTA) or the
-                // `fullyDumped` branch (collection-level dumped),
-                // never the bare counter line.
-                const hasEditionCounter = !noEditions && !fullyDumped && e.total_editions > 0;
                 return (
                   <li key={e.vn_id} className="relative">
                     {/*
@@ -311,51 +279,19 @@ export default async function DumpedPage({
                             </span>
                           </>
                         ) : (
-                          <>
-                            <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted">
-                              {fullyDumped ? (
-                                <>
-                                  <CheckCircle2 className="h-3 w-3 text-status-completed" aria-hidden />
-                                  {t.dumped.allDone}
-                                </>
-                              ) : hasEditionCounter ? (
-                                <>
-                                  <ArrowDown className="h-3 w-3" aria-hidden />
-                                  {/*
-                                    Explicit unit so the counter
-                                    reads as edition-level, not VN-
-                                    level. Operator flagged the bare
-                                    "0 / 2" rendering as ambiguous
-                                    — a VN itself can never be
-                                    half-dumped, only its owned
-                                    editions can.
-                                  */}
-                                  {t.dumped.counter
-                                    .replace('{n}', String(e.dumped_editions))
-                                    .replace('{m}', String(e.total_editions))}
-                                </>
-                              ) : null}
-                            </p>
-                            {e.total_editions > 0 && (
-                              <div
-                                role="progressbar"
-                                aria-valuenow={pct}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                                aria-label={t.dumped.counter
-                                  .replace('{n}', String(e.dumped_editions))
-                                  .replace('{m}', String(e.total_editions))}
-                                className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev"
-                              >
-                                <div
-                                  className={`h-full transition-[width] ${
-                                    fullyDumped ? 'bg-status-completed' : 'bg-accent'
-                                  }`}
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
+                          <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted">
+                            {fullyDumped ? (
+                              <>
+                                <CheckCircle2 className="h-3 w-3 text-status-completed" aria-hidden />
+                                {t.dumped.allDone}
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-3 w-3 text-status-dropped" aria-hidden />
+                                {t.dumped.notDumped}
+                              </>
                             )}
-                          </>
+                          </p>
                         )}
                       </div>
                     </Link>

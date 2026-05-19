@@ -71,8 +71,7 @@ describe('MediaGallery thumbnails are density-aware', () => {
 describe('Dumped progress bar is clamped', () => {
   const src = read('src/app/dumped/page.tsx');
 
-  it('clamps the percentage to [0, 100] so the bar never overflows its track', () => {
-    // The clamp pattern below is the contract — Math.max(0, Math.min(100, …)).
-    expect(src).toMatch(/Math\.max\(0, Math\.min\(100, rawPct\)\)/);
+  it('clamps the VN-level percentage to [0, 100] so the bar never overflows its track', () => {
+    expect(src).toMatch(/Math\.min\(100, Math\.round\(/);
   });
 });
