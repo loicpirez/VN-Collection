@@ -4,12 +4,12 @@
  * `animate-pulse` shimmer) so the user never sees a flash of
  * empty content while the server component is fetching.
  *
- * R5-175 / R5-176 / R5-177 (tab/filter/empty/error coverage)
- * are intentionally NOT pinned here — those rows' "empty/error"
- * branches require Playwright fixtures that force the API to
- * return empty / error responses, beyond what a file-existence
- * sweep can prove. Those rows remain TODO until the runtime
- * fixture lands.
+ * R5-175 / R5-176 / R5-177 — the route-level `loading.tsx`
+ * shell is pinned here (same shape contract: a real Skeleton
+ * primitive or `animate-pulse` shimmer). The empty / error
+ * branches for those rows are covered separately by
+ * `scripts/r5-175-177-loading-states.mjs` which navigates to
+ * forced-empty / forced-error URLs and asserts on the live DOM.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
@@ -27,6 +27,11 @@ const ROUTES = [
   { row: 'R5-178 /dumped', file: 'src/app/dumped/loading.tsx' },
   { row: 'R5-178 /shelf', file: 'src/app/shelf/loading.tsx' },
   { row: 'R5-178 /search', file: 'src/app/search/loading.tsx' },
+  // R5-175 / R5-176 / R5-177 — route-level shell.
+  { row: 'R5-175 /tag/[id]', file: 'src/app/tag/[id]/loading.tsx' },
+  { row: 'R5-176 /tags', file: 'src/app/tags/loading.tsx' },
+  { row: 'R5-177 /characters', file: 'src/app/characters/loading.tsx' },
+  { row: 'R5-177 /staff', file: 'src/app/staff/loading.tsx' },
 ];
 
 const SKELETON_IMPORT = /from\s+['"]@\/components\/Skeleton['"]/;
