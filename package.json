@@ -9,6 +9,7 @@
     "smoke": "bash scripts/smoke.sh",
     "qa": "bash scripts/browser-qa.sh",
     "qa:interactions": "node scripts/browser-interactions.mjs",
+    "sentinel": "node scripts/frontend-regression-sentinel.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
