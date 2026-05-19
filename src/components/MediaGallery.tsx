@@ -131,6 +131,22 @@ export function MediaGallery({
     screenshots: groups.screenshots.length,
   };
 
+  // When "all" is selected and both package art AND screenshots exist,
+  // split into two separate grids. Portrait/square tiles and landscape
+  // tiles must never share a row — if they do, the portrait tile
+  // dominates the row height and screenshots end up with large empty
+  // vertical space inside their cells.
+  const pkgCount =
+    filter === 'all'
+      ? groups.pkgfront.length +
+        groups.pkgback.length +
+        groups.pkgcontent.length +
+        groups.pkgside.length +
+        groups.pkgmed.length +
+        groups.dig.length
+      : 0;
+  const showSplit = pkgCount > 0 && groups.screenshots.length > 0;
+
   const close = () => setActive(null);
   const prev = () => setActive((a) => (a == null ? null : (a - 1 + visible.length) % visible.length));
   const next = () => setActive((a) => (a == null ? null : (a + 1) % visible.length));
@@ -183,32 +199,65 @@ export function MediaGallery({
         ))}
       </div>
 
-      <div
-        className="grid gap-2"
-        // R5-221: cap the tile MAX width so a row with few tiles
-        // doesn't grow each tile to fill the entire grid (the
-        // regression where one screenshot rendered at full native
-        // resolution because `1fr` let the only tile in a row
-        // expand unbounded). Use the same density variable as
-        // every listing page so the slider still drives the tile
-        // size, but clamp the upper bound to a sane multiple of
-        // the density so 1-2 tiles never balloon to 1000+px.
-        style={{
-          gridTemplateColumns:
-            'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), calc(var(--card-density-px, 220px) * 0.85)))',
-        }}
-        role="list"
-        aria-label={t.media.itemsLabel}
-      >
-        {visible.map((item, i) => (
-          <MediaTile
-            key={item.key}
-            item={item}
-            vnId={vnId}
-            onOpenLightbox={() => setActive(i)}
-          />
-        ))}
-      </div>
+      {showSplit ? (
+        <>
+          <div
+            className="grid gap-2"
+            style={{
+              gridTemplateColumns:
+                'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), calc(var(--card-density-px, 220px) * 0.85)))',
+            }}
+            role="list"
+            aria-label={t.media.itemsLabel}
+          >
+            {visible.slice(0, pkgCount).map((item, i) => (
+              <MediaTile
+                key={item.key}
+                item={item}
+                vnId={vnId}
+                onOpenLightbox={() => setActive(i)}
+              />
+            ))}
+          </div>
+          <div
+            className="mt-4 grid gap-2"
+            style={{
+              gridTemplateColumns:
+                'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), calc(var(--card-density-px, 220px) * 0.85)))',
+            }}
+            role="list"
+            aria-label={t.media.screenshots}
+          >
+            {visible.slice(pkgCount).map((item, i) => (
+              <MediaTile
+                key={item.key}
+                item={item}
+                vnId={vnId}
+                onOpenLightbox={() => setActive(pkgCount + i)}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <div
+          className="grid gap-2"
+          style={{
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), calc(var(--card-density-px, 220px) * 0.85)))',
+          }}
+          role="list"
+          aria-label={t.media.itemsLabel}
+        >
+          {visible.map((item, i) => (
+            <MediaTile
+              key={item.key}
+              item={item}
+              vnId={vnId}
+              onOpenLightbox={() => setActive(i)}
+            />
+          ))}
+        </div>
+      )}
 
       {active != null && visible[active] && (
         <div
