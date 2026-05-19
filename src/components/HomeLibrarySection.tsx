@@ -36,12 +36,7 @@ export function HomeLibraryControlsSection({
   );
   if (isHidden) return null;
   return (
-    // mt-2 (was mt-8) — the preceding strip already declares mb-4,
-    // so a generous mt-8 stacked under that produced ~50px of dead
-    // space before the user reached the first Library control.
-    // The library is the page's primary content, not a tertiary
-    // strip; treat it as part of the natural flow.
-    <section className="mt-2" aria-labelledby="home-library-controls-heading">
+    <section className="mt-8" aria-labelledby="home-library-controls-heading">
       <header className="mb-3 flex items-center justify-between gap-2">
         {/*
           Promoted from text-xs/uppercase/muted to a proper section

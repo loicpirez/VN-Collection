@@ -772,14 +772,14 @@ function ResultsGrid({
           <li key={r.id}>
             <Link
               href={`/vn/${r.id}`}
-              className="group flex flex-col gap-2 rounded-xl border border-border bg-bg-card p-3 transition-colors hover:border-accent"
+              className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-1 hover:border-accent hover:shadow-card"
             >
               <div className="relative">
                 <SafeImage
                   src={r.image?.thumbnail || r.image?.url || null}
                   sexual={r.image?.sexual ?? null}
                   alt={r.title}
-                  className="aspect-[2/3] w-full rounded-lg"
+                  className="aspect-[2/3] w-full"
                 />
                 {rating && (
                   <div className="absolute right-1 top-1 rounded bg-bg-card/90 px-1.5 py-0.5 text-[10px] font-bold text-accent shadow-card backdrop-blur">
@@ -787,7 +787,7 @@ function ResultsGrid({
                   </div>
                 )}
               </div>
-              <div className="min-w-0">
+              <div className="flex flex-1 flex-col gap-1 p-3">
                 <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent">
                   {r.title}
                 </h3>

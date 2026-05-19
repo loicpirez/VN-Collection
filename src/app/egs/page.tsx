@@ -242,13 +242,13 @@ async function EgsPageContent() {
           </div>
         ) : (
           <ul
-            className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 260px)), 1fr))' }}
+            className="grid gap-4"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
           >
             {links.map((l) => (
               <li
                 key={l.vn_id}
-                className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors focus-within:border-accent hover:border-accent"
+                className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all focus-within:border-accent hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
               >
                 {/* The whole row used to be a single Next <Link> with an
                     external EGS <a> nested inside — invalid HTML (nested
@@ -332,13 +332,13 @@ async function EgsPageContent() {
           </h2>
           <p className="mb-3 text-xs text-muted">{t.egs.unlinkedListHint}</p>
           <ul
-            className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 260px)), 1fr))' }}
+            className="grid gap-4"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
           >
             {unlinkedRows.map((u) => (
               <li
                 key={u.vn_id}
-                className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors focus-within:border-accent hover:border-accent"
+                className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all focus-within:border-accent hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
               >
                 <Link
                   href={`/vn/${u.vn_id}`}

@@ -102,8 +102,8 @@ export function UpcomingCard({
         // tags) stretched the cover to match the row height, producing
         // a 2:3.x or 2:4 aspect instead of the intended 2:3.
         variant === 'wide'
-          ? 'group flex items-start gap-4 rounded-xl border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent sm:p-4'
-          : 'flex items-start gap-3 rounded-lg border border-border bg-bg-elev/30 p-3'
+          ? 'group flex items-start gap-4 rounded-xl border border-border bg-bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card sm:p-4'
+          : 'flex items-start gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all hover:border-accent'
       }
     >
       <div

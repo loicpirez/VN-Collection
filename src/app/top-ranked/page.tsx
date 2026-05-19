@@ -408,26 +408,22 @@ function VndbSection({ rows, t, startRank = 0 }: { rows: VndbTopRanked[]; t: Dic
   return (
     <section className="rounded-xl border border-border bg-bg-card p-3 sm:p-5">
       <ol
-        className="grid gap-3"
-        // Density-aware grid — the previous `max(260px, var(...))` floor
-        // pinned the column to ≥260px regardless of slider position, so
-        // dialling the slider down did nothing. Use the var with a 260
-        // default and let the slider go below it.
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 260px)), 1fr))' }}
+        className="grid gap-4"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
       >
         {rows.map((v, i) => (
           <li
             key={v.id}
-            className="group flex gap-3 rounded-lg border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
+            className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
           >
+            <span className="absolute -left-1.5 -top-1.5 z-10 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-bg shadow-card">
+              {startRank + i + 1}
+            </span>
             <Link
               href={`/vn/${v.id}`}
-              className="relative block shrink-0 overflow-hidden rounded"
+              className="relative block shrink-0 overflow-hidden rounded-lg"
               aria-label={v.title}
               style={{
-                // Cover scales with the density slider so a wider
-                // card gets a proportionally larger cover — no more
-                // h-28 w-20 fixed thumbnail inside a 340px column.
                 width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
                 aspectRatio: '2 / 3',
               }}
@@ -439,9 +435,6 @@ function VndbSection({ rows, t, startRank = 0 }: { rows: VndbTopRanked[]; t: Dic
                 alt={v.title}
                 className="h-full w-full"
               />
-              <span className="absolute -left-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-bg shadow-card">
-                {startRank + i + 1}
-              </span>
             </Link>
             <div className="min-w-0 flex-1 text-[11px]">
               <Link
@@ -505,21 +498,13 @@ function EgsSection({
   return (
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-3 sm:p-5">
       <ol
-        className="grid gap-3"
-        // Density-aware grid — the previous `max(260px, var(...))` floor
-        // pinned the column to ≥260px regardless of slider position, so
-        // dialling the slider down did nothing. Use the var with a 260
-        // default and let the slider go below it.
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 260px)), 1fr))' }}
+        className="grid gap-4"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
       >
         {rows.map((r, i) => {
           const vndbCover = r.vndb_id ? covers.get(r.vndb_id) ?? null : null;
           const coverSrc = vndbCover?.url ?? r.banner_url ?? `/api/egs-cover/${r.egs_id}`;
           const coverSexual = vndbCover?.sexual ?? null;
-          // Click target: prefer the local /vn/[id] when we have a
-          // VNDB id, otherwise drop the user on the EGS game page.
-          // External link gets target="_blank" so it doesn't blow away
-          // the user's tab.
           const isInternal = !!r.vndb_id;
           const href = isInternal
             ? `/vn/${r.vndb_id}`
@@ -530,12 +515,15 @@ function EgsSection({
           return (
             <li
               key={r.egs_id}
-              className="group flex gap-3 rounded-lg border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
+              className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
             >
+              <span className="absolute -left-1.5 -top-1.5 z-10 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-bg shadow-card">
+                {startRank + i + 1}
+              </span>
               <Link
                 href={href}
                 {...linkProps}
-                className="relative block shrink-0 overflow-hidden rounded"
+                className="relative block shrink-0 overflow-hidden rounded-lg"
                 aria-label={r.gamename}
                 style={{
                   width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
@@ -548,9 +536,6 @@ function EgsSection({
                   alt={r.gamename}
                   className="h-full w-full"
                 />
-                <span className="absolute -left-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-bg shadow-card">
-                  {startRank + i + 1}
-                </span>
               </Link>
               <div className="min-w-0 flex-1 text-[11px]">
                 <Link

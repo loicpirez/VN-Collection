@@ -404,14 +404,7 @@ function ReleasesSection({
             text readable on narrow viewports.
           */}
           <ul
-            className="grid gap-3"
-            // R5-219: Upcoming uses horizontal cards (cover + metadata
-            // side-by-side). Slider-down to 120 produced sub-150px
-            // cards that collapsed the metadata column. Floor the
-            // lower bound to 280px so cards stay readable, and clamp
-            // the upper bound (calc(...) * 1.4, max 600px) so a sparse
-            // row doesn't grow each card to fill the viewport (the
-            // sibling regression to MediaGallery's `1fr` overflow).
+            className="grid gap-4"
             style={{
               gridTemplateColumns:
                 'repeat(auto-fill, minmax(min(100%, max(280px, var(--card-density-px, 240px))), min(600px, calc(var(--card-density-px, 240px) * 1.4))))',

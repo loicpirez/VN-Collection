@@ -209,19 +209,19 @@ export default async function SimilarPage({
             return (
               <li
                 key={r.id}
-                className="group flex flex-col gap-2 rounded-xl border border-border bg-bg-card p-3 transition-colors hover:border-accent"
+                className="group relative overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-1 hover:border-accent hover:shadow-card"
               >
                 <Link
                   href={`/vn/${r.id}`}
-                  className="flex flex-col gap-2"
+                  className="flex flex-col"
                 >
                   <SafeImage
                     src={r.image?.thumbnail || r.image?.url || null}
                     sexual={r.image?.sexual ?? null}
                     alt={r.title}
-                    className="aspect-[2/3] w-full rounded-lg"
+                    className="aspect-[2/3] w-full"
                   />
-                  <div className="min-w-0">
+                  <div className="flex flex-col gap-1 p-3">
                     <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent">
                       {r.title}
                     </h3>
@@ -238,17 +238,8 @@ export default async function SimilarPage({
                     </div>
                   </div>
                 </Link>
-                {/*
-                  Matched-seed-tag chips. Each chip is a separate
-                  `<Link>` to `/?tag=<id>` so the user can pivot from
-                  "this card matched two of my seeds" to "every VN
-                  in the collection with that same tag". The chip row
-                  lives OUTSIDE the parent `<Link>` to avoid nested
-                  anchors. The card still hovers as one unit thanks
-                  to `group-hover` on the title.
-                */}
                 {r.matchedTags.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                  <div className="flex flex-wrap items-center gap-1 px-3 pb-3 text-[10px]">
                     <span className="text-muted opacity-70">{t.similar.matchedTagsLabel}</span>
                     {r.matchedTags.slice(0, 4).map((tag) => (
                       <Link
