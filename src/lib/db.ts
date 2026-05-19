@@ -3040,6 +3040,21 @@ export interface ListOptions {
   aspects?: readonly AspectKey[];
   /** Limit the result to these VN ids only. Empty array → no rows. */
   vnIds?: readonly string[];
+  /**
+   * R5-144: internal projection knob. `'full'` (default) selects
+   * every column from `vn` (`v.*`) — used by `/lists/[id]`,
+   * `/series/[id]`, recommend, export. `'cards'` narrows the
+   * SELECT to the columns the library / shelf grid + the
+   * `cardData` projection actually read; everything else
+   * (`description`, `aliases`, `staff`, `va`, `titles`,
+   * `editions`, `extlinks`, `screenshots`, `release_images`,
+   * `raw`, `languages`, `platforms`, `olang`, `devstatus`,
+   * `length`, `length_votes`, `votecount`, `average`,
+   * `has_anime`, `image_violence`) is omitted. The row mapper
+   * gracefully treats missing columns as the empty default
+   * thanks to `safeJsonParse(undefined, …)`.
+   */
+  _projection?: 'full' | 'cards';
   sort?:
     | 'updated_at'
     | 'added_at'
@@ -3059,6 +3074,24 @@ export interface ListOptions {
   order?: 'asc' | 'desc';
 }
 
+/**
+ * R5-144 — narrowed VN column list for the `'cards'` projection.
+ * Skips the heavy JSON columns (description / aliases / staff /
+ * va / titles / editions / extlinks / screenshots / release_images
+ * / raw / languages / platforms) the library grid never reads. On
+ * a 1000+ VN library this drops `/api/collection`'s JSON.parse
+ * work from ~30-80 MB to a few MB. The omitted columns appear as
+ * `undefined` on the row; `rowToItem` handles that gracefully
+ * (every JSON column goes through `safeJsonParse(undefined, …)`).
+ */
+const CARDS_VN_COLUMNS =
+  'v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual, ' +
+  'v.released, v.length_minutes, v.rating, ' +
+  'v.developers, v.publishers, v.tags, v.relations, ' +
+  'v.local_image, v.local_image_thumb, v.custom_cover, v.banner_image, ' +
+  'v.banner_position, v.cover_rotation, v.banner_rotation, ' +
+  'v.fetched_at';
+
 export function listCollection({
   status,
   q,
@@ -3076,6 +3109,7 @@ export function listCollection({
   vnIds,
   sort = 'updated_at',
   order = 'desc',
+  _projection = 'full',
 }: ListOptions = {}): CollectionItem[] {
   if (vnIds && vnIds.length === 0) return [];
   const sortMap: Record<NonNullable<ListOptions['sort']>, string> = {
@@ -3293,9 +3327,13 @@ export function listCollection({
     join += 'LEFT JOIN egs_game e ON e.vn_id = v.id ';
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  // R5-144: when `_projection === 'cards'`, only fetch the VN
+  // columns the library grid reads; rowToItem fills the heavy
+  // JSON fields with safe defaults (`[]` / `null`).
+  const vnProjection = _projection === 'cards' ? CARDS_VN_COLUMNS : 'v.*';
   const rows = db
     .prepare(`
-      SELECT v.*, c.status, c.user_rating, c.playtime_minutes, c.started_date,
+      SELECT ${vnProjection}, c.status, c.user_rating, c.playtime_minutes, c.started_date,
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
              c.edition_label, c.physical_location, c.box_type, c.download_url,
              c.dumped, c.custom_description, c.added_at, c.updated_at
@@ -3331,6 +3369,30 @@ export function listCollection({
       : null;
   }
   return items;
+}
+
+/**
+ * R5-144: slim variant of `listCollection`. Same WHERE / ORDER BY
+ * / annotations as `listCollection`, but the SELECT skips the
+ * heavy JSON columns the library grid never reads — `description`,
+ * `aliases`, `staff`, `va`, `titles`, `editions`, `extlinks`,
+ * `screenshots`, `release_images`, `raw`, `languages`,
+ * `platforms`, `olang`, `devstatus`, `length`, `length_votes`,
+ * `votecount`, `average`, `has_anime`, `image_violence`.
+ *
+ * The return shape is still `CollectionItem[]` so the existing
+ * `cardData` / library-grid pipeline doesn't have to learn a new
+ * type. The skipped fields appear as `null` / `[]` / `''` in the
+ * result, which is exactly what the card renderer expects when
+ * the underlying data is empty.
+ *
+ * Use this for any surface that ONLY renders the library /
+ * shelf grid. Surfaces that need the full payload (`/lists/[id]`,
+ * `/series/[id]`, `/api/export`, recommend) keep calling
+ * `listCollection` directly.
+ */
+export function listCollectionForCards(opts: ListOptions = {}): CollectionItem[] {
+  return listCollection({ ...opts, _projection: 'cards' });
 }
 
 function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {
