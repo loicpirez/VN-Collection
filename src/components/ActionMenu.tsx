@@ -111,6 +111,29 @@ export function ActionMenu({
         setOpen(false);
         return;
       }
+      // R5-157: arrow / Home / End keys move the roving focus
+      // through `role="menuitem"` / `role="menuitemcheckbox"`
+      // entries in the panel. Mirrors the WAI-ARIA menu
+      // pattern. Without this the menu was tab-only — a long
+      // menu meant 4-5 discrete Tab keystrokes to reach the
+      // last entry.
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+        const items = Array.from(
+          panelRef.current?.querySelectorAll<HTMLElement>(
+            '[role="menuitem"], [role="menuitemcheckbox"]',
+          ) ?? [],
+        ).filter((el) => !el.hasAttribute('disabled'));
+        if (items.length === 0) return;
+        const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+        let nextIndex = currentIndex;
+        if (e.key === 'ArrowDown') nextIndex = (currentIndex + 1) % items.length;
+        else if (e.key === 'ArrowUp') nextIndex = (currentIndex - 1 + items.length) % items.length;
+        else if (e.key === 'Home') nextIndex = 0;
+        else if (e.key === 'End') nextIndex = items.length - 1;
+        e.preventDefault();
+        items[nextIndex]?.focus({ preventScroll: true });
+        return;
+      }
       if (e.key !== 'Tab') return;
       const list = focusables();
       if (list.length === 0) return;
