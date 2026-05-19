@@ -255,7 +255,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
                 className="input w-full py-1 text-xs"
                 maxLength={60}
               />
-              <button type="button" onClick={save} disabled={busy === 'save'} className="btn btn-primary px-2 py-1 text-xs">
+              <button type="button" onClick={save} disabled={busy === 'save'} className="btn btn-primary btn-xs">
                 {busy === 'save' ? <Loader2 className="h-3 w-3 animate-spin" /> : t.common.save}
               </button>
               <button type="button" onClick={() => setNameOpen(false)} className="rounded text-muted hover:text-white">

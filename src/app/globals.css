@@ -21,6 +21,18 @@
   .btn-danger {
     @apply text-status-dropped hover:bg-status-dropped hover:text-bg hover:border-status-dropped;
   }
+  /*
+   * Compact button — same shape contract as `.btn` but at the
+   * inline-text scale (12px font, 8px horizontal / 4px vertical
+   * padding, tighter icon gap). Use this when a button sits inline
+   * next to text-xs copy or a small input. Picking `.btn-xs` over a
+   * hand-rolled `btn !py-1 !text-xs` keeps the small-button shape
+   * one consistent primitive across the toolbar / picker / banner /
+   * recommendations / shelf / settings surfaces (R5-211).
+   */
+  .btn-xs {
+    @apply px-2 py-1 text-xs gap-1;
+  }
   .input {
     @apply w-full px-3 py-2 rounded-lg bg-bg-card border border-border text-white outline-none focus:border-accent transition-colors;
   }

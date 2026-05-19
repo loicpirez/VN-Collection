@@ -60,7 +60,7 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
       </span>
       <button
         type="button"
-        className="btn btn-primary !py-1 !text-xs"
+        className="btn btn-primary btn-xs"
         onClick={add}
         disabled={working}
       >
