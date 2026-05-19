@@ -593,14 +593,68 @@ export function readCachedCharactersForVn(vnId: string, max = 30): VndbCharacter
   return cached?.results ?? [];
 }
 
-export async function searchCharacters(query: string, { results = 30 } = {}): Promise<VndbCharacter[]> {
+export async function searchCharacters(
+  query: string,
+  {
+    results = 30,
+    ageMin,
+    ageMax,
+    heightMin,
+    heightMax,
+    bustMin,
+    bustMax,
+    waistMin,
+    waistMax,
+    hipsMin,
+    hipsMax,
+    blood,
+    sex,
+    role,
+  }: {
+    results?: number;
+    ageMin?: number | null;
+    ageMax?: number | null;
+    heightMin?: number | null;
+    heightMax?: number | null;
+    bustMin?: number | null;
+    bustMax?: number | null;
+    waistMin?: number | null;
+    waistMax?: number | null;
+    hipsMin?: number | null;
+    hipsMax?: number | null;
+    blood?: string | null;
+    sex?: string | null;
+    role?: string | null;
+  } = {},
+): Promise<VndbCharacter[]> {
   const trimmed = query.trim();
-  if (!trimmed) return [];
-  const isId = /^c\d+$/i.test(trimmed);
+  const isId = trimmed ? /^c\d+$/i.test(trimmed) : false;
+
+  const filterParts: unknown[] = ['and'];
+  if (trimmed) {
+    filterParts.push(isId ? ['id', '=', trimmed.toLowerCase()] : ['search', '=', trimmed]);
+  }
+  if (ageMin != null) filterParts.push(['age', '>=', ageMin]);
+  if (ageMax != null) filterParts.push(['age', '<=', ageMax]);
+  if (heightMin != null) filterParts.push(['height', '>=', heightMin]);
+  if (heightMax != null) filterParts.push(['height', '<=', heightMax]);
+  if (bustMin != null) filterParts.push(['bust', '>=', bustMin]);
+  if (bustMax != null) filterParts.push(['bust', '<=', bustMax]);
+  if (waistMin != null) filterParts.push(['waist', '>=', waistMin]);
+  if (waistMax != null) filterParts.push(['waist', '<=', waistMax]);
+  if (hipsMin != null) filterParts.push(['hips', '>=', hipsMin]);
+  if (hipsMax != null) filterParts.push(['hips', '<=', hipsMax]);
+  if (blood) filterParts.push(['blood_type', '=', blood]);
+  if (sex) filterParts.push(['sex', '=', sex]);
+  if (role) filterParts.push(['role', '=', role]);
+
+  if (filterParts.length === 1) return [];
+
+  const filters = filterParts.length === 2 ? filterParts[1] : filterParts;
   const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
-    filters: isId ? ['id', '=', trimmed.toLowerCase()] : ['search', '=', trimmed],
+    filters,
     fields: CHARACTER_FIELDS,
-    sort: isId ? 'id' : 'searchrank',
+    sort: trimmed && !isId ? 'searchrank' : 'id',
     results: Math.min(results, 100),
   }, isId ? TTL.characterById : TTL.staff);
   return r.results;

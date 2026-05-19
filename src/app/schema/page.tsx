@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, FileCode2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Database, FileCode2, RefreshCw } from 'lucide-react';
 import { getSchema } from '@/lib/vndb';
 import { getCacheFreshness } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
@@ -79,14 +79,21 @@ export default async function SchemaPage() {
           pretending the counts are the remote EGS schema itself. */}
       <SchemaEgsSection />
 
-      <h2 className="mb-3 mt-6 text-base font-bold">{t.schemaPage.vndbTitle}</h2>
-      {error ? (
-        <p className="rounded-xl border border-status-dropped/50 bg-status-dropped/10 p-4 text-sm text-status-dropped">
-          {error}
-        </p>
-      ) : (
-        <SchemaBrowser schema={schema} />
-      )}
+      <section className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
+        <h2 className="inline-flex items-center gap-2 text-lg font-bold">
+          <Database className="h-5 w-5 text-accent" aria-hidden /> {t.schemaPage.vndbTitle}
+        </h2>
+        <p className="mt-1 text-xs text-muted">{t.schemaPage.vndbSubtitle}</p>
+        <div className="mt-4">
+          {error ? (
+            <p className="rounded-xl border border-status-dropped/50 bg-status-dropped/10 p-4 text-sm text-status-dropped">
+              {error}
+            </p>
+          ) : (
+            <SchemaBrowser schema={schema} />
+          )}
+        </div>
+      </section>
     </div>
   );
 }

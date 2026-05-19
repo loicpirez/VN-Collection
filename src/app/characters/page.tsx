@@ -78,18 +78,33 @@ export default async function CharactersPage({ searchParams }: PageProps) {
     }),
   );
   let vndbResults: VndbCharacter[] = [];
-  // Only hit the VNDB API when there's an actual text query (not filter-only).
-  if (query.length > 0 && tab !== 'local') {
-    vndbResults = await searchCharacters(query, { results: 60 }).catch(() => []);
+  // Hit the VNDB API for any non-local tab — including empty-query on
+  // VNDB tab so the operator can browse without typing a name first.
+  if (tab !== 'local') {
+    vndbResults = await searchCharacters(query, {
+      results: 60,
+      ageMin: params.ageMin ?? undefined,
+      ageMax: params.ageMax ?? undefined,
+      heightMin: params.heightMin ?? undefined,
+      heightMax: params.heightMax ?? undefined,
+      bustMin: params.bustMin ?? undefined,
+      bustMax: params.bustMax ?? undefined,
+      waistMin: params.waistMin ?? undefined,
+      waistMax: params.waistMax ?? undefined,
+      hipsMin: params.hipsMin ?? undefined,
+      hipsMax: params.hipsMax ?? undefined,
+      blood: params.blood ?? undefined,
+      sex: params.sex ?? undefined,
+      role: params.role ?? undefined,
+    }).catch(() => []);
   }
   const allResults =
     tab === 'local'
       ? localResults
       : tab === 'vndb'
-        ? (query.length > 0 ? vndbResults : localResults)
+        ? vndbResults
         : dedupeCharacters([...localResults, ...vndbResults]);
-  // shouldQuery stays for the idle-hint render gate (VNDB tab, no query, no filters)
-  const shouldQuery = tab !== 'vndb' || query.length > 0 || hasFilters || localResults.length > 0;
+  const shouldQuery = tab !== 'vndb' || vndbResults.length > 0 || hasFilters || localResults.length > 0;
   const ageGated = includeEro
     ? allResults
     : allResults.filter((c) => !((c.image?.sexual ?? 0) >= 1.5));
@@ -102,6 +117,12 @@ export default async function CharactersPage({ searchParams }: PageProps) {
     ageMax: params.ageMax?.toString() ?? '',
     heightMin: params.heightMin?.toString() ?? '',
     heightMax: params.heightMax?.toString() ?? '',
+    bustMin: params.bustMin?.toString() ?? '',
+    bustMax: params.bustMax?.toString() ?? '',
+    waistMin: params.waistMin?.toString() ?? '',
+    waistMax: params.waistMax?.toString() ?? '',
+    hipsMin: params.hipsMin?.toString() ?? '',
+    hipsMax: params.hipsMax?.toString() ?? '',
   };
 
   const resetHref = characterBrowseHref(params, {
@@ -116,6 +137,12 @@ export default async function CharactersPage({ searchParams }: PageProps) {
     ageMax: null,
     heightMin: null,
     heightMax: null,
+    bustMin: null,
+    bustMax: null,
+    waistMin: null,
+    waistMax: null,
+    hipsMin: null,
+    hipsMax: null,
   });
 
   return (
@@ -271,67 +298,55 @@ export default async function CharactersPage({ searchParams }: PageProps) {
           {params.reverse && <input type="hidden" name="reverse" value="1" />}
           {params.groupBy && <input type="hidden" name="groupBy" value={params.groupBy} />}
 
-          <fieldset className="rounded-md border border-border bg-bg-elev/30 p-2">
-            <legend className="px-1 text-[10px] uppercase tracking-wider text-muted">
-              {t.charactersSearch.filters.age}
-            </legend>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                inputMode="numeric"
-                name="ageMin"
-                min={0}
-                max={200}
-                defaultValue={ranges.ageMin}
-                placeholder={t.charactersSearch.filters.min}
-                aria-label={t.charactersSearch.filters.ageMin}
-                className="input w-full"
-              />
-              <span className="text-muted">–</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                name="ageMax"
-                min={0}
-                max={200}
-                defaultValue={ranges.ageMax}
-                placeholder={t.charactersSearch.filters.max}
-                aria-label={t.charactersSearch.filters.ageMax}
-                className="input w-full"
-              />
-            </div>
-          </fieldset>
+          <RangeFieldset
+            legend={t.charactersSearch.filters.age}
+            minName="ageMin" maxName="ageMax"
+            min={0} max={200}
+            minDefault={ranges.ageMin} maxDefault={ranges.ageMax}
+            minLabel={t.charactersSearch.filters.ageMin}
+            maxLabel={t.charactersSearch.filters.ageMax}
+            placeholder={t.charactersSearch.filters}
+          />
 
-          <fieldset className="rounded-md border border-border bg-bg-elev/30 p-2">
-            <legend className="px-1 text-[10px] uppercase tracking-wider text-muted">
-              {t.charactersSearch.filters.height}
-            </legend>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                inputMode="numeric"
-                name="heightMin"
-                min={0}
-                max={300}
-                defaultValue={ranges.heightMin}
-                placeholder={t.charactersSearch.filters.min}
-                aria-label={t.charactersSearch.filters.heightMin}
-                className="input w-full"
-              />
-              <span className="text-muted">–</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                name="heightMax"
-                min={0}
-                max={300}
-                defaultValue={ranges.heightMax}
-                placeholder={t.charactersSearch.filters.max}
-                aria-label={t.charactersSearch.filters.heightMax}
-                className="input w-full"
-              />
-            </div>
-          </fieldset>
+          <RangeFieldset
+            legend={t.charactersSearch.filters.height}
+            minName="heightMin" maxName="heightMax"
+            min={0} max={300}
+            minDefault={ranges.heightMin} maxDefault={ranges.heightMax}
+            minLabel={t.charactersSearch.filters.heightMin}
+            maxLabel={t.charactersSearch.filters.heightMax}
+            placeholder={t.charactersSearch.filters}
+          />
+
+          <RangeFieldset
+            legend={t.charactersSearch.filters.bust}
+            minName="bustMin" maxName="bustMax"
+            min={0} max={200}
+            minDefault={ranges.bustMin} maxDefault={ranges.bustMax}
+            minLabel={t.charactersSearch.filters.bustMin}
+            maxLabel={t.charactersSearch.filters.bustMax}
+            placeholder={t.charactersSearch.filters}
+          />
+
+          <RangeFieldset
+            legend={t.charactersSearch.filters.waist}
+            minName="waistMin" maxName="waistMax"
+            min={0} max={200}
+            minDefault={ranges.waistMin} maxDefault={ranges.waistMax}
+            minLabel={t.charactersSearch.filters.waistMin}
+            maxLabel={t.charactersSearch.filters.waistMax}
+            placeholder={t.charactersSearch.filters}
+          />
+
+          <RangeFieldset
+            legend={t.charactersSearch.filters.hips}
+            minName="hipsMin" maxName="hipsMax"
+            min={0} max={200}
+            minDefault={ranges.hipsMin} maxDefault={ranges.hipsMax}
+            minLabel={t.charactersSearch.filters.hipsMin}
+            maxLabel={t.charactersSearch.filters.hipsMax}
+            placeholder={t.charactersSearch.filters}
+          />
 
           <fieldset className="rounded-md border border-border bg-bg-elev/30 p-2">
             <legend className="px-1 text-[10px] uppercase tracking-wider text-muted">
@@ -493,6 +508,53 @@ export default async function CharactersPage({ searchParams }: PageProps) {
 function forwardChip(name: string, value: string | null) {
   if (!value) return null;
   return <input type="hidden" name={name} value={value} />;
+}
+
+function RangeFieldset({
+  legend,
+  minName, maxName,
+  min, max,
+  minDefault, maxDefault,
+  minLabel, maxLabel,
+  placeholder,
+}: {
+  legend: string;
+  minName: string; maxName: string;
+  min: number; max: number;
+  minDefault: string; maxDefault: string;
+  minLabel: string; maxLabel: string;
+  placeholder: { min: string; max: string };
+}) {
+  return (
+    <fieldset className="rounded-md border border-border bg-bg-elev/30 p-2">
+      <legend className="px-1 text-[10px] uppercase tracking-wider text-muted">{legend}</legend>
+      <div className="flex items-center gap-1">
+        <input
+          type="number"
+          inputMode="numeric"
+          name={minName}
+          min={min}
+          max={max}
+          defaultValue={minDefault}
+          placeholder={placeholder.min}
+          aria-label={minLabel}
+          className="input w-full"
+        />
+        <span className="text-muted">–</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          name={maxName}
+          min={min}
+          max={max}
+          defaultValue={maxDefault}
+          placeholder={placeholder.max}
+          aria-label={maxLabel}
+          className="input w-full"
+        />
+      </div>
+    </fieldset>
+  );
 }
 
 function SegmentRow({ label, children }: { label: string; children: React.ReactNode }) {

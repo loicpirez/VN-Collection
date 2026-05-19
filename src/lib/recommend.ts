@@ -225,8 +225,8 @@ export interface RecommendResult {
  */
 export async function recommendVns(opts: RecommendOptions = {}): Promise<RecommendResult> {
   const {
-    seedLimit = 15,
-    tagLimit = 8,
+    seedLimit = 40,
+    tagLimit = 15,
     resultLimit = 24,
     includeEro = false,
     customTagIds,

@@ -69,8 +69,9 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
   if (scope === 'collection') {
     results = localRows;
   } else {
-    // scope=all: VNDB + local, VNDB only when there's a text query.
-    const vndbRows: StaffRow[] = query
+    // scope=all: VNDB + local. On the VNDB tab, always hit the API
+    // (even with empty query) so the operator can browse without a name.
+    const vndbRows: StaffRow[] = (query || tab === 'vndb')
       ? (
           await searchStaff(query, {
             results: 60,
@@ -96,7 +97,6 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     results = [...merged.values()];
     if (lang) results = results.filter((s) => !s.lang || s.lang === lang);
   }
-  // Show idle hint only when there are truly no results (VNDB-wide search with no local data)
   const shouldQuery = results.length > 0 || query.length > 0 || hasFilters || scope === 'collection';
 
   function chipHref(overrides: Record<string, string | null>): string {

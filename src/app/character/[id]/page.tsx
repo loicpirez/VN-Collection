@@ -222,20 +222,40 @@ export default async function CharacterPage({
                 <Users className="h-4 w-4" /> {t.characters.sameName}
               </h3>
               <p className="mb-3 text-[11px] text-muted">{t.characters.sameNameHint}</p>
-              <ul className="space-y-1.5 text-xs">
+              <ul
+                className="grid gap-3"
+                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+              >
                 {siblings.map((s) => (
-                  <li key={s.c_id} className="flex flex-wrap items-baseline gap-2">
-                    <Link href={`/character/${s.c_id}`} className="font-bold hover:text-accent">{s.c_name}</Link>
-                    <span className="font-mono text-[10px] text-muted">{s.c_id}</span>
-                    <span className="text-muted">·</span>
-                    <span className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
-                      {s.vns.map((v, i) => (
-                        <span key={v.vn_id}>
-                          <Link href={`/vn/${v.vn_id}`} className="hover:text-accent">{v.vn_title}</Link>
-                          {i < s.vns.length - 1 && <span className="text-muted">,</span>}
-                        </span>
-                      ))}
-                    </span>
+                  <li key={s.c_id}>
+                    <Link
+                      href={`/character/${s.c_id}`}
+                      className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
+                    >
+                      <div className="shrink-0 overflow-hidden rounded" style={{ width: '48px', aspectRatio: '2/3' }}>
+                        <SafeImage
+                          src={s.c_image_url}
+                          localSrc={null}
+                          sexual={null}
+                          alt={s.c_name}
+                          className="h-full w-full"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1 text-[11px]">
+                        <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                          {s.c_name}
+                        </p>
+                        {s.c_original && s.c_original !== s.c_name && (
+                          <p className="line-clamp-1 text-[10px] text-muted">{s.c_original}</p>
+                        )}
+                        <p className="font-mono text-[10px] text-muted/60">{s.c_id}</p>
+                        <div className="mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[10px] text-muted">
+                          {s.vns.map((v) => (
+                            <span key={v.vn_id} className="truncate">{v.vn_title}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </Link>
                   </li>
                 ))}
               </ul>

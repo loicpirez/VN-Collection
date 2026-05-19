@@ -131,22 +131,6 @@ export function MediaGallery({
     screenshots: groups.screenshots.length,
   };
 
-  // When "all" is selected and both package art AND screenshots exist,
-  // split into two separate grids. Portrait/square tiles and landscape
-  // tiles must never share a row — if they do, the portrait tile
-  // dominates the row height and screenshots end up with large empty
-  // vertical space inside their cells.
-  const pkgCount =
-    filter === 'all'
-      ? groups.pkgfront.length +
-        groups.pkgback.length +
-        groups.pkgcontent.length +
-        groups.pkgside.length +
-        groups.pkgmed.length +
-        groups.dig.length
-      : 0;
-  const showSplit = pkgCount > 0 && groups.screenshots.length > 0;
-
   const close = () => setActive(null);
   const prev = () => setActive((a) => (a == null ? null : (a - 1 + visible.length) % visible.length));
   const next = () => setActive((a) => (a == null ? null : (a + 1) % visible.length));
@@ -199,65 +183,24 @@ export function MediaGallery({
         ))}
       </div>
 
-      {showSplit ? (
-        <>
-          <div
-            className="grid gap-2"
-            style={{
-              gridTemplateColumns:
-                'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), calc(var(--card-density-px, 220px) * 0.85)))',
-            }}
-            role="list"
-            aria-label={t.media.itemsLabel}
-          >
-            {visible.slice(0, pkgCount).map((item, i) => (
-              <MediaTile
-                key={item.key}
-                item={item}
-                vnId={vnId}
-                onOpenLightbox={() => setActive(i)}
-              />
-            ))}
-          </div>
-          <div
-            className="mt-4 grid gap-2"
-            style={{
-              gridTemplateColumns:
-                'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), calc(var(--card-density-px, 220px) * 0.85)))',
-            }}
-            role="list"
-            aria-label={t.media.screenshots}
-          >
-            {visible.slice(pkgCount).map((item, i) => (
-              <MediaTile
-                key={item.key}
-                item={item}
-                vnId={vnId}
-                onOpenLightbox={() => setActive(pkgCount + i)}
-              />
-            ))}
-          </div>
-        </>
-      ) : (
-        <div
-          className="grid gap-2"
-          style={{
-            gridTemplateColumns:
-              'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), calc(var(--card-density-px, 220px) * 0.85)))',
-          }}
-          role="list"
-          aria-label={t.media.itemsLabel}
-        >
-          {visible.map((item, i) => (
-            <MediaTile
-              key={item.key}
-              item={item}
-              vnId={vnId}
-              onOpenLightbox={() => setActive(i)}
-            />
-          ))}
-        </div>
-      )}
+      <div
+        className="grid gap-2"
+        style={{
+          gridTemplateColumns:
+            'repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * 0.65)), 1fr))',
+        }}
+        role="list"
+        aria-label={t.media.itemsLabel}
+      >
+        {visible.map((item, i) => (
+          <MediaTile
+            key={item.key}
+            item={item}
+            vnId={vnId}
+            onOpenLightbox={() => setActive(i)}
+          />
+        ))}
+      </div>
 
       {active != null && visible[active] && (
         <div
@@ -651,7 +594,7 @@ function TileKebab({
         // hover/focus reveals it on desktop only. focus-visible
         // forces the kebab to appear the moment a keyboard user
         // tabs into the tile so they never lose the entry point.
-        className="absolute right-1.5 top-1.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-black/70 text-white shadow backdrop-blur-sm transition-opacity hover:bg-accent hover:text-bg focus-visible:opacity-100 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+        className="absolute right-1.5 top-1.5 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md bg-black/70 text-white shadow backdrop-blur-sm transition-opacity hover:bg-accent hover:text-bg focus-visible:opacity-100 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden />
       </button>

@@ -27,6 +27,9 @@ export interface BrowsableCharacter {
   image: { url: string; sexual?: number } | null;
   blood_type: string | null;
   height: number | null;
+  bust?: number | null;
+  waist?: number | null;
+  hips?: number | null;
   age: number | null;
   birthday: [number, number] | null;
   sex: [string | null, string | null] | null;
@@ -82,6 +85,12 @@ export interface CharacterBrowseParams {
   heightMin: number | null;
   /** Inclusive maximum height (cm). `null` disables the upper bound. */
   heightMax: number | null;
+  bustMin: number | null;
+  bustMax: number | null;
+  waistMin: number | null;
+  waistMax: number | null;
+  hipsMin: number | null;
+  hipsMax: number | null;
   sort: CharacterSort;
   /** Reverse-sort flag. Defaults to false (ascending). */
   reverse: boolean;
@@ -140,6 +149,12 @@ export function parseCharacterBrowseParams(
   const ageMax = parsePositiveInt(pickFirst(raw.ageMax), { max: 200 });
   const heightMin = parsePositiveInt(pickFirst(raw.heightMin), { max: 300 });
   const heightMax = parsePositiveInt(pickFirst(raw.heightMax), { max: 300 });
+  const bustMin = parsePositiveInt(pickFirst(raw.bustMin), { max: 200 });
+  const bustMax = parsePositiveInt(pickFirst(raw.bustMax), { max: 200 });
+  const waistMin = parsePositiveInt(pickFirst(raw.waistMin), { max: 200 });
+  const waistMax = parsePositiveInt(pickFirst(raw.waistMax), { max: 200 });
+  const hipsMin = parsePositiveInt(pickFirst(raw.hipsMin), { max: 200 });
+  const hipsMax = parsePositiveInt(pickFirst(raw.hipsMax), { max: 200 });
   const vaLangRaw = pickFirst(raw.vaLang) ?? null;
   const vaLang = vaLangRaw && /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/i.test(vaLangRaw) ? vaLangRaw : null;
   const hasVoice = parseBool(pickFirst(raw.hasVoice));
@@ -167,6 +182,12 @@ export function parseCharacterBrowseParams(
     ageMax,
     heightMin,
     heightMax,
+    bustMin,
+    bustMax,
+    waistMin,
+    waistMax,
+    hipsMin,
+    hipsMax,
     sort,
     reverse,
     groupBy,
@@ -192,7 +213,13 @@ export function hasActiveCharacterFilter(p: CharacterBrowseParams): boolean {
     p.ageMin != null ||
     p.ageMax != null ||
     p.heightMin != null ||
-    p.heightMax != null
+    p.heightMax != null ||
+    p.bustMin != null ||
+    p.bustMax != null ||
+    p.waistMin != null ||
+    p.waistMax != null ||
+    p.hipsMin != null ||
+    p.hipsMax != null
   );
 }
 
@@ -224,6 +251,24 @@ export function filterCharacters(
     }
     if (params.heightMax != null) {
       if (c.height == null || c.height > params.heightMax) return false;
+    }
+    if (params.bustMin != null) {
+      if (c.bust == null || c.bust < params.bustMin) return false;
+    }
+    if (params.bustMax != null) {
+      if (c.bust == null || c.bust > params.bustMax) return false;
+    }
+    if (params.waistMin != null) {
+      if (c.waist == null || c.waist < params.waistMin) return false;
+    }
+    if (params.waistMax != null) {
+      if (c.waist == null || c.waist > params.waistMax) return false;
+    }
+    if (params.hipsMin != null) {
+      if (c.hips == null || c.hips < params.hipsMin) return false;
+    }
+    if (params.hipsMax != null) {
+      if (c.hips == null || c.hips > params.hipsMax) return false;
     }
     if (params.hasImage === true && !c.image?.url) return false;
     if (params.hasImage === false && c.image?.url) return false;
@@ -330,6 +375,12 @@ export function characterBrowseHref(
   set('ageMax', current.ageMax != null ? String(current.ageMax) : null);
   set('heightMin', current.heightMin != null ? String(current.heightMin) : null);
   set('heightMax', current.heightMax != null ? String(current.heightMax) : null);
+  set('bustMin', current.bustMin != null ? String(current.bustMin) : null);
+  set('bustMax', current.bustMax != null ? String(current.bustMax) : null);
+  set('waistMin', current.waistMin != null ? String(current.waistMin) : null);
+  set('waistMax', current.waistMax != null ? String(current.waistMax) : null);
+  set('hipsMin', current.hipsMin != null ? String(current.hipsMin) : null);
+  set('hipsMax', current.hipsMax != null ? String(current.hipsMax) : null);
   set('sort', current.sort === 'name' ? null : current.sort);
   set('reverse', current.reverse ? '1' : null);
   set('groupBy', current.groupBy || null);

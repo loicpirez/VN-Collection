@@ -268,15 +268,17 @@ export default async function RecommendationsPage({
           <CardDensitySlider scope="recommendations" />
         </div>
 
-        <SeedTagSlot
-          mode={mode}
-          seedVnId={seedVnId}
-          customTagIds={customTagIds}
-          includeEro={includeEro}
-          includeOwned={includeOwned}
-          includeWishlist={includeWishlist}
-          t={t}
-        />
+        <Suspense fallback={<div className="mt-3 h-10 animate-pulse rounded-lg bg-bg-elev/40" />}>
+          <SeedTagSlot
+            mode={mode}
+            seedVnId={seedVnId}
+            customTagIds={customTagIds}
+            includeEro={includeEro}
+            includeOwned={includeOwned}
+            includeWishlist={includeWishlist}
+            t={t}
+          />
+        </Suspense>
 
         {/* Inline seed-VN picker for `similar-to-vn`. Rendered in the
             header (alongside the tag picker) when a seed IS already
