@@ -331,6 +331,14 @@ dates and manual notes. Manual notes can be deleted; auto entries are
 immutable. Schema: `vn_activity(id, vn_id, kind, payload JSON,
 occurred_at)`.
 
+### App-wide activity page (`/activity`) ✅
+The site-level audit feed at `/activity` reads from `user_activity`
+(distinct from the per-VN `vn_activity` table). Logs refresh /
+import / mutation events across the whole app — collection add /
+remove, global refresh, EGS sync, list mutations, cache-bust
+operations. Filterable by kind + entity; the strip on the home
+page surfaces the latest few entries.
+
 ### Cast (VA) ✅
 Character thumbnails linked to `/character/[id]`; VA name linked to
 `/staff/[id]`. Sourced from `vn_va_credit` populated at upsert time.
@@ -1451,6 +1459,11 @@ filled.
 | `egs_vn_link` | Manual EGS→VNDB mapping override (overlaid on EGS-side feeds) | egs_id PK, vn_id (nullable: NULL = "no VNDB"), note, updated_at |
 | `staff_credit_index` | Derived index from `staff_full` cache | (sid, vn_id, is_va) — narrows brand-overlap scans before parsing JSON |
 | `character_vn_index` | Derived index from `char_full` cache | (character_id, vn_id) — narrows trait fan-out before parsing JSON |
+| `vn_tag_index` | R5-138 derived index from `vn.tags` JSON | (vn_id, tag_id, spoiler, category) — narrows the `?tag=` library filter to a flat lookup |
+| `vn_developer_index` | R5-138 derived index from `vn.developers` JSON | (vn_id, producer_id) — narrows the `?producer=` library filter |
+| `vn_publisher_index` | R5-138 derived index from `vn.publishers` JSON | (vn_id, producer_id) — narrows the `?publisher=` library filter |
+| `release_meta_cache` | Per-release metadata harvested from `POST /release` (R5-132/133) | release_id PK, vn_id, title, alttitle, platforms, languages, released, minage, patch, freeware, uncensored, official, has_ero, voiced, extlinks JSON, producers JSON, resolution, engine, fetched_at — feeds the shelf-edition popovers + the owned-editions surface |
+| `user_activity` | App-wide audit trail (refresh / import / mutation events) | id, occurred_at, kind, entity, entity_id, label, payload JSON, actor — distinct from `vn_activity` which only stores per-VN reading-log events; the `/activity` page reads this table |
 | `app_setting_audit` | Append-only audit log | id, key, prior_preview, next_preview, changed_at — last 4 chars only |
 | `vndb_cache` | HTTP cache for VNDB + EGS responses | cache_key, body, etag, last_modified, fetched_at, expires_at |
 | `app_setting` | Misc key/value store | key, value |

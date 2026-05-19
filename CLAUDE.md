@@ -105,7 +105,10 @@ Always run it before declaring a change "done".
 ```
 vndb-collection/
 ├── data/                              # gitignored — SQLite + downloaded images
-│   ├── collection.db (+ .db-shm/.db-wal)
+│   ├── collection.db (+ .db-shm/.db-wal)  # canonical DB (env DB_PATH override possible)
+│   ├── vndb.db                            # legacy / unused placeholder; safe to delete on
+│   │                                       # operator preference. Not referenced in any
+│   │                                       # current code path. (R5-173)
 │   └── storage/                        # subdirs auto-created lazily on first write
 │       ├── vn/         (cover + thumb)
 │       ├── vn-sc/      (screenshots + release pkg artwork)
