@@ -220,6 +220,7 @@ function ShelfBlock({
                 label={t.shelfSpatial.topDisplay}
                 t={t}
                 orientation={rowOrientation(0)}
+                afterRow={0}
               />
               {Array.from({ length: shelf.rows }).flatMap((_, row) => {
                 const items: React.ReactNode[] = [
@@ -238,6 +239,7 @@ function ShelfBlock({
                       t={t}
                       between
                       orientation={rowOrientation(afterRow)}
+                      afterRow={afterRow}
                     />,
                   );
                 }
@@ -249,6 +251,7 @@ function ShelfBlock({
                 label={t.shelfSpatial.bottomDisplay}
                 t={t}
                 orientation={rowOrientation(shelf.rows)}
+                afterRow={shelf.rows}
               />
             </>
           );
@@ -306,6 +309,7 @@ function DisplayRow({
   t,
   between = false,
   orientation,
+  afterRow,
 }: {
   row: ShelfDisplaySlotEntry[];
   cols: number;
@@ -313,9 +317,10 @@ function DisplayRow({
   t: Dictionary;
   between?: boolean;
   orientation: 'portrait' | 'landscape';
+  afterRow: number;
 }) {
   if (row.length === 0) return null;
-  const aspectRatio = orientation === 'landscape' ? '3 / 2' : '2 / 3';
+  const serverAspect = orientation === 'landscape' ? '3/2' : '2/3';
   return (
     <div className="my-1">
       <div className="mb-1">
@@ -329,17 +334,18 @@ function DisplayRow({
         style={{
           gap: 'var(--shelf-row-gap-px, 6px)',
           gridTemplateColumns: `repeat(${cols}, minmax(var(--shelf-front-size-px, 140px), var(--shelf-front-size-px, 140px)))`,
-        }}
+          '--row-display-aspect': `var(--display-aspect-row-${afterRow}, var(--display-aspect-ratio, ${serverAspect}))`,
+        } as React.CSSProperties}
       >
         {Array.from({ length: cols }).map((_, position) => {
           const display = row.find((d) => d.position === position);
           return display ? (
-            <DisplayCard key={position} entry={display} t={t} orientation={orientation} />
+            <DisplayCard key={position} entry={display} t={t} />
           ) : (
             <div
               key={position}
               className="rounded-md bg-accent-blue/5"
-              style={{ width: 'var(--shelf-front-size-px, 140px)', aspectRatio }}
+              style={{ width: 'var(--shelf-front-size-px, 140px)', aspectRatio: 'var(--row-display-aspect, 2/3)' }}
               aria-hidden
             />
           );
@@ -393,20 +399,17 @@ function ShelfCard({ slot, t }: { slot: ShelfSlotEntry; t: Dictionary }) {
 function DisplayCard({
   entry,
   t,
-  orientation,
 }: {
   entry: ShelfDisplaySlotEntry;
   t: Dictionary;
-  orientation: 'portrait' | 'landscape';
 }) {
-  const aspectRatio = orientation === 'landscape' ? '3 / 2' : '2 / 3';
   return (
     <Link
       href={`/vn/${entry.vn_id}`}
       className="group block overflow-hidden rounded-md border border-accent-blue/50 bg-accent-blue/5 transition-all hover:scale-[1.03] hover:border-accent-blue hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-blue"
       style={{
         width: 'var(--shelf-front-size-px, 140px)',
-        aspectRatio,
+        aspectRatio: 'var(--row-display-aspect, 2/3)',
       }}
       title={`${entry.vn_title}${entry.edition_label ? ` · ${entry.edition_label}` : ''}`}
       aria-label={`${t.shelfSpatial.displayItemPrefix} ${entry.vn_title}`}

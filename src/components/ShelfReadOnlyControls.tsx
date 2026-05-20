@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RotateCcw, Sliders, X } from 'lucide-react';
+import { Maximize2, RotateCcw, Sliders, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import {
   SHELF_DISPLAY_OVERRIDES_EVENT,
@@ -52,6 +52,9 @@ interface Props {
    * component doesn't need to re-query the DB.
    */
   displayZones?: Array<{ afterRow: number; label: string }>;
+  /** Grid dimensions of the active shelf — used by the fill-screen helper. */
+  shelfCols?: number;
+  shelfRows?: number;
 }
 
 type Scope = 'global' | 'shelf';
@@ -79,6 +82,8 @@ export function ShelfReadOnlyControls({
   initialOverrides,
   hasDisplaySlots = true,
   displayZones,
+  shelfCols,
+  shelfRows,
 }: Props) {
   const t = useT();
   const dict = t.shelfDisplay;
@@ -113,10 +118,13 @@ export function ShelfReadOnlyControls({
     const attrs = shelfViewPrefsDataAttrs(prefs);
     const targets = document.querySelectorAll<HTMLElement>('.shelf-view-root');
     for (const el of targets) {
-      for (const [k, v] of Object.entries(css)) el.style.setProperty(k, v);
-      for (const [k, v] of Object.entries(attrs)) {
-        el.setAttribute(k, v);
+      const stale: string[] = [];
+      for (let i = 0; i < el.style.length; i++) {
+        if (el.style[i].startsWith('--display-aspect-row-')) stale.push(el.style[i]);
       }
+      for (const prop of stale) el.style.removeProperty(prop);
+      for (const [k, v] of Object.entries(css)) el.style.setProperty(k, v);
+      for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
     }
     return () => {
       for (const el of targets) {
@@ -569,10 +577,38 @@ export function ShelfReadOnlyControls({
             </>
           )}
 
+          {shelfCols !== undefined && shelfRows !== undefined && (
+            <button
+              type="button"
+              onClick={() => {
+                const availW = window.innerWidth - 80;
+                const availH = window.innerHeight - 220;
+                const gap = prefs.rowGapPx;
+                const w = Math.max(
+                  SHELF_VIEW_PREFS_BOUNDS.cellWidthPx.min,
+                  Math.min(
+                    SHELF_VIEW_PREFS_BOUNDS.cellWidthPx.max,
+                    Math.floor((availW - (shelfCols - 1) * gap) / shelfCols),
+                  ),
+                );
+                const h = Math.max(
+                  SHELF_VIEW_PREFS_BOUNDS.cellHeightPx.min,
+                  Math.min(
+                    SHELF_VIEW_PREFS_BOUNDS.cellHeightPx.max,
+                    Math.floor((availH - (shelfRows - 1) * gap) / shelfRows),
+                  ),
+                );
+                void persist({ ...prefs, cellWidthPx: w, cellSizePx: w, cellHeightPx: h });
+              }}
+              className="mt-3 inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            >
+              <Maximize2 className="h-3 w-3" aria-hidden /> {dict.fillScreen}
+            </button>
+          )}
           <button
             type="button"
             onClick={reset}
-            className="mt-3 inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold"
+            className="mt-2 inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold"
           >
             <RotateCcw className="h-3 w-3" aria-hidden /> {dict.reset}
           </button>

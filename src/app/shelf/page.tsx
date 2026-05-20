@@ -266,6 +266,8 @@ export default async function ShelfPage({
                   activeShelfName={activeShelfEntry?.name ?? undefined}
                   hasDisplaySlots={activeShelfDisplaySlots.length > 0}
                   displayZones={displayZones}
+                  shelfCols={activeShelfEntry?.cols ?? undefined}
+                  shelfRows={activeShelfEntry?.rows ?? undefined}
                 />
               );
             })()}
@@ -359,6 +361,8 @@ export default async function ShelfPage({
                     activeShelfName={activeShelfEntry?.name ?? undefined}
                     hasDisplaySlots={activeShelfDisplaySlots.length > 0}
                     displayZones={displayZones}
+                    shelfCols={activeShelfEntry?.cols ?? undefined}
+                    shelfRows={activeShelfEntry?.rows ?? undefined}
                   />
                 );
                 return (

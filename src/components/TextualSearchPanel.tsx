@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, FileText, MessageSquareQuote, Quote } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { SkeletonBlock } from './Skeleton';
 
 interface Hit {
   vn_id: string;
@@ -121,32 +122,49 @@ export function TextualSearchPanel({
       {open && (
         <div className={`${mode === 'standalone' ? '' : 'border-t border-border'} px-3 pb-3 pt-2`}>
           <p className="mb-2 text-[10px] text-muted/80">{t.textualSearch.hint}</p>
-          <ul className="space-y-1.5">
-            {hits.map((h, i) => {
-              const Icon = ICONS[h.source];
-              return (
-                <li key={`${h.vn_id}:${h.source}:${i}`}>
-                  <Link
-                    href={`/vn/${h.vn_id}`}
-                    className="group flex gap-2 rounded-md border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
-                  >
-                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="line-clamp-1 text-xs font-bold transition-colors group-hover:text-accent">
-                          {h.title}
-                        </span>
-                        <span className="shrink-0 text-[9px] uppercase tracking-wider text-muted">
-                          {t.textualSearch.source[h.source]}
-                        </span>
-                      </div>
-                      <p className="line-clamp-2 text-[11px] text-muted">{h.snippet}</p>
+          {loading ? (
+            <ul className="space-y-1.5" aria-busy="true">
+              {Array.from({ length: Math.max(3, hits.length || 3) }).map((_, i) => (
+                <li key={i} className="rounded-md border border-border bg-bg-elev/30 p-2">
+                  <div className="flex gap-2">
+                    <SkeletonBlock className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded" />
+                    <div className="flex-1 space-y-1.5">
+                      <SkeletonBlock className="h-3 w-2/3" />
+                      <SkeletonBlock className="h-2.5 w-full" />
+                      <SkeletonBlock className="h-2.5 w-4/5" />
                     </div>
-                  </Link>
+                  </div>
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          ) : (
+            <ul className="space-y-1.5">
+              {hits.map((h, i) => {
+                const Icon = ICONS[h.source];
+                return (
+                  <li key={`${h.vn_id}:${h.source}:${i}`}>
+                    <Link
+                      href={`/vn/${h.vn_id}`}
+                      className="group flex gap-2 rounded-md border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
+                    >
+                      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="line-clamp-1 text-xs font-bold transition-colors group-hover:text-accent">
+                            {h.title}
+                          </span>
+                          <span className="shrink-0 text-[9px] uppercase tracking-wider text-muted">
+                            {t.textualSearch.source[h.source]}
+                          </span>
+                        </div>
+                        <p className="line-clamp-2 text-[11px] text-muted">{h.snippet}</p>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
     </section>

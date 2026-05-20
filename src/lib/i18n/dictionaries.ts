@@ -2223,6 +2223,7 @@ export const dictionaries = {
       displayOrientationPortrait: 'Portrait',
       displayOrientationLandscape: 'Paysage',
       displayRowOrientationsLabel: 'Orientation par rangée',
+      fillScreen: 'Ajuster à l\'écran',
     },
     schemaEgs: {
       heading: 'Données EGS miroir',
@@ -4730,6 +4731,7 @@ export const dictionaries = {
       displayOrientationPortrait: 'Portrait',
       displayOrientationLandscape: 'Landscape',
       displayRowOrientationsLabel: 'Orientation per row',
+      fillScreen: 'Fill screen',
     },
     schemaEgs: {
       heading: 'Mirrored EGS data',
@@ -7236,6 +7238,7 @@ export const dictionaries = {
       displayOrientationPortrait: '縦',
       displayOrientationLandscape: '横',
       displayRowOrientationsLabel: '段ごとの向き',
+      fillScreen: '画面に合わせる',
     },
     schemaEgs: {
       heading: 'EGS ミラーデータ',

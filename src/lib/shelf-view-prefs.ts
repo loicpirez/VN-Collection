@@ -232,7 +232,7 @@ export function parseShelfViewPrefsV1(raw: string | null): ShelfViewPrefsV1 {
  * the tree still reads them) and the v1 axis-specific vars.
  */
 export function shelfViewPrefsCssVars(prefs: ShelfViewPrefsV1): Record<string, string> {
-  return {
+  const vars: Record<string, string> = {
     '--shelf-cell-px': `${prefs.cellSizePx}px`,
     '--shelf-cover-scale': String(prefs.coverScale),
     '--shelf-gap-px': `${prefs.gapPx}px`,
@@ -246,6 +246,10 @@ export function shelfViewPrefsCssVars(prefs: ShelfViewPrefsV1): Record<string, s
     '--shelf-label-font-px': prefs.textDensity === 'sm' ? '9px' : prefs.textDensity === 'lg' ? '12px' : '10px',
     '--display-aspect-ratio': prefs.displayOrientation === 'landscape' ? '3/2' : '2/3',
   };
+  for (const [afterRow, o] of Object.entries(prefs.displayRowOrientations)) {
+    vars[`--display-aspect-row-${afterRow}`] = o === 'landscape' ? '3/2' : '2/3';
+  }
+  return vars;
 }
 
 /**
