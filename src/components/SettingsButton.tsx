@@ -4,7 +4,24 @@ import Link from 'next/link';
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, Download, Eye, EyeOff, GraduationCap, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
+import { ArrowRight, Check, Download, Eye, EyeOff, GraduationCap, GripVertical, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   CARD_DENSITY_DEFAULT,
   DENSITY_SCOPES,
@@ -135,7 +152,6 @@ const SETTINGS_TABS = [
   'display',
   'content',
   'library',
-  'home',
   'vn-page',
   'account',
   'integrations',
@@ -162,7 +178,7 @@ export function SettingsButton() {
   // the gear icon (or "All settings…" from the spoiler popover) on a
   // specific concern and the freshest landing is Display.
   const [activeTab, setActiveTab] = useState<SettingsTab>('display');
-  const [activePageLayoutTab, setActivePageLayoutTab] = useState<'vn' | 'character' | 'staff' | 'producer' | 'series'>('vn');
+  const [activePageLayoutTab, setActivePageLayoutTab] = useState<'home' | 'vn' | 'character' | 'staff' | 'producer' | 'series'>('home');
 
   const loadServer = useCallback(async () => {
     try {
@@ -919,19 +935,6 @@ export function SettingsButton() {
                 </div>
                 )}
 
-                {activeTab === 'home' && (
-                  <div
-                    role="tabpanel"
-                    id="settings-panel-home"
-                    aria-labelledby="settings-tab-home"
-                  >
-                    <HomeLayoutPanel
-                      layout={server?.home_section_layout_v1 ?? DEFAULT_HOME_LAYOUT}
-                      onChange={(next) => saveServer({ home_section_layout_v1: next })}
-                    />
-                  </div>
-                )}
-
                 {activeTab === 'vn-page' && (
                   <div
                     role="tabpanel"
@@ -944,6 +947,7 @@ export function SettingsButton() {
                     >
                       {(
                         [
+                          ['home', t.homeLayout.openEditor],
                           ['vn', t.vnLayout.restoreTitle],
                           ['character', t.characterLayout.restoreTitle],
                           ['staff', t.staffLayout.restoreTitle],
@@ -962,6 +966,12 @@ export function SettingsButton() {
                         </button>
                       ))}
                     </nav>
+                    {activePageLayoutTab === 'home' && (
+                      <HomeLayoutPanel
+                        layout={server?.home_section_layout_v1 ?? DEFAULT_HOME_LAYOUT}
+                        onChange={(next) => saveServer({ home_section_layout_v1: next })}
+                      />
+                    )}
                     {activePageLayoutTab === 'vn' && (
                       <VnLayoutPanel
                         layout={server?.vn_detail_section_layout_v1 ?? defaultVnDetailLayoutV1()}
@@ -1071,50 +1081,55 @@ function HomeLayoutPanel({
     setDraft(layout);
   }, [layout]);
 
-  function persist(id: HomeSectionId, next: HomeSectionState) {
-    setDraft((cur) => ({ ...cur, sections: { ...cur.sections, [id]: next } }));
-    onChange({ sections: { [id]: next } });
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function onDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = draft.order.indexOf(active.id as HomeSectionId);
+    const newIndex = draft.order.indexOf(over.id as HomeSectionId);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const nextOrder = arrayMove(draft.order, oldIndex, newIndex);
+    setDraft((cur) => ({ ...cur, order: nextOrder }));
+    onChange({ order: nextOrder });
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent(HOME_LAYOUT_EVENT, { detail: { sections: { [id]: next } } }),
-      );
+      window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: { order: nextOrder } }));
     }
   }
-  const hiddenCount = HOME_SECTION_IDS.filter((id) => !draft.sections[id].visible).length;
+
+  function toggleVisible(id: HomeSectionId) {
+    const cur = draft.sections[id];
+    const next: HomeSectionState = { ...cur, visible: !cur.visible };
+    setDraft((d) => ({ ...d, sections: { ...d.sections, [id]: next } }));
+    onChange({ sections: { [id]: next } });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: { sections: { [id]: next } } }));
+    }
+  }
+
+  const hiddenCount = draft.order.filter((id) => !draft.sections[id].visible).length;
   return (
     <div className="mt-6 border-t border-border pt-5">
       <h3 className="mb-1 text-sm font-bold">{t.homeSections.title}</h3>
       <p className="mb-3 text-[11px] text-muted">{t.homeSections.desc}</p>
-      <ul className="space-y-2">
-        {HOME_SECTION_IDS.map((id) => {
-          const state = draft.sections[id];
-          return (
-            <li
-              key={id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 text-xs"
-            >
-              <span className={state.visible ? 'text-white' : 'text-muted'}>
-                {t.homeSections.sectionLabels[id]}
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => persist(id, { ...state, visible: !state.visible })}
-                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
-                    state.visible
-                      ? 'border-accent bg-accent/10 text-accent'
-                      : 'border-border text-muted hover:border-accent hover:text-accent'
-                  }`}
-                  aria-pressed={state.visible}
-                >
-                  <Eye className="h-3 w-3" aria-hidden />
-                  {state.visible ? t.homeSections.show : t.homeSections.hide}
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={draft.order} strategy={verticalListSortingStrategy}>
+          <ul className="space-y-1.5">
+            {draft.order.map((id) => (
+              <SortableHomeLayoutRow
+                key={id}
+                id={id}
+                visible={draft.sections[id]?.visible !== false}
+                label={t.homeSections.sectionLabels[id]}
+                onToggleVisible={() => toggleVisible(id)}
+              />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
       {hiddenCount === 0 && (
         <p className="mt-2 text-[10px] text-muted">{t.homeSections.hiddenNoneHint}</p>
       )}
@@ -1124,14 +1139,9 @@ function HomeLayoutPanel({
           type="button"
           onClick={() => {
             setDraft(DEFAULT_HOME_LAYOUT);
-            // Calling onChange with null is interpreted by the parent
-            // as a "drop the row" intent; the route will treat that as
-            // a reset.
             onChange({ sections: DEFAULT_HOME_LAYOUT.sections, order: DEFAULT_HOME_LAYOUT.order });
             if (typeof window !== 'undefined') {
-              window.dispatchEvent(
-                new CustomEvent(HOME_LAYOUT_EVENT, { detail: { reset: true } }),
-              );
+              window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: { reset: true } }));
             }
           }}
           className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/30 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
@@ -1142,6 +1152,53 @@ function HomeLayoutPanel({
         </button>
       </div>
     </div>
+  );
+}
+
+function SortableHomeLayoutRow({
+  id,
+  visible,
+  label,
+  onToggleVisible,
+}: {
+  id: string;
+  visible: boolean;
+  label: string;
+  onToggleVisible: () => void;
+}) {
+  const t = useT();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 rounded-lg border border-border bg-bg-elev/40 px-2 py-1.5 text-xs"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={t.homeLayout.dragHandle}
+        className="cursor-grab text-muted hover:text-white"
+      >
+        <GripVertical className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      <span className={`flex-1 ${visible ? 'text-white' : 'text-muted line-through'}`}>{label}</span>
+      <button
+        type="button"
+        onClick={onToggleVisible}
+        aria-pressed={!visible}
+        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
+          visible
+            ? 'border-accent bg-accent/10 text-accent'
+            : 'border-border text-muted hover:border-accent hover:text-accent'
+        }`}
+      >
+        {visible ? <Eye className="h-3 w-3" aria-hidden /> : <EyeOff className="h-3 w-3" aria-hidden />}
+        {visible ? t.homeSections.show : t.homeSections.hide}
+      </button>
+    </li>
   );
 }
 
@@ -1170,22 +1227,39 @@ function VnLayoutPanel({
     setDraft(layout);
   }, [layout]);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function onDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = draft.order.indexOf(active.id as VnSectionId);
+    const newIndex = draft.order.indexOf(over.id as VnSectionId);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const nextOrder = arrayMove(draft.order, oldIndex, newIndex);
+    setDraft((cur) => {
+      const next: VnDetailLayoutV1 = { ...cur, order: nextOrder };
+      onSave(next);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(VN_LAYOUT_EVENT, { detail: { layout: next } }));
+      }
+      return next;
+    });
+  }
+
   function patch(id: VnSectionId, partial: Partial<VnSectionState>) {
     setDraft((cur) => {
-      const nextLayout: VnDetailLayoutV1 = {
+      const next: VnDetailLayoutV1 = {
         order: cur.order,
-        sections: {
-          ...cur.sections,
-          [id]: { ...cur.sections[id], ...partial },
-        },
+        sections: { ...cur.sections, [id]: { ...cur.sections[id], ...partial } },
       };
-      onSave(nextLayout);
+      onSave(next);
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent(VN_LAYOUT_EVENT, { detail: { layout: nextLayout } }),
-        );
+        window.dispatchEvent(new CustomEvent(VN_LAYOUT_EVENT, { detail: { layout: next } }));
       }
-      return nextLayout;
+      return next;
     });
   }
 
@@ -1206,45 +1280,27 @@ function VnLayoutPanel({
           {t.vnLayout.reset}
         </button>
       </div>
-      <ul className="space-y-1.5">
-        {draft.order.map((id) => {
-          const state = draft.sections[id];
-          return (
-            <li
-              key={id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-elev/40 px-2.5 py-1.5 text-xs"
-            >
-              <span className={state.visible ? 'text-white' : 'text-muted'}>
-                {t.vnLayout.sectionLabels[id]}
-              </span>
-              <div className="flex items-center gap-2">
-                <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-muted">
-                  <input
-                    type="checkbox"
-                    checked={state.collapsedByDefault}
-                    onChange={(e) => patch(id, { collapsedByDefault: e.target.checked })}
-                    className="h-3 w-3 accent-accent"
-                  />
-                  {t.vnLayout.collapseByDefault}
-                </label>
-                <button
-                  type="button"
-                  onClick={() => patch(id, { visible: !state.visible })}
-                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
-                    state.visible
-                      ? 'border-accent bg-accent/10 text-accent'
-                      : 'border-border text-muted hover:border-accent hover:text-accent'
-                  }`}
-                  aria-pressed={state.visible}
-                >
-                  {state.visible ? <Eye className="h-3 w-3" aria-hidden /> : <EyeOff className="h-3 w-3" aria-hidden />}
-                  {state.visible ? t.vnLayout.hide : t.vnLayout.show}
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={draft.order} strategy={verticalListSortingStrategy}>
+          <ul className="space-y-1.5">
+            {draft.order.map((id) => (
+              <SortableDetailRow
+                key={id}
+                id={id}
+                visible={draft.sections[id]?.visible !== false}
+                collapsedByDefault={draft.sections[id]?.collapsedByDefault ?? false}
+                label={t.vnLayout.sectionLabels[id]}
+                collapseLabel={t.vnLayout.collapseByDefault}
+                showLabel={t.vnLayout.show}
+                hideLabel={t.vnLayout.hide}
+                dragHandleLabel={t.homeLayout.dragHandle}
+                onToggleVisible={() => patch(id, { visible: !draft.sections[id].visible })}
+                onToggleCollapse={(v) => patch(id, { collapsedByDefault: v })}
+              />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
       {hiddenCount === 0 && (
         <p className="text-[10px] text-muted">{t.vnLayout.hiddenNoneHint}</p>
       )}
@@ -1283,6 +1339,28 @@ function PageLayoutPanel<Id extends string>({
   const [open, setOpen] = useState(true);
 
   useEffect(() => { setDraft(layout); }, [layout]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function onDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = draft.order.indexOf(active.id as Id);
+    const newIndex = draft.order.indexOf(over.id as Id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const nextOrder = arrayMove(draft.order, oldIndex, newIndex);
+    setDraft((cur) => {
+      const next = { ...cur, order: nextOrder };
+      onSave(next);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(eventName, { detail: { layout: next } }));
+      }
+      return next;
+    });
+  }
 
   function patch(id: Id, partial: Partial<{ visible: boolean; collapsedByDefault: boolean }>) {
     setDraft((cur) => {
@@ -1329,46 +1407,100 @@ function PageLayoutPanel<Id extends string>({
               {resetLabel}
             </button>
           </div>
-          <ul className="space-y-1.5">
-            {draft.order.map((id) => {
-              const state = draft.sections[id];
-              if (!state) return null;
-              return (
-                <li key={id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-elev/40 px-2.5 py-1.5 text-xs">
-                  <span className={state.visible ? 'text-white' : 'text-muted'}>
-                    {sectionLabels[id] ?? id}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-muted">
-                      <input
-                        type="checkbox"
-                        checked={state.collapsedByDefault}
-                        onChange={(e) => patch(id, { collapsedByDefault: e.target.checked })}
-                        className="h-3 w-3 accent-accent"
-                      />
-                      {t.vnLayout.collapseByDefault}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => patch(id, { visible: !state.visible })}
-                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
-                        state.visible
-                          ? 'border-accent bg-accent/10 text-accent'
-                          : 'border-border text-muted hover:border-accent hover:text-accent'
-                      }`}
-                      aria-pressed={state.visible}
-                    >
-                      {state.visible ? <Eye className="h-3 w-3" aria-hidden /> : <EyeOff className="h-3 w-3" aria-hidden />}
-                      {state.visible ? t.vnLayout.hide : t.vnLayout.show}
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            <SortableContext items={draft.order} strategy={verticalListSortingStrategy}>
+              <ul className="space-y-1.5">
+                {draft.order.map((id) => {
+                  if (!draft.sections[id]) return null;
+                  return (
+                    <SortableDetailRow
+                      key={id}
+                      id={id}
+                      visible={draft.sections[id]?.visible !== false}
+                      collapsedByDefault={draft.sections[id]?.collapsedByDefault ?? false}
+                      label={sectionLabels[id] ?? id}
+                      collapseLabel={t.vnLayout.collapseByDefault}
+                      showLabel={t.vnLayout.show}
+                      hideLabel={t.vnLayout.hide}
+                      dragHandleLabel={t.homeLayout.dragHandle}
+                      onToggleVisible={() => patch(id, { visible: !draft.sections[id].visible })}
+                      onToggleCollapse={(v) => patch(id, { collapsedByDefault: v })}
+                    />
+                  );
+                })}
+              </ul>
+            </SortableContext>
+          </DndContext>
         </div>
       )}
     </div>
+  );
+}
+
+function SortableDetailRow({
+  id,
+  visible,
+  collapsedByDefault,
+  label,
+  collapseLabel,
+  showLabel,
+  hideLabel,
+  dragHandleLabel,
+  onToggleVisible,
+  onToggleCollapse,
+}: {
+  id: string;
+  visible: boolean;
+  collapsedByDefault: boolean;
+  label: string;
+  collapseLabel: string;
+  showLabel: string;
+  hideLabel: string;
+  dragHandleLabel: string;
+  onToggleVisible: () => void;
+  onToggleCollapse: (v: boolean) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 rounded-lg border border-border bg-bg-elev/40 px-2 py-1.5 text-xs"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={dragHandleLabel}
+        className="cursor-grab text-muted hover:text-white"
+      >
+        <GripVertical className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      <span className={`flex-1 ${visible ? 'text-white' : 'text-muted line-through'}`}>{label}</span>
+      <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-muted">
+        <input
+          type="checkbox"
+          checked={collapsedByDefault}
+          onChange={(e) => onToggleCollapse(e.target.checked)}
+          className="h-3 w-3 accent-accent"
+        />
+        {collapseLabel}
+      </label>
+      <button
+        type="button"
+        onClick={onToggleVisible}
+        aria-pressed={!visible}
+        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
+          visible
+            ? 'border-accent bg-accent/10 text-accent'
+            : 'border-border text-muted hover:border-accent hover:text-accent'
+        }`}
+      >
+        {visible ? <Eye className="h-3 w-3" aria-hidden /> : <EyeOff className="h-3 w-3" aria-hidden />}
+        {visible ? hideLabel : showLabel}
+      </button>
+    </li>
   );
 }
 

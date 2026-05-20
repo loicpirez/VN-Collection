@@ -30,7 +30,6 @@ const SETTINGS_TABS = [
   'display',
   'content',
   'library',
-  'home',
   'vn-page',
   'account',
   'integrations',
