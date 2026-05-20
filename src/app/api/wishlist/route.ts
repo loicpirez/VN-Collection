@@ -1,11 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { fetchAuthenticatedWishlist } from '@/lib/vndb';
 import { getEgsForVns, isInCollectionMany } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const deny = requireLocalhostOrToken(req);
+  if (deny) return deny;
   try {
     const result = await fetchAuthenticatedWishlist();
     if ('needsAuth' in result) {

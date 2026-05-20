@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { applyEgsSuggestions, computeEgsSuggestions } from '@/lib/egs-sync';
 import { recordActivity } from '@/lib/activity';
-
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const deny = requireLocalhostOrToken(req);
+  if (deny) return deny;
   const { needsConfig, suggestions } = await computeEgsSuggestions();
   return NextResponse.json({ ok: true, needsConfig, suggestions });
 }
 
 export async function POST(req: NextRequest) {
+  const deny = requireLocalhostOrToken(req);
+  if (deny) return deny;
   const body = (await readJsonObject(req)) as { vn_ids?: unknown };
   if (!Array.isArray(body.vn_ids)) {
     return NextResponse.json({ error: 'vn_ids must be an array' }, { status: 400 });

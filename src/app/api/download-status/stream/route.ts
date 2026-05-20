@@ -1,5 +1,7 @@
+import { NextRequest } from 'next/server';
 import { listJobs, subscribeStatus } from '@/lib/download-status';
 import { getVndbThrottleStats } from '@/lib/vndb-throttle';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -25,7 +27,9 @@ function buildSnapshot(): string {
  * countdown between events to keep the UI smooth without forcing a
  * re-emit on the server every second.
  */
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const deny = requireLocalhostOrToken(req);
+  if (deny) return deny;
   const encoder = new TextEncoder();
   let aborted = false;
   let cleanup: () => void = () => undefined;

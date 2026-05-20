@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listUserActivity } from '@/lib/activity';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,6 +12,8 @@ function num(v: string | null): number | null {
 }
 
 export async function GET(req: NextRequest) {
+  const deny = requireLocalhostOrToken(req);
+  if (deny) return deny;
   const sp = req.nextUrl.searchParams;
   return NextResponse.json({
     activity: listUserActivity({

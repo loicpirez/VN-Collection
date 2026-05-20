@@ -34,8 +34,21 @@ import {
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+const SENSITIVE_LOG_KEYS = new Set([
+  'vndb_token',
+  'steam_api_key',
+  'vndb_backup_url',
+]);
+
+function maskPayloadValues(obj: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(obj).map(([k, v]) => [k, SENSITIVE_LOG_KEYS.has(k) ? '[REDACTED]' : v]),
+  );
+}
 
 const SAFE_KEYS = new Set([
   'vndb_token',
@@ -469,7 +482,7 @@ export async function PATCH(req: NextRequest) {
       kind: 'settings.update',
       entity: 'settings',
       label: 'Updated settings',
-      payload: { keys: changedKeys, values: body },
+      payload: { keys: changedKeys, values: maskPayloadValues(body as Record<string, unknown>) },
     });
   }
   return NextResponse.json({ ok: true });

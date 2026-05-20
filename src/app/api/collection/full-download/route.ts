@@ -3,12 +3,15 @@ import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
 import { recordActivity } from '@/lib/activity';
-
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 600;
+
+const VN_IDS_MAX = 200;
 
 /**
  * Selective full-download: queue a staff + character + producer fan-out
@@ -21,9 +24,17 @@ export const maxDuration = 600;
  * 3+ 429s) keeps the rate sane no matter how many VNs were picked.
  */
 export async function POST(req: NextRequest) {
+  const deny = requireLocalhostOrToken(req);
+  if (deny) return deny;
   const body = (await readJsonObject(req)) as { vn_ids?: unknown };
   if (!Array.isArray(body.vn_ids)) {
     return NextResponse.json({ error: 'vn_ids must be an array' }, { status: 400 });
+  }
+  if (body.vn_ids.length > VN_IDS_MAX) {
+    return NextResponse.json(
+      { error: `vn_ids exceeds limit of ${VN_IDS_MAX}` },
+      { status: 429 },
+    );
   }
   const ids = body.vn_ids.filter(
     (s): s is string => typeof s === 'string' && isVndbVnId(s),

@@ -8,7 +8,9 @@ export const dynamic = 'force-dynamic';
  * /steam manual-link UI; can be reused anywhere we need a quick fuzzy
  * "search the library" affordance.
  */
+const Q_MAX = 300;
+
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get('q') ?? '';
+  const q = (req.nextUrl.searchParams.get('q') ?? '').slice(0, Q_MAX);
   return NextResponse.json({ matches: searchCollectionByTitle(q, 12) });
 }

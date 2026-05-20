@@ -16,6 +16,7 @@ import { scrapeCharactersForVn } from '@/lib/scrape-character-instances';
 import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 import { upstreamError } from '@/lib/api-error';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -28,6 +29,8 @@ interface EgsWarning {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const deny = requireLocalhostOrToken(req);
+  if (deny) return deny;
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
