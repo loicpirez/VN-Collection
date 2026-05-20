@@ -1453,7 +1453,7 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
         data={shelfEntryToPopoverData(entry)}
         buttonPositionClassName="absolute right-1 top-1"
       />
-      <span className="absolute right-7 top-1 rounded bg-bg/70 p-0.5 text-muted opacity-0 transition-opacity group-hover/poolitem:opacity-100">
+      <span className="absolute right-7 top-1 rounded bg-bg/70 p-0.5 text-muted md:opacity-0 md:transition-opacity md:group-hover/poolitem:opacity-100">
         <GripVertical className="h-3 w-3" aria-hidden />
       </span>
     </li>

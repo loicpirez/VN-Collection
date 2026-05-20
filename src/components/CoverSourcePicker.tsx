@@ -348,7 +348,7 @@ export function CoverSourcePicker({
                   aria-label={t.coverActions.rotateLeft}
                 >
                   <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                  <span className="hidden sm:inline">{t.coverActions.rotateLeft}</span>
+                  <span>{t.coverActions.rotateLeft}</span>
                 </button>
                 <button
                   type="button"
@@ -359,7 +359,7 @@ export function CoverSourcePicker({
                   aria-label={t.coverActions.rotateRight}
                 >
                   <RotateCw className="h-3.5 w-3.5" aria-hidden />
-                  <span className="hidden sm:inline">{t.coverActions.rotateRight}</span>
+                  <span>{t.coverActions.rotateRight}</span>
                 </button>
                 <button
                   type="button"

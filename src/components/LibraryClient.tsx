@@ -833,7 +833,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           title={t.library.customSortHint}
         >
           <GripVertical className="h-4 w-4" />
-          <span className="hidden lg:inline">
+          <span>
             {sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
           </span>
         </button>
@@ -875,7 +875,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             title={t.library.denseToggle}
           >
             <LayoutGrid className="h-4 w-4" />
-            <span className="hidden lg:inline">
+            <span>
               {settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
             </span>
           </button>
@@ -896,7 +896,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               title={t.bulkEdit.toggleSelectMode}
             >
               <CheckSquare className="h-4 w-4" />
-              <span className="hidden lg:inline">
+              <span>
                 {selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
               </span>
             </button>

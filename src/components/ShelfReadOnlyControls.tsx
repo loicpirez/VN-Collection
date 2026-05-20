@@ -301,7 +301,7 @@ export function ShelfReadOnlyControls({
         className="tap-target-tight inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
       >
         <Sliders className="h-3.5 w-3.5" aria-hidden />
-        <span className="hidden sm:inline">{dict.title}</span>
+        <span>{dict.title}</span>
       </button>
       {open && (
         <div
