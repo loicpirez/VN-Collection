@@ -794,7 +794,12 @@ function open(): Database.Database {
       .prepare(`SELECT id FROM vn WHERE id LIKE 'egs:%'`)
       .all() as { id: string }[];
     if (legacyEgs.length > 0) {
-      const fix = db.transaction(() => {
+        db.transaction(() => {
+        // defer_foreign_keys defers FK constraint checks to commit time
+        // so the PK rename + child-table updates can happen in any order
+        // within the same transaction. Resets automatically at commit/
+        // rollback — safer than the session-level foreign_keys = OFF/ON.
+        db.pragma('defer_foreign_keys = ON');
         for (const { id } of legacyEgs) {
           const fixed = `egs_${id.slice(4)}`;
           db.prepare('UPDATE vn SET id = ? WHERE id = ?').run(fixed, id);
@@ -806,13 +811,7 @@ function open(): Database.Database {
           db.prepare('UPDATE vn_route SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
           db.prepare('UPDATE series_vn SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
         }
-      });
-      db.pragma('foreign_keys = OFF');
-      try {
-        fix();
-      } finally {
-        db.pragma('foreign_keys = ON');
-      }
+      })();
     }
     db.prepare(
       `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v1', '1')`,
@@ -3626,26 +3625,19 @@ export function getReleaseMeta(releaseId: string): ReleaseMetaRow | null {
  */
 export function materializeReleaseMetaForVn(vnId: string): void {
   if (!isVndbVnId(vnId)) return;
-  // R5-132: short-circuit when `release_meta_cache` already has rows
-  // for this vn AND those rows are newer than the latest matching
-  // `vndb_cache` row. This drops the per-VN cost from "scan the
-  // entire release cache + JSON.parse each row + upsert N rows"
-  // (5,000,000 inspections worst case across 1000 VNs) to a single
-  // index lookup. The aspect-materialise helper above uses the same
-  // pattern.
-  const freshest = db
-    .prepare(
-      `SELECT MAX(fetched_at) AS latest FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`,
-    )
-    .get() as { latest: number | null } | undefined;
-  if (freshest?.latest) {
-    const haveFresh = db
-      .prepare(
-        `SELECT 1 FROM release_meta_cache WHERE vn_id = ? AND fetched_at >= ? LIMIT 1`,
-      )
-      .get(vnId, freshest.latest);
-    if (haveFresh) return;
-  }
+  // R5-132 / AUD-DB-009: short-circuit when release_meta_cache rows
+  // for THIS VN are at least as fresh as the newest vndb_cache release
+  // payload. The old watermark used a global MAX(fetched_at) over all
+  // vndb_cache release entries — any single VN's cache refresh bumped
+  // the watermark and forced all other VNs to re-scan. Scoping both
+  // timestamps to this VN avoids that cross-VN contamination.
+  const vnNewest = db
+    .prepare(`SELECT MAX(fetched_at) AS latest FROM release_meta_cache WHERE vn_id = ?`)
+    .get(vnId) as { latest: number | null };
+  const cacheNewest = db
+    .prepare(`SELECT MAX(fetched_at) AS latest FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
+    .get() as { latest: number | null };
+  if (vnNewest?.latest && cacheNewest?.latest && vnNewest.latest >= cacheNewest.latest) return;
   // R5-132: anchor the `LIKE` prefix so the `vndb_cache` PRIMARY KEY
   // index serves it (instead of a leading-wildcard `% /release|%`
   // which forced a full table scan). The cache key shape is
@@ -5393,13 +5385,16 @@ export function placeShelfItem(input: PlaceShelfItemInput): PlaceShelfItemResult
   if (!Number.isInteger(input.row) || !Number.isInteger(input.col)) {
     throw new Error('row/col must be integers');
   }
-  const shelf = getShelf(input.shelfId);
-  if (!shelf) throw new Error('shelf not found');
-  if (input.row < 0 || input.row >= shelf.rows) throw new Error('row out of bounds');
-  if (input.col < 0 || input.col >= shelf.cols) throw new Error('col out of bounds');
 
   let swapped: PlaceShelfItemResult['swapped'] = null;
   const tx = db.transaction(() => {
+    // Re-read shelf inside the transaction so bounds checks are
+    // consistent with the write — a concurrent resize or delete
+    // can't change the shelf between the check and the INSERT.
+    const shelf = getShelf(input.shelfId);
+    if (!shelf) throw new Error('shelf not found');
+    if (input.row < 0 || input.row >= shelf.rows) throw new Error('row out of bounds');
+    if (input.col < 0 || input.col >= shelf.cols) throw new Error('col out of bounds');
     // Owned-edition check inside the transaction so a concurrent
     // DELETE of the owned_release row between check and INSERT
     // can't sneak through. shelf_slot has no FK on owned_release
