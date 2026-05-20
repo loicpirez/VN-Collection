@@ -15,6 +15,7 @@ import {
   Database,
   FileCode2,
   Gamepad2,
+  GitCompare,
   Globe,
   HardDriveDownload,
   Heart,
@@ -88,6 +89,8 @@ export function GroupedNav() {
     { href: '/upcoming', label: t.nav.upcoming, icon: CalendarRange },
     { href: '/top-ranked', label: t.nav.topRanked, icon: Crown },
     { href: '/recommendations', label: t.nav.recommend, icon: Wand2 },
+    { href: '/similar', label: t.nav.similar, icon: Sparkles },
+    { href: '/compare', label: t.nav.compare, icon: GitCompare },
     { href: '/quotes', label: t.nav.quotes, icon: Quote },
     { href: '/lists', label: t.nav.lists, icon: ListChecks },
   ];
@@ -99,8 +102,6 @@ export function GroupedNav() {
     { href: '/traits', label: t.nav.traits, icon: Sparkles },
     { href: '/characters', label: t.nav.characters, icon: UserSquare },
     { href: '/staff', label: t.nav.staff, icon: Mic },
-    { href: `/year?y=${new Date().getFullYear()}`, label: t.nav.year, icon: Award },
-    { href: '/labels', label: t.nav.labels, icon: Tag },
   ];
 
   // /shelf used to share the Library icon, which was visually
@@ -110,6 +111,8 @@ export function GroupedNav() {
   const insights: NavItem[] = [
     { href: '/stats', label: t.nav.stats, icon: BarChart3 },
     { href: '/shelf', label: t.nav.shelf, icon: LayoutGrid },
+    { href: `/year?y=${new Date().getFullYear()}`, label: t.nav.year, icon: Award },
+    { href: '/labels', label: t.nav.labels, icon: Tag },
     { href: '/dumped', label: t.nav.dumped, icon: HardDriveDownload },
     { href: '/activity', label: t.nav.activity, icon: Activity },
     { href: '/steam', label: t.nav.steam, icon: Globe },
