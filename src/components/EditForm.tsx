@@ -1,8 +1,8 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, Bookmark, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowRight, Bookmark, Check, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -49,7 +49,60 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   }, []);
 
   const [seriesPickerId, setSeriesPickerId] = useState<string>('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const myseries = vn.series ?? [];
+
+  const buildPayload = useCallback(() => ({
+    status,
+    user_rating: userRating === '' ? null : Number(userRating),
+    playtime_minutes: Number(playtime),
+    started_date: started || null,
+    finished_date: finished || null,
+    notes: notes || null,
+    favorite,
+    location,
+    edition_type: editionType,
+    edition_label: editionLabel || null,
+    physical_location: physicalLocations,
+    box_type: boxType,
+    download_url: downloadUrl.trim() || null,
+    dumped,
+  }), [status, userRating, playtime, started, finished, notes, favorite, location, editionType, editionLabel, physicalLocations, boxType, downloadUrl, dumped]);
+
+  const lastSavedRef = useRef<string | null>(null);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      lastSavedRef.current = JSON.stringify(buildPayload());
+      return;
+    }
+    if (!inCollection) return;
+    if (userRatingInvalid || playtimeInvalid) return;
+    const payload = buildPayload();
+    const serialized = JSON.stringify(payload);
+    if (serialized === lastSavedRef.current) return;
+    setSaveStatus('saving');
+    const timer = setTimeout(() => {
+      lastSavedRef.current = serialized;
+      call('PATCH', payload)
+        .then(() => {
+          setSaveStatus('saved');
+          startTransition(() => router.refresh());
+          setTimeout(() => setSaveStatus('idle'), 2000);
+        })
+        .catch((e: Error) => {
+          setSaveStatus('idle');
+          setError(e.message);
+          toast.error(e.message);
+        });
+    }, 800);
+    return () => {
+      clearTimeout(timer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, userRating, playtime, started, finished, notes, favorite, location, editionType, editionLabel, physicalLocations, boxType, downloadUrl, dumped]);
 
   async function call(method: 'POST' | 'PATCH' | 'DELETE', body?: unknown) {
     setError(null);
@@ -92,35 +145,6 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     userRatingNum !== null && (Number.isNaN(userRatingNum) || userRatingNum < 10 || userRatingNum > 100);
   const playtimeNum = Number(playtime);
   const playtimeInvalid = Number.isNaN(playtimeNum) || playtimeNum < 0;
-
-  function handleSave() {
-    if (userRatingInvalid) {
-      setError(t.form.errors.ratingRange);
-      return;
-    }
-    if (playtimeInvalid) {
-      setError(t.form.errors.playtimeInvalid);
-      return;
-    }
-    withTransition(() =>
-      call('PATCH', {
-        status,
-        user_rating: userRatingNum,
-        playtime_minutes: playtimeNum,
-        started_date: started || null,
-        finished_date: finished || null,
-        notes: notes || null,
-        favorite,
-        location,
-        edition_type: editionType,
-        edition_label: editionLabel || null,
-        physical_location: physicalLocations,
-        box_type: boxType,
-        download_url: downloadUrl.trim() || null,
-        dumped,
-      }).then(() => toast.success(t.toast.saved)),
-    );
-  }
 
   async function handleRemove() {
     const ok = await confirm({ message: t.form.removeConfirm, tone: 'danger' });
@@ -380,13 +404,27 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
       {error && <p className="text-sm text-status-dropped">{error}</p>}
 
-      <div className="flex flex-wrap gap-2">
-        <button className="btn btn-primary" onClick={handleSave} disabled={pending}>
-          <Save className="h-4 w-4" />
-          {pending ? t.form.saving : t.form.save}
-        </button>
-        <button className="btn btn-danger" onClick={handleRemove} disabled={pending}>
-          <Trash2 className="h-4 w-4" />
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg-card px-4 py-2.5">
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
+          {saveStatus === 'saving' && (
+            <><Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.form.saving}</>
+          )}
+          {saveStatus === 'saved' && (
+            <><Check className="h-3 w-3 text-status-finished" aria-hidden />
+              <span className="text-status-finished">{t.toast.saved}</span>
+            </>
+          )}
+          {saveStatus === 'idle' && (
+            <span className="opacity-50">{t.form.autoSaveHint ?? t.form.save}</span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={handleRemove}
+          disabled={pending}
+          className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-status-dropped disabled:opacity-40"
+        >
+          <Trash2 className="h-3 w-3" aria-hidden />
           {t.form.remove}
         </button>
       </div>
