@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Target } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { SkeletonBlock } from './Skeleton';
 
 interface Props {
   year: number;
@@ -26,8 +27,10 @@ export function ReadingGoalCard({ year }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    setLoaded(false);
     fetch(`/api/reading-goal?year=${year}`)
       .then((r) => r.json())
       .then((d: { goal?: { target: number } | null; finished?: number }) => {
@@ -35,7 +38,8 @@ export function ReadingGoalCard({ year }: Props) {
         setFinished(d.finished ?? 0);
         setDraft(String(d.goal?.target ?? ''));
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => setLoaded(true));
   }, [year]);
 
   async function save() {
@@ -72,13 +76,18 @@ export function ReadingGoalCard({ year }: Props) {
         <h2 className="inline-flex items-center gap-2 text-lg font-bold">
           <Target className="h-5 w-5 text-accent" /> {t.readingGoal.label} {year}
         </h2>
-        {!editing && (
-          <button type="button" onClick={() => setEditing(true)} className="btn btn-primary text-xs">
+        {loaded && !editing && (
+          <button type="button" onClick={() => setEditing(true)} className="btn btn-xs btn-primary">
             {target == null ? t.readingGoal.setCta : t.common.edit}
           </button>
         )}
       </div>
-      {editing ? (
+      {!loaded ? (
+        <div className="space-y-2">
+          <SkeletonBlock className="h-3 w-1/3" />
+          <SkeletonBlock className="h-2 w-full" />
+        </div>
+      ) : editing ? (
         <div className="flex items-center gap-2">
           <input
             autoFocus
@@ -89,10 +98,10 @@ export function ReadingGoalCard({ year }: Props) {
             placeholder={t.readingGoal.placeholder}
             className="input w-32"
           />
-          <button type="button" onClick={save} disabled={busy} className="btn btn-primary text-xs">
+          <button type="button" onClick={save} disabled={busy} className="btn btn-xs btn-primary">
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : t.common.save}
           </button>
-          <button type="button" onClick={() => setEditing(false)} className="btn text-xs">
+          <button type="button" onClick={() => setEditing(false)} className="btn btn-xs">
             {t.common.cancel}
           </button>
         </div>
