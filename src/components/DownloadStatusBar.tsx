@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useId, useState } from 'react';
+import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, Cloud, CloudDownload, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
@@ -20,10 +21,14 @@ interface Job {
     | 'vn-fetch'
     | 'cache-refresh';
   vn_id: string | null;
+  /** Resolved from the local DB by the enrichment layer in the API route. */
+  vn_title?: string | null;
   label: string;
   total: number;
   done: number;
   current_item?: string | null;
+  /** Human-readable name for current_item resolved from the local DB. */
+  current_item_name?: string | null;
   errors: JobError[];
   started_at: number;
   finished_at: number | null;
@@ -39,6 +44,64 @@ interface Snapshot {
     retryAfterMs?: number;
   };
   jobs: Job[];
+}
+
+/** Maps a VNDB entity id prefix to its local app route. */
+function idToHref(id: string): string | null {
+  if (id.startsWith('v')) return `/vn/${id}`;
+  if (id.startsWith('p')) return `/producer/${id}`;
+  if (id.startsWith('s')) return `/staff/${id}`;
+  if (id.startsWith('c')) return `/character/${id}`;
+  if (id.startsWith('g')) return `/tag/${id}`;
+  if (id.startsWith('i')) return `/trait/${id}`;
+  return null;
+}
+
+/**
+ * Renders a VNDB entity id as a local link. Shows `name (id)` when a name
+ * is available, otherwise just the raw id. Falls back to a plain span when
+ * the id doesn't map to a known route (e.g. free-text labels).
+ */
+function EntityLink({ id, name }: { id: string; name?: string | null }) {
+  const href = idToHref(id);
+  const label = name ? name : id;
+  const suffix = name ? <span className="ml-0.5 opacity-50">({id})</span> : null;
+  if (!href) return <span>{id}</span>;
+  return (
+    <Link
+      href={href}
+      className="hover:underline"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {label}{suffix}
+    </Link>
+  );
+}
+
+/**
+ * Renders the job label, replacing the embedded VN id with a link when
+ * `vn_id` and `vn_title` are present.
+ */
+function JobLabelText({
+  label,
+  vnId,
+  vnTitle,
+}: {
+  label: string;
+  vnId: string | null;
+  vnTitle?: string | null;
+}) {
+  if (!vnId || !label.includes(vnId)) return <span>{label}</span>;
+  const idx = label.indexOf(vnId);
+  const before = label.slice(0, idx);
+  const after = label.slice(idx + vnId.length);
+  return (
+    <span>
+      {before}
+      <EntityLink id={vnId} name={vnTitle} />
+      {after}
+    </span>
+  );
 }
 
 /**
@@ -325,15 +388,23 @@ export function DownloadStatusBar() {
                         main line; fall back to the job label when no
                         current_item is set (queue tail / finished).
                       */}
-                      {!finished && j.current_item ? j.current_item : `${labelKind(j.kind)} · ${j.label}`}
+                      {!finished && j.current_item ? (
+                        <EntityLink id={j.current_item} name={j.current_item_name} />
+                      ) : (
+                        <span>
+                          {labelKind(j.kind)} ·{' '}
+                          <JobLabelText label={j.label} vnId={j.vn_id ?? null} vnTitle={j.vn_title} />
+                        </span>
+                      )}
                     </span>
                     <span className="shrink-0 text-[10px] text-muted">
                       {j.done}/{j.total}
                     </span>
                   </div>
                   {!finished && j.current_item && (
-                    <div className="mt-0.5 truncate text-[10px] text-muted/90" title={`${labelKind(j.kind)} · ${j.label}`}>
-                      {labelKind(j.kind)} · {j.label}
+                    <div className="mt-0.5 truncate text-[10px] text-muted/90">
+                      {labelKind(j.kind)} ·{' '}
+                      <JobLabelText label={j.label} vnId={j.vn_id ?? null} vnTitle={j.vn_title} />
                     </div>
                   )}
                   <div
@@ -360,7 +431,13 @@ export function DownloadStatusBar() {
                       {j.errors.slice(0, 3).map((e, i) => (
                         <li key={`${j.id}-err-${i}`} className="truncate">
                           <AlertTriangle className="mr-1 inline-block h-2.5 w-2.5" />
-                          <span className="font-bold">{e.item}</span>: {e.message}
+                          <span className="font-bold">
+                            {idToHref(e.item) ? (
+                              <EntityLink id={e.item} />
+                            ) : (
+                              e.item
+                            )}
+                          </span>: {e.message}
                         </li>
                       ))}
                       {j.errors.length > 3 && (

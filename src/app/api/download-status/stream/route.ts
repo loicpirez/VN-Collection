@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { listJobs, subscribeStatus } from '@/lib/download-status';
+import { enrichJobs } from '@/lib/download-status-names';
 import { getVndbThrottleStats } from '@/lib/vndb-throttle';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
@@ -9,7 +10,7 @@ export const runtime = 'nodejs';
 function buildSnapshot(): string {
   const data = {
     throttle: getVndbThrottleStats(),
-    jobs: listJobs(),
+    jobs: enrichJobs(listJobs()),
   };
   return `data: ${JSON.stringify(data)}\n\n`;
 }

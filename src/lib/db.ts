@@ -7914,3 +7914,48 @@ export function reorderListItems(listId: number, vnIds: string[]): void {
     db.prepare('UPDATE user_list SET updated_at = ? WHERE id = ?').run(now, listId);
   })();
 }
+
+/**
+ * Batch name lookups used by the download-status enrichment layer.
+ * Each function returns a Map<id, name> for the supplied id list.
+ * Unknown ids are absent from the map (callers treat absence as null).
+ */
+export function batchGetVnTitles(ids: string[]): Map<string, string> {
+  if (ids.length === 0) return new Map();
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT id, title FROM vn WHERE id IN (${placeholders})`)
+    .all(...ids) as { id: string; title: string }[];
+  return new Map(rows.map((r) => [r.id, r.title]));
+}
+
+export function batchGetProducerNames(ids: string[]): Map<string, string> {
+  if (ids.length === 0) return new Map();
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT id, name FROM producer WHERE id IN (${placeholders})`)
+    .all(...ids) as { id: string; name: string }[];
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+export function batchGetStaffNames(ids: string[]): Map<string, string> {
+  if (ids.length === 0) return new Map();
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = db
+    .prepare(
+      `SELECT sid, name FROM vn_staff_credit WHERE sid IN (${placeholders}) GROUP BY sid`,
+    )
+    .all(...ids) as { sid: string; name: string }[];
+  return new Map(rows.map((r) => [r.sid, r.name]));
+}
+
+export function batchGetCharNames(ids: string[]): Map<string, string> {
+  if (ids.length === 0) return new Map();
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = db
+    .prepare(
+      `SELECT c_id, c_name FROM vn_va_credit WHERE c_id IN (${placeholders}) GROUP BY c_id`,
+    )
+    .all(...ids) as { c_id: string; c_name: string }[];
+  return new Map(rows.map((r) => [r.c_id, r.c_name]));
+}

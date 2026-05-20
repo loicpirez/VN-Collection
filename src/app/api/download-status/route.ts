@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listJobs } from '@/lib/download-status';
+import { enrichJobs } from '@/lib/download-status-names';
 import { getVndbThrottleStats } from '@/lib/vndb-throttle';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
@@ -11,6 +12,6 @@ export async function GET(req: NextRequest) {
   if (deny) return deny;
   return NextResponse.json({
     throttle: getVndbThrottleStats(),
-    jobs: listJobs(),
+    jobs: enrichJobs(listJobs()),
   });
 }
