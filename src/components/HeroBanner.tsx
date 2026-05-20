@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Crosshair, EyeOff, Loader2, RotateCcw, RotateCw, ShieldAlert, X } from 'lucide-react';
+import { Check, Crosshair, Loader2, RotateCcw, RotateCw, ShieldAlert, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { useToast } from './ToastProvider';
@@ -240,11 +240,48 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
 
   if (settings.hideImages && !editing) {
     return (
-      <div className="relative flex h-32 w-full items-center justify-center bg-bg-elev/40">
-        <span className="inline-flex items-center gap-2 text-xs text-muted">
-          <EyeOff className="h-4 w-4" aria-hidden /> {t.settings.hiddenImage}
-        </span>
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/70 to-transparent" />
+      <div className="group relative h-64 w-full overflow-hidden bg-bg-elev/40">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/60 to-transparent" />
+        {liveSrc && (
+          <div
+            className="absolute right-3 top-3 z-10 flex items-center gap-1.5 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => { setDraftPosition(position); setEditing(true); }}
+              className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
+              title={t.banner.adjust}
+            >
+              <Crosshair className="h-3 w-3" aria-hidden /> {t.banner.adjust}
+            </button>
+            {inCollection && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => rotateBy(-90)}
+                  disabled={busy}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
+                  title={t.coverActions.rotateLeft}
+                  aria-label={t.coverActions.rotateLeft}
+                >
+                  <RotateCcw className="h-3 w-3" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => rotateBy(90)}
+                  disabled={busy}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
+                  title={t.coverActions.rotateRight}
+                  aria-label={t.coverActions.rotateRight}
+                >
+                  <RotateCw className="h-3 w-3" aria-hidden />
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -328,7 +365,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         </>
       )}
 
-      {inCollection && liveSrc && (
+      {liveSrc && (
         <div
           className={`absolute right-3 top-3 z-10 flex flex-wrap items-center gap-1.5 transition-opacity ${
             editing
@@ -351,57 +388,68 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                 className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
                 title={t.banner.adjust}
               >
-                <Crosshair className="h-3 w-3" /> {t.banner.adjust}
+                <Crosshair className="h-3 w-3" aria-hidden /> {t.banner.adjust}
               </button>
               {/*
-                Per-banner rotation controls. Persisted via the PATCH
-                banner endpoint; on success a vn:banner-changed event
-                fires so siblings (CoverEditOverlay etc.) flip too.
+                Rotation is persisted to the collection row — only
+                available when the VN is already tracked.
               */}
-              <button
-                type="button"
-                onClick={() => rotateBy(-90)}
-                disabled={busy}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
-                title={t.coverActions.rotateLeft}
-                aria-label={t.coverActions.rotateLeft}
-              >
-                <RotateCcw className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                onClick={() => rotateBy(90)}
-                disabled={busy}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
-                title={t.coverActions.rotateRight}
-                aria-label={t.coverActions.rotateRight}
-              >
-                <RotateCw className="h-3 w-3" />
-              </button>
+              {inCollection && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => rotateBy(-90)}
+                    disabled={busy}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
+                    title={t.coverActions.rotateLeft}
+                    aria-label={t.coverActions.rotateLeft}
+                  >
+                    <RotateCcw className="h-3 w-3" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateBy(90)}
+                    disabled={busy}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
+                    title={t.coverActions.rotateRight}
+                    aria-label={t.coverActions.rotateRight}
+                  >
+                    <RotateCw className="h-3 w-3" aria-hidden />
+                  </button>
+                </>
+              )}
             </>
           ) : (
             <>
               <span className="rounded-md bg-bg-card/90 px-2 py-1 font-mono text-[10px] text-muted shadow-card backdrop-blur">
                 {draftPosition}
               </span>
-              <button
-                type="button"
-                onClick={save}
-                disabled={busy || pending}
-                className="inline-flex h-7 items-center gap-1 rounded-md bg-accent px-2 text-[11px] font-bold text-bg shadow-card transition-colors hover:bg-accent/90 disabled:opacity-50"
-              >
-                {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                {t.common.save}
-              </button>
-              <button
-                type="button"
-                onClick={reset}
-                disabled={busy || pending}
-                className="inline-flex h-7 items-center gap-1 rounded-md bg-bg-card/90 px-2 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:text-white"
-                title={t.banner.resetPosition}
-              >
-                <RotateCcw className="h-3 w-3" />
-              </button>
+              {inCollection ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={save}
+                    disabled={busy || pending}
+                    className="inline-flex h-7 items-center gap-1 rounded-md bg-accent px-2 text-[11px] font-bold text-bg shadow-card transition-colors hover:bg-accent/90 disabled:opacity-50"
+                  >
+                    {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Check className="h-3 w-3" aria-hidden />}
+                    {t.common.save}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={reset}
+                    disabled={busy || pending}
+                    className="inline-flex h-7 items-center gap-1 rounded-md bg-bg-card/90 px-2 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:text-white"
+                    title={t.banner.resetPosition}
+                  >
+                    <RotateCcw className="h-3 w-3" aria-hidden />
+                  </button>
+                </>
+              ) : (
+                <span className="rounded-md bg-bg-card/90 px-2 py-1 text-[10px] text-muted shadow-card backdrop-blur">
+                  {t.form.notInCollection}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -411,7 +459,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                 className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white"
                 title={t.common.cancel}
               >
-                <X className="h-3 w-3" />
+                <X className="h-3 w-3" aria-hidden />
               </button>
             </>
           )}
