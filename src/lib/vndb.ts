@@ -648,11 +648,12 @@ export async function searchCharacters(
   if (sex) filterParts.push(['sex', '=', sex]);
   if (role) filterParts.push(['role', '=', role]);
 
-  if (filterParts.length === 1) return [];
-
-  const filters = filterParts.length === 2 ? filterParts[1] : filterParts;
+  const hasFilters = filterParts.length > 1;
+  const filters: unknown = hasFilters
+    ? (filterParts.length === 2 ? filterParts[1] : filterParts)
+    : undefined;
   const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
-    filters,
+    ...(filters !== undefined ? { filters } : {}),
     fields: CHARACTER_FIELDS,
     sort: trimmed && !isId ? 'searchrank' : 'id',
     results: Math.min(results, 100),
@@ -692,20 +693,23 @@ export async function searchStaff(
   }: { results?: number; mainOnly?: boolean; role?: string | null; lang?: string | null; vn?: string | null } = {},
 ): Promise<VndbStaff[]> {
   const trimmed = query.trim();
-  if (!trimmed) return [];
-  const isId = /^s\d+$/i.test(trimmed);
-  const filter = [
+  const isId = trimmed ? /^s\d+$/i.test(trimmed) : false;
+  const filterParts = [
     'and',
-    isId ? ['id', '=', trimmed.toLowerCase()] : ['search', '=', trimmed],
+    trimmed ? (isId ? ['id', '=', trimmed.toLowerCase()] : ['search', '=', trimmed]) : null,
     mainOnly ? ['ismain', '=', 1] : null,
     role ? ['role', '=', role] : null,
     lang ? ['lang', '=', lang] : null,
     vn ? ['vn', '=', ['id', '=', vn]] : null,
   ].filter(Boolean) as unknown[];
+  const hasFilters = filterParts.length > 1;
+  const filters: unknown = hasFilters
+    ? (filterParts.length === 2 ? filterParts[1] : filterParts)
+    : undefined;
   const r = await vndbPost<VndbResponse<VndbStaff>>('/staff', {
-    filters: filter.length === 2 ? filter[1] : filter,
+    ...(filters !== undefined ? { filters } : {}),
     fields: STAFF_FIELDS,
-    sort: isId ? 'id' : 'searchrank',
+    sort: trimmed && !isId ? 'searchrank' : 'id',
     results: Math.min(results, 100),
   }, TTL.staff);
   return r.results;

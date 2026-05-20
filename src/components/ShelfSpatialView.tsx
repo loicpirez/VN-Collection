@@ -1,3 +1,4 @@
+import React from 'react';
 import Link from 'next/link';
 import { Box, ChevronLeft, ChevronRight, Layers, MapPin } from 'lucide-react';
 import {
@@ -169,43 +170,38 @@ function ShelfBlock({ shelf, t }: { shelf: ShelfUnitWithCount; t: Dictionary }) 
       </header>
 
       {/*
-        Tighter inter-row spacing inside the back-row grid (the rows
-        physically sit shelf-on-shelf), looser spacing around the
-        display layers so each one reads as a separate section. The
-        outer `space-y-4` separates Top Display / shelf rows /
-        Bottom Display blocks; the inner `space-y-1.5` keeps each
-        row of cells flush against the next.
+        Flat grid: every shelf row and every display row (top / between /
+        bottom) is a direct grid child so `--shelf-section-gap-px` controls
+        the spacing between ALL rows.  `--shelf-row-gap-px` continues to
+        control the spacing between CELLS within a single shelf row.
       */}
       <div className="overflow-x-auto" style={{ display: 'grid', gap: 'var(--shelf-section-gap-px, 16px)' }}>
-        {/* Top display row (after_row = 0) — renders nothing if empty. */}
         <DisplayRow
           row={displayByAfterRow.get(0) ?? []}
           cols={shelf.cols}
           label={t.shelfSpatial.topDisplay}
           t={t}
         />
-        <div style={{ display: 'grid', gap: 'var(--shelf-row-gap-px, 6px)' }}>
-          {Array.from({ length: shelf.rows }).map((_, row) => (
-            <div key={row}>
-              <ShelfRow row={row} cols={shelf.cols} cellMap={cellMap} t={t} />
-              {/* Display row that sits between this row and the next.
-                  after_row = row + 1; the last one (= shelf.rows) is
-                  the bottom display and renders separately below. */}
-              {row < shelf.rows - 1 && (
-                <DisplayRow
-                  row={displayByAfterRow.get(row + 1) ?? []}
-                  cols={shelf.cols}
-                  label={t.shelfSpatial.betweenRow
-                    .replace('{above}', String(row + 1))
-                    .replace('{below}', String(row + 2))}
-                  t={t}
-                  between
-                />
-              )}
-            </div>
-          ))}
-        </div>
-        {/* Bottom display row (after_row = shelf.rows). */}
+        {Array.from({ length: shelf.rows }).flatMap((_, row) => {
+          const items: React.ReactNode[] = [
+            <ShelfRow key={`row-${row}`} row={row} cols={shelf.cols} cellMap={cellMap} t={t} />,
+          ];
+          if (row < shelf.rows - 1) {
+            items.push(
+              <DisplayRow
+                key={`disp-${row}`}
+                row={displayByAfterRow.get(row + 1) ?? []}
+                cols={shelf.cols}
+                label={t.shelfSpatial.betweenRow
+                  .replace('{above}', String(row + 1))
+                  .replace('{below}', String(row + 2))}
+                t={t}
+                between
+              />,
+            );
+          }
+          return items;
+        })}
         <DisplayRow
           row={displayByAfterRow.get(shelf.rows) ?? []}
           cols={shelf.cols}

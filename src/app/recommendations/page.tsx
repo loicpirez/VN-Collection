@@ -28,6 +28,7 @@ import {
   type SignalCounts,
 } from '@/lib/recommend';
 import { getDict } from '@/lib/i18n/server';
+import { RecommendModeTabs, type ModeTabItem } from '@/components/RecommendModeTabs';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
@@ -221,7 +222,20 @@ export default async function RecommendationsPage({
         </h1>
         <p className="mt-1 text-sm text-muted">{t.recommend.subtitle}</p>
 
-        <ModeTabs current={mode} currentParams={raw} t={t} />
+        <RecommendModeTabs
+          ariaLabel={t.recommend.modePicker.label}
+          tabs={RECOMMEND_MODES.map<ModeTabItem>((id) => {
+            const meta = MODE_META[id];
+            return {
+              id,
+              href: buildHref(raw, { mode: id, tags: undefined }),
+              label: t.recommend.modes[meta.i18nKey].label,
+              hint: t.recommend.modes[meta.i18nKey].hint,
+              icon: meta.icon,
+              active: id === mode,
+            };
+          })}
+        />
 
         <ModeSummary
           mode={mode}
@@ -319,54 +333,6 @@ export default async function RecommendationsPage({
   );
 }
 
-
-function ModeTabs({
-  current,
-  currentParams,
-  t,
-}: {
-  current: RecommendMode;
-  currentParams: RecPageParams;
-  t: Dictionary;
-}) {
-  return (
-    <nav
-      // R5-156: this strip navigates between full URL states
-      // (each mode is its own route render), not between sibling
-      // tabpanels inside the current view. WAI-ARIA forbids
-      // `role="tablist"` without matching tabpanels — plain `<nav>`
-      // with `aria-label` + `aria-current="page"` on the active
-      // link is the correct shape.
-      className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
-      aria-label={t.recommend.modePicker.label}
-    >
-      {RECOMMEND_MODES.map((id) => {
-        const meta = MODE_META[id];
-        const Icon = meta.icon;
-        const active = id === current;
-        const label = t.recommend.modes[meta.i18nKey].label;
-        const hint = t.recommend.modes[meta.i18nKey].hint;
-        // The mode tab clears any custom-pinned seeds so each tab gets
-        // a clean run with the new mode's own default seed strategy.
-        const href = buildHref(currentParams, { mode: id, tags: undefined });
-        return (
-          <Link
-            key={id}
-            href={href}
-            aria-current={active ? 'page' : undefined}
-            title={hint}
-            className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 transition-colors ${
-              active ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
-            }`}
-          >
-            <Icon className="h-3.5 w-3.5" aria-hidden />
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
 
 /**
  * Per-mode "Why these recommendations?" panel. The copy differs by mode
@@ -771,10 +737,10 @@ function ResultsGrid({
               : t.recommend.contributorReasonOne.replace('{a}', r.contributors[0]!.title)
             : null;
         return (
-          <li key={r.id}>
+          <li key={r.id} className="flex">
             <Link
               href={`/vn/${r.id}`}
-              className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-1 hover:border-accent hover:shadow-card"
+              className="group relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-1 hover:border-accent hover:shadow-card"
             >
               <div className="relative">
                 <SafeImage

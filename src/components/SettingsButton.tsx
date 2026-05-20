@@ -1280,7 +1280,7 @@ function PageLayoutPanel<Id extends string>({
 }) {
   const t = useT();
   const [draft, setDraft] = useState(layout);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   useEffect(() => { setDraft(layout); }, [layout]);
 

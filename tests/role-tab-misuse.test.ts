@@ -32,7 +32,8 @@ const ROOT = join(__dirname, '..');
 
 const SURFACES = [
   'src/app/dumped/page.tsx',
-  'src/app/recommendations/page.tsx',
+  // ModeTabs extracted to a client component; check the component file.
+  'src/components/RecommendModeTabs.tsx',
   'src/app/top-ranked/page.tsx',
   'src/app/staff/page.tsx',
   'src/app/characters/page.tsx',
