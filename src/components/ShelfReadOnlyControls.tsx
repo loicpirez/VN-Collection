@@ -13,6 +13,7 @@ import {
   shelfHasOverride,
   shelfViewPrefsDataAttrs,
   shelfViewPrefsCssVars,
+  type ShelfDisplayOrientation,
   type ShelfDisplayOverridesV1,
   type ShelfViewPrefsV1,
   type ShelfTextDensity,
@@ -44,6 +45,13 @@ interface Props {
    * effect — they are shown disabled with an explanatory tooltip.
    */
   hasDisplaySlots?: boolean;
+  /**
+   * Display zones present on the active shelf. When provided, the
+   * settings panel shows a per-zone portrait/landscape toggle for
+   * each zone. Passed from the server-rendered page so the client
+   * component doesn't need to re-query the DB.
+   */
+  displayZones?: Array<{ afterRow: number; label: string }>;
 }
 
 type Scope = 'global' | 'shelf';
@@ -70,6 +78,7 @@ export function ShelfReadOnlyControls({
   activeShelfName,
   initialOverrides,
   hasDisplaySlots = true,
+  displayZones,
 }: Props) {
   const t = useT();
   const dict = t.shelfDisplay;
@@ -489,6 +498,76 @@ export function ShelfReadOnlyControls({
               </button>
             </div>
           </div>
+
+          {hasDisplaySlots && (
+            <>
+              <div className="mt-3">
+                <div className="mb-1 text-[10px] uppercase tracking-widest text-muted">
+                  {dict.displayOrientation}
+                </div>
+                <div className="inline-flex overflow-hidden rounded-md border border-border">
+                  {(['portrait', 'landscape'] as ShelfDisplayOrientation[]).map((o) => (
+                    <button
+                      key={o}
+                      type="button"
+                      onClick={() => void persist({ ...prefs, displayOrientation: o })}
+                      aria-pressed={prefs.displayOrientation === o}
+                      className={`px-3 py-1 text-xs ${
+                        prefs.displayOrientation === o
+                          ? 'bg-accent text-bg'
+                          : 'bg-bg-elev/40 text-muted hover:text-white'
+                      }`}
+                    >
+                      {o === 'portrait' ? dict.displayOrientationPortrait : dict.displayOrientationLandscape}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {displayZones && displayZones.length > 0 && (
+                <div className="mt-3">
+                  <div className="mb-1 text-[10px] uppercase tracking-widest text-muted">
+                    {dict.displayRowOrientationsLabel}
+                  </div>
+                  {displayZones.map(({ afterRow, label }) => {
+                    const zoneKey = String(afterRow);
+                    const current = prefs.displayRowOrientations?.[zoneKey] ?? prefs.displayOrientation;
+                    return (
+                      <div key={afterRow} className="mt-1.5 flex items-center justify-between gap-2">
+                        <span className="flex-1 truncate text-[10px] text-muted">{label}</span>
+                        <div className="inline-flex overflow-hidden rounded border border-border text-[10px]">
+                          {(['portrait', 'landscape'] as ShelfDisplayOrientation[]).map((o) => (
+                            <button
+                              key={o}
+                              type="button"
+                              onClick={() =>
+                                void persist({
+                                  ...prefs,
+                                  displayRowOrientations: {
+                                    ...(prefs.displayRowOrientations ?? {}),
+                                    [zoneKey]: o,
+                                  },
+                                })
+                              }
+                              aria-pressed={current === o}
+                              className={`px-2 py-0.5 ${
+                                current === o
+                                  ? 'bg-accent text-bg font-semibold'
+                                  : 'bg-bg-elev/40 text-muted hover:text-white'
+                              }`}
+                            >
+                              {o === 'portrait'
+                                ? dict.displayOrientationPortrait
+                                : dict.displayOrientationLandscape}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
 
           <button
             type="button"

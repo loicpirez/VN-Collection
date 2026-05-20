@@ -44,9 +44,19 @@ import type { Dictionary } from '@/lib/i18n/dictionaries';
  */
 export async function ShelfSpatialView({
   activeShelf,
+  defaultOrientation = 'portrait',
+  displayRowOrientations = {},
 }: {
   /** 1-indexed; clamped at the page boundary. Defaults to 1. */
   activeShelf?: number;
+  /** Default face-out orientation for rows that have no per-row override. */
+  defaultOrientation?: 'portrait' | 'landscape';
+  /**
+   * Per-display-zone orientation overrides keyed by `afterRow` string
+   * (e.g. `'0'` = top display, `'1'` = between rows 1–2, etc.).
+   * Populated from `?dr0=landscape&dr1=portrait` URL params.
+   */
+  displayRowOrientations?: Record<string, 'portrait' | 'landscape'>;
 }) {
   const t = await getDict();
   const shelves = listShelves();
@@ -114,12 +124,27 @@ export async function ShelfSpatialView({
           )}
         </div>
       </nav>
-      <ShelfBlock shelf={current} t={t} />
+      <ShelfBlock
+        shelf={current}
+        t={t}
+        defaultOrientation={defaultOrientation}
+        displayRowOrientations={displayRowOrientations}
+      />
     </ShelfSpatialFullscreen>
   );
 }
 
-function ShelfBlock({ shelf, t }: { shelf: ShelfUnitWithCount; t: Dictionary }) {
+function ShelfBlock({
+  shelf,
+  t,
+  defaultOrientation,
+  displayRowOrientations,
+}: {
+  shelf: ShelfUnitWithCount;
+  t: Dictionary;
+  defaultOrientation: 'portrait' | 'landscape';
+  displayRowOrientations: Record<string, 'portrait' | 'landscape'>;
+}) {
   const slots = listShelfSlots(shelf.id);
   const displays = listShelfDisplaySlots(shelf.id);
 
@@ -176,38 +201,50 @@ function ShelfBlock({ shelf, t }: { shelf: ShelfUnitWithCount; t: Dictionary }) 
         control the spacing between CELLS within a single shelf row.
       */}
       <div className="overflow-x-auto" style={{ display: 'grid', gap: 'var(--shelf-section-gap-px, 16px)' }}>
-        <DisplayRow
-          row={displayByAfterRow.get(0) ?? []}
-          cols={shelf.cols}
-          label={t.shelfSpatial.topDisplay}
-          t={t}
-        />
-        {Array.from({ length: shelf.rows }).flatMap((_, row) => {
-          const items: React.ReactNode[] = [
-            <ShelfRow key={`row-${row}`} row={row} cols={shelf.cols} cellMap={cellMap} t={t} />,
-          ];
-          if (row < shelf.rows - 1) {
-            items.push(
+        {((): React.ReactNode => {
+          const rowOrientation = (afterRow: number) =>
+            displayRowOrientations[String(afterRow)] ?? defaultOrientation;
+          return (
+            <>
               <DisplayRow
-                key={`disp-${row}`}
-                row={displayByAfterRow.get(row + 1) ?? []}
+                row={displayByAfterRow.get(0) ?? []}
                 cols={shelf.cols}
-                label={t.shelfSpatial.betweenRow
-                  .replace('{above}', String(row + 1))
-                  .replace('{below}', String(row + 2))}
+                label={t.shelfSpatial.topDisplay}
                 t={t}
-                between
-              />,
-            );
-          }
-          return items;
-        })}
-        <DisplayRow
-          row={displayByAfterRow.get(shelf.rows) ?? []}
-          cols={shelf.cols}
-          label={t.shelfSpatial.bottomDisplay}
-          t={t}
-        />
+                orientation={rowOrientation(0)}
+              />
+              {Array.from({ length: shelf.rows }).flatMap((_, row) => {
+                const items: React.ReactNode[] = [
+                  <ShelfRow key={`row-${row}`} row={row} cols={shelf.cols} cellMap={cellMap} t={t} />,
+                ];
+                if (row < shelf.rows - 1) {
+                  const afterRow = row + 1;
+                  items.push(
+                    <DisplayRow
+                      key={`disp-${row}`}
+                      row={displayByAfterRow.get(afterRow) ?? []}
+                      cols={shelf.cols}
+                      label={t.shelfSpatial.betweenRow
+                        .replace('{above}', String(row + 1))
+                        .replace('{below}', String(row + 2))}
+                      t={t}
+                      between
+                      orientation={rowOrientation(afterRow)}
+                    />,
+                  );
+                }
+                return items;
+              })}
+              <DisplayRow
+                row={displayByAfterRow.get(shelf.rows) ?? []}
+                cols={shelf.cols}
+                label={t.shelfSpatial.bottomDisplay}
+                t={t}
+                orientation={rowOrientation(shelf.rows)}
+              />
+            </>
+          );
+        })()}
       </div>
     </section>
   );
@@ -260,20 +297,25 @@ function DisplayRow({
   label,
   t,
   between = false,
+  orientation,
 }: {
   row: ShelfDisplaySlotEntry[];
   cols: number;
   label: string;
   t: Dictionary;
   between?: boolean;
+  orientation: 'portrait' | 'landscape';
 }) {
   if (row.length === 0) return null;
+  const aspectRatio = orientation === 'landscape' ? '3 / 2' : '2 / 3';
   return (
     <div className="my-1">
-      <p className="mb-1 inline-flex items-center gap-1 rounded bg-accent-blue/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-accent-blue">
-        <Layers className="h-2.5 w-2.5" aria-hidden />
-        {label}
-      </p>
+      <div className="mb-1">
+        <span className="inline-flex items-center gap-1 rounded bg-accent-blue/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-accent-blue">
+          <Layers className="h-2.5 w-2.5" aria-hidden />
+          {label}
+        </span>
+      </div>
       <div
         className={`grid ${between ? 'border-t border-accent-blue/20 pt-1' : ''}`}
         style={{
@@ -284,15 +326,12 @@ function DisplayRow({
         {Array.from({ length: cols }).map((_, position) => {
           const display = row.find((d) => d.position === position);
           return display ? (
-            <DisplayCard key={position} entry={display} t={t} />
+            <DisplayCard key={position} entry={display} t={t} orientation={orientation} />
           ) : (
             <div
               key={position}
               className="rounded-md bg-accent-blue/5"
-              style={{
-                width: 'var(--shelf-front-size-px, 140px)',
-                aspectRatio: '3 / 2',
-              }}
+              style={{ width: 'var(--shelf-front-size-px, 140px)', aspectRatio }}
               aria-hidden
             />
           );
@@ -343,17 +382,23 @@ function ShelfCard({ slot, t }: { slot: ShelfSlotEntry; t: Dictionary }) {
   );
 }
 
-function DisplayCard({ entry, t }: { entry: ShelfDisplaySlotEntry; t: Dictionary }) {
+function DisplayCard({
+  entry,
+  t,
+  orientation,
+}: {
+  entry: ShelfDisplaySlotEntry;
+  t: Dictionary;
+  orientation: 'portrait' | 'landscape';
+}) {
+  const aspectRatio = orientation === 'landscape' ? '3 / 2' : '2 / 3';
   return (
     <Link
       href={`/vn/${entry.vn_id}`}
-      // Face-out: a different visual cue from the back-row cards.
-      // Wider aspect (3/2) + brighter border so the face-out row
-      // visually breaks the back-row column rhythm.
       className="group block overflow-hidden rounded-md border border-accent-blue/50 bg-accent-blue/5 transition-all hover:scale-[1.03] hover:border-accent-blue hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-blue"
       style={{
         width: 'var(--shelf-front-size-px, 140px)',
-        aspectRatio: '3 / 2',
+        aspectRatio,
       }}
       title={`${entry.vn_title}${entry.edition_label ? ` · ${entry.edition_label}` : ''}`}
       aria-label={`${t.shelfSpatial.displayItemPrefix} ${entry.vn_title}`}

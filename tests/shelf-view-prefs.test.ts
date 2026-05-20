@@ -78,6 +78,7 @@ describe('validateShelfViewPrefsV1', () => {
       coverScale: 1.1,
       gapPx: 16,
       fitMode: 'cover',
+      displayRowOrientations: { '0': 'landscape', '2': 'portrait' },
     });
     const back = parseShelfViewPrefsV1(JSON.stringify(prefs));
     expect(back).toEqual(prefs);
@@ -99,6 +100,8 @@ describe('shelfViewPrefsCssVars', () => {
       textDensity: 'lg',
       showLabels: false,
       compact: true,
+      displayOrientation: 'portrait',
+      displayRowOrientations: {},
     });
     expect(css).toEqual({
       '--shelf-cell-px': '200px',
@@ -112,6 +115,7 @@ describe('shelfViewPrefsCssVars', () => {
       '--shelf-fit-mode': 'cover',
       '--shelf-card-pad': '1px',
       '--shelf-label-font-px': '12px',
+      '--display-aspect-ratio': '2/3',
     });
     expect(shelfViewPrefsDataAttrs({
       cellSizePx: 200,
@@ -126,6 +130,8 @@ describe('shelfViewPrefsCssVars', () => {
       textDensity: 'lg',
       showLabels: false,
       compact: true,
+      displayOrientation: 'portrait',
+      displayRowOrientations: {},
     })).toEqual({
       'data-shelf-labels': 'off',
       'data-shelf-compact': 'on',

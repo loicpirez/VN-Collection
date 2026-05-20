@@ -34,6 +34,7 @@
  */
 
 export type ShelfTextDensity = 'sm' | 'md' | 'lg';
+export type ShelfDisplayOrientation = 'portrait' | 'landscape';
 
 export interface ShelfViewPrefsV1 {
   // V0 keys kept for back-compat — read+written by the validator so
@@ -51,6 +52,14 @@ export interface ShelfViewPrefsV1 {
   textDensity: ShelfTextDensity;
   showLabels: boolean;
   compact: boolean;
+  /** Aspect ratio for face-out display-row items. Default portrait (2:3). */
+  displayOrientation: ShelfDisplayOrientation;
+  /**
+   * Per-display-zone orientation overrides keyed by `afterRow` string
+   * (e.g. `'0'` = top display, `'1'` = between rows 1–2).
+   * Rows absent from this map fall back to `displayOrientation`.
+   */
+  displayRowOrientations: Record<string, ShelfDisplayOrientation>;
 }
 
 export const SHELF_VIEW_PREFS_BOUNDS = {
@@ -80,6 +89,8 @@ export function defaultShelfViewPrefsV1(): ShelfViewPrefsV1 {
     textDensity: 'md',
     showLabels: true,
     compact: false,
+    displayOrientation: 'portrait',
+    displayRowOrientations: {},
   };
 }
 
@@ -176,6 +187,16 @@ export function validateShelfViewPrefsV1(input: unknown): ShelfViewPrefsV1 {
   const textDensity = pickTextDensity(obj, fallback.textDensity);
   const showLabels = pickBool(obj, 'showLabels', fallback.showLabels);
   const compact = pickBool(obj, 'compact', fallback.compact);
+  const displayOrientation: ShelfDisplayOrientation =
+    obj.displayOrientation === 'landscape' ? 'landscape' : 'portrait';
+
+  const displayRowOrientations: Record<string, ShelfDisplayOrientation> = {};
+  const rawDRO = obj.displayRowOrientations;
+  if (rawDRO && typeof rawDRO === 'object' && !Array.isArray(rawDRO)) {
+    for (const [k, v] of Object.entries(rawDRO as Record<string, unknown>)) {
+      if (v === 'portrait' || v === 'landscape') displayRowOrientations[k] = v;
+    }
+  }
 
   return {
     cellSizePx: cell,
@@ -190,6 +211,8 @@ export function validateShelfViewPrefsV1(input: unknown): ShelfViewPrefsV1 {
     textDensity,
     showLabels,
     compact,
+    displayOrientation,
+    displayRowOrientations,
   };
 }
 
@@ -221,6 +244,7 @@ export function shelfViewPrefsCssVars(prefs: ShelfViewPrefsV1): Record<string, s
     '--shelf-fit-mode': prefs.fitMode,
     '--shelf-card-pad': prefs.compact ? '1px' : '3px',
     '--shelf-label-font-px': prefs.textDensity === 'sm' ? '9px' : prefs.textDensity === 'lg' ? '12px' : '10px',
+    '--display-aspect-ratio': prefs.displayOrientation === 'landscape' ? '3/2' : '2/3',
   };
 }
 
@@ -338,6 +362,17 @@ function pickPartialShelfPrefs(raw: Record<string, unknown>): Partial<ShelfViewP
   }
   if (typeof raw.showLabels === 'boolean') out.showLabels = raw.showLabels;
   if (typeof raw.compact === 'boolean') out.compact = raw.compact;
+  if (raw.displayOrientation === 'portrait' || raw.displayOrientation === 'landscape') {
+    out.displayOrientation = raw.displayOrientation;
+  }
+  const rawDRO = raw.displayRowOrientations;
+  if (rawDRO && typeof rawDRO === 'object' && !Array.isArray(rawDRO)) {
+    const dro: Record<string, ShelfDisplayOrientation> = {};
+    for (const [k, v] of Object.entries(rawDRO as Record<string, unknown>)) {
+      if (v === 'portrait' || v === 'landscape') dro[k] = v;
+    }
+    out.displayRowOrientations = dro;
+  }
   return out;
 }
 

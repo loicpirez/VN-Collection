@@ -80,11 +80,13 @@ function conditionLabel(value: string, dict: Awaited<ReturnType<typeof getDict>>
 export default async function ShelfPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; shelf?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const t = await getDict();
   const locale = await getLocale();
-  const { view: viewRaw, shelf: shelfRaw } = await searchParams;
+  const sp = await searchParams;
+  const viewRaw = typeof sp.view === 'string' ? sp.view : Array.isArray(sp.view) ? sp.view[0] : undefined;
+  const shelfRaw = typeof sp.shelf === 'string' ? sp.shelf : Array.isArray(sp.shelf) ? sp.shelf[0] : undefined;
   const view: ShelfView =
     viewRaw === 'item' ? 'item' :
     viewRaw === 'layout' ? 'layout' :
@@ -98,6 +100,25 @@ export default async function ShelfPage({
     const n = Math.floor(Number(shelfRaw));
     return Number.isFinite(n) && n >= 1 ? n : 1;
   })();
+  // Resolve effective display prefs for the active shelf once here —
+  // used both by ShelfSpatialView (defaultOrientation, displayRowOrientations)
+  // and by ShelfReadOnlyControls (initialPrefs). Reading from two separate
+  // blocks in the JSX below would duplicate the DB calls.
+  const spatialPrefs = (() => {
+    const overrides = parseShelfDisplayOverridesV1(getAppSetting('shelf_display_overrides_v1'));
+    const legacyGlobal = parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1'));
+    const shelvesList = listShelves();
+    const activeShelfEntry = shelvesList[activeShelfNum - 1] ?? null;
+    const activeShelfKey = activeShelfEntry ? String(activeShelfEntry.id) : '';
+    const effective = activeShelfKey
+      ? resolveShelfPrefs(overrides, activeShelfKey)
+      : overrides.global;
+    const prefs = activeShelfKey && overrides.shelves[activeShelfKey]
+      ? effective
+      : legacyGlobal;
+    return { overrides, legacyGlobal, effective, prefs, activeShelfEntry, activeShelfKey };
+  })();
+
   // We always need the flat owned-release list to compute the
   // header summary (`N éditions · N VN uniques · totals`). The
   // spatial view's GRID still reads shelf_unit/slot/display_slot
@@ -218,38 +239,33 @@ export default async function ShelfPage({
                 ignores the css variables, so the controls render
                 consistently across all four tabs. */}
             {(() => {
-              // Server-resolve effective prefs for the currently-
-              // active shelf so the controls panel opens with the
-              // right slider values + the "this shelf" scope picker
-              // is preselected when the shelf carries an override.
-              const overrides = parseShelfDisplayOverridesV1(
-                getAppSetting('shelf_display_overrides_v1'),
-              );
-              const legacyGlobal = parseShelfViewPrefsV1(
-                getAppSetting('shelf_view_prefs_v1'),
-              );
-              const shelvesList = listShelves();
-              const activeShelf = shelvesList[activeShelfNum - 1] ?? null;
-              // `shelf_unit.id` is an INTEGER in SQLite; serialise
-              // to string for the prefs map keys so the persisted
-              // JSON stays platform-portable.
-              const activeShelfKey = activeShelf ? String(activeShelf.id) : '';
-              const effective = activeShelfKey
-                ? resolveShelfPrefs(overrides, activeShelfKey)
-                : overrides.global;
-              const activeShelfDisplaySlots = activeShelf
-                ? listShelfDisplaySlots(activeShelf.id)
+              const { overrides, legacyGlobal, effective, activeShelfEntry, activeShelfKey } = spatialPrefs;
+              const activeShelfDisplaySlots = activeShelfEntry
+                ? listShelfDisplaySlots(activeShelfEntry.id)
                 : [];
+              const uniqueAfterRows = [
+                ...new Set(activeShelfDisplaySlots.map((d) => d.after_row)),
+              ].sort((a, b) => a - b);
+              const displayZones = uniqueAfterRows.map((afterRow) => {
+                let label: string;
+                if (afterRow === 0) label = t.shelfSpatial.topDisplay;
+                else if (activeShelfEntry && afterRow === activeShelfEntry.rows) {
+                  label = t.shelfSpatial.bottomDisplay;
+                } else {
+                  label = t.shelfSpatial.betweenRow
+                    .replace('{above}', String(afterRow))
+                    .replace('{below}', String(afterRow + 1));
+                }
+                return { afterRow, label };
+              });
               return (
                 <ShelfReadOnlyControls
-                  // The legacy single-key payload is the FALLBACK
-                  // when no overrides record exists yet. Once the
-                  // wrapped key is populated it shadows the legacy.
                   initialPrefs={overrides.shelves[activeShelfKey] ? effective : legacyGlobal}
                   initialOverrides={overrides}
                   activeShelfId={activeShelfKey || undefined}
-                  activeShelfName={activeShelf?.name ?? undefined}
+                  activeShelfName={activeShelfEntry?.name ?? undefined}
                   hasDisplaySlots={activeShelfDisplaySlots.length > 0}
+                  displayZones={displayZones}
                 />
               );
             })()}
@@ -314,7 +330,11 @@ export default async function ShelfPage({
               geometry. */}
           {view === 'spatial' && (
             <div className="shelf-view-root">
-              <ShelfSpatialView activeShelf={activeShelfNum} />
+              <ShelfSpatialView
+                activeShelf={activeShelfNum}
+                defaultOrientation={spatialPrefs.prefs.displayOrientation}
+                displayRowOrientations={spatialPrefs.prefs.displayRowOrientations ?? {}}
+              />
             </div>
           )}
 
