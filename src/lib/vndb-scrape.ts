@@ -18,6 +18,9 @@ import { isAllowedHttpTarget } from './url-allowlist';
 const VNDB_WEB = 'https://vndb.org';
 const SCRAPE_TTL_MS = 30 * 24 * 3600 * 1000;
 const SCRAPE_GAP_MS = 2_000;
+const SCRAPE_MAX_RETRY = 3;
+/** Base backoff between scrape retries (doubles each attempt: 3s → 6s → 12s). */
+const SCRAPE_RETRY_BASE_MS = 3_000;
 
 const queue: Array<() => void> = [];
 let last = 0;
@@ -51,6 +54,10 @@ function drain(): void {
   });
 }
 
+async function sleep(ms: number): Promise<void> {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
 function key(path: string): string {
   return `scrape:${path}`;
 }
@@ -79,17 +86,24 @@ export async function fetchVndbWebHtml(path: string, opts: { force?: boolean } =
   const target = `${VNDB_WEB}${path}`;
   if (!isAllowedHttpTarget(target)) return null;
 
-  await nextSlot();
-  let html: string;
-  try {
-    const res = await fetch(target, {
-      headers: { 'User-Agent': 'vn-collection (local cache builder)' },
-    });
-    if (!res.ok) return null;
-    html = await res.text();
-  } catch {
-    return null;
+  let html: string | null = null;
+  for (let attempt = 1; attempt <= SCRAPE_MAX_RETRY; attempt++) {
+    if (attempt > 1) {
+      await sleep(SCRAPE_RETRY_BASE_MS * (2 ** (attempt - 2)));
+    }
+    await nextSlot();
+    try {
+      const res = await fetch(target, {
+        headers: { 'User-Agent': 'vn-collection (local cache builder)' },
+      });
+      if (!res.ok) continue;
+      html = await res.text();
+      break;
+    } catch {
+      // network error — sleep handled at top of loop on next iteration
+    }
   }
+  if (!html) return null;
 
   const now = Date.now();
   db.prepare(`

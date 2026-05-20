@@ -22,6 +22,8 @@ const MAX_RETRY_AFTER_MS = 60_000;
 const CIRCUIT_THRESHOLD = 3;
 const CIRCUIT_WINDOW_MS = 60_000;
 const SOFT_PAUSE_MS = 10_000;
+/** Base delay for network-error retries (doubles per attempt: 1s → 2s). */
+const NET_ERR_RETRY_BASE_MS = 1_000;
 
 let activeCount = 0;
 let lastStart = 0;
@@ -99,10 +101,16 @@ async function sleep(ms: number): Promise<void> {
 
 /**
  * Wrap a fetch through the global throttle. Same signature as `fetch()`.
- * On 429 the calling request sleeps for Retry-After (capped 60s) and
- * retries up to MAX_RETRY times. Other callers are unaffected unless 3+
- * 429s arrive inside a 60s window, in which case acquire() adds a short
- * soft pause.
+ *
+ * Retry policy (both paths respect MAX_RETRY total):
+ *   - 429 → sleep Retry-After (capped 60 s), then retry.
+ *   - Network error (TypeError: fetch failed, ECONNRESET, etc.) →
+ *     exponential back-off starting at NET_ERR_RETRY_BASE_MS, then retry.
+ *     The quota is shared with 429 retries so the total attempt cap is
+ *     MAX_RETRY regardless of which error triggered the retry.
+ *
+ * Other callers are unaffected unless 3+ 429s pile up in a 60 s window,
+ * in which case acquire() adds a soft 10 s pause.
  */
 export async function throttledFetch(url: string, init?: RequestInit): Promise<Response> {
   // R5-121: SSRF allowlist on every outbound write/read through the
@@ -123,9 +131,13 @@ export async function throttledFetch(url: string, init?: RequestInit): Promise<R
     let res: Response;
     try {
       res = await fetch(url, init);
-    } finally {
+    } catch (err) {
       release();
+      if (attempt > MAX_RETRY) throw err;
+      await sleep(Math.min(MAX_RETRY_AFTER_MS, NET_ERR_RETRY_BASE_MS * (2 ** (attempt - 1))));
+      continue;
     }
+    release();
     if (res.status === 429) {
       const retryAfterHeader = res.headers.get('retry-after');
       const headerMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : 0;
