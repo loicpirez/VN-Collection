@@ -6,6 +6,7 @@ import { searchLocalStaff } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { languageDisplayName } from '@/lib/language-names';
 import { parseStaffSearchParams } from '@/lib/char-staff-search-filters';
+import { NavTabStrip } from '@/components/NavTabStrip';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
   const parsed = parseStaffSearchParams(sp);
   const mainOnly = sp.aliases !== '1';
   const query = parsed.q;
-  const { tab, role, lang, vn, scope } = parsed;
+  const { tab, role, lang, vn, scope, sort, reverse } = parsed;
   const hasFilters = role != null || lang != null || vn != null;
 
   type StaffRow = {
@@ -97,6 +98,17 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     results = [...merged.values()];
     if (lang) results = results.filter((s) => !s.lang || s.lang === lang);
   }
+  results.sort((a, b) => {
+    let cmp = 0;
+    if (sort === 'vn_count') {
+      cmp = (b.vn_count ?? 0) - (a.vn_count ?? 0);
+      if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    } else {
+      cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    }
+    return reverse ? -cmp : cmp;
+  });
+
   const shouldQuery = results.length > 0 || query.length > 0 || hasFilters || scope === 'collection';
 
   function chipHref(overrides: Record<string, string | null>): string {
@@ -108,6 +120,8 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     if (lang && !('lang' in overrides)) params.set('lang', lang);
     if (vn && !('vn' in overrides)) params.set('vn', vn);
     if (scope === 'collection' && !('scope' in overrides)) params.set('scope', 'collection');
+    if (sort === 'vn_count' && !('sort' in overrides)) params.set('sort', 'vn_count');
+    if (reverse && !('reverse' in overrides)) params.set('reverse', '1');
     for (const [k, v] of Object.entries(overrides)) {
       if (v == null) params.delete(k);
       else params.set(k, v);
@@ -177,39 +191,23 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
           shape; `role="tablist"` / `role="tab"` without matching
           tabpanels misled screen readers.
         */}
-        <nav className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" aria-label={t.staffSearch.tabLocal}>
-          <Link
-            href={chipHref({ tab: null })}
-            aria-current={tab === 'local' ? 'page' : undefined}
-            className={`rounded px-2.5 py-1 ${tab === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
-          >
-            {t.staffSearch.tabLocal}
-          </Link>
-          <Link
-            href={chipHref({ tab: 'vndb' })}
-            aria-current={tab === 'vndb' ? 'page' : undefined}
-            className={`rounded px-2.5 py-1 ${tab === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
-          >
-            {t.staffSearch.tabVndb}
-          </Link>
-        </nav>
+        <NavTabStrip
+          className="mt-3"
+          ariaLabel={t.staffSearch.tabLocal}
+          tabs={[
+            { href: chipHref({ tab: null }), label: t.staffSearch.tabLocal, isActive: tab === 'local' },
+            { href: chipHref({ tab: 'vndb' }), label: t.staffSearch.tabVndb, isActive: tab === 'vndb' },
+          ]}
+        />
 
-        <nav className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" aria-label={t.staffSearch.scopeLabel}>
-          <Link
-            href={chipHref({ scope: null })}
-            aria-current={scope === 'all' ? 'page' : undefined}
-            className={`rounded px-2.5 py-1 ${scope === 'all' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
-          >
-            {t.staffSearch.scopeAll}
-          </Link>
-          <Link
-            href={chipHref({ scope: 'collection' })}
-            aria-current={scope === 'collection' ? 'page' : undefined}
-            className={`rounded px-2.5 py-1 ${scope === 'collection' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
-          >
-            {t.staffSearch.scopeCollection}
-          </Link>
-        </nav>
+        <NavTabStrip
+          className="mt-3"
+          ariaLabel={t.staffSearch.scopeLabel}
+          tabs={[
+            { href: chipHref({ scope: null }), label: t.staffSearch.scopeAll, isActive: scope === 'all' },
+            { href: chipHref({ scope: 'collection' }), label: t.staffSearch.scopeCollection, isActive: scope === 'collection' },
+          ]}
+        />
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className="text-muted">{t.staffSearch.filtersLabel}:</span>
@@ -245,6 +243,27 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
               <X className="inline h-3 w-3" aria-hidden /> {t.staffSearch.resetFilters}
             </Link>
           )}
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="text-muted">{t.staffSearch.sortLabel}:</span>
+          {(['name', 'vn_count'] as const).map((s) => (
+            <Link
+              key={s}
+              href={chipHref({ sort: s === 'name' ? null : s })}
+              className={sort === s ? 'chip chip-active' : 'chip'}
+              aria-pressed={sort === s}
+            >
+              {t.staffSearch.sort[s]}
+            </Link>
+          ))}
+          <Link
+            href={chipHref({ reverse: reverse ? null : '1' })}
+            className={reverse ? 'chip chip-active' : 'chip'}
+            aria-pressed={reverse}
+          >
+            {t.staffSearch.reverse}
+          </Link>
         </div>
       </header>
 

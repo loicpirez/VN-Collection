@@ -35,8 +35,8 @@ const SURFACES = [
   // ModeTabs extracted to a client component; check the component file.
   'src/components/RecommendModeTabs.tsx',
   'src/app/top-ranked/page.tsx',
-  'src/app/staff/page.tsx',
-  'src/app/characters/page.tsx',
+  // Staff and Characters tab strips extracted to NavTabStrip client component.
+  'src/components/NavTabStrip.tsx',
   'src/app/tag/[id]/page.tsx',
 ];
 

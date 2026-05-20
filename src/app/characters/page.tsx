@@ -6,6 +6,7 @@ import { searchCharacters, type VndbCharacter } from '@/lib/vndb';
 import { searchLocalCharacters } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { NavTabStrip } from '@/components/NavTabStrip';
 import {
   characterBrowseHref,
   filterCharacters,
@@ -202,18 +203,15 @@ export default async function CharactersPage({ searchParams }: PageProps) {
           "page"` on the active link — no `role="tablist"` /
           `role="tab"` without matching `tabpanel`.
         */}
-        <nav className="mt-3 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" aria-label={t.charactersSearch.tabLocal}>
-          {(['local', 'vndb', 'combined'] as const).map((tk) => (
-            <Link
-              key={tk}
-              href={characterBrowseHref(params, { tab: tk === 'local' ? null : tk })}
-              aria-current={tab === tk ? 'page' : undefined}
-              className={`rounded px-2.5 py-1 ${tab === tk ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
-            >
-              {tk === 'local' ? t.charactersSearch.tabLocal : tk === 'vndb' ? t.charactersSearch.tabVndb : t.charactersSearch.tabCombined}
-            </Link>
-          ))}
-        </nav>
+        <NavTabStrip
+          className="mt-3"
+          ariaLabel={t.charactersSearch.tabLocal}
+          tabs={[
+            { href: characterBrowseHref(params, { tab: null }), label: t.charactersSearch.tabLocal, isActive: tab === 'local' },
+            { href: characterBrowseHref(params, { tab: 'vndb' }), label: t.charactersSearch.tabVndb, isActive: tab === 'vndb' },
+            { href: characterBrowseHref(params, { tab: 'combined' }), label: t.charactersSearch.tabCombined, isActive: tab === 'combined' },
+          ]}
+        />
 
         {/* Segmented controls — each row is a labelled group of `.chip` /
             `.chip-active` buttons so the visual contract matches the rest of

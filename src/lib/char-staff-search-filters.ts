@@ -38,6 +38,8 @@ export interface CharacterSearchParams {
 
 export type StaffSearchScope = 'all' | 'collection';
 
+export type StaffSort = 'name' | 'vn_count';
+
 export interface StaffSearchParams {
   tab: StaffSearchTab;
   q: string;
@@ -54,6 +56,10 @@ export interface StaffSearchParams {
    *                translator credited on a VN I own".
    */
   scope: StaffSearchScope;
+  /** Sort field for the result list. Defaults to `name`. */
+  sort: StaffSort;
+  /** Reverse the sort direction. */
+  reverse: boolean;
 }
 
 const CHARACTER_ROLES: readonly CharacterRole[] = ['main', 'primary', 'side', 'appears'];
@@ -117,7 +123,9 @@ export function parseStaffSearchParams(
   const vnRaw = pickFirst(raw.vn) ?? null;
   const vn = vnRaw && isVndbVnId(vnRaw) ? vnRaw.toLowerCase() : null;
   const scope: StaffSearchScope = pickFirst(raw.scope) === 'collection' ? 'collection' : 'all';
-  return { tab, q, role, lang, vn, scope };
+  const sort: StaffSort = pickFirst(raw.sort) === 'vn_count' ? 'vn_count' : 'name';
+  const reverse = pickFirst(raw.reverse) === '1';
+  return { tab, q, role, lang, vn, scope, sort, reverse };
 }
 
 /**
