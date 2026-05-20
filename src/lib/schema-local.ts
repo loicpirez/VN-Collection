@@ -24,7 +24,7 @@ export function listLocalSqliteSchema(): LocalTableInfo[] {
     .all() as Array<{ name: string }>;
   return tables.map((table) => ({
     name: table.name,
-    columns: db.prepare(`PRAGMA table_info(${JSON.stringify(table.name)})`).all() as LocalColumnInfo[],
+    columns: db.prepare(`PRAGMA table_info("${table.name.replace(/"/g, '""')}")`).all() as LocalColumnInfo[],
   }));
 }
 

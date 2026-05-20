@@ -319,6 +319,9 @@ function open(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_vndb_cache_expires ON vndb_cache(expires_at);
 
+    -- char_id has no FK: character rows live in vndb_cache JSON blobs, not
+    -- a local relational table, so referential integrity is not enforceable.
+    -- Orphan rows are harmless; the local image cache is a best-effort store.
     CREATE TABLE IF NOT EXISTS character_image (
       char_id    TEXT PRIMARY KEY,
       url        TEXT,
@@ -326,6 +329,9 @@ function open(): Database.Database {
       fetched_at INTEGER NOT NULL
     );
 
+    -- character_id has no FK: characters live in vndb_cache JSON, not a
+    -- local PK table. Stale character_id values in vn_quote are benign;
+    -- the quote display uses character_name (denormalised) for rendering.
     CREATE TABLE IF NOT EXISTS vn_quote (
       quote_id        TEXT PRIMARY KEY,
       vn_id           TEXT NOT NULL REFERENCES vn(id) ON DELETE CASCADE,
@@ -460,6 +466,10 @@ function open(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_user_list_pinned ON user_list(pinned DESC, updated_at DESC);
 
+    -- vn_id deliberately has no FK to vn(id): user lists are allowed to
+    -- retain entries for VNs that have been removed from the collection.
+    -- Removing a VN from the collection does NOT clear its list memberships
+    -- so the user can re-add the VN later and retain the same lists.
     CREATE TABLE IF NOT EXISTS user_list_vn (
       list_id     INTEGER NOT NULL REFERENCES user_list(id) ON DELETE CASCADE,
       vn_id       TEXT NOT NULL,
@@ -496,7 +506,7 @@ function open(): Database.Database {
       vn_id      TEXT PRIMARY KEY REFERENCES vn(id) ON DELETE CASCADE,
       appid      INTEGER NOT NULL,
       steam_name TEXT NOT NULL,
-      /** 'auto' = derived from VNDB release extlinks, 'manual' = user-set. */
+      -- 'auto' = derived from VNDB release extlinks, 'manual' = user-set.
       source     TEXT NOT NULL DEFAULT 'manual',
       last_synced_minutes INTEGER,
       created_at INTEGER NOT NULL,
@@ -610,6 +620,22 @@ function open(): Database.Database {
   `);
   // Remove the redundant index from older builds.
   db.exec(`DROP INDEX IF EXISTS idx_shelf_slot_item`);
+
+  // AUD-DB-011: deduplicate vn_staff_credit / vn_va_credit rows before
+  // adding unique indexes. Re-imports previously created silent duplicates.
+  // DELETE keeps the first-inserted rowid per unique key (MIN(rowid)).
+  db.exec(`
+    DELETE FROM vn_staff_credit WHERE rowid NOT IN (
+      SELECT MIN(rowid) FROM vn_staff_credit GROUP BY vn_id, sid, role
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_vn_staff_credit_unique
+      ON vn_staff_credit(vn_id, sid, role);
+    DELETE FROM vn_va_credit WHERE rowid NOT IN (
+      SELECT MIN(rowid) FROM vn_va_credit GROUP BY vn_id, c_id, sid
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_vn_va_credit_unique
+      ON vn_va_credit(vn_id, c_id, sid);
+  `);
 
   // The aspect-ratio filter used to require an `owned_release` row to
   // bridge release_id → vn_id. That made the filter useless for users
