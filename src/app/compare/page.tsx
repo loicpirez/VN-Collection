@@ -8,6 +8,7 @@ import { roleLabel } from '@/lib/staff-roles';
 import { platformLabel } from '@/lib/platform-label';
 import { SafeImage } from '@/components/SafeImage';
 import { LangList } from '@/components/LangFlag';
+import { CompareVnPicker, type CompareVn } from '@/components/CompareVnPicker';
 
 export const dynamic = 'force-dynamic';
 
@@ -143,7 +144,7 @@ export default async function ComparePage({
 
   // Map shared staff ids → display data (name + role for the first VN that has them).
   const sharedStaff = items[0]?.staff?.filter((s) => sharedStaffIds.has(s.id)) ?? [];
-  const sharedTagsWithNames = items[0]?.tags?.filter((tg) => sharedTagIds.has(tg.id) && tg.spoiler === 0) ?? [];
+  const sharedTagsWithNames = items[0]?.tags?.filter((tg) => sharedTagIds.has(tg.id)) ?? [];
   const sharedVas = findSharedVas(items.map((it) => it.id));
   const sharedCharacters = findSharedCharacters(items.map((it) => it.id));
 
@@ -164,6 +165,17 @@ export default async function ComparePage({
         0.1 * ratio(sharedPlats.size, platSets)),
   );
 
+  const pickerInitialVns: CompareVn[] = items.map((it) => {
+    const localThumb = it.local_image_thumb || it.local_image || null;
+    const url = localThumb ? `/api/files/${localThumb}` : (it.image_thumb || it.image_url || null);
+    return {
+      id: it.id,
+      title: it.title,
+      alttitle: it.alttitle,
+      image: url ? { url, thumbnail: url, sexual: it.image_sexual ?? null } : null,
+    };
+  });
+
   return (
     <div className="mx-auto max-w-7xl">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
@@ -172,9 +184,9 @@ export default async function ComparePage({
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-          <GitCompare className="h-6 w-6 text-accent" /> {t.compareView.title}
+          <GitCompare className="h-6 w-6 text-accent" aria-hidden /> {t.compareView.title}
         </h1>
-        <p className="mt-1 text-sm text-muted">{t.compareView.subtitle}</p>
+        <CompareVnPicker initialVns={pickerInitialVns} />
       </header>
 
       {items.length >= 2 && (
@@ -216,7 +228,12 @@ export default async function ComparePage({
                   <Link
                     key={tg.id}
                     href={`/?tag=${encodeURIComponent(tg.id)}`}
-                    className="rounded bg-accent/20 px-1.5 py-0.5 text-[11px] text-accent hover:bg-accent/30"
+                    title={tg.spoiler > 0 ? `⚠ spoiler lvl ${tg.spoiler}` : undefined}
+                    className={`rounded px-1.5 py-0.5 text-[11px] hover:opacity-80 ${
+                      tg.spoiler > 0
+                        ? 'bg-status-on_hold/20 text-status-on_hold'
+                        : 'bg-accent/20 text-accent hover:bg-accent/30'
+                    }`}
                   >
                     {tg.name}
                   </Link>
@@ -261,11 +278,7 @@ export default async function ComparePage({
         </section>
       )}
 
-      {items.length < 2 ? (
-        <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
-          {t.compareView.notEnough}
-        </p>
-      ) : (
+      {items.length >= 2 && (
         <div className="overflow-x-auto rounded-xl border border-border bg-bg-card">
           <div
             className="grid gap-px bg-border [grid-template-columns:var(--cmp-cols-sm)] sm:[grid-template-columns:var(--cmp-cols-md)]"
