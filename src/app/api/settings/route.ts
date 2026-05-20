@@ -144,42 +144,47 @@ export async function GET(req: Request) {
   // confirms the existence of credentials — gated.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const tokenRow = getAppSetting('vndb_token');
-  const steamKey = getAppSetting('steam_api_key');
-  return NextResponse.json({
-    vndb_token: maskToken(tokenRow),
-    random_quote_source: getAppSetting('random_quote_source') ?? 'all',
-    default_sort: getAppSetting('default_sort') ?? 'updated_at',
-    default_order: getAppSetting('default_order') ?? 'desc',
-    default_group: getAppSetting('default_group') ?? 'none',
-    home_section_layout_v1: parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1')),
-    vn_detail_section_layout_v1: parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1')),
-    series_detail_section_layout_v1: parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1')),
-    staff_detail_section_layout_v1: parseStaffDetailLayoutV1(getAppSetting('staff_detail_section_layout_v1')),
-    character_detail_section_layout_v1: parseCharacterDetailLayoutV1(getAppSetting('character_detail_section_layout_v1')),
-    producer_detail_section_layout_v1: parseProducerDetailLayoutV1(getAppSetting('producer_detail_section_layout_v1')),
-    shelf_view_prefs_v1: parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1')),
-    // Wrapped per-shelf overrides. The GET path always returns the
-    // wrapped shape; the legacy `shelf_view_prefs_v1` key above
-    // still carries the global defaults for back-compat callers.
-    shelf_display_overrides_v1: parseShelfDisplayOverridesV1(
-      getAppSetting('shelf_display_overrides_v1'),
-    ),
-    vndb_writeback: getAppSetting('vndb_writeback') === '1',
-    vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
-    // Mask: never echo the raw URL on GET (it can contain auth
-    // tokens, query strings, or proxy paths the user pasted without
-    // realizing). The UI uses `host` to display "currently routing
-    // through <host>" and PATCHes the full URL when the user edits.
-    vndb_backup_url: maskBackupUrl(getAppSetting('vndb_backup_url')),
-    // No more last-4 preview of the Steam API key — confirming
-    // possession of a specific key by an attacker is information
-    // disclosure. UI gets a boolean only.
-    steam_api_key: { hasKey: !!steamKey, preview: null },
-    steam_id: getAppSetting('steam_id') ?? '',
-    egs_username: getAppSetting('egs_username') ?? '',
-    vndb_fanout: getAppSetting('vndb_fanout') !== '0',
-  });
+  try {
+    const tokenRow = getAppSetting('vndb_token');
+    const steamKey = getAppSetting('steam_api_key');
+    return NextResponse.json({
+      vndb_token: maskToken(tokenRow),
+      random_quote_source: getAppSetting('random_quote_source') ?? 'all',
+      default_sort: getAppSetting('default_sort') ?? 'updated_at',
+      default_order: getAppSetting('default_order') ?? 'desc',
+      default_group: getAppSetting('default_group') ?? 'none',
+      home_section_layout_v1: parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1')),
+      vn_detail_section_layout_v1: parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1')),
+      series_detail_section_layout_v1: parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1')),
+      staff_detail_section_layout_v1: parseStaffDetailLayoutV1(getAppSetting('staff_detail_section_layout_v1')),
+      character_detail_section_layout_v1: parseCharacterDetailLayoutV1(getAppSetting('character_detail_section_layout_v1')),
+      producer_detail_section_layout_v1: parseProducerDetailLayoutV1(getAppSetting('producer_detail_section_layout_v1')),
+      shelf_view_prefs_v1: parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1')),
+      // Wrapped per-shelf overrides. The GET path always returns the
+      // wrapped shape; the legacy `shelf_view_prefs_v1` key above
+      // still carries the global defaults for back-compat callers.
+      shelf_display_overrides_v1: parseShelfDisplayOverridesV1(
+        getAppSetting('shelf_display_overrides_v1'),
+      ),
+      vndb_writeback: getAppSetting('vndb_writeback') === '1',
+      vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
+      // Mask: never echo the raw URL on GET (it can contain auth
+      // tokens, query strings, or proxy paths the user pasted without
+      // realizing). The UI uses `host` to display "currently routing
+      // through <host>" and PATCHes the full URL when the user edits.
+      vndb_backup_url: maskBackupUrl(getAppSetting('vndb_backup_url')),
+      // No more last-4 preview of the Steam API key — confirming
+      // possession of a specific key by an attacker is information
+      // disclosure. UI gets a boolean only.
+      steam_api_key: { hasKey: !!steamKey, preview: null },
+      steam_id: getAppSetting('steam_id') ?? '',
+      egs_username: getAppSetting('egs_username') ?? '',
+      vndb_fanout: getAppSetting('vndb_fanout') !== '0',
+    });
+  } catch (err) {
+    console.error('[settings GET] DB error:', (err as Error).message);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest) {
@@ -195,6 +200,7 @@ export async function PATCH(req: NextRequest) {
     }
   }
   const changedKeys = Object.keys(body);
+  try {
   if ('vndb_token' in body) {
     const v = body.vndb_token;
     if (v == null || v === '') {
@@ -477,13 +483,17 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'egs_username must be a string' }, { status: 400 });
     }
   }
-  if (changedKeys.length > 0) {
-    recordActivity({
-      kind: 'settings.update',
-      entity: 'settings',
-      label: 'Updated settings',
-      payload: { keys: changedKeys, values: maskPayloadValues(body as Record<string, unknown>) },
-    });
+    if (changedKeys.length > 0) {
+      recordActivity({
+        kind: 'settings.update',
+        entity: 'settings',
+        label: 'Updated settings',
+        payload: { keys: changedKeys, values: maskPayloadValues(body as Record<string, unknown>) },
+      });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('[settings PATCH] DB error:', (err as Error).message);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
   }
-  return NextResponse.json({ ok: true });
 }

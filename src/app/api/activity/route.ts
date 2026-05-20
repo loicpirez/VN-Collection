@@ -15,15 +15,20 @@ export async function GET(req: NextRequest) {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
   const sp = req.nextUrl.searchParams;
-  return NextResponse.json({
-    activity: listUserActivity({
-      limit: num(sp.get('limit')) ?? 100,
-      kind: sp.get('kind'),
-      entity: sp.get('entity'),
-      q: sp.get('q'),
-      from: num(sp.get('from')),
-      to: num(sp.get('to')),
-    }),
-  });
+  try {
+    return NextResponse.json({
+      activity: listUserActivity({
+        limit: num(sp.get('limit')) ?? 100,
+        kind: sp.get('kind'),
+        entity: sp.get('entity'),
+        q: sp.get('q'),
+        from: num(sp.get('from')),
+        to: num(sp.get('to')),
+      }),
+    });
+  } catch (err) {
+    console.error('[activity] DB error:', (err as Error).message);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
+  }
 }
 

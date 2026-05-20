@@ -95,70 +95,75 @@ export async function GET(req: NextRequest) {
   // filtering/grouping by aspect (cheap full-collection scan + a
   // small INSERT batch on first run). For non-aspect requests we
   // skip the work entirely.
-  const requestsAspect = aspectValid.length > 0 || sp.get('group') === 'aspect';
-  if (requestsAspect) {
-    const allVnIds = (
-      db.prepare('SELECT vn_id FROM collection').all() as Array<{ vn_id: string }>
-    ).map((r) => r.vn_id);
-    // STEP 1: pull aspect from cached VNDB release payloads (per
-    // VN, idempotent + short-circuits). The Library was the
-    // surface where the user observed VNs with 800x600 (→ 4:3)
-    // and 1280x720 (→ 16:9) releases sitting in the Unknown
-    // bucket — release_resolution_cache was empty because
-    // /api/vn/[id]/releases had never been invoked for those
-    // VNs from the Library page. Materializing here makes the
-    // Library agree with the VN detail page.
-    const vndbIds = allVnIds.filter(isVndbVnId);
-    // STEP 1a: pull aspect from cached VNDB release payloads — one
-    // per-VN short-circuiting scan (idempotent; skips VNs that
-    // already have a non-unknown signal, so cost is O(missing)).
-    for (const id of vndbIds) {
-      materializeReleaseAspectsForVn(id);
+  try {
+    const requestsAspect = aspectValid.length > 0 || sp.get('group') === 'aspect';
+    if (requestsAspect) {
+      const allVnIds = (
+        db.prepare('SELECT vn_id FROM collection').all() as Array<{ vn_id: string }>
+      ).map((r) => r.vn_id);
+      // STEP 1: pull aspect from cached VNDB release payloads (per
+      // VN, idempotent + short-circuits). The Library was the
+      // surface where the user observed VNs with 800x600 (→ 4:3)
+      // and 1280x720 (→ 16:9) releases sitting in the Unknown
+      // bucket — release_resolution_cache was empty because
+      // /api/vn/[id]/releases had never been invoked for those
+      // VNs from the Library page. Materializing here makes the
+      // Library agree with the VN detail page.
+      const vndbIds = allVnIds.filter(isVndbVnId);
+      // STEP 1a: pull aspect from cached VNDB release payloads — one
+      // per-VN short-circuiting scan (idempotent; skips VNs that
+      // already have a non-unknown signal, so cost is O(missing)).
+      for (const id of vndbIds) {
+        materializeReleaseAspectsForVn(id);
+      }
+      // STEP 1b: pull platform / media metadata from release cache
+      // using the batch helper — replaces the previous per-VN loop
+      // that called materializeReleaseMetaForVn individually (AUD-DB-001).
+      materializeReleaseMetaForCollectionVns(vndbIds);
+      // STEP 2: screenshots fallback for VNs that still have no
+      // signal after step 1.
+      materializeAspectForCollectionVns(allVnIds);
     }
-    // STEP 1b: pull platform / media metadata from release cache
-    // using the batch helper — replaces the previous per-VN loop
-    // that called materializeReleaseMetaForVn individually (AUD-DB-001).
-    materializeReleaseMetaForCollectionVns(vndbIds);
-    // STEP 2: screenshots fallback for VNs that still have no
-    // signal after step 1.
-    materializeAspectForCollectionVns(allVnIds);
-  }
 
-  // R5-144: default to the slim card projection so the library
-  // grid doesn't pay for ~30-80 MB of JSON.parse work per
-  // request on a 1000+ VN library. Callers that need the full
-  // payload pass `?detail=full` (used by export / debug
-  // tooling). The slim projection keeps `developers`,
-  // `publishers`, `tags`, and `relations` (LibraryClient reads
-  // those) and drops `description` / `aliases` / `staff` /
-  // `va` / `titles` / `editions` / `extlinks` / `screenshots` /
-  // `release_images` / `raw` / `languages` / `platforms` etc.
-  const wantsFullDetail = sp.get('detail') === 'full';
-  const collectionFetcher = wantsFullDetail ? listCollection : listCollectionForCards;
-  const raw = collectionFetcher({
-    status: status as ListOptions['status'],
-    q,
-    producer: producer || undefined,
-    publisher: publisher || undefined,
-    series: series && Number.isFinite(series) ? series : undefined,
-    tag: tag || undefined,
-    place: place || undefined,
-    edition: edition && isValidEditionType(edition) ? edition : undefined,
-    yearMin: yearMin && Number.isFinite(yearMin) ? yearMin : undefined,
-    yearMax: yearMax && Number.isFinite(yearMax) ? yearMax : undefined,
-    dumped: dumpedRaw === '1' ? true : dumpedRaw === '0' ? false : undefined,
-    // Multi-select aspect filter — `aspect` stays for back-compat
-    // (first item from the list), `aspects` carries the full set
-    // when the user picks more than one.
-    aspect: aspectValid.length === 1 ? aspectValid[0] : undefined,
-    aspects: aspectValid.length > 1 ? aspectValid : undefined,
-    sort,
-    order,
-  });
-  // Annotate each row with its list-membership count once, here, so
-  // the library grid renders the ListsPicker badge correctly on first
-  // paint without needing a popover open per card.
-  const listCounts = countListMembershipsByVn();
-  const items = raw.map((it) => ({ ...it, list_count: listCounts.get(it.id) ?? 0 }));
-  return NextResponse.json({ items, stats: getStats() });
+    // R5-144: default to the slim card projection so the library
+    // grid doesn't pay for ~30-80 MB of JSON.parse work per
+    // request on a 1000+ VN library. Callers that need the full
+    // payload pass `?detail=full` (used by export / debug
+    // tooling). The slim projection keeps `developers`,
+    // `publishers`, `tags`, and `relations` (LibraryClient reads
+    // those) and drops `description` / `aliases` / `staff` /
+    // `va` / `titles` / `editions` / `extlinks` / `screenshots` /
+    // `release_images` / `raw` / `languages` / `platforms` etc.
+    const wantsFullDetail = sp.get('detail') === 'full';
+    const collectionFetcher = wantsFullDetail ? listCollection : listCollectionForCards;
+    const raw = collectionFetcher({
+      status: status as ListOptions['status'],
+      q,
+      producer: producer || undefined,
+      publisher: publisher || undefined,
+      series: series && Number.isFinite(series) ? series : undefined,
+      tag: tag || undefined,
+      place: place || undefined,
+      edition: edition && isValidEditionType(edition) ? edition : undefined,
+      yearMin: yearMin && Number.isFinite(yearMin) ? yearMin : undefined,
+      yearMax: yearMax && Number.isFinite(yearMax) ? yearMax : undefined,
+      dumped: dumpedRaw === '1' ? true : dumpedRaw === '0' ? false : undefined,
+      // Multi-select aspect filter — `aspect` stays for back-compat
+      // (first item from the list), `aspects` carries the full set
+      // when the user picks more than one.
+      aspect: aspectValid.length === 1 ? aspectValid[0] : undefined,
+      aspects: aspectValid.length > 1 ? aspectValid : undefined,
+      sort,
+      order,
+    });
+    // Annotate each row with its list-membership count once, here, so
+    // the library grid renders the ListsPicker badge correctly on first
+    // paint without needing a popover open per card.
+    const listCounts = countListMembershipsByVn();
+    const items = raw.map((it) => ({ ...it, list_count: listCounts.get(it.id) ?? 0 }));
+    return NextResponse.json({ items, stats: getStats() });
+  } catch (err) {
+    console.error('[collection] DB error:', (err as Error).message);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
+  }
 }

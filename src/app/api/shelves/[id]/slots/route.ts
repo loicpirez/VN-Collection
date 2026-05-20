@@ -114,13 +114,18 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (typeof body.vn_id !== 'string' || typeof body.release_id !== 'string') {
     return NextResponse.json({ error: 'vn_id/release_id required' }, { status: 400 });
   }
-  removeShelfPlacement(body.vn_id, body.release_id);
-  recordActivity({
-    kind: 'shelf.unplace',
-    entity: 'shelf_slot',
-    entityId: `${body.vn_id}:${body.release_id}`,
-    label: 'Removed shelf placement',
-    payload: { shelf_id: sid, vn_id: body.vn_id, release_id: body.release_id },
-  });
-  return NextResponse.json({ slots: listShelfSlots(sid) });
+  try {
+    removeShelfPlacement(body.vn_id, body.release_id);
+    recordActivity({
+      kind: 'shelf.unplace',
+      entity: 'shelf_slot',
+      entityId: `${body.vn_id}:${body.release_id}`,
+      label: 'Removed shelf placement',
+      payload: { shelf_id: sid, vn_id: body.vn_id, release_id: body.release_id },
+    });
+    return NextResponse.json({ slots: listShelfSlots(sid) });
+  } catch (err) {
+    console.error('[shelves/[id]/slots DELETE] DB error:', (err as Error).message);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
+  }
 }

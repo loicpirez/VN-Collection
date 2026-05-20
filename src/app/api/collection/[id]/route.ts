@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import {
   addToCollection,
+  db,
   getCollectionItem,
   isInCollection,
   isValidBoxType,
@@ -124,16 +125,20 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
-  const item = getCollectionItem(id);
-  if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  return NextResponse.json({ item, in_collection: !!item.status });
+  try {
+    const item = getCollectionItem(id);
+    if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    return NextResponse.json({ item, in_collection: !!item.status });
+  } catch (err) {
+    console.error('[collection/[id] GET] DB error:', (err as Error).message);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
-  const wasInCollection = isInCollection(id);
   if (!getCollectionItem(id)) {
     try {
       const vn = await getVn(id);
@@ -157,18 +162,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const { fields, error } = pickFields(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
-  addToCollection(id, fields);
-  recordActivity({
-    kind: wasInCollection ? 'collection.update' : 'collection.add',
-    entity: 'vn',
-    entityId: id,
-    label: wasInCollection ? 'Updated collection item' : 'Added to collection',
-    payload: fields as Record<string, unknown>,
-  });
+  const { wasNew } = db.transaction(() => {
+    const alreadyIn = isInCollection(id);
+    addToCollection(id, fields);
+    recordActivity({
+      kind: alreadyIn ? 'collection.update' : 'collection.add',
+      entity: 'vn',
+      entityId: id,
+      label: alreadyIn ? 'Updated collection item' : 'Added to collection',
+      payload: fields as Record<string, unknown>,
+    });
+    return { wasNew: !alreadyIn };
+  })();
   await maybePushStatusToVndb(id, fields.status);
   // First-time add: download cover + screenshots + release/package images locally.
   // Failures are silently swallowed — the user can retry via the "Download all" button.
-  if (!wasInCollection) {
+  if (wasNew) {
     try {
       await ensureLocalImagesForVn(id);
     } catch (err) {
@@ -182,41 +191,51 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await readJsonObject(req)) as Record<string, unknown>;
-  const { fields, error } = pickFields(body);
-  if (error) return NextResponse.json({ error }, { status: 400 });
-  updateCollection(id, fields);
-  recordActivity({
-    kind: 'collection.update',
-    entity: 'vn',
-    entityId: id,
-    label: 'Updated collection item',
-    payload: fields as Record<string, unknown>,
-  });
-  // Best-effort write-back to VNDB. Awaiting it would tie the route's
-  // latency to api.vndb.org; we fire and forget but await so any auth
-  // error surfaces in the dev log (the helper itself never throws).
-  await maybePushStatusToVndb(id, fields.status);
-  return NextResponse.json({ item: getCollectionItem(id) });
+  try {
+    if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+    const body = (await readJsonObject(req)) as Record<string, unknown>;
+    const { fields, error } = pickFields(body);
+    if (error) return NextResponse.json({ error }, { status: 400 });
+    updateCollection(id, fields);
+    recordActivity({
+      kind: 'collection.update',
+      entity: 'vn',
+      entityId: id,
+      label: 'Updated collection item',
+      payload: fields as Record<string, unknown>,
+    });
+    // Best-effort write-back to VNDB. Awaiting it would tie the route's
+    // latency to api.vndb.org; we fire and forget but await so any auth
+    // error surfaces in the dev log (the helper itself never throws).
+    await maybePushStatusToVndb(id, fields.status);
+    return NextResponse.json({ item: getCollectionItem(id) });
+  } catch (err) {
+    console.error('[collection/[id] PATCH] DB error:', (err as Error).message);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
+  }
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
-  // Fail loudly when the row isn't there: silent success was masking
-  // stale optimistic-UI deletes and typo'd ids that would never tell
-  // the caller anything was wrong.
-  if (!isInCollection(id)) {
-    return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  try {
+    // Fail loudly when the row isn't there: silent success was masking
+    // stale optimistic-UI deletes and typo'd ids that would never tell
+    // the caller anything was wrong.
+    if (!isInCollection(id)) {
+      return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+    }
+    removeFromCollection(id);
+    recordActivity({
+      kind: 'collection.remove',
+      entity: 'vn',
+      entityId: id,
+      label: 'Removed from collection',
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('[collection/[id] DELETE] DB error:', (err as Error).message);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
   }
-  removeFromCollection(id);
-  recordActivity({
-    kind: 'collection.remove',
-    entity: 'vn',
-    entityId: id,
-    label: 'Removed from collection',
-  });
-  return NextResponse.json({ ok: true });
 }
