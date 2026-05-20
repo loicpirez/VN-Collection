@@ -89,7 +89,7 @@ export default async function YearPage({
         <section className="mb-6 rounded-xl border border-accent/40 bg-accent/5 p-5">
           <div className="mb-2 flex items-baseline justify-between text-sm">
             <span className="font-bold text-accent">
-              {t.year.goalProgress.replace('{n}', String(review.completed)).replace('{m}', String(goal!.target))}
+              {t.year.goalProgress.replace('{n}', String(review.completed)).replace('{m}', String(goal!.target)).replace('{goal}', String(goal!.target))}
             </span>
             <span className="font-mono text-xs text-muted">{progress}%</span>
           </div>
