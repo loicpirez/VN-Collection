@@ -96,3 +96,53 @@ pass:
   the working VNDB tag tree once. Pinned by `tests/frontend-sentinel-coverage.test.ts`.
 - Regression guard on R5-048..R5-058 forbids refactoring `TagsBrowser` / tag-detail pages
   for test-friendliness.
+
+## Feature-completeness audit mapping
+
+The feature-completeness parallel audit produced 13 findings (F-D1..F-E2 + F-C1 + F-S1 + F-N1).
+All findings are covered by existing AUD-DEAD-* rows. No new AUD-FEATURE-* rows are needed.
+
+| Audit finding | Topic | Canonical row | Coverage note |
+|---|---|---|---|
+| F-D1 | RunTourButton dead component | AUD-DEAD-002 | Listed explicitly: "RunTourButton" |
+| F-D2 | BackLink dead component | AUD-DEAD-002 | Listed explicitly: "BackLink" |
+| F-D3 | SetCoverButton dead component | AUD-DEAD-002 | Listed explicitly: "SetCoverButton" |
+| F-D4 | SteamSettingsBlock dead component | AUD-DEAD-002 | Listed explicitly: "SteamSettingsBlock" |
+| F-D5 | RecentActivityStrip disconnected | AUD-DEAD-010 | Dedicated row: "RecentActivityStrip dead/disconnected" |
+| F-D6 | top-ranked-layout.ts dead lib | AUD-DEAD-003 | Listed explicitly: "top-ranked-layout.ts" |
+| F-D7 | staff-extras.ts dead lib | AUD-DEAD-003 | Listed explicitly: "staff-extras.ts" |
+| F-D8 | Dead exports in char-staff-search-filters.ts | AUD-DEAD-004 | Listed explicitly: parseCharacterSearchParams, characterSearchFilters, staffSearchFilters |
+| F-S1 | series/[id] relatedSection/statsSection stubs | AUD-DEAD-005 | Dedicated row: stub placeholder sections |
+| F-N1 | brand-overlap page no nav entry | AUD-DEAD-006 | Dedicated row |
+| F-E1 | LibraryClient .catch(() => {}) silent failures | AUD-DEAD-007 | Listed: LibraryClient L137,258 |
+| F-E2 | BulkDownloadButton .catch(() => {}) silent failure | AUD-DEAD-007 | Listed: BulkDownloadButton L163 |
+| F-C1 | vndb-sync.ts stale "wiring gated" comment | AUD-DEAD-001 | Dedicated row: stale comment in vndb-sync.ts |
+
+The feature-completeness agent also surfaced i18n, DB, and TypeScript findings — those were already
+captured as AUD-I18N-*, AUD-DB-*, and AUD-TS-* rows from the corresponding dedicated audits.
+
+## Broad-row sub-evidence requirements
+
+The following rows are too broad to be marked FIXED_VERIFIED with a single summary sentence.
+Each must list every sub-item in its verification column when it is eventually closed.
+
+### AUD-DB-003 — Transaction hygiene (10 functions)
+Final verification must confirm **each** function individually:
+`setAppSetting` / `addToCollection` / `markReleaseOwned` / `addVnToList` / `removeVnFromList` /
+`createRoute` / `createShelf` / `createSavedFilter` / `addToReadingQueue` / `uniqueSlug`
+
+### AUD-DB-005 — Unbounded SELECT (10 helpers)
+Final verification must state per-helper outcome (fixed or accepted TODO):
+`listCollection` / `listUnplacedOwnedReleases` / `listDumpStatus` / `listAllListMemberships` /
+`listSeries` / `listSteamLinks` / `listSavedFilters` / `listReadingQueue` / `listAllEgsVnLinks` /
+`searchLocalCharacters`
+
+### AUD-UX-018 — Missing title on truncated text (10 locations)
+Final verification must confirm per-location:
+RecentActivityStrip / CharactersSection / activity page / lists page / similar page /
+top-ranked page / staff page / recommendations page / egs page / characters page
+
+### AUD-UX-040 — Raw enum bleed (multiple families)
+Final verification must confirm per enum family:
+platform codes / language codes / activity-kind strings / aspect ratio strings /
+VNDB role/status codes (if any remain raw)
