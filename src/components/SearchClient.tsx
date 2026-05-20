@@ -6,6 +6,7 @@ import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
 import { TextualSearchPanel } from './TextualSearchPanel';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
+import { ContentWidthSlider } from './ContentWidthSlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { useToast } from './ToastProvider';
 import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
@@ -658,6 +659,7 @@ export function SearchClient() {
               and ignored the global density pref. */}
           <div className="mb-3 flex justify-end">
             <CardDensitySlider scope="search" />
+            <ContentWidthSlider scope="search" />
           </div>
           <SearchResultsGrid results={results} />
         </>

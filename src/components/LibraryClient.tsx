@@ -18,6 +18,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { CardDensitySlider } from './CardDensitySlider';
+import { ContentWidthSlider } from './ContentWidthSlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
@@ -866,6 +867,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         </label>
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <CardDensitySlider scope="library" />
+          <ContentWidthSlider scope="library" />
           <button
             type="button"
             onClick={() => set('denseLibrary', !settings.denseLibrary)}

@@ -12,6 +12,7 @@ import { SeriesAddVnForm } from '@/components/SeriesAddVnForm';
 import { SeriesRemoveVn } from '@/components/SeriesRemoveVn';
 import { SeriesMetaEditor } from '@/components/SeriesMetaEditor';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeriesDetailLayout, type SeriesDetailSection } from '@/components/SeriesDetailLayout';
 import { parseSeriesDetailLayoutV1 } from '@/lib/series-detail-layout';
@@ -78,6 +79,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
         </div>
         <div className="shrink-0">
           <CardDensitySlider scope="seriesWorks" />
+          <ContentWidthSlider scope="seriesWorks" />
         </div>
       </div>
     </header>

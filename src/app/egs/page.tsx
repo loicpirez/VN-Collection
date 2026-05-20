@@ -7,6 +7,7 @@ import { getDict } from '@/lib/i18n/server';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { MapVnToEgsButton } from '@/components/MapVnToEgsButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { ResetViewDefaultsButton } from '@/components/ResetViewDefaultsButton';
 import { SafeImage } from '@/components/SafeImage';
@@ -232,6 +233,7 @@ async function EgsPageContent() {
           <h2 className="text-base font-bold">{t.egs.linkedListTitle}</h2>
           <div className="flex flex-wrap items-center gap-2">
             <CardDensitySlider scope="egs" />
+            <ContentWidthSlider scope="egs" />
             <ResetViewDefaultsButton scope="egs" />
           </div>
         </div>

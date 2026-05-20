@@ -2,6 +2,7 @@
 import { useSearchParams } from 'next/navigation';
 import { type ReactNode } from 'react';
 import {
+  clampPageWidth,
   type DensityScope,
   resolveScopedDensity,
   useDisplaySettings,
@@ -44,11 +45,16 @@ export function DensityScopeProvider({
   const { settings } = useDisplaySettings();
   const search = useSearchParams();
   const urlDensity = search?.get('density') ?? null;
-  const value = resolveScopedDensity(settings, scope, urlDensity);
-  // We MUST set the variable as inline style so it cascades to every
-  // descendant. The cast keeps TypeScript happy about the
-  // CSS-custom-property key.
-  const style = { ['--card-density-px' as never]: `${value}px` } as React.CSSProperties;
+  const densityValue = resolveScopedDensity(settings, scope, urlDensity);
+  const rawPageWidth = settings.pageWidth?.[scope];
+  const customPageWidth =
+    typeof rawPageWidth === 'number' && Number.isFinite(rawPageWidth)
+      ? clampPageWidth(rawPageWidth)
+      : null;
+  const style: React.CSSProperties = {
+    ['--card-density-px' as never]: `${densityValue}px`,
+    ...(customPageWidth != null ? { maxWidth: `${customPageWidth}px` } : {}),
+  };
   const Tag = As as 'div';
   return (
     <Tag className={className} style={style}>

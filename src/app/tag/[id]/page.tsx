@@ -13,6 +13,7 @@ import type { VndbTagTreeNode } from '@/lib/vndb-tag-web-parser';
 import { SafeImage } from '@/components/SafeImage';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { SkeletonBlock } from '@/components/Skeleton';
 
@@ -147,6 +148,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
             </a>
           )}
           <CardDensitySlider scope="tagPage" />
+          <ContentWidthSlider scope="tagPage" />
         </div>
       </header>
 

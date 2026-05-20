@@ -9,6 +9,7 @@ import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
 import { ProducerLogoUpload } from '@/components/ProducerLogoUpload';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { ProducerVnsSections } from '@/components/ProducerVnsSections';
@@ -144,6 +145,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
             credit sections). Mounting on /producer/[id] closes the
             "missing slider on detail pages" consistency gap. */}
         <CardDensitySlider scope="producerWorks" />
+        <ContentWidthSlider scope="producerWorks" />
       </div>
 
       {(() => {

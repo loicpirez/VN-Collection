@@ -5,6 +5,7 @@ import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
+import { ContentWidthSlider } from './ContentWidthSlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -459,6 +460,7 @@ export function WishlistClient() {
               {t.wishlist.hideOwned}
             </label>
             <CardDensitySlider scope="wishlist" />
+            <ContentWidthSlider scope="wishlist" />
             <button
               type="button"
               onClick={onRefresh}

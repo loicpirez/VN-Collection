@@ -7,6 +7,7 @@ import { applyGenericPenalty } from '@/lib/recommend';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeedTagControls } from '@/components/SeedTagControls';
 import { SimilarSeedPicker } from '@/components/SimilarSeedPicker';
@@ -221,6 +222,7 @@ export default async function SimilarPage({
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <CardDensitySlider scope="vnSimilar" />
+        <ContentWidthSlider scope="vnSimilar" />
       </div>
 
       {results.length === 0 ? (

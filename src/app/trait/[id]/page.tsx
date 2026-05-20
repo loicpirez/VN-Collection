@@ -7,6 +7,7 @@ import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 
 export const dynamic = 'force-dynamic';
@@ -77,6 +78,7 @@ export default async function TraitPage({
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {/* Density slider controls the character grid below. */}
             <CardDensitySlider scope="characterWorks" />
+            <ContentWidthSlider scope="characterWorks" />
             <a
               href={`https://vndb.org/${trait.id}`}
               target="_blank"

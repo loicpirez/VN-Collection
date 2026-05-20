@@ -10,6 +10,7 @@ import { db, getCacheFreshness } from '@/lib/db';
 import { SkeletonRows } from '@/components/Skeleton';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { UpcomingCard, type UpcomingCardData } from '@/components/UpcomingCard';
 import { brandHref, yearHref } from '@/lib/egs-links';
@@ -92,6 +93,7 @@ export default async function UpcomingPage({
           </div>
           <div className="flex items-center gap-2">
             <CardDensitySlider scope="upcoming" />
+            <ContentWidthSlider scope="upcoming" />
             {tab === 'anticipated' ? (
               <RefreshScopeButton scope="upcoming-anticipated" lastUpdatedAt={lastUpdatedAt} />
             ) : tab === 'all' ? (

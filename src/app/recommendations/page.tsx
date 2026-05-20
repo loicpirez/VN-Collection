@@ -32,6 +32,7 @@ import { getDict } from '@/lib/i18n/server';
 import { RecommendModeTabs, type ModeTabItem } from '@/components/RecommendModeTabs';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeedTagControls } from '@/components/SeedTagControls';
 import { SkeletonCardGrid } from '@/components/Skeleton';
@@ -281,6 +282,7 @@ export default async function RecommendationsPage({
             hintOff={t.recommend.wishlistExcludedHint}
           />
           <CardDensitySlider scope="recommendations" />
+          <ContentWidthSlider scope="recommendations" />
         </div>
 
         <Suspense fallback={<div className="mt-3 h-10 animate-pulse rounded-lg bg-bg-elev/40" />}>

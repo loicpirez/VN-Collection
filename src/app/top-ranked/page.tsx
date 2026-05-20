@@ -12,6 +12,7 @@ import { SkeletonCardGrid } from '@/components/Skeleton';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { brandHref, yearHref } from '@/lib/egs-links';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
@@ -73,6 +74,7 @@ export default async function TopRankedPage({
           </div>
           <div className="flex items-center gap-2">
             <CardDensitySlider scope="topRanked" />
+            <ContentWidthSlider scope="topRanked" />
             <RefreshScopeButton scope="top-ranked" lastUpdatedAt={lastUpdatedAt} />
           </div>
         </div>

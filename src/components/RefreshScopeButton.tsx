@@ -45,9 +45,8 @@ export function RefreshScopeButton({
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const [now, setNow] = useState<number>(
-    typeof lastUpdatedAt === 'number' ? lastUpdatedAt : Date.now(),
-  );
+  const [now, setNow] = useState<number>(() => Date.now());
+  const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -72,6 +71,7 @@ export function RefreshScopeButton({
         body: JSON.stringify({ scope, params: params ?? {} }),
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      setRefreshedAt(Date.now());
       toast.success(t.refreshPage.done);
       startTransition(() => router.refresh());
     } catch (e) {
@@ -81,10 +81,15 @@ export function RefreshScopeButton({
     }
   }
 
+  const effectiveLastUpdated: number | null =
+    refreshedAt != null
+      ? Math.max(refreshedAt, lastUpdatedAt ?? 0)
+      : (lastUpdatedAt ?? null);
+
   const showChip = lastUpdatedAt !== undefined;
   return (
     <div className={`inline-flex flex-wrap items-center gap-2 ${className}`}>
-      {showChip && <FreshnessChip lastUpdatedAt={lastUpdatedAt} now={now} />}
+      {showChip && <FreshnessChip lastUpdatedAt={effectiveLastUpdated} now={now} />}
       <button
         type="button"
         onClick={run}

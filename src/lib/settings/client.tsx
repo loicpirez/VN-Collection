@@ -86,6 +86,21 @@ export interface DisplaySettings {
   spoilerLevel: 0 | 1 | 2;
   /** When true, sexual traits / NSFW-flagged traits are revealed. */
   showSexualTraits: boolean;
+  /**
+   * Per-surface page max-width overrides (px). Missing keys mean the
+   * page uses its CSS-class default (e.g. `max-w-6xl`). Setting a value
+   * here applies an inline `maxWidth` style on the `DensityScopeProvider`
+   * wrapper, overriding the Tailwind class so the user can widen a page
+   * beyond its CSS-class cap on large monitors.
+   */
+  pageWidth: Partial<Record<DensityScope, number>>;
+}
+
+export const PAGE_WIDTH_MIN = 640;
+export const PAGE_WIDTH_MAX = 1920;
+export function clampPageWidth(px: number): number {
+  if (!Number.isFinite(px)) return 1152;
+  return Math.max(PAGE_WIDTH_MIN, Math.min(PAGE_WIDTH_MAX, Math.round(px)));
 }
 
 const DEFAULTS: DisplaySettings = {
@@ -100,6 +115,7 @@ const DEFAULTS: DisplaySettings = {
   density: {},
   spoilerLevel: 0,
   showSexualTraits: false,
+  pageWidth: {},
 };
 
 /**
