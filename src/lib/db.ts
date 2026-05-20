@@ -2069,7 +2069,7 @@ export function clearEgsVnLink(egsId: number): void {
  */
 export function listAllEgsVnLinks(): Map<number, string | null> {
   const rows = db
-    .prepare('SELECT egs_id, vn_id FROM egs_vn_link')
+    .prepare('SELECT egs_id, vn_id FROM egs_vn_link LIMIT 50000')
     .all() as Array<{ egs_id: number; vn_id: string | null }>;
   const out = new Map<number, string | null>();
   for (const r of rows) out.set(r.egs_id, r.vn_id);
@@ -3063,6 +3063,10 @@ export interface ListOptions {
   aspects?: readonly AspectKey[];
   /** Limit the result to these VN ids only. Empty array → no rows. */
   vnIds?: readonly string[];
+  /** Safety cap on result rows. Defaults to 10 000 — well above any
+   *  realistic collection size while protecting against pathological
+   *  unbounded scans. Pass `Infinity` only in trusted bulk-export paths. */
+  limit?: number;
   /**
    * R5-144: internal projection knob. `'full'` (default) selects
    * every column from `vn` (`v.*`) — used by `/lists/[id]`,
@@ -3130,6 +3134,7 @@ export function listCollection({
   aspect,
   aspects,
   vnIds,
+  limit = 10_000,
   sort = 'updated_at',
   order = 'desc',
   _projection = 'full',
@@ -3354,6 +3359,8 @@ export function listCollection({
   // columns the library grid reads; rowToItem fills the heavy
   // JSON fields with safe defaults (`[]` / `null`).
   const vnProjection = _projection === 'cards' ? CARDS_VN_COLUMNS : 'v.*';
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10_000;
+  params.push(safeLimit);
   const rows = db
     .prepare(`
       SELECT ${vnProjection}, c.status, c.user_rating, c.playtime_minutes, c.started_date,
@@ -3364,6 +3371,7 @@ export function listCollection({
       ${join}
       ${whereSql}
       ORDER BY ${sortCol} ${dir} NULLS LAST
+      LIMIT ?
     `)
     .all(...params) as DbRow[];
   const items = rows.map((r) => rowToItem(r)!).filter(Boolean);
@@ -4284,7 +4292,8 @@ export function searchLocalCharacters({
              JOIN collection col ON col.vn_id = va.vn_id
              WHERE va.c_id = substr(vc.cache_key, length('char_full:') + 1)
            )
-         )`,
+         )
+       LIMIT 5000`,
     )
     .all() as Array<{ cache_key: string; body: string }>;
   const needle = q?.trim().toLowerCase() ?? '';
@@ -4926,6 +4935,7 @@ export function listDumpStatus(): DumpStatusEntry[] {
         GROUP BY vn_id
       ) ed ON ed.vn_id = v.id
       ORDER BY v.title COLLATE NOCASE ASC
+      LIMIT 10000
     `)
     .all() as Array<{
       vn_id: string;
@@ -5352,6 +5362,7 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
         WHERE d.vn_id = o.vn_id AND d.release_id = o.release_id
       )
       ORDER BY v.title COLLATE NOCASE ASC
+      LIMIT 5000
     `)
     .all() as Array<OwnedReleaseDbRow & ReleaseMetaJoinRow & {
       vn_title: string;
@@ -6590,7 +6601,7 @@ export function listPublisherStats(): ProducerStat[] {
 // Series
 
 export function listSeries(): SeriesRow[] {
-  return db.prepare('SELECT * FROM series ORDER BY name ASC').all() as SeriesRow[];
+  return db.prepare('SELECT * FROM series ORDER BY name ASC LIMIT 2000').all() as SeriesRow[];
 }
 
 export function listSeriesForVn(vnId: string): SeriesLite[] {
@@ -6742,7 +6753,7 @@ export interface SavedFilter {
 
 export function listSavedFilters(): SavedFilter[] {
   return db
-    .prepare('SELECT * FROM saved_filter ORDER BY position ASC, id ASC')
+    .prepare('SELECT * FROM saved_filter ORDER BY position ASC, id ASC LIMIT 500')
     .all() as SavedFilter[];
 }
 
@@ -6778,7 +6789,7 @@ export interface ReadingQueueEntry {
 
 export function listReadingQueue(): ReadingQueueEntry[] {
   return db
-    .prepare('SELECT * FROM reading_queue ORDER BY position ASC, added_at ASC')
+    .prepare('SELECT * FROM reading_queue ORDER BY position ASC, added_at ASC LIMIT 1000')
     .all() as ReadingQueueEntry[];
 }
 
@@ -6843,7 +6854,7 @@ export interface SteamLink {
 
 export function listSteamLinks(): SteamLink[] {
   return db
-    .prepare(`SELECT * FROM steam_link ORDER BY updated_at DESC`)
+    .prepare(`SELECT * FROM steam_link ORDER BY updated_at DESC LIMIT 10000`)
     .all() as SteamLink[];
 }
 
@@ -7836,6 +7847,7 @@ export function listAllListMemberships(): Record<string, UserList[]> {
       FROM user_list_vn lv
       JOIN user_list l ON l.id = lv.list_id
       ORDER BY l.pinned DESC, l.name COLLATE NOCASE
+      LIMIT 100000
     `)
     .all() as Array<UserList & { vn_id: string }>;
   const out: Record<string, UserList[]> = {};
