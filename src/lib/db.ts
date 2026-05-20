@@ -1205,27 +1205,16 @@ function buildUpsertVnTx(): (vn: RawVnPayload) => void {
     average: vn.average ?? null,
     description: vn.description ?? null,
     developers: JSON.stringify((vn.developers ?? []).map((d) => ({ id: d.id, name: d.name }))),
-    // Top-50 tags by rating-implicit order from VNDB. We do drop some
-    // VNs' long tail (a few popular VNs have 80+ applied tags), but
-    // the dropped tags are always the lowest-rated ones and we log
-    // when it happens so it's not invisible.
-    tags: (() => {
-      const all = (vn.tags ?? []).map((t) => ({
+    tags: JSON.stringify(
+      (vn.tags ?? []).map((t) => ({
         id: t.id,
         name: t.name,
         rating: t.rating,
         spoiler: t.spoiler,
         lie: !!t.lie,
         category: t.category ?? null,
-      }));
-      const TAG_LIMIT = 50;
-      if (all.length > TAG_LIMIT) {
-        console.warn(
-          `[upsertVn] ${vn.id}: dropping ${all.length - TAG_LIMIT} tags (kept top ${TAG_LIMIT}).`,
-        );
-      }
-      return JSON.stringify(all.slice(0, TAG_LIMIT));
-    })(),
+      })),
+    ),
     screenshots: JSON.stringify(vn.screenshots ?? []),
     relations: JSON.stringify(
       (vn.relations ?? []).map((r) => ({
