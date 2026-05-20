@@ -162,6 +162,7 @@ export function SettingsButton() {
   // the gear icon (or "All settings…" from the spoiler popover) on a
   // specific concern and the freshest landing is Display.
   const [activeTab, setActiveTab] = useState<SettingsTab>('display');
+  const [activePageLayoutTab, setActivePageLayoutTab] = useState<'vn' | 'character' | 'staff' | 'producer' | 'series'>('vn');
 
   const loadServer = useCallback(async () => {
     try {
@@ -936,57 +937,90 @@ export function SettingsButton() {
                     role="tabpanel"
                     id="settings-panel-vn-page"
                     aria-labelledby="settings-tab-vn-page"
-                    className="space-y-4"
                   >
-                    <VnLayoutPanel
-                      layout={server?.vn_detail_section_layout_v1 ?? defaultVnDetailLayoutV1()}
-                      onSave={(next) => saveServer({ vn_detail_section_layout_v1: next })}
-                      onReset={() => saveServer({ vn_detail_section_layout_v1: null })}
-                    />
-                    <DetailPageLayoutPanel
-                      title={t.characterLayout.restoreTitle}
-                      desc={t.characterLayout.restoreDesc}
-                      resetLabel={t.characterLayout.reset}
-                      layout={server?.character_detail_section_layout_v1 ?? defaultCharacterDetailLayoutV1()}
-                      sectionIds={CHARACTER_SECTION_IDS}
-                      sectionLabels={t.characterLayout.sectionLabels as Record<string, string>}
-                      eventName={CHARACTER_DETAIL_LAYOUT_EVENT}
-                      onSave={(next) => saveServer({ character_detail_section_layout_v1: next })}
-                      onReset={() => saveServer({ character_detail_section_layout_v1: null })}
-                    />
-                    <DetailPageLayoutPanel
-                      title={t.staffLayout.restoreTitle}
-                      desc={t.staffLayout.restoreDesc}
-                      resetLabel={t.staffLayout.reset}
-                      layout={server?.staff_detail_section_layout_v1 ?? defaultStaffDetailLayoutV1()}
-                      sectionIds={STAFF_SECTION_IDS}
-                      sectionLabels={t.staffLayout.sectionLabels as Record<string, string>}
-                      eventName={STAFF_DETAIL_LAYOUT_EVENT}
-                      onSave={(next) => saveServer({ staff_detail_section_layout_v1: next })}
-                      onReset={() => saveServer({ staff_detail_section_layout_v1: null })}
-                    />
-                    <DetailPageLayoutPanel
-                      title={t.producerLayout.restoreTitle}
-                      desc={t.producerLayout.restoreDesc}
-                      resetLabel={t.producerLayout.reset}
-                      layout={server?.producer_detail_section_layout_v1 ?? defaultProducerDetailLayoutV1()}
-                      sectionIds={PRODUCER_SECTION_IDS}
-                      sectionLabels={t.producerLayout.sectionLabels as Record<string, string>}
-                      eventName={PRODUCER_DETAIL_LAYOUT_EVENT}
-                      onSave={(next) => saveServer({ producer_detail_section_layout_v1: next })}
-                      onReset={() => saveServer({ producer_detail_section_layout_v1: null })}
-                    />
-                    <DetailPageLayoutPanel
-                      title={t.seriesLayout.restoreTitle}
-                      desc={t.seriesLayout.restoreDesc}
-                      resetLabel={t.seriesLayout.reset}
-                      layout={server?.series_detail_section_layout_v1 ?? defaultSeriesDetailLayoutV1()}
-                      sectionIds={SERIES_DETAIL_SECTION_IDS}
-                      sectionLabels={t.seriesLayout.sectionLabels as Record<string, string>}
-                      eventName={SERIES_DETAIL_LAYOUT_EVENT}
-                      onSave={(next) => saveServer({ series_detail_section_layout_v1: next })}
-                      onReset={() => saveServer({ series_detail_section_layout_v1: null })}
-                    />
+                    <nav
+                      className="mb-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
+                      aria-label={t.settings.tabs['vn-page']}
+                    >
+                      {(
+                        [
+                          ['vn', t.vnLayout.restoreTitle],
+                          ['character', t.characterLayout.restoreTitle],
+                          ['staff', t.staffLayout.restoreTitle],
+                          ['producer', t.producerLayout.restoreTitle],
+                          ['series', t.seriesLayout.restoreTitle],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          aria-current={activePageLayoutTab === key ? 'page' : undefined}
+                          onClick={() => setActivePageLayoutTab(key)}
+                          className={`rounded px-2.5 py-1 ${activePageLayoutTab === key ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </nav>
+                    {activePageLayoutTab === 'vn' && (
+                      <VnLayoutPanel
+                        layout={server?.vn_detail_section_layout_v1 ?? defaultVnDetailLayoutV1()}
+                        onSave={(next) => saveServer({ vn_detail_section_layout_v1: next })}
+                        onReset={() => saveServer({ vn_detail_section_layout_v1: null })}
+                      />
+                    )}
+                    {activePageLayoutTab === 'character' && (
+                      <PageLayoutPanel
+                        title={t.characterLayout.restoreTitle}
+                        desc={t.characterLayout.restoreDesc}
+                        resetLabel={t.characterLayout.reset}
+                        layout={server?.character_detail_section_layout_v1 ?? defaultCharacterDetailLayoutV1()}
+                        sectionIds={CHARACTER_SECTION_IDS}
+                        sectionLabels={t.characterLayout.sectionLabels as Record<string, string>}
+                        eventName={CHARACTER_DETAIL_LAYOUT_EVENT}
+                        onSave={(next) => saveServer({ character_detail_section_layout_v1: next })}
+                        onReset={() => saveServer({ character_detail_section_layout_v1: null })}
+                      />
+                    )}
+                    {activePageLayoutTab === 'staff' && (
+                      <PageLayoutPanel
+                        title={t.staffLayout.restoreTitle}
+                        desc={t.staffLayout.restoreDesc}
+                        resetLabel={t.staffLayout.reset}
+                        layout={server?.staff_detail_section_layout_v1 ?? defaultStaffDetailLayoutV1()}
+                        sectionIds={STAFF_SECTION_IDS}
+                        sectionLabels={t.staffLayout.sectionLabels as Record<string, string>}
+                        eventName={STAFF_DETAIL_LAYOUT_EVENT}
+                        onSave={(next) => saveServer({ staff_detail_section_layout_v1: next })}
+                        onReset={() => saveServer({ staff_detail_section_layout_v1: null })}
+                      />
+                    )}
+                    {activePageLayoutTab === 'producer' && (
+                      <PageLayoutPanel
+                        title={t.producerLayout.restoreTitle}
+                        desc={t.producerLayout.restoreDesc}
+                        resetLabel={t.producerLayout.reset}
+                        layout={server?.producer_detail_section_layout_v1 ?? defaultProducerDetailLayoutV1()}
+                        sectionIds={PRODUCER_SECTION_IDS}
+                        sectionLabels={t.producerLayout.sectionLabels as Record<string, string>}
+                        eventName={PRODUCER_DETAIL_LAYOUT_EVENT}
+                        onSave={(next) => saveServer({ producer_detail_section_layout_v1: next })}
+                        onReset={() => saveServer({ producer_detail_section_layout_v1: null })}
+                      />
+                    )}
+                    {activePageLayoutTab === 'series' && (
+                      <PageLayoutPanel
+                        title={t.seriesLayout.restoreTitle}
+                        desc={t.seriesLayout.restoreDesc}
+                        resetLabel={t.seriesLayout.reset}
+                        layout={server?.series_detail_section_layout_v1 ?? defaultSeriesDetailLayoutV1()}
+                        sectionIds={SERIES_DETAIL_SECTION_IDS}
+                        sectionLabels={t.seriesLayout.sectionLabels as Record<string, string>}
+                        eventName={SERIES_DETAIL_LAYOUT_EVENT}
+                        onSave={(next) => saveServer({ series_detail_section_layout_v1: next })}
+                        onReset={() => saveServer({ series_detail_section_layout_v1: null })}
+                      />
+                    )}
                   </div>
                 )}
 
@@ -1223,7 +1257,7 @@ function VnLayoutPanel({
  * section layout (character, staff, producer, series). Same contract
  * as VnLayoutPanel but parameterised — avoids copy-pasting.
  */
-function DetailPageLayoutPanel<Id extends string>({
+function PageLayoutPanel<Id extends string>({
   title,
   desc,
   resetLabel,

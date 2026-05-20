@@ -5,6 +5,7 @@ import { db, getCollectionItem } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { formatMinutes } from '@/lib/format';
 import { roleLabel } from '@/lib/staff-roles';
+import { platformLabel } from '@/lib/platform-label';
 import { SafeImage } from '@/components/SafeImage';
 import { LangList } from '@/components/LangFlag';
 
@@ -342,8 +343,9 @@ export default async function ComparePage({
                     className={`mr-1 inline-block rounded px-1.5 py-0.5 ${
                       sharedPlats.has(p) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
                     }`}
+                    title={p}
                   >
-                    {p}
+                    {platformLabel(p)}
                   </span>
                 ))}
               </div>

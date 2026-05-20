@@ -125,6 +125,12 @@ function kindLabel(kind: RecentActivityEntry['kind'], t: Awaited<ReturnType<type
   }
 }
 
+function systemKindLabel(raw: string): string {
+  return raw
+    .replace(/[._]/g, ' ')
+    .replace(/^[a-z]/, (c) => c.toUpperCase());
+}
+
 const KIND_COLOR: Record<string, string> = {
   status:   'bg-blue-500/20 text-blue-300',
   rating:   'bg-yellow-500/20 text-yellow-300',
@@ -212,7 +218,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
             </span>
             <select name="kind" defaultValue={kind} className="input w-full">
               <option value="">{t.userActivity.allKinds}</option>
-              {kinds.map((k) => <option key={k} value={k}>{k.replace(/_/g, ' ')}</option>)}
+              {kinds.map((k) => <option key={k} value={k}>{systemKindLabel(k)}</option>)}
             </select>
           </label>
           <label className="min-w-[160px] text-xs text-muted">
@@ -225,6 +231,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
       </header>
 
       <div className="space-y-8">
+        {!kind && (
         <section>
           <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">{t.userActivity.vnChanges}</h2>
           {vnRows.length === 0 ? (
@@ -262,6 +269,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
             </>
           )}
         </section>
+        )}
 
         <section>
           <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">{t.userActivity.sysEvents}</h2>

@@ -201,6 +201,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [yearMinInput, setYearMinInput] = useState(urlYearMin);
+  const [yearMaxInput, setYearMaxInput] = useState(urlYearMax);
 
   function toggleSelected(id: string) {
     setSelected((prev) => {
@@ -326,12 +328,19 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         : '';
 
   function clearYear() {
+    setYearMinInput('');
+    setYearMaxInput('');
     const sp = new URLSearchParams(searchParams.toString());
     sp.delete('yearMin');
     sp.delete('yearMax');
     const qs = sp.toString();
     router.replace(qs ? `/?${qs}` : '/', { scroll: false });
   }
+
+  useEffect(() => {
+    setYearMinInput(urlYearMin);
+    setYearMaxInput(urlYearMax);
+  }, [urlYearMin, urlYearMax]);
 
   // URL-driven checkbox filters. Each value is `'1'` (only-matching),
   // `'0'` (only-NOT-matching), or absent (no filter). Names map to keys of
@@ -564,6 +573,45 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                     </button>
                   );
                 })}
+              </div>
+            </div>
+            <div className="col-span-2 flex flex-col gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1.5 sm:col-span-3">
+              <div className="inline-flex items-center gap-1.5 text-xs text-muted">
+                <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{t.library.filterByYear}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input w-24"
+                  placeholder={t.search.yearMin}
+                  value={yearMinInput}
+                  min={1980}
+                  max={2040}
+                  onChange={(e) => setYearMinInput(e.target.value)}
+                  onBlur={() => setParam('yearMin', yearMinInput.trim() || null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setParam('yearMin', yearMinInput.trim() || null);
+                  }}
+                  aria-label={t.search.yearMin}
+                />
+                <span className="text-muted">–</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input w-24"
+                  placeholder={t.search.yearMax}
+                  value={yearMaxInput}
+                  min={1980}
+                  max={2040}
+                  onChange={(e) => setYearMaxInput(e.target.value)}
+                  onBlur={() => setParam('yearMax', yearMaxInput.trim() || null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setParam('yearMax', yearMaxInput.trim() || null);
+                  }}
+                  aria-label={t.search.yearMax}
+                />
               </div>
             </div>
             <button

@@ -38,6 +38,12 @@ interface Props {
    * back to the same key.
    */
   initialOverrides?: ShelfDisplayOverridesV1;
+  /**
+   * When false the active shelf has no face-out display slots so the
+   * `frontDisplaySizePx` and `sectionGapPx` sliders have no visible
+   * effect — they are shown disabled with an explanatory tooltip.
+   */
+  hasDisplaySlots?: boolean;
 }
 
 type Scope = 'global' | 'shelf';
@@ -63,6 +69,7 @@ export function ShelfReadOnlyControls({
   activeShelfId,
   activeShelfName,
   initialOverrides,
+  hasDisplaySlots = true,
 }: Props) {
   const t = useT();
   const dict = t.shelfDisplay;
@@ -401,6 +408,8 @@ export function ShelfReadOnlyControls({
               max={SHELF_VIEW_PREFS_BOUNDS.sectionGapPx.max}
               step={2}
               suffix="px"
+              disabled={!hasDisplaySlots}
+              disabledHint={dict.noDisplaySlots}
               onChange={(n) => void persist({ ...prefs, sectionGapPx: n })}
             />
           </div>
@@ -411,6 +420,8 @@ export function ShelfReadOnlyControls({
             max={SHELF_VIEW_PREFS_BOUNDS.frontDisplaySizePx.max}
             step={4}
             suffix="px"
+            disabled={!hasDisplaySlots}
+            disabledHint={dict.noDisplaySlots}
             onChange={(n) => void persist({ ...prefs, frontDisplaySizePx: n })}
           />
 
@@ -525,6 +536,8 @@ function Slider({
   step,
   suffix,
   onChange,
+  disabled,
+  disabledHint,
 }: {
   label: string;
   value: number;
@@ -533,9 +546,11 @@ function Slider({
   step: number;
   suffix: string;
   onChange: (n: number) => void;
+  disabled?: boolean;
+  disabledHint?: string;
 }) {
   return (
-    <label className="mt-2 block">
+    <label className={`mt-2 block ${disabled ? 'opacity-40' : ''}`} title={disabled ? disabledHint : undefined}>
       <div className="mb-1 flex items-center justify-between text-[11px] text-muted">
         <span>{label}</span>
         <span className="tabular-nums text-white">
@@ -549,8 +564,10 @@ function Slider({
         max={max}
         step={step}
         value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        disabled={disabled}
+        onChange={(e) => !disabled && onChange(Number(e.target.value))}
         className="w-full accent-accent"
+        aria-disabled={disabled}
       />
     </label>
   );

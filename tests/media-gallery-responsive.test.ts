@@ -1,18 +1,21 @@
 /**
- * R5-221 pin: the VN media gallery grid must not allow a single tile
- * to balloon to the full container width.
+ * R5-221 pin: the VN media gallery grid must fill available row width
+ * so tiles expand to fill the container and avoid a large right-side
+ * gap when auto-fill creates empty column tracks.
  *
  * Source-pin only — Playwright covers the runtime bounding-box check
  * in `scripts/media-gallery-focused.mjs`.
  *
- * The previous CSS used `minmax(min(100%, calc(...)), 1fr)` which let
- * `1fr` expand each tile to fill the row when there were fewer tiles
- * than columns. The user saw one screenshot rendered at native
- * resolution because the only tile in its row stretched to ~1280px.
+ * The PREVIOUS broken state used a fixed px upper bound
+ * (`calc(var(--card-density-px)*0.85)`) which left a visible gap to the
+ * right of the last row because `auto-fill` creates empty tracks.
  *
- * The fix clamps the upper bound of `minmax(...)` to a multiple of
- * `--card-density-px` so tiles stay close to the density slider's
- * target width regardless of how many siblings they have.
+ * The fix uses `1fr` as the upper bound so tiles stretch to fill the
+ * available space. Tile overflow is clamped visually because every
+ * MediaTile already carries a fixed aspect-ratio class
+ * (aspect-video / aspect-[2/3] / aspect-square), so stretching a tile
+ * column wider simply reveals more of the image — it does not distort
+ * it.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -32,14 +35,13 @@ describe('MediaGallery grid template (R5-221)', () => {
     expect(SOURCE).toMatch(/--card-density-px/);
   });
 
-  it('clamps the upper minmax bound (no unbounded 1fr)', () => {
-    // The single failure mode that produced full-resolution images:
-    // a `minmax(X, 1fr)` grid track that lets a lone tile expand to
-    // the entire row width. Forbid the literal `1fr` in the inline
-    // grid template.
+  it('uses 1fr as the upper minmax bound to fill available row width', () => {
+    // The intentional design: `minmax(min, 1fr)` lets tiles stretch to
+    // fill the row so there is no dead space to the right of the grid.
+    // Fixed aspect-ratio wrappers (aspect-video etc.) prevent distortion.
     const gridSection = SOURCE.split('gridTemplateColumns:')[1] ?? '';
     const upTo = gridSection.split('}')[0] ?? '';
-    expect(upTo, 'no unbounded 1fr in the media-gallery grid template').not.toMatch(/\b1fr\b/);
+    expect(upTo, 'upper minmax bound must be 1fr to fill row width').toMatch(/\b1fr\b/);
   });
 
   it('uses object-cover / object-contain via SafeImage (no raw unbounded <img>)', () => {

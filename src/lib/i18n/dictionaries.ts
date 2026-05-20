@@ -884,7 +884,7 @@ export const dictionaries = {
         content: 'Spoilers / Contenu',
         library: 'Bibliothèque',
         home: 'Mise en page (Accueil)',
-        'vn-page': 'Mise en page (Pages VN)',
+        'vn-page': 'Mise en page des pages',
         account: 'Comptes / Jetons',
         integrations: 'Intégrations',
         automation: 'Téléchargements / Données',
@@ -2215,6 +2215,7 @@ export const dictionaries = {
       scopeThisShelf: 'Cette étagère',
       scopeThisShelfNamed: 'Étagère « {name} »',
       overrideBadge: 'Personnalisée',
+      noDisplaySlots: 'Aucune rangée d\'affichage sur cette étagère',
     },
     schemaEgs: {
       heading: 'Données EGS miroir',
@@ -3383,7 +3384,7 @@ export const dictionaries = {
         content: 'Spoiler / Content',
         library: 'Library',
         home: 'Page layout (Home)',
-        'vn-page': 'Page layout (VN)',
+        'vn-page': 'Page layouts',
         account: 'Accounts / Tokens',
         integrations: 'Integrations',
         automation: 'Downloads / Data',
@@ -4593,7 +4594,7 @@ export const dictionaries = {
       expand: 'Expand',
       dragHandle: 'Drag to reorder',
       restoreTitle: 'VN page layout',
-      restoreDesc: 'Reorder or restore VN-page sections you have hidden. Changes apply across all VN pages.',
+      restoreDesc: 'Show, hide, or set default collapse state for each section. Changes apply across all VN pages.',
       hiddenNoneHint: 'No VN-page sections hidden.',
       sectionLabels: {
         notes: 'Personal notes',
@@ -4630,7 +4631,7 @@ export const dictionaries = {
       expand: 'Expand',
       dragHandle: 'Drag to reorder',
       restoreTitle: 'Series page layout',
-      restoreDesc: 'Reorder or restore series-page sections you have hidden. Changes apply across all series pages.',
+      restoreDesc: 'Show, hide, or set default collapse state for each section. Changes apply across all series pages.',
       hiddenNoneHint: 'No series-page sections hidden.',
       sectionLabels: {
         hero: 'Hero (cover & description)',
@@ -4642,7 +4643,7 @@ export const dictionaries = {
     },
     characterLayout: {
       restoreTitle: 'Character page layout',
-      restoreDesc: 'Reorder or restore character-page sections you have hidden.',
+      restoreDesc: 'Show, hide, or set default collapse state for each section.',
       reset: 'Reset to defaults',
       sectionLabels: {
         siblings: 'Related characters',
@@ -4656,7 +4657,7 @@ export const dictionaries = {
     },
     staffLayout: {
       restoreTitle: 'Staff page layout',
-      restoreDesc: 'Reorder or restore staff-page sections you have hidden.',
+      restoreDesc: 'Show, hide, or set default collapse state for each section.',
       reset: 'Reset to defaults',
       sectionLabels: {
         timeline: 'Timeline',
@@ -4668,7 +4669,7 @@ export const dictionaries = {
     },
     producerLayout: {
       restoreTitle: 'Producer page layout',
-      restoreDesc: 'Reorder or restore producer-page sections you have hidden.',
+      restoreDesc: 'Show, hide, or set default collapse state for each section.',
       reset: 'Reset to defaults',
       sectionLabels: {
         description: 'Description',
@@ -4711,6 +4712,7 @@ export const dictionaries = {
       scopeThisShelf: 'This shelf',
       scopeThisShelfNamed: 'Shelf "{name}"',
       overrideBadge: 'Overridden',
+      noDisplaySlots: 'No display rows on this shelf',
     },
     schemaEgs: {
       heading: 'Mirrored EGS data',
@@ -5879,7 +5881,7 @@ export const dictionaries = {
         content: 'スポイラー / コンテンツ',
         library: 'ライブラリ',
         home: 'ページレイアウト（ホーム）',
-        'vn-page': 'ページレイアウト（VN）',
+        'vn-page': 'ページレイアウト',
         account: 'アカウント / トークン',
         integrations: '連携',
         automation: 'ダウンロード / データ',
@@ -7206,6 +7208,7 @@ export const dictionaries = {
       scopeThisShelf: 'この棚',
       scopeThisShelfNamed: '棚「{name}」',
       overrideBadge: '個別設定',
+      noDisplaySlots: 'この棚にはディスプレイ段がありません',
     },
     schemaEgs: {
       heading: 'EGS ミラーデータ',

@@ -76,16 +76,6 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   const count = localRows.length;
   const state = tagPageEmptyState({ tagId, collectionCount: count });
 
-  // Best-effort fetch of the VNDB-side metadata for the header. If the
-  // operator is offline the page still renders with just the id.
-  const tagInfo = await getTag(tagId).catch(() => null);
-
-  // VNDB results moved into a Suspense-wrapped async component
-  // below so the page shell paints immediately instead of blocking
-  // on the upstream POST /vn call. The previous design awaited the
-  // result inline, which made `/tag/[id]?tab=vndb` look frozen
-  // until VNDB responded (or 502'd).
-
   return (
     <DensityScopeProvider scope="tagPage" className="mx-auto max-w-5xl">
       <Link href="/tags" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
@@ -93,38 +83,15 @@ export default async function TagPage({ params, searchParams }: PageProps) {
       </Link>
 
       <header className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-          <TagIcon className="h-6 w-6 text-accent" aria-hidden /> {tagInfo?.name ?? tagId}
-        </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider">
-        {tagInfo?.category && (
-          <span className="rounded bg-accent/10 px-2 py-0.5 text-accent">
-            {t.tags[`cat_${tagInfo.category}` as 'cat_cont' | 'cat_ero' | 'cat_tech']}
-          </span>
-        )}
-          {tagInfo && (
-            <>
-              <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
-                {tagInfo.searchable ? t.tagPage.searchable : t.tagPage.notSearchable}
-              </span>
-              <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
-                {tagInfo.applicable ? t.tagPage.applicable : t.tagPage.notApplicable}
-              </span>
-              <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
-                {t.tagPage.vndbCount.replace('{n}', tagInfo.vn_count.toLocaleString())}
-              </span>
-            </>
-          )}
-        </div>
-        {tagInfo?.aliases && tagInfo.aliases.length > 0 && (
-          <div className="mt-2 text-xs text-muted">{tagInfo.aliases.join(' · ')}</div>
-        )}
-        {tagInfo?.description && (
-          <div className="mt-3 text-xs text-white/80">
-            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">{t.tagPage.description}</div>
-            <VndbMarkup text={tagInfo.description} spoilerLabel={t.spoiler.markupSummary} />
-          </div>
-        )}
+        {/*
+          `getTag` awaits a VNDB API call — isolate it so the page
+          shell (count, tabs, action buttons) streams before VNDB
+          responds. loading.tsx covers the initial navigation;
+          this Suspense handles the intra-page streaming.
+        */}
+        <Suspense fallback={<TagMetaHeaderSkeleton />}>
+          <TagMetaHeaderAsync tagId={tagId} t={t} />
+        </Suspense>
         <p className="mt-3 text-sm text-muted">
           {state.isEmpty ? t.tagPage.emptyHint : t.tagPage.countHint.replace('{n}', String(count))}
         </p>
@@ -260,6 +227,59 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         </section>
       )}
     </DensityScopeProvider>
+  );
+}
+
+function TagMetaHeaderSkeleton() {
+  return (
+    <div aria-busy="true">
+      <SkeletonBlock className="h-8 w-2/5" />
+      <div className="mt-2 flex gap-2">
+        <SkeletonBlock className="h-5 w-16 rounded" />
+        <SkeletonBlock className="h-5 w-20 rounded" />
+        <SkeletonBlock className="h-5 w-20 rounded" />
+      </div>
+    </div>
+  );
+}
+
+async function TagMetaHeaderAsync({ tagId, t }: { tagId: string; t: Awaited<ReturnType<typeof getDict>> }) {
+  const tagInfo = await getTag(tagId).catch(() => null);
+  return (
+    <>
+      <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
+        <TagIcon className="h-6 w-6 text-accent" aria-hidden /> {tagInfo?.name ?? tagId}
+      </h1>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider">
+        {tagInfo?.category && (
+          <span className="rounded bg-accent/10 px-2 py-0.5 text-accent">
+            {t.tags[`cat_${tagInfo.category}` as 'cat_cont' | 'cat_ero' | 'cat_tech']}
+          </span>
+        )}
+        {tagInfo && (
+          <>
+            <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
+              {tagInfo.searchable ? t.tagPage.searchable : t.tagPage.notSearchable}
+            </span>
+            <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
+              {tagInfo.applicable ? t.tagPage.applicable : t.tagPage.notApplicable}
+            </span>
+            <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
+              {t.tagPage.vndbCount.replace('{n}', tagInfo.vn_count.toLocaleString())}
+            </span>
+          </>
+        )}
+      </div>
+      {tagInfo?.aliases && tagInfo.aliases.length > 0 && (
+        <div className="mt-2 text-xs text-muted">{tagInfo.aliases.join(' · ')}</div>
+      )}
+      {tagInfo?.description && (
+        <div className="mt-3 text-xs text-white/80">
+          <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">{t.tagPage.description}</div>
+          <VndbMarkup text={tagInfo.description} spoilerLabel={t.spoiler.markupSummary} />
+        </div>
+      )}
+    </>
   );
 }
 

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowLeft, ArrowDown, Box, Coins, Eye, Layers, LayoutGrid, Library, Package } from 'lucide-react';
 import {
   listAllOwnedReleases,
+  listShelfDisplaySlots,
   listShelves,
   listUnplacedOwnedReleases,
   type ShelfEntry,
@@ -236,6 +237,9 @@ export default async function ShelfPage({
               const effective = activeShelfKey
                 ? resolveShelfPrefs(overrides, activeShelfKey)
                 : overrides.global;
+              const activeShelfDisplaySlots = activeShelf
+                ? listShelfDisplaySlots(activeShelf.id)
+                : [];
               return (
                 <ShelfReadOnlyControls
                   // The legacy single-key payload is the FALLBACK
@@ -245,6 +249,7 @@ export default async function ShelfPage({
                   initialOverrides={overrides}
                   activeShelfId={activeShelfKey || undefined}
                   activeShelfName={activeShelf?.name ?? undefined}
+                  hasDisplaySlots={activeShelfDisplaySlots.length > 0}
                 />
               );
             })()}
