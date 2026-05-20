@@ -9,7 +9,7 @@ import {
   listCollectionForCards,
   materializeAspectForCollectionVns,
   materializeReleaseAspectsForVn,
-  materializeReleaseMetaForVn,
+  materializeReleaseMetaForCollectionVns,
   type ListOptions,
 } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
@@ -108,12 +108,17 @@ export async function GET(req: NextRequest) {
     // /api/vn/[id]/releases had never been invoked for those
     // VNs from the Library page. Materializing here makes the
     // Library agree with the VN detail page.
-    for (const id of allVnIds) {
-      if (isVndbVnId(id)) {
-        materializeReleaseAspectsForVn(id);
-        materializeReleaseMetaForVn(id);
-      }
+    const vndbIds = allVnIds.filter(isVndbVnId);
+    // STEP 1a: pull aspect from cached VNDB release payloads — one
+    // per-VN short-circuiting scan (idempotent; skips VNs that
+    // already have a non-unknown signal, so cost is O(missing)).
+    for (const id of vndbIds) {
+      materializeReleaseAspectsForVn(id);
     }
+    // STEP 1b: pull platform / media metadata from release cache
+    // using the batch helper — replaces the previous per-VN loop
+    // that called materializeReleaseMetaForVn individually (AUD-DB-001).
+    materializeReleaseMetaForCollectionVns(vndbIds);
     // STEP 2: screenshots fallback for VNs that still have no
     // signal after step 1.
     materializeAspectForCollectionVns(allVnIds);

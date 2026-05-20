@@ -135,6 +135,8 @@ function open(): Database.Database {
       raw             TEXT,
       fetched_at      INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_vn_released   ON vn(released);
+    CREATE INDEX IF NOT EXISTS idx_vn_fetched_at ON vn(fetched_at);
 
     CREATE TABLE IF NOT EXISTS collection (
       vn_id            TEXT PRIMARY KEY REFERENCES vn(id) ON DELETE CASCADE,
@@ -149,8 +151,9 @@ function open(): Database.Database {
       updated_at       INTEGER NOT NULL
     );
 
-    CREATE INDEX IF NOT EXISTS idx_collection_status ON collection(status);
-    CREATE INDEX IF NOT EXISTS idx_collection_updated ON collection(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_collection_status        ON collection(status);
+    CREATE INDEX IF NOT EXISTS idx_collection_updated       ON collection(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_collection_finished_date ON collection(finished_date);
 
     CREATE TABLE IF NOT EXISTS producer (
       id          TEXT PRIMARY KEY,
@@ -475,6 +478,7 @@ function open(): Database.Database {
       position INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_saved_filter_position ON saved_filter(position);
 
     CREATE TABLE IF NOT EXISTS reading_queue (
       vn_id    TEXT PRIMARY KEY REFERENCES vn(id) ON DELETE CASCADE,
@@ -661,6 +665,7 @@ function open(): Database.Database {
   // bottom and the manually-ordered VNs float to the top. Set when the user
   // drags an item; reset to 0 on collection removal.
   ensureColumn(db, 'collection', 'custom_order', 'INTEGER NOT NULL DEFAULT 0');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_collection_custom_order ON collection(custom_order)');
 
   ensureColumn(db, 'owned_release', 'location', "TEXT NOT NULL DEFAULT 'unknown'");
   ensureColumn(db, 'owned_release', 'physical_location', 'TEXT');
@@ -2172,22 +2177,24 @@ function settingAuditPreview(key: string, value: string | null): string | null {
 }
 
 export function setAppSetting(key: string, value: string | null): void {
-  const wasAudited = AUDITED_SETTING_KEYS.has(key);
-  const prior = wasAudited ? getAppSetting(key) : null;
-  if (value == null || value.length === 0) {
-    db.prepare('DELETE FROM app_setting WHERE key = ?').run(key);
-  } else {
-    db.prepare(`
-      INSERT INTO app_setting (key, value) VALUES (?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `).run(key, value);
-  }
-  if (wasAudited && (prior ?? null) !== (value ?? null)) {
-    db.prepare(`
-      INSERT INTO app_setting_audit (key, prior_preview, next_preview, changed_at)
-      VALUES (?, ?, ?, ?)
-    `).run(key, settingAuditPreview(key, prior), settingAuditPreview(key, value), Date.now());
-  }
+  db.transaction(() => {
+    const wasAudited = AUDITED_SETTING_KEYS.has(key);
+    const prior = wasAudited ? getAppSetting(key) : null;
+    if (value == null || value.length === 0) {
+      db.prepare('DELETE FROM app_setting WHERE key = ?').run(key);
+    } else {
+      db.prepare(`
+        INSERT INTO app_setting (key, value) VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `).run(key, value);
+    }
+    if (wasAudited && (prior ?? null) !== (value ?? null)) {
+      db.prepare(`
+        INSERT INTO app_setting_audit (key, prior_preview, next_preview, changed_at)
+        VALUES (?, ?, ?, ?)
+      `).run(key, settingAuditPreview(key, prior), settingAuditPreview(key, value), Date.now());
+    }
+  })();
 }
 
 export interface SettingAuditEntry {
@@ -2470,38 +2477,40 @@ export function upsertCharacterImage(charId: string, url: string | null, localPa
 export type CollectionPatch = Partial<Omit<CollectionFields, 'added_at' | 'updated_at'>>;
 
 export function addToCollection(vnId: string, fields: CollectionPatch = {}): void {
-  const now = Date.now();
-  const exists = db.prepare('SELECT 1 FROM collection WHERE vn_id = ?').get(vnId);
-  if (exists) {
-    updateCollection(vnId, fields);
-    return;
-  }
-  db.prepare(`
-    INSERT INTO collection (vn_id, status, user_rating, playtime_minutes,
-                            started_date, finished_date, notes, favorite,
-                            location, edition_type, edition_label, physical_location,
-                            box_type, download_url, dumped, added_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    vnId,
-    fields.status ?? 'planning',
-    fields.user_rating ?? null,
-    fields.playtime_minutes ?? 0,
-    fields.started_date ?? null,
-    fields.finished_date ?? null,
-    fields.notes ?? null,
-    fields.favorite ? 1 : 0,
-    fields.location ?? 'unknown',
-    fields.edition_type ?? 'none',
-    fields.edition_label ?? null,
-    serializePlaces(fields.physical_location ?? null),
-    fields.box_type ?? 'none',
-    fields.download_url ?? null,
-    fields.dumped ? 1 : 0,
-    now,
-    now,
-  );
-  invalidateAggregateStats();
+  db.transaction(() => {
+    const now = Date.now();
+    const exists = db.prepare('SELECT 1 FROM collection WHERE vn_id = ?').get(vnId);
+    if (exists) {
+      updateCollection(vnId, fields);
+      return;
+    }
+    db.prepare(`
+      INSERT INTO collection (vn_id, status, user_rating, playtime_minutes,
+                              started_date, finished_date, notes, favorite,
+                              location, edition_type, edition_label, physical_location,
+                              box_type, download_url, dumped, added_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      vnId,
+      fields.status ?? 'planning',
+      fields.user_rating ?? null,
+      fields.playtime_minutes ?? 0,
+      fields.started_date ?? null,
+      fields.finished_date ?? null,
+      fields.notes ?? null,
+      fields.favorite ? 1 : 0,
+      fields.location ?? 'unknown',
+      fields.edition_type ?? 'none',
+      fields.edition_label ?? null,
+      serializePlaces(fields.physical_location ?? null),
+      fields.box_type ?? 'none',
+      fields.download_url ?? null,
+      fields.dumped ? 1 : 0,
+      now,
+      now,
+    );
+    invalidateAggregateStats();
+  })();
 }
 
 // Same lazy-factory pattern as `upsertVnTx` above — defers the
@@ -4504,17 +4513,19 @@ export function getRoute(routeId: number): RouteRow | null {
 }
 
 export function createRoute(vnId: string, name: string, orderIndex?: number): RouteRow {
-  const now = Date.now();
-  const ord =
-    orderIndex ??
-    (((db.prepare('SELECT COALESCE(MAX(order_index), -1) + 1 AS n FROM vn_route WHERE vn_id = ?').get(vnId) as { n: number }).n));
-  const info = db
-    .prepare(`
-      INSERT INTO vn_route (vn_id, name, order_index, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-    `)
-    .run(vnId, name, ord, now, now);
-  return getRoute(Number(info.lastInsertRowid))!;
+  return db.transaction(() => {
+    const now = Date.now();
+    const ord =
+      orderIndex ??
+      (((db.prepare('SELECT COALESCE(MAX(order_index), -1) + 1 AS n FROM vn_route WHERE vn_id = ?').get(vnId) as { n: number }).n));
+    const info = db
+      .prepare(`
+        INSERT INTO vn_route (vn_id, name, order_index, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+      `)
+      .run(vnId, name, ord, now, now);
+    return getRoute(Number(info.lastInsertRowid))!;
+  })();
 }
 
 export interface RoutePatch {
@@ -5081,19 +5092,21 @@ export function createShelf(input: {
   cols?: number;
   rows?: number;
 }): ShelfUnit {
-  const name = input.name.trim();
-  if (!name) throw new Error('shelf name required');
+  const trimmedName = input.name.trim();
+  if (!trimmedName) throw new Error('shelf name required');
   const cols = clampShelfDim(input.cols ?? 8, 8);
   const rows = clampShelfDim(input.rows ?? 4, 4);
-  const now = Date.now();
-  const maxOrder = db.prepare('SELECT COALESCE(MAX(order_index), -1) AS o FROM shelf_unit').get() as { o: number };
-  const info = db
-    .prepare(
-      `INSERT INTO shelf_unit (name, cols, rows, order_index, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    )
-    .run(name, cols, rows, maxOrder.o + 1, now, now);
-  return getShelf(Number(info.lastInsertRowid))!;
+  return db.transaction(() => {
+    const now = Date.now();
+    const maxOrder = db.prepare('SELECT COALESCE(MAX(order_index), -1) AS o FROM shelf_unit').get() as { o: number };
+    const info = db
+      .prepare(
+        `INSERT INTO shelf_unit (name, cols, rows, order_index, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(trimmedName, cols, rows, maxOrder.o + 1, now, now);
+    return getShelf(Number(info.lastInsertRowid))!;
+  })();
 }
 
 export function renameShelf(id: number, name: string): ShelfUnit | null {
@@ -6293,62 +6306,64 @@ export function markReleaseOwned(
   releaseId: string,
   patch: OwnedReleasePatch = {},
 ): void {
-  const now = Date.now();
-  const exists = db
-    .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
-    .get(vnId, releaseId);
-  if (exists) {
-    updateOwnedRelease(vnId, releaseId, patch);
-    return;
-  }
-  db.prepare(`
-    INSERT INTO owned_release (
-      vn_id, release_id, notes, location, physical_location, box_type,
-      edition_label, condition, price_paid, currency, acquired_date,
-      purchase_place, owned_platform, dumped, added_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    vnId,
-    releaseId,
-    patch.notes ?? null,
-    patch.location ?? 'unknown',
-    serializePlaces(patch.physical_location ?? null),
-    patch.box_type ?? 'none',
-    patch.edition_label ?? null,
-    patch.condition ?? null,
-    patch.price_paid ?? null,
-    patch.currency ?? null,
-    patch.acquired_date ?? null,
-    patch.purchase_place ?? null,
-    patch.owned_platform ?? null,
-    patch.dumped ? 1 : 0,
-    now,
-  );
-  // Layer B autofill — when the caller did not pass an explicit
-  // owned_platform AND the linked release has exactly one platform
-  // in release_meta_cache, inherit that singleton automatically.
-  // Idempotent: the WHERE-clause skips rows that already have a
-  // non-NULL owned_platform (e.g. when the patch explicitly set it).
-  if (patch.owned_platform == null) {
+  db.transaction(() => {
+    const now = Date.now();
+    const exists = db
+      .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
+      .get(vnId, releaseId);
+    if (exists) {
+      updateOwnedRelease(vnId, releaseId, patch);
+      return;
+    }
     db.prepare(`
-      UPDATE owned_release
-      SET owned_platform = (
-        SELECT json_extract(rm.platforms, '$[0]')
-        FROM release_meta_cache rm
-        WHERE rm.release_id = owned_release.release_id
-          AND json_valid(rm.platforms)
-          AND json_array_length(rm.platforms) = 1
+      INSERT INTO owned_release (
+        vn_id, release_id, notes, location, physical_location, box_type,
+        edition_label, condition, price_paid, currency, acquired_date,
+        purchase_place, owned_platform, dumped, added_at
       )
-      WHERE vn_id = ? AND release_id = ? AND owned_platform IS NULL
-        AND EXISTS (
-          SELECT 1 FROM release_meta_cache rm
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      vnId,
+      releaseId,
+      patch.notes ?? null,
+      patch.location ?? 'unknown',
+      serializePlaces(patch.physical_location ?? null),
+      patch.box_type ?? 'none',
+      patch.edition_label ?? null,
+      patch.condition ?? null,
+      patch.price_paid ?? null,
+      patch.currency ?? null,
+      patch.acquired_date ?? null,
+      patch.purchase_place ?? null,
+      patch.owned_platform ?? null,
+      patch.dumped ? 1 : 0,
+      now,
+    );
+    // Layer B autofill — when the caller did not pass an explicit
+    // owned_platform AND the linked release has exactly one platform
+    // in release_meta_cache, inherit that singleton automatically.
+    // Idempotent: the WHERE-clause skips rows that already have a
+    // non-NULL owned_platform (e.g. when the patch explicitly set it).
+    if (patch.owned_platform == null) {
+      db.prepare(`
+        UPDATE owned_release
+        SET owned_platform = (
+          SELECT json_extract(rm.platforms, '$[0]')
+          FROM release_meta_cache rm
           WHERE rm.release_id = owned_release.release_id
             AND json_valid(rm.platforms)
             AND json_array_length(rm.platforms) = 1
         )
-    `).run(vnId, releaseId);
-  }
+        WHERE vn_id = ? AND release_id = ? AND owned_platform IS NULL
+          AND EXISTS (
+            SELECT 1 FROM release_meta_cache rm
+            WHERE rm.release_id = owned_release.release_id
+              AND json_valid(rm.platforms)
+              AND json_array_length(rm.platforms) = 1
+          )
+      `).run(vnId, releaseId);
+    }
+  })();
 }
 
 export function updateOwnedRelease(
@@ -6711,12 +6726,14 @@ export function listSavedFilters(): SavedFilter[] {
 }
 
 export function createSavedFilter(name: string, params: string): SavedFilter {
-  const now = Date.now();
-  const nextPos = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM saved_filter').get() as { p: number }).p;
-  const info = db
-    .prepare('INSERT INTO saved_filter (name, params, position, created_at) VALUES (?, ?, ?, ?)')
-    .run(name.trim().slice(0, 60), params.slice(0, 2000), nextPos, now);
-  return db.prepare('SELECT * FROM saved_filter WHERE id = ?').get(info.lastInsertRowid) as SavedFilter;
+  return db.transaction(() => {
+    const now = Date.now();
+    const nextPos = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM saved_filter').get() as { p: number }).p;
+    const info = db
+      .prepare('INSERT INTO saved_filter (name, params, position, created_at) VALUES (?, ?, ?, ?)')
+      .run(name.trim().slice(0, 60), params.slice(0, 2000), nextPos, now);
+    return db.prepare('SELECT * FROM saved_filter WHERE id = ?').get(info.lastInsertRowid) as SavedFilter;
+  })();
 }
 
 export function deleteSavedFilter(id: number): boolean {
@@ -6745,13 +6762,15 @@ export function listReadingQueue(): ReadingQueueEntry[] {
 }
 
 export function addToReadingQueue(vnId: string): ReadingQueueEntry {
-  const next = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM reading_queue').get() as { p: number }).p;
-  const now = Date.now();
-  db.prepare(`
-    INSERT INTO reading_queue (vn_id, position, added_at) VALUES (?, ?, ?)
-    ON CONFLICT(vn_id) DO NOTHING
-  `).run(vnId, next, now);
-  return db.prepare('SELECT * FROM reading_queue WHERE vn_id = ?').get(vnId) as ReadingQueueEntry;
+  return db.transaction(() => {
+    const next = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM reading_queue').get() as { p: number }).p;
+    const now = Date.now();
+    db.prepare(`
+      INSERT INTO reading_queue (vn_id, position, added_at) VALUES (?, ?, ?)
+      ON CONFLICT(vn_id) DO NOTHING
+    `).run(vnId, next, now);
+    return db.prepare('SELECT * FROM reading_queue WHERE vn_id = ?').get(vnId) as ReadingQueueEntry;
+  })();
 }
 
 export function removeFromReadingQueue(vnId: string): boolean {
@@ -7703,25 +7722,27 @@ export function createUserList(input: {
 }): UserList {
   const name = input.name.trim().slice(0, 120);
   if (!name) throw new Error('name required');
-  const slug = uniqueSlug(slugify(name));
-  const now = Date.now();
-  const info = db
-    .prepare(`
-      INSERT INTO user_list (name, slug, description, color, icon, pinned, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 0, ?, ?)
-    `)
-    .run(name, slug, input.description ?? null, input.color ?? null, input.icon ?? null, now, now);
-  return {
-    id: Number(info.lastInsertRowid),
-    name,
-    slug,
-    description: input.description ?? null,
-    color: input.color ?? null,
-    icon: input.icon ?? null,
-    pinned: 0,
-    created_at: now,
-    updated_at: now,
-  };
+  return db.transaction(() => {
+    const slug = uniqueSlug(slugify(name));
+    const now = Date.now();
+    const info = db
+      .prepare(`
+        INSERT INTO user_list (name, slug, description, color, icon, pinned, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+      `)
+      .run(name, slug, input.description ?? null, input.color ?? null, input.icon ?? null, now, now);
+    return {
+      id: Number(info.lastInsertRowid),
+      name,
+      slug,
+      description: input.description ?? null,
+      color: input.color ?? null,
+      icon: input.icon ?? null,
+      pinned: 0,
+      created_at: now,
+      updated_at: now,
+    } satisfies UserList;
+  })();
 }
 
 export function updateUserList(
@@ -7821,31 +7842,35 @@ export function countListMembershipsByVn(): Map<string, number> {
 export function addVnToList(listId: number, vnId: string, note?: string | null): UserListItem | null {
   const list = getUserList(listId);
   if (!list) return null;
-  const now = Date.now();
-  const next = (db
-    .prepare('SELECT COALESCE(MAX(order_index), -1) + 1 AS n FROM user_list_vn WHERE list_id = ?')
-    .get(listId) as { n: number }).n;
-  db.prepare(`
-    INSERT INTO user_list_vn (list_id, vn_id, order_index, added_at, note)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(list_id, vn_id) DO UPDATE SET note = excluded.note
-  `).run(listId, vnId, next, now, note ?? null);
-  db.prepare('UPDATE user_list SET updated_at = ? WHERE id = ?').run(now, listId);
-  return {
-    list_id: listId,
-    vn_id: vnId,
-    order_index: next,
-    added_at: now,
-    note: note ?? null,
-  };
+  return db.transaction(() => {
+    const now = Date.now();
+    const next = (db
+      .prepare('SELECT COALESCE(MAX(order_index), -1) + 1 AS n FROM user_list_vn WHERE list_id = ?')
+      .get(listId) as { n: number }).n;
+    db.prepare(`
+      INSERT INTO user_list_vn (list_id, vn_id, order_index, added_at, note)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(list_id, vn_id) DO UPDATE SET note = excluded.note
+    `).run(listId, vnId, next, now, note ?? null);
+    db.prepare('UPDATE user_list SET updated_at = ? WHERE id = ?').run(now, listId);
+    return {
+      list_id: listId,
+      vn_id: vnId,
+      order_index: next,
+      added_at: now,
+      note: note ?? null,
+    } satisfies UserListItem;
+  })();
 }
 
 export function removeVnFromList(listId: number, vnId: string): boolean {
-  const info = db.prepare('DELETE FROM user_list_vn WHERE list_id = ? AND vn_id = ?').run(listId, vnId);
-  if (info.changes > 0) {
-    db.prepare('UPDATE user_list SET updated_at = ? WHERE id = ?').run(Date.now(), listId);
-  }
-  return info.changes > 0;
+  return db.transaction(() => {
+    const info = db.prepare('DELETE FROM user_list_vn WHERE list_id = ? AND vn_id = ?').run(listId, vnId);
+    if (info.changes > 0) {
+      db.prepare('UPDATE user_list SET updated_at = ? WHERE id = ?').run(Date.now(), listId);
+    }
+    return info.changes > 0;
+  })();
 }
 
 export function reorderListItems(listId: number, vnIds: string[]): void {
