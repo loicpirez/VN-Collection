@@ -8,6 +8,7 @@ interface FullscreenLabels {
   exitFullscreen: string;
 }
 
+
 /**
  * Client wrapper that adds a fullscreen toggle to the read-only
  * spatial shelf view. The server renders the shelf grid; this
@@ -33,11 +34,18 @@ export function ShelfSpatialFullscreen({
   labels,
   prevHref,
   nextHref,
+  controlsSlot,
 }: {
   children: ReactNode;
   labels: FullscreenLabels;
   prevHref: string | null;
   nextHref: string | null;
+  /**
+   * Shelf display options control to render next to the fullscreen
+   * button. Only visible inside the overlay so the user can adjust
+   * sizing/fit/orientation without having to exit fullscreen.
+   */
+  controlsSlot?: ReactNode;
 }) {
   const [fullscreen, setFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -107,7 +115,8 @@ export function ShelfSpatialFullscreen({
 
   return (
     <div ref={containerRef} className={shellClass} tabIndex={-1}>
-      <div className="mb-2 flex justify-end">
+      <div className="mb-2 flex items-center justify-end gap-2">
+        {fullscreen && controlsSlot}
         <button
           ref={triggerRef}
           type="button"

@@ -330,11 +330,46 @@ export default async function ShelfPage({
               geometry. */}
           {view === 'spatial' && (
             <div className="shelf-view-root">
-              <ShelfSpatialView
-                activeShelf={activeShelfNum}
-                defaultOrientation={spatialPrefs.prefs.displayOrientation}
-                displayRowOrientations={spatialPrefs.prefs.displayRowOrientations ?? {}}
-              />
+              {(() => {
+                const { overrides, legacyGlobal, effective, activeShelfEntry, activeShelfKey } = spatialPrefs;
+                const activeShelfDisplaySlots = activeShelfEntry
+                  ? listShelfDisplaySlots(activeShelfEntry.id)
+                  : [];
+                const uniqueAfterRows = [
+                  ...new Set(activeShelfDisplaySlots.map((d) => d.after_row)),
+                ].sort((a, b) => a - b);
+                const displayZones = uniqueAfterRows.map((afterRow) => {
+                  let label: string;
+                  if (afterRow === 0) label = t.shelfSpatial.topDisplay;
+                  else if (activeShelfEntry && afterRow === activeShelfEntry.rows) {
+                    label = t.shelfSpatial.bottomDisplay;
+                  } else {
+                    label = t.shelfSpatial.betweenRow
+                      .replace('{above}', String(afterRow))
+                      .replace('{below}', String(afterRow + 1));
+                  }
+                  return { afterRow, label };
+                });
+                const fsControls = (
+                  <ShelfReadOnlyControls
+                    id="fullscreen"
+                    initialPrefs={overrides.shelves[activeShelfKey] ? effective : legacyGlobal}
+                    initialOverrides={overrides}
+                    activeShelfId={activeShelfKey || undefined}
+                    activeShelfName={activeShelfEntry?.name ?? undefined}
+                    hasDisplaySlots={activeShelfDisplaySlots.length > 0}
+                    displayZones={displayZones}
+                  />
+                );
+                return (
+                  <ShelfSpatialView
+                    activeShelf={activeShelfNum}
+                    defaultOrientation={spatialPrefs.prefs.displayOrientation}
+                    displayRowOrientations={spatialPrefs.prefs.displayRowOrientations ?? {}}
+                    controlsSlot={fsControls}
+                  />
+                );
+              })()}
             </div>
           )}
 

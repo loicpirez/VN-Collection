@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { type ReactNode } from 'react';
 import Link from 'next/link';
 import { Box, ChevronLeft, ChevronRight, Layers, MapPin } from 'lucide-react';
 import {
@@ -46,6 +46,7 @@ export async function ShelfSpatialView({
   activeShelf,
   defaultOrientation = 'portrait',
   displayRowOrientations = {},
+  controlsSlot,
 }: {
   /** 1-indexed; clamped at the page boundary. Defaults to 1. */
   activeShelf?: number;
@@ -57,6 +58,12 @@ export async function ShelfSpatialView({
    * Populated from `?dr0=landscape&dr1=portrait` URL params.
    */
   displayRowOrientations?: Record<string, 'portrait' | 'landscape'>;
+  /**
+   * Shelf display-options control to surface inside the fullscreen
+   * overlay. Passed straight through to ShelfSpatialFullscreen so the
+   * user can adjust sizing/fit/orientation without exiting fullscreen.
+   */
+  controlsSlot?: ReactNode;
 }) {
   const t = await getDict();
   const shelves = listShelves();
@@ -85,6 +92,7 @@ export async function ShelfSpatialView({
       labels={t.shelfSpatial}
       prevHref={prevHref}
       nextHref={nextHref}
+      controlsSlot={controlsSlot}
     >
       <nav
         className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-bg-card/60 px-3 py-2 text-xs"

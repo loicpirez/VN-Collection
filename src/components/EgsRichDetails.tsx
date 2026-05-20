@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ExternalLink, Film, Gamepad2, ShoppingBag, Sparkles, Twitter, Users } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { formatMinutes } from '@/lib/format';
+import { SkeletonBlock } from './Skeleton';
 
 interface RawRow {
   [key: string]: string | null;
@@ -53,7 +54,27 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
     };
   }, [vnId]);
 
-  if (loading || !raw) return null;
+  if (loading) {
+    return (
+      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+        <SkeletonBlock className="mb-3 h-3 w-24" />
+        <div className="mb-4 flex gap-2">
+          <SkeletonBlock className="h-6 w-20 rounded-md" />
+          <SkeletonBlock className="h-6 w-16 rounded-md" />
+          <SkeletonBlock className="h-6 w-14 rounded-md" />
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i}>
+              <SkeletonBlock className="mb-1 h-2 w-12" />
+              <SkeletonBlock className="h-3 w-20" />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+  if (!raw) return null;
 
   const trailer = n(raw.erogetrailers);
   const trailerUrl = trailer && trailer > 0 ? `https://erogetrailers.com/movie/${trailer}` : null;
