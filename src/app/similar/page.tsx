@@ -9,6 +9,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeedTagControls } from '@/components/SeedTagControls';
+import { SimilarSeedPicker } from '@/components/SimilarSeedPicker';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,9 +57,13 @@ export default async function SimilarPage({
         <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
           <ArrowLeft className="h-4 w-4" /> {t.nav.library}
         </Link>
-        <p className="rounded-xl border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm">
-          {t.common.error}
-        </p>
+        <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
+          <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
+            <Sparkles className="h-6 w-6 text-accent" aria-hidden /> {t.similar.title}
+          </h1>
+          <p className="mt-1 text-sm text-muted">{t.similar.subtitle}</p>
+          <SimilarSeedPicker autoFocus />
+        </header>
       </div>
     );
   }
@@ -158,6 +163,21 @@ export default async function SimilarPage({
     .sort((a, b) => b.score - a.score || (b.rating ?? 0) - (a.rating ?? 0))
     .slice(0, 24);
 
+  const seedImageUrl = seed.local_image_thumb
+    ? `/api/files/${seed.local_image_thumb}`
+    : seed.local_image
+      ? `/api/files/${seed.local_image}`
+      : seed.image_thumb || seed.image_url || null;
+
+  const seedChip = {
+    id: seed.id,
+    title: seed.title,
+    alttitle: seed.alttitle,
+    image: seedImageUrl
+      ? { url: seedImageUrl, thumbnail: seedImageUrl, sexual: seed.image_sexual ?? null }
+      : null,
+  };
+
   return (
     <DensityScopeProvider scope="vnSimilar" className="mx-auto max-w-6xl">
       <Link href={`/vn/${seed.id}`} className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
@@ -165,24 +185,24 @@ export default async function SimilarPage({
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-          <Sparkles className="h-6 w-6 text-accent" /> {t.similar.title}: {seed.title}
-        </h1>
-        <p className="mt-1 text-sm text-muted">{t.similar.subtitle}</p>
-        {seedTags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
-            {seedTags.map((tag) => (
-              <Link
-                key={tag.id}
-                href={`/?tag=${encodeURIComponent(tag.id)}`}
-                className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 hover:border-accent hover:text-accent"
-              >
-                {tag.name}
-              </Link>
-            ))}
+        <div className="flex items-start gap-4">
+          <Link href={`/vn/${seed.id}`} className="hidden sm:block shrink-0">
+            <SafeImage
+              src={seedImageUrl}
+              sexual={seed.image_sexual ?? null}
+              alt={seed.title}
+              className="h-28 w-[74px] rounded-lg object-cover shadow-sm"
+            />
+          </Link>
+          <div className="min-w-0 flex-1">
+            <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
+              <Sparkles className="h-6 w-6 text-accent" aria-hidden /> {t.similar.title}
+            </h1>
+            <p className="mt-1 text-sm text-muted">{t.similar.subtitle}</p>
+            <SimilarSeedPicker currentSeed={seedChip} />
           </div>
-        )}
-        <div className="mt-3">
+        </div>
+        <div className="mt-4">
           <SeedTagControls
             initial={seedTags.map((tag) => ({ id: tag.id, name: tag.name }))}
             paramName="tags"
