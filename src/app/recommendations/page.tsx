@@ -17,6 +17,7 @@ import {
   Tag as TagIcon,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { ModeTabIconId } from '@/components/RecommendModeTabs';
 import {
   DEFAULT_RECOMMEND_MODE,
   parseRecommendMode,
@@ -114,13 +115,13 @@ interface RecPageParams {
  */
 const MODE_META: Record<
   RecommendMode,
-  { icon: LucideIcon; i18nKey: 'becauseYouLiked' | 'tagBased' | 'hiddenGems' | 'highlyRated' | 'similarToVn' }
+  { iconId: ModeTabIconId; i18nKey: 'becauseYouLiked' | 'tagBased' | 'hiddenGems' | 'highlyRated' | 'similarToVn' }
 > = {
-  'because-you-liked': { icon: Heart, i18nKey: 'becauseYouLiked' },
-  'tag-based': { icon: TagIcon, i18nKey: 'tagBased' },
-  'hidden-gems': { icon: Gem, i18nKey: 'hiddenGems' },
-  'highly-rated': { icon: Award, i18nKey: 'highlyRated' },
-  'similar-to-vn': { icon: Compass, i18nKey: 'similarToVn' },
+  'because-you-liked': { iconId: 'heart', i18nKey: 'becauseYouLiked' },
+  'tag-based': { iconId: 'tag', i18nKey: 'tagBased' },
+  'hidden-gems': { iconId: 'gem', i18nKey: 'hiddenGems' },
+  'highly-rated': { iconId: 'award', i18nKey: 'highlyRated' },
+  'similar-to-vn': { iconId: 'compass', i18nKey: 'similarToVn' },
 };
 
 /** Bool flags ride the URL as `=1`; anything else is "off". */
@@ -231,7 +232,7 @@ export default async function RecommendationsPage({
               href: buildHref(raw, { mode: id, tags: undefined }),
               label: t.recommend.modes[meta.i18nKey].label,
               hint: t.recommend.modes[meta.i18nKey].hint,
-              icon: meta.icon,
+              iconId: meta.iconId,
               active: id === mode,
             };
           })}
