@@ -160,7 +160,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
     // all-VNDB). These don't belong to any VN so they're not covered
     // by the per-VN fan-out, and we want them fresh on a "Download
     // all" pass. Fire-and-forget; failures show in the download panel.
-    void fetch('/api/refresh/global', { method: 'POST' }).catch(() => {});
+    void fetch('/api/refresh/global', { method: 'POST' }).catch((e: unknown) => { console.error('[BulkDownloadButton] global refresh failed:', e); });
     try {
       const r = await fetch('/api/collection?sort=title&order=asc', { cache: 'no-store' });
       if (!r.ok) throw new Error(t.common.error);
