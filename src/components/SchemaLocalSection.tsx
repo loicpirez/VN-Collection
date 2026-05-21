@@ -20,7 +20,7 @@ export async function SchemaLocalSection() {
                 {table.name} <span className="text-xs font-normal text-muted">({table.columns.length})</span>
               </CollapsibleSummary>
             </summary>
-            <div className="overflow-x-auto border-t border-border">
+            <div className="scroll-fade-right overflow-x-auto border-t border-border">
               <table className="w-full min-w-[560px] text-left text-xs">
                 <thead className="bg-bg/60 text-muted">
                   <tr>

@@ -279,7 +279,7 @@ export default async function ComparePage({
       )}
 
       {items.length >= 2 && (
-        <div className="overflow-x-auto rounded-xl border border-border bg-bg-card">
+        <div className="scroll-fade-right overflow-x-auto rounded-xl border border-border bg-bg-card">
           <div
             className="grid gap-px bg-border [grid-template-columns:var(--cmp-cols-sm)] sm:[grid-template-columns:var(--cmp-cols-md)]"
             style={{

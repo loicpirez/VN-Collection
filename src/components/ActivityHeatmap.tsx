@@ -53,7 +53,7 @@ export async function ActivityHeatmap({ year }: { year: number }) {
           {total} {t.year.heatmap.entries} · {active} {t.year.heatmap.activeDays}
         </span>
       </div>
-      <div className="flex gap-[3px] overflow-x-auto">
+      <div className="scroll-fade-right flex gap-[3px] overflow-x-auto">
         {weeks.map((wk, i) => (
           <div key={i} className="flex flex-col gap-[3px]">
             {wk.map((d, j) =>
