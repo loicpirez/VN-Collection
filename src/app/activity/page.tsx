@@ -1,13 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Activity, Filter, Search } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, Filter, Search } from 'lucide-react';
 import { listActivityKinds, listUserActivity } from '@/lib/activity';
 import { listRecentActivity, type RecentActivityEntry } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
-// R5-145 cleanup: route through the canonical helper in `lib/format`
-// so the activity feed inherits the same empty-state rules as every
-// other "Xh Ym" surface.
-import { formatMinutes as fmt } from '@/lib/format';
+import { formatMinutes } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +21,6 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.userActivity.title };
 }
 
-function formatMinutes(m: number): string {
-  return fmt(m, { emptyValue: 'allow_zero', fallback: '0m' });
-}
 
 function VnActivitySummary({
   entry,
@@ -49,7 +43,7 @@ function VnActivitySummary({
       return (
         <span>
           <span className="text-muted">{fromLabel}</span>
-          {' → '}
+          <ArrowRight className="mx-1 inline h-3 w-3 text-muted" aria-hidden />
           <span className="font-semibold text-accent">{toLabel}</span>
         </span>
       );
@@ -62,7 +56,7 @@ function VnActivitySummary({
       return (
         <span>
           <span className="text-muted">{fromStr}</span>
-          {' → '}
+          <ArrowRight className="mx-1 inline h-3 w-3 text-muted" aria-hidden />
           <span className="font-semibold text-accent">{toStr}</span>
         </span>
       );
@@ -73,10 +67,10 @@ function VnActivitySummary({
       const delta = p?.delta as number ?? (to - from);
       return (
         <span>
-          {formatMinutes(to)}
+          {formatMinutes(to, { emptyValue: 'allow_zero', fallback: '0m' })}
           {delta !== 0 && (
             <span className={`ml-1.5 text-[10px] ${delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {delta > 0 ? '+' : ''}{ta.playtimeDelta} {formatMinutes(Math.abs(delta))}
+              {delta > 0 ? '+' : ''}{ta.playtimeDelta} {formatMinutes(Math.abs(delta), { emptyValue: 'allow_zero', fallback: '0m' })}
             </span>
           )}
         </span>
@@ -243,12 +237,13 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                   <li key={row.id} className="rounded-xl border border-border bg-bg-card p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_COLOR[row.kind] ?? 'bg-muted/20 text-muted'}`}>
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_COLOR[row.kind] ?? 'bg-muted/20 text-muted'}`}>
                             {kindLabel(row.kind, t)}
                           </span>
                           <Link
                             href={`/vn/${row.vn_id}`}
+                            title={row.title}
                             className="truncate text-sm font-semibold hover:text-accent transition-colors"
                           >
                             {row.title}
@@ -330,13 +325,13 @@ function Pagination({
     <nav className="mt-4 flex items-center gap-2 text-xs">
       {page > 0 && (
         <Link href={pageHref(page - 1)} className="btn">
-          ← {t.common.prev}
+          <ArrowLeft className="h-4 w-4" aria-hidden /> {t.common.prev}
         </Link>
       )}
       <span className="text-muted">{t.userActivity.pageLabel.replace('{n}', String(page + 1))}</span>
       {hasMore && (
         <Link href={pageHref(page + 1)} className="btn">
-          {t.common.next} →
+          {t.common.next} <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
       )}
     </nav>
