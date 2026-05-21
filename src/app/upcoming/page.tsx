@@ -5,7 +5,7 @@ import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, Flame, Globe, Libr
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRelease } from '@/lib/upcoming';
 import { EgsUnreachable, fetchEgsAnticipatedPage, type EgsAnticipated } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
 import { SkeletonRows } from '@/components/Skeleton';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
@@ -62,7 +62,7 @@ export default async function UpcomingPage({
 }: {
   searchParams: Promise<{ tab?: string; page?: string }>;
 }) {
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const { tab: rawTab, page: rawPage } = await searchParams;
   const tab = parseTab(rawTab);
   const page = parsePage(rawPage);
@@ -115,13 +115,13 @@ export default async function UpcomingPage({
       </header>
 
       <Suspense key={`${tab}-${page}`} fallback={<UpcomingTabSkeleton tab={tab} />}>
-        <TabContent tab={tab} page={page} t={t} />
+        <TabContent tab={tab} page={page} t={t} locale={locale} />
       </Suspense>
     </DensityScopeProvider>
   );
 }
 
-async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Dictionary }) {
+async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t: Dictionary; locale: string }) {
   try {
     if (tab === 'anticipated') {
       const { rows, hasMore, stale, fetchedAt } = await fetchEgsAnticipatedPage(
@@ -137,7 +137,7 @@ async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Diction
       return (
         <>
           {stale && (
-            <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} />
+            <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} locale={locale} />
           )}
           <AnticipatedSection rows={rows} vndbCovers={vndbCovers} t={t} startRank={(page - 1) * ANTICIPATED_PAGE_SIZE} />
           <AnticipatedPaginator page={page} hasMore={hasMore} t={t} />
@@ -168,12 +168,9 @@ async function TabContent({ tab, page, t }: { tab: Tab; page: number; t: Diction
   }
 }
 
-function StaleEgsBanner({ fetchedAt, t }: { fetchedAt: number | null; t: Dictionary }) {
-  // Human-readable absolute timestamp (browser-local); the user can
-  // see when the cache was last refreshed and decide whether to
-  // trigger a Refresh.
+function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: string }) {
   const when = fetchedAt
-    ? new Date(fetchedAt).toLocaleString()
+    ? new Date(fetchedAt).toLocaleString(locale)
     : '—';
   return (
     <div

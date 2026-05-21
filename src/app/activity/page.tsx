@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Activity, ArrowLeft, ArrowRight, Filter, Search } from 'lucide-react';
+import { Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Filter, Heart, Search } from 'lucide-react';
 import { listActivityKinds, listUserActivity } from '@/lib/activity';
 import { listRecentActivity, type RecentActivityEntry } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
@@ -69,8 +69,11 @@ function VnActivitySummary({
         <span>
           {formatMinutes(to, { emptyValue: 'allow_zero', fallback: '0m' })}
           {delta !== 0 && (
-            <span className={`ml-1.5 text-[10px] ${delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {delta > 0 ? '+' : ''}{ta.playtimeDelta} {formatMinutes(Math.abs(delta), { emptyValue: 'allow_zero', fallback: '0m' })}
+            <span className={`ml-1.5 inline-flex items-center gap-0.5 text-[10px] ${delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {delta > 0
+                ? <ArrowUp className="h-2.5 w-2.5" aria-hidden />
+                : <ArrowDown className="h-2.5 w-2.5" aria-hidden />}
+              {ta.playtimeDelta} {formatMinutes(Math.abs(delta), { emptyValue: 'allow_zero', fallback: '0m' })}
             </span>
           )}
         </span>
@@ -78,7 +81,12 @@ function VnActivitySummary({
     }
     case 'favorite': {
       const on = !!(p?.to);
-      return <span className={on ? 'text-yellow-400' : 'text-muted'}>{on ? ta.favOn : ta.favOff}</span>;
+      return (
+        <span className={`inline-flex items-center gap-1 ${on ? 'text-yellow-400' : 'text-muted'}`}>
+          <Heart className="h-3 w-3" aria-hidden />
+          {on ? ta.favOn : ta.favOff}
+        </span>
+      );
     }
     case 'started': {
       const to = p?.to as string | null;

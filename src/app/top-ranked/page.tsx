@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Library as LibraryI
 import { fetchVndbTopRankedPage, VNDB_TOP_MIN_VOTES, type VndbTopRanked } from '@/lib/top-ranked';
 import { egsBayesianScore, fetchEgsTopRankedPage, EGS_TOP_MIN_VOTES, EgsUnreachable, type EgsTopRanked } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
 import { db, getCacheFreshness } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
@@ -38,7 +38,7 @@ export default async function TopRankedPage({
 }: {
   searchParams: Promise<{ tab?: string; page?: string; min?: string }>;
 }) {
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const { tab: rawTab, page: rawPage, min: rawMin } = await searchParams;
   const tab = parseTab(rawTab);
   const page = parsePage(rawPage);
@@ -118,7 +118,7 @@ export default async function TopRankedPage({
       </header>
 
       <Suspense key={`${tab}-${page}-${minVotes}`} fallback={<SkeletonCardGrid count={12} />}>
-        <TabContent tab={tab} page={page} minVotes={minVotes} t={t} />
+        <TabContent tab={tab} page={page} minVotes={minVotes} t={t} locale={locale} />
       </Suspense>
     </DensityScopeProvider>
   );
@@ -129,11 +129,13 @@ async function TabContent({
   page,
   minVotes,
   t,
+  locale,
 }: {
   tab: Tab;
   page: number;
   minVotes: number;
   t: Dictionary;
+  locale: string;
 }) {
   try {
     if (tab === 'egs') {
@@ -152,7 +154,7 @@ async function TabContent({
       const covers = vndbIds.length > 0 ? await fetchVnCovers(vndbIds) : new Map<string, VndbCoverInfo>();
       return (
         <>
-          {stale && <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} />}
+          {stale && <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} locale={locale} />}
           <EgsSection rows={rows} covers={covers} t={t} startRank={(page - 1) * PAGE_SIZE} />
           <Paginator tab={tab} page={page} minVotes={minVotes} hasMore={hasMore} t={t} />
         </>
@@ -164,7 +166,7 @@ async function TabContent({
     }
     return (
       <>
-        {stale && <StaleVndbBanner fetchedAt={fetchedAt ?? null} t={t} />}
+        {stale && <StaleVndbBanner fetchedAt={fetchedAt ?? null} t={t} locale={locale} />}
         <VndbSection rows={rows} t={t} startRank={(page - 1) * PAGE_SIZE} />
         <Paginator tab={tab} page={page} minVotes={minVotes} hasMore={hasMore} t={t} />
       </>
@@ -199,8 +201,8 @@ async function TabContent({
  * seeing the rows + a "stale, last updated …" notice instead of
  * a generic error block.
  */
-function StaleEgsBanner({ fetchedAt, t }: { fetchedAt: number | null; t: Dictionary }) {
-  const when = fetchedAt ? new Date(fetchedAt).toLocaleString() : '—';
+function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: string }) {
+  const when = fetchedAt ? new Date(fetchedAt).toLocaleString(locale) : '—';
   return (
     <div
       className="mb-4 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-[12px] text-status-on_hold"
@@ -221,8 +223,8 @@ function StaleEgsBanner({ fetchedAt, t }: { fetchedAt: number | null; t: Diction
  * instead of silently reading old rows. Parity with the EGS tab
  * which already exposed this signal.
  */
-function StaleVndbBanner({ fetchedAt, t }: { fetchedAt: number | null; t: Dictionary }) {
-  const when = fetchedAt ? new Date(fetchedAt).toLocaleString() : '—';
+function StaleVndbBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: string }) {
+  const when = fetchedAt ? new Date(fetchedAt).toLocaleString(locale) : '—';
   return (
     <div
       className="mb-4 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-[12px] text-status-on_hold"

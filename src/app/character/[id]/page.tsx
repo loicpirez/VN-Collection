@@ -4,7 +4,7 @@ import { ArrowLeft, ExternalLink, Mic2, Star, Users } from 'lucide-react';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
 import { findCharacterSiblings, getVasForCharacter, getAppSetting, isInCollectionMany } from '@/lib/db';
 import { Check } from 'lucide-react';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -24,11 +24,11 @@ export const dynamic = 'force-dynamic';
 
 const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
 
-function fmtBirthday(b: [number, number] | null): string | null {
+function fmtBirthday(b: [number, number] | null, locale: string): string | null {
   if (!b) return null;
   const [m, d] = b;
   if (!m) return null;
-  if (!d) return new Date(0, m - 1).toLocaleString('default', { month: 'long' });
+  if (!d) return new Date(0, m - 1).toLocaleString(locale, { month: 'long' });
   return `${d}/${String(m).padStart(2, '0')}`;
 }
 
@@ -65,7 +65,7 @@ export default async function CharacterPage({
 }) {
   const { id } = await params;
   if (!/^c\d+$/i.test(id)) notFound();
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   let char: VndbCharacter | null = null;
   try {
     char = await getCharacter(id);
@@ -101,7 +101,7 @@ export default async function CharacterPage({
       href: `/characters?bloodType=${encodeURIComponent(bt)}`,
     });
   }
-  const bday = fmtBirthday(char.birthday);
+  const bday = fmtBirthday(char.birthday, locale);
   if (bday) {
     const month = char.birthday?.[0];
     meta.push({

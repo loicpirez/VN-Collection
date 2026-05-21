@@ -76,24 +76,29 @@ export function ListCardActions({ list }: { list: List }) {
     }
   }
 
+  const menuId = `list-${list.id}-menu`;
+  const triggerId = `list-${list.id}-trigger`;
+
   return (
     <div className="absolute right-2 top-2">
       <button
+        id={triggerId}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        // R5-150: the menu trigger must always render on touch
-        // viewports. `md:` prefix keeps the desktop hover-reveal
-        // pattern while exposing the button on mobile / tablet.
-        className="rounded-md p-1 text-muted transition-opacity hover:bg-bg-elev hover:text-white focus:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+        className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-opacity hover:bg-bg-elev hover:text-white focus:opacity-100 md:opacity-0 md:group-hover:opacity-100"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={menuId}
+        aria-label={t.nav.openMenu}
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
       </button>
       {open && (
         <div
+          id={menuId}
           className="absolute right-0 top-full z-20 mt-1 w-44 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
           role="menu"
+          aria-labelledby={triggerId}
         >
           <ActionRow icon={list.pinned ? PinOff : Pin} label={list.pinned ? t.lists.unpin : t.lists.pin} onClick={togglePin} />
           <ActionRow icon={Pencil} label={t.lists.rename} onClick={rename} />

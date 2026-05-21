@@ -98,6 +98,7 @@ export function ReadingGoalCard({ year }: Props) {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
             placeholder={t.readingGoal.placeholder}
+            aria-label={t.readingGoal.label}
             className="input w-32"
           />
           <button type="button" onClick={save} disabled={busy} className="btn btn-xs btn-primary">

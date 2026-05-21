@@ -468,6 +468,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         <button
           className={`chip whitespace-nowrap ${!status ? 'chip-active' : ''}`}
           onClick={() => setParam('status', null)}
+          aria-pressed={!status}
         >
           {t.library.all} <span className="ml-1 opacity-70">{stats.total}</span>
         </button>
@@ -476,6 +477,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             key={s}
             className={`chip inline-flex items-center gap-1 whitespace-nowrap ${status === s ? 'chip-active' : ''}`}
             onClick={() => setParam('status', status === s ? null : s)}
+            aria-pressed={status === s}
           >
             <StatusIcon status={s} className="h-3.5 w-3.5" />
             {t.status[s]}
@@ -495,6 +497,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           data-vn-search
           className="input min-w-[180px] flex-1"
           placeholder={t.library.filterPlaceholder}
+          aria-label={t.library.filterPlaceholder}
           value={qInput}
           onChange={(e) => setQInput(e.target.value)}
         />
