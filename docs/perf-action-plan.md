@@ -66,6 +66,14 @@ same for tags + developers + publishers + places.
 **Risk**: schema migration affects every cold start once. The
 backfill is idempotent and gated by `app_setting`.
 
+**Status, 2026-05-22**: closed in `a2be73a`. Tags / developers /
+publishers are materialized for `listCollection`; place filters now
+use `collection_place_index` instead of `json_each(c.physical_location)`.
+The tag aggregate carry-over is closed by extending `vn_tag_index`
+with `tag_name`: `computeAggregateStats`, `listCollectionTags`,
+`getCoOccurringTags`, `yearReview`, and `tagsCompletedPerYear` now
+join `vn_tag_index` instead of expanding `json_each(v.tags)`.
+
 ## R5-144 — `listCollectionForCards()` slim projection
 
 **Symptom**: `listCollection` selects 25 columns per row including
@@ -86,12 +94,13 @@ CPU.
 3. Keep `listCollection` for callers that need the full payload
    (`/api/collection/export`, `/lists/[id]`, `/labels`).
 
-**Risk**: the wide projection is currently the only path. The
-new helper is additive; the existing surface stays intact.
+**Status, 2026-05-22**: closed. `listCollectionForCards()` is the
+default `/api/collection` path, while `?detail=full` and full-payload
+callers keep `listCollection()`. The wide projection remains available
+for export/recommendation/list surfaces that actually need it.
 
 ## Carry-over priority
 
-These items have measurable cost on a 1000+ VN library but are
-not user-blocking on the operator's current snapshot (which is
-smaller). The remaining round 5 implementation work and final
-QA gates take priority. Schedule for the next perf sprint.
+The P0/P1 carry-over items in this document are now implemented or
+tracked by their canonical checklist rows. Future performance work
+should start from fresh measurements rather than this closed plan.

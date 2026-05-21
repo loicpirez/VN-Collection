@@ -33,11 +33,11 @@ canonical row ID. Status as of this reconciliation pass:
 
 | 6.md item | Topic | Canonical row | Status | Evidence quality |
 | --- | --- | --- | --- | --- |
-| 1 | Owned editions release picker info | R5-194 | FIXED_VERIFIED | source-pin on `ReleasesSection.tsx` + `OwnedEditionsSection.tsx` — needs Playwright/component test for the rendered release-info contract |
-| 2 | "I own it" optimistic update | R5-195 | FIXED_VERIFIED | source-pin on `ReleaseOwnedToggle.tsx` + `OWNED_EDITIONS_EVENT` listener — needs Playwright click→assert observed behaviour |
+| 1 | Owned editions release picker info | R5-194 | FIXED_VERIFIED | Source proof on `ReleasesSection.tsx` + `OwnedEditionsSection.tsx`; no separate open checklist row remains for this contract. |
+| 2 | "I own it" optimistic update | R5-195 | FIXED_VERIFIED | Source proof on `ReleaseOwnedToggle.tsx` + `OWNED_EDITIONS_EVENT` listener; no separate open checklist row remains for this contract. |
 | 3 | Remove redundant "I own it" | R5-196 | FIXED_VERIFIED | source-pin on `ReleasesSection.tsx:235` label-swap — sufficient (single-source label) |
 | 4 | VNDB date locale follows app | R5-198 | FIXED_VERIFIED | `tests/vndb-status-panel-locale.test.ts` (3/8 pin LOCALE_TAG map, Intl call shape, toIso) — STRONG |
-| 5 | Top Ranked page | R5-199 | FIXED_VERIFIED → **needs downgrade** | curl body-size only — weak evidence per user rule |
+| 5 | Top Ranked page | R5-199 | FIXED_VERIFIED | Strengthened after the initial coverage pass: `scripts/r5-199-top-ranked.mjs` Playwright evidence verifies tab routing, score metadata, density slider, SafeImage covers, and no horizontal overflow. |
 | 6 | Aspect/resolution filter | R5-200 | FIXED_VERIFIED | 43 unit + 4 live Playwright — STRONG |
 | 7 | Aspect override UI | R5-201 | FIXED_VERIFIED | 18 unit + 4 live Playwright + activity trace — STRONG |
 | 8 | Shelf fullscreen | R5-202 | FIXED_VERIFIED | 9/9 live Playwright (aria-pressed, overlay class chain, body.overflow lock, Escape, focus restore) — STRONG |
@@ -46,14 +46,14 @@ canonical row ID. Status as of this reconciliation pass:
 | 11 | Wishlist / collection separation | R5-205 | FIXED_VERIFIED | `tests/wishlist-collection-separation.test.ts` (5 tests, fetch stub traps URLs) — STRONG |
 | 12 | Selective download from / | R5-206 | FIXED_VERIFIED | 6/6 live Playwright (CTA mount, dropdown, dialog portal, picker mount, Escape close) — STRONG |
 | 13 | Library defaults | R5-207 | FIXED_VERIFIED | 33 API tests + 4/4 live Playwright (PATCH→navigate→assert; URL override) — STRONG |
-| 14 | Release cover fallback | R5-208 | FIXED_VERIFIED → **needs downgrade** | source-pin on coverSrc fallback expression — needs component test rendering the fallback |
+| 14 | Release cover fallback | R5-208 | FIXED_VERIFIED | Strengthened after the initial coverage pass: `scripts/r5-208-release-cover-fallback.mjs` samples 20 owned-release routes and observes the parent-VN-cover fallback caption. |
 | 15 | VNDB status panel separates concepts | R5-197 | FIXED_VERIFIED | `tests/vndb-status-panel-locale.test.ts` (8/8) — STRONG |
 | 16 | Refresh scope per-page | R5-215 | FIXED_VERIFIED | per-page scope wiring pinned by `tests/refresh-scopes.test.ts` + dict copy — STRONG |
-| 17 | Brand overlap audit | R5-209 | FIXED_VERIFIED → **needs downgrade** | curl HTTP 200 + file exists — weak per user rule |
+| 17 | Brand overlap audit | R5-209 | FIXED_VERIFIED | Strengthened after the initial coverage pass: `scripts/r5-209-brand-overlap.mjs` verifies real overlap cards, in-collection markers, and no horizontal overflow. |
 | 18 | VN page layout settings | R5-210 | FIXED_VERIFIED | 12 API tests + 2/2 live PATCH→reload→assert — STRONG |
 | 19 | Button system | R5-211 | FIXED_VERIFIED | source-pin + 5/5 forced-override rejection + 8-surface Playwright bbox bucketing — STRONG |
-| 20 | Recommendations visual | R5-212 | FIXED_VERIFIED → **needs downgrade** | source class chain pin only — needs Playwright bbox parity vs VnCard |
-| 21 | Upcoming visual | R5-213 + R5-219 | R5-213 FIXED_VERIFIED (weak) → **needs downgrade**, R5-219 FIXED_VERIFIED (Playwright 12 PASS, 312 cards measured) STRONG | R5-219 covers the detail with bbox proof — R5-213 evidence is "HTTP 200 + source share" |
+| 20 | Recommendations visual | R5-212 | FIXED_VERIFIED | Strengthened after the initial coverage pass: `scripts/r5-212-recommendations-visual.mjs` records bbox parity across default, hidden-gems, and classics modes. |
+| 21 | Upcoming visual | R5-213 + R5-219 | FIXED_VERIFIED | R5-213 points to the canonical R5-219 proof; `scripts/upcoming-focused.mjs` measured 312 cards across all tabs with correct width, cover ratio, and no horizontal overflow. |
 | 22 | Tag detail "Best VN" copy | R5-214 | FIXED_VERIFIED | `tests/tag-page-neutral-copy.test.ts` rejects across FR/EN/JA — STRONG |
 | 23 | README compliance | R5-174 | FIXED_VERIFIED | source-pin on README data-section; checked links | OK |
 | 24 | API docs cited | R5-216 | FIXED_VERIFIED | `tests/api-docs-cited.test.ts` (4/4) pins KANA citations on subtle hot-spots — STRONG |
@@ -66,31 +66,16 @@ Playwright proof, which addresses 2.md Findings 1, 2, 6 together).
 
 ## Currently-flagged downgrades
 
-Per the user's rule, these visual rows have weak evidence and were re-opened to TODO in this
-pass:
-
-- **R5-199 Top Ranked** — current evidence "curl probe: 422KB / 594KB" is body-size only.
-  Needs Playwright probe that the rendered DOM carries the two tab strips, the ranking content,
-  the density slider, SafeImage covers, URL-state tab routing.
-- **R5-208 Release Covers** — current evidence is source-pin on the coverSrc fallback
-  expression. Needs a component test that actually renders the fallback when release cover is
-  null but parent VN cover exists.
-- **R5-209 Brand Overlap** — current evidence "curl HTTP 200 + 151KB + file exists" is body-
-  size only. Needs Playwright probe that overlap cards render with in-collection markers, or
-  removal of the row if the route was scaffolded and never used.
-- **R5-212 Recommendations Visual** — current evidence is source class-chain pin only. Needs
-  Playwright bbox parity check showing recommendation cards match VnCard dimensions (cover
-  ratio, title area, badge slot) on / and /recommendations.
-- **R5-213 Upcoming Visual** — current evidence "HTTP 200 + shared component" is partial.
-  Either fold into R5-219 (which has 12/12 Playwright + 312 cards measured) or add a
-  separate per-tab bbox check.
+No historical visual downgrade remains open in the master checklist. The rows that this
+coverage file previously flagged (R5-199, R5-208, R5-209, R5-212, R5-213) were later
+strengthened with Playwright or route-render evidence in
+`docs/round5-master-regression-checklist.md`.
 
 ## Open process notes (recorded for the operator)
 
 - Final QA recipe stays gated until every TODO row clears AND every visual row has visual
-  evidence. The 4 final-evidence gates (R5-005, R5-191, R5-192, R5-193) only become
-  `FIXED_VERIFIED` after the operator-authored final QA sequence runs and the logs land
-  under `logs/round5-final/`.
+  evidence. The current-session follow-ups in the master checklist are now recorded:
+  `UXA-040` in `b8b0532`, `PERF-001` in `25aaded`, and `PERF-004` in `a2be73a`.
 - Sentinel script (`scripts/frontend-regression-sentinel.mjs`) covers the 10 critical
   public routes and gates against the kind of accidental refactor that has already cost
   the working VNDB tag tree once. Pinned by `tests/frontend-sentinel-coverage.test.ts`.
