@@ -35,7 +35,30 @@ export default async function TraitPage({
   } catch (e) {
     error = (e as Error).message;
   }
-  if (!trait) notFound();
+  if (!trait && !error) notFound();
+  if (!trait) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <Link href="/traits" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
+          <ArrowLeft className="h-4 w-4" /> {t.nav.traits}
+        </Link>
+        <div className="rounded-2xl border border-status-dropped/40 bg-status-dropped/5 p-6">
+          <h1 className="mb-2 text-xl font-bold text-status-dropped">{t.detail.notFoundTitle}</h1>
+          <p className="text-sm text-muted">{error}</p>
+          <p className="mt-4 text-xs text-muted">
+            <a
+              href={`https://vndb.org/${id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-accent hover:underline"
+            >
+              {t.detail.openOnVndb} <ExternalLink className="h-3 w-3" aria-hidden />
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const ownedVnIds = new Set(listInCollectionVnIds());
   const allCount = characters.length;
