@@ -1,7 +1,9 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2, RefreshCw, Database } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { useT, useLocale } from '@/lib/i18n/client';
+import { fmtDate, fmtNum } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
 import { readApiError } from '@/lib/api-error-read';
 
@@ -21,13 +23,14 @@ function bytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
-function fmtTime(ts: number | null): string {
+function fmtTime(ts: number | null, locale: Locale): string {
   if (!ts) return '—';
-  return new Date(ts).toLocaleString();
+  return fmtDate(new Date(ts), locale);
 }
 
 export function CachePanel() {
   const t = useT();
+  const locale = useLocale();
   const { confirm } = useConfirm();
   const [stats, setStats] = useState<CacheStat | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,14 +99,14 @@ export function CachePanel() {
       ) : open && stats ? (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label={t.cache.entries} value={stats.total} />
-            <Stat label={t.cache.fresh} value={stats.fresh} accent />
-            <Stat label={t.cache.stale} value={stats.stale} />
-            <Stat label={t.cache.size} value={bytes(stats.bytes)} />
+            <Stat label={t.cache.entries} value={stats.total} locale={locale} />
+            <Stat label={t.cache.fresh} value={stats.fresh} accent locale={locale} />
+            <Stat label={t.cache.stale} value={stats.stale} locale={locale} />
+            <Stat label={t.cache.size} value={bytes(stats.bytes)} locale={locale} />
           </div>
           <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-muted sm:grid-cols-2">
-            <div>{t.cache.oldest}: <span className="text-white">{fmtTime(stats.oldest)}</span></div>
-            <div>{t.cache.newest}: <span className="text-white">{fmtTime(stats.newest)}</span></div>
+            <div>{t.cache.oldest}: <span className="text-white">{fmtTime(stats.oldest, locale)}</span></div>
+            <div>{t.cache.newest}: <span className="text-white">{fmtTime(stats.newest, locale)}</span></div>
           </div>
 
           {stats.by_path.length > 0 && (
@@ -141,8 +144,8 @@ export function CachePanel() {
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
-  const formatted = typeof value === 'number' ? value.toLocaleString() : value;
+function Stat({ label, value, accent, locale }: { label: string; value: string | number; accent?: boolean; locale: Locale }) {
+  const formatted = typeof value === 'number' ? fmtNum(value, locale) : value;
   return (
     <div className="rounded-lg border border-border bg-bg-elev/50 p-4 text-center">
       <div className="text-[11px] uppercase tracking-wider text-muted">{label}</div>

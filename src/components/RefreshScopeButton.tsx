@@ -2,7 +2,8 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, Loader2, RefreshCw } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useT, useLocale } from '@/lib/i18n/client';
+import { fmtDate } from '@/lib/locale-number';
 import { timeAgo } from '@/lib/time-ago';
 import { useToast } from './ToastProvider';
 import { readApiError } from '@/lib/api-error-read';
@@ -107,10 +108,11 @@ export function RefreshScopeButton({
 
 function FreshnessChip({ lastUpdatedAt, now }: { lastUpdatedAt: number | null; now: number }) {
   const t = useT();
+  const locale = useLocale();
   const stale =
     lastUpdatedAt == null || now - lastUpdatedAt > 7 * 86_400_000;
   const label = timeAgo(lastUpdatedAt, t, now);
-  const absolute = lastUpdatedAt == null ? '' : new Date(lastUpdatedAt).toLocaleString();
+  const absolute = lastUpdatedAt == null ? '' : fmtDate(new Date(lastUpdatedAt), locale);
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium uppercase tracking-wider ${

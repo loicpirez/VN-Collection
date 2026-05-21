@@ -1,6 +1,8 @@
 import { Check, Database, AlertTriangle } from 'lucide-react';
 import { getSchemaEgsSummary, type SchemaEgsTableSummary } from '@/lib/schema-egs';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { fmtDate } from '@/lib/locale-number';
 
 /**
  * EGS section block for `/schema`. Mirrors the visual shape of the
@@ -13,17 +15,17 @@ import { getDict } from '@/lib/i18n/server';
  * resolver (`resolveEgsForVn`), the manual mapping modals, or the
  * Settings panel; the schema page is for inspection only.
  */
-function fmt(ts: number | null, neverLabel: string): string {
+function fmt(ts: number | null, neverLabel: string, locale: Locale): string {
   if (!ts) return neverLabel;
   try {
-    return new Date(ts).toLocaleString();
+    return fmtDate(new Date(ts), locale);
   } catch {
     return neverLabel;
   }
 }
 
 export async function SchemaEgsSection() {
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const dict = t.schemaEgs;
   const summary = getSchemaEgsSummary();
 
@@ -80,7 +82,7 @@ export async function SchemaEgsSection() {
                   {dict.rowCount.replace('{n}', String(table.rowCount))}
                 </span>
                 <span className="text-muted">
-                  {dict.lastFetched}: {fmt(table.lastFetchedAt, dict.neverFetched)}
+                  {dict.lastFetched}: {fmt(table.lastFetchedAt, dict.neverFetched, locale)}
                 </span>
               </div>
             </li>
