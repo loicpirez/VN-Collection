@@ -854,6 +854,7 @@ export const dictionaries = {
       applyUrl: 'Appliquer',
       galleryLabel: 'Depuis les images du VN',
       galleryEmpty: 'Aucun screenshot ou visuel de release disponible.',
+      vndbCoverAlt: 'Couverture VNDB',
     },
     bannerPicker: {
       open: 'Source de bannière',
@@ -1241,6 +1242,8 @@ export const dictionaries = {
       parentVnCoverFallback: 'Couverture du VN parent (la sortie n\'a pas d\'art propre)',
       inventoryShortcut: 'Inventaire — gestion directe depuis l\'édition',
       editInventory: 'Détails',
+      platformPlaceholder: 'win, ps4, swi…',
+      currencyPlaceholder: 'EUR',
     },
     quotes: {
       section: 'Citations',
@@ -3384,6 +3387,7 @@ export const dictionaries = {
       applyUrl: 'Apply',
       galleryLabel: 'From this VN\'s images',
       galleryEmpty: 'No screenshots or release art available.',
+      vndbCoverAlt: 'VNDB cover',
     },
     bannerPicker: {
       open: 'Banner source',
@@ -3771,6 +3775,8 @@ export const dictionaries = {
       parentVnCoverFallback: 'Parent VN cover (release has no artwork of its own)',
       inventoryShortcut: 'Inventory — manage directly from this edition',
       editInventory: 'Details',
+      platformPlaceholder: 'win, ps4, swi…',
+      currencyPlaceholder: 'JPY',
     },
     quotes: {
       section: 'Quotes',
@@ -5911,6 +5917,7 @@ export const dictionaries = {
       applyUrl: '適用',
       galleryLabel: 'この VN の画像から',
       galleryEmpty: 'スクリーンショットやリリース画像はありません。',
+      vndbCoverAlt: 'VNDB カバー',
     },
     bannerPicker: {
       open: 'バナーソース',
@@ -6298,6 +6305,8 @@ export const dictionaries = {
       backToVn: 'VN に戻る',
       noVisuals: 'このエディションのビジュアルはありません。',
       parentVnCoverFallback: '親 VN のカバー（リリース固有の画像なし）',
+      platformPlaceholder: 'win, ps4, swi…',
+      currencyPlaceholder: 'JPY',
     },
     quotes: {
       section: '名台詞',

@@ -703,7 +703,7 @@ function EditionEditor({
             type="text"
             value={ownedPlatform}
             onChange={(e) => setOwnedPlatform(e.target.value.toLowerCase())}
-            placeholder="win, ps4, swi…"
+            placeholder={t.releases.platformPlaceholder}
             maxLength={16}
           />
         ) : releasePlatforms.length === 1 ? (
@@ -771,7 +771,7 @@ function EditionEditor({
           value={currency}
           onChange={(e) => setCurrency(e.target.value.toUpperCase())}
           maxLength={3}
-          placeholder="JPY"
+          placeholder={t.releases.currencyPlaceholder}
         />
         <datalist id={`currency-${edition.release_id}`}>
           {COMMON_CURRENCIES.map((c) => (

@@ -419,7 +419,7 @@ export function CoverSourcePicker({
                   <p className="mb-3 text-xs text-muted">{t.coverPicker.vndbHint}</p>
                   <div className="flex flex-wrap items-start gap-4">
                     <div className="h-48 w-32 shrink-0 overflow-hidden rounded-lg border border-border bg-bg-elev">
-                      <SafeImage src={vndbImage} alt="VNDB" className="h-full w-full" />
+                      <SafeImage src={vndbImage} alt={t.coverPicker.vndbCoverAlt} className="h-full w-full" />
                     </div>
                     <div className="flex-1">
                       <button

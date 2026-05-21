@@ -273,7 +273,7 @@ function SortableSection({
           <button
             type="button"
             onClick={onToggleCollapsed}
-            className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
+            className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
             title={collapsed ? t.layout.expandSection : t.layout.collapseSection}
           >
             {collapsed
@@ -284,7 +284,7 @@ function SortableSection({
         <button
           type="button"
           onClick={onToggleVisible}
-          className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
+          className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
           aria-label={visible ? t.layout.hideSection : t.layout.showSection}
           title={visible ? t.layout.hideSection : t.layout.showSection}
         >
@@ -292,7 +292,7 @@ function SortableSection({
         </button>
         <button
           type="button"
-          className="cursor-grab inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent active:cursor-grabbing"
+          className="tap-target-tight cursor-grab inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent active:cursor-grabbing"
           title={t.layout.drag}
           {...attributes}
           {...listeners}
