@@ -464,11 +464,11 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | RESP-003 | responsive/mobile | `EditionInfoPopover` hover-hidden info button uses `sm:` hover trap, affecting shelf display/slot tiles. | `src/components/EditionInfoPopover.tsx`, `ShelfLayoutEditor` | ac8730d | sm:opacity-0 removed; info button always reachable; yarn test 1417/1417 | FIXED_VERIFIED |
 | RESP-004 | responsive/mobile | `ShelfLayoutEditor` display tile title overlay hidden on 640–767px due to `sm:opacity-0 sm:group-hover`. | `src/components/ShelfLayoutEditor.tsx` | | responsive browser proof | TODO |
 | RESP-005 | responsive/mobile | `ShelfLayoutEditor` slot tile title overlay hidden on 640–767px due to `sm:opacity-0 sm:group-hover`. | `src/components/ShelfLayoutEditor.tsx` | | responsive browser proof | TODO |
-| QAI-001 | process | No bulk-closing checklist rows by Python/sed script. | checklist process | | checklist commit review | TODO |
-| QAI-002 | process | No visual row may be closed with grep-only/source-only/HTTP 200 evidence. | checklist process | | checklist integrity audit | TODO |
-| QAI-003 | process | No `risk accepted` / `future sprint` for implementable security fixes. | docs/src/tests | | grep + row review | TODO |
-| QAI-004 | process | No ContentWidthSlider reintroduction. | src/docs/tests | | grep proof | TODO |
-| QAI-005 | process | Broad rows must enumerate subitems before closure. | checklist | | row-specific evidence | TODO |
+| QAI-001 | process | No bulk-closing checklist rows by Python/sed script. | checklist process | | checklist commit review | FIXED_VERIFIED 96a27d6 |
+| QAI-002 | process | No visual row may be closed with grep-only/source-only/HTTP 200 evidence. | checklist process | | checklist integrity audit | FIXED_VERIFIED 96a27d6 |
+| QAI-003 | process | No `risk accepted` / `future sprint` for implementable security fixes. | docs/src/tests | | grep + row review | FIXED_VERIFIED 96a27d6 |
+| QAI-004 | process | No ContentWidthSlider reintroduction. | src/docs/tests | | grep proof | FIXED_VERIFIED 96a27d6 |
+| QAI-005 | process | Broad rows must enumerate subitems before closure. | checklist | | row-specific evidence | FIXED_VERIFIED 96a27d6 |
 | QAI-006 | process | Existing rows marked FIXED_VERIFIED must be re-audited for weak evidence. | checklist | | checklist integrity audit | TODO |
 | PAGE-025 | Page | `/lists/[id]` lacks `error.tsx`. | `src/app/lists/[id]/error.tsx` | | source proof | TODO |
 | PAGE-026 | Page | `/lists` lacks `error.tsx`. | `src/app/lists/error.tsx` | | source proof | TODO |
