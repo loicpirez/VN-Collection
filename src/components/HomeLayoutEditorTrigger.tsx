@@ -179,7 +179,7 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label={t.common.close}
-                className="text-muted hover:text-white"
+                className="tap-target rounded text-muted hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>

@@ -1,9 +1,10 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Clock, ExternalLink, Link2, Loader2, RefreshCw, Search, Sparkles, Star, Trash2, Users, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
+import { useDialogA11y } from './Dialog';
 import { SkeletonBlock } from './Skeleton';
 import { useT } from '@/lib/i18n/client';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
@@ -429,6 +430,9 @@ function EgsPicker({
   const [candidates, setCandidates] = useState<EgsCandidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState<number | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialogA11y({ open: true, onClose, panelRef });
 
   const run = useCallback(async () => {
     const q = query.trim();
@@ -481,20 +485,21 @@ function EgsPicker({
       className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-6"
       role="dialog"
       aria-modal="true"
+      aria-labelledby={titleId}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="mt-6 w-full max-w-xl rounded-2xl border border-border bg-bg-card p-4 shadow-card sm:mt-12 sm:p-6">
+      <div ref={panelRef} tabIndex={-1} className="mt-6 w-full max-w-xl rounded-2xl border border-border bg-bg-card p-4 shadow-card outline-none sm:mt-12 sm:p-6">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="inline-flex items-center gap-2 text-lg font-bold">
+          <h2 id={titleId} className="inline-flex items-center gap-2 text-lg font-bold">
             <Sparkles className="h-5 w-5 text-accent" aria-hidden />
             {t.egs.searchTitle}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-bg-elev hover:text-white"
+            className="tap-target inline-flex items-center justify-center rounded-full text-muted hover:bg-bg-elev hover:text-white"
             aria-label={t.common.close}
           >
             <X className="h-4 w-4" />

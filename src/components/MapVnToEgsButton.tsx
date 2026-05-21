@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   CircleAlert,
@@ -57,6 +57,7 @@ export function MapVnToEgsButton({
   const [state, setState] = useState<MappingState | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
 
@@ -177,13 +178,13 @@ export function MapVnToEgsButton({
             ref={panelRef}
             role="dialog"
             aria-modal="true"
-            aria-labelledby="map-vn-title"
+            aria-labelledby={titleId}
             onClick={(e) => e.stopPropagation()}
             className="w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
           >
             <header className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <h2 id="map-vn-title" className="text-base font-bold">{t.mapVn.title}</h2>
+                <h2 id={titleId} className="text-base font-bold">{t.mapVn.title}</h2>
                 <p className="mt-0.5 text-[11px] text-muted">{t.mapVn.hint}</p>
                 <p className="mt-1 truncate text-[11px]">
                   <span className="text-muted">VN · </span>
