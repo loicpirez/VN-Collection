@@ -414,7 +414,7 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | PAGE-018 | Page | `/quotes` hard-limits to 300 results with no pagination/notice. | `src/app/quotes/page.tsx` | | browser/source proof | TODO |
 | PAGE-019 | Page | `/release/[id]` performs DB write side effect inside RSC render. | `src/app/release/[id]/page.tsx` | | source proof + route behavior | TODO |
 | PAGE-020 | Page | `/release/[id]` lacks metadata title. | `src/app/release/[id]/page.tsx` | | source proof | TODO |
-| PAGE-021 | Page | `/search` lacks `dynamic = 'force-dynamic'`. | `src/app/search/page.tsx` | | source proof | TODO |
+| PAGE-021 | Page | `/search` lacks `dynamic = 'force-dynamic'`. | `src/app/search/page.tsx` | 8fb5ca2 | `export const dynamic = 'force-dynamic'` added at top; yarn test 1363/1363 | FIXED_VERIFIED |
 | PAGE-022 | Page | `/search` Suspense around client component lacks fallback. | `src/app/search/page.tsx` | | source/browser proof | TODO |
 | PAGE-023 | Page | `/similar` hard-caps at 24 results with no pagination/notice. | `src/app/similar/page.tsx` | | browser/source proof | TODO |
 | PAGE-024 | Page | `/tag/[id]` local tab returns all matching rows without pagination/limit notice. | `src/app/tag/[id]/page.tsx` | | browser/source proof | TODO |
@@ -553,8 +553,8 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | TS-003 | code quality | `VndbMarkup.tsx` `renderTokens` switch has no `default: never` guard — new Token kinds fall through silently. | `src/components/VndbMarkup.tsx` | | source proof | TODO |
 | TS-004 | Next.js | `src/app/lists/[id]/` has no `error.tsx`; page errors fall back to root error boundary only. | `src/app/lists/[id]/` | | source proof | TODO |
 | TS-005 | code quality | `key={i}` index used as React key in data (non-skeleton) lists across multiple components. | `src/app/producer/[id]/page.tsx`, `src/app/tag/[id]/page.tsx`, `src/app/upcoming/page.tsx`, `src/components/QuotesSection.tsx`, `src/components/CharactersSection.tsx`, `src/components/EgsRichDetails.tsx`, `src/components/DateInput.tsx` | | source proof | TODO |
-| COMP-001 | component library | `MediaGallery.tsx` keydown `useEffect` missing `prev`/`next` deps — stale closure breaks keyboard navigation. | `src/components/MediaGallery.tsx:144–158` | | source + manual keyboard test | TODO |
-| COMP-002 | component library | `AspectOverrideControl.tsx` AbortController created inside async function; cleanup never registered; fetches never cancelled on unmount. | `src/components/AspectOverrideControl.tsx:65` | | source proof | TODO |
+| COMP-001 | component library | `MediaGallery.tsx` keydown `useEffect` missing `prev`/`next` deps — stale closure breaks keyboard navigation. | `src/components/MediaGallery.tsx:144–158` | 8fb5ca2 | prev/next stabilized with useCallback; added to useEffect deps array; yarn test 1363/1363 | FIXED_VERIFIED |
+| COMP-002 | component library | `AspectOverrideControl.tsx` AbortController created inside async function; cleanup never registered; fetches never cancelled on unmount. | `src/components/AspectOverrideControl.tsx:65` | 8fb5ca2 | AbortController moved to useEffect body; signal passed as arg; cleanup registered; yarn test 1363/1363 | FIXED_VERIFIED |
 | COMP-003 | component library | `TagsBrowser.tsx` tab switcher uses `<Link role="button">` — ARIA antipattern; should be `role="tab"` in `role="tablist"`. | `src/components/TagsBrowser.tsx` | | a11y/source proof | TODO |
 | COMP-004 | component library | `CardContextMenu.tsx` reads `window.innerWidth` in render body — SSR hydration mismatch. | `src/components/CardContextMenu.tsx:116–117` | | source proof | TODO |
 | COMP-005 | component library | `AddMissingVnButton.tsx` uses success-toast string as `aria-label` instead of action description. | `src/components/AddMissingVnButton.tsx:51` | | a11y/source proof | TODO |

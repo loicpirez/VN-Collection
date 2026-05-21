@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { after } from 'next/server';
 import { ArrowLeft, Boxes, ExternalLink, Globe, Languages, Mic2, Package, Shield } from 'lucide-react';
 import { getRelease, type VndbRelease } from '@/lib/vndb';
 import { getCollectionItem, getOwnedRelease, isInCollectionMany, upsertReleaseResolutionCache } from '@/lib/db';
@@ -48,20 +49,22 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
   }
   if (!release) notFound();
   // First-time visit caches the resolution for aspect-ratio filters.
-  // Bind every VN the release covers so any of those VNs can match a
-  // library aspect filter without needing an owned-release row.
-  for (const vn of release.vns) {
-    if (vn?.id) {
-      upsertReleaseResolutionCache({
-        releaseId: release.id,
-        vnId: vn.id,
-        resolution: release.resolution,
-      });
+  // Deferred via after() so the DB write runs after the response is
+  // sent, preventing it from blocking or affecting the RSC render.
+  // The operation is idempotent (UPSERT) so retries are safe (PAGE-019).
+  const releaseId = release.id;
+  const resolution = release.resolution;
+  const releaseVns = release.vns;
+  after(() => {
+    for (const vn of releaseVns) {
+      if (vn?.id) {
+        upsertReleaseResolutionCache({ releaseId, vnId: vn.id, resolution });
+      }
     }
-  }
-  if (release.vns.length === 0) {
-    upsertReleaseResolutionCache({ releaseId: release.id, resolution: release.resolution });
-  }
+    if (releaseVns.length === 0) {
+      upsertReleaseResolutionCache({ releaseId, resolution });
+    }
+  });
 
   const voicedKey = release.voiced && VOICED_KEY[release.voiced] ? VOICED_KEY[release.voiced] : null;
   const flags: { label: string; tone?: 'good' | 'warn' }[] = [];

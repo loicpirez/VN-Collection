@@ -7826,29 +7826,31 @@ export function updateUserList(
     pinned?: boolean;
   },
 ): UserList | null {
-  const current = getUserList(id);
-  if (!current) return null;
-  const next: UserList = { ...current };
-  if (patch.name != null) {
-    const name = patch.name.trim().slice(0, 120);
-    if (!name) throw new Error('name required');
-    if (name !== current.name) {
-      next.name = name;
-      const base = slugify(name);
-      next.slug = base === current.slug ? current.slug : uniqueSlug(base);
+  return db.transaction((): UserList | null => {
+    const current = getUserList(id);
+    if (!current) return null;
+    const next: UserList = { ...current };
+    if (patch.name != null) {
+      const name = patch.name.trim().slice(0, 120);
+      if (!name) throw new Error('name required');
+      if (name !== current.name) {
+        next.name = name;
+        const base = slugify(name);
+        next.slug = base === current.slug ? current.slug : uniqueSlug(base);
+      }
     }
-  }
-  if (patch.description !== undefined) next.description = patch.description;
-  if (patch.color !== undefined) next.color = patch.color;
-  if (patch.icon !== undefined) next.icon = patch.icon;
-  if (patch.pinned !== undefined) next.pinned = patch.pinned ? 1 : 0;
-  next.updated_at = Date.now();
-  db.prepare(`
-    UPDATE user_list
-       SET name = ?, slug = ?, description = ?, color = ?, icon = ?, pinned = ?, updated_at = ?
-     WHERE id = ?
-  `).run(next.name, next.slug, next.description, next.color, next.icon, next.pinned, next.updated_at, id);
-  return next;
+    if (patch.description !== undefined) next.description = patch.description;
+    if (patch.color !== undefined) next.color = patch.color;
+    if (patch.icon !== undefined) next.icon = patch.icon;
+    if (patch.pinned !== undefined) next.pinned = patch.pinned ? 1 : 0;
+    next.updated_at = Date.now();
+    db.prepare(`
+      UPDATE user_list
+         SET name = ?, slug = ?, description = ?, color = ?, icon = ?, pinned = ?, updated_at = ?
+       WHERE id = ?
+    `).run(next.name, next.slug, next.description, next.color, next.icon, next.pinned, next.updated_at, id);
+    return next;
+  })();
 }
 
 export function deleteUserList(id: number): boolean {
