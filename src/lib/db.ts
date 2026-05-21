@@ -2552,16 +2552,23 @@ export function listAllQuotes(q?: string, limit = 200): QuoteWithVn[] {
 export function getRandomLocalQuote(): LocalQuote | null {
   const row = db
     .prepare(`
-      SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
-             q.character_id, q.character_name,
-             ci.local_path AS character_local_image,
-             v.image_url AS vn_image_url,
-             v.local_image AS vn_local_image,
-             v.local_image_thumb AS vn_local_image_thumb
-      FROM vn_quote q
-      JOIN collection c ON c.vn_id = q.vn_id
-      JOIN vn v ON v.id = q.vn_id
-      LEFT JOIN character_image ci ON ci.char_id = q.character_id
+      SELECT quote_id, vn_id, vn_title, quote, score,
+             character_id, character_name,
+             character_local_image,
+             vn_image_url, vn_local_image, vn_local_image_thumb
+      FROM (
+        SELECT q.quote_id, q.vn_id, v.title AS vn_title, q.quote, q.score,
+               q.character_id, q.character_name,
+               ci.local_path AS character_local_image,
+               v.image_url AS vn_image_url,
+               v.local_image AS vn_local_image,
+               v.local_image_thumb AS vn_local_image_thumb
+        FROM vn_quote q
+        JOIN collection c ON c.vn_id = q.vn_id
+        JOIN vn v ON v.id = q.vn_id
+        LEFT JOIN character_image ci ON ci.char_id = q.character_id
+        LIMIT 200
+      )
       ORDER BY RANDOM()
       LIMIT 1
 `)
@@ -4559,7 +4566,7 @@ export function searchLocalStaff({
   const needle = q?.trim().toLowerCase() ?? '';
   if (needle) {
     where.push(
-      "(LOWER(sc.name) LIKE ? OR LOWER(COALESCE(sc.original, '')) LIKE ? OR sc.sid LIKE ?)",
+      "(sc.name LIKE ? COLLATE NOCASE OR COALESCE(sc.original, '') LIKE ? COLLATE NOCASE OR sc.sid LIKE ?)",
     );
     const like = `%${needle}%`;
     args.push(like, like, like);

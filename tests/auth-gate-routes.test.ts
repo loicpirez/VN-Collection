@@ -9,6 +9,7 @@
  * AUD-SEC-006 — year clamping on reading-goal route.
  * AUD-SEC-010 — q length cap on search/textual and collection/find routes.
  * AUD-SEC-013 — settings activity log redacts sensitive keys.
+ * TCO-010 — maintenance routes return valid JSON shape from loopback with 0 items.
  */
 import { describe, expect, it } from 'vitest';
 import { GET as wishlistGET } from '@/app/api/wishlist/route';
@@ -159,6 +160,41 @@ describe('AUD-SEC-010 — q length cap on search (loopback)', () => {
   });
 });
 
+describe('TCO-011 — whitespace-only VN_ADMIN_TOKEN is treated as unset', () => {
+  it('whitespace-only token env + whitespace Bearer header is denied (403)', async () => {
+    const original = process.env.VN_ADMIN_TOKEN;
+    process.env.VN_ADMIN_TOKEN = '   ';
+    const req = new NextRequest('http://93.184.216.34/api/wishlist', {
+      headers: { Authorization: 'Bearer    ' },
+    });
+    const res = await wishlistGET(req);
+    process.env.VN_ADMIN_TOKEN = original;
+    expect(res.status).toBe(403);
+  });
+
+  it('whitespace-only token env + correct-looking Bearer is denied (403)', async () => {
+    const original = process.env.VN_ADMIN_TOKEN;
+    process.env.VN_ADMIN_TOKEN = '   ';
+    const req = new NextRequest('http://93.184.216.34/api/wishlist', {
+      headers: { Authorization: 'Bearer secret-token' },
+    });
+    const res = await wishlistGET(req);
+    process.env.VN_ADMIN_TOKEN = original;
+    expect(res.status).toBe(403);
+  });
+
+  it('real token env + whitespace Bearer header is denied (403)', async () => {
+    const original = process.env.VN_ADMIN_TOKEN;
+    process.env.VN_ADMIN_TOKEN = 'real-secret';
+    const req = new NextRequest('http://93.184.216.34/api/wishlist', {
+      headers: { Authorization: 'Bearer    ' },
+    });
+    const res = await wishlistGET(req);
+    process.env.VN_ADMIN_TOKEN = original;
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('AUD-SEC-013 — settings activity log redacts sensitive keys (source-pin)', () => {
   it('maskPayloadValues function exists and covers sensitive keys', async () => {
     const { readFileSync } = await import('node:fs');
@@ -171,5 +207,23 @@ describe('AUD-SEC-013 — settings activity log redacts sensitive keys (source-p
     expect(src).toMatch(/REDACTED/);
     expect(src).toMatch(/maskPayloadValues/);
     expect(src).toMatch(/maskPayloadValues\(body/);
+  });
+});
+
+describe('TCO-010 — maintenance routes return valid JSON from loopback with 0 items', () => {
+  it('GET /api/maintenance/duplicates — 200 with groups array when table is empty', async () => {
+    const res = await duplicatesGET(loopbackReq('/api/maintenance/duplicates'));
+    expect(res.status).toBe(200);
+    const body = await res.json() as { groups: unknown[] };
+    expect(Array.isArray(body.groups)).toBe(true);
+    expect(body.groups).toHaveLength(0);
+  });
+
+  it('GET /api/maintenance/stale — 200 with rows array when table is empty', async () => {
+    const res = await staleGET(loopbackReq('/api/maintenance/stale'));
+    expect(res.status).toBe(200);
+    const body = await res.json() as { rows: unknown[] };
+    expect(Array.isArray(body.rows)).toBe(true);
+    expect(body.rows).toHaveLength(0);
   });
 });
