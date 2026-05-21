@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { stat } from 'node:fs/promises';
+import { stat, unlink, mkdtemp } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import { db, getDbPath } from '@/lib/db';
+import { db } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
 
@@ -11,28 +13,24 @@ export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 export async function GET(req: Request) {
-  // The .db file contains the VNDB token, Steam API key, EGS
-  // username, and the full collection — gate behind localhost /
-  // admin token so a LAN snoop can't pull credentials.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  // Issue a SQLite checkpoint so the WAL is flushed before reading.
-  // (Best-effort — even without it, the .db is consistent thanks to WAL,
-  // but a clean checkpoint produces a smaller, single-file backup.)
+
+  const dir = await mkdtemp(join(tmpdir(), 'vndb-backup-'));
+  const tmpPath = join(dir, 'snapshot.db');
   try {
-    db.pragma('wal_checkpoint(TRUNCATE)');
-  } catch {
-    // ignore
+    await db.backup(tmpPath);
+  } catch (e) {
+    return NextResponse.json({ error: `backup failed: ${(e as Error).message}` }, { status: 500 });
   }
 
-  const dbPath = getDbPath();
   let size: number;
   try {
-    size = (await stat(dbPath)).size;
+    size = (await stat(tmpPath)).size;
   } catch {
-    return NextResponse.json({ error: 'db file not found' }, { status: 500 });
+    return NextResponse.json({ error: 'backup file not found after write' }, { status: 500 });
   }
-  const stream = Readable.toWeb(createReadStream(dbPath)) as ReadableStream<Uint8Array>;
+
   const date = new Date().toISOString().slice(0, 10);
   recordActivity({
     kind: 'backup.export',
@@ -41,6 +39,11 @@ export async function GET(req: Request) {
     label: 'SQLite backup export',
     payload: { size },
   });
+
+  const nodeStream = createReadStream(tmpPath);
+  nodeStream.on('close', () => { unlink(tmpPath).catch(() => undefined); });
+
+  const stream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
   return new NextResponse(stream, {
     status: 200,
     headers: {
