@@ -10,6 +10,7 @@ import { languageDisplayName } from '@/lib/language-names';
 import { SafeImage } from '@/components/SafeImage';
 import { LangList } from '@/components/LangFlag';
 import { CompareVnPicker, type CompareVn } from '@/components/CompareVnPicker';
+import { findSharedVasForVns } from '@/lib/compare-credits';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,54 +38,6 @@ function intersection<T>(sets: Set<T>[]): Set<T> {
   const out = new Set<T>();
   for (const v of first) if (rest.every((s) => s.has(v))) out.add(v);
   return out;
-}
-
-interface SharedVa {
-  sid: string;
-  va_name: string;
-  va_original: string | null;
-  characters: { vn_id: string; c_id: string; c_name: string }[];
-}
-
-/**
- * Voice actors with credits on every VN in the input list. Each entry
- * carries the character voiced per VN so the panel can show "X voiced Y
- * in A and Z in B" — useful for spotting recasts or shared cast.
- */
-function findSharedVas(vnIds: string[]): SharedVa[] {
-  if (vnIds.length < 2) return [];
-  const placeholders = vnIds.map(() => '?').join(',');
-  const rows = db
-    .prepare(`
-      SELECT vn_id, sid, va_name, va_original, c_id, c_name
-      FROM vn_va_credit
-      WHERE vn_id IN (${placeholders})
-    `)
-    .all(...vnIds) as Array<{
-      vn_id: string;
-      sid: string;
-      va_name: string;
-      va_original: string | null;
-      c_id: string;
-      c_name: string;
-    }>;
-  const bySid = new Map<string, { vnIds: Set<string>; entry: SharedVa }>();
-  for (const r of rows) {
-    let bucket = bySid.get(r.sid);
-    if (!bucket) {
-      bucket = {
-        vnIds: new Set(),
-        entry: { sid: r.sid, va_name: r.va_name, va_original: r.va_original, characters: [] },
-      };
-      bySid.set(r.sid, bucket);
-    }
-    bucket.vnIds.add(r.vn_id);
-    bucket.entry.characters.push({ vn_id: r.vn_id, c_id: r.c_id, c_name: r.c_name });
-  }
-  return Array.from(bySid.values())
-    .filter((b) => b.vnIds.size === vnIds.length)
-    .map((b) => b.entry)
-    .sort((a, b) => b.characters.length - a.characters.length);
 }
 
 interface SharedCharacter {
@@ -146,8 +99,10 @@ export default async function ComparePage({
   // Map shared staff ids → display data (name + role for the first VN that has them).
   const sharedStaff = items[0]?.staff?.filter((s) => sharedStaffIds.has(s.id)) ?? [];
   const sharedTagsWithNames = items[0]?.tags?.filter((tg) => sharedTagIds.has(tg.id)) ?? [];
-  const sharedVas = findSharedVas(items.map((it) => it.id));
+  const sharedVas = findSharedVasForVns(items.map((it) => it.id));
+  const sharedVaIds = new Set(sharedVas.map((va) => va.sid));
   const sharedCharacters = findSharedCharacters(items.map((it) => it.id));
+  const titleById = new Map(items.map((it) => [it.id, it.title]));
 
   // Similarity score — naive but useful: weighted overlap ratio across tags
   // / staff / devs / langs / plats. Tags carry more signal than platforms,
@@ -252,7 +207,12 @@ export default async function ComparePage({
                   <li key={va.sid}>
                     <Link href={`/staff/${va.sid}`} className="font-bold hover:text-accent">{va.va_name}</Link>
                     <span className="ml-2 text-muted">
-                      {va.characters.slice(0, items.length).map((c) => c.c_name).join(' · ')}
+                      {va.creditsByVn
+                        .map((credit) => {
+                          const names = credit.characters.map((c) => c.c_name).join(', ');
+                          return `${titleById.get(credit.vn_id) ?? credit.vn_id}: ${names}`;
+                        })
+                        .join(' · ')}
                     </span>
                   </li>
                 ))}
@@ -426,22 +386,32 @@ export default async function ComparePage({
 
             <CellHead label={t.compareView.row.seiyuu} />
             {items.map((it) => {
-              const vas = (it.va ?? []).slice(0, 10);
+              const vas = [...(it.va ?? [])]
+                .sort((a, b) => Number(sharedVaIds.has(b.staff.id)) - Number(sharedVaIds.has(a.staff.id)))
+                .slice(0, 10);
               return (
                 <div key={`va-${it.id}`} className="bg-bg-card p-3 text-[11px]">
                   {vas.length === 0 ? (
                     <span className="text-muted/60">—</span>
                   ) : (
-                    vas.map((v, i) => (
-                      <Link
-                        key={`${v.staff.id}-${i}`}
-                        href={`/staff/${v.staff.id}`}
-                        className="mr-1 inline-block rounded px-1 py-0.5 text-muted hover:bg-accent/15 hover:text-accent"
-                        title={`${v.character.name}${v.note ? ` · ${v.note}` : ''}`}
-                      >
-                        {v.staff.name}
-                      </Link>
-                    ))
+                    vas.map((v) => {
+                      const shared = sharedVaIds.has(v.staff.id);
+                      return (
+                        <Link
+                          key={`${v.staff.id}-${v.character.id}`}
+                          href={`/staff/${v.staff.id}`}
+                          className={`mr-1 inline-block rounded px-1 py-0.5 hover:bg-accent/15 hover:text-accent ${
+                            shared ? 'bg-accent/15 font-bold text-accent' : 'text-muted'
+                          }`}
+                          title={`${v.character.name}${v.note ? ` · ${v.note}` : ''}`}
+                        >
+                          {v.staff.name}
+                        </Link>
+                      );
+                    })
+                  )}
+                  {(it.va ?? []).length > vas.length && (
+                    <span className="text-muted">+{(it.va ?? []).length - vas.length}</span>
                   )}
                 </div>
               );
