@@ -15,7 +15,6 @@ import { SafeImage } from '@/components/SafeImage';
 import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
 import { readStaffFullCache } from '@/lib/staff-full';
@@ -227,7 +226,6 @@ export default async function StaffPage({
                 surface (/wishlist, /recommendations, /top-ranked,
                 /upcoming, /dumped, /egs, /similar). */}
             <CardDensitySlider scope="staffWorks" />
-            <ContentWidthSlider scope="staffWorks" />
             <StaffDownloadButton sid={id} />
             <a
               href={`https://vndb.org/${id}`}

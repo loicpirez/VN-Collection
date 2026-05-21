@@ -18,7 +18,6 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { CardDensitySlider } from './CardDensitySlider';
-import { ContentWidthSlider } from './ContentWidthSlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
@@ -135,7 +134,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           setDefaultGroup(d.default_group as GroupKey);
         }
       })
-      .catch(() => {});
+      .catch((e: unknown) => { console.error('[LibraryClient] settings fetch failed:', e); });
     return () => {
       alive = false;
     };
@@ -256,7 +255,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         const found = d.tags?.find((tag) => tag.id === urlTag);
         if (found) setTagName(found.name);
       })
-      .catch(() => {});
+      .catch((e: unknown) => { console.error('[LibraryClient] tag name fetch failed:', e); });
   }, [urlTag]);
 
   useEffect(() => {
@@ -867,7 +866,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         </label>
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <CardDensitySlider scope="library" />
-          <ContentWidthSlider scope="library" />
           <button
             type="button"
             onClick={() => set('denseLibrary', !settings.denseLibrary)}
@@ -1452,17 +1450,30 @@ function LibraryActionsMenu({
 
   useEffect(() => {
     if (!open) return;
+    const firstItem = ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])');
+    firstItem?.focus({ preventScroll: true });
     function outside(e: MouseEvent) {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     }
-    function escape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
+    function key(e: KeyboardEvent) {
+      if (e.key === 'Escape') { setOpen(false); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+      const items = Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []);
+      if (items.length === 0) return;
+      e.preventDefault();
+      const idx = items.indexOf(document.activeElement as HTMLElement);
+      let next: HTMLElement | undefined;
+      if (e.key === 'Home') next = items[0];
+      else if (e.key === 'End') next = items[items.length - 1];
+      else if (e.key === 'ArrowDown') next = items[(idx + 1 + items.length) % items.length];
+      else next = items[(idx - 1 + items.length) % items.length];
+      next?.focus();
     }
     window.addEventListener('mousedown', outside);
-    window.addEventListener('keydown', escape);
+    window.addEventListener('keydown', key);
     return () => {
       window.removeEventListener('mousedown', outside);
-      window.removeEventListener('keydown', escape);
+      window.removeEventListener('keydown', key);
     };
   }, [open]);
 

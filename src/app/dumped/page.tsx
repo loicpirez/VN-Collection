@@ -5,7 +5,6 @@ import { getDumpSummary, listDumpStatus, listVnIdsOnShelf } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { dumpedShelfHref, dumpedVnHref, dumpedEditionsAnchor } from '@/lib/dumped-links';
 
@@ -195,7 +194,6 @@ export default async function DumpedPage({
           </nav>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <CardDensitySlider scope="dumped" />
-            <ContentWidthSlider scope="dumped" />
           </div>
 
           {filtered.length === 0 ? (

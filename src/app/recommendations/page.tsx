@@ -32,7 +32,6 @@ import { getDict } from '@/lib/i18n/server';
 import { RecommendModeTabs, type ModeTabItem } from '@/components/RecommendModeTabs';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeedTagControls } from '@/components/SeedTagControls';
 import { SkeletonCardGrid } from '@/components/Skeleton';
@@ -282,7 +281,6 @@ export default async function RecommendationsPage({
             hintOff={t.recommend.wishlistExcludedHint}
           />
           <CardDensitySlider scope="recommendations" />
-          <ContentWidthSlider scope="recommendations" />
         </div>
 
         <Suspense fallback={<div className="mt-3 h-10 animate-pulse rounded-lg bg-bg-elev/40" />}>
@@ -759,7 +757,7 @@ function ResultsGrid({
                 )}
               </div>
               <div className="flex flex-1 flex-col gap-1 p-3">
-                <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent">
+                <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent" title={r.title}>
                   {r.title}
                 </h3>
                 {/*
@@ -788,10 +786,10 @@ function ResultsGrid({
                   <p className="mt-0.5 text-[10px] text-accent/80">{reason}</p>
                 )}
                 {contributorChip && (
-                  <p className="mt-0.5 line-clamp-1 text-[10px] text-muted">{contributorChip}</p>
+                  <p className="mt-0.5 line-clamp-1 text-[10px] text-muted" title={contributorChip}>{contributorChip}</p>
                 )}
                 {r.developers[0]?.name && (
-                  <p className="line-clamp-1 text-[11px] text-muted">{r.developers[0].name}</p>
+                  <p className="line-clamp-1 text-[11px] text-muted" title={r.developers[0].name}>{r.developers[0].name}</p>
                 )}
                 {year && <p className="mt-0.5 text-[10px] text-muted">{year}</p>}
                 {uniqueMatched.length > 0 && (

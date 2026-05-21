@@ -7,7 +7,6 @@ import { applyGenericPenalty } from '@/lib/recommend';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeedTagControls } from '@/components/SeedTagControls';
 import { SimilarSeedPicker } from '@/components/SimilarSeedPicker';
@@ -187,7 +186,7 @@ export default async function SimilarPage({
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="flex items-start gap-4">
-          <Link href={`/vn/${seed.id}`} className="hidden sm:block shrink-0">
+          <Link href={`/vn/${seed.id}`} className="block shrink-0">
             <SafeImage
               src={seedImageUrl}
               sexual={seed.image_sexual ?? null}
@@ -222,7 +221,6 @@ export default async function SimilarPage({
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <CardDensitySlider scope="vnSimilar" />
-        <ContentWidthSlider scope="vnSimilar" />
       </div>
 
       {results.length === 0 ? (
@@ -250,11 +248,11 @@ export default async function SimilarPage({
                     className="aspect-[2/3] w-full"
                   />
                   <div className="flex flex-col gap-1 p-3">
-                    <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent">
+                    <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent" title={r.title}>
                       {r.title}
                     </h3>
                     {r.developers[0]?.name && (
-                      <p className="line-clamp-1 text-[11px] text-muted">{r.developers[0].name}</p>
+                      <p className="line-clamp-1 text-[11px] text-muted" title={r.developers[0].name}>{r.developers[0].name}</p>
                     )}
                     <div className="mt-1 flex items-center gap-3 text-[10px] text-muted">
                       {rating && (

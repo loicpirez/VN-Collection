@@ -15,7 +15,6 @@ import { ListMetaEditor } from '@/components/ListMetaEditor';
 import { ListRemoveVn } from '@/components/ListRemoveVn';
 import { ListAddVnForm } from '@/components/ListAddVnForm';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import type { Status } from '@/lib/types';
 
@@ -153,7 +152,6 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {/* Density slider — controls the VN grid below. */}
             <CardDensitySlider scope="lists" />
-            <ContentWidthSlider scope="lists" />
             <ListMetaEditor list={list} />
           </div>
         </div>

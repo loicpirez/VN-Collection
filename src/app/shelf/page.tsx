@@ -15,7 +15,6 @@ import { languageDisplayName } from '@/lib/language-names';
 import { ShelfLayoutEditor } from '@/components/ShelfLayoutEditor';
 import { ShelfSpatialView } from '@/components/ShelfSpatialView';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { ShelfReadOnlyControls } from '@/components/ShelfReadOnlyControls';
 import {
@@ -235,7 +234,6 @@ export default async function ShelfPage({
           */}
           <div className="flex shrink-0 items-center gap-2">
             <CardDensitySlider scope="shelf" />
-            <ContentWidthSlider scope="shelf" />
             {/* Display knobs only relevant to the read-only views. The
                 layout editor owns its own placement geometry and
                 ignores the css variables, so the controls render

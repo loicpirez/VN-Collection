@@ -104,7 +104,6 @@ describe('per-scope reset never clobbers the legacy default', () => {
       density: { library: 200, wishlist: 240 },
       spoilerLevel: 0,
       showSexualTraits: false,
-      pageWidth: {},
     };
     const after: DisplaySettings = {
       ...before,

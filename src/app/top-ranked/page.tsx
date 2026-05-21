@@ -12,7 +12,6 @@ import { SkeletonCardGrid } from '@/components/Skeleton';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { brandHref, yearHref } from '@/lib/egs-links';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
@@ -74,7 +73,6 @@ export default async function TopRankedPage({
           </div>
           <div className="flex items-center gap-2">
             <CardDensitySlider scope="topRanked" />
-            <ContentWidthSlider scope="topRanked" />
             <RefreshScopeButton scope="top-ranked" lastUpdatedAt={lastUpdatedAt} />
           </div>
         </div>
@@ -441,12 +439,13 @@ function VndbSection({ rows, t, startRank = 0 }: { rows: VndbTopRanked[]; t: Dic
             <div className="min-w-0 flex-1 text-[11px]">
               <Link
                 href={`/vn/${v.id}`}
+                title={v.title}
                 className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent"
               >
                 {v.title}
               </Link>
               {v.alttitle && v.alttitle !== v.title && (
-                <p className="line-clamp-1 text-[10px] text-muted">{v.alttitle}</p>
+                <p className="line-clamp-1 text-[10px] text-muted" title={v.alttitle}>{v.alttitle}</p>
               )}
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
                 {v.rating != null && (
@@ -474,7 +473,7 @@ function VndbSection({ rows, t, startRank = 0 }: { rows: VndbTopRanked[]; t: Dic
                 {v.released && <span className="tabular-nums">{v.released.slice(0, 4)}</span>}
               </div>
               {v.developers.length > 0 && (
-                <p className="mt-0.5 line-clamp-1 text-[10px] text-muted">
+                <p className="mt-0.5 line-clamp-1 text-[10px] text-muted" title={v.developers.map((d) => d.name).join(' · ')}>
                   {v.developers.map((d) => d.name).join(' · ')}
                 </p>
               )}
@@ -543,12 +542,13 @@ function EgsSection({
                 <Link
                   href={href}
                   {...linkProps}
+                  title={r.gamename}
                   className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent"
                 >
                   {r.gamename}
                 </Link>
                 {r.furigana && r.furigana !== r.gamename && (
-                  <p className="line-clamp-1 text-[10px] text-muted">{r.furigana}</p>
+                  <p className="line-clamp-1 text-[10px] text-muted" title={r.furigana}>{r.furigana}</p>
                 )}
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
                   {r.median != null && (
@@ -625,7 +625,7 @@ function EgsSection({
                       {r.brand_name}
                     </Link>
                   ) : (
-                    <p className="mt-0.5 line-clamp-1 text-[10px] text-muted">{r.brand_name}</p>
+                    <p className="mt-0.5 line-clamp-1 text-[10px] text-muted" title={r.brand_name}>{r.brand_name}</p>
                   );
                 })()}
                 <div className="mt-1 flex flex-wrap items-center gap-2">

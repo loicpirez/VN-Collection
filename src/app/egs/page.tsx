@@ -7,7 +7,6 @@ import { getDict } from '@/lib/i18n/server';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { MapVnToEgsButton } from '@/components/MapVnToEgsButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { ResetViewDefaultsButton } from '@/components/ResetViewDefaultsButton';
 import { SafeImage } from '@/components/SafeImage';
@@ -233,7 +232,6 @@ async function EgsPageContent() {
           <h2 className="text-base font-bold">{t.egs.linkedListTitle}</h2>
           <div className="flex flex-wrap items-center gap-2">
             <CardDensitySlider scope="egs" />
-            <ContentWidthSlider scope="egs" />
             <ResetViewDefaultsButton scope="egs" />
           </div>
         </div>
@@ -280,7 +278,7 @@ async function EgsPageContent() {
                     />
                   </div>
                   <div className="min-w-0 flex-1 text-[11px]">
-                    <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                    <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent" title={l.vn_title}>
                       {l.vn_title}
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted">
@@ -363,11 +361,11 @@ async function EgsPageContent() {
                     />
                   </div>
                   <div className="min-w-0 flex-1 text-[11px]">
-                    <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                    <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent" title={u.vn_title}>
                       {u.vn_title}
                     </p>
                     {u.vn_alttitle && u.vn_alttitle !== u.vn_title && (
-                      <p className="mt-0.5 line-clamp-1 text-[11px] text-muted">{u.vn_alttitle}</p>
+                      <p className="mt-0.5 line-clamp-1 text-[11px] text-muted" title={u.vn_alttitle}>{u.vn_alttitle}</p>
                     )}
                     <p className="mt-0.5 text-[10px] text-muted">{u.vn_id}</p>
                   </div>

@@ -8,7 +8,6 @@ import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { readScrapedCharacterInfo } from '@/lib/scrape-character-instances';
@@ -203,7 +202,6 @@ export default async function CharacterPage({
                 VN grids below. Mounted in the header for parity
                 with /staff/[id] and /producer/[id]. */}
             <CardDensitySlider scope="characterWorks" />
-            <ContentWidthSlider scope="characterWorks" />
           </div>
         </div>
       </div>

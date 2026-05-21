@@ -2,7 +2,6 @@
 import { useSearchParams } from 'next/navigation';
 import { type ReactNode } from 'react';
 import {
-  clampPageWidth,
   type DensityScope,
   resolveScopedDensity,
   useDisplaySettings,
@@ -46,14 +45,8 @@ export function DensityScopeProvider({
   const search = useSearchParams();
   const urlDensity = search?.get('density') ?? null;
   const densityValue = resolveScopedDensity(settings, scope, urlDensity);
-  const rawPageWidth = settings.pageWidth?.[scope];
-  const customPageWidth =
-    typeof rawPageWidth === 'number' && Number.isFinite(rawPageWidth)
-      ? clampPageWidth(rawPageWidth)
-      : null;
   const style: React.CSSProperties = {
     ['--card-density-px' as never]: `${densityValue}px`,
-    ...(customPageWidth != null ? { maxWidth: `${customPageWidth}px` } : {}),
   };
   const Tag = As as 'div';
   return (
