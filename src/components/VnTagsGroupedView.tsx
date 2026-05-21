@@ -137,10 +137,7 @@ function TagSection({
   settings: { spoilerLevel: number; showSexualTraits: boolean };
   sectionLevel: 0 | 1 | 2;
 }) {
-  // The per-section level is the MAX of the global spoiler setting
-  // and the local toggle — promoting (not demoting) the threshold
-  // so a user with global=2 always sees content even when the local
-  // toggle is "none".
+  const t = useT();
   const effectiveLevel = Math.max(settings.spoilerLevel, sectionLevel) as 0 | 1 | 2;
   return (
     <div>
@@ -181,8 +178,8 @@ function TagSection({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="-ml-px inline-flex items-center rounded-r-md border border-l-0 border-border bg-bg-elev/40 px-1 text-[9px] uppercase tracking-wider text-muted hover:border-accent hover:text-accent"
-                aria-label="VNDB"
-                title="VNDB"
+                aria-label={t.detail.openOnVndb}
+                title={t.detail.openOnVndb}
               >
                 <ExternalLink className="h-2.5 w-2.5" aria-hidden />
               </a>

@@ -48,7 +48,7 @@ export function AddMissingVnButton({ vnId }: { vnId: string }) {
       type="button"
       onClick={onClick}
       disabled={busy || done}
-      aria-label={t.toast.added}
+      aria-label={t.coverActions.addToCollection}
       className="inline-flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-md border border-border bg-bg-card text-muted transition-colors hover:border-accent hover:bg-accent hover:text-bg disabled:opacity-60"
     >
       {busy ? (

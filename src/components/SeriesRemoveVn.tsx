@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
+import { useToast } from './ToastProvider';
+import { readApiError } from '@/lib/api-error-read';
 
 /**
  * Per-VN remove-from-series chip overlaid on the series detail page
@@ -18,6 +20,7 @@ export function SeriesRemoveVn({ seriesId, vnId }: { seriesId: number; vnId: str
   const t = useT();
   const router = useRouter();
   const { confirm } = useConfirm();
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
 
   return (
@@ -33,8 +36,13 @@ export function SeriesRemoveVn({ seriesId, vnId }: { seriesId: number; vnId: str
           tone: 'danger',
         });
         if (!ok) return;
-        await fetch(`/api/series/${seriesId}/vn/${vnId}`, { method: 'DELETE' });
-        startTransition(() => router.refresh());
+        try {
+          const r = await fetch(`/api/series/${seriesId}/vn/${vnId}`, { method: 'DELETE' });
+          if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+          startTransition(() => router.refresh());
+        } catch (err) {
+          toast.error((err as Error).message);
+        }
       }}
       disabled={pending}
     >

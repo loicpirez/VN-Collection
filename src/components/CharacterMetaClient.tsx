@@ -123,7 +123,7 @@ function InlineSpoilerReveal({
               : 'border-dashed border-status-on_hold/60 text-status-on_hold/80'
           }`}
           aria-label={t.spoiler.revealOne}
-          aria-pressed={false}
+          aria-expanded={effectiveRevealed}
           data-spoiler-state={effectiveRevealed ? 'transient' : 'hidden'}
           title={effectiveRevealed ? t.spoiler.hideHint : t.spoiler.markupSummary}
         >

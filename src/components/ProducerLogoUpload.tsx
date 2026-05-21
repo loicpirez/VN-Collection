@@ -3,6 +3,7 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImageMinus, ImagePlus, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { readApiError } from '@/lib/api-error-read';
 
 interface Props {
   producerId: string;
@@ -57,7 +58,7 @@ export function ProducerLogoUpload({ producerId, hasLogo }: Props) {
     setBusy(true);
     try {
       const res = await fetch(`/api/producer/${producerId}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error(t.common.error);
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
       setInfo(t.producers.fetched);
       startTransition(() => router.refresh());
     } catch (e) {

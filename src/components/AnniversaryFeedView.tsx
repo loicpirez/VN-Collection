@@ -19,9 +19,6 @@ interface Props {
   title: string;
   /** "{n}" placeholder template — substituted client-side per entry. */
   yearsAgoTemplate: string;
-  /** Copy shown when no anniversary matches today. Lets the user know
-   *  the section is wired and tells them what would populate it. */
-  emptyHint: string;
   entries: AnniversaryEntry[];
   initialState?: HomeSectionState;
 }
@@ -31,7 +28,7 @@ interface Props {
  * collapse state via `useHomeSection`; the parent server component
  * supplies the data so the DB read stays on the server.
  */
-export function AnniversaryFeedView({ title, yearsAgoTemplate, emptyHint, entries, initialState }: Props) {
+export function AnniversaryFeedView({ title, yearsAgoTemplate, entries, initialState }: Props) {
   const { state, busy, isHidden, isCollapsed, toggleCollapsed, hide } = useHomeSection(
     'anniversary',
     initialState,

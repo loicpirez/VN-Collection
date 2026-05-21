@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { CheckSquare, CloudDownload, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -21,14 +21,6 @@ const FORWARDED_PARAMS = [
   'q',
 ] as const;
 
-/**
- * Module-scope stop handler. The component is a singleton in
- * practice (rendered once in the page chrome), so a `let` on the
- * module is cleaner than stashing it on `window` via a double-cast.
- * If we ever genuinely need multiple instances we'd promote this to
- * a React context.
- */
-let bulkAbortRef: (() => void) | null = null;
 
 interface Failure {
   id: string;
@@ -63,6 +55,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [activeMode, setActiveMode] = useState<'missing' | 'full'>('missing');
   const [selectiveOpen, setSelectiveOpen] = useState(false);
+  const bulkAbortRef = useRef<(() => void) | null>(null);
 
   // Pull the user's current library URL filters so the modal pre-narrows
   // to what's visible on screen. Outside the library page the dropdown is
@@ -98,7 +91,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
 
     let abort = false;
     const onClickStop = () => { abort = true; };
-    bulkAbortRef = onClickStop;
+    bulkAbortRef.current = onClickStop;
 
     const local: Failure[] = [];
     const egsAgg = new Map<EgsWarning['kind'], EgsWarning>();
@@ -147,7 +140,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
     } finally {
       setRunning(false);
       setCurrentTitle(null);
-      bulkAbortRef = null;
+      bulkAbortRef.current = null;
     }
   }
 
@@ -195,7 +188,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
   }
 
   function stop() {
-    bulkAbortRef?.();
+    bulkAbortRef.current?.();
   }
 
   function dismiss() {

@@ -30,8 +30,9 @@ export function ReadingGoalCard({ year }: Props) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    const ac = new AbortController();
     setLoaded(false);
-    fetch(`/api/reading-goal?year=${year}`)
+    fetch(`/api/reading-goal?year=${year}`, { signal: ac.signal })
       .then((r) => r.json())
       .then((d: { goal?: { target: number } | null; finished?: number }) => {
         setTarget(d.goal?.target ?? null);
@@ -40,6 +41,7 @@ export function ReadingGoalCard({ year }: Props) {
       })
       .catch(() => undefined)
       .finally(() => setLoaded(true));
+    return () => ac.abort();
   }, [year]);
 
   async function save() {

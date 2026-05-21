@@ -101,12 +101,12 @@ export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
       <p className="mb-3 text-[11px] text-muted">{t.cover.hint}</p>
       {hiddenInput}
       <div className="flex flex-wrap gap-2">
-        <button className="btn" onClick={() => inputRef.current?.click()} disabled={busy || pending}>
+        <button type="button" className="btn" onClick={() => inputRef.current?.click()} disabled={busy || pending}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
           {busy ? t.cover.uploading : t.cover.uploadCta}
         </button>
         {hasCustom && (
-          <button className="btn btn-danger" onClick={remove} disabled={busy || pending}>
+          <button type="button" className="btn btn-danger" onClick={remove} disabled={busy || pending}>
             <ImageMinus className="h-4 w-4" /> {t.cover.remove}
           </button>
         )}

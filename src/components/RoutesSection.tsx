@@ -140,7 +140,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     setError(null);
     try {
       const r = await fetch(`/api/route/${id}`, { method: 'DELETE' });
-      if (!r.ok) throw new Error(t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await reload();
       startTransition(() => router.refresh());
     } catch (err) {
@@ -165,7 +165,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: next.map((x) => x.id) }),
       });
-      if (!r.ok) throw new Error(t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await reload();
     } catch (err) {
       setError((err as Error).message);

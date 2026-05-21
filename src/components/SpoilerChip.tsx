@@ -127,7 +127,7 @@ export function SpoilerChip({
         <button
           type="button"
           onClick={() => setRevealed(true)}
-          aria-pressed={false}
+          aria-expanded={effectiveState === 'transient'}
           aria-label={t.spoiler.revealOne}
           className={`group inline-flex items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-status-on_hold ${
             effectiveState === 'transient'

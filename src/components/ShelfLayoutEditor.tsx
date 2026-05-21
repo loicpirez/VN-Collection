@@ -107,23 +107,24 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   const [showFrontDisplay, setShowFrontDisplay] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const createInputRef = useRef<HTMLInputElement | null>(null);
+  const refreshAbortRef = useRef<AbortController | null>(null);
 
   // Load the active shelf's slots on first selection. Subsequent
   // selections re-use the cached entry until a mutation invalidates it.
   useEffect(() => {
     if (activeId == null) return;
     if (loaded[activeId]) return;
-    let cancelled = false;
+    const ac = new AbortController();
     (async () => {
       try {
-        const res = await fetch(`/api/shelves/${activeId}`, { cache: 'no-store' });
+        const res = await fetch(`/api/shelves/${activeId}`, { cache: 'no-store', signal: ac.signal });
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as {
           shelf: ShelfUnitWithCount;
           slots: ShelfSlotEntry[];
           displays?: ShelfDisplaySlotEntry[];
         };
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         setLoaded((prev) => ({
           ...prev,
           [activeId]: {
@@ -133,23 +134,22 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           },
         }));
       } catch (e) {
-        if (!cancelled) toast.error((e as Error).message || t.shelfLayout.saveFailed);
+        if (!ac.signal.aborted) toast.error((e as Error).message || t.shelfLayout.saveFailed);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => ac.abort();
   }, [activeId, loaded, toast, t.shelfLayout.saveFailed]);
 
   useEffect(() => {
     if (!highlightVnId || shelves.length === 0) return;
-    let cancelled = false;
+    const ac = new AbortController();
     (async () => {
       for (const shelf of shelves) {
+        if (ac.signal.aborted) return;
         const existing = loaded[shelf.id];
         let data = existing;
         if (!data) {
-          const res = await fetch(`/api/shelves/${shelf.id}`, { cache: 'no-store' }).catch(() => null);
+          const res = await fetch(`/api/shelves/${shelf.id}`, { cache: 'no-store', signal: ac.signal }).catch(() => null);
           if (!res?.ok) continue;
           const json = (await res.json()) as {
             shelf: ShelfUnitWithCount;
@@ -157,12 +157,12 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             displays?: ShelfDisplaySlotEntry[];
           };
           data = { shelf: json.shelf, slots: json.slots, displays: json.displays ?? [] };
-          if (!cancelled) setLoaded((prev) => ({ ...prev, [shelf.id]: data! }));
+          if (!ac.signal.aborted) setLoaded((prev) => ({ ...prev, [shelf.id]: data! }));
         }
         const found =
           data.slots.some((slot) => slot.vn_id === highlightVnId) ||
           data.displays.some((slot) => slot.vn_id === highlightVnId);
-        if (found && !cancelled) {
+        if (found && !ac.signal.aborted) {
           setActiveId(shelf.id);
           window.setTimeout(() => {
             document
@@ -173,9 +173,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         }
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => ac.abort();
   }, [highlightVnId, shelves, loaded]);
 
   useEffect(() => {
@@ -254,7 +252,11 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
 
   async function refreshActiveShelf(id = activeId) {
     if (id == null) return;
-    const res = await fetch(`/api/shelves/${id}`, { cache: 'no-store' });
+    refreshAbortRef.current?.abort();
+    const ac = new AbortController();
+    refreshAbortRef.current = ac;
+    const res = await fetch(`/api/shelves/${id}`, { cache: 'no-store', signal: ac.signal });
+    if (ac.signal.aborted) return;
     if (!res.ok) throw new Error(await res.text());
     const data = (await res.json()) as {
       shelf: ShelfUnitWithCount;

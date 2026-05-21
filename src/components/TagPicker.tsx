@@ -43,6 +43,7 @@ export function TagPicker({
   const [hits, setHits] = useState<TagSummary[]>([]);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const search = useCallback(
     async (q: string) => {
@@ -51,16 +52,22 @@ export function TagPicker({
         setHits([]);
         return;
       }
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
       setSearching(true);
       try {
         const params = new URLSearchParams({ q: trimmed, results: '20' });
         if (category) params.set('category', category);
-        const r = await fetch(`/api/tags?${params.toString()}`, { cache: 'no-store' });
+        const r = await fetch(`/api/tags?${params.toString()}`, { cache: 'no-store', signal: ac.signal });
+        if (ac.signal.aborted) return;
         if (!r.ok) return;
         const d = (await r.json()) as { tags?: TagSummary[] };
         setHits(d.tags ?? []);
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') setHits([]);
       } finally {
-        setSearching(false);
+        if (!ac.signal.aborted) setSearching(false);
       }
     },
     [category],
@@ -71,6 +78,7 @@ export function TagPicker({
     debounceRef.current = setTimeout(() => search(query), 250);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
     };
   }, [query, search]);
 

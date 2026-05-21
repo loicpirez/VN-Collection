@@ -331,23 +331,25 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
             sorted.map((r) => {
               const isPicked = picked.has(r.id);
               return (
-                <li
-                  key={r.id}
-                  onClick={() => toggle(r.id)}
-                  className={`flex cursor-pointer items-center gap-2 border-b border-border px-3 py-1.5 text-xs last:border-b-0 ${
-                    isPicked ? 'bg-accent/10' : 'hover:bg-bg-elev/50'
-                  }`}
-                >
-                  <span
-                    className={`flex h-4 w-4 items-center justify-center rounded border ${
-                      isPicked ? 'border-accent bg-accent text-bg' : 'border-border'
+                <li key={r.id} className="border-b border-border last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => toggle(r.id)}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs ${
+                      isPicked ? 'bg-accent/10' : 'hover:bg-bg-elev/50'
                     }`}
                   >
-                    {isPicked && <Check className="h-3 w-3" />}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate font-bold">{r.title}</span>
-                  <span className="shrink-0 font-mono text-[10px] text-muted">{r.id}</span>
-                  {r.released && <span className="shrink-0 text-[10px] text-muted">{r.released.slice(0, 4)}</span>}
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        isPicked ? 'border-accent bg-accent text-bg' : 'border-border'
+                      }`}
+                    >
+                      {isPicked && <Check className="h-3 w-3" />}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-bold">{r.title}</span>
+                    <span className="shrink-0 font-mono text-[10px] text-muted">{r.id}</span>
+                    {r.released && <span className="shrink-0 text-[10px] text-muted">{r.released.slice(0, 4)}</span>}
+                  </button>
                 </li>
               );
             })

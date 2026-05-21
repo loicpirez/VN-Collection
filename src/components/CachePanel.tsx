@@ -1,8 +1,9 @@
 'use client';
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2, RefreshCw, Database } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
+import { readApiError } from '@/lib/api-error-read';
 
 interface CacheStat {
   total: number;
@@ -30,16 +31,13 @@ export function CachePanel() {
   const { confirm } = useConfirm();
   const [stats, setStats] = useState<CacheStat | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Collapsed by default — the cache panel is a power-user tool, not the
-  // first thing the user wants to see on /stats. They open it when they
-  // want to inspect / prune.
   const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [clearing, setClearing] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/vndb/cache', { cache: 'no-store' });
-      if (!r.ok) throw new Error(t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = await r.json();
       setStats(d.stats);
       setError(null);
@@ -54,13 +52,16 @@ export function CachePanel() {
 
   async function clearAll(mode: 'all' | 'expired') {
     setError(null);
+    setClearing(true);
     try {
       const url = mode === 'all' ? '/api/vndb/cache' : '/api/vndb/cache?mode=expired';
       const r = await fetch(url, { method: 'DELETE' });
-      if (!r.ok) throw new Error(t.common.error);
-      startTransition(() => load());
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      await load();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setClearing(false);
     }
   }
 
@@ -115,7 +116,7 @@ export function CachePanel() {
           )}
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <button className="btn" onClick={() => clearAll('expired')} disabled={pending}>
+            <button className="btn" onClick={() => clearAll('expired')} disabled={clearing}>
               <RefreshCw className="h-4 w-4" /> {t.cache.pruneExpired}
             </button>
             <button
@@ -124,7 +125,7 @@ export function CachePanel() {
                 const ok = await confirm({ message: t.cache.clearConfirm, tone: 'danger' });
                 if (ok) clearAll('all');
               }}
-              disabled={pending}
+              disabled={clearing}
             >
               <Trash2 className="h-4 w-4" /> {t.cache.clearAll}
             </button>

@@ -182,9 +182,14 @@ export function SettingsButton() {
   const PAGE_LAYOUT_TABS = ['home', 'vn', 'character', 'staff', 'producer', 'series'] as const;
   type PageLayoutTab = typeof PAGE_LAYOUT_TABS[number];
 
+  const loadAbortRef = useRef<AbortController | null>(null);
+
   const loadServer = useCallback(async () => {
+    loadAbortRef.current?.abort();
+    const ac = new AbortController();
+    loadAbortRef.current = ac;
     try {
-      const r = await fetch('/api/settings', { cache: 'no-store' });
+      const r = await fetch('/api/settings', { cache: 'no-store', signal: ac.signal });
       if (!r.ok) return;
       setServer((await r.json()) as ServerSettings);
     } catch {
@@ -197,6 +202,7 @@ export function SettingsButton() {
       loadServer();
       setTokenInput('');
     }
+    return () => { loadAbortRef.current?.abort(); };
   }, [open, loadServer]);
 
   async function saveServer(

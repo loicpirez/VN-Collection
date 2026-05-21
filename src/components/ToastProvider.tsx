@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -36,12 +36,26 @@ let nextId = 1;
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
   const [mounted, setMounted] = useState(false);
+  const timerRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    const map = timerRef.current;
+    return () => {
+      for (const tid of map.values()) clearTimeout(tid);
+      map.clear();
+    };
+  }, []);
+
   const dismiss = useCallback((id: number) => {
+    const tid = timerRef.current.get(id);
+    if (tid !== undefined) {
+      clearTimeout(tid);
+      timerRef.current.delete(id);
+    }
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
@@ -52,7 +66,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       setToasts((prev) => [...prev, entry]);
       const ms = duration ?? (kind === 'error' ? 6000 : 3500);
       if (ms > 0) {
-        setTimeout(() => dismiss(id), ms);
+        const tid = setTimeout(() => {
+          timerRef.current.delete(id);
+          dismiss(id);
+        }, ms);
+        timerRef.current.set(id, tid);
       }
     },
     [dismiss],

@@ -87,7 +87,7 @@ export function DropImport() {
       document.removeEventListener('dragover', onOver);
       document.removeEventListener('drop', onDrop);
     };
-  }, [router, t, toast]);
+  }, [router, t, toast, confirm]);
 
   if (!over && !busy) return null;
   return (

@@ -248,7 +248,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         `/api/collection/${vnId}/owned-releases?release_id=${encodeURIComponent(releaseId)}`,
         { method: 'DELETE' },
       );
-      if (!r.ok) throw new Error(t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await reload();
       toast.success(t.toast.removed);
       window.dispatchEvent(

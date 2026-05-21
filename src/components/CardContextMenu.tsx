@@ -42,12 +42,16 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
   const [busy, setBusy] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [favLocal, setFavLocal] = useState(favorite);
+  const [viewW, setViewW] = useState(1024);
+  const [viewH, setViewH] = useState(768);
 
   useEffect(() => {
-    // Remember the element that had focus when the menu opened so
-    // we can return there on close — the ARIA menu pattern requires
-    // it for keyboard users.
-    triggerRef.current = typeof document !== 'undefined' ? document.activeElement : null;
+    setViewW(window.innerWidth);
+    setViewH(window.innerHeight);
+  }, []);
+
+  useEffect(() => {
+    triggerRef.current = document.activeElement;
     const firstItem = ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled]), [role="menuitemcheckbox"]:not([disabled])');
     firstItem?.focus({ preventScroll: true });
     function outside(e: MouseEvent) {
@@ -108,19 +112,10 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
     }
   }
 
-  // Push the menu inside the viewport so a right-click near the
-  // screen edge doesn't clip the options off-screen. Clamp on both
-  // axes from both directions so even a 360-wide phone (the menu
-  // can be wider than the viewport itself, which used to push
-  // `left` negative) ends up on-screen.
-  const VIEW_W = typeof window !== 'undefined' ? window.innerWidth : 1024;
-  const VIEW_H = typeof window !== 'undefined' ? window.innerHeight : 768;
-  // Slightly conservative so the menu always has 8 px of breathing
-  // room on every side regardless of the row count.
-  const MENU_W = Math.min(220, VIEW_W - 16);
-  const MENU_H = Math.min(380, VIEW_H - 16);
-  const left = Math.max(8, Math.min(anchor.x, VIEW_W - MENU_W - 8));
-  const top = Math.max(8, Math.min(anchor.y, VIEW_H - MENU_H - 8));
+  const MENU_W = Math.min(220, viewW - 16);
+  const MENU_H = Math.min(380, viewH - 16);
+  const left = Math.max(8, Math.min(anchor.x, viewW - MENU_W - 8));
+  const top = Math.max(8, Math.min(anchor.y, viewH - MENU_H - 8));
 
   return (
     <div

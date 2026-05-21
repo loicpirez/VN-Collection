@@ -53,6 +53,7 @@ export function SimilarSeedPicker({
   const [editing, setEditing] = useState(!currentSeed);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastQueryRef = useRef('');
+  const searchAbortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const search = useCallback(async (q: string) => {
@@ -63,10 +64,13 @@ export function SimilarSeedPicker({
       return;
     }
     lastQueryRef.current = trimmed;
+    searchAbortRef.current?.abort();
+    const ac = new AbortController();
+    searchAbortRef.current = ac;
     setSearching(true);
 
     const [localRes, vndbRes] = await Promise.allSettled([
-      fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store' })
+      fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store', signal: ac.signal })
         .then((r) => (r.ok ? r.json() : { matches: [] }))
         .then(
           (d) =>
@@ -81,7 +85,7 @@ export function SimilarSeedPicker({
               image_sexual?: number | null;
             }>,
         ),
-      fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store' })
+      fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store', signal: ac.signal })
         .then((r) => (r.ok ? r.json() : { results: [] }))
         .then(
           (d) =>
@@ -97,7 +101,7 @@ export function SimilarSeedPicker({
         ),
     ]);
 
-    if (lastQueryRef.current !== trimmed) return;
+    if (ac.signal.aborted || lastQueryRef.current !== trimmed) return;
     setSearching(false);
 
     const localRows = localRes.status === 'fulfilled' ? localRes.value : [];
@@ -139,6 +143,7 @@ export function SimilarSeedPicker({
     debounceRef.current = setTimeout(() => void search(query), 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      searchAbortRef.current?.abort();
     };
   }, [query, search]);
 

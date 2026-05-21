@@ -13,8 +13,8 @@ import { spoilerVisibility } from '@/lib/spoiler-reveal';
  *   2. Trait chips with `spoiler: 1` or `spoiler: 2` use SpoilerChip,
  *      which composes the same visibility rule as the shared helper
  *      (validated below).
- *   3. The reveal trigger advertises `aria-pressed` so screen-reader
- *      users hear the toggle state. The hide affordance is symmetric.
+ *   3. The reveal trigger advertises `aria-expanded` so screen-reader
+ *      users hear that hidden content can be expanded. The hide affordance uses `aria-pressed`.
  *
  * Source-pin tests here defend against three regression classes:
  *   - Someone adds a top-level SpoilerReveal around VndbMarkup on the
@@ -59,8 +59,8 @@ describe('character page — trait chips route through <SpoilerChip>', () => {
 describe('SpoilerChip — aria-pressed and hide affordance', () => {
   const src = read('src/components/SpoilerChip.tsx');
 
-  it('flips aria-pressed when the chip is in its hidden state', () => {
-    expect(src).toMatch(/aria-pressed=\{false\}/);
+  it('uses aria-expanded on the hidden-state reveal button', () => {
+    expect(src).toMatch(/aria-expanded=\{effectiveState === 'transient'\}/);
   });
   it('flips aria-pressed when the user reveals a previously-gated chip', () => {
     expect(src).toMatch(/aria-pressed=\{wasGatedAndRevealed \? true : undefined\}/);

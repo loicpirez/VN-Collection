@@ -22,12 +22,14 @@ export function QueueButton({ vnId }: { vnId: string }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    fetch('/api/reading-queue', { cache: 'no-store' })
+    const ac = new AbortController();
+    fetch('/api/reading-queue', { cache: 'no-store', signal: ac.signal })
       .then((r) => r.json())
       .then((d: { entries: { vn_id: string }[] }) => {
         setQueued(d.entries.some((e) => e.vn_id === vnId));
       })
       .catch(() => undefined);
+    return () => ac.abort();
   }, [vnId]);
 
   async function toggle() {

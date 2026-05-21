@@ -39,7 +39,6 @@ export async function AnniversaryFeed({ initialState }: { initialState?: HomeSec
     <AnniversaryFeedView
       title={t.anniversary.title}
       yearsAgoTemplate={t.anniversary.yearsAgo}
-      emptyHint={t.anniversary.emptyHint}
       entries={entries}
       initialState={initialState}
     />

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Bookmark, Plus, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
+import { readApiError } from '@/lib/api-error-read';
 import type { SeriesRow } from '@/lib/types';
 
 export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
@@ -30,8 +31,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
         body: JSON.stringify({ name: trimmed, description: description.trim() || null }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || t.common.error);
+        throw new Error(await readApiError(res, t.common.error));
       }
       const data = await res.json();
       setItems((s) => [...s, data.series].sort((a, b) => a.name.localeCompare(b.name)));
@@ -48,7 +48,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
     if (!ok) return;
     const res = await fetch(`/api/series/${id}`, { method: 'DELETE' });
     if (!res.ok) {
-      setError(t.common.error);
+      setError(await readApiError(res, t.common.error));
       return;
     }
     setItems((s) => s.filter((x) => x.id !== id));
