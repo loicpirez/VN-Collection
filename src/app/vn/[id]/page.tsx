@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { cache } from 'react';
 import Link from 'next/link';
+import { after } from 'next/server';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Box, ChevronRight, ExternalLink, HardDriveDownload, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
 import {
@@ -207,18 +208,12 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   const inCol = isInCollection(id);
   const allSeries = listSeries();
   const listsForThisVn = listListsForVn(id);
-  // Aspect ratio: materialize from cached VNDB release payloads ONCE,
-  // here, before any aspect-aware component renders. Both the
-  // identity metadata row AND the AspectOverrideControl below read
-  // the same derived state — they MUST agree.
   if (isVndbVnId(vn.id)) {
-    materializeReleaseAspectsForVn(vn.id);
-    // Harvest the rest of the per-release metadata (platforms,
-    // languages, release date, GTIN, …) from cached POST /release
-    // payloads so the shelf editor's edition popovers stop widening
-    // to VN-aggregate platforms. Idempotent + cheap once the cache
-    // exists.
-    materializeReleaseMetaForVn(vn.id);
+    const vnIdToMaterialize = vn.id;
+    after(() => {
+      materializeReleaseAspectsForVn(vnIdToMaterialize);
+      materializeReleaseMetaForVn(vnIdToMaterialize);
+    });
   }
   const status = (vn.status as Status | undefined) ?? null;
   const ratingNum = vn.rating != null ? (vn.rating / 10).toFixed(1) : '—';
@@ -556,17 +551,6 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   </dd>
                 </div>
               )}
-              {/*
-                Aspect ratio / resolution in the main identity metadata
-                — uses the same `deriveVnAspectDisplay` source of truth
-                as the Library filter and the AspectOverrideControl
-                lower on the page. The materializer call earlier in
-                this render ensured release_resolution_cache has
-                already been populated from cached VNDB release
-                payloads, so we don't flash an "unknown" state for
-                VNs whose only signal is in the cached `POST /release`
-                response body.
-              */}
               {(() => {
                 const aspectDisplay = isVndbVnId(vn.id)
                   ? deriveVnAspectDisplay(vn.id)
@@ -890,25 +874,13 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           sectionNodes['staff'] = <StaffSection staff={vn.staff ?? []} />;
         }
         {
-          // SSR-pre-derive so the AspectOverrideControl paints
-          // the right value on first frame instead of flashing
-          // "Auto · unknown" while the client fetch is in flight.
-          // Also materialize from any cached VNDB release payload
-          // Materialization already ran near the top of this
-          // render (see materializeReleaseAspectsForVn invocation
-          // above the identity metadata block). Both surfaces use
-          // the same derived data.
           const initialOverride = isVndbVnId(vn.id) ? getVnAspectOverride(vn.id) : null;
           const initialDerived = deriveVnAspectKey(vn.id);
           sectionNodes['aspect-override'] = (
             <AspectOverrideControl
               vnId={vn.id}
               initialDerived={initialDerived}
-              initialOverride={
-                initialOverride
-                  ? { aspect_key: initialOverride.aspect_key, note: initialOverride.note }
-                  : null
-              }
+              initialOverride={initialOverride ? { aspect_key: initialOverride.aspect_key, note: initialOverride.note } : null}
             />
           );
         }
