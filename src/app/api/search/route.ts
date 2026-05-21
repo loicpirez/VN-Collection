@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { searchVn } from '@/lib/vndb';
 import { isInCollectionMany } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const q = (req.nextUrl.searchParams.get('q') ?? '').trim();
   if (!q) return NextResponse.json({ results: [], more: false });
   try {
