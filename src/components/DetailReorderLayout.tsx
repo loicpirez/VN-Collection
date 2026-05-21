@@ -59,7 +59,7 @@ interface Props {
 }
 
 function defaultSectionLayoutV1(sectionIds: readonly string[]): SectionLayoutV1 {
-  const sections: Record<string, { visible: boolean; collapsed?: boolean }> = {};
+  const sections: Record<string, { visible: boolean; collapsedByDefault?: boolean }> = {};
   for (const id of sectionIds) sections[id] = { visible: true };
   return { sections, order: [...sectionIds] };
 }
