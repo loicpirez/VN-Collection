@@ -6,6 +6,7 @@ import { searchLocalStaff } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { languageDisplayName } from '@/lib/language-names';
 import { parseStaffSearchParams } from '@/lib/char-staff-search-filters';
+import { roleLabel } from '@/lib/staff-roles';
 import { NavTabStrip } from '@/components/NavTabStrip';
 
 export const dynamic = 'force-dynamic';
@@ -290,11 +291,11 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
                   href={`/staff/${s.id}`}
                   className="group block rounded-lg border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent"
                 >
-                  <p className="line-clamp-1 text-sm font-bold transition-colors group-hover:text-accent">
+                  <p className="line-clamp-1 text-sm font-bold transition-colors group-hover:text-accent" title={s.name}>
                     {s.name}
                   </p>
                   {s.original && (
-                    <p className="line-clamp-1 text-xs text-muted">{s.original}</p>
+                    <p className="line-clamp-1 text-xs text-muted" title={s.original}>{s.original}</p>
                   )}
                   <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted/80">
                     {s.lang && <Chip>{languageDisplayName(s.lang)}</Chip>}
@@ -310,7 +311,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
                     )}
                     {s.roles && s.roles.length > 0 && (
                       <Chip>
-                        {s.roles.slice(0, 2).join(', ')}
+                        {s.roles.slice(0, 2).map((r) => roleLabel(r, t.staff)).join(', ')}
                       </Chip>
                     )}
                     {s.ismain === false && (
@@ -320,7 +321,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
                     )}
                   </div>
                   {s.aliases && s.aliases.length > 1 && (
-                    <p className="mt-1 line-clamp-1 text-[10px] text-muted/70">
+                    <p className="mt-1 line-clamp-1 text-[10px] text-muted/70" title={s.aliases.map((a) => a.name).join(' · ')}>
                       {t.common.aka} {s.aliases.slice(0, 3).map((a) => a.name).join(' · ')}
                     </p>
                   )}

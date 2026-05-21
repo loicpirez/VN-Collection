@@ -51,11 +51,11 @@ export default async function ListsPage() {
                   >
                     <ListChecks className="h-4 w-4" />
                   </span>
-                  <h2 className="line-clamp-1 flex-1 text-base font-bold">{list.name}</h2>
+                  <h2 className="line-clamp-1 flex-1 text-base font-bold" title={list.name}>{list.name}</h2>
                   {!!list.pinned && <Pin className="h-3.5 w-3.5 text-accent" aria-hidden />}
                 </div>
                 {list.description && (
-                  <p className="line-clamp-2 text-xs text-muted">{list.description}</p>
+                  <p className="line-clamp-2 text-xs text-muted" title={list.description}>{list.description}</p>
                 )}
                 <div className="mt-3 text-[11px] uppercase tracking-wider text-muted">
                   {(list.vn_count === 1 ? t.lists.vnCountSingular : t.lists.vnCount).replace('{n}', String(list.vn_count))}

@@ -127,6 +127,7 @@ export function CharactersSection({
                     <div className="flex items-baseline justify-between gap-2">
                       <Link
                         href={`/character/${c.id}`}
+                        title={c.name}
                         className="truncate text-sm font-bold hover:text-accent"
                       >
                         <h4 className="truncate">{c.name}</h4>
@@ -136,7 +137,7 @@ export function CharactersSection({
                       </span>
                     </div>
                     {c.original && c.original !== c.name && (
-                      <div className="truncate text-xs text-muted">{c.original}</div>
+                      <div className="truncate text-xs text-muted" title={c.original}>{c.original}</div>
                     )}
                     {meta.length > 0 && (
                       <div className="mt-1 text-[11px] text-muted">{meta.join(' · ')}</div>
