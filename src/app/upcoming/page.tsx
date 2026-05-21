@@ -10,7 +10,6 @@ import { db, getCacheFreshness } from '@/lib/db';
 import { SkeletonRows } from '@/components/Skeleton';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { UpcomingCard, type UpcomingCardData } from '@/components/UpcomingCard';
 import { brandHref, yearHref } from '@/lib/egs-links';
@@ -93,7 +92,6 @@ export default async function UpcomingPage({
           </div>
           <div className="flex items-center gap-2">
             <CardDensitySlider scope="upcoming" />
-            <ContentWidthSlider scope="upcoming" />
             {tab === 'anticipated' ? (
               <RefreshScopeButton scope="upcoming-anticipated" lastUpdatedAt={lastUpdatedAt} />
             ) : tab === 'all' ? (
@@ -431,26 +429,26 @@ function ReleasesSection({
                 coverSexual: finalSexual,
                 inCollection: v ? inCollectionIds.has(v.id) : false,
                 variant: 'compact',
-                meta: (
-                  <>
-                    <div className="text-[11px] text-muted">
-                      {r.producers.filter((p) => p.id).slice(0, 3).map((p, i, arr) => (
-                        <Link key={p.id} href={`/producer/${p.id}`} className="hover:text-accent">
-                          {p.name}{i < arr.length - 1 ? ' · ' : ''}
-                        </Link>
-                      ))}
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-semibold">
-                      {r.patch && <span className="rounded bg-status-on_hold/25 px-1.5 py-0.5 uppercase text-status-on_hold">{t.releases.patch}</span>}
-                      {r.freeware && <span className="rounded bg-accent-blue/25 px-1.5 py-0.5 uppercase text-accent-blue">{t.releases.freeware}</span>}
-                      {r.has_ero && <span className="rounded bg-status-dropped/25 px-1.5 py-0.5 uppercase text-status-dropped">{t.releases.hasEro}</span>}
-                    </div>
-                  </>
-                ),
               };
+              const meta = (
+                <>
+                  <div className="text-[11px] text-muted">
+                    {r.producers.filter((p) => p.id).slice(0, 3).map((p, i, arr) => (
+                      <Link key={p.id} href={`/producer/${p.id}`} className="hover:text-accent">
+                        {p.name}{i < arr.length - 1 ? ' · ' : ''}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-semibold">
+                    {r.patch && <span className="rounded bg-status-on_hold/25 px-1.5 py-0.5 uppercase text-status-on_hold">{t.releases.patch}</span>}
+                    {r.freeware && <span className="rounded bg-accent-blue/25 px-1.5 py-0.5 uppercase text-accent-blue">{t.releases.freeware}</span>}
+                    {r.has_ero && <span className="rounded bg-status-dropped/25 px-1.5 py-0.5 uppercase text-status-dropped">{t.releases.hasEro}</span>}
+                  </div>
+                </>
+              );
               return (
                 <li key={r.id}>
-                  <UpcomingCard data={data} t={t} />
+                  <UpcomingCard data={data} meta={meta} t={t} />
                 </li>
               );
             })}
@@ -503,56 +501,56 @@ function AnticipatedSection({
             coverSexual,
             inCollection: a.vndb_id ? inCollectionIds.has(a.vndb_id) : false,
             variant: 'wide',
-            meta: (
-              <>
-                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
-                  {(() => {
-                    const href = yearHref(a.sellday);
-                    return href ? (
-                      <Link
-                        href={href}
-                        className="rounded bg-bg-card px-2 py-0.5 font-mono uppercase tracking-wider text-accent hover:bg-accent/15"
-                      >
-                        {a.sellday}
-                      </Link>
-                    ) : (
-                      <span className="rounded bg-bg-card px-2 py-0.5 font-mono uppercase tracking-wider text-accent">{a.sellday}</span>
-                    );
-                  })()}
-                  {a.brand_name && (() => {
-                    const href = brandHref(null, a.brand_name);
-                    return href ? (
-                      <Link href={href} className="line-clamp-1 hover:text-accent" title={a.brand_name}>
-                        {a.brand_name}
-                      </Link>
-                    ) : (
-                      <span className="line-clamp-1">{a.brand_name}</span>
-                    );
-                  })()}
-                </div>
-                <div className="mb-1 flex flex-wrap gap-1.5 text-[10px]">
-                  <span className="inline-flex items-center gap-1 rounded-md bg-accent/15 px-2 py-1 font-bold text-accent">
-                    <span className="opacity-70">{t.upcoming.willBuy}</span>
-                    <span className="text-sm">{a.will_buy}</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-md bg-accent-blue/15 px-2 py-1 font-bold text-accent-blue">
-                    <span className="opacity-70">{t.upcoming.probablyBuy}</span>
-                    <span className="text-sm">{a.probably_buy}</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-md bg-muted/15 px-2 py-1 font-bold text-muted">
-                    <span className="opacity-70">{t.upcoming.watching}</span>
-                    <span className="text-sm">{a.watching}</span>
-                  </span>
-                </div>
-              </>
-            ),
           };
+          const cardMeta = (
+            <>
+              <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
+                {(() => {
+                  const href = yearHref(a.sellday);
+                  return href ? (
+                    <Link
+                      href={href}
+                      className="rounded bg-bg-card px-2 py-0.5 font-mono uppercase tracking-wider text-accent hover:bg-accent/15"
+                    >
+                      {a.sellday}
+                    </Link>
+                  ) : (
+                    <span className="rounded bg-bg-card px-2 py-0.5 font-mono uppercase tracking-wider text-accent">{a.sellday}</span>
+                  );
+                })()}
+                {a.brand_name && (() => {
+                  const href = brandHref(null, a.brand_name);
+                  return href ? (
+                    <Link href={href} className="line-clamp-1 hover:text-accent" title={a.brand_name}>
+                      {a.brand_name}
+                    </Link>
+                  ) : (
+                    <span className="line-clamp-1">{a.brand_name}</span>
+                  );
+                })()}
+              </div>
+              <div className="mb-1 flex flex-wrap gap-1.5 text-[10px]">
+                <span className="inline-flex items-center gap-1 rounded-md bg-accent/15 px-2 py-1 font-bold text-accent">
+                  <span className="opacity-70">{t.upcoming.willBuy}</span>
+                  <span className="text-sm">{a.will_buy}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-accent-blue/15 px-2 py-1 font-bold text-accent-blue">
+                  <span className="opacity-70">{t.upcoming.probablyBuy}</span>
+                  <span className="text-sm">{a.probably_buy}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-muted/15 px-2 py-1 font-bold text-muted">
+                  <span className="opacity-70">{t.upcoming.watching}</span>
+                  <span className="text-sm">{a.watching}</span>
+                </span>
+              </div>
+            </>
+          );
           return (
             <li key={a.egs_id} className="relative">
               <span className="absolute -left-2 -top-2 z-10 flex h-8 min-w-8 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-bg shadow-card">
                 {startRank + i + 1}
               </span>
-              <UpcomingCard data={cardData} t={t} />
+              <UpcomingCard data={cardData} meta={cardMeta} t={t} />
             </li>
           );
         })}

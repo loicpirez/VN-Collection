@@ -48,10 +48,6 @@ export interface UpcomingCardData {
   /** True when the VN row exists in the local `collection`. Drives the
    *  visual "open local" affordance. */
   inCollection: boolean;
-  /** Pre-rendered metadata strip — producers chip row, badges, EGS
-   *  stats, …. Specific to each tab so we hand it in rather than try
-   *  to generalise. */
-  meta?: React.ReactNode;
   /** Variant: `wide` for the EGS-anticipated grid, `compact` for the
    *  release rows on the All / Collection tabs. */
   variant?: 'wide' | 'compact';
@@ -59,9 +55,12 @@ export interface UpcomingCardData {
 
 export function UpcomingCard({
   data,
+  meta,
   t,
 }: {
   data: UpcomingCardData;
+  /** Per-tab metadata strip — producers chip row, badges, EGS stats, …. */
+  meta?: React.ReactNode;
   t: Dictionary;
 }) {
   const {
@@ -75,7 +74,6 @@ export function UpcomingCard({
     coverLocal,
     coverSexual,
     inCollection,
-    meta,
     variant = 'compact',
   } = data;
 
@@ -117,7 +115,7 @@ export function UpcomingCard({
         }}
       >
         {internalHref ? (
-          <Link href={internalHref} className="block h-full w-full" aria-label={title}>
+          <Link href={internalHref} className="block h-full w-full" aria-label={t.upcoming.openVn.replace('{title}', title)}>
             <SafeImage
               src={coverUrl}
               localSrc={coverLocal ?? null}
