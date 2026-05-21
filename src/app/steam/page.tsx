@@ -70,6 +70,7 @@ export default function SteamSyncPage() {
 
   // Currently-stored links (auto + manual)
   const [links, setLinks] = useState<SteamLink[]>([]);
+  const [linksLoading, setLinksLoading] = useState(true);
 
   // Per-row manual-assign state: { [appid]: { query, matches[] } }
   const [assignQuery, setAssignQuery] = useState<Record<number, string>>({});
@@ -96,6 +97,7 @@ export default function SteamSyncPage() {
       }
       setUnlinked(lib.ok ? (lib.games ?? []) : []);
       setLinks(ls.links ?? []);
+      setLinksLoading(false);
     } catch (e) {
       setSuggestionsError((e as Error).message);
     } finally {
@@ -290,7 +292,13 @@ export default function SteamSyncPage() {
       </section>
 
       {/* Section 2: Current links */}
-      {links.length > 0 && (
+      {linksLoading && (
+        <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+          <div className="mb-3 h-3 w-28 animate-pulse rounded bg-bg-elev" />
+          <SkeletonRows count={4} withThumb={false} />
+        </section>
+      )}
+      {!linksLoading && links.length > 0 && (
         <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {t.steam.linksTitle} <span className="ml-1 text-[10px] font-normal">· {links.length}</span>
