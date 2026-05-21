@@ -106,6 +106,7 @@ export function ShelfReadOnlyControls({
   const hasOverride = activeShelfId ? shelfHasOverride(overrides, activeShelfId) : false;
   const [open, setOpen] = useState(false);
   const popRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   // Apply the EFFECTIVE prefs to `.shelf-view-root`. The per-shelf
   // override is captured by `prefs` so when the user is editing a
@@ -160,9 +161,12 @@ export function ShelfReadOnlyControls({
     };
   }, []);
 
-  // Close on outside click / Escape.
+  // Close on outside click / Escape; save + restore focus.
   useEffect(() => {
     if (!open) return;
+    triggerRef.current = document.activeElement as HTMLElement | null;
+    const firstFocusable = popRef.current?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    firstFocusable?.focus({ preventScroll: true });
     function onClick(e: MouseEvent) {
       if (!popRef.current) return;
       if (!popRef.current.contains(e.target as Node)) setOpen(false);
@@ -175,6 +179,8 @@ export function ShelfReadOnlyControls({
     return () => {
       document.removeEventListener('mousedown', onClick);
       document.removeEventListener('keydown', onKey);
+      const t = triggerRef.current;
+      if (t instanceof HTMLElement && document.contains(t)) t.focus({ preventScroll: true });
     };
   }, [open]);
 
