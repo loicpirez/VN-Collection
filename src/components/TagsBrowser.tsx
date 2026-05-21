@@ -174,25 +174,25 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         <RefreshScopeButton scope="tags-list" lastUpdatedAt={lastUpdatedAt} />
       </header>
 
-      <div role="group" aria-label={t.tags.tabLocal} className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
-        <Link
-          href={tagsPageHref('local')}
-          role="button"
-          aria-pressed={mode === 'local'}
-          onClick={(e) => { e.preventDefault(); switchMode('local'); }}
+      <div role="tablist" aria-label={t.tags.modeSwitcherLabel} className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'local'}
+          onClick={() => switchMode('local')}
           className={`rounded px-2.5 py-1 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabLocal}
-        </Link>
-        <Link
-          href={tagsPageHref('vndb')}
-          role="button"
-          aria-pressed={mode === 'vndb'}
-          onClick={(e) => { e.preventDefault(); switchMode('vndb'); }}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'vndb'}
+          onClick={() => switchMode('vndb')}
           className={`rounded px-2.5 py-1 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabVndb}
-        </Link>
+        </button>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-2">
