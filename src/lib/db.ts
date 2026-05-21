@@ -957,6 +957,44 @@ function open(): Database.Database {
     })();
   }
 
+  // Backfill staff_credit_index from existing staff_full cache entries.
+  // The table was added after most staff_full rows were already written via
+  // writeStaffFullCache, so those rows have no index entries. Without this
+  // backfill, brand-overlap returns 0 matches even when the cache is full.
+  const staffCreditIndexBackfilled = (db
+    .prepare(`SELECT value FROM app_setting WHERE key = 'staff_credit_index_v1'`)
+    .get() as { value: string | null } | undefined)?.value;
+  if (staffCreditIndexBackfilled !== '1') {
+    interface StaffFullBody {
+      productionCredits?: Array<{ id?: string }>;
+      vaCredits?: Array<{ id?: string }>;
+    }
+    const rows = db
+      .prepare(`SELECT cache_key, body FROM vndb_cache WHERE cache_key LIKE 'staff_full:%'`)
+      .all() as { cache_key: string; body: string }[];
+    const del = db.prepare('DELETE FROM staff_credit_index WHERE sid = ?');
+    const ins = db.prepare('INSERT OR IGNORE INTO staff_credit_index (sid, vn_id, is_va) VALUES (?, ?, ?)');
+    db.transaction(() => {
+      for (const r of rows) {
+        const sid = r.cache_key.replace('staff_full:', '');
+        let payload: StaffFullBody;
+        try {
+          payload = JSON.parse(r.body) as StaffFullBody;
+        } catch {
+          continue;
+        }
+        del.run(sid);
+        for (const c of payload.productionCredits ?? []) {
+          if (c.id) ins.run(sid, c.id, 0);
+        }
+        for (const c of payload.vaCredits ?? []) {
+          if (c.id) ins.run(sid, c.id, 1);
+        }
+      }
+      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('staff_credit_index_v1', '1')`).run();
+    })();
+  }
+
   // R5-138 backfill: populate `vn_tag_index` / `vn_developer_index`
   // / `vn_publisher_index` from existing `vn` rows. Marker-gated so
   // it only runs once. Mirrors the staff_va_credits_v1 shape: parse
@@ -6481,8 +6519,8 @@ function producerToRow(row: ProducerDbRow | undefined): ProducerRow | null {
     lang: row.lang,
     type: row.type,
     description: row.description,
-    aliases: row.aliases ? JSON.parse(row.aliases) : [],
-    extlinks: row.extlinks ? JSON.parse(row.extlinks) : [],
+    aliases: safeJsonParse(row.aliases, []),
+    extlinks: safeJsonParse(row.extlinks, []),
     logo_path: row.logo_path,
     fetched_at: row.fetched_at,
   };
@@ -7384,7 +7422,7 @@ export function exportData(): CollectionExportPayload {
     vns: vnRows.map((v) => ({
       id: v.id,
       title: v.title,
-      raw: v.raw ? JSON.parse(v.raw) : null,
+      raw: safeJsonParse(v.raw, null),
       fetched_at: v.fetched_at,
     })),
     collection,
