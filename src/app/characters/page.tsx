@@ -443,6 +443,11 @@ export default async function CharactersPage({ searchParams }: PageProps) {
         <>
           <p className="mb-3 text-xs text-muted">
             {sorted.length} {t.charactersSearch.resultsCount}
+            {localResults.length >= 200 && tab !== 'vndb' && (
+              <span className="ml-2 text-status-on_hold">
+                {t.charactersSearch.localLimitNotice}
+              </span>
+            )}
           </p>
           {groups.map((bucket) => (
             <section key={bucket.key} className="mb-6">

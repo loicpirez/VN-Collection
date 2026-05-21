@@ -27,10 +27,16 @@ async function qrSvg(text: string): Promise<string> {
   });
 }
 
-function parseIds(raw: string | undefined): Set<string> | null {
+const VN_ID_PATTERN = /^(v\d+|egs_\d+)$/i;
+
+function parseIds(raw: string | undefined): Set<string> | 'invalid' | null {
   if (!raw) return null;
-  const ids = raw.split(',').map((s) => s.trim()).filter(Boolean);
-  return ids.length > 0 ? new Set(ids) : null;
+  const segments = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  if (segments.length === 0) return null;
+  for (const seg of segments) {
+    if (!VN_ID_PATTERN.test(seg)) return 'invalid';
+  }
+  return new Set(segments);
 }
 
 export default async function LabelsPage({
@@ -39,7 +45,15 @@ export default async function LabelsPage({
   searchParams: Promise<{ ids?: string; status?: string }>;
 }) {
   const { ids: idsRaw, status } = await searchParams;
-  const filter = parseIds(idsRaw);
+  const parsedIds = parseIds(idsRaw);
+  if (parsedIds === 'invalid') {
+    return (
+      <div className="mx-auto max-w-5xl p-8 text-sm text-status-dropped">
+        Invalid ids parameter: each value must match v&#123;number&#125; or egs_&#123;number&#125;.
+      </div>
+    );
+  }
+  const filter = parsedIds;
   const t = await getDict();
   // Derive the host from the incoming request so QR codes resolve back to
   // the same origin the user is browsing — works for any port or LAN IP.
@@ -83,8 +97,15 @@ export default async function LabelsPage({
               key={it.id}
               className="flex items-center gap-2 rounded-md border border-border bg-bg-card p-2 text-[11px] print:border-black/40"
             >
-              {/* QR rendered as inline SVG — no network request, no
-                  third-party data leak, prints sharply at any size. */}
+              {/*
+                PAGE-017: dangerouslySetInnerHTML safety note.
+                The SVG string in `qrs[i]` is produced server-side by the
+                `qrcode` npm package (toString with type:'svg'). It contains
+                only SVG path/rect elements — no script, no event handler,
+                no external resource reference. The source is entirely
+                internal; no user-supplied string ever reaches this field.
+                This pattern is reviewed on every `qrcode` dependency update.
+              */}
               <div
                 aria-label={`QR ${it.id}`}
                 className="shrink-0 bg-white p-1 [&_svg]:h-20 [&_svg]:w-20"

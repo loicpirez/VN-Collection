@@ -55,12 +55,14 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   const tagId = id.toLowerCase();
   const { tab, page } = parseTagPageParams(sp);
 
+  const LOCAL_LIMIT = 500;
   const localRows = db
     .prepare(
       `SELECT v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.local_image_thumb,
               v.image_sexual, v.rating, v.released
        FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
-       WHERE json_extract(je.value, '$.id') = ?`,
+       WHERE json_extract(je.value, '$.id') = ?
+       LIMIT ${LOCAL_LIMIT}`,
     )
     .all(tagId) as Array<{
       id: string;
@@ -94,6 +96,11 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         </Suspense>
         <p className="mt-3 text-sm text-muted">
           {state.isEmpty ? t.tagPage.emptyHint : t.tagPage.countHint.replace('{n}', String(count))}
+          {count >= LOCAL_LIMIT && (
+            <span className="ml-2 text-status-on_hold text-xs">
+              ({t.tagPage.localLimitNotice})
+            </span>
+          )}
         </p>
 
         {/*

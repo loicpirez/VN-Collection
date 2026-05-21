@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { SearchClient } from '@/components/SearchClient';
 import { getDict } from '@/lib/i18n/server';
+import { SkeletonRows } from '@/components/Skeleton';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function SearchPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<SkeletonRows count={8} />}>
       <SearchClient />
     </Suspense>
   );

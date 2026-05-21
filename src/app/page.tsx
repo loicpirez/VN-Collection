@@ -7,6 +7,7 @@ import { HomeLibraryControlsSection, HomeLibraryGridSection } from '@/components
 import { HomeLayoutEditorTrigger } from '@/components/HomeLayoutEditorTrigger';
 import { getAppSetting } from '@/lib/db';
 import { parseHomeSectionLayoutV1, type HomeSectionId } from '@/lib/home-section-layout';
+import { SkeletonCardGrid } from '@/components/Skeleton';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,12 @@ export default function HomePage() {
   // returns null when `state.visible === false`; the menu inside each
   // header writes mutations back via PATCH /api/settings and triggers
   // a router.refresh() so the next paint reflects the change.
-  const layout = parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1'));
+  let layout: ReturnType<typeof parseHomeSectionLayoutV1>;
+  try {
+    layout = parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1'));
+  } catch {
+    layout = parseHomeSectionLayoutV1(null);
+  }
   // Map every section id to its renderable element so the order array
   // can drive the page composition. Library is a registered section so
   // the user can hide / collapse / reorder it like every other strip.
@@ -33,7 +39,7 @@ export default function HomePage() {
     ),
   };
   return (
-    <Suspense>
+    <Suspense fallback={<SkeletonCardGrid count={12} />}>
       <HomeLayoutEditorTrigger layout={layout} />
       {layout.order.map((id) => (
         <div key={id}>{sectionRenderers[id]}</div>

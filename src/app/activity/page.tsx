@@ -159,31 +159,43 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   const q = first(sp.q).trim();
   const kind = first(sp.kind).trim();
   const entity = first(sp.entity).trim();
-  const page = Math.max(0, parseInt(first(sp.page) || '0', 10));
-  const offset = page * PAGE_SIZE;
+  const vnPage = Math.max(0, parseInt(first(sp.vnPage) || '0', 10));
+  const sysPage = Math.max(0, parseInt(first(sp.sysPage) || '0', 10));
+  const vnOffset = vnPage * PAGE_SIZE;
+  const sysOffset = sysPage * PAGE_SIZE;
 
   const kinds = listActivityKinds();
-  const sysRowsAll = listUserActivity({ q: q || null, kind: kind || null, entity: entity || null, limit: offset + PAGE_SIZE + 1 });
-  const sysRows = sysRowsAll.slice(offset, offset + PAGE_SIZE);
-  // R5-223: "Next" must compare against `offset + PAGE_SIZE`, not the
-  // bare `PAGE_SIZE` — `sysRowsAll.length > PAGE_SIZE` evaluated true
-  // for any user with > 50 events total, even on the last page (where
-  // no further rows exist beyond the current slice).
-  const sysHasMore = sysRowsAll.length > offset + PAGE_SIZE;
+  const sysRowsAll = listUserActivity({ q: q || null, kind: kind || null, entity: entity || null, limit: sysOffset + PAGE_SIZE + 1 });
+  const sysRows = sysRowsAll.slice(sysOffset, sysOffset + PAGE_SIZE);
+  const sysHasMore = sysRowsAll.length > sysOffset + PAGE_SIZE;
 
-  const vnRowsAll = listRecentActivity(offset + PAGE_SIZE + 1);
-  const vnRows = vnRowsAll.slice(offset, offset + PAGE_SIZE);
-  const vnHasMore = vnRowsAll.length > offset + PAGE_SIZE;
+  const vnRowsAll = listRecentActivity(vnOffset + PAGE_SIZE + 1);
+  const vnRows = vnRowsAll.slice(vnOffset, vnOffset + PAGE_SIZE);
+  const vnHasMore = vnRowsAll.length > vnOffset + PAGE_SIZE;
 
   const fmt = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' });
   const statusLabels = t.status as Record<string, string>;
 
-  function pageHref(p: number) {
+  function baseParams() {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (kind) params.set('kind', kind);
     if (entity) params.set('entity', entity);
-    if (p > 0) params.set('page', String(p));
+    return params;
+  }
+
+  function vnPageHref(p: number) {
+    const params = baseParams();
+    if (p > 0) params.set('vnPage', String(p));
+    if (sysPage > 0) params.set('sysPage', String(sysPage));
+    const qs = params.toString();
+    return qs ? `/activity?${qs}` : '/activity';
+  }
+
+  function sysPageHref(p: number) {
+    const params = baseParams();
+    if (vnPage > 0) params.set('vnPage', String(vnPage));
+    if (p > 0) params.set('sysPage', String(p));
     const qs = params.toString();
     return qs ? `/activity?${qs}` : '/activity';
   }
@@ -260,7 +272,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                   </li>
                 ))}
               </ol>
-              <Pagination page={page} hasMore={vnHasMore} pageHref={pageHref} t={t} />
+              <Pagination page={vnPage} hasMore={vnHasMore} pageHref={vnPageHref} t={t} />
             </>
           )}
         </section>
@@ -300,7 +312,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                   );
                 })}
               </ol>
-              <Pagination page={page} hasMore={sysHasMore} pageHref={pageHref} t={t} />
+              <Pagination page={sysPage} hasMore={sysHasMore} pageHref={sysPageHref} t={t} />
             </>
           )}
         </section>

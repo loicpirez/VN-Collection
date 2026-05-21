@@ -1654,6 +1654,7 @@ export const dictionaries = {
     tagPage: {
       emptyHint: "Aucun VN avec ce tag dans ta bibliothèque locale.",
       countHint: '{n} VN avec ce tag dans ta bibliothèque.',
+      localLimitNotice: 'affiché limité à 500',
       exploreOnVndb: 'Explorer sur VNDB',
       openLibrary: 'Voir dans la bibliothèque',
       tabLocal: 'Bibliothèque',
@@ -1693,6 +1694,7 @@ export const dictionaries = {
       idleHint: 'Saisis un nom pour rechercher.',
       empty: 'Aucun personnage trouvé.',
       resultsCount: 'résultats',
+      localLimitNotice: '(résultats locaux limités à 200 — affine ta recherche pour en voir plus)',
       includeEro: 'Inclure images explicites',
       tabLocal: 'Local',
       tabVndb: 'VNDB',
@@ -4180,6 +4182,7 @@ export const dictionaries = {
     tagPage: {
       emptyHint: 'No VNs with this tag in your local library.',
       countHint: '{n} VNs with this tag in your library.',
+      localLimitNotice: 'display capped at 500',
       exploreOnVndb: 'Explore on VNDB',
       openLibrary: 'Open in library',
       tabLocal: 'Library',
@@ -4219,6 +4222,7 @@ export const dictionaries = {
       idleHint: 'Type a name to search.',
       empty: 'No characters found.',
       resultsCount: 'results',
+      localLimitNotice: '(local results capped at 200 — refine your search to see more)',
       includeEro: 'Include explicit images',
       tabLocal: 'Local',
       tabVndb: 'VNDB',
@@ -6703,6 +6707,7 @@ export const dictionaries = {
     tagPage: {
       emptyHint: 'ローカルライブラリにこのタグの VN はありません。',
       countHint: 'ライブラリにこのタグの VN が {n} 件あります。',
+      localLimitNotice: '表示は500件に制限されています',
       exploreOnVndb: 'VNDB で見る',
       openLibrary: 'ライブラリで開く',
       tabLocal: 'ライブラリ',
@@ -6742,6 +6747,7 @@ export const dictionaries = {
       idleHint: '名前を入力して検索してください。',
       empty: '該当するキャラクターはいません。',
       resultsCount: '件',
+      localLimitNotice: '（ローカル結果は200件に制限されています — 検索を絞り込んでください）',
       includeEro: 'R-18 画像も含む',
       tabLocal: 'ローカル',
       tabVndb: 'VNDB',

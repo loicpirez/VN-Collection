@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { after } from 'next/server';
@@ -12,6 +13,14 @@ import { VndbMarkup } from '@/components/VndbMarkup';
 import { safeHref } from '@/lib/safe-href';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const t = await getDict();
+  const release = await getRelease(id.toLowerCase()).catch(() => null);
+  const name = release?.title ?? id;
+  return { title: `${name} — ${t.releases.section}` };
+}
 
 const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> = {
   1: 'voiced1',
