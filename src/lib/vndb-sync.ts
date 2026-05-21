@@ -19,10 +19,9 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
  *   on_hold            3                Stalled
  *   dropped            4                Dropped
  *
- * Scaffolded — the helper exposes the mapping + a `pushStatus(vnId, status)`
- * stub. Wiring it into `updateCollection` is gated behind an opt-in setting
- * (`vndb_writeback = '1'`) so users who don't want their local state
- * mirrored remotely can keep their VNDB list untouched.
+ * `pushStatusToVndb` is called from `updateCollection` in `db.ts` when the
+ * app-setting `vndb_writeback = '1'` is enabled.  Users who don't want their
+ * local state mirrored remotely can leave the setting off (default).
  */
 
 export const VNDB_LABELS: Record<Status, number> = {
