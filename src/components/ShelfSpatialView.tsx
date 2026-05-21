@@ -208,7 +208,8 @@ function ShelfBlock({
         the spacing between ALL rows.  `--shelf-row-gap-px` continues to
         control the spacing between CELLS within a single shelf row.
       */}
-      <div className="overflow-x-auto" style={{ display: 'grid', gap: 'var(--shelf-section-gap-px, 16px)' }}>
+      <div className="scroll-fade-right overflow-x-auto">
+        <div style={{ display: 'grid', gap: 'var(--shelf-section-gap-px, 16px)' }}>
         {((): React.ReactNode => {
           const rowOrientation = (afterRow: number) =>
             displayRowOrientations[String(afterRow)] ?? defaultOrientation;
@@ -256,6 +257,7 @@ function ShelfBlock({
             </>
           );
         })()}
+        </div>
       </div>
     </section>
   );
