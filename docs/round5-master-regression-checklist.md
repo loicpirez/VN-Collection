@@ -418,16 +418,16 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | PAGE-022 | Page | `/search` Suspense around client component lacks fallback. | `src/app/search/page.tsx` | | source/browser proof | TODO |
 | PAGE-023 | Page | `/similar` hard-caps at 24 results with no pagination/notice. | `src/app/similar/page.tsx` | | browser/source proof | TODO |
 | PAGE-024 | Page | `/tag/[id]` local tab returns all matching rows without pagination/limit notice. | `src/app/tag/[id]/page.tsx` | | browser/source proof | TODO |
-| SECA-001 | security | `POST /api/vndb/pull-statuses` has no auth gate despite destructive sync. | `src/app/api/vndb/pull-statuses/route.ts` | | route test | TODO |
-| SECA-002 | security | `GET /api/vn/[id]` has side effects and fan-outs but no auth gate. | `src/app/api/vn/[id]/route.ts` | | route test | TODO |
-| SECA-003 | security | `GET /api/vn/[id]/quotes` leaks quote/character data without auth. | `src/app/api/vn/[id]/quotes/route.ts` | | route test | TODO |
-| SECA-004 | security | `GET /api/vn/[id]/lists` leaks list membership without auth. | `src/app/api/vn/[id]/lists/route.ts` | | route test | TODO |
-| SECA-005 | security | `/api/vn/[id]/aspect` lacks auth on GET/PATCH/DELETE; PATCH/DELETE mutate DB. | `src/app/api/vn/[id]/aspect/route.ts` | | route test | TODO |
-| SECA-006 | security | `/api/shelves` POST/PATCH lack auth gate. | `src/app/api/shelves/route.ts` | | route test | TODO |
-| SECA-007 | security | `/api/shelves/[id]` PATCH/DELETE lack auth gate. | `src/app/api/shelves/[id]/route.ts` | | route test | TODO |
-| SECA-008 | security | `/api/shelves/[id]/slots` write handlers must be audited for auth. | `src/app/api/shelves/[id]/slots/route.ts` | | route test | TODO |
-| SECA-009 | security | `/api/search` consumes VNDB quota without auth. | `src/app/api/search/route.ts` | | route test | TODO |
-| SECA-010 | security | `/api/activity` auth status must be verified for GET/write handlers. | `src/app/api/activity/route.ts` | | route test | TODO |
+| SECA-001 | security | `POST /api/vndb/pull-statuses` has no auth gate despite destructive sync. | `src/app/api/vndb/pull-statuses/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-002 | security | `GET /api/vn/[id]` has side effects and fan-outs but no auth gate. | `src/app/api/vn/[id]/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-003 | security | `GET /api/vn/[id]/quotes` leaks quote/character data without auth. | `src/app/api/vn/[id]/quotes/route.ts` | | route test | FIXED_VERIFIED cdf0d3c |
+| SECA-004 | security | `GET /api/vn/[id]/lists` leaks list membership without auth. | `src/app/api/vn/[id]/lists/route.ts` | | route test | FIXED_VERIFIED cdf0d3c |
+| SECA-005 | security | `/api/vn/[id]/aspect` lacks auth on GET/PATCH/DELETE; PATCH/DELETE mutate DB. | `src/app/api/vn/[id]/aspect/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-006 | security | `/api/shelves` POST/PATCH lack auth gate. | `src/app/api/shelves/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-007 | security | `/api/shelves/[id]` PATCH/DELETE lack auth gate. | `src/app/api/shelves/[id]/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-008 | security | `/api/shelves/[id]/slots` write handlers must be audited for auth. | `src/app/api/shelves/[id]/slots/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-009 | security | `/api/search` consumes VNDB quota without auth. | `src/app/api/search/route.ts` | | route test | FIXED_VERIFIED cdf0d3c |
+| SECA-010 | security | `/api/activity` auth status must be verified for GET/write handlers. | `src/app/api/activity/route.ts` | | route test | FIXED_VERIFIED cdf0d3c |
 | DBA-001 | DB/backend | Aspect filtering/grouping triggers per-VN N+1 `materializeReleaseAspectsForVn(id)` loop on collection GET. | `src/app/api/collection/route.ts`, `src/lib/db.ts` | 3474284 | materializeReleaseAspectsForCollectionVns() batch fn: single IN check + single vndb_cache scan + single tx; O(n) loop replaced; yarn test 1417/1417 | FIXED_VERIFIED |
 | DBA-002 | DB/backend | `uniqueSlug()` SELECT loop is safe in create transaction but unsafe for `updateUserList`. | `src/lib/db.ts` | | unit/source proof | TODO |
 | DBA-003 | DB/backend | `updateUserList` check/slug/update not in transaction; TOCTOU duplicate slug risk. | `src/lib/db.ts` | a56905e | Full updateUserList body wrapped in db.transaction(); yarn test 1363/1363 | FIXED_VERIFIED |
@@ -483,13 +483,13 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | SECA-012 | security | `POST /api/collection/[id]/activity` has no auth gate; any caller can log collection activity. | `src/app/api/collection/[id]/activity/route.ts` | f425376 | POST and DELETE gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
 | SECA-013 | security | `POST/DELETE /api/reading-queue` has no auth gate; any caller can mutate reading queue. | `src/app/api/reading-queue/route.ts` | f425376 | POST/DELETE/PATCH gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
 | SECA-014 | security | `POST/PATCH/DELETE /api/lists/[id]/items` has no auth gate; any caller can mutate list items. | `src/app/api/lists/[id]/items/route.ts` | f425376 | POST and DELETE gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
-| SECA-015 | security | `GET /api/collection/tags` has no auth gate; leaks tag data. | `src/app/api/collection/tags/route.ts` | | route test | TODO |
-| SECA-016 | security | `/api/places` write handlers lack auth gate. | `src/app/api/places/route.ts` | | route test | TODO |
-| SECA-017 | security | `/api/maintenance/duplicates` has no auth gate; triggers expensive DB scan. | `src/app/api/maintenance/duplicates/route.ts` | | route test | TODO |
-| SECA-018 | security | `/api/export/csv` has no auth gate; leaks full collection as CSV. | `src/app/api/export/csv/route.ts` | | route test | TODO |
-| SECA-019 | security | `/api/export/ics` has no auth gate; leaks calendar data. | `src/app/api/export/ics/route.ts` | | route test | TODO |
-| SECA-020 | security | `/api/collection/export`, `/find`, `/characters`, `/traits`, `/full-download` lack auth gates. | `src/app/api/collection/` export/find/characters/traits/full-download routes | | route test | TODO |
-| SECA-021 | security | `/api/maintenance/stale`, `/producers`, `/download-status`, `/activity/kinds`, `/search/textual`, `/vn/[id]/lists`, `/vndb/auth` lack auth gates. | multiple routes | | route test | TODO |
+| SECA-015 | security | `GET /api/collection/tags` has no auth gate; leaks tag data. | `src/app/api/collection/tags/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-016 | security | `/api/places` write handlers lack auth gate. | `src/app/api/places/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-017 | security | `/api/maintenance/duplicates` has no auth gate; triggers expensive DB scan. | `src/app/api/maintenance/duplicates/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-018 | security | `/api/export/csv` has no auth gate; leaks full collection as CSV. | `src/app/api/export/csv/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-019 | security | `/api/export/ics` has no auth gate; leaks calendar data. | `src/app/api/export/ics/route.ts` | | route test | FIXED_VERIFIED 622d748 |
+| SECA-020 | security | `/api/collection/export`, `/find`, `/characters`, `/traits`, `/full-download` lack auth gates. | `src/app/api/collection/` export/find/characters/traits/full-download routes | | route test | FIXED_VERIFIED 622d748 |
+| SECA-021 | security | `/api/maintenance/stale`, `/producers`, `/download-status`, `/activity/kinds`, `/search/textual`, `/vn/[id]/lists`, `/vndb/auth` lack auth gates. | multiple routes | | route test | FIXED_VERIFIED 622d748 |
 | SECA-022 | security | `POST /api/egs/[id]/add` missing auth gate; mutates collection. | `src/app/api/egs/[id]/add/route.ts` | f425376 | requireLocalhostOrToken gate added before param read; yarn test 1363/1363 | FIXED_VERIFIED |
 | SECA-023 | security | `src/proxy.ts` CSRF guard is dead code — not imported as Next.js middleware; CSRF guard never runs. | `src/proxy.ts`, project root | b9c9492 | Created src/middleware.ts exporting middleware(); csrfGuard now active on /api/:path*; yarn test 1363/1363 | FIXED_VERIFIED |
 | SECA-024 | security | `/api/collection/order` write handlers lack auth gate. | `src/app/api/collection/order/route.ts` | f425376 | PATCH and DELETE gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
