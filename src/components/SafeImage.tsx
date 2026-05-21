@@ -103,7 +103,9 @@ export function SafeImage({
   const [errored, setErrored] = useState(false);
   const [inView, setInView] = useState(priority);
   const [loaded, setLoaded] = useState(false);
+  const [wasPreloaded, setWasPreloaded] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const loadedUrlsRef = useRef<Set<string>>(new Set());
   // Track the container's rendered size so 90/270 rotations can scale
   // up to fill the box. The state is only "live" when rotation is
   // 90/270 — keeps the ResizeObserver out of the hot path for the
@@ -137,16 +139,17 @@ export function SafeImage({
   const explicit = isExplicit(sexual, settings.nsfwThreshold);
   const shouldBlur = explicit && settings.blurR18 && !reveal;
 
-  // Reset error / inView state when the underlying URL changes — without
-  // this a recycled card in a virtualised list would inherit a stale
-  // "errored" flag AND a stale "in view" flag from the previous VN
-  // (the previous version only reset `inView` when `priority` was set,
-  // so non-priority recycled cards eagerly loaded without the lazy
-  // gating actually firing).
   useEffect(() => {
     setErrored(false);
-    setLoaded(false);
-    setInView(!!priority);
+    if (url && loadedUrlsRef.current.has(url)) {
+      setWasPreloaded(true);
+      setLoaded(true);
+      setInView(true);
+    } else {
+      setWasPreloaded(false);
+      setLoaded(false);
+      setInView(!!priority);
+    }
   }, [url, priority]);
 
   useEffect(() => {
@@ -226,9 +229,12 @@ export function SafeImage({
             alt={alt}
             decoding="async"
             loading={priority ? 'eager' : 'lazy'}
-            className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-[filter,opacity,transform] duration-200 ${loaded ? 'opacity-100' : 'opacity-0'} ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
+            className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} ${wasPreloaded ? '' : 'transition-[filter,opacity,transform] duration-200'} ${loaded ? 'opacity-100' : 'opacity-0'} ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
             style={rotationStyle}
-            onLoad={() => setLoaded(true)}
+            onLoad={() => {
+              loadedUrlsRef.current.add(url);
+              setLoaded(true);
+            }}
             onError={() => {
               setErrored(true);
               onLoadError?.();

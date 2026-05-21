@@ -57,7 +57,8 @@ describe('SafeImage loading skeleton', () => {
   it('keeps a skeleton visible until the image load event fires', () => {
     expect(source).toContain('const [loaded, setLoaded] = useState(false)');
     expect(source).toContain('data-safe-image-skeleton');
-    expect(source).toContain('onLoad={() => setLoaded(true)}');
+    expect(source).toContain('loadedUrlsRef.current.add(url)');
+    expect(source).toContain('setLoaded(true)');
     expect(source).toContain("loaded ? 'opacity-100' : 'opacity-0'");
   });
 
