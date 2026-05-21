@@ -75,14 +75,25 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
     function outside(e: MouseEvent) {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     }
-    function escape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
+    function key(e: KeyboardEvent) {
+      if (e.key === 'Escape') { setOpen(false); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+      const items = Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []);
+      if (items.length === 0) return;
+      e.preventDefault();
+      const idx = items.indexOf(document.activeElement as HTMLElement);
+      let next: HTMLElement | undefined;
+      if (e.key === 'Home') next = items[0];
+      else if (e.key === 'End') next = items[items.length - 1];
+      else if (e.key === 'ArrowDown') next = items[(idx + 1 + items.length) % items.length];
+      else next = items[(idx - 1 + items.length) % items.length];
+      next?.focus();
     }
     window.addEventListener('mousedown', outside);
-    window.addEventListener('keydown', escape);
+    window.addEventListener('keydown', key);
     return () => {
       window.removeEventListener('mousedown', outside);
-      window.removeEventListener('keydown', escape);
+      window.removeEventListener('keydown', key);
     };
   }, [open]);
 
