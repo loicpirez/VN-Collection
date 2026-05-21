@@ -790,24 +790,21 @@ function open(): Database.Database {
     const legacy = db
       .prepare(`SELECT vn_id, physical_location FROM collection WHERE physical_location IS NOT NULL AND NOT json_valid(physical_location)`)
       .all() as { vn_id: string; physical_location: string }[];
-    if (legacy.length > 0) {
-      const updateStmt = db.prepare(
-        `UPDATE collection SET physical_location = ? WHERE vn_id = ?`,
-      );
-      const run = db.transaction(() => {
-        for (const r of legacy) {
-          const parts = r.physical_location
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean);
-          updateStmt.run(parts.length ? JSON.stringify(parts) : null, r.vn_id);
-        }
-      });
-      run();
-    }
-    db.prepare(
-      `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('phys_loc_json_migration_v1', '1')`,
-    ).run();
+    const updateStmt = db.prepare(
+      `UPDATE collection SET physical_location = ? WHERE vn_id = ?`,
+    );
+    db.transaction(() => {
+      for (const r of legacy) {
+        const parts = r.physical_location
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        updateStmt.run(parts.length ? JSON.stringify(parts) : null, r.vn_id);
+      }
+      db.prepare(
+        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('phys_loc_json_migration_v1', '1')`,
+      ).run();
+    })();
   }
 
   // Legacy migration: EGS-only synthetic ids used `egs:NNN` (colon). The
@@ -820,29 +817,27 @@ function open(): Database.Database {
     const legacyEgs = db
       .prepare(`SELECT id FROM vn WHERE id LIKE 'egs:%'`)
       .all() as { id: string }[];
-    if (legacyEgs.length > 0) {
-        db.transaction(() => {
-        // defer_foreign_keys defers FK constraint checks to commit time
-        // so the PK rename + child-table updates can happen in any order
-        // within the same transaction. Resets automatically at commit/
-        // rollback — safer than the session-level foreign_keys = OFF/ON.
-        db.pragma('defer_foreign_keys = ON');
-        for (const { id } of legacyEgs) {
-          const fixed = `egs_${id.slice(4)}`;
-          db.prepare('UPDATE vn SET id = ? WHERE id = ?').run(fixed, id);
-          // FKs aren't ON UPDATE CASCADE in the legacy schema, so update each side.
-          db.prepare('UPDATE collection SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-          db.prepare('UPDATE egs_game SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-          db.prepare('UPDATE vn_quote SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-          db.prepare('UPDATE owned_release SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-          db.prepare('UPDATE vn_route SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-          db.prepare('UPDATE series_vn SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
-        }
-      })();
-    }
-    db.prepare(
-      `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v1', '1')`,
-    ).run();
+    db.transaction(() => {
+      // defer_foreign_keys defers FK constraint checks to commit time
+      // so the PK rename + child-table updates can happen in any order
+      // within the same transaction. Resets automatically at commit/
+      // rollback — safer than the session-level foreign_keys = OFF/ON.
+      db.pragma('defer_foreign_keys = ON');
+      for (const { id } of legacyEgs) {
+        const fixed = `egs_${id.slice(4)}`;
+        db.prepare('UPDATE vn SET id = ? WHERE id = ?').run(fixed, id);
+        // FKs aren't ON UPDATE CASCADE in the legacy schema, so update each side.
+        db.prepare('UPDATE collection SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE egs_game SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE vn_quote SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE owned_release SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE vn_route SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE series_vn SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+      }
+      db.prepare(
+        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v1', '1')`,
+      ).run();
+    })();
   }
 
   // Legacy migration: `egs_game.playtime_median_minutes` used to store the
@@ -2827,27 +2822,29 @@ export function updateGameLogEntry(
   id: number,
   patch: { note?: string; logged_at?: number; session_minutes?: number | null },
 ): GameLogEntry | null {
-  const current = db
-    .prepare('SELECT id, vn_id, note, logged_at, session_minutes, created_at, updated_at FROM vn_game_log WHERE id = ?')
-    .get(id) as GameLogEntry | undefined;
-  if (!current) return null;
-  const next: GameLogEntry = {
-    ...current,
-    note: patch.note != null ? patch.note.trim().slice(0, GAME_LOG_NOTE_MAX) : current.note,
-    logged_at: patch.logged_at ?? current.logged_at,
-    session_minutes:
-      patch.session_minutes === undefined
-        ? current.session_minutes
-        : patch.session_minutes != null && patch.session_minutes > 0
-          ? Math.round(patch.session_minutes)
-          : null,
-    updated_at: Date.now(),
-  };
-  if (next.note.length === 0) throw new Error('empty note');
-  db.prepare(
-    'UPDATE vn_game_log SET note = ?, logged_at = ?, session_minutes = ?, updated_at = ? WHERE id = ?',
-  ).run(next.note, next.logged_at, next.session_minutes, next.updated_at, id);
-  return next;
+  return db.transaction((): GameLogEntry | null => {
+    const current = db
+      .prepare('SELECT id, vn_id, note, logged_at, session_minutes, created_at, updated_at FROM vn_game_log WHERE id = ?')
+      .get(id) as GameLogEntry | undefined;
+    if (!current) return null;
+    const next: GameLogEntry = {
+      ...current,
+      note: patch.note != null ? patch.note.trim().slice(0, GAME_LOG_NOTE_MAX) : current.note,
+      logged_at: patch.logged_at ?? current.logged_at,
+      session_minutes:
+        patch.session_minutes === undefined
+          ? current.session_minutes
+          : patch.session_minutes != null && patch.session_minutes > 0
+            ? Math.round(patch.session_minutes)
+            : null,
+      updated_at: Date.now(),
+    };
+    if (next.note.length === 0) throw new Error('empty note');
+    db.prepare(
+      'UPDATE vn_game_log SET note = ?, logged_at = ?, session_minutes = ?, updated_at = ? WHERE id = ?',
+    ).run(next.note, next.logged_at, next.session_minutes, next.updated_at, id);
+    return next;
+  })();
 }
 
 export function deleteGameLogEntry(id: number): boolean {
@@ -2865,7 +2862,10 @@ function safeParseJson(s: string): Record<string, unknown> | null {
 }
 
 export function removeFromCollection(vnId: string): void {
-  db.prepare('DELETE FROM collection WHERE vn_id = ?').run(vnId);
+  db.transaction(() => {
+    db.prepare('DELETE FROM collection WHERE vn_id = ?').run(vnId);
+    db.prepare('DELETE FROM user_list_vn WHERE vn_id = ?').run(vnId);
+  })();
   invalidateAggregateStats();
 }
 
@@ -6183,45 +6183,47 @@ export function setOwnedReleaseAspectOverride(input: {
   aspectKey?: AspectKey | null;
   note?: string | null;
 }): void {
-  const owned = db
-    .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
-    .get(input.vnId, input.releaseId);
-  if (!owned) throw new Error('owned edition not found');
-  const hasResolution =
-    typeof input.width === 'number' &&
-    typeof input.height === 'number' &&
-    input.width > 0 &&
-    input.height > 0;
-  const aspect = hasResolution
-    ? aspectKeyForResolution(input.width!, input.height!)
-    : input.aspectKey && isAspectKey(input.aspectKey)
-      ? input.aspectKey
-      : null;
-  if (!aspect || aspect === 'unknown') {
+  db.transaction(() => {
+    const owned = db
+      .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
+      .get(input.vnId, input.releaseId);
+    if (!owned) throw new Error('owned edition not found');
+    const hasResolution =
+      typeof input.width === 'number' &&
+      typeof input.height === 'number' &&
+      input.width > 0 &&
+      input.height > 0;
+    const aspect = hasResolution
+      ? aspectKeyForResolution(input.width!, input.height!)
+      : input.aspectKey && isAspectKey(input.aspectKey)
+        ? input.aspectKey
+        : null;
+    if (!aspect || aspect === 'unknown') {
+      db.prepare(
+        'DELETE FROM owned_release_aspect_override WHERE vn_id = ? AND release_id = ?',
+      ).run(input.vnId, input.releaseId);
+      return;
+    }
     db.prepare(
-      'DELETE FROM owned_release_aspect_override WHERE vn_id = ? AND release_id = ?',
-    ).run(input.vnId, input.releaseId);
-    return;
-  }
-  db.prepare(
-    `INSERT INTO owned_release_aspect_override
-       (vn_id, release_id, width, height, aspect_key, note, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(vn_id, release_id) DO UPDATE SET
-       width = excluded.width,
-       height = excluded.height,
-       aspect_key = excluded.aspect_key,
-       note = excluded.note,
-       updated_at = excluded.updated_at`,
-  ).run(
-    input.vnId,
-    input.releaseId,
-    hasResolution ? Math.round(input.width!) : null,
-    hasResolution ? Math.round(input.height!) : null,
-    aspect,
-    input.note?.trim() || null,
-    Date.now(),
-  );
+      `INSERT INTO owned_release_aspect_override
+         (vn_id, release_id, width, height, aspect_key, note, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(vn_id, release_id) DO UPDATE SET
+         width = excluded.width,
+         height = excluded.height,
+         aspect_key = excluded.aspect_key,
+         note = excluded.note,
+         updated_at = excluded.updated_at`,
+    ).run(
+      input.vnId,
+      input.releaseId,
+      hasResolution ? Math.round(input.width!) : null,
+      hasResolution ? Math.round(input.height!) : null,
+      aspect,
+      input.note?.trim() || null,
+      Date.now(),
+    );
+  })();
 }
 
 export function getOwnedReleaseAspectInfo(vnId: string, releaseId: string): ReleaseAspectInfo {
@@ -6986,23 +6988,25 @@ export function setSteamLink(args: {
   steamName: string;
   source: 'auto' | 'manual';
 }): SteamLink {
-  const now = Date.now();
-  // Don't overwrite a manual link with an auto one — the user explicitly
-  // chose the mapping. Allow manual to overwrite anything.
-  const existing = getSteamLinkForVn(args.vnId);
-  if (existing && existing.source === 'manual' && args.source === 'auto') {
-    return existing;
-  }
-  db.prepare(`
-    INSERT INTO steam_link (vn_id, appid, steam_name, source, last_synced_minutes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, NULL, ?, ?)
-    ON CONFLICT(vn_id) DO UPDATE SET
-      appid = excluded.appid,
-      steam_name = excluded.steam_name,
-      source = excluded.source,
-      updated_at = excluded.updated_at
-  `).run(args.vnId, args.appid, args.steamName.slice(0, 200), args.source, now, now);
-  return getSteamLinkForVn(args.vnId)!;
+  return db.transaction((): SteamLink => {
+    const now = Date.now();
+    // Don't overwrite a manual link with an auto one — the user explicitly
+    // chose the mapping. Allow manual to overwrite anything.
+    const existing = getSteamLinkForVn(args.vnId);
+    if (existing && existing.source === 'manual' && args.source === 'auto') {
+      return existing;
+    }
+    db.prepare(`
+      INSERT INTO steam_link (vn_id, appid, steam_name, source, last_synced_minutes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, NULL, ?, ?)
+      ON CONFLICT(vn_id) DO UPDATE SET
+        appid = excluded.appid,
+        steam_name = excluded.steam_name,
+        source = excluded.source,
+        updated_at = excluded.updated_at
+    `).run(args.vnId, args.appid, args.steamName.slice(0, 200), args.source, now, now);
+    return getSteamLinkForVn(args.vnId)!;
+  })();
 }
 
 export function deleteSteamLink(vnId: string): boolean {
@@ -7171,26 +7175,35 @@ export interface HistBucket {
 }
 
 export function ratingHistogram(): HistBucket[] {
-  const rows = db
+  const mineRows = db
     .prepare(`
-      SELECT c.user_rating AS mine, v.rating AS vndb
-      FROM collection c JOIN vn v ON v.id = c.vn_id
-      WHERE c.user_rating IS NOT NULL
+      SELECT MAX(10, MIN(100, CAST(ROUND(user_rating / 10.0) AS INTEGER) * 10)) AS bucket,
+             COUNT(*) AS cnt
+      FROM collection
+      WHERE user_rating IS NOT NULL
+      GROUP BY 1
+      ORDER BY 1
     `)
-    .all() as { mine: number | null; vndb: number | null }[];
+    .all() as { bucket: number; cnt: number }[];
+  const vndbRows = db
+    .prepare(`
+      SELECT MAX(10, MIN(100, CAST(ROUND(v.rating / 10.0) AS INTEGER) * 10)) AS bucket,
+             COUNT(*) AS cnt
+      FROM collection c JOIN vn v ON v.id = c.vn_id
+      WHERE c.user_rating IS NOT NULL AND v.rating IS NOT NULL
+      GROUP BY 1
+      ORDER BY 1
+    `)
+    .all() as { bucket: number; cnt: number }[];
   const buckets: HistBucket[] = [];
   for (let b = 10; b <= 100; b += 10) buckets.push({ bucket: b, mine: 0, vndb: 0 });
-  for (const r of rows) {
-    if (r.mine != null) {
-      const m = Math.min(100, Math.max(10, Math.round(r.mine / 10) * 10));
-      const bucket = buckets.find((x) => x.bucket === m);
-      if (bucket) bucket.mine += 1;
-    }
-    if (r.vndb != null) {
-      const v = Math.min(100, Math.max(10, Math.round(r.vndb / 10) * 10));
-      const bucket = buckets.find((x) => x.bucket === v);
-      if (bucket) bucket.vndb += 1;
-    }
+  for (const { bucket, cnt } of mineRows) {
+    const b = buckets.find((x) => x.bucket === bucket);
+    if (b) b.mine = cnt;
+  }
+  for (const { bucket, cnt } of vndbRows) {
+    const b = buckets.find((x) => x.bucket === bucket);
+    if (b) b.vndb = cnt;
   }
   return buckets;
 }
@@ -7271,6 +7284,7 @@ export function todaysAnniversaries(today: Date = new Date()): AnniversaryVn[] {
       FROM collection c JOIN vn v ON v.id = c.vn_id
       WHERE v.released LIKE '%' || ?
       ORDER BY v.released DESC
+      LIMIT 500
     `)
     .all(monthDay)
     .map((r) => {
@@ -7639,7 +7653,7 @@ export async function restoreFromSqliteFile(buffer: Buffer): Promise<SqliteResto
   ).all() as { name: string }[]).map((r) => r.name);
   const srcColsByTable = new Map<string, string[]>();
   for (const t of srcTables) {
-    const cols = (probe.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[]).map((c) => c.name);
+    const cols = (probe.prepare(`PRAGMA table_info("${t.replace(/"/g, '""')}")`).all() as { name: string }[]).map((c) => c.name);
     srcColsByTable.set(t, cols);
   }
   probe.close();
@@ -7693,7 +7707,7 @@ export async function restoreFromSqliteFile(buffer: Buffer): Promise<SqliteResto
         summary.skipped.push({ name: table, reason: 'missing in backup' });
         continue;
       }
-      const targetCols = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
+      const targetCols = (db.prepare(`PRAGMA table_info("${table.replace(/"/g, '""')}")`).all() as { name: string }[]).map((c) => c.name);
       const shared = targetCols.filter((c) => srcColsByTable.get(table)!.includes(c));
       if (shared.length === 0) {
         summary.skipped.push({ name: table, reason: 'no shared columns' });
@@ -7959,7 +7973,7 @@ export function listAllListMemberships(): Record<string, UserList[]> {
       FROM user_list_vn lv
       JOIN user_list l ON l.id = lv.list_id
       ORDER BY l.pinned DESC, l.name COLLATE NOCASE
-      LIMIT 100000
+      LIMIT 50000
     `)
     .all() as Array<UserList & { vn_id: string }>;
   const out: Record<string, UserList[]> = {};
