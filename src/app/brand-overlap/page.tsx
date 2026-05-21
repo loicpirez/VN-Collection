@@ -1,8 +1,14 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, ArrowLeftRight, Mic2, Star, Users } from 'lucide-react';
 import { findBrandStaffOverlap } from '@/lib/brand-overlap';
 import { isInCollectionMany } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: t.brandOverlap.title };
+}
 import { roleLabel } from '@/lib/staff-roles';
 import { BrandOverlapPicker } from '@/components/BrandOverlapPicker';
 

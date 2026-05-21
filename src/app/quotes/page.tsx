@@ -19,7 +19,8 @@ export default async function QuotesPage({
 }) {
   const { q } = await searchParams;
   const t = await getDict();
-  const items = listAllQuotes(q, 300);
+  const QUOTES_LIMIT = 300;
+  const items = listAllQuotes(q, QUOTES_LIMIT);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -48,6 +49,12 @@ export default async function QuotesPage({
           {t.quotesPage.empty}
         </p>
       ) : (
+        <>
+        {items.length >= QUOTES_LIMIT && (
+          <p className="mb-3 rounded-md border border-border bg-bg-elev/40 px-3 py-2 text-[11px] text-muted">
+            {t.quotesPage.localLimitNotice}
+          </p>
+        )}
         <ul className="space-y-3">
           {items.map((it) => (
             <li
@@ -87,6 +94,7 @@ export default async function QuotesPage({
             </li>
           ))}
         </ul>
+        </>
       )}
     </div>
   );

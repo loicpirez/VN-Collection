@@ -146,6 +146,8 @@ const KIND_COLOR: Record<string, string> = {
 
 const PAGE_SIZE = 50;
 
+const ALLOWED_ENTITIES = new Set(['vn', 'producer', 'character', 'staff', 'series', 'tag', 'trait']);
+
 function entityHref(entity: string | null, entityId: string | null): string | null {
   if (!entity || !entityId) return null;
   switch (entity) {
@@ -166,7 +168,8 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const q = first(sp.q).trim();
   const kind = first(sp.kind).trim();
-  const entity = first(sp.entity).trim();
+  const rawEntity = first(sp.entity).trim();
+  const entity = rawEntity && ALLOWED_ENTITIES.has(rawEntity) ? rawEntity : '';
   const vnPage = Math.max(0, parseInt(first(sp.vnPage) || '0', 10));
   const sysPage = Math.max(0, parseInt(first(sp.sysPage) || '0', 10));
   const vnOffset = vnPage * PAGE_SIZE;

@@ -248,8 +248,8 @@ export default function SteamSyncPage() {
                         {picked && <Check className="h-3 w-3" />}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="line-clamp-1 text-sm font-bold">{s.vn_title}</p>
-                        <p className="line-clamp-1 text-[11px] text-muted">
+                        <p className="line-clamp-1 text-sm font-bold" title={s.vn_title}>{s.vn_title}</p>
+                        <p className="line-clamp-1 text-[11px] text-muted" title={`${s.steam_name} · ${t.steam.appidLabel} ${s.steam_appid}`}>
                           {s.steam_name} · {t.steam.appidLabel} {s.steam_appid}
                         </p>
                       </div>

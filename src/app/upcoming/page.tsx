@@ -522,7 +522,7 @@ function AnticipatedSection({
                       {a.brand_name}
                     </Link>
                   ) : (
-                    <span className="line-clamp-1">{a.brand_name}</span>
+                    <span className="line-clamp-1" title={a.brand_name}>{a.brand_name}</span>
                   );
                 })()}
               </div>

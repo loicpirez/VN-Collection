@@ -1,9 +1,26 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Check, CornerDownRight, ExternalLink, Sparkles } from 'lucide-react';
 import { getCharactersForTrait, getTrait, type VndbCharacter, type VndbTrait } from '@/lib/vndb';
 import { getCharacterImages, listInCollectionVnIds } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const t = await getDict();
+  try {
+    const trait = await getTrait(id);
+    if (trait?.name) return { title: trait.name };
+  } catch {
+    // fall through
+  }
+  return { title: t.nav.traits };
+}
 import { SafeImage } from '@/components/SafeImage';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { CardDensitySlider } from '@/components/CardDensitySlider';

@@ -1,9 +1,15 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { ArrowLeft } from 'lucide-react';
 import { toString as qrToString } from 'qrcode';
 import { listCollection } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: t.labels.title };
+}
 import { PrintButton } from '@/components/PrintButton';
 
 export const dynamic = 'force-dynamic';
@@ -112,7 +118,7 @@ export default async function LabelsPage({
                 dangerouslySetInnerHTML={{ __html: qrs[i] }}
               />
               <div className="min-w-0">
-                <p className="line-clamp-3 font-bold leading-tight">{it.title}</p>
+                <p className="line-clamp-3 font-bold leading-tight" title={it.title}>{it.title}</p>
                 <p className="mt-0.5 font-mono text-[10px] text-muted">{it.id}</p>
                 {(it.physical_location ?? []).length > 0 && (
                   <p className="mt-0.5 text-[10px] text-muted">{(it.physical_location ?? []).join(' · ')}</p>

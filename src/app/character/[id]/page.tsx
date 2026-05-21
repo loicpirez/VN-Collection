@@ -242,16 +242,16 @@ export default async function CharacterPage({
                         />
                       </div>
                       <div className="min-w-0 flex-1 text-[11px]">
-                        <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                        <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent" title={s.c_name}>
                           {s.c_name}
                         </p>
                         {s.c_original && s.c_original !== s.c_name && (
-                          <p className="line-clamp-1 text-[10px] text-muted">{s.c_original}</p>
+                          <p className="line-clamp-1 text-[10px] text-muted" title={s.c_original}>{s.c_original}</p>
                         )}
                         <p className="font-mono text-[10px] text-muted/60">{s.c_id}</p>
                         <div className="mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[10px] text-muted">
                           {s.vns.map((v) => (
-                            <span key={v.vn_id} className="truncate">{v.vn_title}</span>
+                            <span key={v.vn_id} className="truncate" title={v.vn_title}>{v.vn_title}</span>
                           ))}
                         </div>
                       </div>

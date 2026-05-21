@@ -253,7 +253,7 @@ export default async function DumpedPage({
                         />
                       </div>
                       <div className="min-w-0 flex-1 text-[11px]">
-                        <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                        <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent" title={e.vn_title}>
                           {e.vn_title}
                         </p>
                         {noEditions ? (

@@ -1388,6 +1388,7 @@ export const dictionaries = {
       subtitle: 'Toutes les citations mémorables des VN de la collection.',
       searchPlaceholder: 'Filtrer par texte ou personnage…',
       empty: 'Aucune citation disponible. Récupère-en depuis la fiche d\'un VN.',
+      localLimitNotice: 'Affichage limité à 300 résultats — affine ta recherche pour en voir plus.',
     },
     statsExtras: {
       histogramTitle: 'Mes notes vs VNDB',
@@ -1420,6 +1421,7 @@ export const dictionaries = {
       pickSeedLabel: 'Choisis un VN de référence',
       searchPlaceholder: 'Chercher dans ta collection ou VNDB…',
       changeSeed: 'Changer',
+      localLimitNotice: 'Affichage limité à 24 résultats.',
     },
     pomodoro: {
       label: 'Session',
@@ -3916,6 +3918,7 @@ export const dictionaries = {
       subtitle: 'Every cached quote across the VNs in your collection.',
       searchPlaceholder: 'Filter by text or character…',
       empty: 'No quotes available yet. Fetch some from a VN detail page.',
+      localLimitNotice: 'Showing up to 300 results — refine your search to see more.',
     },
     statsExtras: {
       histogramTitle: 'My ratings vs VNDB',
@@ -3948,6 +3951,7 @@ export const dictionaries = {
       pickSeedLabel: 'Choose a seed VN',
       searchPlaceholder: 'Search your collection or VNDB…',
       changeSeed: 'Change',
+      localLimitNotice: 'Showing up to 24 results.',
     },
     pomodoro: {
       label: 'Session',
@@ -6441,6 +6445,7 @@ export const dictionaries = {
       subtitle: 'コレクションの VN から保存された名言一覧。',
       searchPlaceholder: 'テキストやキャラ名で絞り込み…',
       empty: 'まだ名言がありません。VN 詳細ページから取得してください。',
+      localLimitNotice: '最大300件を表示 — 検索を絞り込むと他の結果が表示されます。',
     },
     statsExtras: {
       histogramTitle: '自分の評価 vs VNDB',
@@ -6473,6 +6478,7 @@ export const dictionaries = {
       pickSeedLabel: '参照 VN を選択',
       searchPlaceholder: 'コレクションや VNDB を検索…',
       changeSeed: '変更',
+      localLimitNotice: '最大24件を表示。',
     },
     pomodoro: {
       label: 'セッション',

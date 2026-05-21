@@ -228,6 +228,12 @@ export default async function SimilarPage({
           {t.similar.empty}
         </p>
       ) : (
+        <>
+        {results.length >= 24 && (
+          <p className="mb-3 rounded-md border border-border bg-bg-elev/40 px-3 py-2 text-[11px] text-muted">
+            {t.similar.localLimitNotice}
+          </p>
+        )}
         <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
           {results.map((r) => {
             const year = r.released?.slice(0, 4);
@@ -294,6 +300,7 @@ export default async function SimilarPage({
             );
           })}
         </ul>
+        </>
       )}
     </DensityScopeProvider>
   );

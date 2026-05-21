@@ -8,8 +8,15 @@ import { HomeLayoutEditorTrigger } from '@/components/HomeLayoutEditorTrigger';
 import { getAppSetting } from '@/lib/db';
 import { parseHomeSectionLayoutV1, type HomeSectionId } from '@/lib/home-section-layout';
 import { SkeletonCardGrid } from '@/components/Skeleton';
+import type { Metadata } from 'next';
+import { getDict } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: t.nav.library };
+}
 
 export default function HomePage() {
   // Server-read once per render. Each strip ignores its body and
