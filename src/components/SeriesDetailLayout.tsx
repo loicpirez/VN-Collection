@@ -41,14 +41,10 @@ import {
 } from '@/lib/series-detail-layout';
 
 import { readApiError } from '@/lib/api-error-read';
-export interface SeriesDetailSection {
-  id: SeriesSectionId;
-  node: React.ReactNode;
-}
-
 interface Props {
   initialLayout: SeriesDetailLayoutV1;
-  sections: SeriesDetailSection[];
+  /** Pre-rendered section JSX keyed by section id. Only present keys are rendered; absent keys are treated as not-applicable and skipped. */
+  sectionNodes: Partial<Record<SeriesSectionId, React.ReactNode>>;
 }
 
 /**
@@ -62,7 +58,7 @@ interface Props {
  * the hero is allowed — useful for the dense "works only" view some
  * collectors prefer.
  */
-export function SeriesDetailLayout({ initialLayout, sections }: Props) {
+export function SeriesDetailLayout({ initialLayout, sectionNodes }: Props) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -91,9 +87,11 @@ export function SeriesDetailLayout({ initialLayout, sections }: Props) {
 
   const sectionMap = useMemo(() => {
     const m = new Map<SeriesSectionId, React.ReactNode>();
-    for (const s of sections) m.set(s.id, s.node);
+    for (const [id, node] of Object.entries(sectionNodes) as [SeriesSectionId, React.ReactNode][]) {
+      if (node !== undefined) m.set(id, node);
+    }
     return m;
-  }, [sections]);
+  }, [sectionNodes]);
 
   const active = editMode ? draft : layout;
   const visibleIds = useMemo(

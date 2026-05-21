@@ -22,9 +22,9 @@ import {
   materializeReleaseMetaForVn,
   upsertVn,
 } from '@/lib/db';
-import { parseVnDetailLayoutV1 } from '@/lib/vn-detail-layout';
+import { parseVnDetailLayoutV1, type VnSectionId } from '@/lib/vn-detail-layout';
 import { platformLabel } from '@/lib/platform-label';
-import { VnDetailLayout, type VnDetailSection } from '@/components/VnDetailLayout';
+import { VnDetailLayout } from '@/components/VnDetailLayout';
 import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
 import { resolveField } from '@/lib/source-resolve';
@@ -816,104 +816,77 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         const layout = parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1'));
         const sectionOpens = (id: keyof typeof layout.sections): boolean =>
           !layout.sections[id].collapsedByDefault;
-        const sections: VnDetailSection[] = [];
+        const sectionNodes: Partial<Record<VnSectionId, React.ReactNode>> = {};
         if (inCol && vn.notes) {
-          sections.push({
-            id: 'notes',
-            node: (
-              <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.form.personalNotes}</h3>
-                <MarkdownView source={vn.notes} />
-              </div>
-            ),
-          });
+          sectionNodes['notes'] = (
+            <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+              <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.form.personalNotes}</h3>
+              <MarkdownView source={vn.notes} />
+            </div>
+          );
         }
         if (inCol) {
-          sections.push({
-            id: 'series-suggest',
-            node: <SeriesAutoSuggest vnId={vn.id} suggestion={detectSeriesForVn(vn.id)} />,
-          });
-          sections.push({
-            id: 'routes',
-            node: <RoutesSection vnId={vn.id} inCollection={inCol} />,
-          });
-          sections.push({
-            id: 'session-activity',
-            node: (
-              <div className="space-y-4">
-                <SessionPanel
-                  vnId={vn.id}
-                  currentMinutes={vn.playtime_minutes ?? 0}
-                  initialLog={listGameLogForVn(vn.id, 200)}
-                />
-                <ActivityTimeline vnId={vn.id} initial={listActivityForVn(vn.id, 50)} />
-              </div>
-            ),
-          });
+          sectionNodes['series-suggest'] = <SeriesAutoSuggest vnId={vn.id} suggestion={detectSeriesForVn(vn.id)} />;
+          sectionNodes['routes'] = <RoutesSection vnId={vn.id} inCollection={inCol} />;
+          sectionNodes['session-activity'] = (
+            <div className="space-y-4">
+              <SessionPanel
+                vnId={vn.id}
+                currentMinutes={vn.playtime_minutes ?? 0}
+                initialLog={listGameLogForVn(vn.id, 200)}
+              />
+              <ActivityTimeline vnId={vn.id} initial={listActivityForVn(vn.id, 50)} />
+            </div>
+          );
         }
         if (vn.relations && vn.relations.length > 0) {
           // Single IN(...) lookup beats one isInCollection() SELECT
           // per relation. With ~30 relations this used to be 30
           // round-trips per VN page render.
           const ownedSet = isInCollectionMany(vn.relations.map((r) => r.id));
-          sections.push({
-            id: 'relations',
-            node: (
-              <RelationsSection
-                relations={vn.relations.map((r) => ({ ...r, in_collection: ownedSet.has(r.id) }))}
-              />
-            ),
-          });
+          sectionNodes['relations'] = (
+            <RelationsSection
+              relations={vn.relations.map((r) => ({ ...r, in_collection: ownedSet.has(r.id) }))}
+            />
+          );
         }
         if (!vn.id.startsWith('egs_')) {
-          sections.push({
-            id: 'vndb-status',
-            node: <VndbStatusPanel vnId={vn.id} />,
-          });
+          sectionNodes['vndb-status'] = <VndbStatusPanel vnId={vn.id} />;
         }
-        sections.push({
-          id: 'egs-panel',
-          node: (
-            <EgsPanel
-              vnId={vn.id}
-              vndbRating={vn.rating ?? null}
-              vndbVoteCount={vn.votecount ?? null}
-              vndbLengthMinutes={vn.length_minutes ?? null}
-              myPlaytimeMinutes={vn.playtime_minutes ?? 0}
-              searchSeed={vn.alttitle?.trim() || vn.title}
-              initialGame={
-                egsRow?.egs_id
-                  ? {
-                      id: egsRow.egs_id,
-                      gamename: egsRow.gamename ?? '',
-                      median: egsRow.median,
-                      average: egsRow.average,
-                      dispersion: egsRow.dispersion,
-                      count: egsRow.count,
-                      sellday: egsRow.sellday,
-                      playtime_median_minutes: egsRow.playtime_median_minutes,
-                      url: `https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${egsRow.egs_id}`,
-                    }
-                  : null
-              }
-              initialSource={egsRow?.source ?? null}
-            />
-          ),
-        });
-        sections.push({ id: 'egs-details', node: <EgsRichDetails vnId={vn.id} /> });
-        sections.push({
-          id: 'characters',
-          node: <CharactersSection vnId={vn.id} initialOpen={sectionOpens('characters')} />,
-        });
+        sectionNodes['egs-panel'] = (
+          <EgsPanel
+            vnId={vn.id}
+            vndbRating={vn.rating ?? null}
+            vndbVoteCount={vn.votecount ?? null}
+            vndbLengthMinutes={vn.length_minutes ?? null}
+            myPlaytimeMinutes={vn.playtime_minutes ?? 0}
+            searchSeed={vn.alttitle?.trim() || vn.title}
+            initialGame={
+              egsRow?.egs_id
+                ? {
+                    id: egsRow.egs_id,
+                    gamename: egsRow.gamename ?? '',
+                    median: egsRow.median,
+                    average: egsRow.average,
+                    dispersion: egsRow.dispersion,
+                    count: egsRow.count,
+                    sellday: egsRow.sellday,
+                    playtime_median_minutes: egsRow.playtime_median_minutes,
+                    url: `https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${egsRow.egs_id}`,
+                  }
+                : null
+            }
+            initialSource={egsRow?.source ?? null}
+          />
+        );
+        sectionNodes['egs-details'] = <EgsRichDetails vnId={vn.id} />;
+        sectionNodes['characters'] = <CharactersSection vnId={vn.id} initialOpen={sectionOpens('characters')} />;
         if ((vn.va ?? []).length > 0) {
-          sections.push({ id: 'cast', node: <CastSection va={vn.va ?? []} /> });
+          sectionNodes['cast'] = <CastSection va={vn.va ?? []} />;
         }
         if ((vn.staff ?? []).length > 0) {
-          sections.push({ id: 'staff', node: <StaffSection staff={vn.staff ?? []} /> });
+          sectionNodes['staff'] = <StaffSection staff={vn.staff ?? []} />;
         }
-        // Aspect-ratio control is meaningful for any VN (in collection
-        // or not) — surfaces the derived ratio and lets the user pin
-        // a manual override that beats everything else.
         {
           // SSR-pre-derive so the AspectOverrideControl paints
           // the right value on first frame instead of flashing
@@ -925,83 +898,62 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           // the same derived data.
           const initialOverride = isVndbVnId(vn.id) ? getVnAspectOverride(vn.id) : null;
           const initialDerived = deriveVnAspectKey(vn.id);
-          sections.push({
-            id: 'aspect-override',
-            node: (
-              <AspectOverrideControl
-                vnId={vn.id}
-                initialDerived={initialDerived}
-                initialOverride={
-                  initialOverride
-                    ? { aspect_key: initialOverride.aspect_key, note: initialOverride.note }
-                    : null
-                }
-              />
-            ),
-          });
-        }
-        if (inCol) {
-          sections.push({ id: 'tag-overlap', node: <TagCoOccurrence vnId={vn.id} /> });
-          sections.push({
-            id: 'similar',
-            node: (
-              <Link
-                href={`/similar?vn=${vn.id}`}
-                className="inline-flex items-center gap-1 self-start rounded-md border border-border bg-bg-card px-3 py-2 text-xs font-bold text-muted hover:border-accent hover:text-accent"
-              >
-                <Sparkles className="h-3 w-3" aria-hidden /> {t.similar.moreLink}
-              </Link>
-            ),
-          });
-          sections.push({
-            id: 'my-editions',
-            node: (
-              <OwnedEditionsSection
-                vnId={vn.id}
-                parentVnTitle={vn.title}
-                parentVnCover={{
-                  url: vn.image_url ?? null,
-                  localPath: vn.local_image || vn.local_image_thumb,
-                  sexual: vn.image_sexual ?? null,
-                }}
-              />
-            ),
-          });
-        }
-        sections.push({
-          id: 'releases',
-          node: (
-            <ReleasesSection
+          sectionNodes['aspect-override'] = (
+            <AspectOverrideControl
               vnId={vn.id}
-              inCollection={inCol}
-              initialOpen={sectionOpens('releases')}
+              initialDerived={initialDerived}
+              initialOverride={
+                initialOverride
+                  ? { aspect_key: initialOverride.aspect_key, note: initialOverride.note }
+                  : null
+              }
             />
-          ),
-        });
-        sections.push({
-          id: 'quotes',
-          node: <QuotesSection vnId={vn.id} initialOpen={sectionOpens('quotes')} />,
-        });
-        if (inCol) {
-          sections.push({
-            id: 'cover-banner-tools',
-            node: (
-              <div className="grid gap-4 md:grid-cols-2">
-                <CoverUploader vnId={vn.id} hasCustom={!!vn.custom_cover} />
-                <BannerControls vnId={vn.id} hasCustomBanner={customBanner} />
-              </div>
-            ),
-          });
+          );
         }
-        sections.push({
-          id: 'edit-form',
-          node: <EditForm vn={vn} inCollection={inCol} allSeries={allSeries} />,
-        });
+        if (inCol) {
+          sectionNodes['tag-overlap'] = <TagCoOccurrence vnId={vn.id} />;
+          sectionNodes['similar'] = (
+            <Link
+              href={`/similar?vn=${vn.id}`}
+              className="inline-flex items-center gap-1 self-start rounded-md border border-border bg-bg-card px-3 py-2 text-xs font-bold text-muted hover:border-accent hover:text-accent"
+            >
+              <Sparkles className="h-3 w-3" aria-hidden /> {t.similar.moreLink}
+            </Link>
+          );
+          sectionNodes['my-editions'] = (
+            <OwnedEditionsSection
+              vnId={vn.id}
+              parentVnTitle={vn.title}
+              parentVnCover={{
+                url: vn.image_url ?? null,
+                localPath: vn.local_image || vn.local_image_thumb,
+                sexual: vn.image_sexual ?? null,
+              }}
+            />
+          );
+        }
+        sectionNodes['releases'] = (
+          <ReleasesSection
+            vnId={vn.id}
+            inCollection={inCol}
+            initialOpen={sectionOpens('releases')}
+          />
+        );
+        sectionNodes['quotes'] = <QuotesSection vnId={vn.id} initialOpen={sectionOpens('quotes')} />;
+        if (inCol) {
+          sectionNodes['cover-banner-tools'] = (
+            <div className="grid gap-4 md:grid-cols-2">
+              <CoverUploader vnId={vn.id} hasCustom={!!vn.custom_cover} />
+              <BannerControls vnId={vn.id} hasCustomBanner={customBanner} />
+            </div>
+          );
+        }
+        sectionNodes['edit-form'] = <EditForm vn={vn} inCollection={inCol} allSeries={allSeries} />;
         return (
           <VnDetailLayout
             vnId={vn.id}
             initialLayout={layout}
-            sections={sections}
+            sectionNodes={sectionNodes}
           />
         );
       })()}

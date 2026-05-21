@@ -12,10 +12,9 @@ import { SeriesAddVnForm } from '@/components/SeriesAddVnForm';
 import { SeriesRemoveVn } from '@/components/SeriesRemoveVn';
 import { SeriesMetaEditor } from '@/components/SeriesMetaEditor';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
-import { ContentWidthSlider } from '@/components/ContentWidthSlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
-import { SeriesDetailLayout, type SeriesDetailSection } from '@/components/SeriesDetailLayout';
-import { parseSeriesDetailLayoutV1 } from '@/lib/series-detail-layout';
+import { SeriesDetailLayout } from '@/components/SeriesDetailLayout';
+import { parseSeriesDetailLayoutV1, type SeriesSectionId } from '@/lib/series-detail-layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,7 +78,6 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
         </div>
         <div className="shrink-0">
           <CardDensitySlider scope="seriesWorks" />
-          <ContentWidthSlider scope="seriesWorks" />
         </div>
       </div>
     </header>
@@ -119,28 +117,11 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
     </div>
   );
 
-  // Placeholders for future sections — keeping them in the layout
-  // surface (even when empty) so the user's saved order stays valid
-  // when content actually lands. Stable shape, free of real-title
-  // examples.
-  const relatedSection = (
-    <div className="rounded-xl border border-dashed border-border bg-bg-card p-6 text-center text-xs text-muted">
-      {t.series.empty}
-    </div>
-  );
-  const statsSection = (
-    <div className="rounded-xl border border-dashed border-border bg-bg-card p-6 text-center text-xs text-muted">
-      {items.length} {t.series.vnCount}
-    </div>
-  );
-
-  const sections: SeriesDetailSection[] = [
-    { id: 'hero', node: heroSection },
-    { id: 'works', node: worksSection },
-    { id: 'metadata', node: metadataSection },
-    { id: 'related', node: relatedSection },
-    { id: 'stats', node: statsSection },
-  ];
+  const sectionNodes: Partial<Record<SeriesSectionId, React.ReactNode>> = {
+    hero: heroSection,
+    works: worksSection,
+    metadata: metadataSection,
+  };
 
   return (
     <DensityScopeProvider scope="seriesWorks">
@@ -148,7 +129,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
         <ArrowLeft className="h-4 w-4" /> {t.nav.series}
       </Link>
 
-      <SeriesDetailLayout initialLayout={layout} sections={sections} />
+      <SeriesDetailLayout initialLayout={layout} sectionNodes={sectionNodes} />
     </DensityScopeProvider>
   );
 }

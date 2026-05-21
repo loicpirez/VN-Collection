@@ -41,22 +41,11 @@ import {
 } from '@/lib/vn-detail-layout';
 
 import { readApiError } from '@/lib/api-error-read';
-export interface VnDetailSection {
-  /** Stable id matching `VnSectionId` — also the key used in the layout config. */
-  id: VnSectionId;
-  /**
-   * Pre-rendered section JSX. Hidden sections never receive their
-   * node — we still build the array so unknown / not-applicable
-   * sections (e.g. notes when vn.notes is empty) can be omitted by
-   * the parent without breaking layout indices.
-   */
-  node: React.ReactNode;
-}
-
 interface Props {
   vnId: string;
   initialLayout: VnDetailLayoutV1;
-  sections: VnDetailSection[];
+  /** Pre-rendered section JSX keyed by section id. Only present keys are rendered; absent keys are treated as not-applicable and skipped. */
+  sectionNodes: Partial<Record<VnSectionId, React.ReactNode>>;
 }
 
 /**
@@ -76,7 +65,7 @@ interface Props {
  * native behavior, while non-`<details>` sections get a layout-owned
  * wrapper with a chevron.
  */
-export function VnDetailLayout({ vnId, initialLayout, sections }: Props) {
+export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -111,9 +100,11 @@ export function VnDetailLayout({ vnId, initialLayout, sections }: Props) {
 
   const sectionMap = useMemo(() => {
     const m = new Map<VnSectionId, React.ReactNode>();
-    for (const s of sections) m.set(s.id, s.node);
+    for (const [id, node] of Object.entries(sectionNodes) as [VnSectionId, React.ReactNode][]) {
+      if (node !== undefined) m.set(id, node);
+    }
     return m;
-  }, [sections]);
+  }, [sectionNodes]);
 
   // Active layout = draft when editing, persisted layout when not.
   const active = editMode ? draft : layout;
