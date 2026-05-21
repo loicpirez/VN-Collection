@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useId, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bookmark, Check, ListPlus, Loader2, Plus, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -41,8 +41,36 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
   const [filter, setFilter] = useState('');
   const [memberCount, setMemberCount] = useState<number | null>(initialMemberCount ?? null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const popoverId = useId();
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!open || loading) return;
+    const first = menuRef.current?.querySelector<HTMLElement>('[role="menuitemcheckbox"]');
+    first?.focus();
+  }, [open, loading]);
+
+  function handleMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]') ?? [],
+    );
+    if (items.length === 0) return;
+    const idx = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      items[(idx + 1) % items.length]?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[(idx - 1 + items.length) % items.length]?.focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      items[0]?.focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  }
   const closePopover = useCallback(() => setOpen(false), []);
 
   async function load() {
@@ -165,8 +193,10 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
         panelClassName="w-64 rounded-lg border border-border bg-bg-card p-2 text-sm shadow-card"
       >
         <div
+          ref={menuRef}
           role="menu"
           aria-label={t.lists.addToList}
+          onKeyDown={handleMenuKeyDown}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="mb-2 flex items-center justify-between gap-2">

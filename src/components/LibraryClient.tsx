@@ -1,5 +1,5 @@
 'use client';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, Check, CheckSquare, ChevronDown, Circle, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, Tags as TagsIcon, X } from 'lucide-react';
@@ -882,7 +882,11 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               {settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
             </span>
           </button>
-          <div className="flex gap-6 text-sm text-muted">
+          <div
+            aria-live="polite"
+            aria-atomic="true"
+            className="flex gap-6 text-sm text-muted"
+          >
             <span><b className="text-white">{stats.total}</b> {t.library.stats.vnCount}</span>
             <span><b className="text-white">{totalH}h</b> {t.library.stats.playedHours}</span>
           </div>
@@ -1343,6 +1347,7 @@ function AdvancedFiltersDrawer({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const drawerId = useId();
   // Open the drawer when something elsewhere on the toolbar asks
   // for it — currently the SavedFilters empty popover dispatches
   // `vn:open-advanced-filters` so its empty state remains
@@ -1358,6 +1363,7 @@ function AdvancedFiltersDrawer({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
+        aria-controls={drawerId}
         className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
           activeCount > 0
             ? 'border-accent bg-accent/10 text-accent'
@@ -1377,7 +1383,7 @@ function AdvancedFiltersDrawer({
         />
       </button>
       {open && (
-        <div className="mt-2 w-full space-y-3 rounded-lg border border-border bg-bg-card/60 p-3">
+        <div id={drawerId} className="mt-2 w-full space-y-3 rounded-lg border border-border bg-bg-card/60 p-3">
           {children}
         </div>
       )}

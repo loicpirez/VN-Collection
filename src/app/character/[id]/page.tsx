@@ -218,9 +218,9 @@ export default async function CharacterPage({
           label: sectionLabels.siblings,
           node: (
             <section className="mt-6 rounded-xl border border-accent/30 bg-accent/5 p-4">
-              <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
+              <h2 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
                 <Users className="h-4 w-4" /> {t.characters.sameName}
-              </h3>
+              </h2>
               <p className="mb-3 text-[11px] text-muted">{t.characters.sameNameHint}</p>
               <ul
                 className="grid gap-3"
@@ -267,7 +267,7 @@ export default async function CharacterPage({
           label: sectionLabels.description,
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-              <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
+              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h2>
               <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
                 <VndbMarkup text={char.description} spoilerLabel={t.spoiler.markupSummary} />
               </div>
@@ -284,10 +284,10 @@ export default async function CharacterPage({
           label: sectionLabels.instances,
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-              <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+              <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
                 <Users className="h-4 w-4 text-accent" /> {t.characters.instances}
                 <span className="text-[10px] font-normal text-muted">· {scraped.instances.length}</span>
-              </h3>
+              </h2>
               <ul className="grid gap-2 text-xs sm:grid-cols-2">
                 {scraped.instances.map((inst) => (
                   <li key={`${inst.cid}-${inst.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
@@ -306,10 +306,10 @@ export default async function CharacterPage({
           label: sectionLabels['voiced-by-all'],
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-              <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+              <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
                 <Mic2 className="h-4 w-4 text-accent" /> {t.characters.voicedByAll}
                 <span className="text-[10px] font-normal text-muted">· {scraped.voiced_by.length}</span>
-              </h3>
+              </h2>
               <ul className="grid gap-2 text-xs sm:grid-cols-2">
                 {scraped.voiced_by.map((v) => (
                   <li key={`${v.sid}-${v.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
@@ -327,9 +327,9 @@ export default async function CharacterPage({
           label: sectionLabels['also-voiced-by'],
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-              <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+              <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
                 <Mic2 className="h-4 w-4 text-accent" /> {t.characters.alsoVoicedBy}
-              </h3>
+              </h2>
               <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                 {vas.map((va) => (
                   <li key={va.sid}>
@@ -358,9 +358,9 @@ export default async function CharacterPage({
           label: sectionLabels['appears-in'],
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-              <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
+              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
                 {t.characters.appearsIn} · {sortedVns.length}
-              </h3>
+              </h2>
               <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                 {sortedVns.map((v) => {
                   const year = v.released?.slice(0, 4);

@@ -159,7 +159,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
             label: sectionLabels.description,
             node: (
               <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h3>
+                <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">{t.detail.synopsis}</h2>
                 <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
                   <VndbMarkup text={producer.description} spoilerLabel={t.spoiler.markupSummary} />
                 </div>
@@ -229,9 +229,9 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
               <ProducerScrapedRelations pid={producer.id} t={t} />
             ) : (
               <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
+                <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
                   {sectionLabels.stats}
-                </h3>
+                </h2>
                 <p className="text-sm text-muted">{t.detail.emptySection}</p>
               </section>
             ),
@@ -301,7 +301,7 @@ function ProducerScrapedRelations({ pid, t }: { pid: string; t: Awaited<ReturnTy
   if (!info || info.relations.length === 0) return null;
   return (
     <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.producers.scrapedRelations}</h3>
+      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.producers.scrapedRelations}</h2>
       <ul className="grid gap-2 text-xs sm:grid-cols-2">
         {info.relations.map((r) => (
           <li key={`${r.relation}-${r.id}`} className="flex items-baseline gap-2">

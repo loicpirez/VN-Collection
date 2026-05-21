@@ -136,6 +136,7 @@ export function HomeSectionControls({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Click-outside / Escape close the menu.
   useEffect(() => {
@@ -153,6 +154,34 @@ export function HomeSectionControls({
       document.removeEventListener('keydown', onKey);
     };
   }, [menuOpen]);
+
+  // Focus first menuitem when menu opens.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const first = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
+    first?.focus();
+  }, [menuOpen]);
+
+  function handleMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+    );
+    if (items.length === 0) return;
+    const idx = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      items[(idx + 1) % items.length]?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[(idx - 1 + items.length) % items.length]?.focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      items[0]?.focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  }
 
   return (
     <div ref={containerRef} className="relative inline-flex items-center gap-1">
@@ -202,9 +231,11 @@ export function HomeSectionControls({
       })()}
       {menuOpen && (
         <div
+          ref={menuRef}
           id={menuId}
           role="menu"
           aria-label={t.homeSections.menuLabel}
+          onKeyDown={handleMenuKeyDown}
           className="absolute right-0 top-full z-30 mt-1 w-44 rounded-lg border border-border bg-bg-card p-1 text-xs shadow-card"
         >
           <button
