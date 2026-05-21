@@ -50,9 +50,14 @@ export const ALLOWED_HTTP_HOSTS: ReadonlySet<string> = new Set([
  * `http(s)://` request to a hostname on the allowlist with no
  * sign of an IP literal or loopback shenanigans.
  *
- * NOTE: this does not protect against redirect-to-private-IP. The
- * `redirect: 'manual'` option on fetch + a re-check on every hop
- * would be the next step; today we trust upstream not to chain.
+ * ACCEPTED RISK (LIB-011): this does not protect against redirect-to-private-IP.
+ * A `redirect: 'manual'` approach with re-checking every hop Location header
+ * would close this gap, but adds significant complexity to all callers. Mitigating
+ * factors: (a) all allowed hosts are well-known CDNs/APIs unlikely to be
+ * compromised into redirect chaining; (b) `assertNoPrivateIpRebind` already
+ * blocks DNS rebinding on user-supplied URLs before they reach `isAllowedHttpTarget`;
+ * (c) the fetch layer enforces the allowlist so only white-listed origins can
+ * initiate a chain in the first place. Accepted as low residual risk.
  */
 export function isAllowedHttpTarget(target: string): boolean {
   let url: URL;

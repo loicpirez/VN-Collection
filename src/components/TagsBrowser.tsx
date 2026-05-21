@@ -310,6 +310,7 @@ function RootGroupRow({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-bg-elev/40 transition-colors"
       >
         {open

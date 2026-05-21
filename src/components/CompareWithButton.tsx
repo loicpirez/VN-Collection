@@ -47,7 +47,8 @@ export function CompareWithButton({ currentVnId }: { currentVnId: string }) {
   useEffect(() => {
     if (!open) return;
     load();
-    setTimeout(() => filterRef.current?.focus(), 50);
+    const frame = requestAnimationFrame(() => filterRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
   }, [open, load]);
 
   const filtered = useMemo(() => {

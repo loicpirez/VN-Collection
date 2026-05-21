@@ -15,7 +15,16 @@ interface List {
   pinned: number;
 }
 
-const PRESET_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
+const PRESET_COLORS: { hex: string; name: string }[] = [
+  { hex: '#ef4444', name: 'Red' },
+  { hex: '#f97316', name: 'Orange' },
+  { hex: '#f59e0b', name: 'Amber' },
+  { hex: '#22c55e', name: 'Green' },
+  { hex: '#06b6d4', name: 'Cyan' },
+  { hex: '#3b82f6', name: 'Blue' },
+  { hex: '#8b5cf6', name: 'Violet' },
+  { hex: '#ec4899', name: 'Pink' },
+];
 
 export function ListMetaEditor({ list }: { list: List }) {
   const t = useT();
@@ -130,14 +139,14 @@ export function ListMetaEditor({ list }: { list: List }) {
           className={`tap-target-tight h-6 w-6 rounded ${color == null ? 'ring-2 ring-accent' : 'opacity-60 hover:opacity-100'}`}
           style={{ background: 'linear-gradient(135deg, #475569 50%, #1e293b 50%)' }}
         />
-        {PRESET_COLORS.map((c) => (
+        {PRESET_COLORS.map(({ hex, name }) => (
           <button
-            key={c}
+            key={hex}
             type="button"
-            onClick={() => setColor(c)}
-            aria-label={c}
-            className={`tap-target-tight h-6 w-6 rounded ${color === c ? 'ring-2 ring-white' : 'opacity-60 hover:opacity-100'}`}
-            style={{ backgroundColor: c }}
+            onClick={() => setColor(hex)}
+            aria-label={name}
+            className={`tap-target-tight h-6 w-6 rounded ${color === hex ? 'ring-2 ring-white' : 'opacity-60 hover:opacity-100'}`}
+            style={{ backgroundColor: hex }}
           />
         ))}
       </div>

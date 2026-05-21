@@ -313,7 +313,7 @@ export function VnSeedPicker({
             type="button"
             onClick={() => {
               setEditing(true);
-              setTimeout(() => inputRef.current?.focus(), 0);
+              requestAnimationFrame(() => inputRef.current?.focus());
             }}
             className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-white"
             data-testid="vn-seed-change"

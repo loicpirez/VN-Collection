@@ -58,9 +58,12 @@ export async function fetchOwnedGames(): Promise<SteamPlaytime[]> {
     throw new Error(`Steam fetch failed: ${(e as Error).message.replace(/key=[^&\s]+/g, 'key=***')}`);
   }
   if (!res.ok) throw new Error(`Steam HTTP ${res.status}`);
-  const data = (await res.json()) as {
-    response?: { games?: { appid: number; name: string; playtime_forever: number }[] };
-  };
+  let data: { response?: { games?: { appid: number; name: string; playtime_forever: number }[] } };
+  try {
+    data = (await res.json()) as typeof data;
+  } catch {
+    throw new Error('Steam response is not valid JSON (maintenance page?)');
+  }
   return (data.response?.games ?? []).map((g) => ({
     appid: g.appid,
     name: g.name,
