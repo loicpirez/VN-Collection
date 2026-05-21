@@ -10,7 +10,7 @@ import {
   type CacheRow,
 } from './db';
 import { throttledFetch } from './vndb-throttle';
-import { isAllowedHttpTarget } from './url-allowlist';
+import { assertNoPrivateIpRebind, isAllowedHttpTarget } from './url-allowlist';
 
 const DEFAULT_BACKUP = 'https://api.yorhel.org/kana';
 const PRIMARY = 'https://api.vndb.org/kana';
@@ -176,7 +176,19 @@ async function doFetch<T>(
   // Auth-bearing calls must hit the primary — the mirror is read-only and
   // does not have the user's token / list data.
   const isAuthed = !!new Headers(init.headers).get('Authorization');
-  const mirror = isAuthed ? null : mirrorUrl(url);
+  let mirror = isAuthed ? null : mirrorUrl(url);
+
+  // AUD-SEC-016: DNS rebinding defence for the user-configured backup URL.
+  // Resolve the mirror hostname before using it; reject if any returned
+  // IPv4 address falls in a private/loopback range. Failure suppresses the
+  // mirror path rather than breaking primary fetches.
+  if (mirror) {
+    try {
+      await assertNoPrivateIpRebind(new URL(mirror).hostname);
+    } catch {
+      mirror = null;
+    }
+  }
 
   try {
     return await fetchOnce<T>(url, init, key, ttlMs, cached);

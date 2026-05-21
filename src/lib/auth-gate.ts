@@ -74,9 +74,19 @@ export function requireLocalhostOrToken(req: Request): NextResponse | null {
   const url = new URL(req.url);
   if (isLoopbackHost(url.hostname)) return null;
 
+  // AUD-SEC-015: Only trust X-Forwarded-For when ALLOW_TRUSTED_PROXY=1
+  // AND the request carries X-Proxy-Secret matching TRUSTED_PROXY_SECRET.
+  // Without the shared secret, any client can forge X-Forwarded-For: 127.0.0.1
+  // and bypass the loopback gate. The reverse proxy (nginx/Caddy) must be
+  // configured to inject the secret header on every forwarded request.
   if (process.env.ALLOW_TRUSTED_PROXY === '1') {
-    const forwarded = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-    if (forwarded && isLoopbackIp(forwarded)) return null;
+    const secret = process.env.TRUSTED_PROXY_SECRET?.trim();
+    const proofHeader = req.headers.get('x-proxy-secret')?.trim();
+    const secretOk = secret ? (proofHeader === secret) : false;
+    if (secretOk) {
+      const forwarded = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+      if (forwarded && isLoopbackIp(forwarded)) return null;
+    }
   }
 
   // Deny.

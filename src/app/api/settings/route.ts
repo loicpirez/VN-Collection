@@ -32,6 +32,7 @@ import {
   validateShelfDisplayOverridesV1,
 } from '@/lib/shelf-view-prefs';
 import { recordActivity } from '@/lib/activity';
+import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 
 import { readJsonObject } from '@/lib/api-body';
 
@@ -430,6 +431,12 @@ export async function PATCH(req: NextRequest) {
       const trimmed = v.trim();
       if (!/^https?:\/\//i.test(trimmed) || trimmed.length > 300) {
         return NextResponse.json({ error: 'vndb_backup_url must be a http(s) URL' }, { status: 400 });
+      }
+      if (!isAllowedHttpTarget(trimmed)) {
+        return NextResponse.json(
+          { error: 'vndb_backup_url must point to an allowed VNDB-compatible host (e.g. api.yorhel.org)' },
+          { status: 400 },
+        );
       }
       // Strip trailing slash so concatenating `${base}${path}` always yields a single `/`.
       setAppSetting('vndb_backup_url', trimmed.replace(/\/+$/, ''));
