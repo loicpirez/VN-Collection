@@ -289,7 +289,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
                 {running ? `${t.bulk.runningTitle} · ${activeMode === 'full' ? t.bulk.full : t.bulk.missing}` : aborted ? t.bulk.abortedTitle : finished ? t.bulk.doneTitle : t.common.error}
               </div>
               {currentTitle && running && (
-                <div className="mt-1 truncate text-xs text-white/80">{currentTitle}</div>
+                <div className="mt-1 truncate text-xs text-white/80" title={currentTitle}>{currentTitle}</div>
               )}
               {!running && (
                 <div className="mt-1 text-xs text-muted">

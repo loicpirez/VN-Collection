@@ -346,7 +346,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
                     >
                       {isPicked && <Check className="h-3 w-3" />}
                     </span>
-                    <span className="min-w-0 flex-1 truncate font-bold">{r.title}</span>
+                    <span className="min-w-0 flex-1 truncate font-bold" title={r.title}>{r.title}</span>
                     <span className="shrink-0 font-mono text-[10px] text-muted">{r.id}</span>
                     {r.released && <span className="shrink-0 text-[10px] text-muted">{r.released.slice(0, 4)}</span>}
                   </button>

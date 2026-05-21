@@ -547,7 +547,7 @@ export function ShelfReadOnlyControls({
                     const current = prefs.displayRowOrientations?.[zoneKey] ?? prefs.displayOrientation;
                     return (
                       <div key={afterRow} className="mt-1.5 flex items-center justify-between gap-2">
-                        <span className="flex-1 truncate text-[10px] text-muted">{label}</span>
+                        <span className="flex-1 truncate text-[10px] text-muted" title={label}>{label}</span>
                         <div className="inline-flex overflow-hidden rounded border border-border text-[10px]">
                           {(['portrait', 'landscape'] as ShelfDisplayOrientation[]).map((o) => (
                             <button

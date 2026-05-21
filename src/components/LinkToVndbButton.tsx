@@ -139,7 +139,7 @@ export function LinkToVndbButton({ vnId, seedQuery }: { vnId: string; seedQuery:
                   className="flex items-center gap-2 rounded-md border border-border bg-bg-elev/30 px-3 py-2 text-xs hover:border-accent"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-bold">{h.title}</div>
+                    <div className="truncate font-bold" title={h.title}>{h.title}</div>
                     <div className="flex flex-wrap gap-x-2 text-[10px] text-muted">
                       <span className="font-mono">{h.id}</span>
                       {h.released && <span>{h.released}</span>}

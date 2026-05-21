@@ -266,7 +266,7 @@ export function EgsPanel({
           </div>
         </div>
 
-        <div className="mb-2 line-clamp-2 text-sm font-semibold">{game.gamename}</div>
+        <div className="mb-2 line-clamp-2 text-sm font-semibold" title={game.gamename}>{game.gamename}</div>
 
         {/*
           Clickable metadata strip — brand and release year are first-
@@ -536,7 +536,7 @@ function EgsPicker({
                 className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 last:border-b-0 hover:bg-bg-elev/50"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="line-clamp-1 text-sm font-semibold">{c.gamename}</div>
+                  <div className="line-clamp-1 text-sm font-semibold" title={c.gamename}>{c.gamename}</div>
                   <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted">
                     <span>EGS #{c.id}</span>
                     {c.sellday && <span>{c.sellday}</span>}

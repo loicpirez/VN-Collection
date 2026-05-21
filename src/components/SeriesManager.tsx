@@ -93,7 +93,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
             <div key={s.id} className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-card p-4 hover:border-accent">
               <Link href={`/series/${s.id}`} className="min-w-0 flex-1">
                 <div className="font-semibold">{s.name}</div>
-                {s.description && <div className="line-clamp-2 text-xs text-muted">{s.description}</div>}
+                {s.description && <div className="line-clamp-2 text-xs text-muted" title={s.description}>{s.description}</div>}
               </Link>
               <button
                 className="btn btn-danger transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"

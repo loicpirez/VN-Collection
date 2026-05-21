@@ -647,7 +647,7 @@ export function SearchClient() {
               return (
                 <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <div className="line-clamp-2 text-sm font-semibold">{c.gamename}</div>
+                    <div className="line-clamp-2 text-sm font-semibold" title={c.gamename}>{c.gamename}</div>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted">
                       <span>EGS #{c.id}</span>
                       {c.sellday && <span>{c.sellday}</span>}

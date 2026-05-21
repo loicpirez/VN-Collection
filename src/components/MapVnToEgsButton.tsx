@@ -277,7 +277,7 @@ export function MapVnToEgsButton({
                   className="flex items-center gap-2 rounded-md border border-border bg-bg-elev/30 px-3 py-2 text-xs hover:border-accent"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-bold">{c.gamename}</div>
+                    <div className="truncate font-bold" title={c.gamename}>{c.gamename}</div>
                     <div className="flex flex-wrap gap-x-2 text-[10px] text-muted">
                       <span className="font-mono">EGS #{c.id}</span>
                       {c.sellday && <span>{c.sellday}</span>}

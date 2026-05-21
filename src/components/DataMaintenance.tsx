@@ -95,7 +95,7 @@ export function DataMaintenance() {
               <ul className="max-h-72 space-y-1 overflow-y-auto text-xs">
                 {dups.map((g) => (
                   <li key={g.prefix} className="rounded-md border border-border bg-bg-elev/40 p-2">
-                    <div className="mb-1 truncate font-mono text-[10px] text-muted">{g.prefix}</div>
+                    <div className="mb-1 truncate font-mono text-[10px] text-muted" title={g.prefix}>{g.prefix}</div>
                     <div className="flex flex-wrap gap-1">
                       {g.ids.map((id) => (
                         <a key={id} href={`/vn/${id}`} className="rounded bg-bg-card px-1.5 py-0.5 text-[10px] hover:text-accent">
@@ -121,7 +121,7 @@ export function DataMaintenance() {
                 {stale.slice(0, 50).map((s) => (
                   <li key={s.id} className="flex items-baseline justify-between gap-2 rounded-md border border-border bg-bg-elev/40 p-2">
                     <span className="min-w-0">
-                      <Link href={`/vn/${s.id}`} className="truncate font-semibold hover:text-accent">{s.title}</Link>
+                      <Link href={`/vn/${s.id}`} className="truncate font-semibold hover:text-accent" title={s.title}>{s.title}</Link>
                       <span className="ml-1 text-[10px] text-muted">
                         {!s.has_cover && `· ${t.maintenance.noCover}`}
                         {!s.has_egs && `· ${t.maintenance.noEgs}`}
