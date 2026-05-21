@@ -1,4 +1,4 @@
-import { Database, AlertTriangle } from 'lucide-react';
+import { Check, Database, AlertTriangle } from 'lucide-react';
 import { getSchemaEgsSummary, type SchemaEgsTableSummary } from '@/lib/schema-egs';
 import { getDict } from '@/lib/i18n/server';
 
@@ -37,6 +37,10 @@ export async function SchemaEgsSection() {
         return dict.tableVnEgsLink;
       case 'egs_vn_link':
         return dict.tableEgsVnLink;
+      default: {
+        const _exhaustive: never = table.key;
+        return _exhaustive;
+      }
     }
   };
 
@@ -84,7 +88,11 @@ export async function SchemaEgsSection() {
           <li className="rounded-lg border border-dashed border-border bg-bg-elev/20 p-3 text-xs sm:col-span-2">
             <div className="font-mono text-[11px] text-muted">{dict.settingsEgsUsername}</div>
             <div className="mt-1 text-muted">
-              {summary.egsUsernameSet ? '✓' : '—'}
+              {summary.egsUsernameSet ? (
+                <><Check className="inline h-3.5 w-3.5 text-green-400" aria-hidden /><span className="sr-only">{dict.set}</span></>
+              ) : (
+                <span className="text-muted" aria-label={dict.notSet}>—</span>
+              )}
             </div>
           </li>
         </ul>

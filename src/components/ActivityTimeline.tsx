@@ -87,6 +87,10 @@ function summary(entry: Entry, t: ReturnType<typeof useT>): ReactNode {
       return `${t.activity.kind.note} (${typeof p.length === 'number' ? p.length : 0} chars)`;
     case 'manual':
       return String(p.text ?? '');
+    default: {
+      const _exhaustive: never = entry.kind;
+      return String(_exhaustive);
+    }
   }
 }
 

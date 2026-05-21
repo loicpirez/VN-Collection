@@ -5,7 +5,6 @@ import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
-import { ContentWidthSlider } from './ContentWidthSlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -319,6 +318,10 @@ export function WishlistClient() {
         case 'released_desc': return (b.vn.released ?? '').localeCompare(a.vn.released ?? '');
         case 'released_asc': return (a.vn.released ?? '').localeCompare(b.vn.released ?? '');
         case 'length_desc': return (b.vn.length_minutes ?? 0) - (a.vn.length_minutes ?? 0);
+        default: {
+          const _exhaustive: never = sort;
+          return String(_exhaustive).localeCompare('');
+        }
       }
     });
     return arr;
@@ -460,7 +463,6 @@ export function WishlistClient() {
               {t.wishlist.hideOwned}
             </label>
             <CardDensitySlider scope="wishlist" />
-            <ContentWidthSlider scope="wishlist" />
             <button
               type="button"
               onClick={onRefresh}
