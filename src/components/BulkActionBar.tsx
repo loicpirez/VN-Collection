@@ -227,8 +227,8 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
             </CollapsibleSummary>
           </summary>
           <ul className="mt-1 max-h-24 overflow-y-auto text-[10px] text-status-dropped">
-            {errors.map((e, i) => (
-              <li key={i} className="truncate">
+            {errors.map((e) => (
+              <li key={e} className="truncate">
                 {e}
               </li>
             ))}

@@ -144,7 +144,7 @@ export function ImportPanel() {
                 </CollapsibleSummary>
               </summary>
               <ul className="mt-1 max-h-32 overflow-y-auto text-[10px]">
-                {summary.data.errors.map((e, i) => <li key={i}>{e}</li>)}
+                {summary.data.errors.map((e) => <li key={e}>{e}</li>)}
               </ul>
             </details>
           )}

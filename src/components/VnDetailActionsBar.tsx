@@ -341,7 +341,15 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   // into a single row on desktop. Empty entries are filtered out so
   // a missing menu (e.g. `tracking` on an out-of-collection VN)
   // doesn't leave dead whitespace.
-  const dropdownTriggers = [tracking, external, media, data, mapping].filter(Boolean);
+  const dropdownTriggers: Array<{ key: string; node: React.ReactNode }> = (
+    [
+      { key: 'tracking', node: tracking },
+      { key: 'external', node: external },
+      { key: 'media', node: media },
+      { key: 'data', node: data },
+      { key: 'mapping', node: mapping },
+    ] as const
+  ).filter((e) => e.node != null);
 
   // ── Destructive (rendered last, right-anchored on md+) ───────────
   const dangerous = inCollection ? (
@@ -389,9 +397,9 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           aria-label={t.detail.actions.ariaLabel}
           className={DROPDOWN_ROW_CLASSES}
         >
-          {dropdownTriggers.map((trigger, i) => (
-            <React.Fragment key={i}>
-              {trigger}
+          {dropdownTriggers.map(({ key, node }) => (
+            <React.Fragment key={key}>
+              {node}
             </React.Fragment>
           ))}
         </div>
