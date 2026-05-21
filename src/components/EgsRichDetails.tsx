@@ -67,7 +67,7 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
         </div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i}>
+            <div key={`egs-stat-skel-${i}`}>
               <SkeletonBlock className="mb-1 h-2 w-12" />
               <SkeletonBlock className="h-3 w-20" />
             </div>

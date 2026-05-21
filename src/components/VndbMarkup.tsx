@@ -164,18 +164,15 @@ function renderTokens(tokens: Token[], spoilerLabel: string, keyPrefix = 'm'): R
       case 's':
         return <span key={key} className="line-through">{renderTokens(tok.children, spoilerLabel, key)}</span>;
       case 'spoiler':
-        // SpoilerReveal is a client component but ships safely under
-        // a server-rendered parent (React server-component → client-
-        // island boundary). It applies the same hover/focus/tap rules
-        // as every other spoiler surface, so the synopsis behaves
-        // exactly like a tag chip would. Level 2 = major spoiler
-        // (anything inside `[spoiler]…[/spoiler]` is treated as such
-        // per VNDB convention).
         return (
           <SpoilerReveal key={key} level={2} hiddenLabel={spoilerLabel}>
             {renderTokens(tok.children, spoilerLabel, key)}
           </SpoilerReveal>
         );
+      default: {
+        const _: never = tok;
+        return null;
+      }
     }
   });
 }

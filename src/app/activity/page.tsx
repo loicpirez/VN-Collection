@@ -36,8 +36,8 @@ function VnActivitySummary({
 
   switch (entry.kind) {
     case 'status': {
-      const from = p?.from as string | null;
-      const to = p?.to as string | null;
+      const from = typeof p?.from === 'string' ? p.from : null;
+      const to = typeof p?.to === 'string' ? p.to : null;
       const fromLabel = from ? (statusLabels[from] ?? from) : '—';
       const toLabel = to ? (statusLabels[to] ?? to) : '—';
       return (
@@ -49,8 +49,8 @@ function VnActivitySummary({
       );
     }
     case 'rating': {
-      const from = p?.from as number | null;
-      const to = p?.to as number | null;
+      const from = typeof p?.from === 'number' ? p.from : null;
+      const to = typeof p?.to === 'number' ? p.to : null;
       const fromStr = from != null ? String(from) : '—';
       const toStr = to != null ? String(to) : '—';
       return (
@@ -62,9 +62,9 @@ function VnActivitySummary({
       );
     }
     case 'playtime': {
-      const from = p?.from as number ?? 0;
-      const to = p?.to as number ?? 0;
-      const delta = p?.delta as number ?? (to - from);
+      const from = typeof p?.from === 'number' ? p.from : 0;
+      const to = typeof p?.to === 'number' ? p.to : 0;
+      const delta = typeof p?.delta === 'number' ? p.delta : (to - from);
       return (
         <span>
           {formatMinutes(to, { emptyValue: 'allow_zero', fallback: '0m' })}
@@ -89,19 +89,19 @@ function VnActivitySummary({
       );
     }
     case 'started': {
-      const to = p?.to as string | null;
+      const to = typeof p?.to === 'string' ? p.to : null;
       return <span className="text-accent">{to ?? '—'}</span>;
     }
     case 'finished': {
-      const to = p?.to as string | null;
+      const to = typeof p?.to === 'string' ? p.to : null;
       return <span className="text-accent">{to ?? '—'}</span>;
     }
     case 'note': {
-      const len = p?.length as number ?? 0;
+      const len = typeof p?.length === 'number' ? p.length : 0;
       return <span className="text-muted">{len} {ta.noteChars}</span>;
     }
     case 'manual': {
-      const text = p?.text as string | undefined;
+      const text = typeof p?.text === 'string' ? p.text : undefined;
       if (!text) return null;
       return (
         <span className="line-clamp-2 text-muted">{text}</span>

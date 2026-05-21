@@ -410,7 +410,7 @@ function TagVndbSkeleton() {
     >
       {Array.from({ length: 12 }).map((_, i) => (
         <li
-          key={i}
+          key={`tag-vndb-skel-${i}`}
           className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2"
         >
           <SkeletonBlock className="aspect-[2/3] w-full rounded" />

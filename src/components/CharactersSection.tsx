@@ -182,7 +182,7 @@ function CharactersSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="flex gap-3 rounded-lg border border-border bg-bg-elev/50 p-3">
+        <div key={`char-skel-${i}`} className="flex gap-3 rounded-lg border border-border bg-bg-elev/50 p-3">
           <SkeletonBlock className="h-20 w-14 shrink-0" />
           <div className="flex-1 space-y-2 pt-1">
             <SkeletonBlock className="h-3 w-2/3" />

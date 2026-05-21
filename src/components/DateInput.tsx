@@ -220,7 +220,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
 
           <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase text-muted/70">
             {weekdayHeaders.labels.map((d, i) => (
-              <span key={i}>{d}</span>
+              <span key={`wd-${i}-${d}`}>{d}</span>
             ))}
           </div>
 

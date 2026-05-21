@@ -65,7 +65,7 @@ export function QuotesSection({
         {loading && (
           <ul className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
-              <li key={i} className="space-y-2 rounded-lg border-l-2 border-accent bg-bg-elev/50 px-4 py-3">
+              <li key={`quote-skel-${i}`} className="space-y-2 rounded-lg border-l-2 border-accent bg-bg-elev/50 px-4 py-3">
                 <SkeletonBlock className="h-3 w-full" />
                 <SkeletonBlock className="h-3 w-5/6" />
                 <SkeletonBlock className="ml-auto h-2.5 w-1/4" />

@@ -260,7 +260,7 @@ function UpcomingTabSkeleton({ tab }: { tab: Tab }) {
         <div className="mb-4 h-3 w-72 rounded bg-bg-elev/60 animate-pulse" />
         <ol className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
           {Array.from({ length: 8 }).map((_, i) => (
-            <li key={i} className="flex gap-4 rounded-xl border border-border bg-bg-elev/40 p-3 sm:p-4">
+            <li key={`anticipated-skel-${i}`} className="flex gap-4 rounded-xl border border-border bg-bg-elev/40 p-3 sm:p-4">
               <div className="h-48 w-32 shrink-0 animate-pulse rounded-lg bg-bg-elev sm:h-56 sm:w-36" />
               <div className="min-w-0 flex-1 space-y-3">
                 <div className="h-5 w-5/6 rounded bg-bg-elev/80 animate-pulse" />
