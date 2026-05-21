@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { ExternalLink, Film, Gamepad2, ShoppingBag, Sparkles, Twitter, Users } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 import { formatMinutes } from '@/lib/format';
 import { SkeletonBlock } from './Skeleton';
 
@@ -35,6 +36,7 @@ function fmtMin(m: number | null): string | null {
  */
 export function EgsRichDetails({ vnId }: { vnId: string }) {
   const t = useT();
+  const locale = useLocale();
   const [raw, setRaw] = useState<RawRow | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -173,7 +175,7 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
           />
         )}
         {sales != null && sales > 0 && (
-          <Stat label={t.egsRich.salesRank} value={sales.toLocaleString()} />
+          <Stat label={t.egsRich.salesRank} value={fmtNum(sales, locale)} />
         )}
         {tourokubi && (
           <Stat label={t.egsRich.registered} value={tourokubi} />

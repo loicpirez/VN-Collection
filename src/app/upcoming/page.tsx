@@ -6,6 +6,7 @@ import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRele
 import { EgsUnreachable, fetchEgsAnticipatedPage, type EgsAnticipated } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 import { db, getCacheFreshness } from '@/lib/db';
 import { SkeletonRows } from '@/components/Skeleton';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
@@ -13,7 +14,7 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { UpcomingCard, type UpcomingCardData } from '@/components/UpcomingCard';
 import { brandHref, yearHref } from '@/lib/egs-links';
-import type { Dictionary } from '@/lib/i18n/dictionaries';
+import type { Dictionary, Locale } from '@/lib/i18n/dictionaries';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
@@ -121,7 +122,7 @@ export default async function UpcomingPage({
   );
 }
 
-async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t: Dictionary; locale: string }) {
+async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t: Dictionary; locale: Locale }) {
   try {
     if (tab === 'anticipated') {
       const { rows, hasMore, stale, fetchedAt } = await fetchEgsAnticipatedPage(
@@ -140,7 +141,7 @@ async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t:
             <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} locale={locale} />
           )}
           <AnticipatedSection rows={rows} vndbCovers={vndbCovers} t={t} startRank={(page - 1) * ANTICIPATED_PAGE_SIZE} />
-          <AnticipatedPaginator page={page} hasMore={hasMore} t={t} />
+          <AnticipatedPaginator page={page} hasMore={hasMore} t={t} locale={locale} />
         </>
       );
     }
@@ -168,7 +169,7 @@ async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t:
   }
 }
 
-function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: string }) {
+function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: Locale }) {
   const when = fetchedAt
     ? new Date(fetchedAt).toLocaleString(locale)
     : '—';
@@ -197,10 +198,12 @@ function AnticipatedPaginator({
   page,
   hasMore,
   t,
+  locale,
 }: {
   page: number;
   hasMore: boolean;
   t: Dictionary;
+  locale: Locale;
 }) {
   const startRank = (page - 1) * 50 + 1;
   const endRank = page * 50;
@@ -213,8 +216,8 @@ function AnticipatedPaginator({
     >
       <span className="text-muted tabular-nums">
         {t.upcoming.anticipatedRankRange
-          .replace('{from}', startRank.toLocaleString())
-          .replace('{to}', endRank.toLocaleString())}
+          .replace('{from}', fmtNum(startRank, locale))
+          .replace('{to}', fmtNum(endRank, locale))}
       </span>
       <div className="inline-flex items-center gap-2">
         {page > 1 ? (

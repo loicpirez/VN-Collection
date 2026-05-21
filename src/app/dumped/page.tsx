@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, HardDriveDownload, LayoutGrid, PackageOpen, Plus, XCircle } from 'lucide-react';
 import { getDumpSummary, listDumpStatus, listVnIdsOnShelf } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { fmtNum } from '@/lib/locale-number';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
@@ -64,6 +66,7 @@ export default async function DumpedPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const t = await getDict();
+  const locale = await getLocale();
   const sp = await searchParams;
   const tab = parseTab(sp.tab);
 
@@ -132,9 +135,9 @@ export default async function DumpedPage({
         {summary.totalVns > 0 ? (
           <>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <Stat label={t.dumped.totalVns} value={summary.totalVns} />
-              <Stat label={t.dumped.dumpedVns} value={summary.fullyDumpedVns} />
-              <Stat label={t.dumped.percent} value={`${vnPct}%`} accent />
+              <Stat label={t.dumped.totalVns} value={summary.totalVns} locale={locale} />
+              <Stat label={t.dumped.dumpedVns} value={summary.fullyDumpedVns} locale={locale} />
+              <Stat label={t.dumped.percent} value={`${vnPct}%`} accent locale={locale} />
             </div>
             <div
               role="progressbar"
@@ -320,12 +323,14 @@ function Stat({
   label,
   value,
   accent,
+  locale,
 }: {
   label: string;
   value: string | number;
   accent?: boolean;
+  locale: Locale;
 }) {
-  const formatted = typeof value === 'number' ? value.toLocaleString() : value;
+  const formatted = typeof value === 'number' ? fmtNum(value, locale) : value;
   return (
     <div className="rounded-lg border border-border bg-bg-elev/50 p-3 text-center">
       <div className="text-[11px] uppercase tracking-wider text-muted">{label}</div>

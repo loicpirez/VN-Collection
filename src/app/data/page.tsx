@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { Activity, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, KeyRound, QrCode, Sparkles } from 'lucide-react';
 import { getDbStatus } from '@/lib/db';
 import { getAuthInfo } from '@/lib/vndb';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 import { ImportPanel } from '@/components/ImportPanel';
 import { DataMaintenance } from '@/components/DataMaintenance';
 import { DropImport } from '@/components/DropImport';
@@ -21,6 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function DataPage() {
   const t = await getDict();
+  const locale = await getLocale();
   const status = getDbStatus();
   let auth: { id: string; username: string; permissions: string[] } | null = null;
   let authError: string | null = null;
@@ -99,7 +101,7 @@ export default async function DataPage() {
               {status.rows.map((r) => (
                 <tr key={r.table} className="border-t border-border/40">
                   <td className="py-1 font-mono text-muted">{r.table}</td>
-                  <td className="py-1 text-right font-bold tabular-nums">{r.count.toLocaleString()}</td>
+                  <td className="py-1 text-right font-bold tabular-nums">{fmtNum(r.count, locale)}</td>
                 </tr>
               ))}
             </tbody>

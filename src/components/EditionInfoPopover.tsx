@@ -12,7 +12,8 @@ import {
   MapPin,
   RefreshCw,
 } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 import { derivePlatformDisplay } from '@/lib/platform-display';
 import { platformLabel } from '@/lib/platform-label';
 import { useToast } from './ToastProvider';
@@ -110,6 +111,7 @@ export function EditionInfoTrigger({
   groupHoverScope?: string;
 }) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -481,7 +483,7 @@ export function EditionInfoTrigger({
             {data.price_paid != null && (
               <div className="inline-flex items-center gap-1 text-accent">
                 <CircleDollarSign className="h-2.5 w-2.5" aria-hidden />
-                {data.price_paid.toLocaleString()} {data.currency ?? ''}
+                {fmtNum(data.price_paid, locale)} {data.currency ?? ''}
               </div>
             )}
             {data.acquired_date && (

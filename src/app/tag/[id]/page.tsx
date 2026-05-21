@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Star, Tag as TagIcon } from 'lucide-react';
 import { db } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { fmtNum } from '@/lib/locale-number';
 import { tagPageEmptyState } from '@/lib/tag-page-empty-state';
 import { parseTagPageParams, tagPageTabHref } from '@/lib/tags-page-modes';
 import { getTag, fetchTopVnsByTag } from '@/lib/vndb';
@@ -251,6 +253,7 @@ function TagMetaHeaderSkeleton() {
 }
 
 async function TagMetaHeaderAsync({ tagId, t }: { tagId: string; t: Awaited<ReturnType<typeof getDict>> }) {
+  const locale = await getLocale();
   const tagInfo = await getTag(tagId).catch(() => null);
   return (
     <>
@@ -272,7 +275,7 @@ async function TagMetaHeaderAsync({ tagId, t }: { tagId: string; t: Awaited<Retu
               {tagInfo.applicable ? t.tagPage.applicable : t.tagPage.notApplicable}
             </span>
             <span className="rounded bg-bg-elev px-2 py-0.5 text-muted">
-              {t.tagPage.vndbCount.replace('{n}', tagInfo.vn_count.toLocaleString())}
+              {t.tagPage.vndbCount.replace('{n}', fmtNum(tagInfo.vn_count, locale))}
             </span>
           </>
         )}
@@ -304,6 +307,7 @@ function TagWebDetailSkeleton() {
 
 async function TagWebDetailBlock({ tagId }: { tagId: string }) {
   const t = await getDict();
+  const locale = await getLocale();
   let detail: Awaited<ReturnType<typeof getVndbTagWebDetail>> | null = null;
   let error: string | null = null;
   try {
@@ -364,7 +368,7 @@ async function TagWebDetailBlock({ tagId }: { tagId: string }) {
               <article key={group.title} className="rounded-lg border border-border bg-bg-elev/35 p-3">
                 <h3 className="mb-2 text-sm font-bold">{group.title}</h3>
                 <div className="flex flex-wrap gap-2">
-                  {group.children.map((child) => <TagChildChip key={child.id} tag={child} />)}
+                  {group.children.map((child) => <TagChildChip key={child.id} tag={child} locale={locale} />)}
                 </div>
               </article>
             ))}
@@ -383,11 +387,11 @@ async function TagWebDetailBlock({ tagId }: { tagId: string }) {
   );
 }
 
-function TagChildChip({ tag }: { tag: VndbTagTreeNode }) {
+function TagChildChip({ tag, locale }: { tag: VndbTagTreeNode; locale: Locale }) {
   return (
     <Link href={tag.href} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-card px-3 py-1 text-xs hover:border-accent hover:text-accent">
       <span>{tag.name}</span>
-      {tag.count != null ? <span className="text-muted tabular-nums">({tag.count.toLocaleString()})</span> : null}
+      {tag.count != null ? <span className="text-muted tabular-nums">({fmtNum(tag.count, locale)})</span> : null}
     </Link>
   );
 }

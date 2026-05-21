@@ -2,7 +2,8 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Database as DbIcon, Loader2, Upload } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
 import { CollapsibleSummary } from './CollapsibleSummary';
 
@@ -32,6 +33,7 @@ async function detectKind(file: File): Promise<'json' | 'db'> {
 
 export function ImportPanel() {
   const t = useT();
+  const locale = useLocale();
   const { confirm } = useConfirm();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -158,7 +160,7 @@ export function ImportPanel() {
           <ul className="mt-2 grid grid-cols-2 gap-1 text-muted">
             {summary.data.tables.map((row) => (
               <li key={row.name}>
-                {row.name}: <b className="text-white">{row.rows_replaced.toLocaleString()}</b>
+                {row.name}: <b className="text-white">{fmtNum(row.rows_replaced, locale)}</b>
               </li>
             ))}
           </ul>

@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, Tags } from 'lucide-react';
 import { RefreshScopeButton } from './RefreshScopeButton';
 import { SkeletonRows } from './Skeleton';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { fmtNum } from '@/lib/locale-number';
 import { stripVndbMarkup } from './VndbMarkup';
 import type { VndbTag } from '@/lib/vndb-types';
 import type { VndbTagHomeTree, VndbTagTreeNode } from '@/lib/vndb-tag-web-parser';
@@ -34,6 +36,7 @@ interface TagsBrowserProps {
 
 export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initialTree = null }: TagsBrowserProps = {}) {
   const t = useT();
+  const locale = useLocale();
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<'' | 'cont' | 'ero' | 'tech'>('');
   const [mode, setMode] = useState<TagsPageMode>(initialMode);
@@ -232,19 +235,19 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         mode === 'vndb' && !q && !category ? <VndbTreeSkeleton /> : <SkeletonRows count={12} withThumb={false} />
       ) : results.length === 0 ? (
         mode === 'vndb' && !q && !category && homeTree ? (
-          <VndbTreeView tree={homeTree} localCounts={localCounts} />
+          <VndbTreeView tree={homeTree} localCounts={localCounts} locale={locale} />
         ) : (
           <div className="py-12 text-center text-muted">{t.search.noResults}</div>
         )
       ) : (
-        <TagFlatView results={results} mode={mode} q={q} localCounts={localCounts} />
+        <TagFlatView results={results} mode={mode} q={q} localCounts={localCounts} locale={locale} />
       )}
     </div>
   );
 }
 
 /** Tree view shown in VNDB mode with no active search/filter — parsed from https://vndb.org/g and cached locally. */
-function VndbTreeView({ tree, localCounts }: { tree: VndbTagHomeTree; localCounts: Map<string, number> }) {
+function VndbTreeView({ tree, localCounts, locale }: { tree: VndbTagHomeTree; localCounts: Map<string, number>; locale: Locale }) {
   const t = useT();
 
   return (
@@ -270,6 +273,7 @@ function VndbTreeView({ tree, localCounts }: { tree: VndbTagHomeTree; localCount
               children={group.children}
               moreCount={group.moreCount ?? null}
               localCounts={localCounts}
+              locale={locale}
             />
           ))}
         </div>
@@ -278,10 +282,10 @@ function VndbTreeView({ tree, localCounts }: { tree: VndbTagHomeTree; localCount
       {(tree.popular.length > 0 || tree.recentlyAdded.length > 0) && (
         <div className="grid gap-4 lg:grid-cols-2">
           {tree.popular.length > 0 && (
-            <TagListPanel title={t.tags.popularTags} tags={tree.popular} localCounts={localCounts} />
+            <TagListPanel title={t.tags.popularTags} tags={tree.popular} localCounts={localCounts} locale={locale} />
           )}
           {tree.recentlyAdded.length > 0 && (
-            <TagListPanel title={t.tags.recentlyAdded} tags={tree.recentlyAdded} localCounts={localCounts} showDate />
+            <TagListPanel title={t.tags.recentlyAdded} tags={tree.recentlyAdded} localCounts={localCounts} showDate locale={locale} />
           )}
         </div>
       )}
@@ -295,12 +299,14 @@ function RootGroupRow({
   children,
   moreCount,
   localCounts,
+  locale,
 }: {
   label: string;
   href: string;
   children: VndbTagTreeNode[];
   moreCount: number | null;
   localCounts: Map<string, number>;
+  locale: Locale;
 }) {
   const [open, setOpen] = useState(true);
   const t = useT();
@@ -324,7 +330,7 @@ function RootGroupRow({
         <div className="border-t border-border px-4 py-3">
           <div className="flex flex-wrap gap-2">
             {children.map((tag) => (
-              <TreeTagChip key={tag.id} tag={tag} localCount={localCounts.get(tag.id)} />
+              <TreeTagChip key={tag.id} tag={tag} localCount={localCounts.get(tag.id)} locale={locale} />
             ))}
             {moreCount ? (
               <Link
@@ -341,14 +347,14 @@ function RootGroupRow({
   );
 }
 
-function TreeTagChip({ tag, localCount }: { tag: VndbTagTreeNode; localCount?: number }) {
+function TreeTagChip({ tag, localCount, locale }: { tag: VndbTagTreeNode; localCount?: number; locale: Locale }) {
   return (
     <Link
       href={tag.href}
       className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-card px-3 py-1 text-xs transition-colors hover:border-accent hover:bg-accent/10"
     >
       <span className="font-medium transition-colors group-hover:text-accent">{tag.name}</span>
-      {tag.count != null ? <span className="text-muted tabular-nums">({tag.count.toLocaleString()})</span> : null}
+      {tag.count != null ? <span className="text-muted tabular-nums">({fmtNum(tag.count, locale)})</span> : null}
       {localCount ? (
         <span className="rounded bg-accent/20 px-1 text-accent tabular-nums">{localCount}</span>
       ) : null}
@@ -361,11 +367,13 @@ function TagListPanel({
   tags,
   localCounts,
   showDate = false,
+  locale,
 }: {
   title: string;
   tags: Array<{ id: string; name: string; href: string; count?: number | null; dateLabel?: string | null }>;
   localCounts: Map<string, number>;
   showDate?: boolean;
+  locale: Locale;
 }) {
   return (
     <section className="rounded-xl border border-border bg-bg-card p-4">
@@ -376,7 +384,7 @@ function TagListPanel({
             <Link href={tag.href} className="group flex items-center gap-2 rounded-lg border border-border bg-bg-elev/35 px-3 py-2 text-sm hover:border-accent">
               <span className="min-w-0 flex-1 truncate font-medium group-hover:text-accent">{tag.name}</span>
               {showDate && tag.dateLabel ? <span className="text-xs text-muted">{tag.dateLabel}</span> : null}
-              {tag.count != null ? <span className="text-xs tabular-nums text-muted">({tag.count.toLocaleString()})</span> : null}
+              {tag.count != null ? <span className="text-xs tabular-nums text-muted">({fmtNum(tag.count, locale)})</span> : null}
               {localCounts.get(tag.id) ? <span className="rounded bg-accent/20 px-1 text-xs text-accent">{localCounts.get(tag.id)}</span> : null}
             </Link>
           </li>
@@ -401,7 +409,7 @@ function VndbTreeSkeleton() {
 }
 
 /** Flat card grid — used when search/filter is active or in local mode */
-function TagFlatView({ results, mode, q, localCounts }: { results: VndbTag[]; mode: TagsPageMode; q: string; localCounts: Map<string, number> }) {
+function TagFlatView({ results, mode, q, localCounts, locale }: { results: VndbTag[]; mode: TagsPageMode; q: string; localCounts: Map<string, number>; locale: Locale }) {
   const t = useT();
   const buckets = useMemo(() => groupTagsByCategory(results, q), [results, q]);
   return (
@@ -434,7 +442,7 @@ function TagFlatView({ results, mode, q, localCounts }: { results: VndbTag[]; mo
                       </p>
                     )}
                     <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
-                      <span className="tabular-nums">{tag.vn_count.toLocaleString()} {t.tags.vnCount}</span>
+                      <span className="tabular-nums">{fmtNum(tag.vn_count, locale)} {t.tags.vnCount}</span>
                       {mode === 'vndb' && localCounts.get(tag.id) ? (
                         <span className="rounded bg-accent/15 px-1 py-0.5 text-accent tabular-nums">
                           {localCounts.get(tag.id)} {t.tags.inCollection}

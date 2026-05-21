@@ -4,13 +4,15 @@ import Link from 'next/link';
 import { Library, Loader2, Search, Sparkles } from 'lucide-react';
 import { RefreshScopeButton } from './RefreshScopeButton';
 import { SkeletonRows } from './Skeleton';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 import { stripVndbMarkup } from './VndbMarkup';
 import type { VndbTrait } from '@/lib/vndb-types';
 
 import { readApiError } from '@/lib/api-error-read';
 export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null } = {}) {
   const t = useT();
+  const locale = useLocale();
   const [q, setQ] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
   const [results, setResults] = useState<VndbTrait[]>([]);
@@ -115,7 +117,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
                 <p className="mt-1 line-clamp-3 text-xs text-muted">{stripVndbMarkup(tr.description)}</p>
               )}
               <div className="mt-2 text-[11px] text-muted tabular-nums">
-                {tr.char_count.toLocaleString()} {t.traits.charCount}
+                {fmtNum(tr.char_count, locale)} {t.traits.charCount}
               </div>
             </Link>
           ))}

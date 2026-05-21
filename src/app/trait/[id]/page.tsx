@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, Check, CornerDownRight, ExternalLink, Sparkles } from 'lucide-react';
 import { getCharactersForTrait, getTrait, type VndbCharacter, type VndbTrait } from '@/lib/vndb';
 import { getCharacterImages, listInCollectionVnIds } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 
 export async function generateMetadata({
   params,
@@ -41,6 +42,7 @@ export default async function TraitPage({
   const mineOnly = sp.mine === '1';
   if (!/^i\d+$/i.test(id)) notFound();
   const t = await getDict();
+  const locale = await getLocale();
   let trait: VndbTrait | null = null;
   let characters: VndbCharacter[] = [];
   let error: string | null = null;
@@ -100,7 +102,7 @@ export default async function TraitPage({
               {trait.name}
             </h1>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-              <span>{trait.char_count.toLocaleString()} {t.traits.charCount}</span>
+              <span>{fmtNum(trait.char_count, locale)} {t.traits.charCount}</span>
               {trait.aliases.length > 0 && <span>· {trait.aliases.slice(0, 4).join(', ')}</span>}
               {trait.sexual && (
                 <span className="rounded bg-status-dropped/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-status-dropped">

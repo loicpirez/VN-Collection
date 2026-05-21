@@ -6,7 +6,8 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useDialogA11y } from './Dialog';
 import { SkeletonBlock } from './Skeleton';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
 import { brandHref, yearHref } from '@/lib/egs-links';
 
@@ -77,6 +78,7 @@ export function EgsPanel({
   initialSource = null,
 }: Props) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const { confirm } = useConfirm();
   // Hydrate from the server payload so first paint already shows the match.
@@ -324,7 +326,7 @@ export function EgsPanel({
           <Stat
             icon={<Users className="h-3 w-3" />}
             label={t.egs.voteCount}
-            value={game.count != null ? game.count.toLocaleString() : '—'}
+            value={game.count != null ? fmtNum(game.count, locale) : '—'}
           />
           <Stat
             icon={<Clock className="h-3 w-3" />}
@@ -338,12 +340,12 @@ export function EgsPanel({
             <Stat
               label={t.egs.vndbRating}
               value={vndbRating != null ? `${(vndbRating / 10).toFixed(1)} / 10` : '—'}
-              hint={vndbVoteCount != null ? `${vndbVoteCount.toLocaleString()} ${t.egs.votes}` : undefined}
+              hint={vndbVoteCount != null ? `${fmtNum(vndbVoteCount, locale)} ${t.egs.votes}` : undefined}
             />
             <Stat
               label={t.egs.egsRating}
               value={game.median != null ? `${game.median} / 100` : '—'}
-              hint={game.count != null ? `${game.count.toLocaleString()} ${t.egs.votes}` : undefined}
+              hint={game.count != null ? `${fmtNum(game.count, locale)} ${t.egs.votes}` : undefined}
             />
             {combined != null && (
               <Stat
@@ -425,6 +427,7 @@ function EgsPicker({
   onPicked: (game: EgsGame, source: Source) => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const [query, setQuery] = useState(initialQuery);
   const [candidates, setCandidates] = useState<EgsCandidate[]>([]);
@@ -545,7 +548,7 @@ function EgsPicker({
                         <Star className="h-2.5 w-2.5 fill-accent" /> {c.median}
                       </span>
                     )}
-                    {c.count != null && <span>{c.count.toLocaleString()} {t.egs.votes}</span>}
+                    {c.count != null && <span>{fmtNum(c.count, locale)} {t.egs.votes}</span>}
                   </div>
                 </div>
                 <button

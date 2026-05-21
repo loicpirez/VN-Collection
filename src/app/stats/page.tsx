@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { BarChart3, Database, Globe, KeyRound, Languages, MapPin, Package, Sparkles, Star, Tags as TagsIcon, User as UserIcon, Wrench } from 'lucide-react';
 import { db, getAggregateStats, getStats, listProducerStats, listPublisherStats } from '@/lib/db';
 import { getAuthInfo, getGlobalStats, type VndbStatsGlobal } from '@/lib/vndb';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { fmtNum } from '@/lib/locale-number';
 import { platformLabel } from '@/lib/platform-label';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -51,6 +53,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default async function StatsPage() {
   const t = await getDict();
+  const locale = await getLocale();
   const my = getMyStats();
   const agg = getAggregateStats();
   let global: VndbStatsGlobal | null = null;
@@ -100,10 +103,10 @@ export default async function StatsPage() {
         </div>
         <p className="mb-4 text-xs text-muted">{t.stats.mySubtitle}</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label={t.stats.total} value={my.total} />
-          <Stat label={t.stats.playtimeHours} value={`${myH}h`} />
-          <Stat label={t.stats.avgRating} value={myAvg} />
-          <Stat label={t.stats.favorites} value={my.favorites} />
+          <Stat label={t.stats.total} value={my.total} locale={locale} />
+          <Stat label={t.stats.playtimeHours} value={`${myH}h`} locale={locale} />
+          <Stat label={t.stats.avgRating} value={myAvg} locale={locale} />
+          <Stat label={t.stats.favorites} value={my.favorites} locale={locale} />
         </div>
 
         {statusDonut.length > 0 && (
@@ -125,18 +128,21 @@ export default async function StatsPage() {
           </div>
           <p className="mb-4 text-xs text-muted">{t.stats.egsSubtitle}</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label={t.stats.egsMatched} value={`${agg.egs.matched} / ${agg.egs.matched + agg.egs.unmatched}`} />
+            <Stat label={t.stats.egsMatched} value={`${agg.egs.matched} / ${agg.egs.matched + agg.egs.unmatched}`} locale={locale} />
             <Stat
               label={t.stats.egsAvgMedian}
               value={agg.egs.avg_median != null ? `${agg.egs.avg_median.toFixed(1)} / 100` : '—'}
+              locale={locale}
             />
             <Stat
               label={t.stats.egsSumPlaytime}
               value={`${Math.round(agg.egs.sum_playtime_minutes / 60)}h`}
+              locale={locale}
             />
             <Stat
               label={t.stats.egsTotalPlaytime}
               value={`${Math.round((my.playtime_minutes + agg.egs.sum_playtime_minutes) / 60)}h`}
+              locale={locale}
             />
           </div>
         </section>
@@ -275,13 +281,13 @@ export default async function StatsPage() {
         {globalError && <p className="mb-3 text-sm text-status-dropped">{globalError}</p>}
         {global && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-            <Stat label={t.stats.vn} value={global.vn} />
-            <Stat label={t.stats.releases} value={global.releases} />
-            <Stat label={t.stats.chars} value={global.chars} />
-            <Stat label={t.stats.producers} value={global.producers} />
-            <Stat label={t.stats.staff} value={global.staff} />
-            <Stat label={t.stats.tagsCount} value={global.tags} />
-            <Stat label={t.stats.traitsCount} value={global.traits} />
+            <Stat label={t.stats.vn} value={global.vn} locale={locale} />
+            <Stat label={t.stats.releases} value={global.releases} locale={locale} />
+            <Stat label={t.stats.chars} value={global.chars} locale={locale} />
+            <Stat label={t.stats.producers} value={global.producers} locale={locale} />
+            <Stat label={t.stats.staff} value={global.staff} locale={locale} />
+            <Stat label={t.stats.tagsCount} value={global.tags} locale={locale} />
+            <Stat label={t.stats.traitsCount} value={global.traits} locale={locale} />
           </div>
         )}
       </section>
@@ -367,8 +373,8 @@ function ProducerRankCards({ t }: { t: Awaited<ReturnType<typeof getDict>> }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
-  const formatted = typeof value === 'number' ? value.toLocaleString() : value;
+function Stat({ label, value, locale }: { label: string; value: string | number; locale: Locale }) {
+  const formatted = typeof value === 'number' ? fmtNum(value, locale) : value;
   return (
     <div className="rounded-lg border border-border bg-bg-elev/50 p-4 text-center">
       <div className="text-[11px] uppercase tracking-wider text-muted">{label}</div>

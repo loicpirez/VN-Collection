@@ -30,7 +30,8 @@ import {
   OWNED_EDITIONS_EVENT,
   type OwnedEditionsChangedDetail,
 } from './ReleaseOwnedToggle';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 import { derivePlatformDisplay } from '@/lib/platform-display';
 import { platformLabel } from '@/lib/platform-label';
 import { BOX_TYPES, LOCATIONS, type BoxType, type Location } from '@/lib/types';
@@ -439,10 +440,11 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
 
 function EditionSummary({ edition }: { edition: OwnedEdition }) {
   const t = useT();
+  const locale = useLocale();
   const conditionEntry = CONDITIONS.find((c) => c.value === edition.condition);
   const conditionLabel = conditionEntry ? t.inventory.conditions[conditionEntry.key] : null;
   const price = edition.price_paid != null && edition.price_paid > 0
-    ? `${edition.price_paid.toLocaleString()} ${edition.currency ?? ''}`.trim()
+    ? `${fmtNum(edition.price_paid, locale)} ${edition.currency ?? ''}`.trim()
     : null;
   // Funnel through the shared helper so the per-edition platform
   // string here reads the same as the shelf popover / pool tiles

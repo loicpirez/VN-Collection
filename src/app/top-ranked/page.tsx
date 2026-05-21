@@ -6,6 +6,7 @@ import { fetchVndbTopRankedPage, VNDB_TOP_MIN_VOTES, type VndbTopRanked } from '
 import { egsBayesianScore, fetchEgsTopRankedPage, EGS_TOP_MIN_VOTES, EgsUnreachable, type EgsTopRanked } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 import { db, getCacheFreshness } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
@@ -14,7 +15,7 @@ import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { brandHref, yearHref } from '@/lib/egs-links';
-import type { Dictionary } from '@/lib/i18n/dictionaries';
+import type { Dictionary, Locale } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,8 +105,8 @@ export default async function TopRankedPage({
             </p>
             <p>
               {tab === 'vndb'
-                ? t.topRanked.thresholdVndb.replace('{n}', minVotes.toLocaleString())
-                : t.topRanked.thresholdEgs.replace('{n}', minVotes.toLocaleString())}
+                ? t.topRanked.thresholdVndb.replace('{n}', fmtNum(minVotes, locale))
+                : t.topRanked.thresholdEgs.replace('{n}', fmtNum(minVotes, locale))}
             </p>
           </div>
           {/* URL-driven min-votes chips. Server-rendered <a>s instead
@@ -113,7 +114,7 @@ export default async function TopRankedPage({
               component and the URL is shareable. Clicking a chip
               swaps the active preset and resets `page` to 1 (a deeper
               page may not exist at the new threshold). */}
-          <MinVotesChips currentTab={tab} currentMin={minVotes} t={t} />
+          <MinVotesChips currentTab={tab} currentMin={minVotes} t={t} locale={locale} />
         </div>
       </header>
 
@@ -135,7 +136,7 @@ async function TabContent({
   page: number;
   minVotes: number;
   t: Dictionary;
-  locale: string;
+  locale: Locale;
 }) {
   try {
     if (tab === 'egs') {
@@ -155,8 +156,8 @@ async function TabContent({
       return (
         <>
           {stale && <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} locale={locale} />}
-          <EgsSection rows={rows} covers={covers} t={t} startRank={(page - 1) * PAGE_SIZE} />
-          <Paginator tab={tab} page={page} minVotes={minVotes} hasMore={hasMore} t={t} />
+          <EgsSection rows={rows} covers={covers} t={t} startRank={(page - 1) * PAGE_SIZE} locale={locale} />
+          <Paginator tab={tab} page={page} minVotes={minVotes} hasMore={hasMore} t={t} locale={locale} />
         </>
       );
     }
@@ -167,8 +168,8 @@ async function TabContent({
     return (
       <>
         {stale && <StaleVndbBanner fetchedAt={fetchedAt ?? null} t={t} locale={locale} />}
-        <VndbSection rows={rows} t={t} startRank={(page - 1) * PAGE_SIZE} />
-        <Paginator tab={tab} page={page} minVotes={minVotes} hasMore={hasMore} t={t} />
+        <VndbSection rows={rows} t={t} startRank={(page - 1) * PAGE_SIZE} locale={locale} />
+        <Paginator tab={tab} page={page} minVotes={minVotes} hasMore={hasMore} t={t} locale={locale} />
       </>
     );
   } catch (e) {
@@ -201,7 +202,7 @@ async function TabContent({
  * seeing the rows + a "stale, last updated …" notice instead of
  * a generic error block.
  */
-function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: string }) {
+function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: Locale }) {
   const when = fetchedAt ? new Date(fetchedAt).toLocaleString(locale) : '—';
   return (
     <div
@@ -223,7 +224,7 @@ function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t:
  * instead of silently reading old rows. Parity with the EGS tab
  * which already exposed this signal.
  */
-function StaleVndbBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: string }) {
+function StaleVndbBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: Locale }) {
   const when = fetchedAt ? new Date(fetchedAt).toLocaleString(locale) : '—';
   return (
     <div
@@ -258,12 +259,14 @@ function Paginator({
   minVotes,
   hasMore,
   t,
+  locale,
 }: {
   tab: Tab;
   page: number;
   minVotes: number;
   hasMore: boolean;
   t: Dictionary;
+  locale: Locale;
 }) {
   const startRank = (page - 1) * PAGE_SIZE + 1;
   const endRank = page * PAGE_SIZE;
@@ -281,8 +284,8 @@ function Paginator({
     >
       <span className="text-muted tabular-nums">
         {t.topRanked.rankRange
-          .replace('{from}', startRank.toLocaleString())
-          .replace('{to}', endRank.toLocaleString())}
+          .replace('{from}', fmtNum(startRank, locale))
+          .replace('{to}', fmtNum(endRank, locale))}
       </span>
       <div className="inline-flex items-center gap-2">
         {page > 1 ? (
@@ -325,10 +328,12 @@ function MinVotesChips({
   currentTab,
   currentMin,
   t,
+  locale,
 }: {
   currentTab: Tab;
   currentMin: number;
   t: Dictionary;
+  locale: Locale;
 }) {
   const tabQs = currentTab === 'egs' ? 'tab=egs' : 'tab=vndb';
   const defaultMin = currentTab === 'egs' ? EGS_TOP_MIN_VOTES : VNDB_TOP_MIN_VOTES;
@@ -353,7 +358,7 @@ function MinVotesChips({
                 : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
             }`}
           >
-            {preset.toLocaleString()}
+            {fmtNum(preset, locale)}
           </Link>
         );
       })}
@@ -391,7 +396,7 @@ function TabLink({
  * because we already mirror cached VN metadata; if the VN isn't in
  * the local DB yet, /vn/[id] auto-fetches on first visit.
  */
-function VndbSection({ rows, t, startRank = 0 }: { rows: VndbTopRanked[]; t: Dictionary; startRank?: number }) {
+function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]; t: Dictionary; startRank?: number; locale: Locale }) {
   // Overlay locally-mirrored covers when we have them (sharper than
   // VNDB's hosted thumbnail). Same trick the /upcoming page uses.
   const ids = rows.map((r) => r.id);
@@ -469,7 +474,7 @@ function VndbSection({ rows, t, startRank = 0 }: { rows: VndbTopRanked[]; t: Dic
                 )}
                 {v.votecount != null && (
                   <span className="opacity-70">
-                    {t.topRanked.voteCount.replace('{n}', v.votecount.toLocaleString())}
+                    {t.topRanked.voteCount.replace('{n}', fmtNum(v.votecount, locale))}
                   </span>
                 )}
                 {v.released && <span className="tabular-nums">{v.released.slice(0, 4)}</span>}
@@ -492,11 +497,13 @@ function EgsSection({
   covers,
   t,
   startRank = 0,
+  locale,
 }: {
   rows: EgsTopRanked[];
   covers: Map<string, VndbCoverInfo>;
   t: Dictionary;
   startRank?: number;
+  locale: Locale;
 }) {
   return (
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-3 sm:p-5">
@@ -594,7 +601,7 @@ function EgsSection({
                   )}
                   {r.count != null && (
                     <span className="opacity-70">
-                      {t.topRanked.voteCount.replace('{n}', r.count.toLocaleString())}
+                      {t.topRanked.voteCount.replace('{n}', fmtNum(r.count, locale))}
                     </span>
                   )}
                   {/* Year token deep-links into the Library year

@@ -28,7 +28,8 @@ import {
   type RecommendationSeed,
   type SignalCounts,
 } from '@/lib/recommend';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 import { RecommendModeTabs, type ModeTabItem } from '@/components/RecommendModeTabs';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -39,7 +40,7 @@ import { VnSeedPicker, type SeedChipData } from '@/components/VnSeedPicker';
 import { SimilarSeedEmptyState } from '@/components/SimilarSeedEmptyState';
 import { pickSimilarToVnView } from '@/lib/recommend-similar-view';
 import { db } from '@/lib/db';
-import type { Dictionary } from '@/lib/i18n/dictionaries';
+import type { Dictionary, Locale } from '@/lib/i18n/dictionaries';
 
 /**
  * Pull the minimum metadata the seed chip needs (title + alttitle + the
@@ -509,6 +510,7 @@ async function ResultsPanel({
   seedVnId: string | undefined;
   t: Dictionary;
 }) {
+  const locale = await getLocale();
   let seeds: RecommendationSeed[] = [];
   let rawSeeds: RecommendationSeed[] | undefined;
   let signalCounts: SignalCounts | undefined;
@@ -571,7 +573,7 @@ async function ResultsPanel({
         includeEro={includeEro}
         t={t}
       />
-      <ResultsGrid mode={mode} results={results} t={t} />
+      <ResultsGrid mode={mode} results={results} t={t} locale={locale} />
     </>
   );
 }
@@ -708,10 +710,12 @@ function ResultsGrid({
   mode,
   results,
   t,
+  locale,
 }: {
   mode: RecommendMode;
   results: Recommendation[];
   t: Dictionary;
+  locale: Locale;
 }) {
   return (
     <ul
@@ -722,7 +726,7 @@ function ResultsGrid({
         const year = r.released?.slice(0, 4);
         const rating = r.rating != null ? (r.rating / 10).toFixed(1) : null;
         const ratingForReason = r.rating != null ? (r.rating / 10).toFixed(1) : '—';
-        const votesForReason = r.votecount != null ? r.votecount.toLocaleString() : '—';
+        const votesForReason = r.votecount != null ? fmtNum(r.votecount, locale) : '—';
         // Dedup matched tags before slicing so two seeds that both
         // matched the same tag don't double up.
         const seenTagIds = new Set<string>();

@@ -1,7 +1,8 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Plus, Search, Tag as TagIcon, X } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 
 interface TagSummary {
   id: string;
@@ -39,6 +40,7 @@ export function TagPicker({
   hint?: string;
 }) {
   const t = useT();
+  const locale = useLocale();
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<TagSummary[]>([]);
   const [searching, setSearching] = useState(false);
@@ -185,7 +187,7 @@ export function TagPicker({
                     {hit.category}
                   </span>
                   <span className="text-[10px] tabular-nums text-muted">
-                    {hit.vn_count.toLocaleString()}
+                    {fmtNum(hit.vn_count, locale)}
                   </span>
                 </button>
               </li>
