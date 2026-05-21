@@ -10,12 +10,14 @@ import type { Status } from '@/lib/types';
 import { EgsUnreachable, fetchEgsGame, linkEgsToVn } from '@/lib/erogamescape';
 import { recordActivity } from '@/lib/activity';
 import { upstreamError } from '@/lib/api-error';
-
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id: rawId } = await ctx.params;
   const egsId = Number(rawId);
   if (!Number.isInteger(egsId) || egsId <= 0) {

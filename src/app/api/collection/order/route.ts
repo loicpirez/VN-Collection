@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resetCollectionCustomOrder, setCollectionCustomOrder } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
-
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -12,6 +12,8 @@ export const runtime = 'nodejs';
  * "Custom" sort. DELETE clears every row's custom_order at once.
  */
 export async function PATCH(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as { ids?: unknown };
   const ids = Array.isArray(body.ids)
     ? body.ids.filter((id): id is string => typeof id === 'string' && /^(v\d+|egs_\d+)$/i.test(id))
@@ -38,7 +40,9 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   try {
     resetCollectionCustomOrder();
     try {

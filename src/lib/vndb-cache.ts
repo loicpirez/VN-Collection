@@ -121,8 +121,14 @@ export async function cachedFetch<T>(
 
   const cached = getCacheRow(key);
   if (cached && now < cached.expires_at) {
+    let data: T;
+    try {
+      data = JSON.parse(cached.body) as T;
+    } catch {
+      throw new Error(`vndb-cache: corrupt cache body for key ${key}`);
+    }
     return {
-      data: JSON.parse(cached.body) as T,
+      data,
       fromCache: true,
       status: 200,
       cachedAt: cached.fetched_at,
@@ -137,8 +143,14 @@ export async function cachedFetch<T>(
       return await doFetch<T>(url, init, key, ttlMs, cached);
     } catch (err) {
       if (cached && staleWhileError) {
+        let staleData: T;
+        try {
+          staleData = JSON.parse(cached.body) as T;
+        } catch {
+          throw err;
+        }
         return {
-          data: JSON.parse(cached.body) as T,
+          data: staleData,
           fromCache: true,
           status: 0,
           cachedAt: cached.fetched_at,
@@ -221,8 +233,14 @@ async function fetchOnce<T>(
 
   if (res.status === 304 && cached) {
     if (ttlMs > 0) touchCacheRow(key, now, now + ttlMs);
+    let cachedData: T;
+    try {
+      cachedData = JSON.parse(cached.body) as T;
+    } catch {
+      throw new Error(`vndb-cache: corrupt cache body for key ${key} (304 path)`);
+    }
     return {
-      data: JSON.parse(cached.body) as T,
+      data: cachedData,
       fromCache: true,
       status: 304,
       cachedAt: cached.fetched_at,

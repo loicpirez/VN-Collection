@@ -82,7 +82,7 @@ export function requireLocalhostOrToken(req: Request): NextResponse | null {
   if (process.env.ALLOW_TRUSTED_PROXY === '1') {
     const secret = process.env.TRUSTED_PROXY_SECRET?.trim();
     const proofHeader = req.headers.get('x-proxy-secret')?.trim();
-    const secretOk = secret ? (proofHeader === secret) : false;
+    const secretOk = secret ? timingSafeStrEqual(proofHeader ?? '', secret) : false;
     if (secretOk) {
       const forwarded = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
       if (forwarded && isLoopbackIp(forwarded)) return null;

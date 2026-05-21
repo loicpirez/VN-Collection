@@ -74,18 +74,23 @@ export function recordActivity(input: RecordActivityInput): void {
   const kind = input.kind.trim();
   if (!kind) return;
   const payload = safePayloadJson(input.payload);
-  db.prepare(
-    `INSERT INTO user_activity (occurred_at, kind, entity, entity_id, label, payload, actor)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    Date.now(),
-    kind.slice(0, 80),
-    input.entity?.slice(0, 80) ?? null,
-    input.entityId?.slice(0, 120) ?? null,
-    input.label?.slice(0, 240) ?? null,
-    payload,
-    (input.actor ?? 'user').slice(0, 80),
-  );
+  try {
+    db.prepare(
+      `INSERT INTO user_activity (occurred_at, kind, entity, entity_id, label, payload, actor)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      Date.now(),
+      kind.slice(0, 80),
+      input.entity?.slice(0, 80) ?? null,
+      input.entityId?.slice(0, 120) ?? null,
+      input.label?.slice(0, 240) ?? null,
+      payload,
+      (input.actor ?? 'user').slice(0, 80),
+    );
+  } catch {
+    // Activity recording is fire-and-forget; a DB error must not
+    // surface to the caller or disrupt the surrounding transaction.
+  }
 }
 
 export function listUserActivity({

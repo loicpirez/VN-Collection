@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addVnToList, getUserList, removeVnFromList, reorderListItems } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
-
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,6 +13,8 @@ export const runtime = 'nodejs';
 const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const listId = Number(id);
   if (!Number.isInteger(listId) || listId <= 0) {
@@ -49,6 +51,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const listId = Number(id);
   if (!Number.isInteger(listId) || listId <= 0) {

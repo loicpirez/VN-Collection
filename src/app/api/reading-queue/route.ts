@@ -7,7 +7,7 @@ import {
   reorderReadingQueue,
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
-
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +16,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as { vn_id?: unknown };
   if (typeof body.vn_id !== 'string' || !/^(v\d+|egs_\d+)$/i.test(body.vn_id)) {
     return NextResponse.json({ error: 'vn_id required' }, { status: 400 });
@@ -29,6 +31,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const vnId = req.nextUrl.searchParams.get('vn_id');
   if (!vnId || !/^(v\d+|egs_\d+)$/i.test(vnId)) {
     return NextResponse.json({ error: 'vn_id required' }, { status: 400 });
@@ -40,6 +44,8 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as { ids?: unknown };
   // R5-126: each id must match the canonical vn-id shape. Without this
   // filter `reorderReadingQueue` is called with arbitrary strings —

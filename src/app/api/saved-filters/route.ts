@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSavedFilter, deleteSavedFilter, listSavedFilters, reorderSavedFilters } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
-
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +10,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as { name?: unknown; params?: unknown };
   if (typeof body.name !== 'string' || !body.name.trim()) {
     return NextResponse.json({ error: 'name required' }, { status: 400 });
@@ -29,6 +31,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const id = Number(req.nextUrl.searchParams.get('id'));
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: 'id required' }, { status: 400 });
@@ -45,6 +49,8 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as { ids?: unknown };
   if (!Array.isArray(body.ids) || body.ids.some((x) => typeof x !== 'number')) {
     return NextResponse.json({ error: 'ids array required' }, { status: 400 });

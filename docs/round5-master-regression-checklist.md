@@ -394,3 +394,210 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | AUD-UX-049 | UX/Refresh | RefreshScopeButton `now` state initialized to `lastUpdatedAt` (past timestamp) instead of `Date.now()`, causing freshness chip to show "just now" on every page load; also no optimistic update of chip after successful Refresh click | `src/components/RefreshScopeButton.tsx` | 35ec2b5 | `now` uses lazy `() => Date.now()` initializer; `refreshedAt` state updated on success so chip shows "just now" immediately without waiting for router.refresh() | FIXED_VERIFIED |
 | AUD-UX-050 | UX/Lists | ListsPickerButton overlay trigger becomes invisible (opacity-0) when mouse moves from VN card to the PortalPopover panel — group-hover state ends while popover stays open | `src/components/ListsPickerButton.tsx` | 35ec2b5 | `!opacity-100` added to overlay trigger when `open === true` so button stays visible while popover is open | FIXED_VERIFIED |
 | AUD-FEAT-001 | Feature | No per-page content width control — pages have hardcoded `max-w-5xl`/`max-w-6xl` leaving large empty margins on wide displays; user wants a per-page width slider like the density slider | `src/lib/settings/client.tsx`, `src/components/DensityScopeProvider.tsx`, all listing pages | Feature explicitly removed by user decision (commit 50a757a). ContentWidthSlider and pageWidth setting deleted. Pages use their CSS-class max-width. | N/A — feature removed | EXTERNALLY_BLOCKED_WITH_EVIDENCE |
+| PAGE-001 | Page | Home `<Suspense>` has no fallback, causing invisible loading gap. | `src/app/page.tsx`, `/` | | source proof + browser load evidence | TODO |
+| PAGE-002 | Page | Home page has no `generateMetadata()`, no page title. | `src/app/page.tsx`, `/` | | source proof | TODO |
+| PAGE-003 | Page | `getAppSetting('home_section_layout_v1')` DB call in RSC has no try/catch; DB error crashes page. | `src/app/page.tsx`, `/` | | test or source proof | TODO |
+| PAGE-004 | Page | `/activity` uses one `page` param for two independent paginated data sources. | `src/app/activity/page.tsx`, `/activity` | | route/browser pagination proof | TODO |
+| PAGE-005 | Page | `/activity` entity filter accepts arbitrary free-text values. | `src/app/activity/page.tsx` | | unit/source proof | TODO |
+| PAGE-006 | Page | `/activity` lacks route-level `error.tsx`. | `src/app/activity/error.tsx` | | source proof | TODO |
+| PAGE-007 | Page | `/brand-overlap` lacks metadata title. | `src/app/brand-overlap/page.tsx` | | source proof | TODO |
+| PAGE-008 | Page | `/brand-overlap` lacks `error.tsx`. | `src/app/brand-overlap/error.tsx` | | source proof | TODO |
+| PAGE-009 | Page | `/characters` local results hard-limited to 200 with no pagination/notice. | `src/app/characters/page.tsx`, `/characters` | | browser evidence | TODO |
+| PAGE-010 | Page | `/characters` lacks `error.tsx`. | `src/app/characters/error.tsx` | | source proof | TODO |
+| PAGE-011 | Page | `/compare` lacks `error.tsx`. | `src/app/compare/error.tsx` | | source proof | TODO |
+| PAGE-012 | Page | `/data` lacks `error.tsx`. | `src/app/data/error.tsx` | | source proof | TODO |
+| PAGE-013 | Page | `/dumped` lacks `error.tsx`. | `src/app/dumped/error.tsx` | | source proof | TODO |
+| PAGE-014 | Page | `/egs` lacks `error.tsx`. | `src/app/egs/error.tsx` | | source proof | TODO |
+| PAGE-015 | Page | `/labels` lacks metadata title. | `src/app/labels/page.tsx` | | source proof | TODO |
+| PAGE-016 | Page | `/labels` ids query param lacks per-id format validation. | `src/app/labels/page.tsx` | | unit/source proof | TODO |
+| PAGE-017 | security | `/labels` uses `dangerouslySetInnerHTML` for QR SVG; safe today but must be documented. | `src/app/labels/page.tsx` | | source proof | TODO |
+| PAGE-018 | Page | `/quotes` hard-limits to 300 results with no pagination/notice. | `src/app/quotes/page.tsx` | | browser/source proof | TODO |
+| PAGE-019 | Page | `/release/[id]` performs DB write side effect inside RSC render. | `src/app/release/[id]/page.tsx` | | source proof + route behavior | TODO |
+| PAGE-020 | Page | `/release/[id]` lacks metadata title. | `src/app/release/[id]/page.tsx` | | source proof | TODO |
+| PAGE-021 | Page | `/search` lacks `dynamic = 'force-dynamic'`. | `src/app/search/page.tsx` | | source proof | TODO |
+| PAGE-022 | Page | `/search` Suspense around client component lacks fallback. | `src/app/search/page.tsx` | | source/browser proof | TODO |
+| PAGE-023 | Page | `/similar` hard-caps at 24 results with no pagination/notice. | `src/app/similar/page.tsx` | | browser/source proof | TODO |
+| PAGE-024 | Page | `/tag/[id]` local tab returns all matching rows without pagination/limit notice. | `src/app/tag/[id]/page.tsx` | | browser/source proof | TODO |
+| SECA-001 | security | `POST /api/vndb/pull-statuses` has no auth gate despite destructive sync. | `src/app/api/vndb/pull-statuses/route.ts` | | route test | TODO |
+| SECA-002 | security | `GET /api/vn/[id]` has side effects and fan-outs but no auth gate. | `src/app/api/vn/[id]/route.ts` | | route test | TODO |
+| SECA-003 | security | `GET /api/vn/[id]/quotes` leaks quote/character data without auth. | `src/app/api/vn/[id]/quotes/route.ts` | | route test | TODO |
+| SECA-004 | security | `GET /api/vn/[id]/lists` leaks list membership without auth. | `src/app/api/vn/[id]/lists/route.ts` | | route test | TODO |
+| SECA-005 | security | `/api/vn/[id]/aspect` lacks auth on GET/PATCH/DELETE; PATCH/DELETE mutate DB. | `src/app/api/vn/[id]/aspect/route.ts` | | route test | TODO |
+| SECA-006 | security | `/api/shelves` POST/PATCH lack auth gate. | `src/app/api/shelves/route.ts` | | route test | TODO |
+| SECA-007 | security | `/api/shelves/[id]` PATCH/DELETE lack auth gate. | `src/app/api/shelves/[id]/route.ts` | | route test | TODO |
+| SECA-008 | security | `/api/shelves/[id]/slots` write handlers must be audited for auth. | `src/app/api/shelves/[id]/slots/route.ts` | | route test | TODO |
+| SECA-009 | security | `/api/search` consumes VNDB quota without auth. | `src/app/api/search/route.ts` | | route test | TODO |
+| SECA-010 | security | `/api/activity` auth status must be verified for GET/write handlers. | `src/app/api/activity/route.ts` | | route test | TODO |
+| DBA-001 | DB/backend | Aspect filtering/grouping triggers per-VN N+1 `materializeReleaseAspectsForVn(id)` loop on collection GET. | `src/app/api/collection/route.ts`, `src/lib/db.ts` | | source proof + perf-oriented test | TODO |
+| DBA-002 | DB/backend | `uniqueSlug()` SELECT loop is safe in create transaction but unsafe for `updateUserList`. | `src/lib/db.ts` | | unit/source proof | TODO |
+| DBA-003 | DB/backend | `updateUserList` check/slug/update not in transaction; TOCTOU duplicate slug risk. | `src/lib/db.ts` | | unit/source proof | TODO |
+| DBA-004 | DB/backend | `setOwnedReleaseAspectOverride` existence check and write not in transaction. | `src/lib/db.ts` | | unit/source proof | TODO |
+| DBA-005 | DB/backend | `setSteamLink` SELECT/guard/write not atomic; manual guard can be bypassed by race. | `src/lib/db.ts` | | unit/source proof | TODO |
+| DBA-006 | DB/backend | `updateGameLogEntry` read/merge/write outside transaction; lost update risk. | `src/lib/db.ts` | | unit/source proof | TODO |
+| DBA-007 | DB/backend | `ratingHistogram()` fetches every rated row into JS instead of SQL aggregation. | `src/lib/db.ts` | | test/source proof | TODO |
+| DBA-008 | DB/backend | migration marker written outside transaction after legacy row update. | `src/lib/db.ts` | | source proof | TODO |
+| DBA-009 | DB/backend | `getDbStatus()` interpolates hardcoded table names; validate/allowlist. | `src/lib/db.ts` | | source proof | TODO |
+| DBA-010 | DB/backend | `restoreFromSqliteFile()` SQL identifier interpolation should add stricter allowlist. | `src/lib/db.ts` | | source proof | TODO |
+| DBA-011 | DB/backend | `user_list_vn.vn_id` orphan tolerance after removeFromCollection needs cleanup or explicit maintenance. | `src/lib/db.ts` | | test/source proof | TODO |
+| UXA-001 | UI/UX | `MarkdownNotes` Edit/Preview buttons hand-roll styles instead of `btn` primitive. | `src/components/MarkdownNotes.tsx` | | source/browser proof | TODO |
+| UXA-002 | UI/UX | `CustomSynopsis` buttons hand-roll styles instead of `btn btn-xs`. | `src/components/CustomSynopsis.tsx` | | source/browser proof | TODO |
+| UXA-003 | UI/UX | `SettingsButton` has multiple hand-rolled inline buttons. | `src/components/SettingsButton.tsx` | | source/browser proof | TODO |
+| UXA-004 | UI/UX | Steam page show all/less toggle hand-rolls button style. | `src/app/steam/page.tsx` | | source proof | TODO |
+| UXA-005 | UI/UX | `EgsPanel` search button hand-rolls button style. | `src/components/EgsPanel.tsx` | | source proof | TODO |
+| UXA-006 | UI/UX | `VnTagChips` spoiler reveal/hide button hand-rolls button style. | `src/components/VnTagChips.tsx` | | source/browser proof | TODO |
+| UXA-007 | a11y | Raw `▲` / `▼` glyphs used as sole section state indicator without sr text/aria-expanded. | `src/components/SettingsButton.tsx` | | a11y/source proof | TODO |
+| UXA-008 | UI/UX | Activity VN title uses `truncate` without `title`. | `src/app/activity/page.tsx` | | source proof | TODO |
+| UXA-009 | UI/UX | Labels print card uses `line-clamp-3` without `title`. | `src/app/labels/page.tsx` | | source proof | TODO |
+| UXA-010 | UI/UX | Steam suggestion rows use `line-clamp-1` without `title`. | `src/app/steam/page.tsx` | | source proof | TODO |
+| UXA-011 | UI/UX | Upcoming brand fallback span uses `line-clamp-1` without `title`. | `src/app/upcoming/page.tsx` | | source proof | TODO |
+| UXA-012 | UI/UX | Dumped VN title uses `line-clamp-2` without `title`. | `src/app/dumped/page.tsx` | | source proof | TODO |
+| I18NA-001 | i18n | `global-error.tsx` hardcodes `<html lang="en">` and English fallback UI. | `src/app/global-error.tsx` | | source proof | TODO |
+| I18NA-002 | i18n | Staff VNDB external link uses bare `aria-label="VNDB"` / `title="VNDB"` instead of localized action. | `src/app/staff/[id]/page.tsx` | | source proof | TODO |
+| I18NA-003 | i18n | `VnTagsGroupedView` VNDB external link uses bare `aria-label="VNDB"` / `title="VNDB"`. | `src/components/VnTagsGroupedView.tsx` | | source proof | TODO |
+| I18NA-004 | i18n | Owned editions platform placeholder `win, ps4, swi…` hardcoded in UI. | `src/components/OwnedEditionsSection.tsx` | | source proof | TODO |
+| I18NA-005 | i18n | Owned editions currency placeholder `JPY` hardcoded as UI hint. | `src/components/OwnedEditionsSection.tsx` | | source proof | TODO |
+| I18NA-006 | i18n | Cover picker `alt="VNDB"` should describe image, e.g. VNDB cover. | `src/components/CoverSourcePicker.tsx` | | source proof | TODO |
+| I18NA-007 | i18n | `recommend.explain.filterEroOff` missing/asymmetric across locales. | `src/lib/i18n/dictionaries.ts`, recommendations page | | i18n parity + source proof | TODO |
+| I18NA-008 | i18n | French locale uses personal/informal `tu/ta/tes/mon/ma/mes` phrasing systemically. Decide policy then apply consistently. | `src/lib/i18n/dictionaries.ts` | | dictionary audit | TODO |
+| RESP-001 | responsive/mobile | MoreNavMenu hides labels below xl, but aria-label/title exist; likely accepted if documented. | `src/components/MoreNavMenu.tsx` | | source proof | TODO |
+| RESP-002 | responsive/mobile | `RoutesSection` action cluster uses `sm:opacity-0 sm:group-hover`, invisible on 640–767px touch screens. | `src/components/RoutesSection.tsx` | | source + responsive browser proof | TODO |
+| RESP-003 | responsive/mobile | `EditionInfoPopover` hover-hidden info button uses `sm:` hover trap, affecting shelf display/slot tiles. | `src/components/EditionInfoPopover.tsx`, `ShelfLayoutEditor` | | source + responsive browser proof | TODO |
+| RESP-004 | responsive/mobile | `ShelfLayoutEditor` display tile title overlay hidden on 640–767px due to `sm:opacity-0 sm:group-hover`. | `src/components/ShelfLayoutEditor.tsx` | | responsive browser proof | TODO |
+| RESP-005 | responsive/mobile | `ShelfLayoutEditor` slot tile title overlay hidden on 640–767px due to `sm:opacity-0 sm:group-hover`. | `src/components/ShelfLayoutEditor.tsx` | | responsive browser proof | TODO |
+| QAI-001 | process | No bulk-closing checklist rows by Python/sed script. | checklist process | | checklist commit review | TODO |
+| QAI-002 | process | No visual row may be closed with grep-only/source-only/HTTP 200 evidence. | checklist process | | checklist integrity audit | TODO |
+| QAI-003 | process | No `risk accepted` / `future sprint` for implementable security fixes. | docs/src/tests | | grep + row review | TODO |
+| QAI-004 | process | No ContentWidthSlider reintroduction. | src/docs/tests | | grep proof | TODO |
+| QAI-005 | process | Broad rows must enumerate subitems before closure. | checklist | | row-specific evidence | TODO |
+| QAI-006 | process | Existing rows marked FIXED_VERIFIED must be re-audited for weak evidence. | checklist | | checklist integrity audit | TODO |
+| PAGE-025 | Page | `/lists/[id]` lacks `error.tsx`. | `src/app/lists/[id]/error.tsx` | | source proof | TODO |
+| PAGE-026 | Page | `/lists` lacks `error.tsx`. | `src/app/lists/error.tsx` | | source proof | TODO |
+| PAGE-027 | Page | `/producers` lacks `error.tsx`. | `src/app/producers/error.tsx` | | source proof | TODO |
+| PAGE-028 | Page | `/recommendations` lacks `error.tsx`. | `src/app/recommendations/error.tsx` | | source proof | TODO |
+| PAGE-029 | Page | `/quotes` lacks `error.tsx`. | `src/app/quotes/error.tsx` | | source proof | TODO |
+| PAGE-030 | Page | `/steam` lacks `generateMetadata()`. | `src/app/steam/page.tsx` | | source proof | TODO |
+| PAGE-031 | Page | `/trait/[id]` transient VNDB error misclassified as 404; VNDB timeout causes real pages to return notFound. | `src/app/trait/[id]/page.tsx` | | source proof + route test | TODO |
+| PAGE-032 | Page | `/vn/[id]` calls `materializeRelease*` inside RSC render — DB write side effect on every GET. | `src/app/vn/[id]/page.tsx` | | source proof + route behavior | TODO |
+| PAGE-033 | Page | `/trait/[id]` lacks `generateMetadata()`. | `src/app/trait/[id]/page.tsx` | | source proof | TODO |
+| SECA-011 | security | `POST /api/saved-filters` has no auth gate; any caller can create/read saved filters. | `src/app/api/saved-filters/route.ts` | | route test | TODO |
+| SECA-012 | security | `POST /api/collection/[id]/activity` has no auth gate; any caller can log collection activity. | `src/app/api/collection/[id]/activity/route.ts` | | route test | TODO |
+| SECA-013 | security | `POST/DELETE /api/reading-queue` has no auth gate; any caller can mutate reading queue. | `src/app/api/reading-queue/route.ts` | | route test | TODO |
+| SECA-014 | security | `POST/PATCH/DELETE /api/lists/[id]/items` has no auth gate; any caller can mutate list items. | `src/app/api/lists/[id]/items/route.ts` | | route test | TODO |
+| SECA-015 | security | `GET /api/collection/tags` has no auth gate; leaks tag data. | `src/app/api/collection/tags/route.ts` | | route test | TODO |
+| SECA-016 | security | `/api/places` write handlers lack auth gate. | `src/app/api/places/route.ts` | | route test | TODO |
+| SECA-017 | security | `/api/maintenance/duplicates` has no auth gate; triggers expensive DB scan. | `src/app/api/maintenance/duplicates/route.ts` | | route test | TODO |
+| SECA-018 | security | `/api/export/csv` has no auth gate; leaks full collection as CSV. | `src/app/api/export/csv/route.ts` | | route test | TODO |
+| SECA-019 | security | `/api/export/ics` has no auth gate; leaks calendar data. | `src/app/api/export/ics/route.ts` | | route test | TODO |
+| SECA-020 | security | `/api/collection/export`, `/find`, `/characters`, `/traits`, `/full-download` lack auth gates. | `src/app/api/collection/` export/find/characters/traits/full-download routes | | route test | TODO |
+| SECA-021 | security | `/api/maintenance/stale`, `/producers`, `/download-status`, `/activity/kinds`, `/search/textual`, `/vn/[id]/lists`, `/vndb/auth` lack auth gates. | multiple routes | | route test | TODO |
+| SECA-022 | security | `POST /api/egs/[id]/add` missing auth gate; mutates collection. | `src/app/api/egs/[id]/add/route.ts` | | route test | TODO |
+| SECA-023 | security | `src/proxy.ts` CSRF guard is dead code — not imported as Next.js middleware; CSRF guard never runs. | `src/proxy.ts`, project root | | source proof | TODO |
+| SECA-024 | security | `/api/collection/order` write handlers lack auth gate. | `src/app/api/collection/order/route.ts` | | route test | TODO |
+| DBA-012 | DB/backend | `todaysAnniversaries()` has no LIMIT; large libraries with many same-day releases pull unbounded results into JS. | `src/lib/db.ts` | | source proof | TODO |
+| DBA-013 | DB/backend | `listAllListMemberships()` uses `LIMIT 100000` — effectively unbounded on large collections; all metadata rows loaded into JS for grouping. | `src/lib/db.ts` | | source proof | TODO |
+| I18NA-009 | i18n | `languageDisplayName()` is locale-blind — always returns English language names regardless of app locale. | `src/lib/language-names.ts` | | source proof | TODO |
+| I18NA-010 | i18n | Character page `fmtBirthday` uses `'default'` locale; month name renders in OS locale (usually English) regardless of app locale. | `src/app/character/[id]/page.tsx` | | source proof | TODO |
+| I18NA-011 | i18n | `StaleEgsBanner` in `/top-ranked` and `/upcoming` calls `toLocaleString()` without locale arg; timestamps render in OS locale. | `src/app/top-ranked/page.tsx`, `src/app/upcoming/page.tsx` | | source proof | TODO |
+| I18NA-012 | i18n | `toLocaleString()` called without locale arg across 10+ sites (recommendations, top-ranked, trait/[id], tag/[id], TagsBrowser, TagPicker, EgsPanel, etc.); number formatting is locale-inconsistent. | Multiple files | | source proof | TODO |
+| I18NA-013 | i18n | `CachePanel`, `SchemaEgsSection`, `RefreshScopeButton` use locale-blind `toLocaleString()` for timestamps in admin/dev panels. | `src/components/CachePanel.tsx`, `SchemaEgsSection.tsx`, `RefreshScopeButton.tsx` | | source proof | TODO |
+| I18NA-014 | i18n | `SettingsButton.tsx` contains hardcoded string not run through dictionary. | `src/components/SettingsButton.tsx:559` | | source proof | TODO |
+| I18NA-015 | i18n | `ListAddVnForm.tsx` contains hardcoded string not run through dictionary. | `src/components/ListAddVnForm.tsx:50` | | source proof | TODO |
+| UXA-013 | UI/UX | `character/[id]` VA section: c_name, c_original, VN title chip use `line-clamp-*` without `title`. | `src/app/character/[id]/page.tsx:245–254` | | source proof | TODO |
+| UXA-014 | UI/UX | `character/[id]` related VNs: VN title and alttitle use `line-clamp-*` without `title`. | `src/app/character/[id]/page.tsx:383,397` | | source proof | TODO |
+| UXA-015 | UI/UX | `shelf/page` multiple `line-clamp-*` elements (VN title, release title, edition label, location) without `title`. | `src/app/shelf/page.tsx:435,449,454,461,631,638` | | source proof | TODO |
+| UXA-016 | UI/UX | `staff/[id]` character name, original, note, VN title, alttitle use `line-clamp-*` without `title`. | `src/app/staff/[id]/page.tsx:351,356,359,494,512` | | source proof | TODO |
+| UXA-017 | UI/UX | `tag/[id]` two VN title `<p>` elements use `line-clamp-2` without `title`. | `src/app/tag/[id]/page.tsx:193,472` | | source proof | TODO |
+| UXA-018 | UI/UX | `trait/[id]` character name, original, first VN title use `line-clamp-*` without `title`. | `src/app/trait/[id]/page.tsx:169,173,178` | | source proof | TODO |
+| UXA-019 | UI/UX | `compare/page` VN card title link uses `line-clamp-2` without `title`. | `src/app/compare/page.tsx:310` | | source proof | TODO |
+| UXA-020 | UI/UX | `StaffExtraCredits` character link, VN title, alttitle use `truncate`/`line-clamp-*` without `title`. | `src/components/StaffExtraCredits.tsx:72,156,169` | | source proof | TODO |
+| UXA-021 | UI/UX | `ReadingQueueStripView` queue title span uses `line-clamp-1 max-w-[200px]` without `title`. | `src/components/ReadingQueueStripView.tsx:69` | | source proof | TODO |
+| UXA-022 | UI/UX | `EgsSyncBlock` matched VN title link uses `truncate` without `title`. | `src/components/EgsSyncBlock.tsx:200` | | source proof | TODO |
+| UXA-023 | UI/UX | `VnSeedPicker` alttitle, search result title, alttitle, year+dev string all use `line-clamp-1` without `title`. | `src/components/VnSeedPicker.tsx:299,408–412` | | source proof | TODO |
+| UXA-024 | UI/UX | `CompareVnPicker` selected title/alttitle and search result title/alttitle use `line-clamp-*` without `title`. | `src/components/CompareVnPicker.tsx:216,220,324,326` | | source proof | TODO |
+| UXA-025 | UI/UX | `ListsPickerButton` list name span uses `line-clamp-1` without `title`. | `src/components/ListsPickerButton.tsx:231` | | source proof | TODO |
+| UXA-026 | UI/UX | `SavedFilters` truncated filter name button has `title={f.params}` (URL string) not `title={f.name}` (human name). | `src/components/SavedFilters.tsx:230` | | source proof | TODO |
+| UXA-027 | UI/UX | `SelectiveFullDownload` VN title span uses `truncate` without `title`. | `src/components/SelectiveFullDownload.tsx:348` | | source proof | TODO |
+| UXA-028 | UI/UX | `CompareWithButton` VN title span uses `truncate` without `title`. | `src/components/CompareWithButton.tsx:134` | | source proof | TODO |
+| UXA-029 | UI/UX | `MapVnToEgsButton` game name div uses `truncate` without `title`. | `src/components/MapVnToEgsButton.tsx:280` | | source proof | TODO |
+| UXA-030 | UI/UX | `LinkToVndbButton` VNDB search result title uses `truncate` without `title`. | `src/components/LinkToVndbButton.tsx:142` | | source proof | TODO |
+| UXA-031 | UI/UX | `EgsPanel` game name uses `line-clamp-2`/`line-clamp-1` without `title` in two locations. | `src/components/EgsPanel.tsx:269,539` | | source proof | TODO |
+| UXA-032 | UI/UX | `BulkDownloadButton` current download title uses `truncate` without `title`. | `src/components/BulkDownloadButton.tsx:299` | | source proof | TODO |
+| UXA-033 | UI/UX | `DataMaintenance` duplicate prefix and stale VN title use `truncate` without `title`. | `src/components/DataMaintenance.tsx:98,124` | | source proof | TODO |
+| UXA-034 | UI/UX | `SeriesManager` series description uses `line-clamp-2` without `title`. | `src/components/SeriesManager.tsx:96` | | source proof | TODO |
+| UXA-035 | UI/UX | `SearchClient` EGS search result game name uses `line-clamp-2` without `title`. | `src/components/SearchClient.tsx:650` | | source proof | TODO |
+| UXA-036 | UI/UX | `ShelfReadOnlyControls` row orientation zone label uses `truncate` without `title`. | `src/components/ShelfReadOnlyControls.tsx:550` | | source proof | TODO |
+| UXA-037 | UI/UX | Activity playtime delta rendered in green/red only — color-only state indicator without icon for colorblind users. | `src/app/activity/page.tsx:72` | | source/browser proof | TODO |
+| UXA-038 | UI/UX | Activity favorite state uses yellow/muted color only without icon to reinforce state. | `src/app/activity/page.tsx:81` | | source/browser proof | TODO |
+| UXA-039 | UI/UX | Steam "Current links" section has no loading skeleton; layout shifts when links appear after fetch. | `src/app/steam/page.tsx:293` | | source/browser proof | TODO |
+| RESP-006 | responsive/mobile | `ListCardActions` trigger button has no `aria-label` and is `h-6 w-6` — below 44px tap-target minimum. | `src/components/ListCardActions.tsx` | | source + responsive browser proof | TODO |
+| RESP-007 | responsive/mobile | `DetailReorderLayout` has three `h-6 w-6` icon-only controls without sufficient tap-target on mobile. | `src/components/DetailReorderLayout.tsx` | | source + responsive browser proof | TODO |
+| A11Y-001 | a11y | `HomeSectionMenu` menu items have no ArrowDown/ArrowUp/Home/End keyboard navigation; focus not moved into menu on open. | `src/components/HomeSectionMenu.tsx` | | a11y/source proof | TODO |
+| A11Y-002 | a11y | `ListCardActions` trigger button is icon-only with no `aria-label` and no `aria-controls`. | `src/components/ListCardActions.tsx` | | a11y/source proof | TODO |
+| A11Y-003 | a11y | `ListsPickerButton` `role="menu"` has no ArrowDown/ArrowUp keyboard navigation within menu items. | `src/components/ListsPickerButton.tsx` | | a11y/source proof | TODO |
+| A11Y-004 | a11y | `AdvancedFiltersDrawer` button has `aria-expanded` but missing `aria-controls`. | `src/components/AdvancedFiltersDrawer.tsx` | | a11y/source proof | TODO |
+| A11Y-005 | a11y | Status filter buttons in `LibraryClient` have no `aria-pressed`. | `src/components/LibraryClient.tsx:468–484` | | a11y/source proof | TODO |
+| A11Y-006 | a11y | `LibraryClient` search result count has no `aria-live` region; screen readers don't announce count changes. | `src/components/LibraryClient.tsx` | | a11y/source proof | TODO |
+| A11Y-007 | a11y | `LibraryClient` filter `<input>` at line 494 has `placeholder` but no `aria-label`. | `src/components/LibraryClient.tsx:494` | | a11y/source proof | TODO |
+| A11Y-008 | a11y | `ListCardActions` `role="menu"` panel has no `aria-label` or `aria-labelledby`. | `src/components/ListCardActions.tsx` | | a11y/source proof | TODO |
+| A11Y-009 | a11y | VN detail page: `<h1>` (VN title) immediately followed by `<h3>` for sections — skips `<h2>`. | `src/app/vn/[id]/page.tsx` | | a11y/source proof | TODO |
+| A11Y-010 | a11y | Producer detail page: `<h1>` → `<h3>` heading hierarchy gap. | `src/app/producer/[id]/page.tsx` | | a11y/source proof | TODO |
+| A11Y-011 | a11y | Character detail page: `<h1>` → `<h3>` heading hierarchy gap. | `src/app/character/[id]/page.tsx` | | a11y/source proof | TODO |
+| A11Y-012 | a11y | `ReadingGoalCard` year input has no `aria-label`. | `src/components/ReadingGoalCard.tsx` | | a11y/source proof | TODO |
+| PERF-001 | performance | `LibraryClient` renders all VN cards in DOM with no virtualization; slow for large collections. | `src/components/LibraryClient.tsx` | | performance benchmark | TODO |
+| PERF-002 | performance | Multiple `SELECT *` queries in `db.ts` overfetch entire rows where only a few columns are used. | `src/lib/db.ts:1946,1959,3659,4570,5152,6212,6348,6552,6642,6725,6794` | | source review | TODO |
+| PERF-003 | performance | `ORDER BY RANDOM()` at `db.ts:2522` forces full table scan on every call with no LIMIT bound. | `src/lib/db.ts:2522` | | source + EXPLAIN QUERY PLAN | TODO |
+| PERF-004 | performance | `json_each(v.tags)` aggregate queries do full-table JSON expansion — no index on JSON fields. | `src/lib/db.ts:4207,4285,4513,6996,7045` | | source + EXPLAIN QUERY PLAN | TODO |
+| PERF-005 | performance | `searchLocalStaff` uses `LOWER(sc.name) LIKE ?` which bypasses any index on the name column. | `src/lib/db.ts:4443` | | source + EXPLAIN QUERY PLAN | TODO |
+| TS-001 | code quality | `vndb-cache.ts` lines 125, 141: `JSON.parse(cached.body)` not in try/catch; corrupted cache throws uncaught. | `src/lib/vndb-cache.ts:125,141` | r5-lib-fixes | All 3 JSON.parse(cached.body) sites wrapped individually; yarn test 1363/1363 | FIXED_VERIFIED |
+| TS-002 | code quality | `activity/page.tsx` bare type assertions (`p?.from as string`, `p?.to as number`) without runtime checks. | `src/app/activity/page.tsx:39–88` | | source proof | TODO |
+| TS-003 | code quality | `VndbMarkup.tsx` `renderTokens` switch has no `default: never` guard — new Token kinds fall through silently. | `src/components/VndbMarkup.tsx` | | source proof | TODO |
+| TS-004 | Next.js | `src/app/lists/[id]/` has no `error.tsx`; page errors fall back to root error boundary only. | `src/app/lists/[id]/` | | source proof | TODO |
+| TS-005 | code quality | `key={i}` index used as React key in data (non-skeleton) lists across multiple components. | `src/app/producer/[id]/page.tsx`, `src/app/tag/[id]/page.tsx`, `src/app/upcoming/page.tsx`, `src/components/QuotesSection.tsx`, `src/components/CharactersSection.tsx`, `src/components/EgsRichDetails.tsx`, `src/components/DateInput.tsx` | | source proof | TODO |
+| COMP-001 | component library | `MediaGallery.tsx` keydown `useEffect` missing `prev`/`next` deps — stale closure breaks keyboard navigation. | `src/components/MediaGallery.tsx:144–158` | | source + manual keyboard test | TODO |
+| COMP-002 | component library | `AspectOverrideControl.tsx` AbortController created inside async function; cleanup never registered; fetches never cancelled on unmount. | `src/components/AspectOverrideControl.tsx:65` | | source proof | TODO |
+| COMP-003 | component library | `TagsBrowser.tsx` tab switcher uses `<Link role="button">` — ARIA antipattern; should be `role="tab"` in `role="tablist"`. | `src/components/TagsBrowser.tsx` | | a11y/source proof | TODO |
+| COMP-004 | component library | `CardContextMenu.tsx` reads `window.innerWidth` in render body — SSR hydration mismatch. | `src/components/CardContextMenu.tsx:116–117` | | source proof | TODO |
+| COMP-005 | component library | `AddMissingVnButton.tsx` uses success-toast string as `aria-label` instead of action description. | `src/components/AddMissingVnButton.tsx:51` | | a11y/source proof | TODO |
+| COMP-006 | component library | `CharacterMetaClient.tsx` spoiler button has `aria-pressed={false}` hardcoded; always reports unpressed. | `src/components/CharacterMetaClient.tsx:127` | | a11y/source proof | TODO |
+| COMP-007 | component library | `SpoilerChip.tsx` reveal button has `aria-pressed={false}` hardcoded. | `src/components/SpoilerChip.tsx:130` | | a11y/source proof | TODO |
+| COMP-008 | component library | 7 components use bare `t.common.error` instead of `readApiError()`, discarding server error detail. | `OwnedEditionsSection.tsx`, `RoutesSection.tsx`, `SeriesManager.tsx`, `DetailReorderLayout.tsx`, `ProducerLogoUpload.tsx`, `CachePanel.tsx` | | source proof | TODO |
+| COMP-009 | component library | 5 components start `useEffect` fetches without `AbortController`; risk setState after unmount. | `QueueButton.tsx`, `ReadingGoalCard.tsx`, `CachePanel.tsx`, `SettingsButton.tsx`, `SimilarSeedPicker.tsx` | | source proof | TODO |
+| COMP-010 | component library | `SeriesRemoveVn.tsx` DELETE fetch has no `.ok` check or catch — errors silently swallowed. | `src/components/SeriesRemoveVn.tsx` | | source proof | TODO |
+| COMP-011 | component library | `SelectiveFullDownload.tsx` renders VN results as `<li onClick>` — not keyboard-operable. | `src/components/SelectiveFullDownload.tsx` | | a11y/source proof | TODO |
+| COMP-012 | component library | `ToastProvider.tsx` `setTimeout` IDs not tracked or cleared on unmount — timer leak. | `src/components/ToastProvider.tsx` | | source proof | TODO |
+| COMP-013 | component library | `BulkDownloadButton.tsx` `bulkAbortRef` declared at module level — shared across instances. | `src/components/BulkDownloadButton.tsx` | | source proof | TODO |
+| COMP-014 | component library | `CachePanel.tsx` passes async function to `startTransition`; async work runs outside transition boundary. | `src/components/CachePanel.tsx` | | source proof | TODO |
+| COMP-015 | component library | `ShelfLayoutEditor.tsx` multiple `useEffect` blocks call `refreshActiveShelf` without abort control. | `src/components/ShelfLayoutEditor.tsx` | | source proof | TODO |
+| COMP-016 | component library | `TagPicker.tsx` fetch has no AbortController and silent failure on non-2xx. | `src/components/TagPicker.tsx` | | source proof | TODO |
+| COMP-017 | component library | `VnTagsGroupedView.tsx` VNDB link has hardcoded English `aria-label="VNDB"`. | `src/components/VnTagsGroupedView.tsx` | | a11y/source proof | TODO |
+| COMP-018 | component library | `AnniversaryFeedView.tsx` `emptyHint` prop declared but never used — dead prop. | `src/components/AnniversaryFeedView.tsx` | | source proof | TODO |
+| COMP-019 | component library | `DropImport.tsx` `confirm` from `useConfirm()` is stale in drag handler `useEffect` deps. | `src/components/DropImport.tsx` | | source proof | TODO |
+| COMP-020 | component library | `CoverUploader.tsx` buttons inside `<form>` missing `type="button"` — default to type="submit". | `src/components/CoverUploader.tsx` | | source proof | TODO |
+| COMP-021 | component library | `TagsBrowser.tsx` collapse toggle button missing `aria-expanded`. | `src/components/TagsBrowser.tsx` | | a11y/source proof | TODO |
+| COMP-022 | component library | 3 components use magic `setTimeout` delays (50 ms, 0 ms) for focus management — fragile. | `CompareWithButton.tsx`, `SimilarSeedPicker.tsx`, `VnSeedPicker.tsx` | | source proof | TODO |
+| COMP-023 | component library | Color-picker buttons use raw hex string as `aria-label` — screen readers announce hex codes. | `src/components/ListMetaEditor.tsx`, `CreateListForm.tsx` | | a11y/source proof | TODO |
+| COMP-024 | component library | `ShelfReadOnlyControls.tsx` close button uses `aria-label={t.common.cancel}` — semantically wrong for close action. | `src/components/ShelfReadOnlyControls.tsx` | | a11y/source proof | TODO |
+| LIB-001 | src/lib | `db.ts` `open()` never sets `busy_timeout` — concurrent writers receive immediate SQLITE_BUSY. | `src/lib/db.ts:114–115` | r5-lib-fixes | `busy_timeout = 5000` pragma added; yarn test 1363/1363 | FIXED_VERIFIED |
+| LIB-002 | src/lib | `auth-gate.ts` `TRUSTED_PROXY_SECRET` compared with `===` not `timingSafeEqual` — timing oracle. | `src/lib/auth-gate.ts:85` | r5-lib-fixes | `timingSafeStrEqual(proofHeader ?? '', secret)` at line 85; yarn test 1363/1363 | FIXED_VERIFIED |
+| LIB-003 | src/lib | `activity.ts` `recordActivity()` has no try/catch — DB error propagates through primary mutations as 500. | `src/lib/activity.ts:77–88` | r5-lib-fixes | try/catch wraps INSERT; yarn test 1363/1363 | FIXED_VERIFIED |
+| LIB-004 | src/lib | `db.ts` EGS colon-to-underscore migration omits 10+ tables with `vn_id` columns. | `src/lib/db.ts:818–845` | | source proof | TODO |
+| LIB-005 | src/lib | `erogamescape.ts` `res.text()` has no size cap — unbounded buffer from EGS server. | `src/lib/erogamescape.ts:202` | | source proof | TODO |
+| LIB-006 | src/lib | `erogamescape.ts` `fetchOne()` swallows `EgsUnreachable` as null — masks network errors as "not found". | `src/lib/erogamescape.ts:319–325` | | source proof | TODO |
+| LIB-007 | src/lib | `vndb-throttle.ts` `probeVndbHealthy()` calls raw `fetch()` bypassing the rate limiter. | `src/lib/vndb-throttle.ts:157` | | source proof | TODO |
+| LIB-008 | src/lib | `files.ts` `res.arrayBuffer()` has no size cap — unbounded image buffer in memory. | `src/lib/files.ts:118` | | source proof | TODO |
+| LIB-009 | src/lib | `url-allowlist.ts` `assertNoPrivateIpRebind` checks IPv4 only — IPv6 DNS rebind not guarded. | `src/lib/url-allowlist.ts:100–112` | | source proof | TODO |
+| LIB-010 | src/lib | `db.ts` `materializeRelease*` functions apply `LIMIT 200` to cache scan — silently excludes releases beyond 200. | `src/lib/db.ts` (materializeRelease* functions) | | source proof | TODO |
+| LIB-011 | src/lib | `url-allowlist.ts` does not check `Location` header on redirects — SSRF via redirect chaining possible. | `src/lib/url-allowlist.ts:57–69` | | source proof | TODO |
+| LIB-012 | src/lib | `steam.ts` `res.json()` unguarded — Steam maintenance page causes uncaught SyntaxError. | `src/lib/steam.ts` | | source proof | TODO |
+| TCO-001 | test coverage | `src/lib/source-resolve.ts` `resolveField()` has zero tests — core VNDB/EGS data resolution entirely untested. | `src/lib/source-resolve.ts` | | unit test | TODO |
+| TCO-002 | test coverage | `src/lib/time-ago.ts` `timeAgo()` has zero tests — all 7 branches + null guard untested. | `src/lib/time-ago.ts` | | unit test | TODO |
+| TCO-003 | test coverage | `src/lib/series-detect.ts` BFS cycle guard and prefix heuristic have zero tests. | `src/lib/series-detect.ts` | | unit test | TODO |
+| TCO-004 | test coverage | `src/lib/egs-sync.ts` `applyEgsSuggestions()` write path has zero tests — playtime/rating unit conversion untested. | `src/lib/egs-sync.ts` | | unit test | TODO |
+| TCO-005 | test coverage | `src/lib/vndb-scrape.ts` global queue `working` flag reset on error has zero tests. | `src/lib/vndb-scrape.ts` | | integration test | TODO |
+| TCO-006 | test coverage | `src/app/api/files/[...path]/route.ts` — no tests for path traversal protection. | `src/app/api/files/[...path]/route.ts` | | security integration test | TODO |
+| TCO-007 | test coverage | `src/app/api/backup/restore/route.ts` POST — no tests for SQLite magic-byte check, content-type, size limit. | `src/app/api/backup/restore/route.ts` | | integration test | TODO |
+| TCO-008 | test coverage | `src/app/api/collection/[id]/route.ts` `pickFields()` validation — 15+ branches entirely untested. | `src/app/api/collection/[id]/route.ts` | | integration test | TODO |
+| TCO-009 | test coverage | 33 of 35 activity-kind tests are source-pin (string presence) not runtime behavior assertions. | `tests/activity.test.ts:182–231` | | integration test | TODO |
+| TCO-010 | test coverage | Maintenance routes tested for 403 only — no body assertions on success path. | `tests/auth-gate-routes.test.ts:69–77` | | integration test | TODO |
+| TCO-011 | test coverage | `auth-gate.ts` whitespace-only `VN_ADMIN_TOKEN` behavior untested. | `src/lib/auth-gate.ts` | | unit test | TODO |
+| TCO-012 | test coverage | `src/lib/reading-speed.ts` `getReadingSpeedProfile()` and `predictReadingMinutes()` have zero tests. | `src/lib/reading-speed.ts` | | integration test | TODO |

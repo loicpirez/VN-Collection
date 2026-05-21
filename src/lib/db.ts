@@ -112,6 +112,7 @@ function open(): Database.Database {
     mkdirSync(dirname(dbPath), { recursive: true });
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
+    db.pragma('busy_timeout = 5000');
     db.pragma('foreign_keys = ON');
   }
   db.exec(`
