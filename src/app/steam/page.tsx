@@ -391,7 +391,7 @@ export default function SteamSyncPage() {
           <button
             type="button"
             onClick={() => setShowAllUnlinked((v) => !v)}
-            className="mt-3 inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            className="btn btn-xs mt-3"
           >
             {showAllUnlinked
               ? t.steam.showLess

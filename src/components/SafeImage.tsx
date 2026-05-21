@@ -149,6 +149,7 @@ export function SafeImage({
 
   useEffect(() => {
     if (priority || inView) return;
+    if (settings.hideImages) return;
     const el = containerRef.current;
     if (!el) return;
     if (typeof IntersectionObserver === 'undefined') {
@@ -169,7 +170,7 @@ export function SafeImage({
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [priority, inView]);
+  }, [priority, inView, settings.hideImages]);
 
   if (settings.hideImages) {
     return (

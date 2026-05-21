@@ -47,7 +47,7 @@ export function VnTagChips({ tags, max = 16, perSectionOverride }: { tags: Tag[]
         <button
           type="button"
           onClick={() => setLocalOverride((v) => (v === 2 ? null : 2))}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-accent"
+          className="btn btn-xs"
           aria-pressed={effectiveOverride === 2}
           title={effectiveOverride === 2 ? t.spoiler.hideAll : t.spoiler.spoilMe}
         >

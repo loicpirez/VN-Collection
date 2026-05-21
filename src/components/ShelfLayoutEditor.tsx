@@ -1361,7 +1361,7 @@ function DraggableDisplayItem({
         href={`/vn/${slot.vn_id}`}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/85 px-1 py-0.5 text-[9px] font-bold leading-tight text-white opacity-100 transition-opacity hover:text-accent sm:opacity-0 sm:group-hover/display:opacity-100"
+        className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/85 px-1 py-0.5 text-[9px] font-bold leading-tight text-white hover:text-accent"
       >
         {slot.vn_title}
       </Link>
@@ -1527,7 +1527,7 @@ function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highli
         href={`/vn/${slot.vn_id}`}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/85 px-1 py-0.5 text-[9px] font-bold leading-tight text-white opacity-100 transition-opacity hover:text-accent sm:opacity-0 sm:group-hover/slot:opacity-100"
+        className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/85 px-1 py-0.5 text-[9px] font-bold leading-tight text-white hover:text-accent"
       >
         {slot.vn_title}
       </Link>

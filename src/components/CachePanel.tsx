@@ -47,8 +47,13 @@ export function CachePanel() {
   }, [t.common.error]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    const ac = new AbortController();
+    fetch('/api/vndb/cache', { cache: 'no-store', signal: ac.signal })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))))
+      .then((d: { stats: CacheStat }) => { setStats(d.stats); setError(null); })
+      .catch((e: unknown) => { if ((e as Error).name !== 'AbortError') setError((e as Error).message); });
+    return () => ac.abort();
+  }, []);
 
   async function clearAll(mode: 'all' | 'expired') {
     setError(null);

@@ -335,7 +335,7 @@ function DisplayRow({
         className={`grid ${between ? 'border-t border-accent-blue/20 pt-1' : ''}`}
         style={{
           gap: 'var(--shelf-row-gap-px, 6px)',
-          gridTemplateColumns: `repeat(${cols}, minmax(var(--shelf-front-size-px, 140px), var(--shelf-front-size-px, 140px)))`,
+          gridTemplateColumns: `repeat(${cols}, minmax(var(--shelf-cell-w-px, 120px), var(--shelf-cell-w-px, 120px)))`,
           '--row-display-aspect': `var(--display-aspect-row-${afterRow}, var(--display-aspect-ratio, ${serverAspect}))`,
         } as React.CSSProperties}
       >
@@ -347,7 +347,7 @@ function DisplayRow({
             <div
               key={position}
               className="rounded-md bg-accent-blue/5"
-              style={{ width: 'var(--shelf-front-size-px, 140px)', aspectRatio: 'var(--row-display-aspect, 2/3)' }}
+              style={{ width: 'var(--shelf-cell-w-px, 120px)', aspectRatio: 'var(--row-display-aspect, 2/3)' }}
               aria-hidden
             />
           );
@@ -408,9 +408,9 @@ function DisplayCard({
   return (
     <Link
       href={`/vn/${entry.vn_id}`}
-      className="group block overflow-hidden rounded-md border border-accent-blue/50 bg-accent-blue/5 transition-all hover:scale-[1.03] hover:border-accent-blue hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-blue"
+      className="group mx-auto block overflow-hidden rounded-md border border-accent-blue/50 bg-accent-blue/5 transition-all hover:scale-[1.03] hover:border-accent-blue hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-blue"
       style={{
-        width: 'var(--shelf-front-size-px, 140px)',
+        width: 'min(var(--shelf-front-size-px, 140px), var(--shelf-cell-w-px, 120px))',
         aspectRatio: 'var(--row-display-aspect, 2/3)',
       }}
       title={`${entry.vn_title}${entry.edition_label ? ` · ${entry.edition_label}` : ''}`}
