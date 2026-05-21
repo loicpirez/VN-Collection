@@ -5,12 +5,15 @@ import { getCollectionItem, upsertVn } from '@/lib/db';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
 const CACHE_MS = 24 * 3600 * 1000;
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   // Restrict to the two id shapes the rest of the app actually
   // produces. Without this gate a caller could burn VNDB rate-limit

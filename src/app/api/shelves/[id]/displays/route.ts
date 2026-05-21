@@ -6,6 +6,7 @@ import {
   removeShelfDisplayPlacement,
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,8 @@ function parseId(raw: string): number | null {
  *   - rejecting non-owned editions and out-of-bounds coordinates.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
@@ -99,6 +102,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 /** DELETE /api/shelves/[id]/displays — return a display slot's
  *  edition to the unplaced pool. Body: { vn_id, release_id }. */
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });

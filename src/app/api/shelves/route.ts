@@ -6,6 +6,7 @@ import {
   reorderShelves,
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as {
     name?: unknown;
     cols?: unknown;
@@ -46,6 +49,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as { order?: unknown };
   if (!Array.isArray(body.order) || body.order.some((v) => typeof v !== 'number')) {
     return NextResponse.json({ error: 'order must be number[]' }, { status: 400 });

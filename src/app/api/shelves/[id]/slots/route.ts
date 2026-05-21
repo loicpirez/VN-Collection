@@ -6,6 +6,7 @@ import {
   removeShelfPlacement,
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,8 @@ function parseId(raw: string): number | null {
  * round trip, plus `swapped` if a swap happened.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
@@ -104,6 +107,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
  * route shape mirrors POST even though the helper is shelf-agnostic.
  */
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });

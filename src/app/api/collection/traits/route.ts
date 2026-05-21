@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { readCachedCharactersForVn } from '@/lib/vndb';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,7 +14,9 @@ interface Aggregate {
   count: number;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const vnIds = (db.prepare('SELECT vn_id AS id FROM collection').all() as { id: string }[]).map(
     (r) => r.id,
   );

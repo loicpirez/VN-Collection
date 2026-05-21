@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { listProducerStats, listPublisherStats } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +10,9 @@ export const dynamic = 'force-dynamic';
  * independently (each by the count of VNs in the collection where
  * that producer plays the matching role).
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   return NextResponse.json({
     producers: listProducerStats(),
     publishers: listPublisherStats(),

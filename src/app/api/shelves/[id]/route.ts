@@ -8,6 +8,7 @@ import {
   resizeShelf,
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
@@ -32,6 +33,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
@@ -70,7 +73,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });

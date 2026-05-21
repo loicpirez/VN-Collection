@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { type NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 
 vi.mock('@/lib/vndb', () => ({
@@ -38,12 +39,12 @@ function patchUrl(id = VN_ID) {
   return `http://localhost/api/collection/${id}`;
 }
 
-function patchReq(id: string, body: unknown): Request {
+function patchReq(id: string, body: unknown): NextRequest {
   return new Request(patchUrl(id), {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
-  });
+  }) as unknown as NextRequest;
 }
 
 function ctx(id = VN_ID) {

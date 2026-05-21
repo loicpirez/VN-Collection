@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { type NextRequest } from 'next/server';
 
 vi.mock('@/lib/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/db')>();
@@ -17,25 +18,27 @@ import { restoreFromSqliteFile } from '@/lib/db';
 
 const mockRestore = restoreFromSqliteFile as ReturnType<typeof vi.fn>;
 
-const SQLITE_MAGIC = Buffer.from('SQLite format 3\0', 'utf-8');
+const SQLITE_MAGIC_STR = 'SQLite format 3\0';
 
-function makeSqliteFile(size = 4096): Buffer {
-  const buf = Buffer.alloc(size, 0);
-  SQLITE_MAGIC.copy(buf);
+function makeSqliteFile(size = 4096): ArrayBuffer {
+  const buf = new ArrayBuffer(size);
+  const view = new Uint8Array(buf);
+  const magic = new TextEncoder().encode(SQLITE_MAGIC_STR);
+  view.set(magic);
   return buf;
 }
 
-function makeRequest(file: Blob | null, url = 'http://localhost/api/backup/restore'): Request {
+function makeRequest(file: Blob | null, url = 'http://localhost/api/backup/restore'): NextRequest {
   if (!file) {
     return new Request(url, {
       method: 'POST',
       headers: { 'content-type': 'multipart/form-data; boundary=test' },
       body: '--test\r\nContent-Disposition: form-data; name="other"\r\n\r\nvalue\r\n--test--\r\n',
-    });
+    }) as unknown as NextRequest;
   }
   const fd = new FormData();
   fd.append('file', file, 'backup.db');
-  return new Request(url, { method: 'POST', body: fd });
+  return new Request(url, { method: 'POST', body: fd }) as unknown as NextRequest;
 }
 
 beforeEach(() => {
@@ -57,7 +60,7 @@ describe('POST /api/backup/restore', () => {
       method: 'POST',
       headers: { 'content-type': 'application/octet-stream' },
       body: makeSqliteFile(),
-    });
+    }) as unknown as NextRequest;
     const res = await POST(req);
     expect(res.status).toBe(400);
     const body = await res.json() as { error: string };
@@ -65,8 +68,7 @@ describe('POST /api/backup/restore', () => {
   });
 
   it('rejects non-SQLite file (wrong magic bytes) with 400', async () => {
-    const notSqlite = Buffer.from('This is not a SQLite database at all!');
-    const file = new Blob([notSqlite]);
+    const file = new Blob(['This is not a SQLite database at all!']);
     const req = makeRequest(file);
     const res = await POST(req);
     expect(res.status).toBe(400);

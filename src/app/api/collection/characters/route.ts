@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { searchLocalCharacters } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,8 @@ export const dynamic = 'force-dynamic';
  * second code path.
  */
 export async function GET(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const sp = req.nextUrl.searchParams;
   const q = (sp.get('q') ?? '').trim();
   const limit = Number.parseInt(sp.get('limit') ?? '', 10);
