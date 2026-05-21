@@ -16,6 +16,7 @@ import {
   FileCode2,
   Gamepad2,
   GitCompare,
+  GitMerge,
   Globe,
   HardDriveDownload,
   Heart,
@@ -109,6 +110,7 @@ export function GroupedNav() {
   // shelf-like grid metaphor). /egs used to share Sparkles with
   // /traits — Gamepad2 disambiguates it as a games database.
   const insights: NavItem[] = [
+    { href: '/brand-overlap', label: t.nav.brandOverlap, icon: GitMerge },
     { href: '/stats', label: t.nav.stats, icon: BarChart3 },
     { href: '/shelf', label: t.nav.shelf, icon: LayoutGrid },
     { href: `/year?y=${new Date().getFullYear()}`, label: t.nav.year, icon: Award },
@@ -241,6 +243,8 @@ function NavGroup({
   const menuId = useId();
   useEffect(() => {
     if (!open) return;
+    const firstItem = ref.current?.querySelector<HTMLElement>('[role="menuitem"]');
+    firstItem?.focus({ preventScroll: true });
     function outside(e: MouseEvent) {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     }

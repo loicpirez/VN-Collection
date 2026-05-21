@@ -48,6 +48,8 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
     // we can return there on close — the ARIA menu pattern requires
     // it for keyboard users.
     triggerRef.current = typeof document !== 'undefined' ? document.activeElement : null;
+    const firstItem = ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled]), [role="menuitemcheckbox"]:not([disabled])');
+    firstItem?.focus({ preventScroll: true });
     function outside(e: MouseEvent) {
       if (!ref.current?.contains(e.target as Node)) onClose();
     }

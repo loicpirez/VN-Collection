@@ -53,6 +53,7 @@ export const dictionaries = {
       openMenu: 'Ouvrir le menu',
       similar: 'Similaire',
       compare: 'Comparer',
+      brandOverlap: 'Chevauchement',
     },
     recommend: {
       title: 'Pour toi',
@@ -208,6 +209,7 @@ export const dictionaries = {
       cardInCollectionHint: 'Tu possèdes déjà ce VN.',
       cardOpenLocal: 'Fiche locale',
       cardOpenVndb: 'Voir sur VNDB',
+      openVn: 'Ouvrir {title}',
     },
     brandOverlap: {
       title: 'Croisement de studios',
@@ -2248,6 +2250,8 @@ export const dictionaries = {
       neverFetched: 'Jamais',
       staleWhileError: 'Stale-while-error',
       empty: 'Aucune donnée EGS encore mise en cache.',
+      set: 'Défini',
+      notSet: 'Non défini',
     },
     schemaLocal: {
       heading: 'Schéma SQLite local',
@@ -2574,6 +2578,7 @@ export const dictionaries = {
       openMenu: 'Open menu',
       similar: 'Similar',
       compare: 'Compare',
+      brandOverlap: 'Brand overlap',
     },
     recommend: {
       title: 'For you',
@@ -2729,6 +2734,7 @@ export const dictionaries = {
       cardInCollectionHint: 'You already own this VN.',
       cardOpenLocal: 'Open locally',
       cardOpenVndb: 'Open on VNDB',
+      openVn: 'Open {title}',
     },
     brandOverlap: {
       title: 'Brand overlap',
@@ -4766,6 +4772,8 @@ export const dictionaries = {
       neverFetched: 'Never',
       staleWhileError: 'Stale-while-error',
       empty: 'No EGS data cached yet.',
+      set: 'Set',
+      notSet: 'Not set',
     },
     schemaLocal: {
       heading: 'Local SQLite schema',
@@ -5092,6 +5100,7 @@ export const dictionaries = {
       openMenu: 'メニューを開く',
       similar: '類似VN',
       compare: '比較',
+      brandOverlap: 'ブランド重複',
     },
     recommend: {
       title: 'おすすめ',
@@ -5247,6 +5256,7 @@ export const dictionaries = {
       cardInCollectionHint: 'すでに所持している VN です。',
       cardOpenLocal: 'ローカルで開く',
       cardOpenVndb: 'VNDB で開く',
+      openVn: '{title} を開く',
     },
     brandOverlap: {
       title: 'スタジオ横断',
@@ -7283,6 +7293,8 @@ export const dictionaries = {
       neverFetched: 'なし',
       staleWhileError: 'Stale-while-error',
       empty: 'まだ EGS データはキャッシュされていません。',
+      set: '設定済み',
+      notSet: '未設定',
     },
     schemaLocal: {
       heading: 'ローカル SQLite スキーマ',
