@@ -23,6 +23,13 @@ import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
 import type { CollectionItem, ProducerStat, SeriesRow, Stats } from '@/lib/types';
 import { ASPECT_KEYS, isAspectKey, type AspectKey } from '@/lib/aspect-ratio';
+import {
+  calculateVirtualGridWindow,
+  parseCssPixelValue,
+  VIRTUAL_GRID_DEFAULT_VIEWPORT_HEIGHT,
+  VIRTUAL_GRID_DEFAULT_WIDTH,
+  VIRTUAL_GRID_THRESHOLD,
+} from '@/lib/virtual-grid';
 
 type SortKey =
   | 'updated_at'
@@ -1043,6 +1050,30 @@ type FilterKey =
   | 'is_nsfw'
   | 'is_nukige';
 
+interface GridMeasurements {
+  width: number;
+  scrollY: number;
+  viewportHeight: number;
+  containerTop: number;
+  densityPx: number;
+}
+
+const DEFAULT_GRID_MEASUREMENTS: GridMeasurements = {
+  width: VIRTUAL_GRID_DEFAULT_WIDTH,
+  scrollY: 0,
+  viewportHeight: VIRTUAL_GRID_DEFAULT_VIEWPORT_HEIGHT,
+  containerTop: 0,
+  densityPx: 220,
+};
+
+function sameGridMeasurements(a: GridMeasurements, b: GridMeasurements): boolean {
+  return a.width === b.width &&
+    a.scrollY === b.scrollY &&
+    a.viewportHeight === b.viewportHeight &&
+    a.containerTop === b.containerTop &&
+    a.densityPx === b.densityPx;
+}
+
 /**
  * Inline tri-state flag panel. Always rendered (no inner collapse)
  * — this lives inside the parent `<AdvancedFiltersDrawer>` so it
@@ -1154,9 +1185,66 @@ function Grid({
   // cover-bias makes each column visually narrower.
   const cls = dense ? 'grid gap-4' : 'grid gap-3';
   const densityMul = dense ? 0.72 : 1;
+  const gapPx = dense ? 16 : 12;
   const gridStyle: React.CSSProperties = {
     gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${densityMul})), 1fr))`,
   };
+  const containerRef = useRef<HTMLDivElement>(null);
+  const measureFrameRef = useRef<number | null>(null);
+  const [measurements, setMeasurements] = useState<GridMeasurements>(DEFAULT_GRID_MEASUREMENTS);
+  const measureGrid = useCallback(() => {
+    if (measureFrameRef.current !== null) return;
+    measureFrameRef.current = window.requestAnimationFrame(() => {
+      measureFrameRef.current = null;
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const next: GridMeasurements = {
+        width: Math.max(0, Math.round(rect.width)),
+        scrollY: Math.max(0, Math.round(window.scrollY)),
+        viewportHeight: Math.max(0, Math.round(window.innerHeight)),
+        containerTop: Math.round(rect.top + window.scrollY),
+        densityPx: parseCssPixelValue(getComputedStyle(el).getPropertyValue('--card-density-px'), 220),
+      };
+      setMeasurements((prev) => (sameGridMeasurements(prev, next) ? prev : next));
+    });
+  }, []);
+  useEffect(() => {
+    if (items.length <= VIRTUAL_GRID_THRESHOLD) return;
+    const el = containerRef.current;
+    if (!el) return;
+    measureGrid();
+    window.addEventListener('scroll', measureGrid, { passive: true });
+    window.addEventListener('resize', measureGrid);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureGrid);
+    observer?.observe(el);
+    return () => {
+      window.removeEventListener('scroll', measureGrid);
+      window.removeEventListener('resize', measureGrid);
+      observer?.disconnect();
+      if (measureFrameRef.current !== null) {
+        window.cancelAnimationFrame(measureFrameRef.current);
+        measureFrameRef.current = null;
+      }
+    };
+  }, [items.length, measureGrid]);
+  const virtual = useMemo(
+    () => calculateVirtualGridWindow({
+      itemCount: items.length,
+      width: measurements.width,
+      scrollY: measurements.scrollY,
+      viewportHeight: measurements.viewportHeight,
+      containerTop: measurements.containerTop,
+      densityPx: measurements.densityPx,
+      densityMultiplier: densityMul,
+      gapPx,
+    }),
+    [densityMul, gapPx, items.length, measurements],
+  );
+  const renderedItems = useMemo(
+    () => (virtual.enabled ? items.slice(virtual.startIndex, virtual.endIndex) : items),
+    [items, virtual.enabled, virtual.endIndex, virtual.startIndex],
+  );
   // Stash the per-render onToggle in a ref so each `<VnCard>` can get
   // an `onSelect` reference that's stable across renders. Without this
   // the `() => onToggle?.(it.id)` arrow was freshly allocated every
@@ -1172,10 +1260,19 @@ function Grid({
   // catches re-renders that re-use the same array, and `useMemo`
   // catches the bulk array-replace case after a refetch — the audit's
   // M6 concern about the WeakMap missing on every refetch.
-  const cardData = useMemo(() => items.map(toCardData), [items]);
+  const cardData = useMemo(() => renderedItems.map(toCardData), [renderedItems]);
   return (
-    <div className={cls} style={gridStyle}>
-      {items.map((it, i) => (
+    <div
+      ref={containerRef}
+      className={cls}
+      style={gridStyle}
+      data-virtualized-library-grid={virtual.enabled ? true : undefined}
+      aria-rowcount={virtual.enabled ? virtual.totalRows : undefined}
+    >
+      {virtual.enabled && virtual.topSpacer > 0 && (
+        <div aria-hidden style={{ gridColumn: '1 / -1', height: virtual.topSpacer }} />
+      )}
+      {renderedItems.map((it, i) => (
         <MemoCard
           key={it.id}
           id={it.id}
@@ -1185,6 +1282,9 @@ function Grid({
           onSelect={onSelectFor}
         />
       ))}
+      {virtual.enabled && virtual.bottomSpacer > 0 && (
+        <div aria-hidden style={{ gridColumn: '1 / -1', height: virtual.bottomSpacer }} />
+      )}
     </div>
   );
 }
