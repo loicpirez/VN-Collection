@@ -56,10 +56,6 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
-  if (bad) return bad;
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as {
     note?: unknown;
     logged_at?: unknown;
@@ -68,13 +64,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (typeof body.note !== 'string' || body.note.trim().length === 0) {
     return NextResponse.json({ error: 'note required' }, { status: 400 });
   }
+  if (body.note.length > 10000) {
+    return NextResponse.json({ error: 'note too long (max 10000)' }, { status: 400 });
+  }
+  const note = body.note.slice(0, 10000);
+  const { id } = await ctx.params;
+  const bad = validateVnIdOr400(id);
+  if (bad) return bad;
+  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const at = typeof body.logged_at === 'number' && body.logged_at > 0 ? body.logged_at : undefined;
   const minutes =
     typeof body.session_minutes === 'number' && body.session_minutes > 0
       ? body.session_minutes
       : null;
   try {
-    const entry = addGameLogEntry(id, body.note, at, minutes);
+    const entry = addGameLogEntry(id, note, at, minutes);
     logGameLogActivity('collection.game-log-add', id, 'Added game-log entry', minutes, !!body.note);
     return NextResponse.json({ entry });
   } catch (e) {
@@ -100,7 +104,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: 'entry id required' }, { status: 400 });
   }
   const patch: { note?: string; logged_at?: number; session_minutes?: number | null } = {};
-  if (typeof body.note === 'string') patch.note = body.note;
+  if (typeof body.note === 'string') patch.note = body.note.slice(0, 10000);
   if (typeof body.logged_at === 'number' && body.logged_at > 0) patch.logged_at = body.logged_at;
   if (body.session_minutes === null) patch.session_minutes = null;
   else if (typeof body.session_minutes === 'number' && body.session_minutes >= 0) {

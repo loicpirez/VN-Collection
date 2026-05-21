@@ -40,15 +40,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     icon?: string | null;
     pinned?: boolean;
   } = {};
-  if (typeof body.name === 'string') patch.name = body.name;
-  if (typeof body.description === 'string' || body.description === null) {
-    patch.description = body.description as string | null;
+  if (typeof body.name === 'string') patch.name = body.name.slice(0, 200);
+  if (typeof body.description === 'string') {
+    patch.description = body.description.slice(0, 2000);
+  } else if (body.description === null) {
+    patch.description = null;
   }
-  if (typeof body.color === 'string' || body.color === null) {
-    patch.color = body.color as string | null;
+  if (typeof body.color === 'string') {
+    patch.color = body.color.slice(0, 64);
+  } else if (body.color === null) {
+    patch.color = null;
   }
-  if (typeof body.icon === 'string' || body.icon === null) {
-    patch.icon = body.icon as string | null;
+  if (typeof body.icon === 'string') {
+    patch.icon = body.icon.slice(0, 64);
+  } else if (body.icon === null) {
+    patch.icon = null;
   }
   if (typeof body.pinned === 'boolean') patch.pinned = body.pinned;
   try {
