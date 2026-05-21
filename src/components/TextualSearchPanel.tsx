@@ -60,6 +60,7 @@ export function TextualSearchPanel({
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       setHits([]);
+      setLoading(false);
       return;
     }
     let alive = true;
