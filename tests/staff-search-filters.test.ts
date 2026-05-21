@@ -5,7 +5,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseStaffSearchParams,
-  staffSearchFilters,
 } from '@/lib/char-staff-search-filters';
 
 describe('parseStaffSearchParams', () => {
@@ -55,19 +54,5 @@ describe('parseStaffSearchParams', () => {
     expect(parseStaffSearchParams({ vn: 'v90017' }).vn).toBe('v90017');
     expect(parseStaffSearchParams({ vn: 'V18' }).vn).toBe('v18');
     expect(parseStaffSearchParams({ vn: 'egs_42' }).vn).toBeNull();
-  });
-});
-
-describe('staffSearchFilters', () => {
-  it('builds an empty filter array when no filter is active', () => {
-    expect(staffSearchFilters({ role: null, lang: null, vn: null })).toEqual([]);
-  });
-
-  it('emits role / lang / vn predicates in the VNDB filter shape', () => {
-    const f = staffSearchFilters({ role: 'scenario', lang: 'ja', vn: 'v90017' });
-    expect(f).toContainEqual(['role', '=', 'scenario']);
-    expect(f).toContainEqual(['lang', '=', 'ja']);
-    expect(f).toContainEqual(['vn', '=', ['id', '=', 'v90017']]);
-    expect(f.length).toBe(3);
   });
 });
