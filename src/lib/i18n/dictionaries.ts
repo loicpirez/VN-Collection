@@ -222,6 +222,10 @@ export const dictionaries = {
       matches: 'correspondances',
       empty: 'Aucun collaborateur commun trouvé dans les données téléchargées.',
       needsMoreData: 'Pas encore assez de profils staff en cache. Ouvre quelques VN des deux studios pour déclencher le fan-out.',
+      paginationLabel: 'Pagination du croisement',
+      pageLabel: 'Page {current} / {total}',
+      prevPage: 'Précédent',
+      nextPage: 'Suivant',
     },
     downloadStatus: {
       title: 'Téléchargements en cours',
@@ -2757,6 +2761,10 @@ export const dictionaries = {
       matches: 'matches',
       empty: 'No shared collaborators in the downloaded staff data.',
       needsMoreData: 'Not enough staff profiles cached yet. Open a few VNs from both studios to trigger the fan-out.',
+      paginationLabel: 'Brand overlap pagination',
+      pageLabel: 'Page {current} / {total}',
+      prevPage: 'Previous',
+      nextPage: 'Next',
     },
     downloadStatus: {
       title: 'Active downloads',
@@ -5289,6 +5297,10 @@ export const dictionaries = {
       matches: '件',
       empty: 'ダウンロード済みデータ内に共通スタッフは見つかりませんでした。',
       needsMoreData: 'スタッフキャッシュが不足しています。両方のスタジオの VN を開いてダウンロードしてください。',
+      paginationLabel: 'スタジオ横断のページ送り',
+      pageLabel: '{current} / {total} ページ',
+      prevPage: '前へ',
+      nextPage: '次へ',
     },
     downloadStatus: {
       title: '進行中のダウンロード',

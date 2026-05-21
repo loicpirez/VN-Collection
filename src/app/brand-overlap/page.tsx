@@ -13,10 +13,22 @@ import { roleLabel } from '@/lib/staff-roles';
 import { BrandOverlapPicker } from '@/components/BrandOverlapPicker';
 
 export const dynamic = 'force-dynamic';
+const BRAND_OVERLAP_PAGE_SIZE = 20;
 
 function parsePid(s: string | undefined): string | null {
   if (!s) return null;
   return /^p\d+$/i.test(s) ? s.toLowerCase() : null;
+}
+
+function parsePage(s: string | undefined): number {
+  const n = Number(s);
+  return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
+function brandOverlapHref(a: string, b: string, page: number): string {
+  const sp = new URLSearchParams({ a, b });
+  if (page > 1) sp.set('p', String(page));
+  return `/brand-overlap?${sp.toString()}`;
 }
 
 function formatRoles(roles: string[], t: Awaited<ReturnType<typeof getDict>>): string {
@@ -32,12 +44,13 @@ function formatRoles(roles: string[], t: Awaited<ReturnType<typeof getDict>>): s
 export default async function BrandOverlapPage({
   searchParams,
 }: {
-  searchParams: Promise<{ a?: string; b?: string }>;
+  searchParams: Promise<{ a?: string; b?: string; p?: string }>;
 }) {
   const t = await getDict();
-  const { a: rawA, b: rawB } = await searchParams;
+  const { a: rawA, b: rawB, p: rawPage } = await searchParams;
   const a = parsePid(rawA);
   const b = parsePid(rawB);
+  const page = parsePage(rawPage);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -53,7 +66,7 @@ export default async function BrandOverlapPage({
         <BrandOverlapPicker initialA={a} initialB={b} />
       </header>
 
-      {a && b ? <Result a={a} b={b} /> : (
+      {a && b ? <Result a={a} b={b} page={page} /> : (
         <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
           {t.brandOverlap.pickHint}
         </p>
@@ -62,7 +75,7 @@ export default async function BrandOverlapPage({
   );
 }
 
-async function Result({ a, b }: { a: string; b: string }) {
+async function Result({ a, b, page }: { a: string; b: string; page: number }) {
   const t = await getDict();
   const result = await findBrandStaffOverlap(a, b);
   if (result.needsMoreData) {
@@ -92,6 +105,10 @@ async function Result({ a, b }: { a: string; b: string }) {
   const ownedSet = isInCollectionMany(
     result.entries.flatMap((e) => [...e.aCredits, ...e.bCredits].map((c) => c.vn_id)),
   );
+  const totalPages = Math.max(1, Math.ceil(result.entries.length / BRAND_OVERLAP_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * BRAND_OVERLAP_PAGE_SIZE;
+  const pagedEntries = result.entries.slice(start, start + BRAND_OVERLAP_PAGE_SIZE);
 
   return (
     <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -125,8 +142,9 @@ async function Result({ a, b }: { a: string; b: string }) {
           </p>
         </div>
       ) : (
+        <>
         <ul className="space-y-2">
-          {result.entries.map((e) => (
+          {pagedEntries.map((e) => (
             <li key={e.sid} className="rounded-lg border border-border bg-bg-elev/30 p-3">
               <div className="flex items-baseline justify-between gap-2">
                 <Link href={`/staff/${e.sid}`} className="inline-flex items-center gap-1.5 font-bold hover:text-accent">
@@ -191,6 +209,41 @@ async function Result({ a, b }: { a: string; b: string }) {
             </li>
           ))}
         </ul>
+        {totalPages > 1 && (
+          <nav
+            className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3 text-xs"
+            aria-label={t.brandOverlap.paginationLabel}
+          >
+            <span className="text-muted">
+              {t.brandOverlap.pageLabel
+                .replace('{current}', String(currentPage))
+                .replace('{total}', String(totalPages))}
+            </span>
+            <div className="inline-flex items-center gap-2">
+              {currentPage > 1 ? (
+                <Link
+                  href={brandOverlapHref(a, b, currentPage - 1)}
+                  className="btn btn-xs"
+                >
+                  {t.brandOverlap.prevPage}
+                </Link>
+              ) : (
+                <span className="btn btn-xs pointer-events-none opacity-40">{t.brandOverlap.prevPage}</span>
+              )}
+              {currentPage < totalPages ? (
+                <Link
+                  href={brandOverlapHref(a, b, currentPage + 1)}
+                  className="btn btn-xs"
+                >
+                  {t.brandOverlap.nextPage}
+                </Link>
+              ) : (
+                <span className="btn btn-xs pointer-events-none opacity-40">{t.brandOverlap.nextPage}</span>
+              )}
+            </div>
+          </nav>
+        )}
+        </>
       )}
     </section>
   );
