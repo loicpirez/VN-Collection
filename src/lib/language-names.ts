@@ -72,8 +72,25 @@ const LANGUAGE_NAMES: Record<string, string> = {
   mi: 'Maori',
 };
 
-export function languageDisplayName(code: string | null | undefined): string {
+/**
+ * Returns the display name for a VNDB language code in the given locale.
+ *
+ * Uses `Intl.DisplayNames` when available (locale-aware) with the static
+ * map as a fallback for environments where Intl is not available or the
+ * code is unrecognised by the runtime.
+ */
+export function languageDisplayName(
+  code: string | null | undefined,
+  locale = 'en',
+): string {
   if (!code) return '';
+  try {
+    const dn = new Intl.DisplayNames([locale, 'en'], { type: 'language' });
+    const name = dn.of(code);
+    if (name && name !== code) return name;
+  } catch {
+    // Fall through to static map.
+  }
   const lower = code.toLowerCase();
   return LANGUAGE_NAMES[lower] ?? code.toUpperCase();
 }
