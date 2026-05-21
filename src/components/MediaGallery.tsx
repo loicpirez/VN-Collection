@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ChevronLeft,
@@ -131,9 +131,15 @@ export function MediaGallery({
     screenshots: groups.screenshots.length,
   };
 
-  const close = () => setActive(null);
-  const prev = () => setActive((a) => (a == null ? null : (a - 1 + visible.length) % visible.length));
-  const next = () => setActive((a) => (a == null ? null : (a + 1) % visible.length));
+  const close = useCallback(() => setActive(null), []);
+  const prev = useCallback(
+    () => setActive((a) => (a == null ? null : (a - 1 + visible.length) % visible.length)),
+    [visible.length],
+  );
+  const next = useCallback(
+    () => setActive((a) => (a == null ? null : (a + 1) % visible.length)),
+    [visible.length],
+  );
 
   const lightboxRef = useRef<HTMLDivElement | null>(null);
   const lightboxTitleId = useId();
@@ -154,7 +160,7 @@ export function MediaGallery({
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active]);
+  }, [active, prev, next]);
 
   return (
     <div aria-label={t.media.section}>

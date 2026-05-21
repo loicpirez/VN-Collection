@@ -42,30 +42,28 @@ export function AspectOverrideControl({
   const [loading, setLoading] = useState(initialDerived === undefined);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    const ac = new AbortController();
+  const load = useCallback(async (signal: AbortSignal) => {
     try {
-      const r = await fetch(`/api/vn/${vnId}/aspect`, { cache: 'no-store', signal: ac.signal });
+      const r = await fetch(`/api/vn/${vnId}/aspect`, { cache: 'no-store', signal });
       if (!r.ok) throw new Error(await r.text());
       const d = (await r.json()) as {
         override: { aspect_key: AspectKey; note: string | null } | null;
         derived: AspectKey;
       };
-      if (ac.signal.aborted) return;
+      if (signal.aborted) return;
       setOverride(d.override);
       setDerived(d.derived);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
-      // Soft-fail — control just stays in loading state and any
-      // future tab visit retries.
     } finally {
-      if (!ac.signal.aborted) setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
-    return () => ac.abort();
   }, [vnId]);
 
   useEffect(() => {
-    void load();
+    const ac = new AbortController();
+    void load(ac.signal);
+    return () => ac.abort();
   }, [load]);
 
   async function save(next: AspectKey | null) {
