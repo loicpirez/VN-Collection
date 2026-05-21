@@ -102,6 +102,7 @@ export function SafeImage({
   const [reveal, setReveal] = useState(false);
   const [errored, setErrored] = useState(false);
   const [inView, setInView] = useState(priority);
+  const [loaded, setLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Track the container's rendered size so 90/270 rotations can scale
   // up to fill the box. The state is only "live" when rotation is
@@ -144,6 +145,7 @@ export function SafeImage({
   // gating actually firing).
   useEffect(() => {
     setErrored(false);
+    setLoaded(false);
     setInView(!!priority);
   }, [url, priority]);
 
@@ -201,6 +203,13 @@ export function SafeImage({
   }
 
   const rotationStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null);
+  const skeleton = (
+    <div
+      data-safe-image-skeleton
+      className={`pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70 transition-opacity duration-200 ${loaded ? 'opacity-0' : 'opacity-100'}`}
+      aria-hidden
+    />
+  );
 
   return (
     <div ref={containerRef} className={`relative overflow-hidden ${className}`} style={style}>
@@ -210,21 +219,26 @@ export function SafeImage({
           spurious request for the host page. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {inView ? (
-        <img
-          src={url}
-          alt={alt}
-          decoding="async"
-          loading={priority ? 'eager' : 'lazy'}
-          className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
-          style={rotationStyle}
-          onError={() => {
-            setErrored(true);
-            onLoadError?.();
-          }}
-        />
+        <>
+          {skeleton}
+          <img
+            src={url}
+            alt={alt}
+            decoding="async"
+            loading={priority ? 'eager' : 'lazy'}
+            className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-[filter,opacity,transform] duration-200 ${loaded ? 'opacity-100' : 'opacity-0'} ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
+            style={rotationStyle}
+            onLoad={() => setLoaded(true)}
+            onError={() => {
+              setErrored(true);
+              onLoadError?.();
+            }}
+          />
+        </>
       ) : (
         <div
-          className={`h-full w-full bg-bg-elev/40 transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
+          data-safe-image-skeleton
+          className={`pointer-events-none h-full w-full animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70 transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
           aria-hidden
         />
       )}

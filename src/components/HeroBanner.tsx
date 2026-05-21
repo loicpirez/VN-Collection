@@ -54,6 +54,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   // when it's present, falling back to `newSrc`.
   const [liveSrc, setLiveSrc] = useState<string | null>(src);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
+  const [bannerLoaded, setBannerLoaded] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const draggingRef = useRef(false);
@@ -69,6 +70,9 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   useEffect(() => {
     setLiveSrc(src);
   }, [src]);
+  useEffect(() => {
+    setBannerLoaded(false);
+  }, [liveSrc]);
   useEffect(() => {
     setRotation(initialRotation);
   }, [initialRotation]);
@@ -298,31 +302,41 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
       }`}
     >
       {liveSrc ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          ref={imgRef}
-          src={liveSrc}
-          alt=""
-          aria-hidden
-          draggable={false}
-          className={`pointer-events-none h-full w-full select-none object-cover transition-[object-position,filter,opacity,transform] duration-200 ${
-            editing
-              ? ''
-              : shouldBlurR18
-                ? 'scale-110 blur-2xl opacity-70'
-                : !customBanner
-                  ? 'scale-110 blur-xl opacity-50'
-                  : ''
-          }`}
-          style={{
-            objectPosition: activePos,
-            // Rotation transform is composed onto whatever scale/blur
-            // the className above adds. `buildRotationStyle` returns
-            // `{}` when rotation is 0 so the existing blur classes
-            // keep working unchanged.
-            ...buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null),
-          }}
-        />
+        <>
+          <div
+            data-hero-banner-skeleton
+            className={`pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-card/55 to-bg-elev/70 transition-opacity duration-200 ${bannerLoaded ? 'opacity-0' : 'opacity-100'}`}
+            aria-hidden
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            ref={imgRef}
+            src={liveSrc}
+            alt=""
+            aria-hidden
+            draggable={false}
+            className={`pointer-events-none h-full w-full select-none object-cover transition-[object-position,filter,opacity,transform] duration-200 ${
+              bannerLoaded
+                ? editing
+                  ? ''
+                  : shouldBlurR18
+                    ? 'scale-110 blur-2xl opacity-70'
+                    : !customBanner
+                      ? 'scale-110 blur-xl opacity-50'
+                      : 'opacity-100'
+                : 'opacity-0'
+            }`}
+            style={{
+              objectPosition: activePos,
+              // Rotation transform is composed onto whatever scale/blur
+              // the className above adds. `buildRotationStyle` returns
+              // `{}` when rotation is 0 so the existing blur classes
+              // keep working unchanged.
+              ...buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null),
+            }}
+            onLoad={() => setBannerLoaded(true)}
+          />
+        </>
       ) : (
         <div className="pointer-events-none h-full w-full bg-gradient-to-b from-bg-elev to-bg-card" />
       )}

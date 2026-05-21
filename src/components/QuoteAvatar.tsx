@@ -1,5 +1,6 @@
 import { UserCircle } from 'lucide-react';
 import { resolveQuoteAvatar, type QuoteAvatarSource } from '@/lib/quote-avatar';
+import { LoadingImage } from './LoadingImage';
 
 /**
  * Rounded character avatar for a quote, with a richer fallback chain:
@@ -9,15 +10,9 @@ import { resolveQuoteAvatar, type QuoteAvatarSource } from '@/lib/quote-avatar';
  *     of every cover the app stores.
  *   - `<UserCircle>` lucide icon when neither is available.
  *
- * Kept presentational (no fetches, no client hooks) so it can be
- * dropped into every quote surface without dragging in `'use client'`.
- *
- * The image deliberately uses a native `<img>` (no `<SafeImage>`):
- * - Avatars never carry NSFW gating; covers and character portraits
- *   the app surfaces here have already passed through the
- *   prefer-local / R18-gate path before being stored.
- * - The lazy-loader machinery in `<SafeImage>` is overkill for a
- *   single small thumbnail rendered in a list of 3-20 quotes.
+ * Uses the lightweight loading skeleton wrapper instead of SafeImage:
+ * avatars never carry NSFW gating, but they still need the same
+ * no-alt-flash loading behavior as the larger image surfaces.
  */
 export function QuoteAvatar({
   quote,
@@ -53,12 +48,13 @@ export function QuoteAvatar({
       aria-hidden={resolved.src ? undefined : true}
     >
       {resolved.src ? (
-        <img
+        <LoadingImage
           src={resolved.src}
           alt={altText}
           width={width}
           height={height}
-          className="h-full w-full object-cover"
+          className="h-full w-full"
+          imageClassName="h-full w-full object-cover"
           loading="lazy"
         />
       ) : (

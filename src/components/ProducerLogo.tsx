@@ -1,5 +1,6 @@
 import { Building2 } from 'lucide-react';
 import { publicUrlFor } from '@/lib/files';
+import { LoadingImage } from './LoadingImage';
 
 interface Props {
   producer: { name: string; logo_path?: string | null };
@@ -11,13 +12,13 @@ export function ProducerLogo({ producer, size = 48, className = '' }: Props) {
   const url = publicUrlFor(producer.logo_path);
   if (url) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <LoadingImage
         src={url}
         alt={producer.name}
         width={size}
         height={size}
-        className={`shrink-0 rounded-md border border-border bg-bg object-contain ${className}`}
+        className={`shrink-0 rounded-md border border-border bg-bg ${className}`}
+        imageClassName="h-full w-full object-contain"
         style={{ width: size, height: size }}
         loading="lazy"
       />

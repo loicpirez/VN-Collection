@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildRotationStyle } from '@/components/SafeImage';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * Pin the pure-CSS rotation-style helper that powers
@@ -46,5 +48,21 @@ describe('buildRotationStyle', () => {
     // returns `{}` rather than a tilted transform, so a stale DB
     // value never produces a crooked tile.
     expect(buildRotationStyle(45, 100, 200)).toEqual({});
+  });
+});
+
+describe('SafeImage loading skeleton', () => {
+  const source = readFileSync(join(__dirname, '..', 'src/components/SafeImage.tsx'), 'utf8');
+
+  it('keeps a skeleton visible until the image load event fires', () => {
+    expect(source).toContain('const [loaded, setLoaded] = useState(false)');
+    expect(source).toContain('data-safe-image-skeleton');
+    expect(source).toContain('onLoad={() => setLoaded(true)}');
+    expect(source).toContain("loaded ? 'opacity-100' : 'opacity-0'");
+  });
+
+  it('resets loaded state when recycled virtualized cells receive a new URL', () => {
+    expect(source).toContain('setLoaded(false)');
+    expect(source).toContain('setInView(!!priority)');
   });
 });
