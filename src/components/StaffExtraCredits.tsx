@@ -69,7 +69,7 @@ export async function StaffExtraCredits({
                   <ul className="mt-2 space-y-1 text-[11px] text-muted">
                     {c.characters.map((ch) => (
                       <li key={ch.id} className="flex items-baseline justify-between gap-2">
-                        <Link href={`/character/${ch.id}`} className="truncate font-semibold text-white/85 hover:text-accent">
+                        <Link href={`/character/${ch.id}`} title={ch.name} className="truncate font-semibold text-white/85 hover:text-accent">
                           {ch.name}
                         </Link>
                         {ch.note && <span className="shrink-0 text-[10px] opacity-70">{ch.note}</span>}
@@ -153,7 +153,7 @@ function ExternalVnCard({
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <Link href={`/vn/${vn.id}`} className="line-clamp-2 text-xs font-bold transition-colors hover:text-accent">
+          <Link href={`/vn/${vn.id}`} title={vn.title} className="line-clamp-2 text-xs font-bold transition-colors hover:text-accent">
             {vn.title}
           </Link>
           {inCollection && (
@@ -166,7 +166,7 @@ function ExternalVnCard({
           )}
         </div>
         {vn.alttitle && vn.alttitle !== vn.title && (
-          <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">{vn.alttitle}</div>
+          <div title={vn.alttitle} className="mt-0.5 line-clamp-1 text-[10px] text-muted">{vn.alttitle}</div>
         )}
         <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
           {ratingDisplay && (

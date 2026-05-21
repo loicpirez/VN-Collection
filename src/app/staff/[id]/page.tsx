@@ -348,15 +348,16 @@ export default async function StaffPage({
                         <div className="min-w-0 flex-1">
                           <Link
                             href={`/character/${c.id}`}
+                            title={c.name}
                             className="line-clamp-1 font-semibold text-white/85 hover:text-accent"
                           >
                             {c.name}
                           </Link>
                           {c.original && c.original !== c.name && (
-                            <div className="line-clamp-1 text-[10px] text-muted/70">{c.original}</div>
+                            <div title={c.original} className="line-clamp-1 text-[10px] text-muted/70">{c.original}</div>
                           )}
                           {c.note && (
-                            <div className="line-clamp-1 text-[10px] opacity-70">{c.note}</div>
+                            <div title={c.note} className="line-clamp-1 text-[10px] opacity-70">{c.note}</div>
                           )}
                         </div>
                       </li>
@@ -493,6 +494,7 @@ function VnCard({
         <div className="flex items-baseline gap-2">
           <Link
             href={`/vn/${vn.id}`}
+            title={vn.title}
             className="line-clamp-2 flex-1 text-xs font-bold transition-colors hover:text-accent"
           >
             {vn.title}
@@ -511,7 +513,7 @@ function VnCard({
           )}
         </div>
         {vn.alttitle && vn.alttitle !== vn.title && (
-          <div className="mt-0.5 line-clamp-1 text-[11px] text-muted">{vn.alttitle}</div>
+          <div title={vn.alttitle} className="mt-0.5 line-clamp-1 text-[11px] text-muted">{vn.alttitle}</div>
         )}
         <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted">
           {ratingDisplay && (

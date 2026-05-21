@@ -432,7 +432,7 @@ export default async function ShelfPage({
                             />
                           </div>
                           <div className="min-w-0 flex-1 text-[11px]">
-                            <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                            <p title={e.vn_title} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
                               {e.vn_title}
                             </p>
                             {/*
@@ -446,19 +446,19 @@ export default async function ShelfPage({
                               rather than the umbrella VN.
                             */}
                             {e.rel_title && e.rel_title !== e.vn_title && (
-                              <p className="line-clamp-1 text-[11px] text-muted">
+                              <p title={e.rel_title} className="line-clamp-1 text-[11px] text-muted">
                                 {e.rel_title}
                               </p>
                             )}
                             {e.edition_label && (
-                              <p className="line-clamp-1 text-[11px] text-muted">{e.edition_label}</p>
+                              <p title={e.edition_label} className="line-clamp-1 text-[11px] text-muted">{e.edition_label}</p>
                             )}
                             {/* Secondary location tags (everything past
                                 the primary bucket key) so the user can
                                 see "Étage 2 / Rangée 3 / Étagère gauche"
                                 even when grouped by "Étage 2". */}
                             {e.physical_location.length > 1 && (
-                              <p className="line-clamp-1 text-[10px] text-muted/80">
+                              <p title={e.physical_location.slice(1).join(' · ')} className="line-clamp-1 text-[10px] text-muted/80">
                                 {e.physical_location.slice(1).join(' · ')}
                               </p>
                             )}
@@ -628,14 +628,14 @@ export default async function ShelfPage({
                           />
                         </div>
                         <div className="min-w-0 flex-1 text-[11px]">
-                          <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                          <p title={b.vn_title} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
                             {b.vn_title}
                           </p>
                           <p className="mt-1 text-[11px] text-muted">
                             {t.shelf.editionsForVn.replace('{n}', String(b.editions.length))}
                           </p>
                           {b.locations.size > 0 && (
-                            <p className="mt-1 line-clamp-2 text-[11px] text-muted/80">
+                            <p title={Array.from(b.locations).join(' · ')} className="mt-1 line-clamp-2 text-[11px] text-muted/80">
                               {Array.from(b.locations).join(' · ')}
                             </p>
                           )}

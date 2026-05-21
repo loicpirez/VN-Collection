@@ -228,7 +228,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
                           style={{ backgroundColor: l.color ?? '#475569' }}
                           aria-hidden
                         />
-                        <span className="line-clamp-1 flex-1 text-xs">{l.name}</span>
+                        <span title={l.name} className="line-clamp-1 flex-1 text-xs">{l.name}</span>
                       </button>
                     </li>
                   );

@@ -453,7 +453,7 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | UXA-012 | UI/UX | Dumped VN title uses `line-clamp-2` without `title`. | `src/app/dumped/page.tsx` | dda2c1b | title={e.vn_title} added to line-clamp-2 VN title paragraph; yarn test 1453/1453 | FIXED_VERIFIED |
 | I18NA-001 | i18n | `global-error.tsx` hardcodes `<html lang="en">` and English fallback UI. | `src/app/global-error.tsx` | bed720e | lang read from locale cookie via readLocaleCookie(); defaults to fr (DEFAULT_LOCALE); yarn test 1417/1417 | FIXED_VERIFIED |
 | I18NA-002 | i18n | Staff VNDB external link uses bare `aria-label="VNDB"` / `title="VNDB"` instead of localized action. | `src/app/staff/[id]/page.tsx` | 99e18fa | openOnVndb prop added to VnCard; aria-label uses t.vn.openOnVndb localized string; yarn test 1453/1453 | FIXED_VERIFIED |
-| I18NA-003 | i18n | `VnTagsGroupedView` VNDB external link uses bare `aria-label="VNDB"` / `title="VNDB"`. | `src/components/VnTagsGroupedView.tsx` | | source proof | TODO |
+| I18NA-003 | i18n | `VnTagsGroupedView` VNDB external link uses bare `aria-label="VNDB"` / `title="VNDB"`. | `src/components/VnTagsGroupedView.tsx` | 0166d8a | COMP-017: VnTagsGroupedView VNDB link uses t.vnTags.openOnVndb localized aria-label; yarn test 1453/1453 | FIXED_VERIFIED |
 | I18NA-004 | i18n | Owned editions platform placeholder `win, ps4, swi…` hardcoded in UI. | `src/components/OwnedEditionsSection.tsx` | | source proof | TODO |
 | I18NA-005 | i18n | Owned editions currency placeholder `JPY` hardcoded as UI hint. | `src/components/OwnedEditionsSection.tsx` | | source proof | TODO |
 | I18NA-006 | i18n | Cover picker `alt="VNDB"` should describe image, e.g. VNDB cover. | `src/components/CoverSourcePicker.tsx` | | source proof | TODO |

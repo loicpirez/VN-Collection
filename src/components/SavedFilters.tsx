@@ -224,7 +224,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
                       className={`flex flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left hover:bg-bg-elev ${
                         isActive ? 'text-accent' : 'text-white/85'
                       }`}
-                      title={f.params}
+                      title={f.name}
                     >
                       <Pin className="h-3 w-3 shrink-0" aria-hidden />
                       <span className="truncate">{f.name}</span>

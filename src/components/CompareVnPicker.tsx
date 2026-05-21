@@ -213,11 +213,11 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
                 />
               </div>
               <div className="min-w-0">
-                <p className="line-clamp-2 max-w-[140px] text-[12px] font-semibold leading-tight">
+                <p title={vn.title} className="line-clamp-2 max-w-[140px] text-[12px] font-semibold leading-tight">
                   {vn.title}
                 </p>
                 {vn.alttitle && vn.alttitle !== vn.title && (
-                  <p className="line-clamp-1 max-w-[140px] text-[10px] text-muted">{vn.alttitle}</p>
+                  <p title={vn.alttitle} className="line-clamp-1 max-w-[140px] text-[10px] text-muted">{vn.alttitle}</p>
                 )}
                 <p className="mt-0.5 font-mono text-[10px] text-muted/60">{vn.id}</p>
               </div>
@@ -321,9 +321,9 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
                         />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="line-clamp-1 text-sm font-semibold">{hit.title}</p>
+                        <p title={hit.title} className="line-clamp-1 text-sm font-semibold">{hit.title}</p>
                         {hit.alttitle && hit.alttitle !== hit.title && (
-                          <p className="line-clamp-1 text-[11px] text-muted">{hit.alttitle}</p>
+                          <p title={hit.alttitle} className="line-clamp-1 text-[11px] text-muted">{hit.alttitle}</p>
                         )}
                         {(year || hit.developer) && (
                           <p className="text-[11px] text-muted">

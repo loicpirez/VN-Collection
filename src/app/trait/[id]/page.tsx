@@ -206,16 +206,16 @@ export default async function TraitPage({
                       />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <span className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                      <span title={c.name} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
                         {c.name}
                       </span>
                       {c.original && c.original !== c.name && (
-                        <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">{c.original}</div>
+                        <div title={c.original} className="mt-0.5 line-clamp-1 text-[10px] text-muted">{c.original}</div>
                       )}
                       {firstVn && (
                         <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted">
                           <CornerDownRight className="h-2.5 w-2.5" aria-hidden />
-                          <span className="line-clamp-1">{firstVn.title ?? firstVn.id}</span>
+                          <span title={firstVn.title ?? firstVn.id} className="line-clamp-1">{firstVn.title ?? firstVn.id}</span>
                           {owned && <Check className="h-2.5 w-2.5 text-accent" aria-hidden />}
                         </div>
                       )}

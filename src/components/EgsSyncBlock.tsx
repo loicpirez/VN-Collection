@@ -197,6 +197,7 @@ export function EgsSyncBlock() {
                 <Link
                   href={`/vn/${s.vn_id}`}
                   onClick={(e) => e.stopPropagation()}
+                  title={s.vn_title}
                   className="min-w-0 flex-1 truncate font-bold hover:text-accent"
                 >
                   {s.vn_title}

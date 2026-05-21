@@ -380,7 +380,7 @@ export default async function CharacterPage({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline justify-between gap-1">
-                            <span className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">{v.title ?? v.id}</span>
+                            <span title={v.title ?? v.id} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">{v.title ?? v.id}</span>
                             <span className="shrink-0 rounded bg-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">{role}</span>
                           </div>
                           {/* R5-238: visible owned chip when this
@@ -394,7 +394,7 @@ export default async function CharacterPage({
                             </span>
                           )}
                           {v.alttitle && v.alttitle !== v.title && (
-                        <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">{v.alttitle}</div>
+                        <div title={v.alttitle} className="mt-0.5 line-clamp-1 text-[10px] text-muted">{v.alttitle}</div>
                       )}
                       <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
                         {ratingDisplay && (

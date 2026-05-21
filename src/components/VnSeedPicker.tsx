@@ -296,7 +296,7 @@ export function VnSeedPicker({
               <span title={initialSeed.id}>{initialSeed.title}</span>
             </p>
             {initialSeed.alttitle && initialSeed.alttitle !== initialSeed.title && (
-              <p className="line-clamp-1 text-[11px] text-muted">{initialSeed.alttitle}</p>
+              <p title={initialSeed.alttitle} className="line-clamp-1 text-[11px] text-muted">{initialSeed.alttitle}</p>
             )}
             {invalid && (
               <p className="text-[11px] text-status-dropped">
@@ -405,9 +405,9 @@ export function VnSeedPicker({
                         />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="line-clamp-1 text-[12px] font-semibold">{hit.title}</p>
+                        <p title={hit.title} className="line-clamp-1 text-[12px] font-semibold">{hit.title}</p>
                         {hit.alttitle && hit.alttitle !== hit.title && (
-                          <p className="line-clamp-1 text-[10px] text-muted">{hit.alttitle}</p>
+                          <p title={hit.alttitle} className="line-clamp-1 text-[10px] text-muted">{hit.alttitle}</p>
                         )}
                         <p className="line-clamp-1 text-[10px] text-muted">
                           {[year, hit.developer].filter(Boolean).join(' · ')}

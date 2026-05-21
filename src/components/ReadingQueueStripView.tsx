@@ -66,7 +66,7 @@ export function ReadingQueueStripView({ title, entries, initialState }: Props) {
                     className="h-full w-full"
                   />
                 </div>
-                <span className="line-clamp-1 max-w-[200px] font-semibold transition-colors group-hover:text-accent">
+                <span title={e.title} className="line-clamp-1 max-w-[200px] font-semibold transition-colors group-hover:text-accent">
                   {e.title}
                 </span>
               </Link>
