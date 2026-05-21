@@ -451,7 +451,7 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | UXA-010 | UI/UX | Steam suggestion rows use `line-clamp-1` without `title`. | `src/app/steam/page.tsx` | | source proof | TODO |
 | UXA-011 | UI/UX | Upcoming brand fallback span uses `line-clamp-1` without `title`. | `src/app/upcoming/page.tsx` | | source proof | TODO |
 | UXA-012 | UI/UX | Dumped VN title uses `line-clamp-2` without `title`. | `src/app/dumped/page.tsx` | | source proof | TODO |
-| I18NA-001 | i18n | `global-error.tsx` hardcodes `<html lang="en">` and English fallback UI. | `src/app/global-error.tsx` | | source proof | TODO |
+| I18NA-001 | i18n | `global-error.tsx` hardcodes `<html lang="en">` and English fallback UI. | `src/app/global-error.tsx` | bed720e | lang read from locale cookie via readLocaleCookie(); defaults to fr (DEFAULT_LOCALE); yarn test 1417/1417 | FIXED_VERIFIED |
 | I18NA-002 | i18n | Staff VNDB external link uses bare `aria-label="VNDB"` / `title="VNDB"` instead of localized action. | `src/app/staff/[id]/page.tsx` | | source proof | TODO |
 | I18NA-003 | i18n | `VnTagsGroupedView` VNDB external link uses bare `aria-label="VNDB"` / `title="VNDB"`. | `src/components/VnTagsGroupedView.tsx` | | source proof | TODO |
 | I18NA-004 | i18n | Owned editions platform placeholder `win, ps4, swi…` hardcoded in UI. | `src/components/OwnedEditionsSection.tsx` | | source proof | TODO |
@@ -495,7 +495,7 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | SECA-024 | security | `/api/collection/order` write handlers lack auth gate. | `src/app/api/collection/order/route.ts` | f425376 | PATCH and DELETE gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
 | DBA-012 | DB/backend | `todaysAnniversaries()` has no LIMIT; large libraries with many same-day releases pull unbounded results into JS. | `src/lib/db.ts` | | source proof | TODO |
 | DBA-013 | DB/backend | `listAllListMemberships()` uses `LIMIT 100000` — effectively unbounded on large collections; all metadata rows loaded into JS for grouping. | `src/lib/db.ts` | | source proof | TODO |
-| I18NA-009 | i18n | `languageDisplayName()` is locale-blind — always returns English language names regardless of app locale. | `src/lib/language-names.ts` | | source proof | TODO |
+| I18NA-009 | i18n | `languageDisplayName()` is locale-blind — always returns English language names regardless of app locale. | `src/lib/language-names.ts` | 1f7e336 | Intl.DisplayNames([locale, 'en']) + locale param; fallback to static map; backward compat; yarn test 1417/1417 | FIXED_VERIFIED |
 | I18NA-010 | i18n | Character page `fmtBirthday` uses `'default'` locale; month name renders in OS locale (usually English) regardless of app locale. | `src/app/character/[id]/page.tsx` | | source proof | TODO |
 | I18NA-011 | i18n | `StaleEgsBanner` in `/top-ranked` and `/upcoming` calls `toLocaleString()` without locale arg; timestamps render in OS locale. | `src/app/top-ranked/page.tsx`, `src/app/upcoming/page.tsx` | | source proof | TODO |
 | I18NA-012 | i18n | `toLocaleString()` called without locale arg across 10+ sites (recommendations, top-ranked, trait/[id], tag/[id], TagsBrowser, TagPicker, EgsPanel, etc.); number formatting is locale-inconsistent. | Multiple files | | source proof | TODO |
