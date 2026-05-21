@@ -8,7 +8,7 @@ import {
   listCollection,
   listCollectionForCards,
   materializeAspectForCollectionVns,
-  materializeReleaseAspectsForVn,
+  materializeReleaseAspectsForCollectionVns,
   materializeReleaseMetaForCollectionVns,
   type ListOptions,
 } from '@/lib/db';
@@ -110,12 +110,10 @@ export async function GET(req: NextRequest) {
       // VNs from the Library page. Materializing here makes the
       // Library agree with the VN detail page.
       const vndbIds = allVnIds.filter(isVndbVnId);
-      // STEP 1a: pull aspect from cached VNDB release payloads — one
-      // per-VN short-circuiting scan (idempotent; skips VNs that
-      // already have a non-unknown signal, so cost is O(missing)).
-      for (const id of vndbIds) {
-        materializeReleaseAspectsForVn(id);
-      }
+      // STEP 1a: batch-materialize aspect from cached VNDB release payloads.
+      // Single-pass over vndb_cache; skips VNs that already have a
+      // non-unknown signal. Replaces the previous per-VN loop (DBA-001).
+      materializeReleaseAspectsForCollectionVns(vndbIds);
       // STEP 1b: pull platform / media metadata from release cache
       // using the batch helper — replaces the previous per-VN loop
       // that called materializeReleaseMetaForVn individually (AUD-DB-001).

@@ -3618,6 +3618,77 @@ export function materializeReleaseAspectsForVn(vnId: string): void {
 }
 
 /**
+ * Batch variant of `materializeReleaseAspectsForVn` that processes all
+ * supplied VNDB VN ids in a single pass over the release cache.
+ *
+ * Replaces the per-VN loop in the collection GET route (DBA-001).
+ * Instead of calling `materializeReleaseAspectsForVn(id)` O(n) times
+ * (each of which re-reads the full vndb_cache), this function:
+ *   1. Finds which VN ids already have a non-unknown signal (one IN query).
+ *   2. Reads the vndb_cache bodies exactly once.
+ *   3. Dispatches each release to every VN id that still needs data.
+ */
+export function materializeReleaseAspectsForCollectionVns(vnIds: string[]): void {
+  if (vnIds.length === 0) return;
+  const vndbIds = vnIds.filter(isVndbVnId);
+  if (vndbIds.length === 0) return;
+
+  const CHUNK = 500;
+  const needsWork = new Set<string>();
+  for (let i = 0; i < vndbIds.length; i += CHUNK) {
+    const chunk = vndbIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const already = db
+      .prepare(
+        `SELECT DISTINCT vn_id FROM release_resolution_cache
+         WHERE vn_id IN (${placeholders}) AND aspect_key <> 'unknown'`,
+      )
+      .all(...chunk) as Array<{ vn_id: string }>;
+    const alreadyDone = new Set(already.map((r) => r.vn_id));
+    for (const id of chunk) {
+      if (!alreadyDone.has(id)) needsWork.add(id);
+    }
+  }
+  if (needsWork.size === 0) return;
+
+  const rows = db
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%' LIMIT 200`)
+    .all() as Array<{ body: string }>;
+
+  const tx = db.transaction(() => {
+    for (const row of rows) {
+      let parsed: { results?: unknown[] } | null = null;
+      try {
+        parsed = JSON.parse(row.body) as { results?: unknown[] };
+      } catch {
+        continue;
+      }
+      if (!parsed?.results || !Array.isArray(parsed.results)) continue;
+      for (const r of parsed.results) {
+        if (!r || typeof r !== 'object') continue;
+        const rel = r as { id?: unknown; resolution?: unknown; vns?: Array<{ id?: unknown }> };
+        if (typeof rel.id !== 'string' || !/^r\d+$/i.test(rel.id)) continue;
+        if (!Array.isArray(rel.vns)) continue;
+        for (const v of rel.vns) {
+          if (!v || typeof v.id !== 'string') continue;
+          if (!needsWork.has(v.id)) continue;
+          try {
+            upsertReleaseResolutionCache({
+              releaseId: rel.id.toLowerCase(),
+              resolution: rel.resolution,
+              vnId: v.id,
+            });
+          } catch {
+            // Schema error / malformed input — keep scanning.
+          }
+        }
+      }
+    }
+  });
+  tx();
+}
+
+/**
  * Per-release metadata shape persisted in `release_meta_cache`. Every
  * field is nullable so the popover can show the parts VNDB knows
  * about and gracefully omit the rest.
