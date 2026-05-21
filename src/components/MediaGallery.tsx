@@ -325,10 +325,17 @@ function MediaTile({
             : 'aspect-[2/3]'
       }`}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onOpenLightbox}
-        className="h-full w-full"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpenLightbox();
+          }
+        }}
+        className="h-full w-full cursor-pointer"
         title={item.caption ?? item.alt}
         aria-label={t.media.openLightbox}
       >
@@ -341,7 +348,7 @@ function MediaTile({
           className="h-full w-full"
           fit={item.aspect === 'landscape' ? 'cover' : 'contain'}
         />
-      </button>
+      </div>
       <TileKebab
         vnId={vnId}
         item={item}
@@ -584,7 +591,7 @@ function TileKebab({
       <button
         ref={triggerRef}
         type="button"
-        // Stop propagation so the underlying image-button doesn't
+        // Stop propagation so the underlying image activator doesn't
         // also fire (which would open the lightbox below the menu).
         onClick={(e) => {
           e.stopPropagation();

@@ -386,7 +386,10 @@ export default async function ComparePage({
 
             <CellHead label={t.compareView.row.seiyuu} />
             {items.map((it) => {
-              const vas = [...(it.va ?? [])]
+              const uniqueVas = Array.from(
+                new Map((it.va ?? []).map((v) => [`${v.staff.id}|${v.character.id}|${v.note ?? ''}`, v])).values(),
+              );
+              const vas = uniqueVas
                 .sort((a, b) => Number(sharedVaIds.has(b.staff.id)) - Number(sharedVaIds.has(a.staff.id)))
                 .slice(0, 10);
               return (
@@ -398,7 +401,7 @@ export default async function ComparePage({
                       const shared = sharedVaIds.has(v.staff.id);
                       return (
                         <Link
-                          key={`${v.staff.id}-${v.character.id}`}
+                          key={`${v.staff.id}-${v.character.id}-${v.note ?? 'credit'}`}
                           href={`/staff/${v.staff.id}`}
                           className={`mr-1 inline-block rounded px-1 py-0.5 hover:bg-accent/15 hover:text-accent ${
                             shared ? 'bg-accent/15 font-bold text-accent' : 'text-muted'
@@ -410,8 +413,8 @@ export default async function ComparePage({
                       );
                     })
                   )}
-                  {(it.va ?? []).length > vas.length && (
-                    <span className="text-muted">+{(it.va ?? []).length - vas.length}</span>
+                  {uniqueVas.length > vas.length && (
+                    <span className="text-muted">+{uniqueVas.length - vas.length}</span>
                   )}
                 </div>
               );

@@ -66,6 +66,7 @@ describe('compare page shared seiyuu matching', () => {
 
   it('sorts shared seiyuu first and highlights them in the seiyuu row', () => {
     expect(compareSource).toContain('const sharedVaIds = new Set(sharedVas.map((va) => va.sid))');
+    expect(compareSource).toContain('const uniqueVas = Array.from(');
     expect(compareSource).toContain('Number(sharedVaIds.has(b.staff.id)) - Number(sharedVaIds.has(a.staff.id))');
     expect(compareSource).toContain("shared ? 'bg-accent/15 font-bold text-accent' : 'text-muted'");
   });

@@ -52,4 +52,10 @@ describe('MediaGallery grid template (R5-221)', () => {
     expect(SOURCE).toMatch(/aspect-square/);
     expect(SOURCE).toMatch(/aspect-\[2\/3\]/);
   });
+
+  it('does not wrap SafeImage in a native button inside media tiles', () => {
+    expect(SOURCE).toContain('role="button"');
+    expect(SOURCE).toContain('onKeyDown={(e) => {');
+    expect(SOURCE).not.toContain('className="h-full w-full"\n        title={item.caption ?? item.alt}');
+  });
 });
