@@ -808,6 +808,17 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               role="tablist"
               aria-label={t.shelfLayout.pickShelf}
               className="flex flex-wrap items-center gap-2"
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+                e.preventDefault();
+                const idx = shelves.findIndex((s) => s.id === activeId);
+                let next: typeof shelves[number] | undefined;
+                if (e.key === 'Home') next = shelves[0];
+                else if (e.key === 'End') next = shelves[shelves.length - 1];
+                else if (e.key === 'ArrowRight') next = shelves[(idx + 1) % shelves.length];
+                else next = shelves[(idx - 1 + shelves.length) % shelves.length];
+                if (next) { setActiveId(next.id); document.getElementById(`shelf-tab-${next.id}`)?.focus(); }
+              }}
             >
               {shelves.map((s, i) => (
                 <button

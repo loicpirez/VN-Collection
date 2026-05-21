@@ -1,16 +1,16 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, Circle, Database, FileText, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
 import { TextualSearchPanel } from './TextualSearchPanel';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
-import { ContentWidthSlider } from './ContentWidthSlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { useToast } from './ToastProvider';
 import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
 import { platformLabel } from '@/lib/platform-label';
+import { languageDisplayName } from '@/lib/language-names';
 import { useT } from '@/lib/i18n/client';
 import type { VndbSearchHit } from '@/lib/types';
 
@@ -146,6 +146,9 @@ export function SearchClient() {
   const [addedEgsIds, setAddedEgsIds] = useState<Set<number>>(new Set());
   const [, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelId = useId();
+  const tabIds = { vndb: useId(), egs: useId(), local: useId() } as const;
+  const TABS = ['vndb', 'egs', 'local'] as const;
 
   useEffect(() => {
     if (!initialQ && !isAdvActive(initialAdv)) inputRef.current?.focus();
@@ -334,12 +337,23 @@ export function SearchClient() {
         className="mb-2 inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]"
         role="tablist"
         aria-label={t.search.sourceTabsLabel}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          e.preventDefault();
+          const idx = TABS.indexOf(source as typeof TABS[number]);
+          const next = e.key === 'ArrowRight' ? TABS[(idx + 1) % TABS.length] : TABS[(idx - 1 + TABS.length) % TABS.length];
+          setSource(next);
+          document.getElementById(tabIds[next])?.focus();
+        }}
       >
         <button
           type="button"
+          id={tabIds.vndb}
           role="tab"
           aria-selected={source === 'vndb'}
+          aria-controls={panelId}
           onClick={() => setSource('vndb')}
+          tabIndex={source === 'vndb' ? 0 : -1}
           className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
             source === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
           }`}
@@ -349,9 +363,12 @@ export function SearchClient() {
         </button>
         <button
           type="button"
+          id={tabIds.egs}
           role="tab"
           aria-selected={source === 'egs'}
+          aria-controls={panelId}
           onClick={() => setSource('egs')}
+          tabIndex={source === 'egs' ? 0 : -1}
           className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
             source === 'egs' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
           }`}
@@ -362,9 +379,12 @@ export function SearchClient() {
         </button>
         <button
           type="button"
+          id={tabIds.local}
           role="tab"
           aria-selected={source === 'local'}
+          aria-controls={panelId}
           onClick={() => setSource('local')}
+          tabIndex={source === 'local' ? 0 : -1}
           className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
             source === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
           }`}
@@ -456,7 +476,7 @@ export function SearchClient() {
                     className={`chip ${adv.langs.includes(l) ? 'chip-active' : ''}`}
                     onClick={() => setAdv((s) => ({ ...s, langs: toggle(s.langs, l) }))}
                   >
-                    {l.toUpperCase()}
+                    {languageDisplayName(l)}
                   </button>
                 ))}
               </div>
@@ -596,6 +616,13 @@ export function SearchClient() {
         "all sources in one column" approach as hijacking the
         remote search experience).
       */}
+      <div
+        id={panelId}
+        role="tabpanel"
+        aria-labelledby={tabIds[source as keyof typeof tabIds]}
+        tabIndex={0}
+        className="outline-none"
+      >
       {source === 'local' ? (
         <TextualSearchPanel query={q} mode="standalone" />
       ) : loading ? (
@@ -659,11 +686,11 @@ export function SearchClient() {
               and ignored the global density pref. */}
           <div className="mb-3 flex justify-end">
             <CardDensitySlider scope="search" />
-            <ContentWidthSlider scope="search" />
           </div>
           <SearchResultsGrid results={results} />
         </>
       )}
+      </div>
     </DensityScopeProvider>
   );
 }

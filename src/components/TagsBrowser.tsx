@@ -174,11 +174,11 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         <RefreshScopeButton scope="tags-list" lastUpdatedAt={lastUpdatedAt} />
       </header>
 
-      <nav className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" role="tablist">
+      <div role="group" aria-label={t.tags.tabLocal} className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
         <Link
           href={tagsPageHref('local')}
-          role="tab"
-          aria-selected={mode === 'local'}
+          role="button"
+          aria-pressed={mode === 'local'}
           onClick={(e) => { e.preventDefault(); switchMode('local'); }}
           className={`rounded px-2.5 py-1 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
@@ -186,14 +186,14 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         </Link>
         <Link
           href={tagsPageHref('vndb')}
-          role="tab"
-          aria-selected={mode === 'vndb'}
+          role="button"
+          aria-pressed={mode === 'vndb'}
           onClick={(e) => { e.preventDefault(); switchMode('vndb'); }}
           className={`rounded px-2.5 py-1 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabVndb}
         </Link>
-      </nav>
+      </div>
 
       <div className="mb-6 flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-[200px]">

@@ -195,13 +195,24 @@ export function BannerSourcePicker({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md p-1 text-muted hover:bg-bg-elev hover:text-white"
+                className="tap-target rounded-md text-muted hover:bg-bg-elev hover:text-white"
                 aria-label={t.common.close}
               >
                 <X className="h-4 w-4" />
               </button>
             </header>
-            <nav role="tablist" aria-label={t.bannerPicker.title} className="flex border-b border-border">
+            <nav
+              role="tablist"
+              aria-label={t.bannerPicker.title}
+              className="flex border-b border-border"
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                e.preventDefault();
+                const next = tab === 'custom' ? 'default' : 'custom';
+                setTab(next);
+                document.getElementById(next === 'custom' ? customTabId : defaultTabId)?.focus();
+              }}
+            >
               <TabButton
                 active={tab === 'custom'}
                 onClick={() => setTab('custom')}

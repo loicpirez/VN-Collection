@@ -114,6 +114,13 @@ export function FieldCompare({
                 role="tablist"
                 aria-label={label}
                 className="inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[10px]"
+                onKeyDown={(e) => {
+                  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                  e.preventDefault();
+                  const next = activeTab === 'vndb' ? 'egs' : 'vndb';
+                  setActiveTab(next);
+                  document.getElementById(next === 'vndb' ? vndbTabId : egsTabId)?.focus();
+                }}
               >
                 <button
                   type="button"

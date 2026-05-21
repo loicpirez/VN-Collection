@@ -320,7 +320,7 @@ export function CoverSourcePicker({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md p-1 text-muted hover:bg-bg-elev hover:text-white"
+                className="tap-target rounded-md text-muted hover:bg-bg-elev hover:text-white"
                 aria-label={t.common.close}
               >
                 <X className="h-4 w-4" />
@@ -343,7 +343,7 @@ export function CoverSourcePicker({
                   type="button"
                   onClick={() => rotateBy(-90)}
                   disabled={busy}
-                  className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                  className="tap-target inline-flex items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
                   title={t.coverActions.rotateLeft}
                   aria-label={t.coverActions.rotateLeft}
                 >
@@ -354,7 +354,7 @@ export function CoverSourcePicker({
                   type="button"
                   onClick={() => rotateBy(90)}
                   disabled={busy}
-                  className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                  className="tap-target inline-flex items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
                   title={t.coverActions.rotateRight}
                   aria-label={t.coverActions.rotateRight}
                 >
@@ -365,14 +365,28 @@ export function CoverSourcePicker({
                   type="button"
                   onClick={() => rotateBy('reset')}
                   disabled={busy || rotation === 0}
-                  className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
+                  className="tap-target inline-flex items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
                   title={t.coverActions.resetRotation}
                 >
                   {t.coverActions.resetRotation}
                 </button>
               </div>
             </div>
-            <nav role="tablist" aria-label={t.coverPicker.title} className="flex border-b border-border">
+            <nav
+              role="tablist"
+              aria-label={t.coverPicker.title}
+              className="flex border-b border-border"
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                e.preventDefault();
+                const tabs = ['custom', 'vndb', 'egs'] as const;
+                const tabIdMap = { custom: customTabId, vndb: vndbTabId, egs: egsTabId };
+                const idx = tabs.indexOf(tab as typeof tabs[number]);
+                const next = e.key === 'ArrowRight' ? tabs[(idx + 1) % tabs.length] : tabs[(idx - 1 + tabs.length) % tabs.length];
+                setTab(next);
+                document.getElementById(tabIdMap[next])?.focus();
+              }}
+            >
               <TabButton
                 active={tab === 'custom'}
                 onClick={() => setTab('custom')}
