@@ -10,9 +10,12 @@ import {
   type ShelfUnitWithCount,
 } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
+import { ShelfScrollFrame } from '@/components/ShelfScrollFrame';
 import { ShelfSpatialFullscreen } from '@/components/ShelfSpatialFullscreen';
 import { getDict } from '@/lib/i18n/server';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
+
+const SHELF_TRACK_WIDTH = 'max(var(--shelf-cell-w-px, 120px), var(--shelf-front-size-px, 140px))';
 
 /**
  * Read-only spatial visualization of ONE shelf at a time.
@@ -208,8 +211,8 @@ function ShelfBlock({
         the spacing between ALL rows.  `--shelf-row-gap-px` continues to
         control the spacing between CELLS within a single shelf row.
       */}
-      <div className="scroll-fade-right overflow-x-auto">
-        <div style={{ display: 'grid', gap: 'var(--shelf-section-gap-px, 16px)' }}>
+      <ShelfScrollFrame>
+        <div style={{ display: 'grid', gap: 'var(--shelf-section-gap-px, 16px)', width: 'max-content' }}>
         {((): React.ReactNode => {
           const rowOrientation = (afterRow: number) =>
             displayRowOrientations[String(afterRow)] ?? defaultOrientation;
@@ -258,7 +261,7 @@ function ShelfBlock({
           );
         })()}
         </div>
-      </div>
+      </ShelfScrollFrame>
     </section>
   );
 }
@@ -276,10 +279,12 @@ function ShelfRow({
 }) {
   return (
     <div
-      className="grid"
+      data-shelf-row-grid
+      className="grid w-max"
       style={{
         gap: 'var(--shelf-row-gap-px, 6px)',
-        gridTemplateColumns: `repeat(${cols}, minmax(var(--shelf-cell-w-px, 120px), var(--shelf-cell-w-px, 120px)))`,
+        gridTemplateColumns: `repeat(${cols}, minmax(${SHELF_TRACK_WIDTH}, ${SHELF_TRACK_WIDTH}))`,
+        justifyItems: 'center',
       }}
       role="row"
       aria-label={t.shelfSpatial.rowLabel.replace('{n}', String(row + 1))}
@@ -324,7 +329,7 @@ function DisplayRow({
   if (row.length === 0) return null;
   const serverAspect = orientation === 'landscape' ? '3/2' : '2/3';
   return (
-    <div className="my-1">
+    <div className="my-1 w-max">
       <div className="mb-1">
         <span className="inline-flex items-center gap-1 rounded bg-accent-blue/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-accent-blue">
           <Layers className="h-2.5 w-2.5" aria-hidden />
@@ -332,10 +337,12 @@ function DisplayRow({
         </span>
       </div>
       <div
-        className={`grid ${between ? 'border-t border-accent-blue/20 pt-1' : ''}`}
+        data-shelf-display-grid
+        className={`grid w-max ${between ? 'border-t border-accent-blue/20 pt-1' : ''}`}
         style={{
           gap: 'var(--shelf-row-gap-px, 6px)',
-          gridTemplateColumns: `repeat(${cols}, minmax(var(--shelf-front-size-px, 140px), var(--shelf-front-size-px, 140px)))`,
+          gridTemplateColumns: `repeat(${cols}, minmax(${SHELF_TRACK_WIDTH}, ${SHELF_TRACK_WIDTH}))`,
+          justifyItems: 'center',
           '--row-display-aspect': `var(--display-aspect-row-${afterRow}, var(--display-aspect-ratio, ${serverAspect}))`,
         } as React.CSSProperties}
       >
