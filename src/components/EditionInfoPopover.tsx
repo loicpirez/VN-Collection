@@ -212,7 +212,7 @@ export function EditionInfoTrigger({
   // discoverability outweighs visual minimalism on the unplaced
   // grid (and where the tap target needs to be obvious on touch).
   const hoverOpacityClass = groupHoverHidden
-    ? `focus-visible:opacity-100 sm:opacity-0 sm:${groupHoverScope}-hover:opacity-100`
+    ? `sm:${groupHoverScope}-hover:text-accent`
     : '';
 
   return (

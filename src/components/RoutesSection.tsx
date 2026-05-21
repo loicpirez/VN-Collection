@@ -282,7 +282,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                 </span>
               )}
 
-              <div className="flex items-center gap-0.5 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+              <div className="flex items-center gap-0.5">
                 <button
                   type="button"
                   onClick={() => move(r.id, -1)}
