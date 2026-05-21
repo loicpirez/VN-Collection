@@ -13,6 +13,7 @@ import { useSearchParams } from 'next/navigation';
 import { useT } from '@/lib/i18n/client';
 
 import { readApiError } from '@/lib/api-error-read';
+import { languageDisplayName } from '@/lib/language-names';
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc';
 type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'status';
 
@@ -335,7 +336,7 @@ export function WishlistClient() {
       switch (group) {
         case 'year': key = it.vn.released?.slice(0, 4) || t.wishlist.groupUnknown; break;
         case 'developer': key = it.vn.developers[0]?.name || t.wishlist.groupUnknown; break;
-        case 'language': key = it.vn.languages[0]?.toUpperCase() || t.wishlist.groupUnknown; break;
+        case 'language': key = it.vn.languages[0] ? languageDisplayName(it.vn.languages[0]) : t.wishlist.groupUnknown; break;
         case 'status': key = it.in_collection ? t.wishlist.groupOwned : t.wishlist.groupTodo; break;
         default: key = '';
       }

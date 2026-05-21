@@ -579,7 +579,9 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   : aspectDisplay.source === 'screenshot' ? t.detail.aspectSourceScreenshot
                   : null;
                 const allAspects = aspectDisplay.aspects.length > 0
-                  ? aspectDisplay.aspects.join(' · ')
+                  ? aspectDisplay.aspects
+                      .map((k) => t.aspect.keys[k as keyof typeof t.aspect.keys] ?? k)
+                      .join(' · ')
                   : t.aspect.keys.unknown;
                 return (
                   <div className="col-span-2 sm:col-span-3">

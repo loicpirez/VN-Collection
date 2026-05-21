@@ -6,6 +6,7 @@ import { getDict } from '@/lib/i18n/server';
 import { formatMinutes } from '@/lib/format';
 import { roleLabel } from '@/lib/staff-roles';
 import { platformLabel } from '@/lib/platform-label';
+import { languageDisplayName } from '@/lib/language-names';
 import { SafeImage } from '@/components/SafeImage';
 import { LangList } from '@/components/LangFlag';
 import { CompareVnPicker, type CompareVn } from '@/components/CompareVnPicker';
@@ -202,7 +203,7 @@ export default async function ComparePage({
           <div className="grid gap-3 text-xs sm:grid-cols-2">
             <SharedFacet
               label={t.compareView.shared.languages}
-              values={Array.from(sharedLangs).map((l) => l.toUpperCase())}
+              values={Array.from(sharedLangs).map((l) => languageDisplayName(l))}
             />
             <SharedFacet
               label={t.compareView.shared.platforms}
