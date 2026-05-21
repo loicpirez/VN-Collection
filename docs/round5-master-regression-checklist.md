@@ -429,16 +429,16 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | SECA-009 | security | `/api/search` consumes VNDB quota without auth. | `src/app/api/search/route.ts` | | route test | FIXED_VERIFIED cdf0d3c |
 | SECA-010 | security | `/api/activity` auth status must be verified for GET/write handlers. | `src/app/api/activity/route.ts` | | route test | FIXED_VERIFIED cdf0d3c |
 | DBA-001 | DB/backend | Aspect filtering/grouping triggers per-VN N+1 `materializeReleaseAspectsForVn(id)` loop on collection GET. | `src/app/api/collection/route.ts`, `src/lib/db.ts` | 3474284 | materializeReleaseAspectsForCollectionVns() batch fn: single IN check + single vndb_cache scan + single tx; O(n) loop replaced; yarn test 1417/1417 | FIXED_VERIFIED |
-| DBA-002 | DB/backend | `uniqueSlug()` SELECT loop is safe in create transaction but unsafe for `updateUserList`. | `src/lib/db.ts` | | unit/source proof | TODO |
+| DBA-002 | DB/backend | `uniqueSlug()` SELECT loop is safe in create transaction but unsafe for `updateUserList`. | `src/lib/db.ts` | | unit/source proof | FIXED_VERIFIED 3dd0b6c |
 | DBA-003 | DB/backend | `updateUserList` check/slug/update not in transaction; TOCTOU duplicate slug risk. | `src/lib/db.ts` | a56905e | Full updateUserList body wrapped in db.transaction(); yarn test 1363/1363 | FIXED_VERIFIED |
-| DBA-004 | DB/backend | `setOwnedReleaseAspectOverride` existence check and write not in transaction. | `src/lib/db.ts` | | unit/source proof | TODO |
-| DBA-005 | DB/backend | `setSteamLink` SELECT/guard/write not atomic; manual guard can be bypassed by race. | `src/lib/db.ts` | | unit/source proof | TODO |
-| DBA-006 | DB/backend | `updateGameLogEntry` read/merge/write outside transaction; lost update risk. | `src/lib/db.ts` | | unit/source proof | TODO |
-| DBA-007 | DB/backend | `ratingHistogram()` fetches every rated row into JS instead of SQL aggregation. | `src/lib/db.ts` | | test/source proof | TODO |
-| DBA-008 | DB/backend | migration marker written outside transaction after legacy row update. | `src/lib/db.ts` | | source proof | TODO |
-| DBA-009 | DB/backend | `getDbStatus()` interpolates hardcoded table names; validate/allowlist. | `src/lib/db.ts` | | source proof | TODO |
-| DBA-010 | DB/backend | `restoreFromSqliteFile()` SQL identifier interpolation should add stricter allowlist. | `src/lib/db.ts` | | source proof | TODO |
-| DBA-011 | DB/backend | `user_list_vn.vn_id` orphan tolerance after removeFromCollection needs cleanup or explicit maintenance. | `src/lib/db.ts` | | test/source proof | TODO |
+| DBA-004 | DB/backend | `setOwnedReleaseAspectOverride` existence check and write not in transaction. | `src/lib/db.ts` | | unit/source proof | FIXED_VERIFIED 3dd0b6c |
+| DBA-005 | DB/backend | `setSteamLink` SELECT/guard/write not atomic; manual guard can be bypassed by race. | `src/lib/db.ts` | | unit/source proof | FIXED_VERIFIED 3dd0b6c |
+| DBA-006 | DB/backend | `updateGameLogEntry` read/merge/write outside transaction; lost update risk. | `src/lib/db.ts` | | unit/source proof | FIXED_VERIFIED 3dd0b6c |
+| DBA-007 | DB/backend | `ratingHistogram()` fetches every rated row into JS instead of SQL aggregation. | `src/lib/db.ts` | | test/source proof | FIXED_VERIFIED 3dd0b6c |
+| DBA-008 | DB/backend | migration marker written outside transaction after legacy row update. | `src/lib/db.ts` | | source proof | FIXED_VERIFIED 3dd0b6c |
+| DBA-009 | DB/backend | `getDbStatus()` interpolates hardcoded table names; validate/allowlist. | `src/lib/db.ts` | | source proof | FIXED_VERIFIED 3dd0b6c |
+| DBA-010 | DB/backend | `restoreFromSqliteFile()` SQL identifier interpolation should add stricter allowlist. | `src/lib/db.ts` | | source proof | FIXED_VERIFIED 3dd0b6c |
+| DBA-011 | DB/backend | `user_list_vn.vn_id` orphan tolerance after removeFromCollection needs cleanup or explicit maintenance. | `src/lib/db.ts` | | test/source proof | FIXED_VERIFIED 3dd0b6c |
 | UXA-001 | UI/UX | `MarkdownNotes` Edit/Preview buttons hand-roll styles instead of `btn` primitive. | `src/components/MarkdownNotes.tsx` | | source/browser proof | TODO |
 | UXA-002 | UI/UX | `CustomSynopsis` buttons hand-roll styles instead of `btn btn-xs`. | `src/components/CustomSynopsis.tsx` | | source/browser proof | TODO |
 | UXA-003 | UI/UX | `SettingsButton` has multiple hand-rolled inline buttons. | `src/components/SettingsButton.tsx` | | source/browser proof | TODO |
@@ -493,8 +493,8 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | SECA-022 | security | `POST /api/egs/[id]/add` missing auth gate; mutates collection. | `src/app/api/egs/[id]/add/route.ts` | f425376 | requireLocalhostOrToken gate added before param read; yarn test 1363/1363 | FIXED_VERIFIED |
 | SECA-023 | security | `src/proxy.ts` CSRF guard is dead code — not imported as Next.js middleware; CSRF guard never runs. | `src/proxy.ts`, project root | b9c9492 | Created src/middleware.ts exporting middleware(); csrfGuard now active on /api/:path*; yarn test 1363/1363 | FIXED_VERIFIED |
 | SECA-024 | security | `/api/collection/order` write handlers lack auth gate. | `src/app/api/collection/order/route.ts` | f425376 | PATCH and DELETE gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
-| DBA-012 | DB/backend | `todaysAnniversaries()` has no LIMIT; large libraries with many same-day releases pull unbounded results into JS. | `src/lib/db.ts` | | source proof | TODO |
-| DBA-013 | DB/backend | `listAllListMemberships()` uses `LIMIT 100000` — effectively unbounded on large collections; all metadata rows loaded into JS for grouping. | `src/lib/db.ts` | | source proof | TODO |
+| DBA-012 | DB/backend | `todaysAnniversaries()` has no LIMIT; large libraries with many same-day releases pull unbounded results into JS. | `src/lib/db.ts` | | source proof | FIXED_VERIFIED 3dd0b6c |
+| DBA-013 | DB/backend | `listAllListMemberships()` uses `LIMIT 100000` — effectively unbounded on large collections; all metadata rows loaded into JS for grouping. | `src/lib/db.ts` | | source proof | FIXED_VERIFIED 3dd0b6c |
 | I18NA-009 | i18n | `languageDisplayName()` is locale-blind — always returns English language names regardless of app locale. | `src/lib/language-names.ts` | 1f7e336 | Intl.DisplayNames([locale, 'en']) + locale param; fallback to static map; backward compat; yarn test 1417/1417 | FIXED_VERIFIED |
 | I18NA-010 | i18n | Character page `fmtBirthday` uses `'default'` locale; month name renders in OS locale (usually English) regardless of app locale. | `src/app/character/[id]/page.tsx` | | source proof | TODO |
 | I18NA-011 | i18n | `StaleEgsBanner` in `/top-ranked` and `/upcoming` calls `toLocaleString()` without locale arg; timestamps render in OS locale. | `src/app/top-ranked/page.tsx`, `src/app/upcoming/page.tsx` | | source proof | TODO |
