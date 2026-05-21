@@ -152,6 +152,7 @@ export const dictionaries = {
         filterWishlistOn: 'Souhaits inclus',
         filterWishlistOff: 'Souhaits masqués',
         filterEroOn: 'Tags érotiques inclus',
+        filterEroOff: 'Tags érotiques masqués',
       },
     },
     topRanked: {
@@ -2685,6 +2686,7 @@ export const dictionaries = {
         filterWishlistOn: 'Wishlist shown',
         filterWishlistOff: 'Wishlist hidden',
         filterEroOn: 'Ero tags included',
+        filterEroOff: 'Ero tags hidden',
       },
     },
     topRanked: {
@@ -5215,6 +5217,7 @@ export const dictionaries = {
         filterWishlistOn: 'ウィッシュリストも表示',
         filterWishlistOff: 'ウィッシュリストを除外',
         filterEroOn: 'エロタグを含む',
+        filterEroOff: 'エロタグを除外',
       },
     },
     topRanked: {

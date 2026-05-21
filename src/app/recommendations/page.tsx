@@ -690,9 +690,13 @@ function RecommendExplanationPanel({
             {explain.filterWishlistOff}
           </span>
         )}
-        {includeEro && (
+        {includeEro ? (
           <span className="rounded bg-status-dropped/15 px-1.5 py-0.5 text-status-dropped">
             {explain.filterEroOn}
+          </span>
+        ) : (
+          <span className="rounded bg-bg-elev/40 px-1.5 py-0.5 text-muted">
+            {explain.filterEroOff}
           </span>
         )}
       </div>
