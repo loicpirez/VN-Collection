@@ -479,10 +479,10 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | PAGE-031 | Page | `/trait/[id]` transient VNDB error misclassified as 404; VNDB timeout causes real pages to return notFound. | `src/app/trait/[id]/page.tsx` | | source proof + route test | TODO |
 | PAGE-032 | Page | `/vn/[id]` calls `materializeRelease*` inside RSC render — DB write side effect on every GET. | `src/app/vn/[id]/page.tsx` | | source proof + route behavior | TODO |
 | PAGE-033 | Page | `/trait/[id]` lacks `generateMetadata()`. | `src/app/trait/[id]/page.tsx` | | source proof | TODO |
-| SECA-011 | security | `POST /api/saved-filters` has no auth gate; any caller can create/read saved filters. | `src/app/api/saved-filters/route.ts` | | route test | TODO |
-| SECA-012 | security | `POST /api/collection/[id]/activity` has no auth gate; any caller can log collection activity. | `src/app/api/collection/[id]/activity/route.ts` | | route test | TODO |
-| SECA-013 | security | `POST/DELETE /api/reading-queue` has no auth gate; any caller can mutate reading queue. | `src/app/api/reading-queue/route.ts` | | route test | TODO |
-| SECA-014 | security | `POST/PATCH/DELETE /api/lists/[id]/items` has no auth gate; any caller can mutate list items. | `src/app/api/lists/[id]/items/route.ts` | | route test | TODO |
+| SECA-011 | security | `POST /api/saved-filters` has no auth gate; any caller can create/read saved filters. | `src/app/api/saved-filters/route.ts` | f425376 | POST/DELETE/PATCH all gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
+| SECA-012 | security | `POST /api/collection/[id]/activity` has no auth gate; any caller can log collection activity. | `src/app/api/collection/[id]/activity/route.ts` | f425376 | POST and DELETE gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
+| SECA-013 | security | `POST/DELETE /api/reading-queue` has no auth gate; any caller can mutate reading queue. | `src/app/api/reading-queue/route.ts` | f425376 | POST/DELETE/PATCH gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
+| SECA-014 | security | `POST/PATCH/DELETE /api/lists/[id]/items` has no auth gate; any caller can mutate list items. | `src/app/api/lists/[id]/items/route.ts` | f425376 | POST and DELETE gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
 | SECA-015 | security | `GET /api/collection/tags` has no auth gate; leaks tag data. | `src/app/api/collection/tags/route.ts` | | route test | TODO |
 | SECA-016 | security | `/api/places` write handlers lack auth gate. | `src/app/api/places/route.ts` | | route test | TODO |
 | SECA-017 | security | `/api/maintenance/duplicates` has no auth gate; triggers expensive DB scan. | `src/app/api/maintenance/duplicates/route.ts` | | route test | TODO |
@@ -490,9 +490,9 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | SECA-019 | security | `/api/export/ics` has no auth gate; leaks calendar data. | `src/app/api/export/ics/route.ts` | | route test | TODO |
 | SECA-020 | security | `/api/collection/export`, `/find`, `/characters`, `/traits`, `/full-download` lack auth gates. | `src/app/api/collection/` export/find/characters/traits/full-download routes | | route test | TODO |
 | SECA-021 | security | `/api/maintenance/stale`, `/producers`, `/download-status`, `/activity/kinds`, `/search/textual`, `/vn/[id]/lists`, `/vndb/auth` lack auth gates. | multiple routes | | route test | TODO |
-| SECA-022 | security | `POST /api/egs/[id]/add` missing auth gate; mutates collection. | `src/app/api/egs/[id]/add/route.ts` | | route test | TODO |
+| SECA-022 | security | `POST /api/egs/[id]/add` missing auth gate; mutates collection. | `src/app/api/egs/[id]/add/route.ts` | f425376 | requireLocalhostOrToken gate added before param read; yarn test 1363/1363 | FIXED_VERIFIED |
 | SECA-023 | security | `src/proxy.ts` CSRF guard is dead code — not imported as Next.js middleware; CSRF guard never runs. | `src/proxy.ts`, project root | | source proof | TODO |
-| SECA-024 | security | `/api/collection/order` write handlers lack auth gate. | `src/app/api/collection/order/route.ts` | | route test | TODO |
+| SECA-024 | security | `/api/collection/order` write handlers lack auth gate. | `src/app/api/collection/order/route.ts` | f425376 | PATCH and DELETE gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
 | DBA-012 | DB/backend | `todaysAnniversaries()` has no LIMIT; large libraries with many same-day releases pull unbounded results into JS. | `src/lib/db.ts` | | source proof | TODO |
 | DBA-013 | DB/backend | `listAllListMemberships()` uses `LIMIT 100000` — effectively unbounded on large collections; all metadata rows loaded into JS for grouping. | `src/lib/db.ts` | | source proof | TODO |
 | I18NA-009 | i18n | `languageDisplayName()` is locale-blind — always returns English language names regardless of app locale. | `src/lib/language-names.ts` | | source proof | TODO |
@@ -548,7 +548,7 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | PERF-003 | performance | `ORDER BY RANDOM()` at `db.ts:2522` forces full table scan on every call with no LIMIT bound. | `src/lib/db.ts:2522` | | source + EXPLAIN QUERY PLAN | TODO |
 | PERF-004 | performance | `json_each(v.tags)` aggregate queries do full-table JSON expansion — no index on JSON fields. | `src/lib/db.ts:4207,4285,4513,6996,7045` | | source + EXPLAIN QUERY PLAN | TODO |
 | PERF-005 | performance | `searchLocalStaff` uses `LOWER(sc.name) LIKE ?` which bypasses any index on the name column. | `src/lib/db.ts:4443` | | source + EXPLAIN QUERY PLAN | TODO |
-| TS-001 | code quality | `vndb-cache.ts` lines 125, 141: `JSON.parse(cached.body)` not in try/catch; corrupted cache throws uncaught. | `src/lib/vndb-cache.ts:125,141` | r5-lib-fixes | All 3 JSON.parse(cached.body) sites wrapped individually; yarn test 1363/1363 | FIXED_VERIFIED |
+| TS-001 | code quality | `vndb-cache.ts` lines 125, 141: `JSON.parse(cached.body)` not in try/catch; corrupted cache throws uncaught. | `src/lib/vndb-cache.ts:125,141` | f425376 | All 3 JSON.parse(cached.body) sites wrapped individually; yarn test 1363/1363 | FIXED_VERIFIED |
 | TS-002 | code quality | `activity/page.tsx` bare type assertions (`p?.from as string`, `p?.to as number`) without runtime checks. | `src/app/activity/page.tsx:39–88` | | source proof | TODO |
 | TS-003 | code quality | `VndbMarkup.tsx` `renderTokens` switch has no `default: never` guard — new Token kinds fall through silently. | `src/components/VndbMarkup.tsx` | | source proof | TODO |
 | TS-004 | Next.js | `src/app/lists/[id]/` has no `error.tsx`; page errors fall back to root error boundary only. | `src/app/lists/[id]/` | | source proof | TODO |
@@ -577,9 +577,9 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | COMP-022 | component library | 3 components use magic `setTimeout` delays (50 ms, 0 ms) for focus management — fragile. | `CompareWithButton.tsx`, `SimilarSeedPicker.tsx`, `VnSeedPicker.tsx` | | source proof | TODO |
 | COMP-023 | component library | Color-picker buttons use raw hex string as `aria-label` — screen readers announce hex codes. | `src/components/ListMetaEditor.tsx`, `CreateListForm.tsx` | | a11y/source proof | TODO |
 | COMP-024 | component library | `ShelfReadOnlyControls.tsx` close button uses `aria-label={t.common.cancel}` — semantically wrong for close action. | `src/components/ShelfReadOnlyControls.tsx` | | a11y/source proof | TODO |
-| LIB-001 | src/lib | `db.ts` `open()` never sets `busy_timeout` — concurrent writers receive immediate SQLITE_BUSY. | `src/lib/db.ts:114–115` | r5-lib-fixes | `busy_timeout = 5000` pragma added; yarn test 1363/1363 | FIXED_VERIFIED |
-| LIB-002 | src/lib | `auth-gate.ts` `TRUSTED_PROXY_SECRET` compared with `===` not `timingSafeEqual` — timing oracle. | `src/lib/auth-gate.ts:85` | r5-lib-fixes | `timingSafeStrEqual(proofHeader ?? '', secret)` at line 85; yarn test 1363/1363 | FIXED_VERIFIED |
-| LIB-003 | src/lib | `activity.ts` `recordActivity()` has no try/catch — DB error propagates through primary mutations as 500. | `src/lib/activity.ts:77–88` | r5-lib-fixes | try/catch wraps INSERT; yarn test 1363/1363 | FIXED_VERIFIED |
+| LIB-001 | src/lib | `db.ts` `open()` never sets `busy_timeout` — concurrent writers receive immediate SQLITE_BUSY. | `src/lib/db.ts:114–115` | f425376 | `busy_timeout = 5000` pragma added; yarn test 1363/1363 | FIXED_VERIFIED |
+| LIB-002 | src/lib | `auth-gate.ts` `TRUSTED_PROXY_SECRET` compared with `===` not `timingSafeEqual` — timing oracle. | `src/lib/auth-gate.ts:85` | f425376 | `timingSafeStrEqual(proofHeader ?? '', secret)` at line 85; yarn test 1363/1363 | FIXED_VERIFIED |
+| LIB-003 | src/lib | `activity.ts` `recordActivity()` has no try/catch — DB error propagates through primary mutations as 500. | `src/lib/activity.ts:77–88` | f425376 | try/catch wraps INSERT; yarn test 1363/1363 | FIXED_VERIFIED |
 | LIB-004 | src/lib | `db.ts` EGS colon-to-underscore migration omits 10+ tables with `vn_id` columns. | `src/lib/db.ts:818–845` | | source proof | TODO |
 | LIB-005 | src/lib | `erogamescape.ts` `res.text()` has no size cap — unbounded buffer from EGS server. | `src/lib/erogamescape.ts:202` | | source proof | TODO |
 | LIB-006 | src/lib | `erogamescape.ts` `fetchOne()` swallows `EgsUnreachable` as null — masks network errors as "not found". | `src/lib/erogamescape.ts:319–325` | | source proof | TODO |
