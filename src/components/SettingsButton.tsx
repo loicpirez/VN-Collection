@@ -562,7 +562,7 @@ export function SettingsButton() {
                     <input
                       type="password"
                       className="input flex-1"
-                      placeholder="vndb-..."
+                      placeholder={t.settings.vndbTokenPlaceholder}
                       value={tokenInput}
                       onChange={(e) => setTokenInput(e.target.value)}
                       autoComplete="off"

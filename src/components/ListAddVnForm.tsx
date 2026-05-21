@@ -47,7 +47,7 @@ export function ListAddVnForm({ listId }: { listId: number }) {
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="v123 / egs_456"
+        placeholder={t.series.addVnPlaceholder}
         aria-label={t.series.addVn}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
