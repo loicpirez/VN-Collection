@@ -77,10 +77,10 @@ export function FavoriteToggleButton({
         aria-pressed={on}
         aria-label={label}
         title={label}
-        className={`inline-flex h-9 items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+        className={`btn h-9 gap-1 rounded-md px-3 py-1.5 text-xs ${
           on
-            ? 'border-status-dropped/60 bg-status-dropped/10 text-status-dropped'
-            : 'border-border bg-bg-elev/40 text-muted hover:border-status-dropped/40 hover:text-status-dropped'
+            ? 'border-status-dropped/60 bg-status-dropped/10 text-status-dropped hover:bg-status-dropped/15'
+            : 'bg-bg-elev/40 text-muted hover:border-status-dropped/40 hover:text-status-dropped'
         }`}
       >
         {busy ? (
