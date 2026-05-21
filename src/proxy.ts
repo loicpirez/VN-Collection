@@ -11,11 +11,10 @@ import { csrfGuard } from '@/lib/csrf';
  *   - `Content-Type: application/json` as the last-resort check
  *     for programmatic callers that don't set Origin/Referer.
  *
- * Replaces the dead `src/proxy.ts` which exported `proxy()` instead
- * of the required `middleware()` export name; Next.js never invoked
- * it. (SECA-023)
+ * Next.js 16 renamed the middleware convention: the file must be
+ * `proxy.ts` and the export must be named `proxy` (SECA-023).
  */
-export function middleware(req: NextRequest): NextResponse {
+export function proxy(req: NextRequest): NextResponse {
   const denied = csrfGuard(req);
   if (denied) return denied;
   return NextResponse.next();
