@@ -121,7 +121,7 @@ export function TagPicker({
               type="button"
               onClick={() => remove(tag.id)}
               aria-label={t.tagPicker.remove.replace('{name}', tag.name)}
-              className="rounded-full p-0.5 hover:bg-accent/20"
+              className="tap-target rounded-full hover:bg-accent/20"
             >
               <X className="h-2.5 w-2.5" aria-hidden />
             </button>
