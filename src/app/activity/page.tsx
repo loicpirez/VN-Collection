@@ -279,7 +279,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                     <li key={row.id} className="rounded-xl border border-border bg-bg-card p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold">{row.label || row.kind.replace(/_/g, ' ')}</p>
+                          <p className="truncate text-sm font-semibold" title={row.label || row.kind.replace(/_/g, ' ')}>{row.label || row.kind.replace(/_/g, ' ')}</p>
                           {(row.entity || row.entity_id) && (
                             <p className="mt-0.5 text-[11px] text-muted">
                               {href ? (
@@ -292,7 +292,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                             </p>
                           )}
                         </div>
-                        <time className="text-[11px] text-muted" dateTime={new Date(row.occurred_at).toISOString()}>
+                        <time className="shrink-0 text-[11px] text-muted" dateTime={new Date(row.occurred_at).toISOString()}>
                           {fmt.format(new Date(row.occurred_at))}
                         </time>
                       </div>
