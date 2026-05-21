@@ -72,11 +72,12 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   const hasFilters = hasActiveCharacterFilter(params);
   // Always fetch local results — local tab browses all, VNDB tab uses
   // local as fallback when no text query is active.
-  const localResults: VndbCharacter[] = searchLocalCharacters({ q: query || undefined, limit: 200 }).map(
-    (row) => ({
-      ...(row.profile as unknown as VndbCharacter),
-      voice_languages: row.voice_languages,
-    }),
+  const localResults: VndbCharacter[] = searchLocalCharacters({ q: query || undefined, limit: 200 }).flatMap(
+    (row) => {
+      const p = row.profile as Record<string, unknown>;
+      if (typeof p?.id !== 'string' || typeof p?.name !== 'string') return [];
+      return [{ ...(p as unknown as VndbCharacter), voice_languages: row.voice_languages }];
+    },
   );
   let vndbResults: VndbCharacter[] = [];
   // Hit the VNDB API for any non-local tab — including empty-query on
@@ -471,11 +472,11 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                             className="h-full w-full"
                           />
                         </div>
-                        <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                        <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent" title={c.name}>
                           {c.name}
                         </p>
                         {c.original && (
-                          <p className="line-clamp-1 text-[11px] text-muted">{c.original}</p>
+                          <p className="line-clamp-1 text-[11px] text-muted" title={c.original}>{c.original}</p>
                         )}
                         <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted">
                           {primarySex && (
