@@ -1986,7 +1986,7 @@ export interface EgsRow {
 
 export function getEgsForVn(vnId: string): EgsRow | null {
   const row = db
-    .prepare('SELECT * FROM egs_game WHERE vn_id = ?')
+    .prepare('SELECT vn_id, egs_id, gamename, gamename_furigana, brand_id, brand_name, model, description, image_url, local_image, okazu, erogame, raw_json, median, average, dispersion, count, sellday, playtime_median_minutes, source, fetched_at FROM egs_game WHERE vn_id = ?')
     .get(vnId) as EgsRow | undefined;
   return row ?? null;
 }
@@ -1999,7 +1999,7 @@ export function getEgsForVns(vnIds: string[]): Map<string, EgsRow> {
     const chunk = vnIds.slice(i, i + CHUNK);
     const placeholders = chunk.map(() => '?').join(',');
     const rows = db
-      .prepare(`SELECT * FROM egs_game WHERE vn_id IN (${placeholders})`)
+      .prepare(`SELECT vn_id, egs_id, gamename, gamename_furigana, brand_id, brand_name, model, description, image_url, local_image, okazu, erogame, raw_json, median, average, dispersion, count, sellday, playtime_median_minutes, source, fetched_at FROM egs_game WHERE vn_id IN (${placeholders})`)
       .all(...chunk) as EgsRow[];
     for (const r of rows) out.set(r.vn_id, r);
   }
@@ -3782,7 +3782,7 @@ function parseJsonField<T>(raw: string | null | undefined, fallback: T): T {
 export function getReleaseMeta(releaseId: string): ReleaseMetaRow | null {
   const row = db
     .prepare(
-      `SELECT * FROM release_meta_cache WHERE release_id = ?`,
+      `SELECT release_id, vn_id, title, alttitle, platforms, languages, released, minage, patch, freeware, uncensored, official, has_ero, voiced, engine, notes, gtin, catalog, resolution FROM release_meta_cache WHERE release_id = ?`,
     )
     .get(releaseId) as Record<string, unknown> | undefined;
   if (!row) return null;
@@ -4693,13 +4693,13 @@ function rowToRoute(r: RouteDbRow): RouteRow {
 
 export function listRoutesForVn(vnId: string): RouteRow[] {
   const rows = db
-    .prepare('SELECT * FROM vn_route WHERE vn_id = ? ORDER BY order_index ASC, created_at ASC')
+    .prepare('SELECT id, vn_id, name, completed, completed_date, order_index, notes, created_at, updated_at FROM vn_route WHERE vn_id = ? ORDER BY order_index ASC, created_at ASC')
     .all(vnId) as RouteDbRow[];
   return rows.map(rowToRoute);
 }
 
 export function getRoute(routeId: number): RouteRow | null {
-  const row = db.prepare('SELECT * FROM vn_route WHERE id = ?').get(routeId) as RouteDbRow | undefined;
+  const row = db.prepare('SELECT id, vn_id, name, completed, completed_date, order_index, notes, created_at, updated_at FROM vn_route WHERE id = ?').get(routeId) as RouteDbRow | undefined;
   return row ? rowToRoute(row) : null;
 }
 
@@ -5275,7 +5275,7 @@ export function listShelves(): ShelfUnitWithCount[] {
 }
 
 export function getShelf(id: number): ShelfUnit | null {
-  const row = db.prepare('SELECT * FROM shelf_unit WHERE id = ?').get(id) as ShelfUnit | undefined;
+  const row = db.prepare('SELECT id, name, cols, rows, order_index, created_at, updated_at FROM shelf_unit WHERE id = ?').get(id) as ShelfUnit | undefined;
   return row ?? null;
 }
 
@@ -6337,7 +6337,7 @@ export function getOwnedReleaseAspectInfo(vnId: string, releaseId: string): Rele
 
 export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {
   const rows = db
-    .prepare('SELECT * FROM owned_release WHERE vn_id = ? ORDER BY added_at DESC')
+    .prepare('SELECT vn_id, release_id, notes, location, physical_location, box_type, edition_label, condition, price_paid, currency, acquired_date, owned_platform, dumped, added_at FROM owned_release WHERE vn_id = ? ORDER BY added_at DESC')
     .all(vnId) as OwnedReleaseDbRow[];
   return rows.map(mapOwnedReleaseRow);
 }
@@ -6473,7 +6473,7 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
 
 export function getOwnedRelease(vnId: string, releaseId: string): OwnedReleaseRow | null {
   const row = db
-    .prepare('SELECT * FROM owned_release WHERE vn_id = ? AND release_id = ?')
+    .prepare('SELECT vn_id, release_id, notes, location, physical_location, box_type, edition_label, condition, price_paid, currency, acquired_date, owned_platform, dumped, added_at FROM owned_release WHERE vn_id = ? AND release_id = ?')
     .get(vnId, releaseId) as OwnedReleaseDbRow | undefined;
   return row ? mapOwnedReleaseRow(row) : null;
 }
@@ -6677,7 +6677,7 @@ export function upsertProducer(p: ProducerPayload): void {
 }
 
 export function getProducer(id: string): ProducerRow | null {
-  const row = db.prepare('SELECT * FROM producer WHERE id = ?').get(id) as ProducerDbRow | undefined;
+  const row = db.prepare('SELECT id, name, original, lang, type, description, aliases, extlinks, logo_path, fetched_at FROM producer WHERE id = ?').get(id) as ProducerDbRow | undefined;
   return producerToRow(row);
 }
 
@@ -6767,7 +6767,7 @@ export function listPublisherStats(): ProducerStat[] {
 // Series
 
 export function listSeries(): SeriesRow[] {
-  return db.prepare('SELECT * FROM series ORDER BY name ASC LIMIT 2000').all() as SeriesRow[];
+  return db.prepare('SELECT id, name, description, cover_path, banner_path, created_at, updated_at FROM series ORDER BY name ASC LIMIT 2000').all() as SeriesRow[];
 }
 
 export function listSeriesForVn(vnId: string): SeriesLite[] {
@@ -6850,7 +6850,7 @@ export function listSeriesForVnsMany(vnIds: string[]): Map<string, SeriesLite[]>
 }
 
 export function getSeries(id: number): SeriesWithVns | null {
-  const s = db.prepare('SELECT * FROM series WHERE id = ?').get(id) as SeriesRow | undefined;
+  const s = db.prepare('SELECT id, name, description, cover_path, banner_path, created_at, updated_at FROM series WHERE id = ?').get(id) as SeriesRow | undefined;
   if (!s) return null;
   const vns = db
     .prepare(`
@@ -6870,7 +6870,7 @@ export function createSeries(name: string, description: string | null = null): S
   const info = db
     .prepare('INSERT INTO series (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)')
     .run(name, description, now, now);
-  return db.prepare('SELECT * FROM series WHERE id = ?').get(info.lastInsertRowid) as SeriesRow;
+  return db.prepare('SELECT id, name, description, cover_path, banner_path, created_at, updated_at FROM series WHERE id = ?').get(info.lastInsertRowid) as SeriesRow;
 }
 
 export function updateSeries(
@@ -6883,12 +6883,12 @@ export function updateSeries(
   if ('description' in fields) { sets.push('description = ?'); params.push(fields.description ?? null); }
   if ('cover_path' in fields) { sets.push('cover_path = ?'); params.push(fields.cover_path ?? null); }
   if ('banner_path' in fields) { sets.push('banner_path = ?'); params.push(fields.banner_path ?? null); }
-  if (sets.length === 0) return db.prepare('SELECT * FROM series WHERE id = ?').get(id) as SeriesRow | null;
+  if (sets.length === 0) return db.prepare('SELECT id, name, description, cover_path, banner_path, created_at, updated_at FROM series WHERE id = ?').get(id) as SeriesRow | null;
   sets.push('updated_at = ?');
   params.push(Date.now());
   params.push(id);
   db.prepare(`UPDATE series SET ${sets.join(', ')} WHERE id = ?`).run(...params);
-  return db.prepare('SELECT * FROM series WHERE id = ?').get(id) as SeriesRow | null;
+  return db.prepare('SELECT id, name, description, cover_path, banner_path, created_at, updated_at FROM series WHERE id = ?').get(id) as SeriesRow | null;
 }
 
 export function deleteSeries(id: number): void {
@@ -6919,7 +6919,7 @@ export interface SavedFilter {
 
 export function listSavedFilters(): SavedFilter[] {
   return db
-    .prepare('SELECT * FROM saved_filter ORDER BY position ASC, id ASC LIMIT 500')
+    .prepare('SELECT id, name, params, position, created_at FROM saved_filter ORDER BY position ASC, id ASC LIMIT 500')
     .all() as SavedFilter[];
 }
 
@@ -6930,7 +6930,7 @@ export function createSavedFilter(name: string, params: string): SavedFilter {
     const info = db
       .prepare('INSERT INTO saved_filter (name, params, position, created_at) VALUES (?, ?, ?, ?)')
       .run(name.trim().slice(0, 60), params.slice(0, 2000), nextPos, now);
-    return db.prepare('SELECT * FROM saved_filter WHERE id = ?').get(info.lastInsertRowid) as SavedFilter;
+    return db.prepare('SELECT id, name, params, position, created_at FROM saved_filter WHERE id = ?').get(info.lastInsertRowid) as SavedFilter;
   })();
 }
 
@@ -6955,7 +6955,7 @@ export interface ReadingQueueEntry {
 
 export function listReadingQueue(): ReadingQueueEntry[] {
   return db
-    .prepare('SELECT * FROM reading_queue ORDER BY position ASC, added_at ASC LIMIT 1000')
+    .prepare('SELECT vn_id, position, added_at FROM reading_queue ORDER BY position ASC, added_at ASC LIMIT 1000')
     .all() as ReadingQueueEntry[];
 }
 
@@ -6967,7 +6967,7 @@ export function addToReadingQueue(vnId: string): ReadingQueueEntry {
       INSERT INTO reading_queue (vn_id, position, added_at) VALUES (?, ?, ?)
       ON CONFLICT(vn_id) DO NOTHING
     `).run(vnId, next, now);
-    return db.prepare('SELECT * FROM reading_queue WHERE vn_id = ?').get(vnId) as ReadingQueueEntry;
+    return db.prepare('SELECT vn_id, position, added_at FROM reading_queue WHERE vn_id = ?').get(vnId) as ReadingQueueEntry;
   })();
 }
 
@@ -6991,7 +6991,7 @@ export interface ReadingGoal {
 }
 
 export function getReadingGoal(year: number): ReadingGoal | null {
-  return (db.prepare('SELECT * FROM reading_goal WHERE year = ?').get(year) as ReadingGoal | undefined) ?? null;
+  return (db.prepare('SELECT year, target, updated_at FROM reading_goal WHERE year = ?').get(year) as ReadingGoal | undefined) ?? null;
 }
 
 export function setReadingGoal(year: number, target: number): ReadingGoal {
@@ -7020,19 +7020,19 @@ export interface SteamLink {
 
 export function listSteamLinks(): SteamLink[] {
   return db
-    .prepare(`SELECT * FROM steam_link ORDER BY updated_at DESC LIMIT 10000`)
+    .prepare(`SELECT vn_id, appid, steam_name, source, last_synced_minutes, created_at, updated_at FROM steam_link ORDER BY updated_at DESC LIMIT 10000`)
     .all() as SteamLink[];
 }
 
 export function getSteamLinkForVn(vnId: string): SteamLink | null {
   return (db
-    .prepare(`SELECT * FROM steam_link WHERE vn_id = ?`)
+    .prepare(`SELECT vn_id, appid, steam_name, source, last_synced_minutes, created_at, updated_at FROM steam_link WHERE vn_id = ?`)
     .get(vnId) as SteamLink | undefined) ?? null;
 }
 
 export function getSteamLinkByAppid(appid: number): SteamLink | null {
   return (db
-    .prepare(`SELECT * FROM steam_link WHERE appid = ?`)
+    .prepare(`SELECT vn_id, appid, steam_name, source, last_synced_minutes, created_at, updated_at FROM steam_link WHERE appid = ?`)
     .get(appid) as SteamLink | undefined) ?? null;
 }
 
@@ -7456,7 +7456,7 @@ export interface CacheRow {
 }
 
 export function getCacheRow(key: string): CacheRow | null {
-  return (db.prepare('SELECT * FROM vndb_cache WHERE cache_key = ?').get(key) as CacheRow | undefined) ?? null;
+  return (db.prepare('SELECT cache_key, body, etag, last_modified, fetched_at, expires_at FROM vndb_cache WHERE cache_key = ?').get(key) as CacheRow | undefined) ?? null;
 }
 
 export function putCacheRow(row: CacheRow): void {
