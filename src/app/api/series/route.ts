@@ -3,6 +3,7 @@ import { createSeries, listSeries } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -10,6 +11,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as { name?: string; description?: string };
   const name = body.name?.trim();
   if (!name) return NextResponse.json({ error: 'missing name' }, { status: 400 });

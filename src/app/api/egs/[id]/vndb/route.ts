@@ -4,6 +4,7 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 function logEgsVndbLink(
   kind: 'egs.vndb-link' | 'egs.vndb-unlink',
   egsId: number,
@@ -53,6 +54,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
  * try yet again. Pass `mode: 'clear'` to remove the override entirely.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const egsId = parseEgsId(id);
   if (egsId == null) {
@@ -73,7 +76,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ ok: true, link: getEgsVnLink(egsId) });
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const egsId = parseEgsId(id);
   if (egsId == null) {

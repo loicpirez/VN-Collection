@@ -6,6 +6,7 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,8 @@ export const dynamic = 'force-dynamic';
  *      id and drops the synthetic row.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   if (!/^egs_\d+$/i.test(id)) {
     return NextResponse.json({ error: 'source must be an egs_NNN id' }, { status: 400 });

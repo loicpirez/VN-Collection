@@ -1,12 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { downloadFullStaffInfo } from '@/lib/staff-full';
 import { recordActivity } from '@/lib/activity';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   if (!/^s\d+$/i.test(id)) {
     return NextResponse.json({ error: 'invalid staff id' }, { status: 400 });

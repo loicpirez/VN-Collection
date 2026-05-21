@@ -4,6 +4,7 @@ import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 
 import { readJsonObject } from '@/lib/api-body';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
 function logActivity(id: string, text: string | null) {
@@ -33,6 +34,8 @@ async function applyPatch(req: NextRequest, id: string): Promise<NextResponse> {
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
@@ -46,6 +49,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
  * `collection.custom_description`.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
@@ -54,7 +59,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 /** DELETE clears the per-VN custom synopsis override. */
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;

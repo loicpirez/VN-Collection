@@ -4,6 +4,7 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -18,6 +19,8 @@ export async function GET() {
  * auto-scan can re-link it later.
  */
 export async function POST(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as {
     vn_id?: unknown;
     appid?: unknown;
@@ -56,6 +59,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const vnId = req.nextUrl.searchParams.get('vn_id');
   if (!vnId || !/^(v\d+|egs_\d+)$/i.test(vnId)) {
     return NextResponse.json({ error: 'vn_id required' }, { status: 400 });

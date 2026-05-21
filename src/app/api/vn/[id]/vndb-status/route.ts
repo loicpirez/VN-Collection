@@ -11,6 +11,7 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -40,6 +41,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   if (!isVndbVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const body = (await readJsonObject(req)) as Record<string, unknown>;
@@ -87,7 +90,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   if (!isVndbVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {

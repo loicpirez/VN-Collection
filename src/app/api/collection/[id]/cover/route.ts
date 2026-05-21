@@ -5,6 +5,7 @@ import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,8 @@ const MAX_COVER_BYTES = 10 * 1024 * 1024;
  * as the cover without leaving the page.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
@@ -94,7 +97,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ item: getCollectionItem(id), cover: next });
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
@@ -119,6 +124,8 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
  * the route never 400s on an honest typo from the UI sliders.
  */
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;

@@ -5,6 +5,7 @@ import { getProducer as fetchProducer } from '@/lib/vndb';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -12,6 +13,8 @@ export const runtime = 'nodejs';
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   if (!/^p\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
 
@@ -60,7 +63,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ producer: getProducer(id) });
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   if (!/^p\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   if (!getProducer(id)) {

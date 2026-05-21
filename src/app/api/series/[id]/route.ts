@@ -3,6 +3,7 @@ import { deleteSeries, getSeries, updateSeries } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
 function parseId(s: string): number | null {
@@ -35,6 +36,8 @@ function isValidStoragePath(p: unknown): p is string | null {
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const n = parseId(id);
   if (n == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
@@ -69,7 +72,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   return NextResponse.json({ series: getSeries(n) });
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const n = parseId(id);
   if (n == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });

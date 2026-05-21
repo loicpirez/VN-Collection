@@ -3,6 +3,7 @@ import { getSeries, updateSeries } from '@/lib/db';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,8 @@ const MAX_SERIES_IMAGE_BYTES = 15 * 1024 * 1024;
  * the publicly-accessible URL ready to drop into <img src>.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const sid = Number(id);
   if (!Number.isInteger(sid) || sid <= 0) {

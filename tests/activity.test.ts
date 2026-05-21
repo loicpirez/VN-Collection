@@ -570,7 +570,7 @@ describe('round-four route integration — activity row created', () => {
 
   it('POST /api/producer/[id]/refresh logs producer.refresh', async () => {
     const { POST } = await import('@/app/api/producer/[id]/refresh/route');
-    const req = new Request('http://localhost/api/producer/p1/refresh', { method: 'POST' });
+    const req = new NextRequest('http://localhost/api/producer/p1/refresh', { method: 'POST' });
     const res = await POST(req, { params: Promise.resolve({ id: 'p1' }) });
     expect(res.status).toBe(200);
     expect(listUserActivity({ kind: 'producer.refresh' })).toHaveLength(1);
@@ -604,7 +604,7 @@ describe('round-four route integration — activity row created', () => {
 
   it('POST /api/staff/[id]/download logs staff.full-download', async () => {
     const { POST } = await import('@/app/api/staff/[id]/download/route');
-    const req = new Request('http://localhost/api/staff/s1/download', { method: 'POST' });
+    const req = new NextRequest('http://localhost/api/staff/s1/download', { method: 'POST' });
     const res = await POST(req, { params: Promise.resolve({ id: 's1' }) });
     expect(res.status).toBe(200);
     expect(listUserActivity({ kind: 'staff.full-download' })).toHaveLength(1);

@@ -5,6 +5,7 @@ import { walkSeriesRelations } from '@/lib/series-detect';
 
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
 function parseSeriesId(s: string): number | null {
@@ -13,6 +14,8 @@ function parseSeriesId(s: string): number | null {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string; vnId: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id, vnId } = await ctx.params;
   const sid = parseSeriesId(id);
   if (sid == null) return NextResponse.json({ error: 'invalid series id' }, { status: 400 });
@@ -56,7 +59,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ series: getSeries(sid), added });
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string; vnId: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string; vnId: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id, vnId } = await ctx.params;
   const sid = parseSeriesId(id);
   if (sid == null) return NextResponse.json({ error: 'invalid series id' }, { status: 400 });

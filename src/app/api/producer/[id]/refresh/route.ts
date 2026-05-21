@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchProducerAssociations, invalidateProducerAssociations } from '@/lib/producer-associations';
 import { recordActivity } from '@/lib/activity';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,7 +15,9 @@ export const maxDuration = 60;
  * associations because the cache key is per-page (paginated) and
  * different from the cache keys covered by `/api/refresh/global`.
  */
-export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   if (!/^p\d+$/i.test(id)) {
     return NextResponse.json({ error: 'invalid producer id' }, { status: 400 });

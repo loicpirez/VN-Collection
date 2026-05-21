@@ -4,6 +4,7 @@ import { updateCollection, isInCollection } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -19,7 +20,9 @@ export const maxDuration = 120;
  *   the existing `updateCollection` transaction so the activity log
  *   captures every change.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   try {
     const games = await fetchOwnedGames();
     const suggestions = await computeSteamSuggestions(games);
@@ -41,6 +44,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as { applies?: { vn_id?: unknown; playtime_minutes?: unknown }[] };
   if (!Array.isArray(body.applies)) return NextResponse.json({ error: 'applies array required' }, { status: 400 });
   let applied = 0;

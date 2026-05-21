@@ -3,6 +3,7 @@ import { createUserList, listUserLists } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -11,6 +12,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const body = (await readJsonObject(req)) as {
     name?: unknown;
     description?: unknown;

@@ -3,6 +3,7 @@ import { deleteRoute, getRoute, updateRoute, type RoutePatch } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
 function parseId(s: string): number | null {
@@ -20,6 +21,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ routeId: s
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ routeId: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { routeId } = await ctx.params;
   const id = parseId(routeId);
   if (id == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
@@ -57,7 +60,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ routeId: 
   return NextResponse.json({ route: updated });
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ routeId: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ routeId: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { routeId } = await ctx.params;
   const id = parseId(routeId);
   if (id == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
