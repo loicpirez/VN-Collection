@@ -38,18 +38,14 @@ export function MarkdownNotes({ value, onChange, placeholder }: Props) {
       <div className="flex items-center gap-1 border-b border-border bg-bg-elev/60 px-2 py-1">
         <button
           type="button"
-          className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
-            tab === 'edit' ? 'bg-accent text-bg' : 'text-muted hover:text-white'
-          }`}
+          className={`btn btn-xs ${tab === 'edit' ? 'btn-primary' : 'text-muted hover:text-white'}`}
           onClick={() => setTab('edit')}
         >
           <Edit3 className="h-3 w-3" aria-hidden /> {t.markdown.edit}
         </button>
         <button
           type="button"
-          className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
-            tab === 'preview' ? 'bg-accent text-bg' : 'text-muted hover:text-white'
-          }`}
+          className={`btn btn-xs ${tab === 'preview' ? 'btn-primary' : 'text-muted hover:text-white'}`}
           onClick={() => setTab('preview')}
         >
           <Eye className="h-3 w-3" aria-hidden /> {t.markdown.preview}

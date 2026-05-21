@@ -404,9 +404,9 @@ export function SettingsButton() {
                         aria-controls={`settings-panel-${tab}`}
                         tabIndex={active ? 0 : -1}
                         onClick={() => setActiveTab(tab)}
-                        className={`tap-target-tight inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
+                        className={`btn btn-xs tap-target-tight ${
                           active
-                            ? 'bg-accent text-bg'
+                            ? 'btn-primary'
                             : 'text-muted hover:text-white'
                         }`}
                       >
@@ -497,10 +497,10 @@ export function SettingsButton() {
                               role="radio"
                               aria-checked={settings.spoilerLevel === lvl}
                               onClick={() => set('spoilerLevel', lvl as 0 | 1 | 2)}
-                              className={`rounded-md border px-2 py-1.5 text-xs font-semibold transition-colors ${
+                              className={`btn btn-xs ${
                                 settings.spoilerLevel === lvl
                                   ? 'border-accent bg-accent/15 text-accent'
-                                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent/40 hover:text-white'
+                                  : 'text-muted hover:text-white'
                               }`}
                             >
                               {label}
@@ -1432,6 +1432,7 @@ function PageLayoutPanel<Id extends string>({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="flex w-full items-center justify-between gap-2 text-left"
       >
         <div>
@@ -1442,7 +1443,7 @@ function PageLayoutPanel<Id extends string>({
           {hiddenCount > 0 && (
             <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">{hiddenCount}</span>
           )}
-          <span className="text-muted text-xs">{open ? '▲' : '▼'}</span>
+          <span className="text-muted text-xs" aria-hidden>{open ? '▲' : '▼'}</span>
         </div>
       </button>
       {open && (

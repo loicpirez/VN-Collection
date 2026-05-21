@@ -90,16 +90,16 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
               type="button"
               onClick={() => { setText(initial ?? ''); setEditing(false); }}
               disabled={saving}
-              className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+              className="btn btn-xs"
             >
-              <X className="mr-1 inline-block h-3 w-3" aria-hidden />
+              <X className="h-3 w-3" aria-hidden />
               {t.common.cancel}
             </button>
             <button
               type="button"
               onClick={save}
               disabled={saving}
-              className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-bold text-bg disabled:opacity-50"
+              className="btn btn-xs btn-primary"
             >
               {saving ? <Loader2 className="mr-1 inline-block h-3 w-3 animate-spin" aria-hidden /> : null}
               {t.common.save}
@@ -129,7 +129,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            className="btn btn-xs"
           >
             <Pencil className="h-3 w-3" aria-hidden />
             {t.customSynopsis.add}
@@ -152,23 +152,23 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
           <button
             type="button"
             onClick={() => setShowSources((v) => !v)}
-            className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+            className="btn btn-xs"
           >
             {showSources ? t.customSynopsis.hideSources : t.customSynopsis.showSources}
           </button>
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+            className="btn btn-xs"
           >
-            <Pencil className="mr-1 inline-block h-3 w-3" aria-hidden />
+            <Pencil className="h-3 w-3" aria-hidden />
             {t.common.edit}
           </button>
           <button
             type="button"
             onClick={clear}
             disabled={saving}
-            className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50"
+            className="btn btn-xs btn-danger"
           >
             <Trash2 className="mr-1 inline-block h-3 w-3" aria-hidden />
             {t.common.delete}

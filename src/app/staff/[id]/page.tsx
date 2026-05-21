@@ -322,7 +322,7 @@ export default async function StaffPage({
           >
             {voice.map((credit) => (
               <li key={credit.vn.id}>
-                <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle}>
+                <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} openOnVndb={t.detail.openOnVndb}>
                   {/*
                     Each voiced character renders with a thumbnail
                     next to the name. The thumbnail uses the local
@@ -385,7 +385,7 @@ export default async function StaffPage({
                   <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
                     {g.credits.map((credit) => (
                       <li key={credit.vn.id}>
-                        <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} />
+                        <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} openOnVndb={t.detail.openOnVndb} />
                       </li>
                     ))}
                   </ul>
@@ -438,6 +438,7 @@ function VnCard({
   vn,
   ownedLabel,
   ownedTitle,
+  openOnVndb,
   children,
 }: {
   vn: {
@@ -455,6 +456,7 @@ function VnCard({
   };
   ownedLabel: string;
   ownedTitle: string;
+  openOnVndb: string;
   children?: React.ReactNode;
 }) {
   const year = vn.released?.slice(0, 4);
@@ -500,8 +502,8 @@ function VnCard({
               href={vndbUrl}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="VNDB"
-              title="VNDB"
+              aria-label={openOnVndb}
+              title={openOnVndb}
               className="shrink-0 text-muted hover:text-accent"
             >
               <ExternalLink className="h-3 w-3" aria-hidden />
