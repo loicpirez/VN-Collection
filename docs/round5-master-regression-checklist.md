@@ -412,7 +412,7 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | PAGE-016 | Page | `/labels` ids query param lacks per-id format validation. | `src/app/labels/page.tsx` | | unit/source proof | TODO |
 | PAGE-017 | security | `/labels` uses `dangerouslySetInnerHTML` for QR SVG; safe today but must be documented. | `src/app/labels/page.tsx` | | source proof | TODO |
 | PAGE-018 | Page | `/quotes` hard-limits to 300 results with no pagination/notice. | `src/app/quotes/page.tsx` | | browser/source proof | TODO |
-| PAGE-019 | Page | `/release/[id]` performs DB write side effect inside RSC render. | `src/app/release/[id]/page.tsx` | | source proof + route behavior | TODO |
+| PAGE-019 | Page | `/release/[id]` performs DB write side effect inside RSC render. | `src/app/release/[id]/page.tsx` | a56905e | upsertReleaseResolutionCache moved into after(); runs post-response; yarn test 1363/1363 | FIXED_VERIFIED |
 | PAGE-020 | Page | `/release/[id]` lacks metadata title. | `src/app/release/[id]/page.tsx` | | source proof | TODO |
 | PAGE-021 | Page | `/search` lacks `dynamic = 'force-dynamic'`. | `src/app/search/page.tsx` | 8fb5ca2 | `export const dynamic = 'force-dynamic'` added at top; yarn test 1363/1363 | FIXED_VERIFIED |
 | PAGE-022 | Page | `/search` Suspense around client component lacks fallback. | `src/app/search/page.tsx` | | source/browser proof | TODO |
@@ -430,7 +430,7 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | SECA-010 | security | `/api/activity` auth status must be verified for GET/write handlers. | `src/app/api/activity/route.ts` | | route test | TODO |
 | DBA-001 | DB/backend | Aspect filtering/grouping triggers per-VN N+1 `materializeReleaseAspectsForVn(id)` loop on collection GET. | `src/app/api/collection/route.ts`, `src/lib/db.ts` | | source proof + perf-oriented test | TODO |
 | DBA-002 | DB/backend | `uniqueSlug()` SELECT loop is safe in create transaction but unsafe for `updateUserList`. | `src/lib/db.ts` | | unit/source proof | TODO |
-| DBA-003 | DB/backend | `updateUserList` check/slug/update not in transaction; TOCTOU duplicate slug risk. | `src/lib/db.ts` | | unit/source proof | TODO |
+| DBA-003 | DB/backend | `updateUserList` check/slug/update not in transaction; TOCTOU duplicate slug risk. | `src/lib/db.ts` | a56905e | Full updateUserList body wrapped in db.transaction(); yarn test 1363/1363 | FIXED_VERIFIED |
 | DBA-004 | DB/backend | `setOwnedReleaseAspectOverride` existence check and write not in transaction. | `src/lib/db.ts` | | unit/source proof | TODO |
 | DBA-005 | DB/backend | `setSteamLink` SELECT/guard/write not atomic; manual guard can be bypassed by race. | `src/lib/db.ts` | | unit/source proof | TODO |
 | DBA-006 | DB/backend | `updateGameLogEntry` read/merge/write outside transaction; lost update risk. | `src/lib/db.ts` | | unit/source proof | TODO |
@@ -476,8 +476,8 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | PAGE-028 | Page | `/recommendations` lacks `error.tsx`. | `src/app/recommendations/error.tsx` | | source proof | TODO |
 | PAGE-029 | Page | `/quotes` lacks `error.tsx`. | `src/app/quotes/error.tsx` | | source proof | TODO |
 | PAGE-030 | Page | `/steam` lacks `generateMetadata()`. | `src/app/steam/page.tsx` | | source proof | TODO |
-| PAGE-031 | Page | `/trait/[id]` transient VNDB error misclassified as 404; VNDB timeout causes real pages to return notFound. | `src/app/trait/[id]/page.tsx` | | source proof + route test | TODO |
-| PAGE-032 | Page | `/vn/[id]` calls `materializeRelease*` inside RSC render — DB write side effect on every GET. | `src/app/vn/[id]/page.tsx` | | source proof + route behavior | TODO |
+| PAGE-031 | Page | `/trait/[id]` transient VNDB error misclassified as 404; VNDB timeout causes real pages to return notFound. | `src/app/trait/[id]/page.tsx` | 777ef39 | notFound() only called when !trait && !error; transient errors render error state with VNDB link; yarn test 1363/1363 | FIXED_VERIFIED |
+| PAGE-032 | Page | `/vn/[id]` calls `materializeRelease*` inside RSC render — DB write side effect on every GET. | `src/app/vn/[id]/page.tsx` | a159d97 | materializeReleaseAspectsForVn + materializeReleaseMetaForVn deferred to after(); idempotent UPSERTs run post-response; yarn test 1363/1363 | FIXED_VERIFIED |
 | PAGE-033 | Page | `/trait/[id]` lacks `generateMetadata()`. | `src/app/trait/[id]/page.tsx` | | source proof | TODO |
 | SECA-011 | security | `POST /api/saved-filters` has no auth gate; any caller can create/read saved filters. | `src/app/api/saved-filters/route.ts` | f425376 | POST/DELETE/PATCH all gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
 | SECA-012 | security | `POST /api/collection/[id]/activity` has no auth gate; any caller can log collection activity. | `src/app/api/collection/[id]/activity/route.ts` | f425376 | POST and DELETE gate on requireLocalhostOrToken; yarn test 1363/1363 | FIXED_VERIFIED |
@@ -555,7 +555,7 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | TS-005 | code quality | `key={i}` index used as React key in data (non-skeleton) lists across multiple components. | `src/app/producer/[id]/page.tsx`, `src/app/tag/[id]/page.tsx`, `src/app/upcoming/page.tsx`, `src/components/QuotesSection.tsx`, `src/components/CharactersSection.tsx`, `src/components/EgsRichDetails.tsx`, `src/components/DateInput.tsx` | | source proof | TODO |
 | COMP-001 | component library | `MediaGallery.tsx` keydown `useEffect` missing `prev`/`next` deps — stale closure breaks keyboard navigation. | `src/components/MediaGallery.tsx:144–158` | 8fb5ca2 | prev/next stabilized with useCallback; added to useEffect deps array; yarn test 1363/1363 | FIXED_VERIFIED |
 | COMP-002 | component library | `AspectOverrideControl.tsx` AbortController created inside async function; cleanup never registered; fetches never cancelled on unmount. | `src/components/AspectOverrideControl.tsx:65` | 8fb5ca2 | AbortController moved to useEffect body; signal passed as arg; cleanup registered; yarn test 1363/1363 | FIXED_VERIFIED |
-| COMP-003 | component library | `TagsBrowser.tsx` tab switcher uses `<Link role="button">` — ARIA antipattern; should be `role="tab"` in `role="tablist"`. | `src/components/TagsBrowser.tsx` | | a11y/source proof | TODO |
+| COMP-003 | component library | `TagsBrowser.tsx` tab switcher uses `<Link role="button">` — ARIA antipattern; should be `role="tab"` in `role="tablist"`. | `src/components/TagsBrowser.tsx` | 55a16ac | Link role=button replaced with button type=button role=tab; container role=group→role=tablist; aria-pressed→aria-selected; modeSwitcherLabel added to all 3 locales; yarn test 1363/1363 | FIXED_VERIFIED |
 | COMP-004 | component library | `CardContextMenu.tsx` reads `window.innerWidth` in render body — SSR hydration mismatch. | `src/components/CardContextMenu.tsx:116–117` | | source proof | TODO |
 | COMP-005 | component library | `AddMissingVnButton.tsx` uses success-toast string as `aria-label` instead of action description. | `src/components/AddMissingVnButton.tsx:51` | | a11y/source proof | TODO |
 | COMP-006 | component library | `CharacterMetaClient.tsx` spoiler button has `aria-pressed={false}` hardcoded; always reports unpressed. | `src/components/CharacterMetaClient.tsx:127` | | a11y/source proof | TODO |
