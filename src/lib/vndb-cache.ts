@@ -223,7 +223,12 @@ async function fetchOnce<T>(
   }
 
   const text = await res.text();
-  const data = text ? (JSON.parse(text) as T) : ({} as T);
+  let data: T;
+  try {
+    data = text ? (JSON.parse(text) as T) : ({} as T);
+  } catch {
+    throw new Error(`VNDB ${url}: non-JSON response (${res.status}): ${text.slice(0, 200)}`);
+  }
 
   if (ttlMs > 0) {
     putCacheRow({
