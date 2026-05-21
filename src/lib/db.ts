@@ -833,11 +833,58 @@ function open(): Database.Database {
         db.prepare('UPDATE owned_release SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
         db.prepare('UPDATE vn_route SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
         db.prepare('UPDATE series_vn SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE vn_staff_credit SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE vn_va_credit SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE vn_activity SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE vn_game_log SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE steam_link SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE reading_queue SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE vn_aspect_override SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE vn_egs_link SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE user_list_vn SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE staff_credit_index SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE character_vn_index SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
       }
       db.prepare(
         `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v1', '1')`,
       ).run();
     })();
+  }
+
+  // LIB-004: v2 patch — the original egs_colon_to_underscore_v1 migration only
+  // updated 6 tables. Databases where v1 ran before the remaining tables were
+  // populated may still carry stale `egs:NNN` ids. This idempotent sweep covers
+  // the missing tables; WHERE clauses restrict to rows that still need updating.
+  if (db.prepare(`SELECT value FROM app_setting WHERE key = 'egs_colon_to_underscore_v2'`).get() == null) {
+    const legacyEgsV2 = db
+      .prepare(`SELECT id FROM vn WHERE id LIKE 'egs_%'`)
+      .all() as { id: string }[];
+    if (legacyEgsV2.length > 0) {
+      db.transaction(() => {
+        db.pragma('defer_foreign_keys = ON');
+        for (const { id } of legacyEgsV2) {
+          const colonId = `egs:${id.slice(4)}`;
+          db.prepare('UPDATE vn_staff_credit SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE vn_va_credit SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE vn_activity SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE vn_game_log SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE steam_link SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE reading_queue SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE vn_aspect_override SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE vn_egs_link SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE user_list_vn SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE staff_credit_index SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE character_vn_index SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+        }
+        db.prepare(
+          `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v2', '1')`,
+        ).run();
+      })();
+    } else {
+      db.prepare(
+        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v2', '1')`,
+      ).run();
+    }
   }
 
   // Legacy migration: `egs_game.playtime_median_minutes` used to store the
@@ -3577,7 +3624,7 @@ export function materializeReleaseAspectsForVn(vnId: string): void {
   // The cache_key shape is `<pathTag>|<METHOD>|<hash>` and the only
   // pathTag written by `vndbPost('/release', …)` is `POST /release`.
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%' LIMIT 200`)
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
     .all() as Array<{ body: string }>;
   let wrote = 0;
   for (const row of rows) {
@@ -3652,7 +3699,7 @@ export function materializeReleaseAspectsForCollectionVns(vnIds: string[]): void
   if (needsWork.size === 0) return;
 
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%' LIMIT 200`)
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
     .all() as Array<{ body: string }>;
 
   const tx = db.transaction(() => {
@@ -3791,7 +3838,7 @@ export function materializeReleaseMetaForVn(vnId: string): void {
   // smaller payload tuned to a different filter shape and would
   // dilute the materialisation result.
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%' LIMIT 200`)
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
     .all() as Array<{ body: string }>;
   const now = Date.now();
   const upsert = db.prepare(`
@@ -3928,7 +3975,7 @@ export function materializeReleaseMetaForCollectionVns(vnIds: string[]): number 
   if (vnIds.length === 0) return 0;
   const ownedSet = new Set(vnIds);
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%' LIMIT 200`)
+    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
     .all() as Array<{ body: string }>;
   const now = Date.now();
   const upsert = db.prepare(`

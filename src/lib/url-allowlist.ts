@@ -1,5 +1,5 @@
 import 'server-only';
-import { resolve4 as dnsResolve4 } from 'node:dns/promises';
+import { resolve4 as dnsResolve4, resolve6 as dnsResolve6 } from 'node:dns/promises';
 
 /**
  * Shared SSRF allowlist. Every server-side outbound HTTP fetch that
@@ -74,6 +74,14 @@ export function isAllowedHttpTarget(target: string): boolean {
  * link-local (169.254.x.x), or RFC-1918 private ranges.
  * Used by assertNoPrivateIpRebind to close the DNS-rebinding gap.
  */
+export function isPrivateIpv6(addr: string): boolean {
+  const lower = addr.toLowerCase();
+  if (lower === '::1') return true;
+  if (lower.startsWith('fe80:')) return true;
+  if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
+  return false;
+}
+
 export function isPrivateIpv4(addr: string): boolean {
   const parts = addr.split('.').map(Number);
   if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false;
@@ -87,9 +95,9 @@ export function isPrivateIpv4(addr: string): boolean {
 }
 
 /**
- * AUD-SEC-016: DNS rebinding defence. Resolves `hostname` via DNS and
- * throws if any returned IPv4 address falls in a private / loopback range.
- * Call this before issuing an outbound fetch to a user-influenced hostname
+ * AUD-SEC-016: DNS rebinding defence. Resolves `hostname` via DNS (both IPv4
+ * and IPv6) and throws if any address falls in a private / loopback / link-local
+ * range. Call this before issuing an outbound fetch to a user-influenced hostname
  * (e.g. `vndb_backup_url`) to prevent a rebind from reaching internal services.
  *
  * The function is best-effort — a hostile DNS server that rotates between
@@ -98,15 +106,29 @@ export function isPrivateIpv4(addr: string): boolean {
  * attack surface is limited to DNS servers of allowlisted domains.
  */
 export async function assertNoPrivateIpRebind(hostname: string): Promise<void> {
-  let addrs: string[];
+  let v4addrs: string[] = [];
+  let v6addrs: string[] = [];
   try {
-    addrs = await dnsResolve4(hostname);
+    v4addrs = await dnsResolve4(hostname);
   } catch {
+    // NODATA for A records is normal for IPv6-only hosts — continue to v6 check.
+  }
+  try {
+    v6addrs = await dnsResolve6(hostname);
+  } catch {
+    // NODATA for AAAA records is normal — continue.
+  }
+  if (v4addrs.length === 0 && v6addrs.length === 0) {
     throw new Error(`DNS resolution failed for ${hostname}`);
   }
-  for (const addr of addrs) {
+  for (const addr of v4addrs) {
     if (isPrivateIpv4(addr)) {
-      throw new Error(`DNS rebind blocked: ${hostname} resolved to private IP ${addr}`);
+      throw new Error(`DNS rebind blocked: ${hostname} resolved to private IPv4 ${addr}`);
+    }
+  }
+  for (const addr of v6addrs) {
+    if (isPrivateIpv6(addr)) {
+      throw new Error(`DNS rebind blocked: ${hostname} resolved to private IPv6 ${addr}`);
     }
   }
 }

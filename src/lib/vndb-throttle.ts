@@ -151,7 +151,14 @@ export async function throttledFetch(url: string, init?: RequestInit): Promise<R
   }
 }
 
-/** Cheap probe to confirm VNDB is responsive again before resuming. */
+/**
+ * Cheap probe to confirm VNDB is responsive again before resuming.
+ *
+ * Intentionally bypasses `throttledFetch`: the probe is called only after a
+ * 429/5xx has already triggered a back-off, so issuing it outside the 1 req/s
+ * queue avoids a deadlock where the queue is paused waiting for the probe but
+ * the probe is queued behind other requests that are also paused.
+ */
 export async function probeVndbHealthy(): Promise<boolean> {
   try {
     const r = await fetch('https://api.vndb.org/kana/schema', {

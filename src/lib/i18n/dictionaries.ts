@@ -367,7 +367,7 @@ export const dictionaries = {
         library: 'Bibliothèque',
         wishlist: 'Wishlist',
         search: 'Recherche',
-        recommendations: 'Pour vous',
+        recommendations: 'Pour toi',
         topRanked: 'Top classés',
         upcoming: 'À venir',
         dumped: 'Dumped',
@@ -644,7 +644,7 @@ export const dictionaries = {
       },
       upcomingCollection: {
         cta: 'Rafraîchir « à venir » (collection)',
-        title: 'Vider le cache des sorties à venir limité à votre collection',
+        title: 'Vider le cache des sorties à venir limité à ta collection',
       },
       upcomingAll: {
         cta: 'Rafraîchir « à venir » (tout VNDB)',

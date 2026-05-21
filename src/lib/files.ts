@@ -114,8 +114,16 @@ export async function downloadToBucket(
     clearTimeout(timer);
   }
   if (!res.ok) throw new Error(`download ${url} -> ${res.status}`);
+  const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+  const cl = res.headers.get('content-length');
+  if (cl && parseInt(cl, 10) > MAX_IMAGE_BYTES) {
+    throw new Error(`Image too large: ${cl} bytes (max ${MAX_IMAGE_BYTES})`);
+  }
   const ct = res.headers.get('content-type');
   const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.byteLength > MAX_IMAGE_BYTES) {
+    throw new Error(`Image too large: ${buf.byteLength} bytes (max ${MAX_IMAGE_BYTES})`);
+  }
   const ext = ct ? extFromContentType(ct) : extname(url) || '.bin';
   const safeName = `${sanitizeFilename(filenameHint)}${ext}`;
   const dir = bucketPath(bucket);

@@ -199,7 +199,14 @@ async function fetchTable(sql: string): Promise<string[][]> {
   if (res.status === 403) throw new EgsUnreachable('blocked', `HTTP ${res.status}`, res.status);
   if (res.status >= 500 || res.status === 0) throw new EgsUnreachable('server', `HTTP ${res.status}`, res.status);
   if (!res.ok) throw new Error(`EGS HTTP ${res.status}`);
+  const cl = res.headers.get('content-length');
+  if (cl && parseInt(cl, 10) > 4 * 1024 * 1024) {
+    throw new EgsUnreachable('server', `EGS response too large: ${cl} bytes`, null);
+  }
   const html = await res.text();
+  if (html.length > 4 * 1024 * 1024) {
+    throw new EgsUnreachable('server', `EGS response body exceeded 4 MB`, null);
+  }
   return parseHtmlTable(html);
 }
 
@@ -320,7 +327,8 @@ async function fetchOne(sql: string): Promise<Record<string, string | null> | nu
   let rows: string[][];
   try {
     rows = await fetchTable(sql);
-  } catch {
+  } catch (e) {
+    if (e instanceof EgsUnreachable) throw e;
     return null;
   }
   if (rows.length < 2) return null;
