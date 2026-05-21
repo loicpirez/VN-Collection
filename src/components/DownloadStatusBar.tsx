@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, Cloud, CloudDownload, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -124,6 +124,24 @@ export function DownloadStatusBar() {
   const [data, setData] = useState<Snapshot | null>(null);
   const [open, setOpen] = useState(false);
   const popoverId = useId();
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const firstFocusable = popoverRef.current?.querySelector<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    firstFocusable?.focus({ preventScroll: true });
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      triggerRef.current?.focus({ preventScroll: true });
+    };
+  }, [open]);
   const [dismissedFinished, setDismissedFinished] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -260,7 +278,7 @@ export function DownloadStatusBar() {
     // height). Popover opens upward so it stays inside the viewport.
     <div
       className="fixed bottom-5 right-2 z-40 flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 sm:right-4 sm:max-w-sm"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {retryingNow && (
         <div className="rounded-md border border-status-on_hold/60 bg-status-on_hold/10 px-3 py-2 text-[11px] text-status-on_hold shadow-card">
@@ -274,6 +292,7 @@ export function DownloadStatusBar() {
         </div>
       )}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={`tap-target group flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold shadow-card transition-colors ${
@@ -342,10 +361,12 @@ export function DownloadStatusBar() {
       </button>
       {open && (
         <div
+          ref={popoverRef}
           id={popoverId}
           role="dialog"
           aria-label={t.downloadStatus.title}
-          className="absolute bottom-full right-0 mb-2 w-[min(92vw,24rem)] max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card"
+          tabIndex={-1}
+          className="absolute bottom-full right-0 mb-2 w-[min(92vw,24rem)] max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card outline-none"
         >
           <header className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[11px] font-bold uppercase tracking-widest text-muted">

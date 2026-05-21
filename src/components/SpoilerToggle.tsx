@@ -27,10 +27,15 @@ export function SpoilerToggle() {
   const { settings, set } = useDisplaySettings();
   const [open, setOpen] = useState(false);
   const popRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverId = useId();
 
   useEffect(() => {
     if (!open) return;
+    const firstFocusable = popRef.current?.querySelector<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    firstFocusable?.focus({ preventScroll: true });
     function outside(e: MouseEvent) {
       if (!popRef.current?.contains(e.target as Node)) setOpen(false);
     }
@@ -42,6 +47,7 @@ export function SpoilerToggle() {
     return () => {
       window.removeEventListener('mousedown', outside);
       window.removeEventListener('keydown', esc);
+      triggerRef.current?.focus({ preventScroll: true });
     };
   }, [open]);
 
@@ -69,6 +75,7 @@ export function SpoilerToggle() {
   return (
     <div ref={popRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="tap-target inline-flex h-11 items-center gap-1.5 rounded-lg border border-border bg-bg-card px-2 text-xs font-semibold text-muted hover:text-white"

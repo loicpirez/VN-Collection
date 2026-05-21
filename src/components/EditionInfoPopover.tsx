@@ -129,6 +129,10 @@ export function EditionInfoTrigger({
   // positioning context).
   useEffect(() => {
     if (!open) return;
+    const firstFocusable = popoverRef.current?.querySelector<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    firstFocusable?.focus({ preventScroll: true });
     function onDoc(e: MouseEvent) {
       const target = e.target as Node;
       if (
@@ -146,6 +150,7 @@ export function EditionInfoTrigger({
     return () => {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
+      buttonRef.current?.focus({ preventScroll: true });
     };
   }, [open]);
 
