@@ -1,8 +1,9 @@
 /**
  * R5-138 pin: the four `listCollection` filter clauses
- * (`producer`, `publisher`, `tag`, formerly `json_each`) now
+ * (`producer`, `publisher`, `tag`, `place`, formerly `json_each`) now
  * read from flat derived indexes
- * (`vn_developer_index`, `vn_publisher_index`, `vn_tag_index`).
+ * (`vn_developer_index`, `vn_publisher_index`, `vn_tag_index`,
+ * `collection_place_index`).
  *
  * Two halves:
  *   1. Source-pin — the rewritten WHERE clauses no longer use
@@ -13,7 +14,7 @@
  */
 import Database from 'better-sqlite3';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { addToCollection, listCollection, setVnPublishers, upsertVn } from '@/lib/db';
+import { addToCollection, listCollection, listKnownPlaces, setVnPublishers, updateCollection, upsertVn } from '@/lib/db';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -27,6 +28,7 @@ beforeAll(() => {
   db.exec(`
     DELETE FROM owned_release;
     DELETE FROM collection;
+    DELETE FROM collection_place_index;
     DELETE FROM vn_publisher_index;
     DELETE FROM vn_developer_index;
     DELETE FROM vn_tag_index;
@@ -42,6 +44,7 @@ beforeEach(() => {
   db.exec(`
     DELETE FROM owned_release;
     DELETE FROM collection;
+    DELETE FROM collection_place_index;
     DELETE FROM vn_publisher_index;
     DELETE FROM vn_developer_index;
     DELETE FROM vn_tag_index;
@@ -49,15 +52,16 @@ beforeEach(() => {
   `);
 });
 
-describe('R5-138 — listCollection filters via vn_tag_index / vn_developer_index / vn_publisher_index', () => {
+describe('R5-138 — listCollection filters via derived indexes', () => {
   it('listCollection WHERE clauses use the derived indexes', () => {
     const body = SOURCE.split('export function listCollection')[1]?.split('\nexport ')[0] ?? '';
     expect(body).toMatch(/vn_developer_index WHERE vn_id = c\.vn_id AND producer_id = \?/);
     expect(body).toMatch(/vn_publisher_index WHERE vn_id = c\.vn_id AND producer_id = \?/);
     expect(body).toMatch(/vn_tag_index WHERE vn_id = c\.vn_id AND tag_id = \?/);
+    expect(body).toMatch(/collection_place_index WHERE vn_id = c\.vn_id AND place = \?/);
   });
 
-  it('listCollection WHERE clauses no longer EXISTS json_each over v.developers / v.tags / v.publishers', () => {
+  it('listCollection WHERE clauses no longer EXISTS json_each over filter JSON columns', () => {
     const body = SOURCE.split('export function listCollection')[1]?.split('\nexport ')[0] ?? '';
     // Only assert the EXISTS-over-json_each FILTER shape is gone.
     // The sort path that still does `MIN(json_extract(...) FROM
@@ -67,6 +71,7 @@ describe('R5-138 — listCollection filters via vn_tag_index / vn_developer_inde
     expect(body).not.toMatch(/EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+json_each\(v\.developers\)/);
     expect(body).not.toMatch(/EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+json_each\(v\.tags\)/);
     expect(body).not.toMatch(/EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+json_each\(COALESCE\(v\.publishers/);
+    expect(body).not.toMatch(/EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+json_each\(c\.physical_location\)/);
   });
 
   it('upsertVn populates vn_tag_index + vn_developer_index in the transaction', () => {
@@ -79,10 +84,10 @@ describe('R5-138 — listCollection filters via vn_tag_index / vn_developer_inde
         { id: 'g2', name: 'comedy', rating: 2, spoiler: 0, category: 'cont' },
       ],
     });
-    const tagRows = db.prepare('SELECT tag_id, spoiler, category FROM vn_tag_index WHERE vn_id = ? ORDER BY tag_id').all('v9300');
+    const tagRows = db.prepare('SELECT tag_id, tag_name, spoiler, category FROM vn_tag_index WHERE vn_id = ? ORDER BY tag_id').all('v9300');
     expect(tagRows).toEqual([
-      { tag_id: 'g1', spoiler: 0, category: 'cont' },
-      { tag_id: 'g2', spoiler: 0, category: 'cont' },
+      { tag_id: 'g1', tag_name: 'romance', spoiler: 0, category: 'cont' },
+      { tag_id: 'g2', tag_name: 'comedy', spoiler: 0, category: 'cont' },
     ]);
     const devRows = db.prepare('SELECT producer_id FROM vn_developer_index WHERE vn_id = ?').all('v9300');
     expect(devRows).toEqual([{ producer_id: 'p913001' }]);
@@ -127,5 +132,22 @@ describe('R5-138 — listCollection filters via vn_tag_index / vn_developer_inde
     const items = listCollection({ publisher: 'p91300' });
     expect(items.map((it) => it.id)).toContain('v9304');
     expect(listCollection({ publisher: 'p9999' }).map((it) => it.id)).not.toContain('v9304');
+  });
+
+  it('listCollection({place}) and listKnownPlaces read from collection_place_index', () => {
+    upsertVn({ id: 'v9305', title: 'fixture-place-A' });
+    upsertVn({ id: 'v9306', title: 'fixture-place-B' });
+    addToCollection('v9305', { status: 'planning', physical_location: ['Shelf A', 'Box 1'] });
+    addToCollection('v9306', { status: 'planning', physical_location: ['Shelf B'] });
+
+    expect(
+      db.prepare('SELECT place FROM collection_place_index WHERE vn_id = ? ORDER BY place').all('v9305'),
+    ).toEqual([{ place: 'Box 1' }, { place: 'Shelf A' }]);
+    expect(listCollection({ place: 'Shelf A' }).map((it) => it.id)).toEqual(['v9305']);
+    expect(listKnownPlaces()).toEqual(['Box 1', 'Shelf A', 'Shelf B']);
+
+    updateCollection('v9305', { physical_location: ['Shelf C'] });
+    expect(listCollection({ place: 'Shelf A' }).map((it) => it.id)).not.toContain('v9305');
+    expect(listCollection({ place: 'Shelf C' }).map((it) => it.id)).toEqual(['v9305']);
   });
 });

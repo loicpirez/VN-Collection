@@ -467,10 +467,11 @@ function open(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_user_list_pinned ON user_list(pinned DESC, updated_at DESC);
 
-    -- vn_id deliberately has no FK to vn(id): user lists are allowed to
-    -- retain entries for VNs that have been removed from the collection.
-    -- Removing a VN from the collection does NOT clear its list memberships
-    -- so the user can re-add the VN later and retain the same lists.
+    -- vn_id deliberately has no FK to vn(id): user lists may reference
+    -- VNDB / EGS ids before those entries exist locally. Collection
+    -- removal still clears matching list memberships explicitly in
+    -- removeFromCollection(), so the no-FK design does not leave rows
+    -- behind for that workflow.
     CREATE TABLE IF NOT EXISTS user_list_vn (
       list_id     INTEGER NOT NULL REFERENCES user_list(id) ON DELETE CASCADE,
       vn_id       TEXT NOT NULL,
@@ -599,6 +600,7 @@ function open(): Database.Database {
     CREATE TABLE IF NOT EXISTS vn_tag_index (
       vn_id    TEXT NOT NULL,
       tag_id   TEXT NOT NULL,
+      tag_name TEXT,
       spoiler  INTEGER NOT NULL DEFAULT 0,
       category TEXT,
       PRIMARY KEY (vn_id, tag_id)
@@ -618,6 +620,13 @@ function open(): Database.Database {
       PRIMARY KEY (vn_id, producer_id)
     );
     CREATE INDEX IF NOT EXISTS idx_vn_publisher_index_pid ON vn_publisher_index(producer_id);
+
+    CREATE TABLE IF NOT EXISTS collection_place_index (
+      vn_id TEXT NOT NULL REFERENCES collection(vn_id) ON DELETE CASCADE,
+      place TEXT NOT NULL,
+      PRIMARY KEY (vn_id, place)
+    );
+    CREATE INDEX IF NOT EXISTS idx_collection_place_index_place ON collection_place_index(place);
   `);
   // Remove the redundant index from older builds.
   db.exec(`DROP INDEX IF EXISTS idx_shelf_slot_item`);
@@ -678,6 +687,7 @@ function open(): Database.Database {
   ensureColumn(db, 'vn', 'editions', 'TEXT'); // JSON [{eid,lang,name,official}]
   ensureColumn(db, 'vn', 'staff', 'TEXT'); // JSON [{eid,role,note,id,aid,name,original,lang}]
   ensureColumn(db, 'vn', 'va', 'TEXT'); // JSON [{note,character,staff}]
+  ensureColumn(db, 'vn_tag_index', 'tag_name', 'TEXT');
   ensureColumn(db, 'collection', 'location', "TEXT NOT NULL DEFAULT 'unknown'");
   ensureColumn(db, 'collection', 'edition_type', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'collection', 'edition_label', 'TEXT');
@@ -807,6 +817,29 @@ function open(): Database.Database {
     })();
   }
 
+  const placeIndexBackfilled = (db
+    .prepare(`SELECT value FROM app_setting WHERE key = 'collection_place_index_v1'`)
+    .get() as { value: string | null } | undefined)?.value;
+  if (placeIndexBackfilled !== '1') {
+    const rows = db
+      .prepare(`SELECT vn_id, physical_location FROM collection`)
+      .all() as { vn_id: string; physical_location: string | null }[];
+    const insert = db.prepare(
+      `INSERT OR IGNORE INTO collection_place_index (vn_id, place) VALUES (?, ?)`,
+    );
+    db.transaction(() => {
+      db.prepare('DELETE FROM collection_place_index').run();
+      for (const row of rows) {
+        for (const place of new Set(parsePlaces(row.physical_location))) {
+          insert.run(row.vn_id, place);
+        }
+      }
+      db.prepare(
+        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('collection_place_index_v1', '1')`,
+      ).run();
+    })();
+  }
+
   // Legacy migration: EGS-only synthetic ids used `egs:NNN` (colon). The
   // colon breaks Next.js' dynamic-route matcher — a request for /vn/egs:894
   // arrives at the server as `params.id = 'egs%3A894'`, which fails the
@@ -844,6 +877,7 @@ function open(): Database.Database {
         db.prepare('UPDATE user_list_vn SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
         db.prepare('UPDATE staff_credit_index SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
         db.prepare('UPDATE character_vn_index SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
+        db.prepare('UPDATE collection_place_index SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
       }
       db.prepare(
         `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v1', '1')`,
@@ -875,6 +909,7 @@ function open(): Database.Database {
           db.prepare('UPDATE user_list_vn SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
           db.prepare('UPDATE staff_credit_index SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
           db.prepare('UPDATE character_vn_index SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
+          db.prepare('UPDATE collection_place_index SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
         }
         db.prepare(
           `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v2', '1')`,
@@ -1054,7 +1089,7 @@ function open(): Database.Database {
     const delDev = db.prepare('DELETE FROM vn_developer_index WHERE vn_id = ?');
     const delPub = db.prepare('DELETE FROM vn_publisher_index WHERE vn_id = ?');
     const insTag = db.prepare(
-      'INSERT OR IGNORE INTO vn_tag_index (vn_id, tag_id, spoiler, category) VALUES (?, ?, ?, ?)',
+      'INSERT OR IGNORE INTO vn_tag_index (vn_id, tag_id, tag_name, spoiler, category) VALUES (?, ?, ?, ?, ?)',
     );
     const insDev = db.prepare('INSERT OR IGNORE INTO vn_developer_index (vn_id, producer_id) VALUES (?, ?)');
     const insPub = db.prepare('INSERT OR IGNORE INTO vn_publisher_index (vn_id, producer_id) VALUES (?, ?)');
@@ -1066,13 +1101,14 @@ function open(): Database.Database {
         // Surface parse failures so a single corrupt row doesn't
         // silently zero out an entire index.
         try {
-          const tags = r.tags ? (JSON.parse(r.tags) as Array<{ id?: unknown; spoiler?: unknown; category?: unknown }>) : [];
+          const tags = r.tags ? (JSON.parse(r.tags) as Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }>) : [];
           for (const t of tags) {
             const id = typeof t?.id === 'string' ? t.id : null;
             if (!id) continue;
+            const name = typeof t.name === 'string' && t.name.trim().length > 0 ? t.name : id;
             const spoiler = typeof t.spoiler === 'number' ? t.spoiler : 0;
             const category = typeof t.category === 'string' ? t.category : null;
-            insTag.run(r.id, id, spoiler, category);
+            insTag.run(r.id, id, name, spoiler, category);
           }
         } catch (e) {
           console.warn(`[migrate] vn ${r.id} has malformed tags JSON: ${(e as Error).message}`);
@@ -1097,6 +1133,39 @@ function open(): Database.Database {
         }
       }
       db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_tag_index_v1', '1')`).run();
+      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_tag_index_tag_name_v1', '1')`).run();
+    })();
+  }
+
+  const tagNameBackfilled = (db
+    .prepare(`SELECT value FROM app_setting WHERE key = 'vn_tag_index_tag_name_v1'`)
+    .get() as { value: string | null } | undefined)?.value;
+  if (tagNameBackfilled !== '1') {
+    const rows = db.prepare(
+      `SELECT id, tags FROM vn WHERE tags IS NOT NULL`,
+    ).all() as Array<{ id: string; tags: string | null }>;
+    const delTag = db.prepare('DELETE FROM vn_tag_index WHERE vn_id = ?');
+    const insTag = db.prepare(
+      'INSERT OR IGNORE INTO vn_tag_index (vn_id, tag_id, tag_name, spoiler, category) VALUES (?, ?, ?, ?, ?)',
+    );
+    db.transaction(() => {
+      for (const r of rows) {
+        try {
+          const tags = r.tags ? (JSON.parse(r.tags) as Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }>) : [];
+          delTag.run(r.id);
+          for (const t of tags) {
+            const id = typeof t?.id === 'string' ? t.id : null;
+            if (!id) continue;
+            const name = typeof t.name === 'string' && t.name.trim().length > 0 ? t.name : id;
+            const spoiler = typeof t.spoiler === 'number' ? t.spoiler : 0;
+            const category = typeof t.category === 'string' ? t.category : null;
+            insTag.run(r.id, id, name, spoiler, category);
+          }
+        } catch (e) {
+          console.warn(`[migrate] vn ${r.id} has malformed tags JSON: ${(e as Error).message}`);
+        }
+      }
+      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_tag_index_tag_name_v1', '1')`).run();
     })();
   }
 
@@ -1161,6 +1230,16 @@ function serializePlaces(value: unknown): string | null {
     .slice(0, 32)
     .map((v) => v.slice(0, 200));
   return cleaned.length ? JSON.stringify(cleaned) : null;
+}
+
+function writeCollectionPlaceIndex(vnId: string, storedPlaces: string | null | undefined): void {
+  const places = new Set(parsePlaces(storedPlaces));
+  const del = db.prepare('DELETE FROM collection_place_index WHERE vn_id = ?');
+  const ins = db.prepare('INSERT OR IGNORE INTO collection_place_index (vn_id, place) VALUES (?, ?)');
+  del.run(vnId);
+  for (const place of places) {
+    ins.run(vnId, place);
+  }
 }
 
 export interface RawVnPayload {
@@ -1356,7 +1435,7 @@ function buildUpsertVnTx(): (vn: RawVnPayload) => void {
   // column. The publisher index is maintained in
   // `setVnPublishers` (publishers are computed at release-fetch
   // time, not part of RawVnPayload).
-  rebuildVnTagIndex(vn.id, (vn.tags as Array<{ id?: unknown; spoiler?: unknown; category?: unknown }> | undefined) ?? []);
+  rebuildVnTagIndex(vn.id, (vn.tags as Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }> | undefined) ?? []);
   rebuildVnDeveloperIndex(vn.id, (vn.developers as Array<{ id?: unknown }> | undefined) ?? []);
   });
 }
@@ -1368,18 +1447,19 @@ function buildUpsertVnTx(): (vn: RawVnPayload) => void {
  */
 function rebuildVnTagIndex(
   vnId: string,
-  tags: Array<{ id?: unknown; spoiler?: unknown; category?: unknown }>,
+  tags: Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }>,
 ): void {
   db.prepare('DELETE FROM vn_tag_index WHERE vn_id = ?').run(vnId);
   const ins = db.prepare(
-    'INSERT OR IGNORE INTO vn_tag_index (vn_id, tag_id, spoiler, category) VALUES (?, ?, ?, ?)',
+    'INSERT OR IGNORE INTO vn_tag_index (vn_id, tag_id, tag_name, spoiler, category) VALUES (?, ?, ?, ?, ?)',
   );
   for (const t of tags) {
     const id = typeof t?.id === 'string' ? t.id : null;
     if (!id) continue;
+    const name = typeof t.name === 'string' && t.name.trim().length > 0 ? t.name : id;
     const spoiler = typeof t.spoiler === 'number' ? t.spoiler : 0;
     const category = typeof t.category === 'string' ? t.category : null;
-    ins.run(vnId, id, spoiler, category);
+    ins.run(vnId, id, name, spoiler, category);
   }
 }
 
@@ -2597,6 +2677,7 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
       updateCollection(vnId, fields);
       return;
     }
+    const physicalLocation = serializePlaces(fields.physical_location ?? null);
     db.prepare(`
       INSERT INTO collection (vn_id, status, user_rating, playtime_minutes,
                               started_date, finished_date, notes, favorite,
@@ -2615,13 +2696,14 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
       fields.location ?? 'unknown',
       fields.edition_type ?? 'none',
       fields.edition_label ?? null,
-      serializePlaces(fields.physical_location ?? null),
+      physicalLocation,
       fields.box_type ?? 'none',
       fields.download_url ?? null,
       fields.dumped ? 1 : 0,
       now,
       now,
     );
+    writeCollectionPlaceIndex(vnId, physicalLocation);
     invalidateAggregateStats();
   })();
 }
@@ -2676,6 +2758,9 @@ function buildUpdateCollectionTx(): (vnId: string, fields: CollectionPatch) => v
   params.push(now);
   params.push(vnId);
   db.prepare(`UPDATE collection SET ${sets.join(', ')} WHERE vn_id = ?`).run(...params);
+  if ('physical_location' in fields) {
+    writeCollectionPlaceIndex(vnId, serializePlaces(fields.physical_location ?? null));
+  }
 
   if (!before) return;
   const insertActivity = db.prepare(`
@@ -2917,6 +3002,7 @@ function safeParseJson(s: string): Record<string, unknown> | null {
 
 export function removeFromCollection(vnId: string): void {
   db.transaction(() => {
+    db.prepare('DELETE FROM collection_place_index WHERE vn_id = ?').run(vnId);
     db.prepare('DELETE FROM collection WHERE vn_id = ?').run(vnId);
     db.prepare('DELETE FROM user_list_vn WHERE vn_id = ?').run(vnId);
   })();
@@ -3326,10 +3412,7 @@ export function listCollection({
     params.push(tag);
   }
   if (place) {
-    where.push(`(
-      json_valid(c.physical_location)
-      AND EXISTS (SELECT 1 FROM json_each(c.physical_location) WHERE value = ?)
-    )`);
+    where.push('EXISTS (SELECT 1 FROM collection_place_index WHERE vn_id = c.vn_id AND place = ?)');
     params.push(place);
   }
   if (edition) {
@@ -4327,11 +4410,11 @@ function computeAggregateStats(): AggregateStats {
   const topTags = db
     .prepare(`
       SELECT
-        json_extract(je.value, '$.id') AS tag_id,
-        json_extract(je.value, '$.name') AS tag_name,
+        ti.tag_id AS tag_id,
+        COALESCE(MAX(ti.tag_name), ti.tag_id) AS tag_name,
         COUNT(*) AS count
-      FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
-      WHERE COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
+      FROM collection c JOIN vn_tag_index ti ON ti.vn_id = c.vn_id
+      WHERE ti.spoiler = 0
       GROUP BY tag_id
       ORDER BY count DESC
       LIMIT 12
@@ -4404,12 +4487,12 @@ export function listCollectionTags(): CollectionTagAggregate[] {
   return (db
     .prepare(`
       SELECT
-        json_extract(je.value, '$.id') AS tag_id,
-        json_extract(je.value, '$.name') AS tag_name,
-        json_extract(je.value, '$.category') AS tag_category,
+        ti.tag_id AS tag_id,
+        COALESCE(MAX(ti.tag_name), ti.tag_id) AS tag_name,
+        MAX(ti.category) AS tag_category,
         COUNT(*) AS tag_count
-      FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
-      WHERE COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
+      FROM collection c JOIN vn_tag_index ti ON ti.vn_id = c.vn_id
+      WHERE ti.spoiler = 0
       GROUP BY tag_id
       ORDER BY tag_count DESC, tag_name COLLATE NOCASE ASC
     `)
@@ -4627,34 +4710,36 @@ export interface CoOccurringTag {
  * collection. Bigger `shared` means the tag is part of a recurring cluster
  * in your library.
  *
- * The query walks two `json_each` planes — `seedTags` from the seed VN and
- * `coTags` from every other in-collection VN — then aggregates. The seed's
- * own tags are excluded from the result so you see *adjacent* tags only.
+ * The query uses the flat `vn_tag_index` for both the seed VN and
+ * the other in-collection VNs, then excludes the seed's own tags so
+ * you see adjacent tags only.
  */
 export function getCoOccurringTags(vnId: string, limit = 24): CoOccurringTag[] {
   return (db
     .prepare(`
       WITH seedTags AS (
-        SELECT json_extract(je.value, '$.id') AS tag_id
-        FROM vn v, json_each(v.tags) je
-        WHERE v.id = ?
-          AND COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
+        SELECT tag_id
+        FROM vn_tag_index
+        WHERE vn_id = ?
+          AND spoiler = 0
+      ),
+      seedMatchedVns AS (
+        SELECT DISTINCT ti.vn_id
+        FROM vn_tag_index ti
+        JOIN collection c ON c.vn_id = ti.vn_id
+        WHERE ti.vn_id <> ?
+          AND ti.spoiler = 0
+          AND ti.tag_id IN (SELECT tag_id FROM seedTags)
       )
       SELECT
-        json_extract(coj.value, '$.id') AS tag_id,
-        json_extract(coj.value, '$.name') AS tag_name,
-        json_extract(coj.value, '$.category') AS tag_category,
-        COUNT(DISTINCT c.vn_id) AS shared_count
-      FROM collection c
-      JOIN vn v2 ON v2.id = c.vn_id
-      JOIN json_each(v2.tags) coj
-      WHERE c.vn_id <> ?
-        AND COALESCE(json_extract(coj.value, '$.spoiler'), 0) = 0
-        AND json_extract(coj.value, '$.id') NOT IN (SELECT tag_id FROM seedTags)
-        AND EXISTS (
-          SELECT 1 FROM json_each(v2.tags) inner_je
-          WHERE json_extract(inner_je.value, '$.id') IN (SELECT tag_id FROM seedTags)
-        )
+        ti.tag_id AS tag_id,
+        COALESCE(MAX(ti.tag_name), ti.tag_id) AS tag_name,
+        MAX(ti.category) AS tag_category,
+        COUNT(DISTINCT ti.vn_id) AS shared_count
+      FROM vn_tag_index ti
+      JOIN seedMatchedVns sm ON sm.vn_id = ti.vn_id
+      WHERE ti.spoiler = 0
+        AND ti.tag_id NOT IN (SELECT tag_id FROM seedTags)
       GROUP BY tag_id
       ORDER BY shared_count DESC, tag_name COLLATE NOCASE ASC
       LIMIT ?
@@ -6603,10 +6688,9 @@ export function unmarkReleaseOwned(vnId: string, releaseId: string): void {
 export function listKnownPlaces(): string[] {
   const rows = db
     .prepare(`
-      SELECT DISTINCT value AS place
-      FROM collection c, json_each(c.physical_location)
-      WHERE json_valid(c.physical_location)
-      ORDER BY value COLLATE NOCASE ASC
+      SELECT DISTINCT place
+      FROM collection_place_index
+      ORDER BY place COLLATE NOCASE ASC
     `)
     .all() as { place: string }[];
   return rows.map((r) => r.place);
@@ -7120,13 +7204,13 @@ export function yearReview(year: number): YearReview {
     .get(ys) as { m: number }).m;
   const topTags = (db
     .prepare(`
-      SELECT json_extract(je.value, '$.id') AS tag_id,
-             json_extract(je.value, '$.name') AS tag_name,
+      SELECT ti.tag_id AS tag_id,
+             COALESCE(MAX(ti.tag_name), ti.tag_id) AS tag_name,
              COUNT(*) AS tag_count
-      FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
+      FROM collection c JOIN vn_tag_index ti ON ti.vn_id = c.vn_id
       WHERE substr(c.finished_date, 1, 4) = ?
-        AND COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
-        AND COALESCE(json_extract(je.value, '$.category'), 'cont') <> 'ero'
+        AND ti.spoiler = 0
+        AND COALESCE(ti.category, 'cont') <> 'ero'
       GROUP BY tag_id
       ORDER BY tag_count DESC, tag_name COLLATE NOCASE ASC
       LIMIT 8
@@ -7170,12 +7254,12 @@ export function tagsCompletedPerYear(limit = 6): YearTag[] {
       WITH tagged AS (
         SELECT
           CAST(substr(c.finished_date, 1, 4) AS INTEGER) AS year,
-          json_extract(je.value, '$.id') AS tag_id,
-          json_extract(je.value, '$.name') AS tag_name
-        FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
+          ti.tag_id AS tag_id,
+          COALESCE(ti.tag_name, ti.tag_id) AS tag_name
+        FROM collection c JOIN vn_tag_index ti ON ti.vn_id = c.vn_id
         WHERE c.finished_date IS NOT NULL
-          AND COALESCE(json_extract(je.value, '$.spoiler'), 0) = 0
-          AND COALESCE(json_extract(je.value, '$.category'), 'cont') <> 'ero'
+          AND ti.spoiler = 0
+          AND COALESCE(ti.category, 'cont') <> 'ero'
       ),
       counts AS (
         SELECT year, tag_id, tag_name, COUNT(*) AS count FROM tagged
@@ -7602,6 +7686,7 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
       try {
         const exists = db.prepare('SELECT 1 FROM collection WHERE vn_id = ?').get(c.vn_id);
         if (exists) {
+          const physicalLocation = c.physical_location ?? null;
           db.prepare(`
             UPDATE collection SET
               status = ?, user_rating = ?, playtime_minutes = ?, started_date = ?, finished_date = ?,
@@ -7613,7 +7698,9 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
             c.notes, c.favorite ? 1 : 0, c.location ?? 'unknown', c.edition_type ?? 'none',
             c.edition_label, c.physical_location, c.updated_at ?? Date.now(), c.vn_id,
           );
+          writeCollectionPlaceIndex(c.vn_id, physicalLocation);
         } else {
+          const physicalLocation = c.physical_location ?? null;
           db.prepare(`
             INSERT INTO collection (vn_id, status, user_rating, playtime_minutes, started_date, finished_date,
                                     notes, favorite, location, edition_type, edition_label, physical_location,
@@ -7624,6 +7711,7 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
             c.notes, c.favorite ? 1 : 0, c.location ?? 'unknown', c.edition_type ?? 'none',
             c.edition_label, c.physical_location, c.added_at ?? Date.now(), c.updated_at ?? Date.now(),
           );
+          writeCollectionPlaceIndex(c.vn_id, physicalLocation);
         }
         summary.collection_upserted++;
       } catch (e) {
