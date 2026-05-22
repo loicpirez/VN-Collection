@@ -8257,10 +8257,13 @@ export function batchGetProducerNames(ids: string[]): Map<string, string> {
     const mp = missing.map(() => '?').join(',');
     const fromVn = db
       .prepare(
-        `SELECT DISTINCT json_extract(d.value, '$.id') AS id,
+        `SELECT DISTINCT di.producer_id AS id,
                          json_extract(d.value, '$.name') AS name
-         FROM vn, json_each(vn.developers) AS d
-         WHERE json_extract(d.value, '$.id') IN (${mp})`,
+         FROM vn_developer_index di
+         JOIN vn ON vn.id = di.vn_id,
+         json_each(vn.developers) d
+         WHERE di.producer_id IN (${mp})
+           AND json_extract(d.value, '$.id') = di.producer_id`,
       )
       .all(...missing) as { id: string; name: string }[];
     for (const r of fromVn) {
