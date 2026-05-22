@@ -67,6 +67,8 @@ export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
       ref={inputRef}
       type="file"
       accept="image/*"
+      aria-hidden="true"
+      tabIndex={-1}
       className="hidden"
       onChange={(e) => {
         const f = e.target.files?.[0];

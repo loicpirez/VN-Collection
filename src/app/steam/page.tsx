@@ -310,10 +310,10 @@ export default function SteamSyncPage() {
                 className="flex items-center justify-between gap-2 rounded-md border border-border bg-bg-elev/30 p-2 text-[11px]"
               >
                 <span className="min-w-0 flex-1">
-                  <Link href={`/vn/${l.vn_id}`} className="line-clamp-1 font-bold hover:text-accent">
+                  <Link href={`/vn/${l.vn_id}`} className="line-clamp-1 font-bold hover:text-accent" title={l.vn_id}>
                     {l.vn_id}
                   </Link>
-                  <span className="line-clamp-1 inline-flex items-center gap-1 text-muted">
+                  <span className="line-clamp-1 inline-flex items-center gap-1 text-muted" title={l.steam_name}>
                     <ArrowLeftRight className="h-2.5 w-2.5" aria-hidden /> {l.steam_name}
                   </span>
                 </span>
@@ -369,6 +369,7 @@ export default function SteamSyncPage() {
                       value={query}
                       onChange={(e) => searchAssign(g.appid, e.target.value)}
                       placeholder={t.steam.assignPlaceholder}
+                      aria-label={t.steam.assignPlaceholder}
                       className="w-full bg-transparent text-xs focus:outline-none"
                     />
                   </div>

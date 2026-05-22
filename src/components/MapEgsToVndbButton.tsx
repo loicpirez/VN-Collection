@@ -183,7 +183,7 @@ export function MapEgsToVndbButton({
               <div className="min-w-0 flex-1">
                 <h2 id={titleId} className="text-base font-bold">{t.mapEgs.title}</h2>
                 <p className="mt-0.5 text-[11px] text-muted">{t.mapEgs.hint}</p>
-                <p className="mt-1 truncate text-[11px]">
+                <p className="mt-1 truncate text-[11px]" title={`EGS · #${egsId} · ${gamename}`}>
                   <span className="text-muted">EGS · </span>
                   <span className="font-mono">#{egsId}</span>
                   <span className="text-muted"> · </span>
@@ -268,7 +268,7 @@ export function MapEgsToVndbButton({
                   className="flex items-center gap-2 rounded-md border border-border bg-bg-elev/30 px-3 py-2 text-xs hover:border-accent"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-bold">{h.title}</div>
+                    <div className="truncate font-bold" title={h.title}>{h.title}</div>
                     <div className="flex flex-wrap gap-x-2 text-[10px] text-muted">
                       <span className="font-mono">{h.id}</span>
                       {h.released && <span>{h.released}</span>}

@@ -248,12 +248,12 @@ export function EditionInfoTrigger({
             placed ? 'visible opacity-100' : 'invisible opacity-0'
           }`}
         >
-          <p className="line-clamp-2 text-xs font-bold">{data.vn_title}</p>
+          <p className="line-clamp-2 text-xs font-bold" title={data.vn_title}>{data.vn_title}</p>
           {data.rel_title && data.rel_title !== data.vn_title && (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted">{data.rel_title}</p>
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted" title={data.rel_title}>{data.rel_title}</p>
           )}
           {data.edition_label && (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted">{data.edition_label}</p>
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted" title={data.edition_label}>{data.edition_label}</p>
           )}
           {/*
             Prefer release-level metadata (rel_*) when materialized;

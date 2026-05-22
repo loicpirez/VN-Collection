@@ -61,6 +61,7 @@ export function CreateListForm() {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder={t.lists.createPrompt}
+        aria-label={t.lists.createPrompt}
         maxLength={120}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
@@ -72,6 +73,7 @@ export function CreateListForm() {
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder={t.lists.createHint}
+        aria-label={t.lists.createHint}
         maxLength={400}
         className="input min-w-[180px] flex-[2]"
       />

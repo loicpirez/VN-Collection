@@ -53,11 +53,11 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
                 />
               </Link>
               <div className="min-w-0 flex-1">
-                <Link href={`/character/${c.id}`} className="line-clamp-2 text-xs font-bold hover:text-accent">
+                <Link href={`/character/${c.id}`} className="line-clamp-2 text-xs font-bold hover:text-accent" title={c.name}>
                   {c.name}
                 </Link>
                 {c.original && c.original !== c.name && (
-                  <div className="line-clamp-1 text-[10px] text-muted">{c.original}</div>
+                  <div className="line-clamp-1 text-[10px] text-muted" title={c.original}>{c.original}</div>
                 )}
                 <Link
                   href={`/staff/${s.id}`}

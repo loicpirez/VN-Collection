@@ -1416,7 +1416,7 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
             className="h-full w-full"
           />
         </div>
-        <p className="mt-1 line-clamp-2 text-[10px] font-bold leading-tight">{entry.vn_title}</p>
+        <p className="mt-1 line-clamp-2 text-[10px] font-bold leading-tight" title={entry.vn_title}>{entry.vn_title}</p>
         {/*
           Distinguisher line: when the user has two editions of the
           same VN in the pool, both cards used to render the bare

@@ -185,6 +185,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
             }
           }}
           placeholder={t.gameLog.placeholder}
+          aria-label={t.gameLog.placeholder}
           className="input w-full resize-y bg-transparent text-sm"
         />
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -288,6 +289,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                             maxLength={NOTE_MAX}
                             rows={3}
                             autoFocus
+                            aria-label={t.gameLog.placeholder}
                             onChange={(e) => setEditingText(e.target.value)}
                             onKeyDown={(e) => {
                               if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {

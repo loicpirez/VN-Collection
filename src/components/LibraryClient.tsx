@@ -1693,7 +1693,7 @@ function LibraryActionsMenuItem({
       className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-white/90 hover:bg-bg-elev hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-white/90"
     >
       <span className="text-muted">{icon}</span>
-      <span className="flex-1 truncate">{label}</span>
+      <span className="flex-1 truncate" title={label}>{label}</span>
     </button>
   );
 }

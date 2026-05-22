@@ -363,13 +363,14 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                             /release/[id] target — render the title
                             as plain text and skip the info link. */}
                         {edition.release_id.startsWith('synthetic:') ? (
-                          <div className="line-clamp-2 text-sm font-bold">
+                          <div className="line-clamp-2 text-sm font-bold" title={t.inventory.syntheticTitle}>
                             {t.inventory.syntheticTitle}
                           </div>
                         ) : (
                           <Link
                             href={`/release/${edition.release_id}`}
                             className="line-clamp-2 text-sm font-bold hover:text-accent"
+                            title={release?.title ?? edition.release_id}
                           >
                             {release?.title ?? edition.release_id}
                           </Link>
@@ -1090,7 +1091,7 @@ function EditionPicker({
               />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="line-clamp-2 font-semibold">{t.inventory.syntheticTitle}</div>
+              <div className="line-clamp-2 font-semibold" title={t.inventory.syntheticTitle}>{t.inventory.syntheticTitle}</div>
               <div className="text-[11px] text-muted">{t.inventory.syntheticHint}</div>
             </div>
           </button>
@@ -1132,9 +1133,9 @@ function EditionPicker({
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="line-clamp-2 text-[12px] font-semibold">{r.title}</div>
+                <div className="line-clamp-2 text-[12px] font-semibold" title={r.title}>{r.title}</div>
                 {r.alttitle && r.alttitle !== r.title && (
-                  <div className="line-clamp-1 text-[10px] text-muted">{r.alttitle}</div>
+                  <div className="line-clamp-1 text-[10px] text-muted" title={r.alttitle}>{r.alttitle}</div>
                 )}
                 <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-muted">
                   {r.released && <span className="tabular-nums">{r.released}</span>}
@@ -1157,7 +1158,7 @@ function EditionPicker({
                   {res && <span>{res}</span>}
                 </div>
                 {(dev || pub) && (
-                  <div className="mt-0.5 line-clamp-1 text-[10px] text-muted">
+                  <div className="mt-0.5 line-clamp-1 text-[10px] text-muted" title={[dev, pub].filter(Boolean).join(' · ')}>
                     {dev && <b className="text-white/80">{dev}</b>}
                     {dev && pub && ' · '}
                     {pub}

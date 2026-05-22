@@ -39,6 +39,7 @@ export default async function QuotesPage({
             name="q"
             defaultValue={q ?? ''}
             placeholder={t.quotesPage.searchPlaceholder}
+            aria-label={t.quotesPage.searchPlaceholder}
             className="input flex-1"
           />
         </form>

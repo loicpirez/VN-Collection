@@ -332,7 +332,20 @@ export function DownloadStatusBar() {
           only showed "1 en cours · 0/0" which manual QA flagged
           as opaque ("can't see what's downloading").
         */}
-        <span className="min-w-0 truncate">
+        <span
+          className="min-w-0 truncate"
+          title={
+            retryingNow
+              ? t.downloadStatus.waitingShort.replace('{s}', String(Math.ceil(localRetryMs / 1000)))
+              : live.length === 1
+                ? (() => { const j = live[0]; return `${labelKind(j.kind)} · ${j.current_item || j.label}`; })()
+                : live.length > 1
+                  ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
+                  : totalErrors > 0
+                    ? t.downloadStatus.errorCount.replace('{n}', String(totalErrors))
+                    : t.downloadStatus.idle
+          }
+        >
           {retryingNow
             ? t.downloadStatus.waitingShort.replace('{s}', String(Math.ceil(localRetryMs / 1000)))
             : live.length === 1
@@ -423,7 +436,7 @@ export function DownloadStatusBar() {
                     </span>
                   </div>
                   {!finished && j.current_item && (
-                    <div className="mt-0.5 truncate text-[10px] text-muted/90">
+                    <div className="mt-0.5 truncate text-[10px] text-muted/90" title={`${labelKind(j.kind)} · ${j.label}`}>
                       {labelKind(j.kind)} ·{' '}
                       <JobLabelText label={j.label} vnId={j.vn_id ?? null} vnTitle={j.vn_title} />
                     </div>
@@ -450,7 +463,7 @@ export function DownloadStatusBar() {
                   {j.errors.length > 0 && (
                     <ul className="mt-1.5 space-y-0.5 text-[10px] text-status-dropped">
                       {j.errors.slice(0, 3).map((e, i) => (
-                        <li key={`${j.id}-err-${i}`} className="truncate">
+                        <li key={`${j.id}-err-${i}`} className="truncate" title={`${e.item}: ${e.message}`}>
                           <AlertTriangle className="mr-1 inline-block h-2.5 w-2.5" />
                           <span className="font-bold">
                             {idToHref(e.item) ? (

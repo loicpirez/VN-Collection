@@ -200,9 +200,9 @@ export function SimilarSeedPicker({
             />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-1 text-sm font-semibold">{currentSeed.title}</p>
+            <p className="line-clamp-1 text-sm font-semibold" title={currentSeed.title}>{currentSeed.title}</p>
             {currentSeed.alttitle && currentSeed.alttitle !== currentSeed.title && (
-              <p className="line-clamp-1 text-[11px] text-muted">{currentSeed.alttitle}</p>
+              <p className="line-clamp-1 text-[11px] text-muted" title={currentSeed.alttitle}>{currentSeed.alttitle}</p>
             )}
           </div>
           <button

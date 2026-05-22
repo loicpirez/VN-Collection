@@ -93,10 +93,10 @@ export function TagInput({
           onFocus={() => setFocused(true)}
           onBlur={() => {
             setFocused(false);
-            // Commit on blur so the user doesn't lose what they typed
             if (draft.trim()) commit(draft);
           }}
           placeholder={values.length === 0 ? placeholder : ''}
+          aria-label={placeholder}
           className="min-w-[120px] flex-1 bg-transparent text-sm text-white outline-none placeholder:text-muted/60"
           maxLength={maxLength}
         />

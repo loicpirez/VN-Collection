@@ -105,7 +105,7 @@ function VnActivitySummary({
       const text = typeof p?.text === 'string' ? p.text : undefined;
       if (!text) return null;
       return (
-        <span className="line-clamp-2 text-muted">{text}</span>
+        <span className="line-clamp-2 text-muted" title={text}>{text}</span>
       );
     }
     default:

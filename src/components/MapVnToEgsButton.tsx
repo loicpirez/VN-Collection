@@ -186,7 +186,7 @@ export function MapVnToEgsButton({
               <div className="min-w-0 flex-1">
                 <h2 id={titleId} className="text-base font-bold">{t.mapVn.title}</h2>
                 <p className="mt-0.5 text-[11px] text-muted">{t.mapVn.hint}</p>
-                <p className="mt-1 truncate text-[11px]">
+                <p className="mt-1 truncate text-[11px]" title={`VN · ${vnId} · ${seedQuery}`}>
                   <span className="text-muted">VN · </span>
                   <span className="font-mono">{vnId}</span>
                   <span className="text-muted"> · </span>

@@ -44,7 +44,7 @@ export async function TagCoOccurrence({ vnId }: { vnId: string }) {
                   aria-hidden
                 />
                 <div className="relative flex items-baseline justify-between gap-2">
-                  <span className="truncate font-semibold">{r.name}</span>
+                  <span className="truncate font-semibold" title={r.name}>{r.name}</span>
                   <span className="shrink-0 text-[10px] text-muted">{r.shared}</span>
                 </div>
               </Link>

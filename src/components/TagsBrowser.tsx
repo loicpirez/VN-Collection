@@ -382,7 +382,7 @@ function TagListPanel({
         {tags.slice(0, 12).map((tag) => (
           <li key={tag.id}>
             <Link href={tag.href} className="group flex items-center gap-2 rounded-lg border border-border bg-bg-elev/35 px-3 py-2 text-sm hover:border-accent">
-              <span className="min-w-0 flex-1 truncate font-medium group-hover:text-accent">{tag.name}</span>
+              <span className="min-w-0 flex-1 truncate font-medium group-hover:text-accent" title={tag.name}>{tag.name}</span>
               {showDate && tag.dateLabel ? <span className="text-xs text-muted">{tag.dateLabel}</span> : null}
               {tag.count != null ? <span className="text-xs tabular-nums text-muted">({fmtNum(tag.count, locale)})</span> : null}
               {localCounts.get(tag.id) ? <span className="rounded bg-accent/20 px-1 text-xs text-accent">{localCounts.get(tag.id)}</span> : null}

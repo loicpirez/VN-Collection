@@ -70,7 +70,7 @@ export function RecentlyViewedStrip({ initialState }: Props) {
                   className="h-full w-full"
                 />
               </div>
-              <span className="line-clamp-2 text-[10px] leading-tight text-muted transition-colors group-hover:text-white">
+              <span className="line-clamp-2 text-[10px] leading-tight text-muted transition-colors group-hover:text-white" title={it.title}>
                 {it.title}
               </span>
             </Link>

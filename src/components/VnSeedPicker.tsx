@@ -409,7 +409,7 @@ export function VnSeedPicker({
                         {hit.alttitle && hit.alttitle !== hit.title && (
                           <p title={hit.alttitle} className="line-clamp-1 text-[10px] text-muted">{hit.alttitle}</p>
                         )}
-                        <p className="line-clamp-1 text-[10px] text-muted">
+                        <p className="line-clamp-1 text-[10px] text-muted" title={[year, hit.developer].filter(Boolean).join(' · ')}>
                           {[year, hit.developer].filter(Boolean).join(' · ')}
                         </p>
                       </div>
