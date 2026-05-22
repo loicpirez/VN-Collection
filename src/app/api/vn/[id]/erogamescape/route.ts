@@ -77,6 +77,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
  *                        pin so the auto-resolver gets a fresh shot.
  */
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   if (!/^(v\d+|egs_\d+)$/i.test(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });

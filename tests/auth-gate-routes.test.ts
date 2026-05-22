@@ -61,7 +61,10 @@ import {
   PATCH as collectionRoutesPATCH,
 } from '@/app/api/collection/[id]/routes/route';
 import { PATCH as sourcePrefPATCH } from '@/app/api/collection/[id]/source-pref/route';
-import { POST as erogamescapePOST } from '@/app/api/vn/[id]/erogamescape/route';
+import {
+  POST as erogamescapePOST,
+  DELETE as erogamescapeDELETE,
+} from '@/app/api/vn/[id]/erogamescape/route';
 import {
   POST as wishlistIdPOST,
   DELETE as wishlistIdDELETE,
@@ -485,6 +488,10 @@ describe('NEW-TCO-002 — NEW-SECA-001..019: newly-gated routes return 403 from 
   });
   it('POST /api/vn/[id]/erogamescape', async () => {
     const res = await erogamescapePOST(externalReq('/api/vn/v1/erogamescape', 'POST', { egs_id: 1 }), ctx());
+    expect(res.status).toBe(403);
+  });
+  it('DELETE /api/vn/[id]/erogamescape', async () => {
+    const res = await erogamescapeDELETE(externalReq('/api/vn/v1/erogamescape', 'DELETE'), ctx());
     expect(res.status).toBe(403);
   });
 });
