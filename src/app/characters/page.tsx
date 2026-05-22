@@ -3,6 +3,20 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowLeft, UserSquare, X } from 'lucide-react';
 import { searchCharacters, type VndbCharacter } from '@/lib/vndb';
+
+function isVndbCharacter(p: unknown): p is VndbCharacter {
+  if (typeof p !== 'object' || p === null) return false;
+  const r = p as Record<string, unknown>;
+  return (
+    typeof r.id === 'string' &&
+    r.id.length > 0 &&
+    typeof r.name === 'string' &&
+    r.name.length > 0 &&
+    Array.isArray(r.aliases) &&
+    Array.isArray(r.vns) &&
+    Array.isArray(r.traits)
+  );
+}
 import { searchLocalCharacters } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
@@ -74,9 +88,9 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   // local as fallback when no text query is active.
   const localResults: VndbCharacter[] = searchLocalCharacters({ q: query || undefined, limit: 200 }).flatMap(
     (row) => {
-      const p = row.profile as Record<string, unknown>;
-      if (typeof p?.id !== 'string' || typeof p?.name !== 'string') return [];
-      return [{ ...(p as unknown as VndbCharacter), voice_languages: row.voice_languages }];
+      const p = row.profile;
+      if (!isVndbCharacter(p)) return [];
+      return [{ ...p, voice_languages: row.voice_languages }];
     },
   );
   let vndbResults: VndbCharacter[] = [];
