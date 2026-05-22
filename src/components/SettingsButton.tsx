@@ -251,6 +251,16 @@ export function SettingsButton() {
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);
       await loadServer();
+      if (
+        'home_section_layout_v1' in patch ||
+        'vn_detail_section_layout_v1' in patch ||
+        'character_detail_section_layout_v1' in patch ||
+        'staff_detail_section_layout_v1' in patch ||
+        'producer_detail_section_layout_v1' in patch ||
+        'series_detail_section_layout_v1' in patch
+      ) {
+        startTransition(() => router.refresh());
+      }
     } catch (e) {
       toast.error((e as Error).message);
     }
