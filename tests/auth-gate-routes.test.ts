@@ -50,6 +50,7 @@ import {
   PATCH as ownedReleasesPATCH,
   DELETE as ownedReleasesDELETE,
 } from '@/app/api/collection/[id]/owned-releases/route';
+import { GET as steamLibraryGET } from '@/app/api/steam/library/route';
 import { GET as steamSyncGET, POST as steamSyncPOST } from '@/app/api/steam/sync/route';
 import { POST as steamLinkPOST, DELETE as steamLinkDELETE } from '@/app/api/steam/link/route';
 import {
@@ -402,6 +403,10 @@ describe('NEW-TCO-002 — NEW-SECA-001..019: newly-gated routes return 403 from 
   });
   it('DELETE /api/collection/[id]/owned-releases', async () => {
     expect((await ownedReleasesDELETE(externalReq('/api/collection/v1/owned-releases', 'DELETE'), ctx())).status).toBe(403);
+  });
+
+  it('GET /api/steam/library', async () => {
+    expect((await steamLibraryGET(externalReq('/api/steam/library'))).status).toBe(403);
   });
 
   it('GET /api/steam/sync', async () => {

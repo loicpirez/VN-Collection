@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
       body = (await req.json()) as CollectionExportPayload;
     }
   } catch (e) {
-    return NextResponse.json({ error: `invalid JSON: ${(e as Error).message}` }, { status: 400 });
+    console.error('[collection/import] JSON parse failed:', (e as Error).message);
+    return NextResponse.json({ error: 'invalid JSON' }, { status: 400 });
   }
   if (!body || typeof body !== 'object' || !Array.isArray(body.collection) || !Array.isArray(body.vns)) {
     return NextResponse.json({ error: 'unexpected payload shape' }, { status: 400 });
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, summary });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    console.error('[collection/import] importData failed:', (e as Error).message);
+    return NextResponse.json({ error: 'import failed' }, { status: 500 });
   }
 }

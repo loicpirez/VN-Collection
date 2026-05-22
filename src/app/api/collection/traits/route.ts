@@ -14,12 +14,18 @@ interface Aggregate {
   count: number;
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const vnIds = (db.prepare('SELECT vn_id AS id FROM collection').all() as { id: string }[]).map(
-    (r) => r.id,
-  );
+  let vnIds: string[];
+  try {
+    vnIds = (db.prepare('SELECT vn_id AS id FROM collection').all() as { id: string }[]).map(
+      (r) => r.id,
+    );
+  } catch (e) {
+    console.error('[collection/traits] db.prepare failed:', (e as Error).message);
+    return NextResponse.json({ error: 'database error' }, { status: 500 });
+  }
   const map = new Map<string, Aggregate>();
   let withCache = 0;
   for (const vnId of vnIds) {

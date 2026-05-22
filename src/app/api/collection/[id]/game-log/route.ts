@@ -82,7 +82,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     logGameLogActivity('collection.game-log-add', id, 'Added game-log entry', minutes, !!body.note);
     return NextResponse.json({ entry });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    console.error('[game-log] addGameLogEntry failed:', (e as Error).message);
+    return NextResponse.json({ error: 'could not add entry' }, { status: 500 });
   }
 }
 
@@ -121,7 +122,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     logGameLogActivity('collection.game-log-update', id, 'Updated game-log entry', minutes, hasNote);
     return NextResponse.json({ entry });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    console.error('[game-log] updateGameLogEntry failed:', (e as Error).message);
+    return NextResponse.json({ error: 'could not update entry' }, { status: 500 });
   }
 }
 

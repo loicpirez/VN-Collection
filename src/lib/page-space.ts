@@ -96,7 +96,7 @@ export const PAGE_SPACE_SCOPE_DEFAULTS: Record<PageSpaceScope, PageSpacePreset> 
   upcoming: 'standard',
   similar: 'wide',
   tags: 'standard',
-  data: 'compact',
+  data: 'wide',
   brandOverlap: 'wide',
   activity: 'wide',
   dumped: 'wide',

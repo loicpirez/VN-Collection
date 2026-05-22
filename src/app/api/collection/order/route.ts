@@ -36,7 +36,8 @@ export async function PATCH(req: NextRequest) {
     }
     return NextResponse.json({ ok: true, count: ids.length });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    console.error('[collection/order] setCollectionCustomOrder failed:', (e as Error).message);
+    return NextResponse.json({ error: 'could not save order' }, { status: 500 });
   }
 }
 
@@ -58,6 +59,7 @@ export async function DELETE(req: NextRequest) {
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    console.error('[collection/order] resetCollectionCustomOrder failed:', (e as Error).message);
+    return NextResponse.json({ error: 'could not reset order' }, { status: 500 });
   }
 }

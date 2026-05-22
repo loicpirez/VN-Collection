@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ list });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    console.error('[lists] createUserList failed:', (e as Error).message);
+    return NextResponse.json({ error: 'could not create list' }, { status: 500 });
   }
 }

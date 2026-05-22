@@ -86,13 +86,13 @@ describe('POST /api/backup/restore', () => {
     expect(mockRestore).toHaveBeenCalledOnce();
   });
 
-  it('returns 500 when restoreFromSqliteFile throws', async () => {
+  it('returns 500 with generic message when restoreFromSqliteFile throws', async () => {
     mockRestore.mockRejectedValue(new Error('disk full'));
     const file = new Blob([makeSqliteFile()]);
     const req = makeRequest(file);
     const res = await POST(req);
     expect(res.status).toBe(500);
     const body = await res.json() as { error: string };
-    expect(body.error).toBe('disk full');
+    expect(body.error).toBe('restore failed');
   });
 });

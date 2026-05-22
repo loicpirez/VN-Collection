@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, summary });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    console.error('[backup/restore] restore failed:', (e as Error).message);
+    return NextResponse.json({ error: 'restore failed' }, { status: 500 });
   }
 }

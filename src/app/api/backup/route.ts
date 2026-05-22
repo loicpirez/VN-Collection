@@ -21,7 +21,8 @@ export async function GET(req: Request) {
   try {
     await db.backup(tmpPath);
   } catch (e) {
-    return NextResponse.json({ error: `backup failed: ${(e as Error).message}` }, { status: 500 });
+    console.error('[backup] SQLite backup failed:', (e as Error).message);
+    return NextResponse.json({ error: 'backup failed' }, { status: 500 });
   }
 
   let size: number;

@@ -69,7 +69,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     });
     return NextResponse.json({ list });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    console.error('[lists/[id]] updateUserList failed:', (e as Error).message);
+    return NextResponse.json({ error: 'could not update list' }, { status: 500 });
   }
 }
 

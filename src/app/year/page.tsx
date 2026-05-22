@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Award, ChevronLeft, ChevronRight, Clock, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, Award, ChevronLeft, ChevronRight, Clock, Sparkles, Star } from 'lucide-react';
 import { getReadingGoal, yearReview } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { ActivityHeatmap } from '@/components/ActivityHeatmap';

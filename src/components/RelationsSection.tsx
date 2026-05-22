@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, GitMerge } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { useT } from '@/lib/i18n/client';
@@ -45,6 +45,30 @@ function relationCardData(r: EnrichedRelation): CardData {
   relationCache.set(r, data);
   return data;
 }
+
+/**
+ * Memoized wrapper that stabilises the `badge` prop reference so
+ * `React.memo(VnCard)` doesn't re-render when the parent section
+ * toggles open/closed without changing any relation data.
+ */
+const RelationCard = memo(function RelationCard({
+  r,
+  label,
+  unofficial,
+}: {
+  r: EnrichedRelation;
+  label: string;
+  unofficial: string;
+}) {
+  const badge = useMemo(
+    () => ({
+      label: r.relation_official ? label : `${label} · ${unofficial}`,
+      tone: (r.relation_official ? 'accent' : 'muted') as 'accent' | 'muted',
+    }),
+    [r.relation_official, label, unofficial],
+  );
+  return <VnCard badge={badge} data={relationCardData(r)} />;
+});
 
 interface Props {
   relations: EnrichedRelation[];
@@ -94,15 +118,16 @@ export function RelationsSection({ relations }: Props) {
                 {label}
                 <span className="opacity-70">· {rels.length}</span>
               </h4>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              <div
+                className="grid gap-4"
+                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+              >
                 {rels.map((r) => (
-                  <VnCard
+                  <RelationCard
                     key={`${r.id}-${r.relation}`}
-                    badge={{
-                      label: r.relation_official ? label : `${label} · ${t.relations.unofficial}`,
-                      tone: r.relation_official ? 'accent' : 'muted',
-                    }}
-                    data={relationCardData(r)}
+                    r={r}
+                    label={label}
+                    unofficial={t.relations.unofficial}
                   />
                 ))}
               </div>

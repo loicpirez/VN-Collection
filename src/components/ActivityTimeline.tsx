@@ -85,7 +85,7 @@ function summary(entry: Entry, t: ReturnType<typeof useT>, locale: Locale): Reac
     case 'finished':
       return `${t.activity.kind.finished}: ${String(p.to ?? '—')}`;
     case 'note':
-      return `${t.activity.kind.note} (${typeof p.length === 'number' ? p.length : 0} ${t.activity.noteChars})`;
+      return `${t.activity.kind.note} (${typeof p.length === 'number' ? p.length : 0} ${t.userActivity.noteChars})`;
     case 'manual':
       return String(p.text ?? '');
     default: {

@@ -1,0 +1,235 @@
+# Round 6 Master Regression Checklist
+
+Status values: `TODO`, `IN_PROGRESS`, `FIXED_VERIFIED`, `EXTERNALLY_BLOCKED_WITH_EVIDENCE`, `NON_APPLICABLE_WITH_EVIDENCE`.
+
+Every `FIXED_VERIFIED` item must cite a unit/integration test, Playwright assertion, DOM QA assertion, screenshot/manual browser evidence with route, or source-level proof for non-interactive backend work.
+
+Findings sourced from 8 parallel audit agents run on 2025-05-22:
+- **i18n**: 24 findings
+- **Security**: 15 findings
+- **Accessibility (a11y)**: 41 findings
+- **UX/UI**: 26 findings
+- **Responsive**: 21 findings
+- **Feature Integration**: 8 gaps
+- **TypeScript / Code Quality**: ~15 items
+- **Testing**: ~25 items
+- **Density Slider** (user correction): 4 items
+
+---
+
+## BASELINE
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-000 | Baseline | Capture HEAD, clean tree, and current history before changes. | repo | — | Pre-session `git log --oneline -n 5` and `git status --short` | TODO |
+| R6-001 | Baseline | `yarn typecheck` passes before round-6 work. | repo | — | `yarn typecheck` output: "Done in …s." | TODO |
+| R6-002 | Baseline | `yarn test --run` passes before round-6 work. | repo | — | Full vitest output with total passing count | TODO |
+| R6-003 | Baseline | `yarn build` passes before round-6 work. | repo | — | Next.js build output with route count | TODO |
+
+---
+
+## i18n / TRANSLATIONS
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-010 | i18n | CRITICAL: `t.activity.noteChars` is wrong namespace — key does not exist under `t.activity`; must be `t.userActivity.noteChars`. Causes silent undefined rendering. | `src/components/ActivityTimeline.tsx:88` | — | Source read confirms corrected namespace; `tests/activity-timeline-i18n.test.ts` pins the key path | TODO |
+| R6-011 | i18n | Hardcoded `"VNDB"` prefix inside aria-label string concatenation — not translated. | `src/components/TagsBrowser.tsx:465` | — | Source read confirms i18n key used; dict coverage test passes | TODO |
+| R6-012 | i18n | Hardcoded `"QR"` prefix inside aria-label — not translated. | `src/app/labels/page.tsx:130` | — | Source read confirms i18n key used | TODO |
+| R6-013 | i18n | Hardcoded `"Bayes"` inside aria-label — not translated. | `src/app/top-ranked/page.tsx:594` | — | Source read confirms i18n key used | TODO |
+| R6-014 | i18n | Hardcoded `"VNDB:"` and `"EGS:"` visible label strings — not translated. | `src/components/ReadingSpeedBadge.tsx:42-43` | — | Source read confirms i18n keys used in all three locales | TODO |
+| R6-015 | i18n | Hardcoded placeholder text `"v11, v90017…"` (contains real VNDB ID examples — copyright risk for display) — not translated and locale-unaware. Replace with generic `"v123, v456…"` format. | `src/components/SeriesAddVnForm.tsx:45` | — | Source read confirms placeholder uses i18n key; no real IDs | TODO |
+| R6-016 | i18n | Hardcoded `'DB'` and `'env'` labels in data page environment info block — not translated. | `src/app/data/page.tsx:73` | — | Source read confirms i18n keys used | TODO |
+| R6-017 | i18n | Hardcoded `"digest:"` prefix string in global error page — not translated. | `src/app/global-error.tsx:73` | — | Source read confirms i18n key used | TODO |
+| R6-018 | i18n | `.toFixed()` used for locale-unaware number formatting in 20+ locations across the app. Full list: `VnCard.tsx:171`, `StatsExtras.tsx:92`, `VnTagsGroupedView.tsx:159,166,168`, `ScoreSection.tsx:36`, `VndbStatusPanel.tsx:182,242,256`, `EgsPanel.tsx:324,342`, `EgsRichDetails.tsx:160`, `SettingsButton.tsx:563`, `SpoilerToggle.tsx:154`, `ProducerVnsSections.tsx:184`, `top-ranked/page.tsx:472`, `compare/page.tsx:284,288`, `stats/page.tsx:69,143`, `year/page.tsx:83,141`, `character/[id]/page.tsx:370`, `similar/page.tsx:240`, `producers/page.tsx:137,138`, `staff/[id]/page.tsx:464`, `tag/[id]/page.tsx:208,469`, `recommendations/page.tsx:727,728`. Replace with `fmtNum` (locale-aware helper). | Multiple files | — | `tests/i18n-no-tofixed.test.ts` source-pins zero `.toFixed(` outside allowed list; all locales render correct decimal separator | TODO |
+| R6-019 | i18n | Hardcoded `h` unit suffix for hours in `LibraryClient.tsx:983` and `stats/page.tsx:148,153` — not translated. French should show `h`, Japanese `時間`, etc. | `src/components/LibraryClient.tsx:983`, `src/app/stats/page.tsx:148,153` | — | Source read confirms i18n keys used for unit suffix | TODO |
+| R6-020 | i18n | HIGH: `src/lib/format.ts:26-28` — `formatPlaytime` uses hardcoded `h` and `m` suffixes. This is the shared helper called by all playtime display sites; locale-unaware suffixes ripple everywhere. Must accept locale parameter and use dict keys. | `src/lib/format.ts:26-28` | — | `tests/format-locale.test.ts` covers FR/EN/JA output with correct unit strings | TODO |
+| R6-021 | i18n | `BarChart.tsx:41,101` calls `.toLocaleString()` without locale parameter — falls back to system locale, not user's app locale. Pass the active locale from context. | `src/components/BarChart.tsx:41,101` | — | Source read confirms locale param passed to `.toLocaleString()` | TODO |
+| R6-022 | i18n | `shelf/page.tsx:71` uses `.toFixed(2)` for a currency/price display — not locale-aware; decimal separator and precision vary by locale. | `src/app/shelf/page.tsx:71` | — | Source read confirms `fmtNum` or `Intl.NumberFormat` with locale | TODO |
+| R6-023 | i18n | `CachePanel.tsx:23-24` has hardcoded `kB` and `MB` unit strings — not translated. | `src/components/CachePanel.tsx:23-24` | — | Source read confirms i18n keys used; dict keys in all three locales | TODO |
+
+---
+
+## SECURITY
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-030 | Security | Raw `(err as Error).message` or equivalent leaks into 500 response body in backup route. | `src/app/api/backup/route.ts:24` | — | `tests/api-backup-error.test.ts` returns generic error body on catch | TODO |
+| R6-031 | Security | Raw error message leaks into restore route response body. | `src/app/api/backup/restore/route.ts:57` | — | `tests/api-backup-restore-error.test.ts` returns generic error body on catch | TODO |
+| R6-032 | Security | Raw error messages in two catch blocks of import route response body. | `src/app/api/collection/import/route.ts:47,63` | — | `tests/api-collection-import-error.test.ts` returns generic error body | TODO |
+| R6-033 | Security | HIGH: `api/steam/library/route.ts` GET handler has no `requireLocalhostOrToken` auth gate. Any unauthenticated caller can read the user's Steam library data. Fix: add auth gate as first statement. | `src/app/api/steam/library/route.ts:11-16` | — | `tests/api-steam-library-auth.test.ts` returns 403 without token; 200 with valid token | TODO |
+| R6-034 | Security | Raw error `.message` in `egs_warning` field of assets route response — leaks internal error details. | `src/app/api/collection/[id]/assets/route.ts:143-145,187` | — | Source read confirms sanitized warning; `tests/api-assets-error.test.ts` pins generic text | TODO |
+| R6-035 | Security | Raw SQLite error leaks into lists route response. | `src/app/api/lists/route.ts:45` | — | `tests/api-lists-error.test.ts` returns generic error body | TODO |
+| R6-036 | Security | Raw SQLite error leaks into `lists/[id]` route response. | `src/app/api/lists/[id]/route.ts:72` | — | `tests/api-lists-id-error.test.ts` returns generic error body | TODO |
+| R6-037 | Security | Raw SQLite errors in two catch blocks of collection order route response. | `src/app/api/collection/order/route.ts:39,61` | — | `tests/api-collection-order-error.test.ts` returns generic error body | TODO |
+| R6-038 | Security | Raw SQLite errors in game-log route response. | `src/app/api/collection/[id]/game-log/route.ts:85,124` | — | `tests/api-game-log-error.test.ts` returns generic error body | TODO |
+| R6-039 | Security | MEDIUM: 14 GET routes returning personal collection data have no auth gate — intentional public access must be confirmed or auth gate added. Routes: `/api/collection` GET, `/api/collection/[id]/game-log` GET, `/api/collection/[id]/owned-releases` GET, `/api/collection/[id]/routes` GET, `/api/collection/[id]/source-pref` GET, `/api/lists` GET, `/api/reading-queue` GET, `/api/shelves` GET, `/api/series` GET, `/api/saved-filters` GET, and 4 more. Each must have explicit comment `// intentionally public` or an auth gate added. | `src/app/api/collection/**`, `src/app/api/lists/route.ts`, `src/app/api/reading-queue/route.ts`, `src/app/api/shelves/route.ts`, `src/app/api/series/route.ts`, `src/app/api/saved-filters/route.ts` | — | `tests/api-get-auth-gate.test.ts` verifies each route returns 403 without token OR has `// intentionally public` comment | TODO |
+| R6-040 | Security | MEDIUM: `acquired_date` field accepted without ISO-8601 format validation — arbitrary strings can be persisted. Add regex validation (`/^\d{4}-\d{2}-\d{2}$/`) and reject on mismatch. | `src/app/api/collection/[id]/owned-releases/route.ts:57` | — | `tests/api-owned-releases-date.test.ts` rejects `"tomorrow"`, accepts `"2024-01-15"` | TODO |
+| R6-041 | Security | MEDIUM: `api/egs-cover/[id]/route.ts:221-225` — same-origin redirect path bypasses the `isAllowedTarget` SSRF guard. The redirect URL is constructed from a trusted-source field but the guard is not re-applied at redirect time. | `src/app/api/egs-cover/[id]/route.ts:221-225` | — | `tests/api-egs-cover-ssrf.test.ts` confirms redirect target passes `isAllowedHttpTarget` | TODO |
+| R6-042 | Security | LOW: Minor information disclosure — route reveals whether a VN ID exists in the collection via HTTP status code difference (404 vs 200 on unauthenticated request). Document intentionality or normalize responses. | Various collection detail routes | — | Comment or test confirming intentional public status | TODO |
+| R6-043 | Security | LOW: Minor information disclosure — server version info or stack detail visible in some error responses. | API catch blocks | — | Source scan confirms no stack traces in responses | TODO |
+| R6-044 | Security | LOW: Minor information disclosure — `X-Powered-By` header not suppressed. | `next.config.*` | — | Build output or response header confirms header absent | TODO |
+
+---
+
+## ACCESSIBILITY
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-060 | a11y | Text input in ActivityTimeline date range filter has no `aria-label` — screen readers cannot identify its purpose. Add `aria-label` using dict key. | `src/components/ActivityTimeline.tsx:178` | — | Source read confirms `aria-label` added | TODO |
+| R6-061 | a11y | `BulkActionBar.tsx` — progress updates (download progress, batch progress) have no `aria-live` region. Screen readers do not announce progress changes. Add `role="status"` or `aria-live="polite"` wrapper. | `src/components/BulkActionBar.tsx` | — | Source read confirms `aria-live` region present | TODO |
+| R6-062 | a11y | `BulkDownloadButton.tsx` — format picker dropdown has no ARIA menu semantics (`role="menu"`, `role="menuitem"`, `aria-haspopup`, `aria-expanded`). Keyboard users cannot navigate it as a menu. | `src/components/BulkDownloadButton.tsx` | — | Source read confirms correct ARIA menu pattern | TODO |
+| R6-063 | a11y | WCAG 4.1.1: `CachePanel.tsx` renders an `<h2>` element inside a `<button>` — invalid HTML. Heading elements cannot be interactive elements. Replace with `<span>` styled as heading or restructure markup. | `src/components/CachePanel.tsx` | — | Source read confirms no `<h2>` inside `<button>`; `tests/cache-panel-markup.test.ts` pins absence | TODO |
+| R6-064 | a11y | `CastSection.tsx` — duplicate adjacent links to the same URL (cover image link + name link both point to same character page). Merge into a single `<a>` wrapper or add `aria-hidden` to the decorative link. | `src/components/CastSection.tsx` | — | Source read confirms single link or `aria-hidden` on decorative duplicate | TODO |
+| R6-065 | a11y | `EditionInfoPopover.tsx` — `role="dialog"` present but `aria-modal="true"` is missing. Screen readers may not properly trap focus context without `aria-modal`. | `src/components/EditionInfoPopover.tsx` | — | Source read confirms `role="dialog" aria-modal="true"` present together | TODO |
+| R6-066 | a11y | `HeroBanner.tsx:460,473` — carousel previous/next buttons use only `title` attribute for accessible name; `aria-label` is absent. `title` alone is not reliable across all assistive technologies. | `src/components/HeroBanner.tsx:460,473` | — | Source read confirms `aria-label` on both buttons | TODO |
+| R6-067 | a11y | `HomeSectionMenu.tsx` — pressing Escape closes the menu but focus is not restored to the trigger element. WCAG 2.1.1 keyboard trap prevention. | `src/components/HomeSectionMenu.tsx` | — | Source read confirms `Escape` handler calls `triggerRef.current?.focus()` | TODO |
+| R6-068 | a11y | `LibraryClient.tsx` MoreFilters — tri-state toggle buttons (yes/no/any) have no `aria-pressed` attribute. Screen readers cannot report the current selection state to users. | `src/components/LibraryClient.tsx` | — | Source read confirms `aria-pressed={value === 'true'}` or equivalent | TODO |
+| R6-069 | a11y | `MediaGallery.tsx` — lightbox close button is missing `type="button"`. Inside a form context this could trigger form submission. Low risk but non-compliant. | `src/components/MediaGallery.tsx` | — | Source read confirms `type="button"` on close | TODO |
+| R6-070 | a11y | `TagsBrowser.tsx` — search input has no `aria-label` or `<label>` association. Tab buttons have no `aria-controls` pointing to the panel they reveal. | `src/components/TagsBrowser.tsx` | — | Source read confirms `aria-label` on input and `aria-controls` on tabs | TODO |
+| R6-071 | a11y | `LinkToVndbButton.tsx` — custom overlay/modal has no `role="dialog"`, no `aria-modal`, and no focus trap. Keyboard users can tab behind the overlay. | `src/components/LinkToVndbButton.tsx` | — | Source read confirms proper dialog semantics and focus trap | TODO |
+| R6-072 | a11y | `MarkdownNotes.tsx` — Edit/Preview toggle buttons do not use the ARIA tab pattern (`role="tab"`, `role="tabpanel"`, `aria-selected`, `aria-controls`). Screen readers cannot identify the edit/preview duality. | `src/components/MarkdownNotes.tsx` | — | Source read confirms ARIA tab pattern used | TODO |
+| R6-073 | a11y | `BarChart.tsx` / `DonutChart` — SVG element missing `role="img"` and `aria-label`. Purely decorative charts must be `aria-hidden="true"`; informational charts must have a text summary. | `src/components/BarChart.tsx` | — | Source read confirms `role="img" aria-label` or `aria-hidden="true"` | TODO |
+| R6-074 | a11y | `StaffExtraCredits.tsx` — duplicate adjacent links (cover + name) point to the same VN page. Same issue as R6-064. | `src/components/StaffExtraCredits.tsx` | — | Source read confirms single link or `aria-hidden` on decorative duplicate | TODO |
+| R6-075 | a11y | `UpcomingCard.tsx` — cover image link and title text link are both separate focusable tab stops pointing to the same URL. Screen reader users hear the destination twice. Wrap both in one `<a>` or mark the secondary as `tabIndex={-1} aria-hidden`. | `src/components/UpcomingCard.tsx` | — | Source read confirms single focusable link per card | TODO |
+| R6-076 | a11y | `DateInput.tsx` — calendar popup rendered on button click has no `role="dialog"`, no `aria-label`, and no focus trap. Keyboard users can tab outside. | `src/components/DateInput.tsx` | — | Source read confirms dialog semantics and focus trap on calendar popup | TODO |
+| R6-077 | a11y | `EgsSyncBlock.tsx` — EGS username text input has no `aria-label`. List items with `onClick` handler have no `role="button"` or `tabIndex`, making them unreachable by keyboard. | `src/components/EgsSyncBlock.tsx` | — | Source read confirms `aria-label` on input; `role="button" tabIndex={0}` on click items | TODO |
+| R6-078 | a11y | `SelectiveFullDownload.tsx` — search input has no `aria-label`. | `src/components/SelectiveFullDownload.tsx` | — | Source read confirms `aria-label` present | TODO |
+| R6-079 | a11y | `ShelfReadOnlyControls.tsx:323` — `role="dialog"` present but `aria-modal="true"` missing. Same pattern as R6-065. | `src/components/ShelfReadOnlyControls.tsx:323` | — | Source read confirms `aria-modal="true"` added | TODO |
+| R6-080 | a11y | Additional a11y findings F2, F3, F8–F10, F17, F19, F21–F25, F28, F29, F31–F34, F36, F37, F40 not captured in the summary. Re-run dedicated a11y agent for complete coverage before marking this row FIXED_VERIFIED. | Various | — | Second a11y agent pass confirms zero remaining unlogged findings | TODO |
+
+---
+
+## UX / UI
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-090 | UX | `SettingsButton.tsx` PerPageLayoutPanel renders `null` (blank) while the page-space settings load — no skeleton placeholder. Per project rule, every async section gets a skeleton. | `src/components/SettingsButton.tsx` | — | Source read confirms skeleton rendered during load; `tests/settings-per-page-layout-skeleton.test.ts` pins | TODO |
+| R6-091 | UX | `SearchClient` — zero-results state shows "no results" copy immediately on mount before the first fetch resolves. Should show skeleton while pending, then empty state with icon after fetch returns 0 items. | `src/components/SearchClient.tsx` | — | Source read confirms empty state only shows after fetch resolves | TODO |
+| R6-092 | UX | `TagsBrowser` — empty results state missing informative icon and explanatory copy. | `src/components/TagsBrowser.tsx` | — | Source read confirms icon + copy present in zero-results branch | TODO |
+| R6-093 | UX | `TraitsBrowser` — empty results state missing informative icon and explanatory copy. | `src/components/TraitsBrowser.tsx` | — | Source read confirms icon + copy present in zero-results branch | TODO |
+| R6-094 | UX | Recommendations page — empty recommendations state (no collection data yet) missing icon and helpful action copy. | `src/app/recommendations/page.tsx` | — | Source read confirms icon + copy present | TODO |
+| R6-095 | UX | Similar VNs page — empty state missing icon and explanatory copy. | `src/app/similar/page.tsx` | — | Source read confirms icon + copy present | TODO |
+| R6-096 | UX | `series/[id]` page — empty VN list state missing icon. | `src/app/series/[id]/page.tsx` | — | Source read confirms icon + copy in zero-items branch | TODO |
+| R6-097 | UX | Quotes page — empty state missing icon and message. | `src/app/quotes/page.tsx` | — | Source read confirms icon + copy present | TODO |
+| R6-098 | UX | `LibraryClient.tsx` — truncated genre/tag chips show no `title` attribute for hover-reveal. Users cannot see the full text on hover. | `src/components/LibraryClient.tsx` | — | Source read confirms `title={fullText}` on truncated chip elements | TODO |
+| R6-099 | UX | `TagsBrowser.tsx` — truncated tag names in flat view missing `title` attribute. | `src/components/TagsBrowser.tsx` | — | Source read confirms `title` on truncated names | TODO |
+| R6-100 | UX | `TraitsBrowser.tsx` — truncated trait names missing `title` attribute. | `src/components/TraitsBrowser.tsx` | — | Source read confirms `title` on truncated names | TODO |
+| R6-101 | UX | `LibraryClient.tsx` — saved filter error catch block only calls `console.error`, no user-facing toast notification. User has no feedback when a filter fails to save. | `src/components/LibraryClient.tsx` | — | Source read confirms toast shown on filter save error | TODO |
+| R6-102 | UX | `LibraryClient.tsx` — custom sort load failure is silently swallowed. User gets wrong sort order with no indication. Show a toast or inline error. | `src/components/LibraryClient.tsx` | — | Source read confirms error surface on sort load failure | TODO |
+| R6-103 | UX | `SavedFilters.tsx` — error state branch exists in code but is never rendered (dead branch). Either render a user-facing error message or remove the branch. | `src/components/SavedFilters.tsx` | — | Source read confirms error state renders correctly | TODO |
+| R6-104 | UX | `SearchClient` card grid uses `gap-4`; `WishlistClient` card grid uses `gap-4`. `LibraryClient` uses `gap-3`. Standardize to `gap-3` across all listing surfaces for visual consistency. | `src/components/SearchClient.tsx`, `src/components/WishlistClient.tsx` | — | Source read confirms `gap-3` on both surfaces | TODO |
+| R6-105 | UX | HIGH: `characters/page.tsx` has no pagination — unbounded character list loads all results into one page. Add pagination consistent with other browse pages (URL `?page=N`). | `src/app/characters/page.tsx` | — | Source read confirms pagination controls; URL `?page=2` returns different set | TODO |
+| R6-106 | UX | `SettingsButton.tsx` — VNDB token save action has no busy/loading state. Rapid re-clicks can cause duplicate saves; user has no visual feedback during async operation. | `src/components/SettingsButton.tsx` | — | Source read confirms `disabled` + spinner during save | TODO |
+| R6-107 | UX | HIGH: `characters/page.tsx` missing `DensityScopeProvider` — card grid density slider has no effect on the characters browse page. Add `DensityScopeProvider scope="characterWorks"` (or a new `"characters"` scope if added to `DENSITY_SCOPES`). | `src/app/characters/page.tsx` | — | Source read confirms `DensityScopeProvider` present; CSS variable `--card-density-px` applied to grid | TODO |
+| R6-108 | UX | HIGH: `RelationsSection.tsx` uses hardcoded Tailwind `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4` — ignores `--card-density-px` CSS variable. Users' density preference has no effect on the Relations section of VN detail pages. Replace with `style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}`. | `src/components/RelationsSection.tsx` | — | Source read confirms CSS variable used; `tests/relations-section-density.test.ts` pins absence of hardcoded `grid-cols-` | TODO |
+| R6-109 | UX | Settings dialog tab strip overflows on 375 px viewport — tabs are clipped with no horizontal scroll indicator, making later tabs unreachable without wider viewport. | `src/components/SettingsButton.tsx` | — | Source read confirms `overflow-x-auto` or wrapping on tab strip; 375px viewport test | TODO |
+
+---
+
+## RESPONSIVE / MOBILE
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-120 | Responsive | HIGH: Sticky header `<header>` in root layout missing `padding-top: env(safe-area-inset-top)` — on iOS PWA / notched devices the header content overlaps the hardware notch/Dynamic Island. | `src/app/layout.tsx:104` | — | Source read confirms `pt-safe` or `env(safe-area-inset-top)` on header; `tests/layout-safe-area.test.ts` pins | TODO |
+| R6-121 | Responsive | `EditionInfoPopover.tsx:330,379` — interactive elements (buttons/links) use `text-[9px]` font size. 9 px is unreadable on mobile. Minimum readable size is 12 px; tap targets must be ≥ 44 px. | `src/components/EditionInfoPopover.tsx:330,379` | — | Source read confirms no `text-[9px]` on interactive elements | TODO |
+| R6-122 | Responsive | `VnTagsGroupedView.tsx:180` — `<a>` link uses `text-[9px]`. Same readability issue as R6-121. | `src/components/VnTagsGroupedView.tsx:180` | — | Source read confirms no `text-[9px]` on link | TODO |
+| R6-123 | Responsive | `VnDetailActionsBar.tsx` — action buttons use `h-9` (36 px). WCAG 2.5.5 recommends 44 px minimum touch target. Upgrade to `tap-target` class or `min-h-[44px]`. | `src/components/VnDetailActionsBar.tsx` | — | Source read confirms touch targets ≥ 44 px or wrapping `tap-target` class | TODO |
+| R6-124 | Responsive | `WishlistClient.tsx:486-492,597-645` — `h-7` (28 px) and `h-8` (32 px) form inputs below minimum 44 px tap target. | `src/components/WishlistClient.tsx:486-492,597-645` | — | Source read confirms `min-h-[44px]` or tap-target upgrade | TODO |
+| R6-125 | Responsive | `OwnedEditionsSection.tsx:1010-1052` — `h-7` filter selects below 44 px tap target. | `src/components/OwnedEditionsSection.tsx:1010-1052` | — | Source read confirms tap-target size | TODO |
+| R6-126 | Responsive | `CoverRotationButtons.tsx` — rotation buttons are tap-target-tight on mobile. Upgrade to minimum 44 px. | `src/components/CoverRotationButtons.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-127 | Responsive | `DateInput.tsx` — date input trigger button is tap-target-tight. | `src/components/DateInput.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-128 | Responsive | `MediaGallery.tsx` — gallery navigation buttons are tap-target-tight. | `src/components/MediaGallery.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-129 | Responsive | `AspectOverrideControl.tsx` — aspect-ratio override toggle is tap-target-tight. | `src/components/AspectOverrideControl.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-130 | Responsive | `ToastProvider.tsx` — toast dismiss button is tap-target-tight. | `src/components/ToastProvider.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-131 | Responsive | `TagInput.tsx` — tag remove (×) button is tap-target-tight. | `src/components/TagInput.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-132 | Responsive | `CardDensitySlider.tsx` — slider thumb/track area may be tap-target-tight on mobile. | `src/components/CardDensitySlider.tsx` | — | Source read confirms adequate touch area on slider | TODO |
+| R6-133 | Responsive | `VnDetailLayout.tsx` — inline section controls are tap-target-tight on mobile. | `src/components/VnDetailLayout.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-134 | Responsive | `DetailReorderLayout.tsx` — drag handle and collapse buttons are tap-target-tight on mobile. | `src/components/DetailReorderLayout.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-135 | Responsive | `HomeSectionMenu.tsx` — menu trigger and items are tap-target-tight on mobile. | `src/components/HomeSectionMenu.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-136 | Responsive | `MoreNavMenu.tsx` — navigation items are tap-target-tight on mobile. | `src/components/MoreNavMenu.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-137 | Responsive | `GameLog.tsx` — log entry action buttons are tap-target-tight on mobile. | `src/components/GameLog.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-138 | Responsive | `LibraryClient.tsx` — clear-all filters button is tap-target-tight. | `src/components/LibraryClient.tsx` | — | Source read confirms tap-target upgrade | TODO |
+| R6-139 | Responsive | `SettingsButton.tsx` settings dialog tabs overflow on 375 px viewport (see also R6-109). Also verify PerPageLayoutPanel per-scope rows are not truncated at 375 px. | `src/components/SettingsButton.tsx` | — | 375 px viewport screenshot or source confirms overflow handled | TODO |
+| R6-140 | Responsive | Audit remaining interactive components not listed above for `h-7`/`h-8`/`h-9` tap-target violations. A source-lint test should reject any `h-7` or `h-8` on `<button>`, `<select>`, or `<input>` elements without a companion `min-h-[44px]` or `tap-target` class. | All components | — | `tests/responsive-tap-targets.test.ts` pins zero `h-7`/`h-8` violations on form controls | TODO |
+
+---
+
+## FEATURE INTEGRATION
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-150 | Feature | `app/series/[id]/page.tsx` — VN cards built from series items are not annotated with `in_reading_queue`. The reading-queue badge (BookMarked icon) will never render on the series page. Add the same `getReadingQueueVnIds()` annotation step used on the library page. | `src/app/series/[id]/page.tsx` | — | Source read confirms `in_reading_queue` annotation; source-lint test pins presence | TODO |
+| R6-151 | Feature | `cardData.ts` / `VnCard.tsx` — `edition_type` field is not projected into `CardData` and no chip renders for it on library/search/wishlist cards. Add projection and chip (e.g. "Digital", "Physical", "Bundle"). | `src/lib/cardData.ts`, `src/components/VnCard.tsx` | — | Source read confirms `editionType` in CardData and chip in VnCard | TODO |
+| R6-152 | Feature | `cardData.ts` / `VnCard.tsx` — `aspect_keys` (aspect ratio classification) not projected into `CardData` and no chip. Add projection and chip. | `src/lib/cardData.ts`, `src/components/VnCard.tsx` | — | Source read confirms `aspectKeys` in CardData and chip in VnCard | TODO |
+| R6-153 | Feature | `app/tag/[id]/page.tsx` "Local" tab — uses a bespoke grid/card layout instead of the shared `<VnCard>` component. Local tab cards lack badge, density-slider response, tri-state filters, and all features `VnCard` provides. Replace bespoke grid with `<VnCard>`. | `src/app/tag/[id]/page.tsx` | — | Source read confirms `<VnCard>` used in local tab | TODO |
+| R6-154 | Feature | `app/vn/[id]/page.tsx` — VN detail page header has no fan disc badge/indicator even when `isFanDisc` is true. Library cards show the badge but the detail page does not. Add fan disc indicator to header metadata row. | `src/app/vn/[id]/page.tsx` | — | Source read confirms fan disc badge in header when `relations` contains `fandisc` type | TODO |
+| R6-155 | Feature | `app/lists/[id]/page.tsx` — VN cards are not annotated with `in_reading_queue`. Add annotation step consistent with R6-150. | `src/app/lists/[id]/page.tsx` | — | Source read confirms `in_reading_queue` annotation on list page cards | TODO |
+| R6-156 | Feature | `app/lists/[id]/page.tsx` — `listCardData` helper does not query `relations` from SQLite, so `isFanDisc` is always `false` for list cards. Fix the SQL query to JOIN or include `relations`. | `src/app/lists/[id]/page.tsx` | — | Source read confirms `relations` included in SQL; `isFanDisc` correctly derived | TODO |
+| R6-157 | Feature | `LibraryClient.tsx` — no `has_list` / `in_list` tri-state filter exists. Users cannot filter library to show only VNs that are (or are not) in a custom list. Add filter key, URL param, filter logic, MoreFilters entry, and i18n keys consistent with existing tri-state filters. | `src/components/LibraryClient.tsx` | — | URL `?has_list=1` returns only VNs with list membership; `?has_list=0` excludes them | TODO |
+
+---
+
+## DENSITY SLIDER (user-corrected audit)
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-160 | Density | `RelationsSection.tsx` uses hardcoded Tailwind `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4` — density slider has no effect. (See also R6-108 — same finding, cross-referenced.) | `src/components/RelationsSection.tsx` | — | Same as R6-108 | TODO |
+| R6-161 | Density | `staff/[id]/page.tsx` — audit all inner grid sections to confirm every one uses `var(--card-density-px)` and is nested inside the `DensityScopeProvider`. Sections found to use hardcoded `grid-cols-*` must be migrated. | `src/app/staff/[id]/page.tsx` | — | `tests/staff-page-density.test.ts` pins zero `grid-cols-` class on grid elements inside DensityScopeProvider | TODO |
+| R6-162 | Density | `character/[id]/page.tsx` — same audit as R6-161 for character detail page inner grids. | `src/app/character/[id]/page.tsx` | — | `tests/character-page-density.test.ts` pins zero `grid-cols-` class on grid elements inside DensityScopeProvider | TODO |
+| R6-163 | Density | Audit ALL pages that have DensityScopeProvider to confirm every VN card grid child uses `var(--card-density-px)` — not just the outer grid. Surfaces to check: recommendations, similar, upcoming, top-ranked, search, wishlist, series, lists, tag detail. | All listing pages | — | `tests/density-scope-coverage.test.ts` source-pins zero hardcoded `grid-cols-` inside components that are children of `DensityScopeProvider` | TODO |
+
+---
+
+## TYPESCRIPT / CODE QUALITY
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-170 | TypeScript | HIGH: `api/collection/traits/route.ts:20` — `db.prepare(...)` called outside any try/catch. A malformed SQL or schema mismatch will crash the server process with an unhandled exception. Wrap in try/catch. | `src/app/api/collection/traits/route.ts:20` | — | Source read confirms try/catch wraps prepare; `tests/api-traits-error.test.ts` returns 500 with generic message | TODO |
+| R6-171 | TypeScript | MEDIUM: `RelationsSection.tsx:101-104` — inline `badge={{ label, tone }}` object literal created on every render. `VnCard` is wrapped in `React.memo` but the new object reference on each parent render defeats memoization. Hoist the badge object outside render or use `useMemo`. | `src/components/RelationsSection.tsx:101-104` | — | Source read confirms stable badge reference; `tests/relations-section-memo.test.ts` pins | TODO |
+| R6-172 | TypeScript | MEDIUM: `SortableGrid.tsx:160` — `toCardData(item)` called on every render, even for unchanged items. `toCardData` is WeakMap-cached per item so the cost is low, but the call still re-creates the derived value reference defeating downstream memos. Call once per item via `useMemo`. | `src/components/SortableGrid.tsx:160` | — | Source read confirms `useMemo` wrapping | TODO |
+| R6-173 | TypeScript | MEDIUM: Inline debounce pattern duplicated in 7 components (`CompareVnPicker`, `LinkToVndbButton`, `MapEgsToVndbButton`, `MapVnToEgsButton`, `TagPicker`, `SimilarSeedPicker`, `VnSeedPicker`). Extract a `useDebouncedCallback` hook into `src/lib/hooks.ts` and replace all 7 call sites. Document in CLAUDE.md. | `src/lib/hooks.ts` (new), 7 components | — | `tests/hooks-debounced-callback.test.ts` covers new hook; source-lint pin confirms zero inline `setTimeout`-debounce patterns remaining in the listed components | TODO |
+| R6-174 | TypeScript | MEDIUM: `EditionInfoPopover.tsx:417,421` — non-null assertions (`!`) used inside `.filter()` callback. If the assertion is wrong at runtime, a thrown TypeError will surface as an unhandled rejection. Replace with a proper null guard. | `src/components/EditionInfoPopover.tsx:417,421` | — | Source read confirms no `!` inside filter callback | TODO |
+| R6-175 | TypeScript | `year/page.tsx:3` — `ArrowRight` imported from lucide-react but never used. Remove dead import. | `src/app/year/page.tsx:3` | — | `yarn typecheck` passes; source read confirms import removed | TODO |
+| R6-176 | TypeScript | 149 API route handler functions are missing explicit `Promise<NextResponse>` return type annotation. `yarn typecheck` passes because the inferred type is compatible, but explicit types protect against accidental `void` returns. Add return types systematically. | `src/app/api/**/*.ts` (149 handlers) | — | `tests/api-route-return-types.test.ts` source-pins that every `export async function GET/POST/PATCH/DELETE` has `: Promise<NextResponse>` | TODO |
+| R6-177 | TypeScript | `src/lib/character-browse.ts` — 4 exported functions missing explicit return type annotations. | `src/lib/character-browse.ts` | — | Source read confirms return types present; `yarn typecheck` passes | TODO |
+
+---
+
+## TESTING
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-190 | Testing | 12 POST/PATCH/DELETE route handlers have no auth-gate 403 test. Each must have a test asserting HTTP 403 (no other status) when called without a valid token. Full list to be determined by running: `grep -r "requireLocalhostOrToken" src/app/api --include="*.ts" -l` and cross-checking `tests/` for missing coverage. | `tests/` | — | Each route has exactly one test expecting HTTP 403 for unauthenticated mutating call | TODO |
+| R6-191 | Testing | `src/lib/db.ts` — 120 of 196 exported functions have no unit test. Prioritise functions involved in data mutation (insert/update/delete) and those called by high-traffic API routes. | `tests/db-*.test.ts` | — | Coverage report shows all db.ts functions have at least one test | TODO |
+| R6-192 | Testing | `src/lib/locale-number.ts` — `fmtNum` and `fmtDate` have no tests. These helpers are used widely; a regression could affect all locale-formatted output. | `tests/locale-number.test.ts` (new) | — | `tests/locale-number.test.ts` covers FR/EN/JA for both helpers | TODO |
+| R6-193 | Testing | `src/lib/aspect-ratio.ts` — `isAspectKey` has no test. | `tests/aspect-ratio.test.ts` (new) | — | `tests/aspect-ratio.test.ts` covers valid and invalid inputs | TODO |
+| R6-194 | Testing | `tests/backup-export.test.ts:57` — test uses multi-value HTTP status allowlist `[403, 404]` (comma-separated or array). Per project rule: one expected HTTP status per route test, paired with a body assertion. Fix to exact single status. | `tests/backup-export.test.ts:57` | — | Test uses single HTTP status; no comma-separated allowlist | TODO |
+| R6-195 | Testing | `tests/backup-restore.test.ts:55` — same multi-value status allowlist violation as R6-194. | `tests/backup-restore.test.ts:55` | — | Test uses single HTTP status; no comma-separated allowlist | TODO |
+| R6-196 | Testing | `tests/seca-input-length-caps.test.ts` — test naming is inconsistent with project convention (does not follow `describe / it` structure matching the module name). Rename to match. | `tests/seca-input-length-caps.test.ts` | — | Test file follows `describe('<module>')` / `it('<behaviour>')` convention | TODO |
+| R6-197 | Testing | `tests/backup-restore.test.ts` — test naming inconsistencies similar to R6-196. | `tests/backup-restore.test.ts` | — | Test names follow project convention | TODO |
+| R6-198 | Testing | Add `tests/i18n-no-tofixed.test.ts` source-lint test that rejects `.toFixed(` calls outside an explicit allowlist in all component and page files. (Companion to R6-018.) | `tests/i18n-no-tofixed.test.ts` (new) | — | Test passes with zero violations after R6-018 fixes | TODO |
+| R6-199 | Testing | Add `tests/responsive-tap-targets.test.ts` source-lint that rejects `h-7` or `h-8` classes on `<button>`, `<select>`, or `<input>` elements without companion `min-h-[44px]` or `tap-target` class. (Companion to R6-140.) | `tests/responsive-tap-targets.test.ts` (new) | — | Test passes with zero violations after R6-124–R6-140 fixes | TODO |
+| R6-200 | Testing | Add source-lint test for `RelationsSection.tsx` confirming absence of hardcoded `grid-cols-` class and presence of CSS variable `var(--card-density-px)`. (Companion to R6-108 / R6-160.) | `tests/relations-section-density.test.ts` (new) | — | Test passes after R6-108 fix | TODO |
+| R6-201 | Testing | Add `tests/format-locale.test.ts` covering `formatPlaytime` in FR/EN/JA with correct unit strings. (Companion to R6-020.) | `tests/format-locale.test.ts` (new) | — | Test passes after R6-020 fix | TODO |
+
+---
+
+## DOCUMENTATION
+
+| ID | Area | Issue | Files/routes | Fix commit | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| R6-210 | Docs | Document `useDebouncedCallback` hook (from R6-173) in `CLAUDE.md` under the "Hooks" or "Utilities" section with usage example. | `CLAUDE.md` | — | CLAUDE.md contains `useDebouncedCallback` section | TODO |
+| R6-211 | Docs | CLAUDE.md — add note that real VN IDs / staff IDs / tag IDs / character IDs must NOT appear in test files or placeholder strings (copyright risk). Document the generic `v123` / `s456` / `g789` / `c012` placeholder convention. | `CLAUDE.md` | — | CLAUDE.md contains the convention; `tests/no-hardcoded-ids.test.ts` source-lint rejects real-looking IDs in test fixture strings | TODO |
+| R6-212 | Docs | Any new utility function added since round-5 audit without JSDoc. Run `grep -n "^export function" src/lib/*.ts | grep -v "\/\*\*"` to locate. | `src/lib/*.ts` | — | All exported symbols in lib have JSDoc | TODO |
+
+---
+
+## NOTES
+
+- Round-6 baseline test count: to be filled after `yarn test --run` at session start.
+- Package manager: `yarn` only.
+- No `/* istanbul ignore next */` permitted.
+- No hardcoded real VN IDs / staff IDs / tag IDs / character IDs in test fixtures or placeholder strings.
+- No inline `//` comments — ESDoc on exports only.
+- No Co-Authored-By trailer in commits.
+- All responsive fixes: never hide labels/controls — wrap, scroll, or stack instead.

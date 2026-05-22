@@ -24,7 +24,6 @@ export const maxDuration = 600;
 
 interface EgsWarning {
   kind: 'network' | 'server' | 'throttled' | 'blocked';
-  message: string;
   status: number | null;
 }
 
@@ -140,9 +139,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       await resolveEgsForVn(id, { force: refresh, allowSearch: true });
     } catch (e) {
       if (e instanceof EgsUnreachable) {
-        egsWarning = { kind: e.kind, message: e.message, status: e.status };
+        console.error(`[assets:${id}] EGS unreachable (${e.kind}):`, e.message);
+        egsWarning = { kind: e.kind, status: e.status };
       } else {
-        egsWarning = { kind: 'server', message: (e as Error).message, status: null };
+        console.error(`[assets:${id}] EGS resolve failed:`, (e as Error).message);
+        egsWarning = { kind: 'server', status: null };
       }
     }
     const result = await ensureLocalImagesForVn(id);
