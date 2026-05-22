@@ -817,6 +817,16 @@ export function SettingsButton() {
                         <ShortcutRow k="g d" label={t.shortcuts.goData} />
                       </ul>
                     </section>
+                    <section>
+                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
+                        {t.shortcuts.vnPage}
+                      </h4>
+                      <ul className="space-y-1.5">
+                        <ShortcutRow k="f" label={t.shortcuts.vnToggleFavorite} />
+                        <ShortcutRow k="e" label={t.shortcuts.vnJumpEdit} />
+                        <ShortcutRow k="n" label={t.shortcuts.vnJumpNotes} />
+                      </ul>
+                    </section>
                   </div>
                 </div>
                 )}

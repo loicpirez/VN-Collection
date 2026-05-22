@@ -1581,6 +1581,10 @@ export const dictionaries = {
       goStats: 'Stats',
       goData: 'Données',
       close: 'Fermer',
+      vnPage: 'Page VN (actions)',
+      vnToggleFavorite: 'Basculer favori',
+      vnJumpEdit: 'Aller au suivi',
+      vnJumpNotes: 'Aller aux notes',
     },
     tour: {
       title: 'Visite guidée',
@@ -4202,6 +4206,10 @@ export const dictionaries = {
       goStats: 'Stats',
       goData: 'Data',
       close: 'Close',
+      vnPage: 'VN page (actions)',
+      vnToggleFavorite: 'Toggle favourite',
+      vnJumpEdit: 'Jump to tracking',
+      vnJumpNotes: 'Jump to notes',
     },
     tour: {
       title: 'Guided tour',
@@ -6820,6 +6828,10 @@ export const dictionaries = {
       goStats: '統計',
       goData: 'データ',
       close: '閉じる',
+      vnPage: 'VNページ（操作）',
+      vnToggleFavorite: 'お気に入り切替',
+      vnJumpEdit: '追跡へ移動',
+      vnJumpNotes: 'ノートへ移動',
     },
     tour: {
       title: 'ガイドツアー',
