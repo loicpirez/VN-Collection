@@ -621,6 +621,20 @@ function open(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_vn_publisher_index_pid ON vn_publisher_index(producer_id);
 
+    CREATE TABLE IF NOT EXISTS vn_language_index (
+      vn_id TEXT NOT NULL,
+      lang  TEXT NOT NULL,
+      PRIMARY KEY (vn_id, lang)
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_language_index_lang ON vn_language_index(lang);
+
+    CREATE TABLE IF NOT EXISTS vn_platform_index (
+      vn_id    TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      PRIMARY KEY (vn_id, platform)
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_platform_index_platform ON vn_platform_index(platform);
+
     CREATE TABLE IF NOT EXISTS collection_place_index (
       vn_id TEXT NOT NULL REFERENCES collection(vn_id) ON DELETE CASCADE,
       place TEXT NOT NULL,
@@ -1169,6 +1183,42 @@ function open(): Database.Database {
     })();
   }
 
+  const langPlatBackfilled = (db
+    .prepare(`SELECT value FROM app_setting WHERE key = 'vn_lang_platform_index_v1'`)
+    .get() as { value: string | null } | undefined)?.value;
+  if (langPlatBackfilled !== '1') {
+    const rows = db
+      .prepare(`SELECT id, languages, platforms FROM vn WHERE languages IS NOT NULL OR platforms IS NOT NULL`)
+      .all() as Array<{ id: string; languages: string | null; platforms: string | null }>;
+    const delLang = db.prepare('DELETE FROM vn_language_index WHERE vn_id = ?');
+    const delPlat = db.prepare('DELETE FROM vn_platform_index WHERE vn_id = ?');
+    const insLang = db.prepare('INSERT OR IGNORE INTO vn_language_index (vn_id, lang) VALUES (?, ?)');
+    const insPlat = db.prepare('INSERT OR IGNORE INTO vn_platform_index (vn_id, platform) VALUES (?, ?)');
+    db.transaction(() => {
+      for (const r of rows) {
+        delLang.run(r.id);
+        delPlat.run(r.id);
+        try {
+          const langs = r.languages ? (JSON.parse(r.languages) as unknown[]) : [];
+          for (const lang of langs) {
+            if (typeof lang === 'string' && lang.length > 0) insLang.run(r.id, lang);
+          }
+        } catch (e) {
+          console.warn(`[migrate] vn ${r.id} has malformed languages JSON: ${(e as Error).message}`);
+        }
+        try {
+          const plats = r.platforms ? (JSON.parse(r.platforms) as unknown[]) : [];
+          for (const plat of plats) {
+            if (typeof plat === 'string' && plat.length > 0) insPlat.run(r.id, plat);
+          }
+        } catch (e) {
+          console.warn(`[migrate] vn ${r.id} has malformed platforms JSON: ${(e as Error).message}`);
+        }
+      }
+      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_lang_platform_index_v1', '1')`).run();
+    })();
+  }
+
   global.__vndb_db = db;
   return db;
 }
@@ -1437,6 +1487,8 @@ function buildUpsertVnTx(): (vn: RawVnPayload) => void {
   // time, not part of RawVnPayload).
   rebuildVnTagIndex(vn.id, (vn.tags as Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }> | undefined) ?? []);
   rebuildVnDeveloperIndex(vn.id, (vn.developers as Array<{ id?: unknown }> | undefined) ?? []);
+  rebuildVnLanguageIndex(vn.id, (vn.languages as unknown[] | undefined) ?? []);
+  rebuildVnPlatformIndex(vn.id, (vn.platforms as unknown[] | undefined) ?? []);
   });
 }
 
@@ -1480,6 +1532,22 @@ function rebuildVnDeveloperIndex(
   for (const d of developers) {
     const id = typeof d?.id === 'string' ? d.id : null;
     if (id) insDev.run(vnId, id);
+  }
+}
+
+function rebuildVnLanguageIndex(vnId: string, languages: unknown[]): void {
+  db.prepare('DELETE FROM vn_language_index WHERE vn_id = ?').run(vnId);
+  const ins = db.prepare('INSERT OR IGNORE INTO vn_language_index (vn_id, lang) VALUES (?, ?)');
+  for (const lang of languages) {
+    if (typeof lang === 'string' && lang.length > 0) ins.run(vnId, lang);
+  }
+}
+
+function rebuildVnPlatformIndex(vnId: string, platforms: unknown[]): void {
+  db.prepare('DELETE FROM vn_platform_index WHERE vn_id = ?').run(vnId);
+  const ins = db.prepare('INSERT OR IGNORE INTO vn_platform_index (vn_id, platform) VALUES (?, ?)');
+  for (const platform of platforms) {
+    if (typeof platform === 'string' && platform.length > 0) ins.run(vnId, platform);
   }
 }
 
@@ -3358,9 +3426,9 @@ export function listCollection({
     // is fetch-order, not stable). Picking the alphabetically-first
     // entry per row makes the sort deterministic.
     producer:
-      "(SELECT MIN(json_extract(value, '$.name')) FROM json_each(COALESCE(v.developers, '[]')))",
+      "(SELECT MIN(p.name) FROM vn_developer_index di LEFT JOIN producer p ON p.id = di.producer_id WHERE di.vn_id = v.id)",
     publisher:
-      "(SELECT MIN(json_extract(value, '$.name')) FROM json_each(COALESCE(v.publishers, '[]')))",
+      "(SELECT MIN(p.name) FROM vn_publisher_index pi LEFT JOIN producer p ON p.id = pi.producer_id WHERE pi.vn_id = v.id)",
     egs_rating: 'e.median',
     // Combined: VNDB rating (0-100) and EGS median (0-100), averaged.
     // When only one exists, fall back to it; nulls last regardless.
@@ -4383,21 +4451,17 @@ function computeAggregateStats(): AggregateStats {
 
   const byLanguage = db
     .prepare(`
-      SELECT lang AS lang, COUNT(*) AS count FROM (
-        SELECT DISTINCT v.id AS vn_id, je.value AS lang
-        FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.languages) je
-      )
-      GROUP BY lang ORDER BY count DESC LIMIT 12
+      SELECT li.lang AS lang, COUNT(DISTINCT li.vn_id) AS count
+      FROM collection c JOIN vn_language_index li ON li.vn_id = c.vn_id
+      GROUP BY li.lang ORDER BY count DESC LIMIT 12
     `)
     .all() as { lang: string; count: number }[];
 
   const byPlatform = db
     .prepare(`
-      SELECT platform AS platform, COUNT(*) AS count FROM (
-        SELECT DISTINCT v.id AS vn_id, je.value AS platform
-        FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.platforms) je
-      )
-      GROUP BY platform ORDER BY count DESC LIMIT 12
+      SELECT pi.platform AS platform, COUNT(DISTINCT pi.vn_id) AS count
+      FROM collection c JOIN vn_platform_index pi ON pi.vn_id = c.vn_id
+      GROUP BY pi.platform ORDER BY count DESC LIMIT 12
     `)
     .all() as { platform: string; count: number }[];
 
@@ -6775,28 +6839,19 @@ export function setProducerLogo(id: string, logoPath: string | null): void {
 export function listProducerStats(): ProducerStat[] {
   const rows = db
     .prepare(`
-      WITH dev_pairs AS (
-        SELECT v.id AS vn_id,
-               json_extract(de.value, '$.id') AS pid,
-               json_extract(de.value, '$.name') AS pname
-        FROM collection c
-        JOIN vn v ON v.id = c.vn_id
-        JOIN json_each(v.developers) de
-      )
       SELECT
-        dp.pid AS id,
-        COALESCE(p.name, dp.pname) AS name,
+        di.producer_id AS id,
+        COALESCE(p.name, di.producer_id) AS name,
         p.original, p.lang, p.type, p.description, p.aliases, p.extlinks, p.logo_path,
         COALESCE(p.fetched_at, 0) AS fetched_at,
-        COUNT(DISTINCT dp.vn_id) AS vn_count,
+        COUNT(DISTINCT di.vn_id) AS vn_count,
         AVG(c.user_rating) AS avg_user_rating,
         AVG(v.rating) AS avg_rating
-      FROM dev_pairs dp
-      JOIN collection c ON c.vn_id = dp.vn_id
-      JOIN vn v ON v.id = dp.vn_id
-      LEFT JOIN producer p ON p.id = dp.pid
-      WHERE dp.pid IS NOT NULL
-      GROUP BY dp.pid
+      FROM collection c
+      JOIN vn_developer_index di ON di.vn_id = c.vn_id
+      JOIN vn v ON v.id = c.vn_id
+      LEFT JOIN producer p ON p.id = di.producer_id
+      GROUP BY di.producer_id
       ORDER BY vn_count DESC, name ASC
       LIMIT 2000
     `)
@@ -6819,28 +6874,19 @@ export function listProducerStats(): ProducerStat[] {
 export function listPublisherStats(): ProducerStat[] {
   const rows = db
     .prepare(`
-      WITH pub_pairs AS (
-        SELECT v.id AS vn_id,
-               json_extract(pe.value, '$.id') AS pid,
-               json_extract(pe.value, '$.name') AS pname
-        FROM collection c
-        JOIN vn v ON v.id = c.vn_id
-        JOIN json_each(COALESCE(v.publishers, '[]')) pe
-      )
       SELECT
-        pp.pid AS id,
-        COALESCE(p.name, pp.pname) AS name,
+        pi.producer_id AS id,
+        COALESCE(p.name, pi.producer_id) AS name,
         p.original, p.lang, p.type, p.description, p.aliases, p.extlinks, p.logo_path,
         COALESCE(p.fetched_at, 0) AS fetched_at,
-        COUNT(DISTINCT pp.vn_id) AS vn_count,
+        COUNT(DISTINCT pi.vn_id) AS vn_count,
         AVG(c.user_rating) AS avg_user_rating,
         AVG(v.rating) AS avg_rating
-      FROM pub_pairs pp
-      JOIN collection c ON c.vn_id = pp.vn_id
-      JOIN vn v ON v.id = pp.vn_id
-      LEFT JOIN producer p ON p.id = pp.pid
-      WHERE pp.pid IS NOT NULL
-      GROUP BY pp.pid
+      FROM collection c
+      JOIN vn_publisher_index pi ON pi.vn_id = c.vn_id
+      JOIN vn v ON v.id = c.vn_id
+      LEFT JOIN producer p ON p.id = pi.producer_id
+      GROUP BY pi.producer_id
       ORDER BY vn_count DESC, name ASC
       LIMIT 2000
     `)
@@ -6893,12 +6939,8 @@ export function producerOwnershipSummary(producerId: string): {
       FROM vn v
       JOIN collection c ON c.vn_id = v.id
       WHERE
-        (v.developers IS NOT NULL AND EXISTS (
-          SELECT 1 FROM json_each(v.developers) WHERE json_extract(value, '$.id') = ?
-        ))
-        OR (v.publishers IS NOT NULL AND EXISTS (
-          SELECT 1 FROM json_each(v.publishers) WHERE json_extract(value, '$.id') = ?
-        ))
+        EXISTS (SELECT 1 FROM vn_developer_index WHERE vn_id = v.id AND producer_id = ?)
+        OR EXISTS (SELECT 1 FROM vn_publisher_index WHERE vn_id = v.id AND producer_id = ?)
       ORDER BY c.updated_at DESC
       LIMIT 500
     `)
