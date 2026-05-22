@@ -1388,6 +1388,30 @@ After non-trivial changes, walk through these in the browser
 - Component classes (`.btn`, `.input`, `.label`, `.chip`, `.chip-active`) live in
   `globals.css` `@layer components`.
 
+### Scroll containers — overflow patterns
+
+Two patterns exist for horizontally-scrollable rows. Choose based on whether content
+**always** overflows (table/editor) or **may or may not** overflow (timeline/strip):
+
+| Surface type | Pattern |
+|---|---|
+| Always-overflow (producers table, compare grid, shelf editor) | CSS class `.scroll-fade-right` on the container — permanent right-edge fade |
+| Variable-length (VaTimeline, ActivityHeatmap, RecentlyViewedStrip) | `<ScrollFadeRight>` component (`src/components/ScrollFadeRight.tsx`) — fade only when clipped |
+
+`ScrollFadeRight` is a `'use client'` component. Pass `className` for non-overflow CSS
+(e.g. `className="flex gap-1 pb-1"`). It supplies `relative` and `overflow-x-auto`
+on its root div automatically.
+
+Example usage in a server component:
+```tsx
+import { ScrollFadeRight } from '@/components/ScrollFadeRight';
+
+// In JSX:
+<ScrollFadeRight className="flex items-end gap-1 pb-1" role="img" aria-label="Timeline">
+  {/* server-rendered children */}
+</ScrollFadeRight>
+```
+
 ### Loading states (skeletons everywhere — no exceptions)
 - **Rule**: every async section renders a skeleton placeholder while loading.
   Never show "no results" / "empty" / "nothing yet" before the fetch has resolved.

@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     upsertProducer(fresh);
     return NextResponse.json({ producer: getProducerLocal(id) });
   } catch (err) {
-    if (cached) return NextResponse.json({ producer: cached, warning: (err as Error).message });
+    if (cached) return NextResponse.json({ producer: cached, warning: 'fetch failed; using cached data' });
     return upstreamError('producer/[id]', err);
   }
 }

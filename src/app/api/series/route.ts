@@ -31,6 +31,6 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ series: created });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+    return NextResponse.json({ error: 'create failed' }, { status: 400 });
   }
 }

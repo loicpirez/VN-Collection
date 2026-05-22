@@ -522,6 +522,7 @@ function EgsPicker({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t.egs.searchPlaceholder}
+            aria-label={t.egs.searchPlaceholder}
             autoFocus
           />
           <button type="submit" className="btn btn-primary" disabled={loading || !query.trim()}>

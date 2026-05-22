@@ -935,6 +935,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               ref={createInputRef}
               type="text"
               placeholder={t.shelfLayout.newShelfName}
+              aria-label={t.shelfLayout.newShelfName}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
@@ -1357,6 +1358,7 @@ function DraggableDisplayItem({
         href={`/vn/${slot.vn_id}`}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
+        title={slot.vn_title}
         className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/85 px-1 py-0.5 text-[9px] font-bold leading-tight text-white opacity-100 transition-opacity hover:text-accent"
       >
         {slot.vn_title}
@@ -1523,6 +1525,7 @@ function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highli
         href={`/vn/${slot.vn_id}`}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
+        title={slot.vn_title}
         className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/85 px-1 py-0.5 text-[9px] font-bold leading-tight text-white opacity-100 transition-opacity hover:text-accent"
       >
         {slot.vn_title}

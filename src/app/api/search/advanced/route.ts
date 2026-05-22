@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { advancedSearchVn, type AdvancedSearchOptions } from '@/lib/vndb';
 import { isInCollectionMany } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,8 @@ function parseAdvancedBody(raw: unknown): { ok: true; opts: AdvancedSearchOption
 }
 
 export async function POST(req: NextRequest) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   let raw: unknown;
   try {
     raw = await req.json();

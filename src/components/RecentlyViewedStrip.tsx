@@ -13,6 +13,16 @@ interface Props {
   initialState?: HomeSectionState;
 }
 
+/**
+ * Home-page horizontal strip showing the last VNs the operator opened.
+ * Renders nothing when the section is hidden by user preference or when
+ * the recently-viewed list is empty. Visibility and collapsed state are
+ * persisted via `HomeSectionControls` so the operator can hide or
+ * collapse the strip from the home-page section menu.
+ *
+ * @param initialState Server-read layout state (visibility / collapse)
+ *                     for the `'recently-viewed'` section id.
+ */
 export function RecentlyViewedStrip({ initialState }: Props) {
   const t = useT();
   const { items, clear } = useRecentlyViewed();

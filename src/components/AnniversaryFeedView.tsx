@@ -86,7 +86,7 @@ export function AnniversaryFeedView({ title, yearsAgoTemplate, entries, initialS
                   />
                 </div>
                 <span className="flex flex-col">
-                  <span className="line-clamp-1 max-w-[200px] font-semibold transition-colors group-hover:text-accent">
+                  <span className="line-clamp-1 max-w-[200px] font-semibold transition-colors group-hover:text-accent" title={r.title}>
                     {r.title}
                   </span>
                   <span className="text-[10px] text-muted">

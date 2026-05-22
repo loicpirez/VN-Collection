@@ -299,9 +299,9 @@ export function SimilarSeedPicker({
                         />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="line-clamp-1 text-sm font-semibold">{hit.title}</p>
+                        <p className="line-clamp-1 text-sm font-semibold" title={hit.title}>{hit.title}</p>
                         {hit.alttitle && hit.alttitle !== hit.title && (
-                          <p className="line-clamp-1 text-[11px] text-muted">{hit.alttitle}</p>
+                          <p className="line-clamp-1 text-[11px] text-muted" title={hit.alttitle}>{hit.alttitle}</p>
                         )}
                         {(year || hit.developer) && (
                           <p className="text-[11px] text-muted">

@@ -104,6 +104,7 @@ import {
 import { POST as staffDownloadPOST } from '@/app/api/staff/[id]/download/route';
 import { POST as producerRefreshPOST } from '@/app/api/producer/[id]/refresh/route';
 import { GET as textualGET } from '@/app/api/search/textual/route';
+import { POST as advancedSearchPOST } from '@/app/api/search/advanced/route';
 import { GET as findGET } from '@/app/api/collection/find/route';
 import {
   POST as shelvesPOST,
@@ -569,6 +570,12 @@ describe('auth gate — reading-goal/queue (T-3)', () => {
   });
   it('PATCH /api/saved-filters', async () => {
     expect((await savedFiltersPATCH(externalReq('/api/saved-filters', 'PATCH', { ids: [1] }))).status).toBe(403);
+  });
+});
+
+describe('auth gate — search/advanced (S-1)', () => {
+  it('POST /api/search/advanced returns 403 from unauthenticated external origin', async () => {
+    expect((await advancedSearchPOST(externalReq('/api/search/advanced', 'POST', { q: 'test' }))).status).toBe(403);
   });
 });
 

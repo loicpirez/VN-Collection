@@ -193,7 +193,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     // writes, filesystem errors, schema bugs — none of which should
     // be reported as "VNDB is down".
     return NextResponse.json(
-      { error: (err as Error).message, egs_warning: egsWarning },
+      { error: 'sync failed', egs_warning: egsWarning },
       { status: 500 },
     );
   }

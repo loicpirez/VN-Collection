@@ -155,6 +155,7 @@ export function UpcomingCard({
           {internalHref ? (
             <Link
               href={internalHref}
+              title={title}
               className={
                 variant === 'wide'
                   ? 'line-clamp-2 text-base font-bold hover:text-accent'
@@ -165,6 +166,7 @@ export function UpcomingCard({
             </Link>
           ) : (
             <span
+              title={title}
               className={
                 variant === 'wide' ? 'line-clamp-2 text-base font-bold' : 'font-bold'
               }

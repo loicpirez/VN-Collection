@@ -126,6 +126,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t.linkVndb.searchPlaceholder}
+                aria-label={t.linkVndb.searchPlaceholder}
                 className="input w-full pl-7 text-xs"
               />
               {searching && <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" />}
