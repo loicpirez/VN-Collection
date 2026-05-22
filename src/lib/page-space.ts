@@ -64,6 +64,7 @@ export const PAGE_SPACE_SCOPES = [
   'data',
   'brandOverlap',
   'activity',
+  'dumped',
   'stats',
   'quotes',
   'steam',
@@ -98,6 +99,7 @@ export const PAGE_SPACE_SCOPE_DEFAULTS: Record<PageSpaceScope, PageSpacePreset> 
   data: 'compact',
   brandOverlap: 'wide',
   activity: 'wide',
+  dumped: 'wide',
   stats: 'wide',
   quotes: 'compact',
   steam: 'standard',
@@ -202,7 +204,8 @@ export function resolvePageSpaceScope(pathname: string): PageSpaceScope {
   if (pathname.startsWith('/tag') || pathname.startsWith('/trait')) return 'tags';
   if (pathname.startsWith('/data') || pathname.startsWith('/schema')) return 'data';
   if (pathname.startsWith('/brand-overlap')) return 'brandOverlap';
-  if (pathname.startsWith('/activity') || pathname.startsWith('/dumped')) return 'activity';
+  if (pathname.startsWith('/activity')) return 'activity';
+  if (pathname.startsWith('/dumped')) return 'dumped';
   if (pathname.startsWith('/stats') || pathname.startsWith('/year')) return 'stats';
   if (pathname.startsWith('/quotes')) return 'quotes';
   if (pathname.startsWith('/steam')) return 'steam';

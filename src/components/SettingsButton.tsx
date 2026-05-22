@@ -462,6 +462,48 @@ export function SettingsButton() {
                         value={settings.preferNativeTitle}
                         onChange={(v) => set('preferNativeTitle', v)}
                       />
+                      <Toggle
+                        label={t.settings.headerFollowsPageSpace}
+                        description={t.settings.headerFollowsPageSpaceDesc}
+                        value={settings.headerFollowsPageSpace}
+                        onChange={(v) => set('headerFollowsPageSpace', v)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
+                      <span className="text-sm font-semibold">{t.settings.globalPageWidth}</span>
+                      <span className="text-[11px] text-muted">{t.settings.globalPageWidthHint}</span>
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          aria-pressed={settings.globalPageSpace == null}
+                          onClick={() => set('globalPageSpace', null)}
+                          className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                            settings.globalPageSpace == null
+                              ? 'border-accent bg-accent/15 text-accent'
+                              : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+                          }`}
+                        >
+                          {t.settings.globalPageWidthOff}
+                        </button>
+                        {PAGE_SPACE_PRESET_IDS.map((preset) => {
+                          const active = settings.globalPageSpace === preset;
+                          return (
+                            <button
+                              key={preset}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() => set('globalPageSpace', preset)}
+                              className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                                active
+                                  ? 'border-accent bg-accent/15 text-accent'
+                                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+                              }`}
+                            >
+                              {t.pageSpace.preset[preset]}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
                       <span className="text-sm font-semibold">{t.settings.cardDensityDefault}</span>
@@ -471,8 +513,7 @@ export function SettingsButton() {
                     <h3 className="mt-2 text-[11px] font-bold uppercase tracking-widest text-muted">
                       {t.settings.iaPerPageOverrides}
                     </h3>
-                    <PerPageSpacePanel />
-                    <PerPageDensityPanel />
+                    <PerPageLayoutPanel />
                   </div>
                 )}
 
@@ -493,10 +534,8 @@ export function SettingsButton() {
                       write to `settings.spoilerLevel` so they stay
                       in sync via the shared settings store.
                     */}
-                    <fieldset className="md:col-span-2 flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
-                      <legend className="px-1 text-sm font-semibold">
-                        {t.spoiler.title}
-                      </legend>
+                    <div className="md:col-span-2 flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
+                      <span className="text-sm font-semibold">{t.spoiler.title}</span>
                       <p className="text-[11px] text-muted">{t.spoiler.hint}</p>
                       <div role="radiogroup" aria-label={t.spoiler.title} className="grid grid-cols-3 gap-2">
                         {[0, 1, 2].map((lvl) => {
@@ -520,7 +559,7 @@ export function SettingsButton() {
                           );
                         })}
                       </div>
-                    </fieldset>
+                    </div>
                     <Toggle
                       label={t.settings.blurR18}
                       description={t.settings.blurR18Desc}
@@ -1568,56 +1607,99 @@ function SortableDetailRow({
   );
 }
 
+const PAGE_LAYOUT_DENSITY_SCOPES: Partial<Record<PageSpaceScope, readonly DensityScope[]>> = {
+  library: ['library'],
+  wishlist: ['wishlist'],
+  search: ['search'],
+  vn: ['vnMedia'],
+  staff: ['staffWorks'],
+  character: ['characterWorks'],
+  producer: ['producerWorks'],
+  series: ['seriesWorks'],
+  lists: ['lists'],
+  shelf: ['shelf'],
+  recommendations: ['recommendations'],
+  topRanked: ['topRanked'],
+  upcoming: ['upcoming'],
+  similar: ['vnSimilar'],
+  tags: ['tagPage'],
+  dumped: ['dumped'],
+  egs: ['egs'],
+};
+
 /**
- * Settings → Display panel for route-group page spacing. The control
- * uses fixed presets instead of a slider so users can make predictable
- * per-surface choices without creating awkward intermediate widths.
+ * Settings → Display panel for per-page layout overrides. It combines
+ * page spacing and scoped card-density state in one row per route
+ * group, so Display no longer has two competing "per-page" panels.
  *
- * @returns Settings block for page-spacing overrides.
+ * @returns Settings block for route-group layout overrides.
  */
-function PerPageSpacePanel() {
+function PerPageLayoutPanel() {
   const t = useT();
+  const router = useRouter();
+  const [, startPageTransition] = useTransition();
   const { settings, set } = useDisplaySettings();
   const pageSpace = settings.pageSpace ?? {};
+  const density = settings.density ?? {};
 
   function setScopePreset(scope: PageSpaceScope, preset: PageSpacePreset) {
     const next: PageSpaceOverrides = { ...pageSpace };
     if (preset === PAGE_SPACE_SCOPE_DEFAULTS[scope]) delete next[scope];
     else next[scope] = preset;
     set('pageSpace', next);
+    startPageTransition(() => router.refresh());
   }
 
-  function resetScope(scope: PageSpaceScope) {
+  function resetSpaceScope(scope: PageSpaceScope) {
     const next: PageSpaceOverrides = { ...pageSpace };
     delete next[scope];
     set('pageSpace', next);
+    startPageTransition(() => router.refresh());
   }
 
-  function resetAllScopes() {
+  function resetDensityScope(scope: DensityScope) {
+    const next: DensityScopes = { ...density };
+    delete next[scope];
+    set('density', next);
+  }
+
+  function resetAllDensityScopes() {
+    set('density', clearAllScopeDensities(settings));
+  }
+
+  function resetAllSpaceScopes() {
     set('pageSpace', clearPageSpaceOverrides());
   }
 
-  const someOverride = PAGE_SPACE_SCOPES.some((scope) => hasPageSpaceOverride(settings, scope));
+  function resetEverything() {
+    set('pageSpace', clearPageSpaceOverrides());
+    set('density', clearAllScopeDensities(settings));
+    set('cardDensityPx', CARD_DENSITY_DEFAULT);
+  }
+
+  const someSpaceOverride = PAGE_SPACE_SCOPES.some((scope) => hasPageSpaceOverride(settings, scope));
+  const someDensityOverride = DENSITY_SCOPES.some((scope) => hasScopeOverride(settings, scope));
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
-      <span className="text-sm font-semibold">{t.settings.pageSpaceTitle}</span>
-      <span className="text-[11px] text-muted">{t.settings.pageSpaceHint}</span>
+      <span className="text-sm font-semibold">{t.settings.perPageLayout}</span>
+      <span className="text-[11px] text-muted">{t.settings.perPageLayoutHint}</span>
       <ul className="mt-1 grid gap-2">
         {PAGE_SPACE_SCOPES.map((scope) => {
           const activePreset = resolvePageSpacePreset(settings, scope);
-          const overridden = hasPageSpaceOverride(settings, scope);
+          const spaceOverridden = hasPageSpaceOverride(settings, scope);
+          const densityScopes = PAGE_LAYOUT_DENSITY_SCOPES[scope] ?? [];
           return (
             <li
               key={scope}
-              className="grid gap-2 rounded-md border border-border/60 bg-bg-card/40 px-2 py-2 text-[11px] lg:grid-cols-[minmax(9rem,1fr)_auto]"
+              className="grid gap-2 rounded-md border border-border/60 bg-bg-card/40 px-2 py-2 text-[11px] xl:grid-cols-[minmax(8rem,0.8fr)_minmax(18rem,1.4fr)_minmax(9rem,0.8fr)]"
             >
               <div className="min-w-0">
-                <span className={overridden ? 'block text-white' : 'block text-muted'}>
+                <span className={spaceOverridden ? 'block text-white' : 'block text-muted'}>
                   {t.pageSpace.scope[scope]}
                 </span>
                 <span className="block text-[10px] text-muted/80">
-                  {overridden
+                  {spaceOverridden
                     ? t.pageSpace.customOverride
                     : t.pageSpace.defaultPreset.replace(
                         '{preset}',
@@ -1647,13 +1729,39 @@ function PerPageSpacePanel() {
                 })}
                 <button
                   type="button"
-                  onClick={() => resetScope(scope)}
-                  disabled={!overridden}
+                  onClick={() => resetSpaceScope(scope)}
+                  disabled={!spaceOverridden}
                   className="min-h-8 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
-                  title={t.settings.perPageReset}
+                  title={t.settings.pageSpaceReset}
                 >
-                  {t.settings.perPageReset}
+                  {t.settings.pageSpaceReset}
                 </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-1 xl:justify-end">
+                {densityScopes.length > 0 ? (
+                  densityScopes.map((densityScope) => {
+                    const overridden = hasScopeOverride(settings, densityScope);
+                    const value = density[densityScope];
+                    return (
+                      <span key={densityScope} className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1">
+                        <span className={overridden ? 'tabular-nums text-accent' : 'text-muted/80'}>
+                          {overridden ? `${value}px` : t.settings.followsDefault}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => resetDensityScope(densityScope)}
+                          disabled={!overridden}
+                          className="rounded border border-border px-1 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
+                          title={t.settings.densityReset}
+                        >
+                          {t.settings.densityReset}
+                        </button>
+                      </span>
+                    );
+                  })
+                ) : (
+                  <span className="text-[10px] italic text-muted/70">{t.settings.noDensityControl}</span>
+                )}
               </div>
             </li>
           );
@@ -1662,93 +1770,16 @@ function PerPageSpacePanel() {
       <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
         <button
           type="button"
-          onClick={resetAllScopes}
-          disabled={!someOverride}
+          onClick={resetAllSpaceScopes}
+          disabled={!someSpaceOverride}
           className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
         >
           {t.settings.pageSpaceResetAll}
         </button>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Settings → Display panel for per-page density overrides. Lists every
- * scope from `DENSITY_SCOPES`, surfaces which ones currently carry an
- * override, and offers a Reset button per row. The bulk-reset row at
- * the bottom clears either every override (leaving the legacy default
- * intact) or every density preference at once.
- *
- * Reads + writes go through `useDisplaySettings()` so the changes
- * propagate to every grid mounted on the page without a router
- * refresh — Settings is a portal inside the persistent layout.
- */
-function PerPageDensityPanel() {
-  const t = useT();
-  const { settings, set } = useDisplaySettings();
-  const density = settings.density ?? {};
-
-  function resetScope(scope: DensityScope) {
-    const next: DensityScopes = { ...density };
-    delete next[scope];
-    set('density', next);
-  }
-
-  function resetAllScopes() {
-    set('density', clearAllScopeDensities(settings));
-  }
-
-  function resetEverything() {
-    set('density', clearAllScopeDensities(settings));
-    set('cardDensityPx', CARD_DENSITY_DEFAULT);
-  }
-
-  const someOverride = DENSITY_SCOPES.some((s) => hasScopeOverride(settings, s));
-
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
-      <span className="text-sm font-semibold">{t.settings.perPageDensity}</span>
-      <span className="text-[11px] text-muted">{t.settings.perPageDensityHint}</span>
-      <ul className="mt-1 grid gap-1 sm:grid-cols-2">
-        {DENSITY_SCOPES.map((scope) => {
-          const overridden = hasScopeOverride(settings, scope);
-          const value = density[scope];
-          return (
-            <li
-              key={scope}
-              className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-bg-card/40 px-2 py-1 text-[11px]"
-            >
-              <span className={overridden ? 'text-white' : 'text-muted'}>
-                {t.cardDensity.scope[scope]}
-              </span>
-              <span className="ml-auto inline-flex items-center gap-1.5">
-                {overridden ? (
-                  <span className="tabular-nums text-accent">{value}px</span>
-                ) : (
-                  <span className="text-[10px] italic text-muted/80">
-                    {t.settings.followsDefault}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => resetScope(scope)}
-                  disabled={!overridden}
-                  className="rounded-md border border-border bg-bg-elev/40 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
-                  title={t.settings.perPageReset}
-                >
-                  {t.settings.perPageReset}
-                </button>
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-      <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
         <button
           type="button"
-          onClick={resetAllScopes}
-          disabled={!someOverride}
+          onClick={resetAllDensityScopes}
+          disabled={!someDensityOverride}
           className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
         >
           {t.settings.perPageResetAll}

@@ -88,6 +88,7 @@ export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
           disabled={busy || pending}
           className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
           title={t.cover.hint}
+          data-menu-keep-open=""
         >
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
           {busy ? t.cover.uploading : t.cover.uploadCta}

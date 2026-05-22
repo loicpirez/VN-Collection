@@ -5,7 +5,13 @@ import { ImageMinus, ImagePlus, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
-export function BannerControls({ vnId, hasCustomBanner }: { vnId: string; hasCustomBanner: boolean }) {
+interface Props {
+  vnId: string;
+  hasCustomBanner: boolean;
+  variant?: 'card' | 'inline';
+}
+
+export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Props) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -51,21 +57,60 @@ export function BannerControls({ vnId, hasCustomBanner }: { vnId: string; hasCus
     }
   }
 
+  const hiddenInput = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/*"
+      aria-hidden="true"
+      tabIndex={-1}
+      className="hidden"
+      onChange={(e) => {
+        const f = e.target.files?.[0];
+        if (f) upload(f);
+        e.target.value = '';
+      }}
+    />
+  );
+
+  if (variant === 'inline') {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        {hiddenInput}
+        <div className="flex flex-wrap gap-1">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={busy || pending}
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+            title={t.banner.hint}
+            data-menu-keep-open=""
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+            {busy ? t.banner.uploadCta : t.banner.uploadCta}
+          </button>
+          {hasCustomBanner && (
+            <button
+              type="button"
+              onClick={reset}
+              disabled={busy || pending}
+              className="inline-flex items-center gap-1 rounded-md border border-status-dropped/50 bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-status-dropped shadow-card backdrop-blur transition-colors hover:border-status-dropped hover:bg-status-dropped/10 disabled:opacity-50"
+            >
+              <ImageMinus className="h-3 w-3" aria-hidden />
+              {t.banner.reset}
+            </button>
+          )}
+        </div>
+        {error && <p role="alert" className="text-[10px] text-status-dropped">{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-border bg-bg-card p-4">
       <h3 className="mb-1 text-xs font-bold uppercase tracking-widest text-muted">{t.banner.title}</h3>
       <p className="mb-3 text-[11px] text-muted">{t.banner.hint}</p>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) upload(f);
-          e.target.value = '';
-        }}
-      />
+      {hiddenInput}
       <div className="flex flex-wrap gap-2">
         <button className="btn" onClick={() => inputRef.current?.click()} disabled={busy || pending}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}

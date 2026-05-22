@@ -22,7 +22,7 @@ import { SpoilerToggle } from '@/components/SpoilerToggle';
 import { QuoteFooter } from '@/components/QuoteFooter';
 import { ToastProvider } from '@/components/ToastProvider';
 import { ConfirmProvider } from '@/components/ConfirmDialog';
-import { PageSpaceFrame } from '@/components/PageSpaceFrame';
+import { HeaderSpaceFrame, PageSpaceFrame } from '@/components/PageSpaceFrame';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -102,7 +102,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   {dict.app.skipToContent}
                 </a>
                 <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur">
-                  <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-3 py-3 sm:gap-4 sm:px-6">
+                  <HeaderSpaceFrame className="flex flex-wrap items-center gap-2 py-3 sm:gap-4">
                     <Link href="/" className="flex items-center gap-2">
                       <Library className="h-6 w-6 text-accent" aria-hidden />
                       <span className="text-base font-bold tracking-wide">{dict.app.title}</span>
@@ -113,7 +113,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       <SettingsButton />
                       <LanguageSwitcher />
                     </div>
-                  </div>
+                  </HeaderSpaceFrame>
                 </header>
                 <main
                   id="main-content"

@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { PageSpaceOverrides } from '@/lib/page-space';
+import type { PageSpaceOverrides, PageSpacePreset } from '@/lib/page-space';
 
 const COOKIE_NAME = 'vn_display_settings_v1';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
@@ -84,6 +84,12 @@ export interface DisplaySettings {
    */
   pageSpace: PageSpaceOverrides;
   /**
+   * When true, the global navbar uses the active route group's page
+   * spacing. Off by default so navigation remains visually stable while
+   * content pages can still use compact / wide / canvas frames.
+   */
+  headerFollowsPageSpace: boolean;
+  /**
    * Spoiler level shown by default across the app.
    *   0 = none (default — like VNDB out of the box)
    *   1 = minor spoilers
@@ -93,6 +99,12 @@ export interface DisplaySettings {
   spoilerLevel: 0 | 1 | 2;
   /** When true, sexual traits / NSFW-flagged traits are revealed. */
   showSexualTraits: boolean;
+  /**
+   * Global page width override. When set, ALL route groups use this preset
+   * instead of their individual `pageSpace` override or default. Set to null
+   * to revert to per-page behavior.
+   */
+  globalPageSpace: PageSpacePreset | null;
 }
 
 const DEFAULTS: DisplaySettings = {
@@ -106,8 +118,10 @@ const DEFAULTS: DisplaySettings = {
   cardDensityPx: 220,
   density: {},
   pageSpace: {},
+  headerFollowsPageSpace: false,
   spoilerLevel: 0,
   showSexualTraits: false,
+  globalPageSpace: null,
 };
 
 /**

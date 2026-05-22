@@ -62,7 +62,11 @@ export function QueueButton({ vnId }: { vnId: string }) {
       type="button"
       onClick={toggle}
       disabled={busy}
-      className={`btn ${queued ? 'btn-primary' : ''}`}
+      className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+        queued
+          ? 'border-accent bg-accent text-bg hover:bg-accent/90'
+          : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'
+      }`}
       title={queued ? t.readingQueue.removeCta : t.readingQueue.addCta}
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : queued ? <ListOrdered className="h-4 w-4" /> : <Plus className="h-4 w-4" />}

@@ -4,12 +4,10 @@
  * The operator's spec for round 5 is:
  *   - one coherent toolbar primitive (single component)
  *   - uniform button height (`h-9`) and padding (`px-3 py-1.5`)
- *   - explicit cluster separators (danger band visibly off to the side)
+ *   - plain row wrappers; size and padding live on the actual controls
  *   - no `class="btn "` drift (trailing-space mass-edit signature)
  *   - no useless `<span className="contents">` wrappers
- *   - no mixed `.btn` primitives in the toolbar (all buttons should
- *     compose via the shared `btn` class OR be passive non-button
- *     surfaces like `AnimeChip`).
+ *   - no child-selector styling that accidentally targets menu wrappers
  *
  * Pin the source so a future PR that re-introduces a one-off button
  * with `h-7` or `h-11` height inside the toolbar will fail this test.
@@ -24,17 +22,22 @@ const SOURCE = readFileSync(
 );
 
 describe('VnDetailActionsBar — shape invariants', () => {
-  it('declares the uniform-height row class `[&>*]:h-9` for the primary row', () => {
-    expect(SOURCE).toMatch(/PRIMARY_ROW_CLASSES[\s\S]*?\[&>\*\]:h-9/);
+  it('pins the shared toolbar action button sizing contract', () => {
+    expect(SOURCE).toMatch(
+      /ACTION_BUTTON_CLASSES[\s\S]*?inline-flex h-9[\s\S]*?gap-1\.5[\s\S]*?px-3 py-1\.5[\s\S]*?text-xs/,
+    );
   });
 
-  it('declares the uniform-height row class `[&>*]:h-9` for the dropdown row', () => {
-    expect(SOURCE).toMatch(/DROPDOWN_ROW_CLASSES[\s\S]*?\[&>\*\]:h-9/);
+  it('keeps row wrappers free of child-selector sizing', () => {
+    const primaryRowMatch = SOURCE.match(/const PRIMARY_ROW_CLASSES =\n\s+'([^']+)';/);
+
+    expect(primaryRowMatch?.[1]).toBe('flex flex-wrap items-center gap-2');
+    expect(primaryRowMatch?.[1]).not.toContain('[&>*]');
+    expect(SOURCE).not.toMatch(/DROPDOWN_ROW_CLASSES/);
   });
 
-  it('uses uniform `px-3 py-1.5` padding on toolbar children', () => {
-    expect(SOURCE).toMatch(/\[&>\*\]:px-3/);
-    expect(SOURCE).toMatch(/\[&>\*\]:py-1\.5/);
+  it('uses a single compact toolbar surface', () => {
+    expect(SOURCE).toMatch(/rounded-xl border border-border\/70 bg-bg-elev\/25 p-2/);
   });
 
   it('does not ship the `class="btn "` trailing-space drift', () => {
@@ -45,11 +48,8 @@ describe('VnDetailActionsBar — shape invariants', () => {
     expect(SOURCE).not.toMatch(/className=['"`]contents['"`]/);
   });
 
-  it('places the danger cluster behind a visible separator on md+', () => {
-    // `md:border-l` + `md:ml-auto` collectively push danger right and
-    // separate it from the rest of the bar. Pin both.
-    expect(SOURCE).toMatch(/md:ml-auto/);
-    expect(SOURCE).toMatch(/md:border-l/);
+  it('passes the shared action button class to dropdown triggers', () => {
+    expect(SOURCE).toMatch(/triggerClassName=\{ACTION_BUTTON_CLASSES\}/);
   });
 
   it('keeps cluster grouping discoverable via role="group" + aria-label', () => {

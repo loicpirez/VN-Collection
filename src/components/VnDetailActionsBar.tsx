@@ -10,10 +10,12 @@ import type { CollectionItem, ReleaseImage, Screenshot } from '@/lib/types';
 import { getDict } from '@/lib/i18n/server';
 import { ActionMenu } from './ActionMenu';
 import { AnimeChip } from './AnimeChip';
+import { BannerControls } from './BannerControls';
 import { BannerSourcePicker } from './BannerSourcePicker';
 import { CompareWithButton } from './CompareWithButton';
 import { CoverQuickActions } from './CoverQuickActions';
 import { CoverSourcePicker } from './CoverSourcePicker';
+import { CoverUploader } from './CoverUploader';
 import { DownloadAssetsButton } from './DownloadAssetsButton';
 import { FavoriteToggleButton } from './FavoriteToggleButton';
 import { LinkToVndbButton } from './LinkToVndbButton';
@@ -23,37 +25,12 @@ import { QueueButton } from './QueueButton';
 import { safeHref } from '@/lib/safe-href';
 
 /**
- * Detail-page action toolbar — third acceptance-gate rework.
+ * Detail-page action toolbar.
  *
- * The previous regroup kept the six logical clusters but rendered as
- * a heterogeneous wall of buttons: primary buttons and dropdown
- * triggers shared the same `btn` class with mismatched paddings,
- * heights drifted between 32 px (FavoriteToggle inline) and 40 px
- * (CoverQuickActions add), and the destructive cluster nestled in
- * the same row as the tracking primaries with no visual separator.
- *
- * This pass keeps the six clusters but pins their visual hierarchy:
- *
- *   - One responsive flex stack: on mobile (<md) the bar is a column
- *     where each row stacks vertically (primaries, dropdowns, danger),
- *     separated by a `border-t` rule between dropdowns and danger so
- *     destructive actions visibly belong to a different band.
- *   - On md+ everything is a single row with `gap-3` between clusters
- *     and a `h-6 w-px bg-border/40` vertical separator between the
- *     primary cluster and the dropdown cluster. The danger cluster is
- *     pushed right via `md:ml-auto` with its own `md:border-l`
- *     vertical divider so the destructive button sits visually apart.
- *   - Every primary button inside the inline cluster is normalised to
- *     `h-9` via the parent's Tailwind arbitrary variant. Padding is
- *     tuned down to `py-1.5` so the natural line-height fits the 36 px
- *     box without overflowing. Icon size is locked at `h-4 w-4`.
- *   - Each dropdown trigger keeps the `btn` class but is rendered
- *     through `<ActionMenu>` which already appends `<ChevronDown>` and
- *     `aria-haspopup="menu"`. The trigger sits inside the second flex
- *     row on mobile, alongside the primaries on desktop.
- *   - The External links dropdown is a 2-column icon grid where every
- *     cell shows the lucide `ExternalLink` glyph + the label (long
- *     URLs truncate with a tooltip).
+ * The toolbar keeps collection actions, secondary menus, and destructive
+ * actions on one compact responsive surface. Control sizing is pinned on
+ * the actual buttons instead of row-level child selectors, which prevents
+ * menu wrappers and nested controls from inheriting unintended spacing.
  *
  * Gating from the previous rework is preserved:
  *   - Media + Tracking + Dangerous gate on `inCollection`.
@@ -72,6 +49,8 @@ interface Props {
   inCollection: boolean;
   /** Resolved EGS row (if any). Drives the View-on-EGS anchor + cover picker. */
   egsRow: { egs_id: number | null; image_url?: string | null } | null;
+  /** Whether the VN has a custom banner set (gates the banner reset button). */
+  hasCustomBanner: boolean;
 }
 
 /**
@@ -105,36 +84,13 @@ function deriveVnDataState(vn: CollectionItem): 'none' | 'partial' | 'complete' 
   return 'complete';
 }
 
-/**
- * Wrapper classes applied to the primary-buttons row.
- *
- * R5-227 — the previous `[&>*]:h-9 [&>*]:px-3 [&>*]:py-1.5` rule
- * applied PADDING to every direct child, including the
- * `<ActionMenu>` wrapper `<span>`. With `box-sizing: border-box`
- * the wrapper's content area shrank by 12 px vertical, and the
- * inner `btn h-9 …` button overflowed the wrapper. Adjacent
- * plain `<button>` children (no wrapper) sat at exactly 36 px,
- * so the two clusters drifted by ~6 px each side.
- *
- * Fix: height is enforced via descendant selectors that find the
- * actual interactive element (`button`, `a`, `input`) instead of
- * `[&>*]`. Padding is left to the `btn` class on each interactive
- * element itself. The row only enforces gap + flex.
- */
 const PRIMARY_ROW_CLASSES =
-  'flex flex-wrap items-center gap-2 [&_button]:h-9 [&_a.btn]:h-9 [&_a.btn-primary]:h-9 [&_a.btn-danger]:h-9';
+  'flex flex-wrap items-center gap-2';
 
-/**
- * Dropdown-cluster classes — same descendant-selector pattern so a
- * `<span>` wrapper around an `<ActionMenu>` trigger doesn't
- * inherit padding/height. `gap-2` between triggers; rows INSIDE
- * each dropdown panel use `gap-1.5` (set on each menu's body
- * separately).
- */
-const DROPDOWN_ROW_CLASSES =
-  'flex flex-wrap items-center gap-2 [&_button]:h-9 [&_a.btn]:h-9';
+const ACTION_BUTTON_CLASSES =
+  'inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
 
-export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
+export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBanner }: Props) {
   const t = await getDict();
   const isEgsOnly = vn.id.startsWith('egs_');
   const screenshots: Screenshot[] = vn.screenshots ?? [];
@@ -181,7 +137,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           <ListChecks className="h-4 w-4" aria-hidden /> {t.detail.actions.groupTracking}
         </>
       }
-      triggerClassName="btn h-9 px-3 py-1.5"
+      triggerClassName={ACTION_BUTTON_CLASSES}
       menuClassName="w-56 rounded-lg border border-border bg-bg-card p-1 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -210,7 +166,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           <ExternalLink className="h-4 w-4" aria-hidden /> {t.detail.actions.groupExternal}
         </>
       }
-      triggerClassName="btn h-9 px-3 py-1.5"
+      triggerClassName={ACTION_BUTTON_CLASSES}
       menuClassName="w-72 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -238,7 +194,10 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
     </ActionMenu>
   ) : null;
 
-  // ── Cluster 4: Media (single dropdown) ──────────────────────────
+  // ── Cluster 4: Media/Artwork (single dropdown) ─────────────────
+  // Combines cover/banner pickers (source selection) with direct
+  // upload controls (custom file upload) so the operator never
+  // needs to scroll to a separate "Custom artwork" card section.
   const media = inCollection ? (
     <ActionMenu
       label={t.detail.actions.groupMedia}
@@ -247,12 +206,12 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           <ImageIcon className="h-4 w-4" aria-hidden /> {t.detail.actions.groupMedia}
         </>
       }
-      triggerClassName="btn h-9 px-3 py-1.5"
-      menuClassName="w-56 rounded-lg border border-border bg-bg-card p-2 shadow-card"
+      triggerClassName={ACTION_BUTTON_CLASSES}
+      menuClassName="w-64 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
       <div
-        className="flex flex-col gap-1.5"
+        className="flex flex-col gap-2"
         role="group"
         aria-label={t.detail.actions.groupMedia}
       >
@@ -262,14 +221,11 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           egsId={egsRow?.egs_id ?? null}
           currentCustomCover={vn.custom_cover ?? null}
           currentRotation={
-            // `vn.cover_rotation` is stored as a normalized 0/90/180/270
-            // integer; the picker accepts the same union so the cast
-            // is safe. Default 0 covers the migration window before
-            // the column existed.
             ((vn.cover_rotation ?? 0) as 0 | 90 | 180 | 270)
           }
           screenshots={screenshots}
           releaseImages={releaseImages}
+          triggerClassName={ACTION_BUTTON_CLASSES}
         />
         <BannerSourcePicker
           vnId={vn.id}
@@ -279,7 +235,17 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           coverSexual={vn.image_sexual ?? null}
           screenshots={screenshots}
           releaseImages={releaseImages}
+          triggerClassName={ACTION_BUTTON_CLASSES}
         />
+        <div className="border-t border-border/50 pt-2">
+          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">
+            {t.detail.actions.groupMedia}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <CoverUploader vnId={vn.id} hasCustom={!!vn.custom_cover} variant="inline" />
+            <BannerControls vnId={vn.id} hasCustomBanner={hasCustomBanner} variant="inline" />
+          </div>
+        </div>
       </div>
     </ActionMenu>
   ) : null;
@@ -296,7 +262,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           <Database className="h-4 w-4" aria-hidden /> {t.detail.actions.groupData}
         </>
       }
-      triggerClassName="btn h-9 px-3 py-1.5"
+      triggerClassName={ACTION_BUTTON_CLASSES}
       menuClassName="w-72 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -313,7 +279,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
           <Link2 className="h-4 w-4" aria-hidden /> {t.detail.actions.groupMapping}
         </>
       }
-      triggerClassName="btn h-9 px-3 py-1.5"
+      triggerClassName={ACTION_BUTTON_CLASSES}
       menuClassName="w-64 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-right"
     >
@@ -338,36 +304,11 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   );
 
   // The dropdown cluster groups every secondary dropdown trigger
-  // into a single row on desktop. Empty entries are filtered out so
-  // a missing menu (e.g. `tracking` on an out-of-collection VN)
-  // doesn't leave dead whitespace.
-  const dropdownTriggers: Array<{ key: string; node: React.ReactNode }> = (
-    [
-      { key: 'tracking', node: tracking },
-      { key: 'external', node: external },
-      { key: 'media', node: media },
-      { key: 'data', node: data },
-      { key: 'mapping', node: mapping },
-    ] as const
-  ).filter((e) => e.node != null);
-
-  // ── Destructive (rendered last, right-anchored on md+) ───────────
   const dangerous = inCollection ? (
     <div
       role="group"
       aria-label={t.detail.actions.groupDangerous}
-      className={
-        // Visual coherence pass: the danger action now sits on the
-        // SAME row as the dropdown cluster on desktop, sharing the
-        // `h-9` height baseline. On mobile it stays in its own
-        // wrapped row (no top border — the lighter `flex flex-col
-        // gap-2` of the outer nav already separates clusters
-        // cleanly without a hard rule). The previous `border-t` +
-        // `md:ml-auto` combo produced the "detached" look the
-        // operator flagged: a horizontal rule above the Remove
-        // button on mobile and a far-right anchor on desktop.
-        'flex flex-wrap items-center gap-2 [&>*]:h-9 [&>*]:px-3 [&>*]:py-1.5'
-      }
+      className="ml-auto flex flex-wrap items-center gap-2"
     >
       <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />
     </div>
@@ -376,47 +317,14 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow }: Props) {
   return (
     <nav
       aria-label={t.detail.actions.ariaLabel}
-      className="mt-3 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:gap-3"
+      className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-bg-elev/25 p-2"
     >
       {collection}
-      {/*
-        Desktop-only vertical separator between the primary inline
-        cluster and the dropdown cluster. On mobile each cluster
-        already lives on its own row, so the divider would be a
-        rotated 1-pixel sliver — hidden via `hidden md:inline-block`.
-      */}
-      {dropdownTriggers.length > 0 && (
-        <span
-          aria-hidden
-          className="hidden h-6 w-px shrink-0 self-center bg-border/40 md:inline-block"
-        />
-      )}
-      {dropdownTriggers.length > 0 && (
-        <div
-          role="group"
-          aria-label={t.detail.actions.ariaLabel}
-          className={DROPDOWN_ROW_CLASSES}
-        >
-          {dropdownTriggers.map(({ key, node }) => (
-            <React.Fragment key={key}>
-              {node}
-            </React.Fragment>
-          ))}
-        </div>
-      )}
-      {/*
-        Same-style divider in front of the danger cluster so the
-        intent ("destructive action lives on its own band") still
-        reads at a glance, but the action stays on the SAME visual
-        row at desktop widths. Hidden on mobile because the column
-        flex already separates rows cleanly.
-      */}
-      {dangerous && (
-        <span
-          aria-hidden
-          className="hidden h-6 w-px shrink-0 self-center bg-border/40 md:inline-block"
-        />
-      )}
+      {tracking}
+      {external}
+      {media}
+      {data}
+      {mapping}
       {dangerous}
     </nav>
   );
@@ -441,7 +349,7 @@ function ExternalLinkGridItem({ href, label }: { href: string; label: string }) 
       target="_blank"
       rel="noopener noreferrer"
       role="menuitem"
-      className="inline-flex items-center gap-1.5 truncate rounded-md border border-border bg-bg-elev px-2 py-1.5 text-xs text-muted hover:border-accent hover:text-accent"
+      className="inline-flex h-9 items-center gap-1.5 truncate rounded-md border border-border bg-bg-elev px-2 py-1.5 text-xs text-muted hover:border-accent hover:text-accent"
       title={label}
     >
       <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />

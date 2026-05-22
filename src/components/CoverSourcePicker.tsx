@@ -30,6 +30,8 @@ interface Props {
   currentRotation?: 0 | 90 | 180 | 270;
   screenshots: Screenshot[];
   releaseImages: ReleaseImage[];
+  /** Optional classes for the visible trigger button. */
+  triggerClassName?: string;
 }
 
 type Tab = 'vndb' | 'egs' | 'custom';
@@ -56,6 +58,7 @@ export function CoverSourcePicker({
   currentRotation = 0,
   screenshots,
   releaseImages,
+  triggerClassName = 'btn',
 }: Props) {
   const t = useT();
   const toast = useToast();
@@ -295,8 +298,9 @@ export function CoverSourcePicker({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="btn"
+        className={triggerClassName}
         title={t.coverPicker.openTitle}
+        data-menu-keep-open=""
       >
         <ImagePlus className="h-4 w-4" />
         {t.coverPicker.open}
@@ -334,11 +338,16 @@ export function CoverSourcePicker({
               rotation through the `currentRotation` prop and writes
               via PATCH `/api/collection/[id]/cover { rotation }`.
             */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-bg-elev/30 px-4 py-2 text-xs">
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted">
-                {t.coverActions.rotationLabel} · {rotation}°
-              </span>
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col gap-1.5 border-b border-border bg-bg-elev/30 px-4 py-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted">
+                  {t.coverActions.rotationLabel}
+                </span>
+                <span className="min-w-[2.5rem] rounded-md border border-border bg-bg-card px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-accent">
+                  {rotation}°
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
                 <button
                   type="button"
                   onClick={() => rotateBy(-90)}

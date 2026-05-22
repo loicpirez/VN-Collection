@@ -93,7 +93,7 @@ describe('resolvePageSpaceScope', () => {
     ['/schema', 'data'],
     ['/brand-overlap', 'brandOverlap'],
     ['/activity', 'activity'],
-    ['/dumped', 'activity'],
+    ['/dumped', 'dumped'],
     ['/stats', 'stats'],
     ['/year', 'stats'],
     ['/quotes', 'quotes'],

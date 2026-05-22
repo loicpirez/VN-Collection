@@ -20,6 +20,8 @@ interface Props {
   coverSexual: number | null;
   screenshots: Screenshot[];
   releaseImages: ReleaseImage[];
+  /** Optional classes for the visible trigger button. */
+  triggerClassName?: string;
 }
 
 type Tab = 'default' | 'custom';
@@ -43,6 +45,7 @@ export function BannerSourcePicker({
   coverSexual,
   screenshots,
   releaseImages,
+  triggerClassName = 'btn',
 }: Props) {
   const t = useT();
   const toast = useToast();
@@ -170,8 +173,9 @@ export function BannerSourcePicker({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="btn"
+        className={triggerClassName}
         title={t.bannerPicker.openTitle}
+        data-menu-keep-open=""
       >
         <ImageIcon className="h-4 w-4" />
         {t.bannerPicker.open}

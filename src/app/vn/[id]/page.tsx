@@ -38,6 +38,8 @@ import { SafeImage } from '@/components/SafeImage';
 import { MediaGallery } from '@/components/MediaGallery';
 import { CoverUploader } from '@/components/CoverUploader';
 import { BannerControls } from '@/components/BannerControls';
+import { CoverSourcePicker } from '@/components/CoverSourcePicker';
+import { BannerSourcePicker } from '@/components/BannerSourcePicker';
 import { HeroBanner } from '@/components/HeroBanner';
 import { MarkdownView } from '@/components/MarkdownNotes';
 import { CharactersSection } from '@/components/CharactersSection';
@@ -56,6 +58,7 @@ import { VnListMemberships } from '@/components/VnListMemberships';
 import { PlaytimeCompare } from '@/components/PlaytimeCompare';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { VnDetailActionsBar } from '@/components/VnDetailActionsBar';
+import { ScoreSection } from '@/components/ScoreSection';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
 import { QuotesSection } from '@/components/QuotesSection';
@@ -69,13 +72,10 @@ import { EgsPanel } from '@/components/EgsPanel';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
 import { MatchBadges } from '@/components/MatchBadges';
 import { VndbStatusPanel } from '@/components/VndbStatusPanel';
-import { SourceTag } from '@/components/SourceTag';
-import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { FieldCompare } from '@/components/FieldCompare';
 import { CustomSynopsis } from '@/components/CustomSynopsis';
 import { BrandCompare } from '@/components/BrandCompare';
 import { CoverCompare } from '@/components/CoverCompare';
-import { VnTagChips } from '@/components/VnTagChips';
 import { VnTagsGroupedView } from '@/components/VnTagsGroupedView';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
@@ -86,6 +86,14 @@ const CACHE_MS = 24 * 3600 * 1000;
 function fmtMinutes(m: number | null | undefined): string {
   return formatMinutes(m, { fallback: '—', emptyValue: 'strict_positive' });
 }
+
+function combinedScore(vndb: number | null, egs: number | null): number | null {
+  if (vndb == null && egs == null) return null;
+  if (vndb == null) return egs;
+  if (egs == null) return vndb;
+  return Math.round((vndb + egs) / 2);
+}
+
 
 /**
  * Resolve a VN id to its on-screen detail data.
@@ -217,9 +225,16 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     });
   }
   const status = (vn.status as Status | undefined) ?? null;
-  const ratingNum = vn.rating != null ? (vn.rating / 10).toFixed(1) : '—';
   // Per-field source preference (VNDB / EGS / Custom) — pulled per-VN, defaults to Auto.
   const egsRow = getEgsForVn(vn.id);
+  const vndbRating = vn.rating ?? null;
+  const egsRating = egsRow?.median ?? null;
+  const unifiedRating = combinedScore(vndbRating, egsRating);
+  const unifiedRatingSource =
+    vndbRating != null && egsRating != null ? t.detail.scoreUnifiedBoth
+    : vndbRating != null ? t.detail.scoreUnifiedVndb
+    : egsRating != null ? t.detail.scoreUnifiedEgs
+    : t.detail.scoreUnavailable;
   const sourcePref = getSourcePref(vn.id);
   // Three independent poster sources so the compare panel can show them
   // side-by-side without conflating custom into the VNDB column.
@@ -427,19 +442,18 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               {status && <StatusBadge status={status} />}
             </div>
 
-            <div className="flex items-baseline gap-2">
-              <span className="inline-flex items-baseline gap-1 text-3xl font-bold text-accent">
-                <Star className="h-6 w-6 self-center fill-accent" aria-hidden /> {ratingNum}
-              </span>
-              <span className="text-sm text-muted">
-                {t.detail.ratingOf10} · {fmtNum(vn.votecount ?? 0, locale)} {t.detail.votes}
-              </span>
-              {vn.user_rating != null && (
-                <span className="ml-3 rounded-md bg-accent/15 px-2 py-1 text-xs font-bold text-accent">
-                  {t.detail.myRatingLabel}: {(vn.user_rating / 10).toFixed(1)}
-                </span>
-              )}
-            </div>
+            <ScoreSection
+              unifiedRating={unifiedRating}
+              unifiedRatingSource={unifiedRatingSource}
+              vndbRating={vndbRating}
+              egsRating={egsRating}
+              vndbAverage={vn.average ?? null}
+              userRating={vn.user_rating ?? null}
+              votecount={vn.votecount ?? 0}
+              formattedVotecount={fmtNum(vn.votecount ?? 0, locale)}
+              ratingOf10={t.detail.ratingOf10}
+              votes={t.detail.votes}
+            />
 
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm sm:gap-x-6 sm:grid-cols-3">
               {vn.released && (
@@ -516,12 +530,6 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   />
                 )}
               </div>
-              {vn.average != null && vn.rating != null && vn.average !== vn.rating && (
-                <div>
-                  <dt className="label">{t.detail.averageVndb}</dt>
-                  <dd className="font-semibold">{(vn.average / 10).toFixed(2)}</dd>
-                </div>
-              )}
               {!!vn.languages?.length && (
                 <div className="col-span-2 sm:col-span-3">
                   <dt className="label">{t.detail.languages}</dt>
@@ -736,7 +744,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               themselves stay implicit to avoid doubling the row
               height.
             */}
-            <VnDetailActionsBar vn={vn} inCollection={inCol} egsRow={egsRow} />
+            <VnDetailActionsBar vn={vn} inCollection={inCol} egsRow={egsRow} hasCustomBanner={customBanner} />
             {inCol && (
               <SmartStatusHint
                 vnId={vn.id}
@@ -900,12 +908,22 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         if (inCol) {
           sectionNodes['tag-overlap'] = <TagCoOccurrence vnId={vn.id} />;
           sectionNodes['similar'] = (
-            <Link
-              href={`/similar?vn=${vn.id}`}
-              className="inline-flex items-center gap-1 self-start rounded-md border border-border bg-bg-card px-3 py-2 text-xs font-bold text-muted hover:border-accent hover:text-accent"
-            >
-              <Sparkles className="h-3 w-3" aria-hidden /> {t.similar.moreLink}
-            </Link>
+            <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
+                    {t.similar.sectionTitle}
+                  </h2>
+                  <p className="mt-1 text-xs text-muted/80">{t.similar.sectionHint}</p>
+                </div>
+                <Link
+                  href={`/similar?vn=${vn.id}`}
+                  className="inline-flex h-9 items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-bold text-muted hover:border-accent hover:text-accent"
+                >
+                  <Sparkles className="h-3 w-3" aria-hidden /> {t.similar.moreLink}
+                </Link>
+              </div>
+            </div>
           );
           sectionNodes['my-editions'] = (
             <OwnedEditionsSection
@@ -927,14 +945,6 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           />
         );
         sectionNodes['quotes'] = <QuotesSection vnId={vn.id} initialOpen={sectionOpens('quotes')} />;
-        if (inCol) {
-          sectionNodes['cover-banner-tools'] = (
-            <div className="grid gap-4 md:grid-cols-2">
-              <CoverUploader vnId={vn.id} hasCustom={!!vn.custom_cover} />
-              <BannerControls vnId={vn.id} hasCustomBanner={customBanner} />
-            </div>
-          );
-        }
         sectionNodes['edit-form'] = <EditForm vn={vn} inCollection={inCol} allSeries={allSeries} />;
         return (
           <VnDetailLayout

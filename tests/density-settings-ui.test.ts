@@ -19,6 +19,7 @@ import {
   DENSITY_SCOPES,
   clearAllScopeDensities,
   hasScopeOverride,
+  migrateLegacyCardDensity,
   type DensityScope,
   type DisplaySettings,
 } from '@/lib/settings/client';
@@ -103,8 +104,10 @@ describe('per-scope reset never clobbers the legacy default', () => {
       cardDensityPx: 320,
       density: { library: 200, wishlist: 240 },
       pageSpace: {},
+      headerFollowsPageSpace: false,
       spoilerLevel: 0,
       showSexualTraits: false,
+      globalPageSpace: null,
     };
     const after: DisplaySettings = {
       ...before,
@@ -113,5 +116,17 @@ describe('per-scope reset never clobbers the legacy default', () => {
     expect(after.density).toEqual({});
     // The headline assertion: the operator-chosen default survives.
     expect(after.cardDensityPx).toBe(320);
+  });
+});
+
+describe('navbar page spacing default', () => {
+  it('keeps the header stable for legacy display settings', () => {
+    const migrated = migrateLegacyCardDensity({}, true);
+    expect(migrated.settings.headerFollowsPageSpace).toBe(false);
+  });
+
+  it('preserves an explicit opt-in for route-aware header spacing', () => {
+    const migrated = migrateLegacyCardDensity({ headerFollowsPageSpace: true }, true);
+    expect(migrated.settings.headerFollowsPageSpace).toBe(true);
   });
 });
