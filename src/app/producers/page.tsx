@@ -125,11 +125,11 @@ function ProducerTable({
       <table className="w-full min-w-[640px] text-sm">
         <thead className="bg-bg-elev/60 text-left text-xs uppercase tracking-wider text-muted">
           <tr>
-            <th className="w-12 px-3 py-3 sm:px-4">#</th>
-            <th className="px-3 py-3 sm:px-4">{roleHeader}</th>
-            <th className="px-3 py-3 text-right sm:px-4">{t.producers.vnCount}</th>
-            <th className="px-3 py-3 text-right sm:px-4">{t.producers.avgUserRating}</th>
-            <th className="px-3 py-3 text-right sm:px-4">{t.producers.avgRating}</th>
+            <th scope="col" className="w-12 px-3 py-3 sm:px-4">#</th>
+            <th scope="col" className="px-3 py-3 sm:px-4">{roleHeader}</th>
+            <th scope="col" className="px-3 py-3 text-right sm:px-4">{t.producers.vnCount}</th>
+            <th scope="col" className="px-3 py-3 text-right sm:px-4">{t.producers.avgUserRating}</th>
+            <th scope="col" className="px-3 py-3 text-right sm:px-4">{t.producers.avgRating}</th>
           </tr>
         </thead>
         <tbody>

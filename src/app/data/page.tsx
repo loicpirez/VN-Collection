@@ -100,7 +100,7 @@ export default async function DataPage() {
             <tbody>
               {status.rows.map((r) => (
                 <tr key={r.table} className="border-t border-border/40">
-                  <td className="py-1 font-mono text-muted">{r.table}</td>
+                  <th scope="row" className="py-1 text-left font-mono font-normal text-muted">{r.table}</th>
                   <td className="py-1 text-right font-bold tabular-nums">{fmtNum(r.count, locale)}</td>
                 </tr>
               ))}

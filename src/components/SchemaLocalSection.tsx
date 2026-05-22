@@ -24,11 +24,11 @@ export async function SchemaLocalSection() {
               <table className="w-full min-w-[560px] text-left text-xs">
                 <thead className="bg-bg/60 text-muted">
                   <tr>
-                    <th className="px-3 py-2">{t.schemaLocal.column}</th>
-                    <th className="px-3 py-2">{t.schemaLocal.type}</th>
-                    <th className="px-3 py-2">{t.schemaLocal.required}</th>
-                    <th className="px-3 py-2">{t.schemaLocal.primaryKey}</th>
-                    <th className="px-3 py-2">{t.schemaLocal.defaultValue}</th>
+                    <th scope="col" className="px-3 py-2">{t.schemaLocal.column}</th>
+                    <th scope="col" className="px-3 py-2">{t.schemaLocal.type}</th>
+                    <th scope="col" className="px-3 py-2">{t.schemaLocal.required}</th>
+                    <th scope="col" className="px-3 py-2">{t.schemaLocal.primaryKey}</th>
+                    <th scope="col" className="px-3 py-2">{t.schemaLocal.defaultValue}</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -105,7 +105,7 @@ export function SpoilerToggle() {
             <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted/80">
               {t.spoiler.title}
             </div>
-            <div role="radiogroup" className="grid grid-cols-3 gap-1">
+            <div role="radiogroup" aria-label={t.spoiler.title} className="grid grid-cols-3 gap-1">
               {[0, 1, 2].map((lvl) => (
                 <button
                   key={lvl}
