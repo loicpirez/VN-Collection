@@ -8251,7 +8251,23 @@ export function batchGetProducerNames(ids: string[]): Map<string, string> {
   const rows = db
     .prepare(`SELECT id, name FROM producer WHERE id IN (${placeholders})`)
     .all(...ids) as { id: string; name: string }[];
-  return new Map(rows.map((r) => [r.id, r.name]));
+  const map = new Map(rows.map((r) => [r.id, r.name]));
+  const missing = ids.filter((id) => !map.has(id));
+  if (missing.length > 0) {
+    const mp = missing.map(() => '?').join(',');
+    const fromVn = db
+      .prepare(
+        `SELECT DISTINCT json_extract(d.value, '$.id') AS id,
+                         json_extract(d.value, '$.name') AS name
+         FROM vn, json_each(vn.developers) AS d
+         WHERE json_extract(d.value, '$.id') IN (${mp})`,
+      )
+      .all(...missing) as { id: string; name: string }[];
+    for (const r of fromVn) {
+      if (!map.has(r.id) && r.name) map.set(r.id, r.name);
+    }
+  }
+  return map;
 }
 
 export function batchGetStaffNames(ids: string[]): Map<string, string> {
