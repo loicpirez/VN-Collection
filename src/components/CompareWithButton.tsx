@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, GitCompare, Loader2, Search } from 'lucide-react';
+import { Check, GitCompare, Loader2, Search, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { Dialog } from './Dialog';
 
@@ -91,9 +91,25 @@ export function CompareWithButton({ currentVnId, triggerClassName }: { currentVn
         open={open}
         onClose={() => setOpen(false)}
         title={t.compareWith.title}
-        description={t.compareWith.hint.replace('{n}', String(picked.size))}
-        panelClassName="p-0 max-w-2xl"
+        hideTitleVisually
+        panelClassName="p-0 max-w-2xl overflow-hidden"
       >
+        <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-bold">{t.compareWith.title}</h2>
+            <p className="mt-0.5 text-[11px] text-muted">
+              {t.compareWith.hint.replace('{n}', String(picked.size))}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label={t.common.close}
+            className="shrink-0 text-muted hover:text-white"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </header>
         <div className="relative border-b border-border p-3">
           <Search className="pointer-events-none absolute left-5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted" aria-hidden />
           <input
