@@ -96,7 +96,7 @@ export default async function DataPage() {
               <KeyRound className="inline h-3 w-3" /> {t.dataMgmt.statusRows}
             </CollapsibleSummary>
           </summary>
-          <table className="mt-2 w-full">
+          <table className="mt-2 w-full" aria-label={t.dataMgmt.statusRows}>
             <tbody>
               {status.rows.map((r) => (
                 <tr key={r.table} className="border-t border-border/40">

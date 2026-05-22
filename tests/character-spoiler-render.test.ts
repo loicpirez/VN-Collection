@@ -14,12 +14,15 @@ import { spoilerVisibility } from '@/lib/spoiler-reveal';
  *      which composes the same visibility rule as the shared helper
  *      (validated below).
  *   3. The reveal trigger advertises `aria-expanded` so screen-reader
- *      users hear that hidden content can be expanded. The hide affordance uses `aria-pressed`.
+ *      users hear that hidden content can be expanded. The hide button
+ *      uses `aria-pressed`. The revealed `<Link>` does NOT carry
+ *      `aria-pressed` — that attribute is only valid on buttons/roles
+ *      that support toggle state, not on navigation anchors.
  *
  * Source-pin tests here defend against three regression classes:
  *   - Someone adds a top-level SpoilerReveal around VndbMarkup on the
  *     character page (over-redaction).
- *   - Someone removes the aria-pressed from SpoilerChip.
+ *   - Someone removes the aria-pressed from the SpoilerChip hide button.
  *   - Someone changes the trait section to bypass SpoilerChip.
  */
 const ROOT = join(__dirname, '..');
@@ -62,8 +65,11 @@ describe('SpoilerChip — aria-pressed and hide affordance', () => {
   it('uses aria-expanded on the hidden-state reveal button', () => {
     expect(src).toMatch(/aria-expanded=\{effectiveState === 'transient'\}/);
   });
-  it('flips aria-pressed when the user reveals a previously-gated chip', () => {
-    expect(src).toMatch(/aria-pressed=\{wasGatedAndRevealed \? true : undefined\}/);
+  it('hide button carries aria-pressed={true} to signal toggle state', () => {
+    expect(src).toMatch(/aria-pressed=\{true\}/);
+  });
+  it('revealed <Link> does not carry aria-pressed (links are not toggles)', () => {
+    expect(src).not.toMatch(/aria-pressed=\{wasGatedAndRevealed \? true : undefined\}/);
   });
   it('exposes a localised "Reveal spoiler" aria-label on the gated state', () => {
     expect(src).toMatch(/aria-label=\{t\.spoiler\.revealOne\}/);

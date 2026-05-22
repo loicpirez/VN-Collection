@@ -255,6 +255,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                 <input
                   className="input flex-1"
                   value={editingName}
+                  aria-label={t.routes.addPlaceholder}
                   onChange={(e) => setEditingName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') saveEdit();
@@ -395,6 +396,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
         <input
           className="input flex-1"
           placeholder={t.routes.addPlaceholder}
+          aria-label={t.routes.addPlaceholder}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           list={`routes-${vnId}-suggest`}

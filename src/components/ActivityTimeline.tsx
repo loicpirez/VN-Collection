@@ -17,6 +17,7 @@ import {
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useLocale, useT } from '@/lib/i18n/client';
+import type { Locale } from '@/lib/i18n/dictionaries';
 
 import { readApiError } from '@/lib/api-error-read';
 type Kind = 'status' | 'rating' | 'playtime' | 'favorite' | 'started' | 'finished' | 'note' | 'manual';
@@ -53,7 +54,7 @@ function Arrow() {
   return <ArrowRight className="inline-block h-3 w-3 align-middle" aria-hidden />;
 }
 
-function summary(entry: Entry, t: ReturnType<typeof useT>): ReactNode {
+function summary(entry: Entry, t: ReturnType<typeof useT>, locale: Locale): ReactNode {
   const p = entry.payload ?? {};
   switch (entry.kind) {
     case 'status':
@@ -65,7 +66,7 @@ function summary(entry: Entry, t: ReturnType<typeof useT>): ReactNode {
     case 'rating':
       return (
         <>
-          {t.activity.kind.rating}: {formatRating(p.from)} <Arrow /> {formatRating(p.to)}
+          {t.activity.kind.rating}: {formatRating(p.from, locale)} <Arrow /> {formatRating(p.to, locale)}
         </>
       );
     case 'playtime': {
@@ -84,7 +85,7 @@ function summary(entry: Entry, t: ReturnType<typeof useT>): ReactNode {
     case 'finished':
       return `${t.activity.kind.finished}: ${String(p.to ?? '—')}`;
     case 'note':
-      return `${t.activity.kind.note} (${typeof p.length === 'number' ? p.length : 0} chars)`;
+      return `${t.activity.kind.note} (${typeof p.length === 'number' ? p.length : 0} ${t.activity.noteChars})`;
     case 'manual':
       return String(p.text ?? '');
     default: {
@@ -94,8 +95,14 @@ function summary(entry: Entry, t: ReturnType<typeof useT>): ReactNode {
   }
 }
 
-function formatRating(v: unknown): string {
-  return typeof v === 'number' ? (v / 10).toFixed(1) : '—';
+const LOCALE_FMT: Record<Locale, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
+
+function formatRating(v: unknown, locale: Locale): string {
+  if (typeof v !== 'number') return '—';
+  return (v / 10).toLocaleString(LOCALE_FMT[locale] ?? 'en-US', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 }
 
 interface Props {
@@ -200,7 +207,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
                   <Icon className="h-3 w-3" aria-hidden />
                 </span>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="whitespace-pre-wrap text-xs text-white/85">{summary(e, t)}</p>
+                  <p className="whitespace-pre-wrap text-xs text-white/85">{summary(e, t, locale)}</p>
                   <span className="flex items-center gap-2 text-[10px] text-muted">
                     {fmtDate(e.occurred_at, locale)}
                     {e.kind === 'manual' && (

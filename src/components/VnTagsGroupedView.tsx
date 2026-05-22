@@ -163,7 +163,7 @@ function TagSection({
                   {tag.lie && <AlertTriangle className="h-2.5 w-2.5" aria-hidden />}
                   <span
                     className="ml-0.5 rounded bg-bg-elev/80 px-1 text-[9px] font-bold tabular-nums text-muted"
-                    aria-label={`rating ${tag.rating.toFixed(1)}`}
+                    aria-label={t.vnTags.tagRatingAria.replace('{n}', tag.rating.toFixed(1))}
                   >
                     {tag.rating.toFixed(1)}
                   </span>

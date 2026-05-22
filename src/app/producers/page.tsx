@@ -122,7 +122,7 @@ function ProducerTable({
   const roleHeader = role === 'publisher' ? t.detail.publishers : t.detail.developers;
   return (
     <div className="scroll-fade-right overflow-x-auto rounded-2xl border border-border bg-bg-card">
-      <table className="w-full min-w-[640px] text-sm">
+      <table className="w-full min-w-[640px] text-sm" aria-label={roleHeader}>
         <thead className="bg-bg-elev/60 text-left text-xs uppercase tracking-wider text-muted">
           <tr>
             <th scope="col" className="w-12 px-3 py-3 sm:px-4">#</th>

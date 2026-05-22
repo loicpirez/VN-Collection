@@ -154,7 +154,6 @@ export function SpoilerChip({
           <>
           <Link
             href={href}
-            aria-pressed={wasGatedAndRevealed ? true : undefined}
             className={`inline-flex items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-accent hover:text-accent ${
               lie
                 ? 'border-status-on_hold/40 text-status-on_hold'

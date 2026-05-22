@@ -21,7 +21,7 @@ export async function SchemaLocalSection() {
               </CollapsibleSummary>
             </summary>
             <div className="scroll-fade-right overflow-x-auto border-t border-border">
-              <table className="w-full min-w-[560px] text-left text-xs">
+              <table className="w-full min-w-[560px] text-left text-xs" aria-label={table.name}>
                 <thead className="bg-bg/60 text-muted">
                   <tr>
                     <th scope="col" className="px-3 py-2">{t.schemaLocal.column}</th>
