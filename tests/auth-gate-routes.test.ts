@@ -57,6 +57,12 @@ import {
   DELETE as vndbStatusDELETE,
 } from '@/app/api/vn/[id]/vndb-status/route';
 import {
+  POST as collectionRoutesPOST,
+  PATCH as collectionRoutesPATCH,
+} from '@/app/api/collection/[id]/routes/route';
+import { PATCH as sourcePrefPATCH } from '@/app/api/collection/[id]/source-pref/route';
+import { POST as erogamescapePOST } from '@/app/api/vn/[id]/erogamescape/route';
+import {
   POST as wishlistIdPOST,
   DELETE as wishlistIdDELETE,
 } from '@/app/api/wishlist/[id]/route';
@@ -463,6 +469,23 @@ describe('NEW-TCO-002 — NEW-SECA-001..019: newly-gated routes return 403 from 
 
   it('POST /api/producer/[id]/refresh', async () => {
     expect((await producerRefreshPOST(externalReq('/api/producer/p1/refresh', 'POST'), ctx('p1'))).status).toBe(403);
+  });
+
+  it('POST /api/collection/[id]/routes', async () => {
+    const res = await collectionRoutesPOST(externalReq('/api/collection/v1/routes', 'POST', { name: 'r' }), ctx());
+    expect(res.status).toBe(403);
+  });
+  it('PATCH /api/collection/[id]/routes', async () => {
+    const res = await collectionRoutesPATCH(externalReq('/api/collection/v1/routes', 'PATCH', { ids: [1] }), ctx());
+    expect(res.status).toBe(403);
+  });
+  it('PATCH /api/collection/[id]/source-pref', async () => {
+    const res = await sourcePrefPATCH(externalReq('/api/collection/v1/source-pref', 'PATCH', { title: 'vndb' }), ctx());
+    expect(res.status).toBe(403);
+  });
+  it('POST /api/vn/[id]/erogamescape', async () => {
+    const res = await erogamescapePOST(externalReq('/api/vn/v1/erogamescape', 'POST', { egs_id: 1 }), ctx());
+    expect(res.status).toBe(403);
   });
 });
 

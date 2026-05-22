@@ -1513,7 +1513,9 @@ function groupItems(
       }
     } else if (group === 'edition') {
       const ed = it.edition_type ?? 'none';
-      const label = (t.editions as Record<string, string>)[ed] ?? ed;
+      const label = ed === 'none'
+        ? t.library.groupOther
+        : ((t.editions as Record<string, string>)[ed] ?? ed);
       if (!map.has(ed)) map.set(ed, { key: ed, label, items: [] });
       map.get(ed)!.items.push(it);
     }

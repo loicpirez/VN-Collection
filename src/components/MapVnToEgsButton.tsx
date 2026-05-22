@@ -158,10 +158,10 @@ export function MapVnToEgsButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="btn btn-primary btn-xs"
+        className="inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white"
         title={t.mapVn.title}
       >
-        <Link2 className="h-3.5 w-3.5" />
+        <Link2 className="h-3.5 w-3.5 shrink-0" />
         <span>{t.mapVn.cta}</span>
       </button>
     );

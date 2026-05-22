@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, Download, Eye, EyeOff, GraduationCap, GripVertical, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ChevronUp, Download, Eye, EyeOff, GraduationCap, GripVertical, KeyRound, Loader2, Maximize2, Minimize2, RotateCcw, Save, Settings2, X } from 'lucide-react';
 import {
   DndContext,
   KeyboardSensor,
@@ -24,9 +24,13 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
   CARD_DENSITY_DEFAULT,
+  CARD_DENSITY_MAX,
+  CARD_DENSITY_MIN,
   DENSITY_SCOPES,
+  clampCardDensity,
   clearAllScopeDensities,
   hasScopeOverride,
+  resolveScopedDensity,
   type DensityScope,
   type DensityScopes,
   useDisplaySettings,
@@ -1070,7 +1074,7 @@ export function SettingsButton() {
                               : 'text-muted hover:text-white'
                           }`}
                         >
-                          {tab === 'perpage' ? 'Pages' : tab === 'spacing' ? 'Espacement' : 'Sections'}
+                          {tab === 'perpage' ? t.settings.layoutSubTabPages : tab === 'spacing' ? t.settings.layoutSubTabSpacing : t.settings.layoutSubTabSections}
                         </button>
                       ))}
                     </div>
@@ -1624,7 +1628,10 @@ function PageLayoutPanel<Id extends string>({
           {hiddenCount > 0 && (
             <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">{hiddenCount}</span>
           )}
-          <span className="text-muted text-xs" aria-hidden>{open ? '▲' : '▼'}</span>
+          {open
+            ? <ChevronUp className="h-3.5 w-3.5 text-muted" aria-hidden />
+            : <ChevronDown className="h-3.5 w-3.5 text-muted" aria-hidden />
+          }
         </div>
       </button>
       {open && (
@@ -1781,6 +1788,10 @@ function PerPageLayoutPanel() {
     set('pageSpace', next);
   }
 
+  function setScopeDensity(scope: DensityScope, px: number) {
+    set('density', { ...density, [scope]: clampCardDensity(px) });
+  }
+
   function resetDensityScope(scope: DensityScope) {
     const next: DensityScopes = { ...density };
     delete next[scope];
@@ -1865,20 +1876,53 @@ function PerPageLayoutPanel() {
                 {densityScopes.length > 0 ? (
                   densityScopes.map((densityScope) => {
                     const overridden = hasScopeOverride(settings, densityScope);
-                    const value = density[densityScope];
+                    const resolved = resolveScopedDensity(settings, densityScope, null);
                     return (
-                      <span key={densityScope} className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1">
-                        <span className={overridden ? 'tabular-nums text-accent' : 'text-muted/80'}>
-                          {overridden ? `${value}px` : t.settings.followsDefault}
+                      <span
+                        key={densityScope}
+                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
+                          overridden ? 'border-accent/40 bg-accent/5' : 'border-border bg-bg-elev/40'
+                        }`}
+                        title={overridden ? t.settings.densityReset : t.settings.followsDefault}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setScopeDensity(densityScope, resolved - 20)}
+                          aria-label={t.cardDensity.denser}
+                          className="tap-target-tight rounded text-muted hover:text-accent"
+                        >
+                          <Minimize2 className="h-3 w-3" aria-hidden />
+                        </button>
+                        <input
+                          type="range"
+                          min={CARD_DENSITY_MIN}
+                          max={CARD_DENSITY_MAX}
+                          step={10}
+                          value={resolved}
+                          onChange={(e) => setScopeDensity(densityScope, Number(e.target.value))}
+                          aria-label={t.cardDensity.label}
+                          className="h-1.5 w-20 cursor-pointer accent-accent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setScopeDensity(densityScope, resolved + 20)}
+                          aria-label={t.cardDensity.larger}
+                          className="tap-target-tight rounded text-muted hover:text-accent"
+                        >
+                          <Maximize2 className="h-3 w-3" aria-hidden />
+                        </button>
+                        <span className={`w-9 text-right text-[10px] tabular-nums ${overridden ? 'text-accent' : 'text-muted/80'}`}>
+                          {resolved}px
                         </span>
                         <button
                           type="button"
                           onClick={() => resetDensityScope(densityScope)}
                           disabled={!overridden}
-                          className="rounded border border-border px-1 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
+                          aria-label={t.settings.densityReset}
                           title={t.settings.densityReset}
+                          className="tap-target-tight rounded text-muted hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-muted"
                         >
-                          {t.settings.densityReset}
+                          <RotateCcw className="h-3 w-3" aria-hidden />
                         </button>
                       </span>
                     );

@@ -123,11 +123,11 @@ These controls affect the local UI only. They do not modify upstream data.
 
 ```bash
 git clone <this-repo>
-cd vndb-collection
+cd vndb-collection-new
 cp .env.example .env.local
 yarn install
 yarn dev
-````
+```
 
 Open:
 

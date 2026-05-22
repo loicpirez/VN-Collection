@@ -9,7 +9,7 @@ import {
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
-
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +25,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;

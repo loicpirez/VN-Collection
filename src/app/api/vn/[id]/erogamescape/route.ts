@@ -3,7 +3,7 @@ import { upstreamError } from '@/lib/api-error';
 import { clearEgsCache, linkEgsToVn, resolveEgsForVn } from '@/lib/erogamescape';
 import { getVnEgsLink } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
-
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
@@ -33,6 +33,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   if (!/^(v\d+|egs_\d+)$/i.test(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });

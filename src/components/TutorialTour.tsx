@@ -28,7 +28,6 @@ const STEPS: Step[] = [
   { route: '/egs', key: 'egs' },
   { route: '/dumped', key: 'dumped' },
   { route: '/data', key: 'data' },
-  { route: '/', key: 'vnpage' },
 ];
 
 /**
@@ -52,18 +51,38 @@ export function TutorialTour() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const done = window.localStorage.getItem(STORAGE_KEY);
-    function onStart() { setStep(0); setActive(true); }
+    function onStart() {
+      setStep(0);
+      setActive(true);
+      router.push(STEPS[0].route);
+    }
     window.addEventListener('vn-tour:start', onStart);
     // Auto-open on first visit only.
     if (!done) {
-      const id = setTimeout(() => setActive(true), 800);
+      const id = setTimeout(() => {
+        setActive(true);
+        router.push(STEPS[0].route);
+      }, 800);
       return () => {
         clearTimeout(id);
         window.removeEventListener('vn-tour:start', onStart);
       };
     }
     return () => window.removeEventListener('vn-tour:start', onStart);
-  }, []);
+  }, [router]);
+
+  useEffect(() => {
+    if (!active) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setActive(false);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(STORAGE_KEY, '1');
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active]);
 
   function close(remember = true) {
     setActive(false);

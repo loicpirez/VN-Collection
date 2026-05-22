@@ -291,7 +291,10 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
         role="group"
         aria-label={t.detail.actions.groupMapping}
       >
-        <CompareWithButton currentVnId={vn.id} />
+        <CompareWithButton
+          currentVnId={vn.id}
+          triggerClassName="inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white"
+        />
         {!isEgsOnly && (
           <MapVnToEgsButton
             vnId={vn.id}

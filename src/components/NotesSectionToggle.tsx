@@ -14,9 +14,9 @@ interface Props {
 export function NotesSectionToggle({ notes, emptyLabel, titleLabel, showLabel, hideLabel }: Props) {
   const [expanded, setExpanded] = useState(true);
   return (
-    <div className="rounded-xl border border-border/70 bg-bg-card/70 px-3 py-2.5">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-bold uppercase tracking-widest text-muted">{titleLabel}</span>
+    <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+      <div className="mb-3 flex items-center gap-2">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-muted">{titleLabel}</h3>
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -30,12 +30,9 @@ export function NotesSectionToggle({ notes, emptyLabel, titleLabel, showLabel, h
         </button>
       </div>
       {expanded && (
-        <div className="mt-2.5 border-t border-border/40 pt-2.5">
-          {notes
-            ? <MarkdownView source={notes} />
-            : <p className="text-xs text-muted">{emptyLabel}</p>
-          }
-        </div>
+        notes
+          ? <MarkdownView source={notes} />
+          : <p className="text-xs text-muted">{emptyLabel}</p>
       )}
     </div>
   );

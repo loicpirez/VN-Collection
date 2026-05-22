@@ -2,6 +2,7 @@
 import { usePathname } from 'next/navigation';
 import { type ReactNode } from 'react';
 import {
+  hasPageSpaceOverride,
   isPageSpacePreset,
   pageSpaceStyle,
   resolvePageSpacePreset,
@@ -22,7 +23,9 @@ export function PageSpaceFrame({ children, className }: { children: ReactNode; c
   const pathname = usePathname() ?? '/';
   const scope = resolvePageSpaceScope(pathname);
   const { settings } = useDisplaySettings();
-  const preset = isPageSpacePreset(settings.globalPageSpace)
+  const preset = hasPageSpaceOverride(settings, scope)
+    ? resolvePageSpacePreset(settings, scope)
+    : isPageSpacePreset(settings.globalPageSpace)
     ? settings.globalPageSpace
     : resolvePageSpacePreset(settings, scope);
 

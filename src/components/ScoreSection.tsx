@@ -55,8 +55,8 @@ export function ScoreSection({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="rounded-xl border border-border/70 bg-bg-card/70 px-3 py-2.5">
-      <div className="flex items-center gap-2">
+    <>
+      <div className="flex items-center gap-2 flex-wrap">
         <Star className="h-5 w-5 shrink-0 fill-accent text-accent" aria-hidden />
         <span className="text-2xl font-bold tabular-nums text-accent">
           {fmtScore10(unifiedRating)}
@@ -99,6 +99,6 @@ export function ScoreSection({
           />
         </div>
       )}
-    </div>
+    </>
   );
 }
