@@ -196,6 +196,7 @@ export const dictionaries = {
       tabCollection: 'La collection',
       tabAnticipated: 'Attendus EGS',
       tabAll: 'Toutes VNDB',
+      tabsLabel: 'Onglets de section',
       emptyAll: 'Aucune sortie VNDB connue dans les 12 prochains mois.',
       emptyAnticipated: 'Pas encore d\'intentions d\'achat sur EGS pour les jeux à venir.',
       anticipatedRankRange: 'Rangs {from}–{to}',
@@ -411,6 +412,7 @@ export const dictionaries = {
     library: {
       all: 'Tout',
       filterPlaceholder: 'Filtrer la collection…',
+      clearSearch: 'Effacer la recherche',
       sortLabel: 'Trier par',
       sortAsc: 'Tri ascendant',
       sortDesc: 'Tri descendant',
@@ -2746,6 +2748,7 @@ export const dictionaries = {
       tabCollection: 'The collection',
       tabAnticipated: 'EGS anticipated',
       tabAll: 'All VNDB',
+      tabsLabel: 'Section tabs',
       emptyAll: 'No upcoming VNDB releases recorded in the next 12 months.',
       emptyAnticipated: 'No purchase intent data on EGS for upcoming games yet.',
       anticipatedRankRange: 'Ranks {from}–{to}',
@@ -2961,6 +2964,7 @@ export const dictionaries = {
     library: {
       all: 'All',
       filterPlaceholder: 'Filter the collection…',
+      clearSearch: 'Clear search',
       sortLabel: 'Sort by',
       sortAsc: 'Ascending',
       sortDesc: 'Descending',
@@ -5293,6 +5297,7 @@ export const dictionaries = {
       tabCollection: 'コレクション',
       tabAnticipated: 'EGS 注目作',
       tabAll: 'VNDB 全部',
+      tabsLabel: 'セクションタブ',
       emptyAll: 'VNDB の今後12ヶ月の発売予定が登録されていません。',
       emptyAnticipated: '発売予定のゲームについて EGS の購入予定がまだありません。',
       anticipatedRankRange: 'ランク {from}–{to}',
@@ -5508,6 +5513,7 @@ export const dictionaries = {
     library: {
       all: 'すべて',
       filterPlaceholder: 'コレクション内を検索…',
+      clearSearch: '検索をクリア',
       sortLabel: '並び替え',
       sortAsc: '昇順',
       sortDesc: '降順',

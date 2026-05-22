@@ -102,7 +102,7 @@ export default async function UpcomingPage({
             )}
           </div>
         </div>
-        <nav className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
+        <nav className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" aria-label={t.upcoming.tabsLabel}>
           <TabLink href="/upcoming" active={tab === 'collection'} icon={<LibraryIcon className="h-3.5 w-3.5" />}>
             {t.upcoming.tabCollection}
           </TabLink>

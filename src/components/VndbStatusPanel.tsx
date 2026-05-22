@@ -322,7 +322,7 @@ function UlistDetailsEditor({
         <label className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-wider text-muted">{t.vndbStatus.fieldStarted}</span>
           {/*
-            DateInput formats per the app's `useLocale()` (fr-FR / en-GB / ja-JP)
+            DateInput formats per the app's `useLocale()` (fr-FR / en-US / ja-JP)
             instead of inheriting the OS / browser locale that a raw
             <input type="date"> uses — so a French-speaking user on a Japanese
             OS no longer sees kanji-formatted dates in their VNDB list editor.

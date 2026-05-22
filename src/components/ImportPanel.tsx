@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState, useTransition } from 'react';
+import { useId, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Database as DbIcon, Loader2, Upload } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -43,6 +43,7 @@ export function ImportPanel() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
+  const errorId = useId();
 
   async function upload(file: File) {
     uploadCtrlRef.current?.abort();
@@ -124,6 +125,7 @@ export function ImportPanel() {
           className="btn btn-primary"
           onClick={() => inputRef.current?.click()}
           disabled={busy || pending}
+          aria-describedby={error ? errorId : undefined}
         >
           {t.dataMgmt.importJson}
         </button>
@@ -182,7 +184,7 @@ export function ImportPanel() {
           )}
         </div>
       )}
-      {error && <p className="mt-2 text-xs text-status-dropped">{error}</p>}
+      {error && <p id={errorId} role="alert" className="mt-2 text-xs text-status-dropped">{error}</p>}
     </div>
   );
 }

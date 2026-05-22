@@ -503,14 +503,26 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         doesn't waste vertical space when no filters are active.
       */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input
-          data-vn-search
-          className="input min-w-[180px] flex-1"
-          placeholder={t.library.filterPlaceholder}
-          aria-label={t.library.filterPlaceholder}
-          value={qInput}
-          onChange={(e) => setQInput(e.target.value)}
-        />
+        <div className="relative min-w-[180px] flex-1">
+          <input
+            data-vn-search
+            className="input w-full pr-8"
+            placeholder={t.library.filterPlaceholder}
+            aria-label={t.library.filterPlaceholder}
+            value={qInput}
+            onChange={(e) => setQInput(e.target.value)}
+          />
+          {qInput && (
+            <button
+              type="button"
+              aria-label={t.library.clearSearch}
+              onClick={() => setQInput('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          )}
+        </div>
         <AdvancedFiltersDrawer
           activeCount={advancedFilterCount}
           t={t}

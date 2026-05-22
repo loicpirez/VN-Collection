@@ -1843,6 +1843,7 @@ export function findCharacterSiblings(charId: string): CharacterSibling[] {
       JOIN collection c ON c.vn_id = va.vn_id
       WHERE (va.c_name IN (${placeholders}) OR va.c_original IN (${placeholders})) AND va.c_id != ?
       ORDER BY v.released DESC NULLS LAST, va.c_id ASC
+      LIMIT 200
     `)
     .all(...Array.from(names), ...Array.from(names), charId) as Array<{
       c_id: string;
