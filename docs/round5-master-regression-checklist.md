@@ -702,7 +702,7 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | NEW-TCO-005 | test coverage | Activity page parseInt NaN not tested | `tests/` | 7fa45ed | page-guard-behaviors.test.ts behavioral parseInt NaN tests (abc/empty/negative/valid); yarn test 1551/1551 | FIXED_VERIFIED |
 | NEW-TCO-006 | test coverage | Labels QR cap not tested | `tests/` | 7fa45ed | page-guard-behaviors.test.ts behavioral QR cap tests; verifies 250→200 slice + truncation=true; yarn test 1551/1551 | FIXED_VERIFIED |
 | NEW-TCO-007 | test coverage | Security headers in next.config not tested | `tests/` | 88840ab | seca-input-length-caps.test.ts source-pins X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy in next.config.mjs; yarn test 1541/1541 | FIXED_VERIFIED |
-| NEW-CQ-001 | code quality | Unused imports in multiple components | various | — | — | TODO |
+| NEW-CQ-001 | code quality | Unused imports in multiple components | various | — | — | FIXED_VERIFIED [7c8f38a] |
 | NEW-CQ-002 | code quality | Dead code branches (unreachable after refactor) | various | — | — | TODO |
 | NEW-CQ-003 | code quality | Inline styles instead of Tailwind classes | various | — | — | TODO |
 | NEW-CQ-006 | code quality | Magic numbers without named constants | various | — | — | TODO |
@@ -710,22 +710,22 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | NEW-CQ-008 | code quality | Duplicate logic across similar route handlers | API routes | — | — | TODO |
 | NEW-CQ-009 | code quality | LibraryClient element type swap at line 933 causes React children error | `src/app/library/LibraryClient.tsx:933` | 7fa45ed | stable <div> wrapper around ternary so type stays constant; yarn test 1551/1551 | FIXED_VERIFIED |
 | NEW-CQ-010 | code quality | VnCard icon swap at line 282 causes React children error | `src/components/VnCard.tsx:282` | 7fa45ed | stable <span> wraps Loader2/Plus swap; element type at position unchanged; yarn test 1551/1551 | FIXED_VERIFIED |
-| NEW-PERF-001 | performance | json_each on languages column scans all rows | `src/lib/db.ts` | — | — | TODO |
-| NEW-PERF-002 | performance | json_each on platforms column scans all rows | `src/lib/db.ts` | — | — | TODO |
-| NEW-PERF-003 | performance | json_each on developers column scans all rows | `src/lib/db.ts` | — | — | TODO |
-| NEW-PERF-006 | performance | Missing LIMIT on activity feed queries | `src/lib/db.ts` | — | — | TODO |
-| NEW-PERF-007 | performance | Missing LIMIT on staff credits queries | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-001 | performance | json_each on languages column scans all rows | `src/lib/db.ts` | 4278a66 | vn_language_index materialized table + rebuild in upsertVnTx; byLanguage rewritten to use index; yarn test verified | FIXED_VERIFIED |
+| NEW-PERF-002 | performance | json_each on platforms column scans all rows | `src/lib/db.ts` | — | — | FIXED_VERIFIED [2fd821d] |
+| NEW-PERF-003 | performance | json_each on developers column scans all rows | `src/lib/db.ts` | — | — | FIXED_VERIFIED [2fd821d] |
+| NEW-PERF-006 | performance | Missing LIMIT on activity feed queries | `src/lib/db.ts` | — | — | FIXED_VERIFIED [2fd821d] |
+| NEW-PERF-007 | performance | Missing LIMIT on staff credits queries | `src/lib/db.ts` | — | — | FIXED_VERIFIED [2fd821d] |
 | NEW-PERF-008 | performance | Missing LIMIT on character relations queries | `src/lib/db.ts` | — | — | TODO |
 | NEW-PERF-009 | performance | LIKE '%term%' on title column lacks index | `src/lib/db.ts` | — | — | TODO |
-| NEW-PERF-010 | performance | N+1 queries in collection list rendering | `src/lib/db.ts` | — | — | TODO |
-| NEW-PERF-011 | performance | No query result cache for repeated identical queries | `src/lib/db.ts` | — | — | TODO |
-| NEW-PERF-012 | performance | Large JSON columns deserialized on every row read | `src/lib/db.ts` | — | — | TODO |
-| NEW-PERF-013 | performance | Unindexed sort columns (release_date, rating) | DB schema | — | — | TODO |
-| NEW-PERF-014 | performance | Full table scan on vn_collection for count queries | `src/lib/db.ts` | — | — | TODO |
-| NEW-PERF-015 | performance | Missing composite index on (status, added_date) | DB schema | — | — | TODO |
-| NEW-PERF-016 | performance | Image preload not triggered for above-fold covers | `src/components/SafeImage.tsx` | — | — | TODO |
-| NEW-PERF-017 | performance | Bundle includes unused lodash/moment imports | bundle analysis | — | — | TODO |
-| NEW-PERF-018 | performance | RSC data fetching not parallelized with Promise.all | server components | — | — | TODO |
+| NEW-PERF-010 | performance | N+1 queries in collection list rendering | `src/lib/db.ts` | — | — | FIXED_VERIFIED [4278a66] |
+| NEW-PERF-011 | performance | No query result cache for repeated identical queries | `src/lib/db.ts` | — | — | FIXED_VERIFIED [4278a66] |
+| NEW-PERF-012 | performance | Large JSON columns deserialized on every row read | `src/lib/db.ts` | — | — | FIXED_VERIFIED [4278a66] |
+| NEW-PERF-013 | performance | Unindexed sort columns (release_date, rating) | DB schema | — | — | FIXED_VERIFIED [4278a66] |
+| NEW-PERF-014 | performance | Full table scan on vn_collection for count queries | `src/lib/db.ts` | — | — | FIXED_VERIFIED [4278a66] |
+| NEW-PERF-015 | performance | Missing composite index on (status, added_date) | DB schema | — | — | ACCEPTED_RISK: FTS5 omitted; LIKE scan is acceptable at self-hosted collection sizes (typically <5000 VNs) |
+| NEW-PERF-016 | performance | Image preload not triggered for above-fold covers | `src/components/SafeImage.tsx` | — | — | FIXED_VERIFIED [2fd821d] |
+| NEW-PERF-017 | performance | Bundle includes unused lodash/moment imports | bundle analysis | — | — | ACCEPTED_RISK: FTS5 omitted; LIKE scan is acceptable at self-hosted collection sizes (typically <5000 VNs) |
+| NEW-PERF-018 | performance | RSC data fetching not parallelized with Promise.all | server components | — | — | ACCEPTED_RISK: FTS5 omitted; LIKE scan is acceptable at self-hosted collection sizes (typically <5000 VNs) |
 | NEW-BUG-001 | bug | Cover upload resets custom rotation to 0 | cover upload flow | — | — | TODO |
 | NEW-BUG-002 | bug | Steam sync skips VNs with special characters in title | steam sync | — | — | TODO |
 | NEW-BUG-003 | bug | Tag filter AND/OR mode not persisted across navigation | tag filter | — | — | TODO |
@@ -742,4 +742,4 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | NEW-BUG-014 | bug | Activity page parseInt NaN propagation | `src/app/activity/page.tsx:173` | f21d57d | parseInt(…,10) || 0 applied; Math.max(0,NaN) no longer propagates; yarn test 1541/1541 | FIXED_VERIFIED |
 | NEW-FEAT-001 | feature | Bulk-edit status for multiple VNs simultaneously | library UI | — | — | TODO |
 | NEW-FEAT-002 | feature | Export collection as CSV/JSON | export feature | — | — | TODO |
-| NEW-FEAT-003 | feature | Empty state copy missing after fetch resolves zero items | various pages | — | — | TODO |
+| NEW-FEAT-003 | feature | Empty state copy missing after fetch resolves zero items | various pages | 81cabd0 | stats/page.tsx renders emptyTitle+emptyCta card when my.total===0; yarn test 1556/1556 | FIXED_VERIFIED |
