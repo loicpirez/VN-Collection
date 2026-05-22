@@ -54,7 +54,7 @@ describe('LoadingImage — skeleton present in initial render', () => {
   });
 
   it('unmounts the pulsing skeleton after load instead of hiding it with opacity', () => {
-    expect(loadingImageSource).toContain('{!loaded && (');
+    expect(loadingImageSource).toContain('{!loaded && !errored && (');
     expect(loadingImageSource).not.toContain("loaded ? 'opacity-0' : 'opacity-100'");
   });
 

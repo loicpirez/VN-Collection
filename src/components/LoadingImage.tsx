@@ -39,14 +39,16 @@ export function LoadingImage({
   ariaHidden = false,
 }: LoadingImageProps) {
   const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
 
   useEffect(() => {
     setLoaded(false);
+    setErrored(false);
   }, [src]);
 
   return (
     <span className={`relative inline-block overflow-hidden ${className}`} style={style}>
-      {!loaded && (
+      {!loaded && !errored && (
         <span
           data-loading-image-skeleton
           className="pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70"
@@ -61,8 +63,9 @@ export function LoadingImage({
         aria-hidden={ariaHidden || undefined}
         decoding="async"
         loading={loading}
-        className={`${imageClassName} transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`${imageClassName} transition-opacity duration-200 ${loaded && !errored ? 'opacity-100' : 'opacity-0'}`}
         onLoad={() => setLoaded(true)}
+        onError={() => setErrored(true)}
       />
     </span>
   );
