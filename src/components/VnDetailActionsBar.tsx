@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Database,
   ExternalLink,
+  Link2,
   ListChecks,
   ImageIcon,
 } from 'lucide-react';
@@ -272,33 +273,49 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
     </ActionMenu>
   ) : null;
 
-  // ── Cluster 6: Mapping (standalone buttons — no dropdown) ───────
-  // These components manage their own dialog state. Nesting them
-  // inside an ActionMenu panel causes the panel to unmount on click,
-  // discarding the local `open` state before the dialog can render.
-  // Rendering them directly in the nav avoids that unmount race.
+  // ── Cluster 6: Mapping (single dropdown) ────────────────────────
+  // CompareWithButton / MapVnToEgsButton / LinkToVndbButton each
+  // manage their own dialog state. They set data-menu-keep-open on
+  // their trigger so ActionMenu does NOT unmount the panel on click —
+  // keeping the component mounted long enough for the dialog state to
+  // take effect. The dialog renders at z-[1000] on top; Escape closes
+  // both the dialog and the ActionMenu in one keystroke.
   const mapping = (
-    <>
-      <CompareWithButton
-        currentVnId={vn.id}
-        triggerClassName={ACTION_BUTTON_CLASSES}
-      />
-      {!isEgsOnly && (
-        <MapVnToEgsButton
-          vnId={vn.id}
-          seedQuery={vn.alttitle?.trim() || vn.title}
-          variant="inline"
-          triggerClassName={ACTION_BUTTON_CLASSES}
+    <ActionMenu
+      label={t.detail.actions.groupMapping}
+      trigger={
+        <>
+          <Link2 className="h-3.5 w-3.5" aria-hidden /> {t.detail.actions.groupMapping}
+        </>
+      }
+      triggerClassName={ACTION_BUTTON_CLASSES}
+      menuClassName="w-56 rounded-lg border border-border bg-bg-card p-1 shadow-card"
+      defaultPlacement="bottom-right"
+    >
+      <div className="flex flex-col gap-0.5">
+        <CompareWithButton
+          currentVnId={vn.id}
+          triggerClassName="inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white"
+          keepMenuOpen
         />
-      )}
-      {isEgsOnly && (
-        <LinkToVndbButton
-          vnId={vn.id}
-          seedQuery={vn.alttitle?.trim() || vn.title}
-          triggerClassName={ACTION_BUTTON_CLASSES}
-        />
-      )}
-    </>
+        {!isEgsOnly && (
+          <MapVnToEgsButton
+            vnId={vn.id}
+            seedQuery={vn.alttitle?.trim() || vn.title}
+            variant="inline"
+            keepMenuOpen
+          />
+        )}
+        {isEgsOnly && (
+          <LinkToVndbButton
+            vnId={vn.id}
+            seedQuery={vn.alttitle?.trim() || vn.title}
+            triggerClassName="inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white"
+            keepMenuOpen
+          />
+        )}
+      </div>
+    </ActionMenu>
   );
 
   return (

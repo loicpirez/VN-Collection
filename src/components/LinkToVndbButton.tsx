@@ -24,7 +24,7 @@ interface SearchHit {
  * Symmetric to the existing EGS picker on VNDB-only VNs — the other
  * half of "link both directions".
  */
-export function LinkToVndbButton({ vnId, seedQuery, triggerClassName }: { vnId: string; seedQuery: string; triggerClassName?: string }) {
+export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOpen }: { vnId: string; seedQuery: string; triggerClassName?: string; keepMenuOpen?: boolean }) {
   const t = useT();
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -99,8 +99,9 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName }: { vnId: 
         onClick={() => setOpen(true)}
         className={triggerClassName ?? 'btn'}
         title={t.linkVndb.title}
+        {...(keepMenuOpen ? { 'data-menu-keep-open': '' } : {})}
       >
-        <Link2 className="h-4 w-4" /> {t.linkVndb.cta}
+        <Link2 className="h-4 w-4" aria-hidden /> {t.linkVndb.cta}
       </button>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur" onClick={() => setOpen(false)}>

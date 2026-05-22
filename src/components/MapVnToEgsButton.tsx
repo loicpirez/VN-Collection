@@ -41,6 +41,7 @@ export function MapVnToEgsButton({
   seedQuery,
   variant = 'inline',
   triggerClassName,
+  keepMenuOpen,
 }: {
   vnId: string;
   seedQuery: string;
@@ -48,6 +49,8 @@ export function MapVnToEgsButton({
   variant?: 'inline' | 'compact';
   /** Override the trigger button class (inline variant only). */
   triggerClassName?: string;
+  /** Add data-menu-keep-open so an ancestor ActionMenu stays mounted. */
+  keepMenuOpen?: boolean;
 }) {
   const t = useT();
   const toast = useToast();
@@ -163,6 +166,7 @@ export function MapVnToEgsButton({
         onClick={() => setOpen(true)}
         className={triggerClassName ?? 'inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white'}
         title={t.mapVn.title}
+        {...(keepMenuOpen ? { 'data-menu-keep-open': '' } : {})}
       >
         <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>{t.mapVn.cta}</span>

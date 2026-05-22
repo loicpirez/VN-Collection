@@ -22,7 +22,7 @@ interface CollectionRow {
  * management and renders each row as a real `<button>` so keyboard
  * users can Tab through and toggle with Space/Enter.
  */
-export function CompareWithButton({ currentVnId, triggerClassName }: { currentVnId: string; triggerClassName?: string }) {
+export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen }: { currentVnId: string; triggerClassName?: string; keepMenuOpen?: boolean }) {
   const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -84,6 +84,7 @@ export function CompareWithButton({ currentVnId, triggerClassName }: { currentVn
         onClick={() => setOpen(true)}
         className={triggerClassName ?? 'btn'}
         title={t.compareWith.title}
+        {...(keepMenuOpen ? { 'data-menu-keep-open': '' } : {})}
       >
         <GitCompare className="h-4 w-4" aria-hidden /> {t.compareWith.cta}
       </button>
