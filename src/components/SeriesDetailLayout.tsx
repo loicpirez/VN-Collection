@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -297,6 +297,7 @@ function CollapsibleSection({
   collapseLabel: string;
   children: React.ReactNode;
 }) {
+  const panelId = useId();
   const [open, setOpen] = useState(false);
   return (
     <section className="rounded-xl border border-border bg-bg-card">
@@ -304,6 +305,7 @@ function CollapsibleSection({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
+        aria-controls={panelId}
         className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-bg-elev/40"
         title={open ? collapseLabel : expandLabel}
       >
@@ -312,7 +314,7 @@ function CollapsibleSection({
           {label}
         </span>
       </button>
-      {open && <div className="border-t border-border">{children}</div>}
+      {open && <div id={panelId} className="border-t border-border">{children}</div>}
     </section>
   );
 }

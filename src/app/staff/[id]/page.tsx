@@ -271,9 +271,9 @@ export default async function StaffPage({
           label: sectionLabels.siblings,
           node: (
             <section className="mb-6 rounded-xl border border-accent/30 bg-accent/5 p-4 sm:p-5">
-              <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
+              <h2 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
                 <Users className="h-4 w-4" /> {t.staff.siblingsTitle}
-              </h3>
+              </h2>
               <p className="mb-3 text-[11px] text-muted">{t.staff.siblingsHint}</p>
               <ul className="space-y-1.5 text-xs">
                 {staffSiblings.map((sib) => (

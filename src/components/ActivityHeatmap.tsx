@@ -54,26 +54,29 @@ export async function ActivityHeatmap({ year }: { year: number }) {
         </span>
       </div>
       <div className="scroll-fade-right flex gap-[3px] overflow-x-auto">
-        {weeks.map((wk, i) => (
-          <div key={i} className="flex flex-col gap-[3px]">
-            {wk.map((d, j) =>
-              d ? (
-                <div
-                  key={j}
-                  className={`h-[10px] w-[10px] rounded-sm ${tones[level(d.count)]}`}
-                  title={`${d.day} · ${d.count}`}
-                />
-              ) : (
-                <div key={j} className="h-[10px] w-[10px]" />
-              ),
-            )}
-          </div>
-        ))}
+        {weeks.map((wk, i) => {
+          const wkKey = wk.find(Boolean)?.day ?? `pad-w${i}`;
+          return (
+            <div key={wkKey} className="flex flex-col gap-[3px]">
+              {wk.map((d, j) =>
+                d ? (
+                  <div
+                    key={d.day}
+                    className={`h-[10px] w-[10px] rounded-sm ${tones[level(d.count)]}`}
+                    title={`${d.day} · ${d.count}`}
+                  />
+                ) : (
+                  <div key={`${wkKey}-pad${j}`} className="h-[10px] w-[10px]" />
+                ),
+              )}
+            </div>
+          );
+        })}
       </div>
       <div className="mt-2 flex items-center gap-1 text-[10px] text-muted">
         <span>{t.year.heatmap.less}</span>
-        {tones.slice(1).map((tn, i) => (
-          <span key={i} className={`h-[8px] w-[10px] rounded-sm ${tn}`} />
+        {tones.slice(1).map((tn) => (
+          <span key={tn} className={`h-[8px] w-[10px] rounded-sm ${tn}`} />
         ))}
         <span>{t.year.heatmap.more}</span>
       </div>

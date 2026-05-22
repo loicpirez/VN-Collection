@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, FileText, MessageSquareQuote, Quote } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -52,6 +52,7 @@ export function TextualSearchPanel({
   mode?: 'accordion' | 'standalone';
 }) {
   const t = useT();
+  const panelId = useId();
   const [hits, setHits] = useState<Hit[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(mode === 'standalone');
@@ -99,6 +100,7 @@ export function TextualSearchPanel({
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
+          aria-controls={panelId}
           className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left hover:bg-bg-card"
         >
           <span className="inline-flex items-center gap-2">
@@ -121,7 +123,7 @@ export function TextualSearchPanel({
         </button>
       )}
       {open && (
-        <div className={`${mode === 'standalone' ? '' : 'border-t border-border'} px-3 pb-3 pt-2`}>
+        <div id={panelId} className={`${mode === 'standalone' ? '' : 'border-t border-border'} px-3 pb-3 pt-2`}>
           <p className="mb-2 text-[10px] text-muted/80">{t.textualSearch.hint}</p>
           {loading ? (
             <ul className="space-y-1.5" aria-busy="true">

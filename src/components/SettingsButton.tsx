@@ -1384,6 +1384,7 @@ function PageLayoutPanel<Id extends string>({
   onReset: () => void;
 }) {
   const t = useT();
+  const panelId = useId();
   const [draft, setDraft] = useState(layout);
   const [open, setOpen] = useState(true);
 
@@ -1433,6 +1434,7 @@ function PageLayoutPanel<Id extends string>({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
+        aria-controls={panelId}
         className="flex w-full items-center justify-between gap-2 text-left"
       >
         <div>
@@ -1447,7 +1449,7 @@ function PageLayoutPanel<Id extends string>({
         </div>
       </button>
       {open && (
-        <div className="mt-3 space-y-2">
+        <div id={panelId} className="mt-3 space-y-2">
           <div className="flex justify-end">
             <button
               type="button"

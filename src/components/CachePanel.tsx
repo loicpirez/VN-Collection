@@ -1,6 +1,7 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2, RefreshCw, Database } from 'lucide-react';
+import { SkeletonBlock } from './Skeleton';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { fmtDate, fmtNum } from '@/lib/locale-number';
@@ -32,6 +33,7 @@ export function CachePanel() {
   const t = useT();
   const locale = useLocale();
   const { confirm } = useConfirm();
+  const panelId = useId();
   const [stats, setStats] = useState<CacheStat | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -80,6 +82,7 @@ export function CachePanel() {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-2 text-left"
         aria-expanded={open}
+        aria-controls={panelId}
       >
         {open ? <ChevronDown className="h-4 w-4 text-muted" aria-hidden /> : <ChevronRight className="h-4 w-4 text-muted" aria-hidden />}
         <Database className="h-5 w-5 text-accent" aria-hidden />
@@ -90,12 +93,17 @@ export function CachePanel() {
           </span>
         )}
       </button>
+      <div id={panelId}>
       {open && <p className="mb-4 mt-3 text-xs text-muted">{t.cache.subtitle}</p>}
 
       {open && error && <p className="mb-3 text-sm text-status-dropped">{error}</p>}
 
       {open && !stats ? (
-        <p className="text-sm text-muted">{t.common.loading}</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mt-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonBlock key={i} className="h-16 rounded-lg" />
+          ))}
+        </div>
       ) : open && stats ? (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -140,6 +148,7 @@ export function CachePanel() {
           </div>
         </>
       ) : null}
+      </div>
     </section>
   );
 }

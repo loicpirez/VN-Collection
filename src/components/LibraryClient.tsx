@@ -1565,6 +1565,7 @@ function LibraryActionsMenu({
   onResetFilters: () => void;
   t: ReturnType<typeof useT>;
 }) {
+  const menuId = useId();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -1612,6 +1613,7 @@ function LibraryActionsMenu({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-controls={menuId}
         aria-label={t.library.toolbarOptionsLabel}
         title={t.library.toolbarOptionsLabel}
         className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
@@ -1629,6 +1631,7 @@ function LibraryActionsMenu({
       </button>
       {open && (
         <div
+          id={menuId}
           role="menu"
           aria-label={t.library.toolbarOptionsLabel}
           className="absolute right-0 top-full z-30 mt-1 w-[min(92vw,16rem)] rounded-lg border border-border bg-bg-card p-1 text-xs shadow-card"

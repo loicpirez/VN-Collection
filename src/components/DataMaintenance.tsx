@@ -89,7 +89,7 @@ export function DataMaintenance() {
           <div>
             <h3 className="mb-2 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-muted">
               <Copy className="h-3 w-3" /> {t.maintenance.dupTitle}
-              <span className="ml-1 text-[10px]">· {dups.length}</span>
+              <span className="ml-1 text-[10px]" aria-live="polite" aria-atomic="true">· {dups.length}</span>
             </h3>
             {dups.length === 0 ? (
               <p className="text-xs text-muted">{t.maintenance.dupEmpty}</p>
@@ -114,7 +114,7 @@ export function DataMaintenance() {
           <div>
             <h3 className="mb-2 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-muted">
               <RefreshCw className="h-3 w-3" /> {t.maintenance.staleTitle}
-              <span className="ml-1 text-[10px]">· {stale.length}</span>
+              <span className="ml-1 text-[10px]" aria-live="polite" aria-atomic="true">· {stale.length}</span>
             </h3>
             {stale.length === 0 ? (
               <p className="text-xs text-muted">{t.maintenance.staleEmpty}</p>

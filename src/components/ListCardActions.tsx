@@ -99,6 +99,17 @@ export function ListCardActions({ list }: { list: List }) {
           className="absolute right-0 top-full z-20 mt-1 w-44 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
           role="menu"
           aria-labelledby={triggerId}
+          onKeyDown={(e) => {
+            const items = Array.from(
+              (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')
+            );
+            const idx = items.indexOf(document.activeElement as HTMLElement);
+            if (e.key === 'ArrowDown') { e.preventDefault(); items[(idx + 1) % items.length]?.focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); items[(idx - 1 + items.length) % items.length]?.focus(); }
+            else if (e.key === 'Home') { e.preventDefault(); items[0]?.focus(); }
+            else if (e.key === 'End') { e.preventDefault(); items[items.length - 1]?.focus(); }
+            else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
+          }}
         >
           <ActionRow icon={list.pinned ? PinOff : Pin} label={list.pinned ? t.lists.unpin : t.lists.pin} onClick={togglePin} />
           <ActionRow icon={Pencil} label={t.lists.rename} onClick={rename} />

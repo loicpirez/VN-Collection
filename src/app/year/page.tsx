@@ -112,7 +112,7 @@ export default async function YearPage({
 
       {review.topTags.length > 0 && (
         <section className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.year.topTags}</h3>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.year.topTags}</h2>
           <div className="flex flex-wrap gap-1.5">
             {review.topTags.map((tag) => (
               <Link
@@ -130,7 +130,7 @@ export default async function YearPage({
 
       {review.best.length > 0 && (
         <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.year.best}</h3>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.year.best}</h2>
           <ol className="space-y-1.5 text-sm">
             {review.best.map((b, i) => (
               <li key={b.id} className="flex items-baseline justify-between gap-3">

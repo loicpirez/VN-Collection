@@ -622,6 +622,8 @@ export function SearchClient() {
         id={panelId}
         role="tabpanel"
         aria-labelledby={tabIds[source as keyof typeof tabIds]}
+        aria-live="polite"
+        aria-atomic="true"
         tabIndex={0}
         className="outline-none"
       >

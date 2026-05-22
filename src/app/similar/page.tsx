@@ -254,9 +254,9 @@ export default async function SimilarPage({
                     className="aspect-[2/3] w-full"
                   />
                   <div className="flex flex-col gap-1 p-3">
-                    <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent" title={r.title}>
+                    <h2 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent" title={r.title}>
                       {r.title}
-                    </h3>
+                    </h2>
                     {r.developers[0]?.name && (
                       <p className="line-clamp-1 text-[11px] text-muted" title={r.developers[0].name}>{r.developers[0].name}</p>
                     )}

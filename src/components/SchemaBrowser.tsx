@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
@@ -140,6 +140,7 @@ function Node({
   filter: string;
   visiblePaths: Set<string> | null;
 }) {
+  const childrenId = useId();
   const [openLocal, setOpenLocal] = useState(false);
   const hasFilter = filter.length > 0;
   // When filtering, the visiblePaths set tells us "this node has a
@@ -196,6 +197,7 @@ function Node({
         onClick={() => setOpenLocal((o) => !o)}
         className="inline-flex items-center gap-1 text-left text-muted hover:text-white"
         aria-expanded={open}
+        aria-controls={childrenId}
         aria-label={k}
       >
         {open ? <ChevronDown className="h-3 w-3" aria-hidden /> : <ChevronRight className="h-3 w-3" aria-hidden />}
@@ -205,7 +207,7 @@ function Node({
         </span>
       </button>
       {open && (
-        <ul className="mt-0.5 space-y-1">
+        <ul id={childrenId} className="mt-0.5 space-y-1">
           {entries.map(([childK, childV]) => (
             <Node
               key={childK}
