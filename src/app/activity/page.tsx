@@ -222,7 +222,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <header className="mb-5 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
           <Activity className="h-6 w-6 text-accent" aria-hidden /> {t.userActivity.title}

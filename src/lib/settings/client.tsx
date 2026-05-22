@@ -1,5 +1,6 @@
 'use client';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { PageSpaceOverrides } from '@/lib/page-space';
 
 const COOKIE_NAME = 'vn_display_settings_v1';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
@@ -77,6 +78,12 @@ export interface DisplaySettings {
    */
   density: DensityScopes;
   /**
+   * Per-route-group page spacing overrides. Missing keys fall back to
+   * the route group's built-in default, preserving readable detail pages
+   * while allowing dense surfaces such as Shelf / Compare to go wider.
+   */
+  pageSpace: PageSpaceOverrides;
+  /**
    * Spoiler level shown by default across the app.
    *   0 = none (default — like VNDB out of the box)
    *   1 = minor spoilers
@@ -98,6 +105,7 @@ const DEFAULTS: DisplaySettings = {
   denseLibrary: false,
   cardDensityPx: 220,
   density: {},
+  pageSpace: {},
   spoilerLevel: 0,
   showSexualTraits: false,
 };
@@ -249,6 +257,7 @@ export function migrateLegacyCardDensity(
     ...DEFAULTS,
     ...parsed,
     density: { ...(parsed.density ?? {}) },
+    pageSpace: { ...(parsed.pageSpace ?? {}) },
   };
   if (
     !alreadyMigrated &&
@@ -284,6 +293,7 @@ export function DisplaySettingsProvider({
       ...DEFAULTS,
       ...(initial ?? {}),
       density: { ...(initial?.density ?? {}) },
+      pageSpace: { ...(initial?.pageSpace ?? {}) },
     };
     return merged;
   });

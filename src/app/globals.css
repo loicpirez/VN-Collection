@@ -110,6 +110,25 @@
   .pill {
     @apply inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-xs;
   }
+  .page-space-frame {
+    width: 100%;
+    max-width: var(--page-space-max-width, 80rem);
+    margin-inline: auto;
+    padding-left: max(var(--page-space-gutter-base, 0.75rem), env(safe-area-inset-left));
+    padding-right: max(var(--page-space-gutter-base, 0.75rem), env(safe-area-inset-right));
+  }
+  @media (min-width: 640px) {
+    .page-space-frame {
+      padding-left: max(var(--page-space-gutter-sm, 1.5rem), env(safe-area-inset-left));
+      padding-right: max(var(--page-space-gutter-sm, 1.5rem), env(safe-area-inset-right));
+    }
+  }
+  @media (min-width: 1024px) {
+    .page-space-frame {
+      padding-left: max(var(--page-space-gutter-lg, 2rem), env(safe-area-inset-left));
+      padding-right: max(var(--page-space-gutter-lg, 2rem), env(safe-area-inset-right));
+    }
+  }
 }
 
 /* Hide scrollbar in chip rows */

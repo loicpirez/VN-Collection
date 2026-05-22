@@ -213,7 +213,7 @@ export default async function RecommendationsPage({
   ].join('|');
 
   return (
-    <DensityScopeProvider scope="recommendations" className="mx-auto max-w-6xl">
+    <DensityScopeProvider scope="recommendations" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>

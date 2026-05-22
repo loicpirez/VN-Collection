@@ -59,7 +59,7 @@ export default async function TopRankedPage({
       : getCacheFreshness(['% /vn:top-ranked:%']);
 
   return (
-    <DensityScopeProvider scope="topRanked" className="mx-auto max-w-5xl">
+    <DensityScopeProvider scope="topRanked" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>

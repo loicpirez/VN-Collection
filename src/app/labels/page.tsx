@@ -60,7 +60,7 @@ export default async function LabelsPage({
   const parsedIds = parseIds(idsRaw);
   if (parsedIds === 'invalid') {
     return (
-      <div className="mx-auto max-w-5xl p-8 text-sm text-status-dropped">
+      <div className="w-full p-8 text-sm text-status-dropped">
         Invalid ids parameter: each value must match v&#123;number&#125; or egs_&#123;number&#125;.
       </div>
     );
@@ -89,7 +89,7 @@ export default async function LabelsPage({
   const qrs = await Promise.all(items.map((it) => qrSvg(`${origin}/vn/${it.id}`)));
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="w-full">
       <div className="mb-4 flex items-center justify-between print:hidden">
         <Link href="/data" className="inline-flex items-center gap-1 text-sm text-muted hover:text-white">
           <ArrowLeft className="h-4 w-4" /> {t.nav.data}

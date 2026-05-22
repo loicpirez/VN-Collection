@@ -81,7 +81,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   const state = tagPageEmptyState({ tagId, collectionCount: count });
 
   return (
-    <DensityScopeProvider scope="tagPage" className="mx-auto max-w-5xl">
+    <DensityScopeProvider scope="tagPage" className="w-full">
       <Link href="/tags" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
         <ArrowLeft className="h-4 w-4" /> {t.nav.tags}
       </Link>

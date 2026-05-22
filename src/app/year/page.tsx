@@ -38,7 +38,7 @@ export default async function YearPage({
   const navYear = (delta: number) => `/year?y=${year + delta}`;
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>

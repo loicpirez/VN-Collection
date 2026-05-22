@@ -160,7 +160,7 @@ export default async function EgsPage() {
 
 function EgsPageSkeleton({ t }: { t: Awaited<ReturnType<typeof getDict>> }) {
   return (
-    <DensityScopeProvider scope="egs" className="mx-auto max-w-6xl">
+    <DensityScopeProvider scope="egs" className="w-full">
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
           <Sparkles className="h-6 w-6 text-accent" aria-hidden /> {t.egs.pageTitle}
@@ -183,7 +183,7 @@ async function EgsPageContent() {
   const matched = links.length;
 
   return (
-    <DensityScopeProvider scope="egs" className="mx-auto max-w-6xl">
+    <DensityScopeProvider scope="egs" className="w-full">
       <Link
         href="/data"
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden"

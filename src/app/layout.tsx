@@ -22,6 +22,7 @@ import { SpoilerToggle } from '@/components/SpoilerToggle';
 import { QuoteFooter } from '@/components/QuoteFooter';
 import { ToastProvider } from '@/components/ToastProvider';
 import { ConfirmProvider } from '@/components/ConfirmDialog';
+import { PageSpaceFrame } from '@/components/PageSpaceFrame';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -121,10 +122,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   // first home strip / library toolbar. Bottom kept
                   // at pb-16 to leave room for the floating download-
                   // status bar.
-                  className="mx-auto max-w-7xl px-3 pb-16 pt-4 sm:px-6 sm:pt-5"
+                  className="pb-16 pt-4 sm:pt-5"
                   tabIndex={-1}
                 >
-                  {children}
+                  <PageSpaceFrame>{children}</PageSpaceFrame>
                 </main>
                 <QuoteFooter />
                 <KeyboardShortcuts />

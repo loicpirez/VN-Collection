@@ -116,7 +116,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
     }));
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="w-full">
       {firstVnId ? (
         <Link href={`/vn/${firstVnId}`} className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
           <ArrowLeft className="h-4 w-4" /> {t.releases.backToVn}

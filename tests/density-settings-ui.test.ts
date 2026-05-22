@@ -102,6 +102,7 @@ describe('per-scope reset never clobbers the legacy default', () => {
       denseLibrary: false,
       cardDensityPx: 320,
       density: { library: 200, wishlist: 240 },
+      pageSpace: {},
       spoilerLevel: 0,
       showSexualTraits: false,
     };

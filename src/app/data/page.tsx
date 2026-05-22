@@ -32,7 +32,7 @@ export default async function DataPage() {
     authError = (e as Error).message;
   }
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="w-full space-y-8">
       <header className="flex flex-wrap items-center gap-3">
         <Database className="h-7 w-7 text-accent" aria-hidden />
         <div className="min-w-0 flex-1">

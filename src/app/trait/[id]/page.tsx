@@ -88,7 +88,7 @@ export default async function TraitPage({
   const localPaths = getCharacterImages(visible.map((c) => c.id));
 
   return (
-    <DensityScopeProvider scope="characterWorks" className="mx-auto max-w-5xl">
+    <DensityScopeProvider scope="characterWorks" className="w-full">
       <Link href="/traits" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.traits}
       </Link>

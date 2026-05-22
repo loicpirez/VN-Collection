@@ -257,7 +257,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   const boxType = (vn.box_type as BoxType | undefined) ?? 'none';
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <RecordRecentView
         id={vn.id}
         title={vn.title}

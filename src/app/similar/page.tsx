@@ -53,7 +53,7 @@ export default async function SimilarPage({
   const t = await getDict();
   if (!seedId || !/^(v\d+|egs_\d+)$/i.test(seedId)) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="w-full">
         <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
           <ArrowLeft className="h-4 w-4" /> {t.nav.library}
         </Link>
@@ -70,7 +70,7 @@ export default async function SimilarPage({
   const seed = getCollectionItem(seedId);
   if (!seed) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="w-full">
         <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
           <ArrowLeft className="h-4 w-4" /> {t.nav.library}
         </Link>
@@ -179,7 +179,7 @@ export default async function SimilarPage({
   };
 
   return (
-    <DensityScopeProvider scope="vnSimilar" className="mx-auto max-w-6xl">
+    <DensityScopeProvider scope="vnSimilar" className="w-full">
       <Link href={`/vn/${seed.id}`} className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {seed.title}
       </Link>

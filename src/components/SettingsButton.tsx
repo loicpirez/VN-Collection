@@ -31,6 +31,17 @@ import {
   type DensityScopes,
   useDisplaySettings,
 } from '@/lib/settings/client';
+import {
+  PAGE_SPACE_PRESET_IDS,
+  PAGE_SPACE_SCOPES,
+  PAGE_SPACE_SCOPE_DEFAULTS,
+  clearPageSpaceOverrides,
+  hasPageSpaceOverride,
+  resolvePageSpacePreset,
+  type PageSpaceOverrides,
+  type PageSpacePreset,
+  type PageSpaceScope,
+} from '@/lib/page-space';
 import { GlobalCardDensitySlider } from './CardDensitySlider';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
@@ -460,6 +471,7 @@ export function SettingsButton() {
                     <h3 className="mt-2 text-[11px] font-bold uppercase tracking-widest text-muted">
                       {t.settings.iaPerPageOverrides}
                     </h3>
+                    <PerPageSpacePanel />
                     <PerPageDensityPanel />
                   </div>
                 )}
@@ -1553,6 +1565,111 @@ function SortableDetailRow({
         {visible ? hideLabel : showLabel}
       </button>
     </li>
+  );
+}
+
+/**
+ * Settings → Display panel for route-group page spacing. The control
+ * uses fixed presets instead of a slider so users can make predictable
+ * per-surface choices without creating awkward intermediate widths.
+ *
+ * @returns Settings block for page-spacing overrides.
+ */
+function PerPageSpacePanel() {
+  const t = useT();
+  const { settings, set } = useDisplaySettings();
+  const pageSpace = settings.pageSpace ?? {};
+
+  function setScopePreset(scope: PageSpaceScope, preset: PageSpacePreset) {
+    const next: PageSpaceOverrides = { ...pageSpace };
+    if (preset === PAGE_SPACE_SCOPE_DEFAULTS[scope]) delete next[scope];
+    else next[scope] = preset;
+    set('pageSpace', next);
+  }
+
+  function resetScope(scope: PageSpaceScope) {
+    const next: PageSpaceOverrides = { ...pageSpace };
+    delete next[scope];
+    set('pageSpace', next);
+  }
+
+  function resetAllScopes() {
+    set('pageSpace', clearPageSpaceOverrides());
+  }
+
+  const someOverride = PAGE_SPACE_SCOPES.some((scope) => hasPageSpaceOverride(settings, scope));
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
+      <span className="text-sm font-semibold">{t.settings.pageSpaceTitle}</span>
+      <span className="text-[11px] text-muted">{t.settings.pageSpaceHint}</span>
+      <ul className="mt-1 grid gap-2">
+        {PAGE_SPACE_SCOPES.map((scope) => {
+          const activePreset = resolvePageSpacePreset(settings, scope);
+          const overridden = hasPageSpaceOverride(settings, scope);
+          return (
+            <li
+              key={scope}
+              className="grid gap-2 rounded-md border border-border/60 bg-bg-card/40 px-2 py-2 text-[11px] lg:grid-cols-[minmax(9rem,1fr)_auto]"
+            >
+              <div className="min-w-0">
+                <span className={overridden ? 'block text-white' : 'block text-muted'}>
+                  {t.pageSpace.scope[scope]}
+                </span>
+                <span className="block text-[10px] text-muted/80">
+                  {overridden
+                    ? t.pageSpace.customOverride
+                    : t.pageSpace.defaultPreset.replace(
+                        '{preset}',
+                        t.pageSpace.preset[PAGE_SPACE_SCOPE_DEFAULTS[scope]],
+                      )}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                {PAGE_SPACE_PRESET_IDS.map((preset) => {
+                  const active = preset === activePreset;
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setScopePreset(scope, preset)}
+                      className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                        active
+                          ? 'border-accent bg-accent/15 text-accent'
+                          : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+                      }`}
+                    >
+                      {active && <Check className="mr-1 inline h-3 w-3" aria-hidden />}
+                      {t.pageSpace.preset[preset]}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => resetScope(scope)}
+                  disabled={!overridden}
+                  className="min-h-8 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
+                  title={t.settings.perPageReset}
+                >
+                  {t.settings.perPageReset}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
+        <button
+          type="button"
+          onClick={resetAllScopes}
+          disabled={!someOverride}
+          className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
+        >
+          {t.settings.pageSpaceResetAll}
+        </button>
+      </div>
+    </div>
   );
 }
 
