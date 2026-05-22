@@ -677,17 +677,17 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | NEW-A11Y-027 | a11y | Breadcrumb navigation missing aria-label="breadcrumb" | breadcrumbs | — | — | TODO |
 | NEW-A11Y-028 | a11y | Progress indicators missing aria-valuenow/valuemin/valuemax | progress bars | — | — | TODO |
 | NEW-A11Y-029 | a11y | Alert dialogs missing role="alertdialog" | alert dialogs | — | — | TODO |
-| NEW-I18N-001 | i18n | DateInput uses en-GB locale instead of en-US | `src/components/DateInput.tsx` | — | — | TODO |
+| NEW-I18N-001 | i18n | DateInput uses en-GB locale instead of en-US | `src/components/DateInput.tsx` | 7fa45ed | LOCALE_TAG en: 'en-US' aligned with locale-number.ts; yarn test 1551/1551 | FIXED_VERIFIED |
 | NEW-I18N-002 | i18n | Hardcoded "No image" string not in translation keys | various components | — | — | TODO |
-| NEW-I18N-003 | i18n | BCP47 short codes inconsistent (fr vs fr-FR) | locale config | — | — | TODO |
-| NEW-I18N-004 | i18n | Number formatting bypasses fmtNum in some views | various number displays | — | — | TODO |
-| NEW-I18N-005 | i18n | Date formatting bypasses fmtDate in some views | various date displays | — | — | TODO |
+| NEW-I18N-003 | i18n | BCP47 short codes inconsistent (fr vs fr-FR) | locale config | 7fa45ed | character/shelf pages use BCP47_MAP; SearchClient uses fmtNum+locale; yarn test 1551/1551 | FIXED_VERIFIED |
+| NEW-I18N-004 | i18n | Number formatting bypasses fmtNum in some views | various number displays | 7fa45ed | BarChart locale prop + fmtNum; SearchClient fmtNum; MapVnToEgsButton t.egs.votes; yarn test 1551/1551 | FIXED_VERIFIED |
+| NEW-I18N-005 | i18n | Date formatting bypasses fmtDate in some views | various date displays | 7fa45ed | activity/top-ranked/upcoming pages use fmtDate (BCP47-mapped); yarn test 1551/1551 | FIXED_VERIFIED |
 | NEW-I18N-006 | i18n | Pluralization not locale-aware | plural strings | — | — | TODO |
 | NEW-I18N-007 | i18n | RTL layout not supported | layout | — | — | TODO |
 | NEW-I18N-008 | i18n | lang attribute on html element not dynamic | `src/app/layout.tsx` | — | — | TODO |
 | NEW-I18N-009 | i18n | Missing translations for new UI strings | translation files | — | — | TODO |
-| NEW-I18N-010 | i18n | allowedDevOrigins includes 127.0.0.1 hardcoded | `next.config.mjs` | — | — | TODO |
-| NEW-I18N-011 | i18n | Currency formatting not locale-aware | currency displays | — | — | TODO |
+| NEW-I18N-010 | i18n | allowedDevOrigins includes 127.0.0.1 hardcoded | `next.config.mjs` | 7fa45ed | allowedDevOrigins: ['127.0.0.1'] added to nextConfig; yarn test 1551/1551 | FIXED_VERIFIED |
+| NEW-I18N-011 | i18n | Currency formatting not locale-aware | currency displays | 7fa45ed | shelf fmtMoneyLocale uses BCP47_MAP; character birthday uses BCP47_MAP; yarn test 1551/1551 | FIXED_VERIFIED |
 | NEW-RESP-001 | responsive | Mobile: controls hidden with hidden sm:inline violate no-functionality-compromise rule | various components | — | — | TODO |
 | NEW-RESP-002 | responsive | Tablet: sidebar layout not usable on portrait tablet | sidebar | — | — | TODO |
 | NEW-RESP-003 | responsive | Mobile: data tables not scrollable horizontally | data tables | — | — | TODO |
@@ -695,12 +695,12 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | NEW-DBA-001 | DB | json_each queries on languages/platforms not using index tables | `src/lib/db.ts` | — | — | TODO |
 | NEW-DBA-002 | DB | json_each queries on developers/publishers not using index tables | `src/lib/db.ts` | — | — | TODO |
 | NEW-DBA-005 | DB | LIKE queries on unindexed columns (title, search fields) | `src/lib/db.ts` | — | — | TODO |
-| NEW-TCO-001 | test coverage | SafeImage buildRotationStyle source-pin tests replaced by runtime tests | `tests/safe-image-rotation.test.ts` | — | — | TODO |
+| NEW-TCO-001 | test coverage | AUD-SEC-010 source-pin tests replaced with behavioral truncation tests | `tests/auth-gate-routes.test.ts` | 7fa45ed | 301-char query returns same hits as 300-char query on both textual/find routes; yarn test 1551/1551 | FIXED_VERIFIED |
 | NEW-TCO-002 | test coverage | requireLocalhostOrToken not tested for all new routes | `tests/auth-gate-routes.test.ts` | eb2e59f | 44 new tests in NEW-TCO-002 describe block; all NEW-SECA-001..019 write handlers return 403 from external; yarn test 1536/1536 | FIXED_VERIFIED |
 | NEW-TCO-003 | test coverage | game-log note length cap not tested | `tests/` | 88840ab | seca-input-length-caps.test.ts covers POST 400 on note >10000; yarn test 1541/1541 | FIXED_VERIFIED |
 | NEW-TCO-004 | test coverage | lists field length cap not tested | `tests/` | 88840ab | seca-input-length-caps.test.ts source-pins .slice(0,200/2000/64) in both route files; yarn test 1541/1541 | FIXED_VERIFIED |
-| NEW-TCO-005 | test coverage | Activity page parseInt NaN not tested | `tests/` | — | — | TODO |
-| NEW-TCO-006 | test coverage | Labels QR cap not tested | `tests/` | — | — | TODO |
+| NEW-TCO-005 | test coverage | Activity page parseInt NaN not tested | `tests/` | 7fa45ed | page-guard-behaviors.test.ts behavioral parseInt NaN tests (abc/empty/negative/valid); yarn test 1551/1551 | FIXED_VERIFIED |
+| NEW-TCO-006 | test coverage | Labels QR cap not tested | `tests/` | 7fa45ed | page-guard-behaviors.test.ts behavioral QR cap tests; verifies 250→200 slice + truncation=true; yarn test 1551/1551 | FIXED_VERIFIED |
 | NEW-TCO-007 | test coverage | Security headers in next.config not tested | `tests/` | 88840ab | seca-input-length-caps.test.ts source-pins X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy in next.config.mjs; yarn test 1541/1541 | FIXED_VERIFIED |
 | NEW-CQ-001 | code quality | Unused imports in multiple components | various | — | — | TODO |
 | NEW-CQ-002 | code quality | Dead code branches (unreachable after refactor) | various | — | — | TODO |
@@ -708,8 +708,8 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | NEW-CQ-006 | code quality | Magic numbers without named constants | various | — | — | TODO |
 | NEW-CQ-007 | code quality | Long functions exceeding 100 lines | various | — | — | TODO |
 | NEW-CQ-008 | code quality | Duplicate logic across similar route handlers | API routes | — | — | TODO |
-| NEW-CQ-009 | code quality | LibraryClient element type swap at line 933 causes React children error | `src/app/library/LibraryClient.tsx:933` | — | — | TODO |
-| NEW-CQ-010 | code quality | VnCard icon swap at line 282 causes React children error | `src/components/VnCard.tsx:282` | — | — | TODO |
+| NEW-CQ-009 | code quality | LibraryClient element type swap at line 933 causes React children error | `src/app/library/LibraryClient.tsx:933` | 7fa45ed | stable <div> wrapper around ternary so type stays constant; yarn test 1551/1551 | FIXED_VERIFIED |
+| NEW-CQ-010 | code quality | VnCard icon swap at line 282 causes React children error | `src/components/VnCard.tsx:282` | 7fa45ed | stable <span> wraps Loader2/Plus swap; element type at position unchanged; yarn test 1551/1551 | FIXED_VERIFIED |
 | NEW-PERF-001 | performance | json_each on languages column scans all rows | `src/lib/db.ts` | — | — | TODO |
 | NEW-PERF-002 | performance | json_each on platforms column scans all rows | `src/lib/db.ts` | — | — | TODO |
 | NEW-PERF-003 | performance | json_each on developers column scans all rows | `src/lib/db.ts` | — | — | TODO |
