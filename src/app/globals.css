@@ -131,6 +131,19 @@
   }
 }
 
+/*
+ * Keyboard focus ring for ARIA menu items — ActionMenu, CardContextMenu,
+ * HomeSectionMenu, and similar surfaces use Arrow-key navigation.
+ * Without an explicit focus-visible style the roving-focus highlight
+ * was invisible in all browsers.
+ */
+[role="menuitem"]:focus-visible,
+[role="menuitemcheckbox"]:focus-visible {
+  outline: 2px solid theme('colors.accent');
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
 /* Hide scrollbar in chip rows */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
