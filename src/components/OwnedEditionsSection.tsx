@@ -1101,7 +1101,12 @@ function EditionPicker({
             {t.inventory.pickerNoResults}
           </p>
         )}
-        {filtered.map((r) => {
+        {filtered.length > 100 && (
+          <p className="col-span-full px-1 py-0.5 text-[10px] text-muted">
+            {t.inventory.pickerCapNotice}
+          </p>
+        )}
+        {filtered.slice(0, 100).map((r) => {
           const cover = r.images.find((img) => img.type === 'pkgfront') ?? r.images[0] ?? null;
           const coverSrc = cover?.url ?? parentVnCover?.url ?? null;
           const coverLocal = cover?.url ? null : parentVnCover?.localPath ?? null;

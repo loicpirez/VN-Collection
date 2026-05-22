@@ -4497,6 +4497,7 @@ export function listCollectionTags(): CollectionTagAggregate[] {
       WHERE ti.spoiler = 0
       GROUP BY tag_id
       ORDER BY tag_count DESC, tag_name COLLATE NOCASE ASC
+      LIMIT 500
     `)
     .all() as { tag_id: string; tag_name: string; tag_category: string | null; tag_count: number }[])
     .map((r) => ({ id: r.tag_id, name: r.tag_name, category: r.tag_category, count: r.tag_count }));
@@ -6797,6 +6798,7 @@ export function listProducerStats(): ProducerStat[] {
       WHERE dp.pid IS NOT NULL
       GROUP BY dp.pid
       ORDER BY vn_count DESC, name ASC
+      LIMIT 2000
     `)
     .all() as (ProducerDbRow & { vn_count: number; avg_user_rating: number | null; avg_rating: number | null })[];
   return rows.map((r) => ({
@@ -6840,6 +6842,7 @@ export function listPublisherStats(): ProducerStat[] {
       WHERE pp.pid IS NOT NULL
       GROUP BY pp.pid
       ORDER BY vn_count DESC, name ASC
+      LIMIT 2000
     `)
     .all() as (ProducerDbRow & { vn_count: number; avg_user_rating: number | null; avg_rating: number | null })[];
   return rows.map((r) => ({
@@ -7416,13 +7419,13 @@ export function todaysAnniversaries(today: Date = new Date()): AnniversaryVn[] {
   const mm = String(today.getMonth() + 1).padStart(2, '0');
   const dd = String(today.getDate()).padStart(2, '0');
   const yyyy = today.getFullYear();
-  const monthDay = `-${mm}-${dd}`;
+  const monthDay = `${mm}-${dd}`;
   return db
     .prepare(`
       SELECT v.id, v.title, v.released, v.image_thumb, v.image_url, v.image_sexual,
              v.local_image_thumb
       FROM collection c JOIN vn v ON v.id = c.vn_id
-      WHERE v.released LIKE '%' || ?
+      WHERE SUBSTR(v.released, 6, 5) = ?
       ORDER BY v.released DESC
       LIMIT 500
     `)
