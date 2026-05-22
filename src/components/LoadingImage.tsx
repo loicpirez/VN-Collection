@@ -46,11 +46,13 @@ export function LoadingImage({
 
   return (
     <span className={`relative inline-block overflow-hidden ${className}`} style={style}>
-      <span
-        data-loading-image-skeleton
-        className={`pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70 transition-opacity duration-200 ${loaded ? 'opacity-0' : 'opacity-100'}`}
-        aria-hidden
-      />
+      {!loaded && (
+        <span
+          data-loading-image-skeleton
+          className="pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70"
+          aria-hidden
+        />
+      )}
       <img
         src={src}
         alt={alt}

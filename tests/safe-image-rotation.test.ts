@@ -57,9 +57,14 @@ describe('SafeImage loading skeleton', () => {
   it('keeps a skeleton visible until the image load event fires', () => {
     expect(source).toContain('const [loaded, setLoaded] = useState(false)');
     expect(source).toContain('data-safe-image-skeleton');
+    expect(source).toContain('const loadingSkeleton = !loaded ? (');
     expect(source).toContain('loadedUrlsRef.current.add(url)');
     expect(source).toContain('setLoaded(true)');
     expect(source).toContain("loaded ? 'opacity-100' : 'opacity-0'");
+  });
+
+  it('unmounts the pulsing skeleton after load instead of hiding an active animation', () => {
+    expect(source).not.toContain("loaded ? 'opacity-0' : 'opacity-100'");
   });
 
   it('resets loaded state when recycled virtualized cells receive a new URL', () => {

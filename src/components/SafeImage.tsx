@@ -206,13 +206,13 @@ export function SafeImage({
   }
 
   const rotationStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null);
-  const skeleton = (
+  const loadingSkeleton = !loaded ? (
     <div
       data-safe-image-skeleton
-      className={`pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70 transition-opacity duration-200 ${loaded ? 'opacity-0' : 'opacity-100'}`}
+      className="pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70"
       aria-hidden
     />
-  );
+  ) : null;
 
   return (
     <div ref={containerRef} className={`relative overflow-hidden ${className}`} style={style}>
@@ -223,7 +223,7 @@ export function SafeImage({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {inView ? (
         <>
-          {skeleton}
+          {loadingSkeleton}
           <img
             src={url}
             alt={alt}

@@ -14,8 +14,19 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { LoadingImage } from '@/components/LoadingImage';
 import { ProducerLogo } from '@/components/ProducerLogo';
+
+const loadingImageSource = readFileSync(
+  join(__dirname, '..', 'src/components/LoadingImage.tsx'),
+  'utf8',
+);
+const heroBannerSource = readFileSync(
+  join(__dirname, '..', 'src/components/HeroBanner.tsx'),
+  'utf8',
+);
 
 describe('LoadingImage — skeleton present in initial render', () => {
   it('renders data-loading-image-skeleton span before image loads', () => {
@@ -34,13 +45,17 @@ describe('LoadingImage — skeleton present in initial render', () => {
     expect(imgMatch![0]).toContain('opacity-0');
   });
 
-  it('skeleton span starts with opacity-100 class in initial render', () => {
+  it('skeleton span starts mounted before image load', () => {
     const html = renderToStaticMarkup(
       createElement(LoadingImage, { src: '/test.jpg', alt: 'test image' }),
     );
-    expect(html).toContain('opacity-100');
     const skeletonIdx = html.indexOf('data-loading-image-skeleton');
     expect(skeletonIdx).toBeGreaterThan(0);
+  });
+
+  it('unmounts the pulsing skeleton after load instead of hiding it with opacity', () => {
+    expect(loadingImageSource).toContain('{!loaded && (');
+    expect(loadingImageSource).not.toContain("loaded ? 'opacity-0' : 'opacity-100'");
   });
 
   it('renders provided alt text on the img element', () => {
@@ -48,6 +63,13 @@ describe('LoadingImage — skeleton present in initial render', () => {
       createElement(LoadingImage, { src: '/cover.jpg', alt: 'Game cover' }),
     );
     expect(html).toContain('alt="Game cover"');
+  });
+});
+
+describe('HeroBanner — loading skeleton lifecycle', () => {
+  it('unmounts the banner pulse once the banner image has loaded', () => {
+    expect(heroBannerSource).toContain('{!bannerLoaded && (');
+    expect(heroBannerSource).not.toContain("bannerLoaded ? 'opacity-0' : 'opacity-100'");
   });
 });
 

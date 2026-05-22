@@ -303,11 +303,13 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     >
       {liveSrc ? (
         <>
-          <div
-            data-hero-banner-skeleton
-            className={`pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-card/55 to-bg-elev/70 transition-opacity duration-200 ${bannerLoaded ? 'opacity-0' : 'opacity-100'}`}
-            aria-hidden
-          />
+          {!bannerLoaded && (
+            <div
+              data-hero-banner-skeleton
+              className="pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-card/55 to-bg-elev/70"
+              aria-hidden
+            />
+          )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             ref={imgRef}
