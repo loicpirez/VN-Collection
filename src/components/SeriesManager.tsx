@@ -82,7 +82,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
             <Plus className="h-4 w-4" /> {t.series.create}
           </button>
         </div>
-        {error && <p className="mt-3 text-sm text-status-dropped">{error}</p>}
+        {error && <p role="alert" className="mt-3 text-sm text-status-dropped">{error}</p>}
       </div>
 
       {items.length === 0 ? (

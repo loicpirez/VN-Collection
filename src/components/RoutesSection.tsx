@@ -223,7 +223,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
         )}
       </div>
 
-      {error && <p className="mb-3 text-xs text-status-dropped">{error}</p>}
+      {error && <p role="alert" className="mb-3 text-xs text-status-dropped">{error}</p>}
 
       {routes.length === 0 && <p className="mb-3 text-xs text-muted">{t.routes.empty}</p>}
 

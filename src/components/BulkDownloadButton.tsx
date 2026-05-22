@@ -331,7 +331,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
               style={{ width: `${pct}%` }}
             />
           </div>
-          {error && <p className="mt-2 text-xs text-status-dropped">{error}</p>}
+          {error && <p role="alert" className="mt-2 text-xs text-status-dropped">{error}</p>}
           {egsWarnings.length > 0 && (
             <div className="mt-2 rounded-md border border-status-on_hold/30 bg-status-on_hold/10 p-2 text-[10px] text-status-on_hold">
               {egsWarnings.map((w) => (

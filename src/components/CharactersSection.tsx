@@ -91,7 +91,7 @@ export function CharactersSection({
       </summary>
       <div className="border-t border-border px-6 py-5">
         {loading && <CharactersSkeleton />}
-        {error && <p className="text-sm text-status-dropped">{error}</p>}
+        {error && <p role="alert" className="text-sm text-status-dropped">{error}</p>}
         {!loading && chars && chars.length === 0 && <p className="text-sm text-muted">{t.characters.empty}</p>}
         {sorted.length > 0 && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -92,7 +92,7 @@ export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
           {busy ? t.cover.uploading : t.cover.uploadCta}
         </button>
-        {error && <p className="text-[10px] text-status-dropped">{error}</p>}
+        {error && <p role="alert" className="text-[10px] text-status-dropped">{error}</p>}
       </div>
     );
   }
@@ -113,7 +113,7 @@ export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
           </button>
         )}
       </div>
-      {error && <p className="mt-2 text-sm text-status-dropped">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-sm text-status-dropped">{error}</p>}
     </div>
   );
 }

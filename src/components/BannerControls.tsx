@@ -77,7 +77,7 @@ export function BannerControls({ vnId, hasCustomBanner }: { vnId: string; hasCus
           </button>
         )}
       </div>
-      {error && <p className="mt-2 text-sm text-status-dropped">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-sm text-status-dropped">{error}</p>}
     </div>
   );
 }

@@ -192,7 +192,7 @@ export function EgsPanel({
             </div>
           </div>
           <p className="text-xs text-muted">{t.egs.noMatch}</p>
-          {error && <p className="mt-1 text-[11px] text-status-dropped">{error}</p>}
+          {error && <p role="alert" className="mt-1 text-[11px] text-status-dropped">{error}</p>}
         </section>
         {pickerOpen && (
           <EgsPicker
