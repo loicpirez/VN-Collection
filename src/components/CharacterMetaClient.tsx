@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
@@ -93,6 +93,7 @@ function InlineSpoilerReveal({
   autoReveal: boolean;
 }) {
   const t = useT();
+  const revealedId = useId();
   const [localRevealed, setLocalRevealed] = useState<boolean | null>(null);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -107,9 +108,7 @@ function InlineSpoilerReveal({
   return (
     <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-status-on_hold">
       <span className="font-bold uppercase tracking-wider">{label}:</span>
-      {persistRevealed ? (
-        <span>{value}</span>
-      ) : (
+      {!persistRevealed && (
         <button
           type="button"
           onClick={() => setLocalRevealed(true)}
@@ -124,6 +123,7 @@ function InlineSpoilerReveal({
           }`}
           aria-label={t.spoiler.revealOne}
           aria-expanded={effectiveRevealed}
+          aria-controls={revealedId}
           data-spoiler-state={effectiveRevealed ? 'transient' : 'hidden'}
           title={effectiveRevealed ? t.spoiler.hideHint : t.spoiler.markupSummary}
         >
@@ -131,6 +131,7 @@ function InlineSpoilerReveal({
           <span>{effectiveRevealed ? value : t.spoiler.markupSummary}</span>
         </button>
       )}
+      <span id={revealedId}>{persistRevealed ? value : null}</span>
       {persistRevealed && (
         <button
           type="button"

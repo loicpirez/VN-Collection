@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, EyeOff, Lock } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -111,6 +111,7 @@ export function SpoilerChip({
   // hover/focus and decide whether to click to persist.
   const isStillSpoilery = level > 0 || sexual;
   const wasGatedAndRevealed = shouldHide && revealed;
+  const revealedId = useId();
 
   return (
     <span
@@ -128,6 +129,7 @@ export function SpoilerChip({
           type="button"
           onClick={() => setRevealed(true)}
           aria-expanded={effectiveState === 'transient'}
+          aria-controls={revealedId}
           aria-label={t.spoiler.revealOne}
           className={`group inline-flex items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-status-on_hold ${
             effectiveState === 'transient'
@@ -146,8 +148,10 @@ export function SpoilerChip({
             <span>{hiddenLabel}</span>
           )}
         </button>
-      ) : (
-        <>
+      ) : null}
+      <span id={revealedId} className="inline-flex items-stretch">
+        {effectiveState === 'revealed' ? (
+          <>
           <Link
             href={href}
             aria-pressed={wasGatedAndRevealed ? true : undefined}
@@ -182,8 +186,9 @@ export function SpoilerChip({
               <EyeOff className="h-2.5 w-2.5" aria-hidden />
             </button>
           )}
-        </>
-      )}
+          </>
+        ) : null}
+      </span>
     </span>
   );
 }
