@@ -29,11 +29,17 @@ interface Props {
   vnId: string;
   /** Defaults to 'complete' so existing call sites keep the old label set. */
   dataState?: VnDataState;
-  /** Class applied to each action button. Defaults to the standard `btn`. */
-  buttonClassName?: string;
+  /**
+   * `'standalone'` (default) — renders side-by-side `btn` buttons suitable
+   * for use outside a dropdown.
+   * `'menu'` — renders full-width menu-item rows, suitable inside a dropdown.
+   */
+  variant?: 'standalone' | 'menu';
 }
 
-export function DownloadAssetsButton({ vnId, dataState = 'complete', buttonClassName = 'btn' }: Props) {
+const MENU_ITEM = 'inline-flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
+
+export function DownloadAssetsButton({ vnId, dataState = 'complete', variant = 'standalone' }: Props) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -87,30 +93,36 @@ export function DownloadAssetsButton({ vnId, dataState = 'complete', buttonClass
         ? t.assets.downloadUpdateHint
         : t.assets.missingHint;
 
+  const btnCls = variant === 'menu' ? MENU_ITEM : 'btn';
+  const iconCls = variant === 'menu' ? 'h-3.5 w-3.5 shrink-0' : 'h-4 w-4';
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className={variant === 'menu' ? 'flex flex-col gap-0.5' : 'flex flex-wrap items-center gap-2'}>
       <button
-        className={buttonClassName}
+        type="button"
+        className={btnCls}
         onClick={() => go(false)}
         disabled={busy || pending}
         title={primaryHint}
       >
-        {mode === 'missing' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
+        {mode === 'missing'
+          ? <Loader2 className={`${iconCls} animate-spin`} aria-hidden />
+          : <CloudDownload className={iconCls} aria-hidden />
+        }
         {primaryLabel}
       </button>
-      {/*
-        Force-refresh button is hidden when there's no data yet (the
-        single "Download data" primary is enough). It re-appears once
-        the VN has cached metadata so the operator can re-fetch.
-      */}
       {dataState !== 'none' && (
         <button
-          className={buttonClassName}
+          type="button"
+          className={btnCls}
           onClick={() => go(true)}
           disabled={busy || pending}
           title={t.assets.fullHint}
         >
-          {mode === 'full' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {mode === 'full'
+            ? <Loader2 className={`${iconCls} animate-spin`} aria-hidden />
+            : <RefreshCw className={iconCls} aria-hidden />
+          }
           {mode === 'full' ? t.assets.downloading : t.assets.downloadFull}
         </button>
       )}

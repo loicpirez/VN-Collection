@@ -268,7 +268,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
       menuClassName="w-72 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
-      <DownloadAssetsButton vnId={vn.id} dataState={deriveVnDataState(vn)} buttonClassName={ACTION_BUTTON_CLASSES} />
+      <DownloadAssetsButton vnId={vn.id} dataState={deriveVnDataState(vn)} variant="menu" />
     </ActionMenu>
   ) : null;
 
