@@ -1,54 +1,52 @@
 /**
- * R5-130 pin: `0.0.0.0` is NOT loopback.
+ * NEW-TCO-004 / R5-130 behavioral: `0.0.0.0` is NOT loopback.
  *
- * `0.0.0.0` is the "any interface" / "unspecified" address. Treating
- * it as loopback would let a deployment that listens on 0.0.0.0
- * (very common) silently bypass the admin-token gate when a
- * malicious header rewrites `Host: 0.0.0.0`.
- *
- * Source-pin only — the helpers are file-local so we can't import
- * them, but the structural invariant is easy to assert: neither
- * `isLoopbackHost` nor `isLoopbackIp` may match the literal
- * `'0.0.0.0'`.
+ * Calls requireLocalhostOrToken directly with requests whose Host header
+ * is set to `0.0.0.0` and asserts the gate returns 403. A parallel
+ * sub-suite confirms real loopback addresses are still allowed.
  */
-import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
-const SOURCE = readFileSync(
-  join(__dirname, '..', 'src/lib/auth-gate.ts'),
-  'utf8',
-);
-
-// Strip JSDoc / line comments before scanning for code references so
-// the R5-130 explanatory comment in the source itself doesn't trip
-// the assertion.
-function withoutComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-}
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { NextRequest } from 'next/server';
 
 describe('auth-gate — 0.0.0.0 is not loopback (R5-130)', () => {
-  const noComments = withoutComments(SOURCE);
+  const saved = { VN_ADMIN_TOKEN: process.env.VN_ADMIN_TOKEN };
 
-  it('isLoopbackHost does not match 0.0.0.0', () => {
-    const fn = noComments.match(/function isLoopbackHost\([\s\S]*?\n\}/);
-    expect(fn?.[0]).toBeTruthy();
-    expect(fn![0], 'isLoopbackHost code must not list 0.0.0.0').not.toMatch(/['"`]0\.0\.0\.0['"`]/);
+  beforeEach(() => {
+    delete process.env.VN_ADMIN_TOKEN;
   });
 
-  it('isLoopbackIp does not match 0.0.0.0', () => {
-    const fn = noComments.match(/function isLoopbackIp\([\s\S]*?\n\}/);
-    expect(fn?.[0]).toBeTruthy();
-    expect(fn![0], 'isLoopbackIp code must not list 0.0.0.0').not.toMatch(/['"`]0\.0\.0\.0['"`]/);
+  afterEach(() => {
+    if (saved.VN_ADMIN_TOKEN !== undefined) process.env.VN_ADMIN_TOKEN = saved.VN_ADMIN_TOKEN;
+    else delete process.env.VN_ADMIN_TOKEN;
   });
 
-  it('still matches 127.0.0.1 / ::1 / localhost', () => {
-    expect(SOURCE).toMatch(/'127\.0\.0\.1'/);
-    expect(SOURCE).toMatch(/'::1'/);
-    expect(SOURCE).toMatch(/'localhost'/);
+  it('request with Host: 0.0.0.0 is denied with 403', () => {
+    const req = new NextRequest('http://0.0.0.0/api/settings', { method: 'GET' });
+    const result = requireLocalhostOrToken(req);
+    expect(result).not.toBeNull();
+    expect(result!.status).toBe(403);
   });
 
-  it('carries an R5-130 comment so future maintainers know why', () => {
-    expect(SOURCE).toMatch(/R5-130/);
+  it('request with Host: 127.0.0.1 is allowed (returns null)', () => {
+    const req = new NextRequest('http://127.0.0.1/api/settings', { method: 'GET' });
+    expect(requireLocalhostOrToken(req)).toBeNull();
+  });
+
+  it('request with Host: localhost is allowed (returns null)', () => {
+    const req = new NextRequest('http://localhost/api/settings', { method: 'GET' });
+    expect(requireLocalhostOrToken(req)).toBeNull();
+  });
+
+  it('request with Host: ::1 is allowed (returns null)', () => {
+    const req = new NextRequest('http://[::1]/api/settings', { method: 'GET' });
+    expect(requireLocalhostOrToken(req)).toBeNull();
+  });
+
+  it('external IP without token is denied with 403', () => {
+    const req = new NextRequest('http://93.184.216.34/api/settings', { method: 'GET' });
+    const result = requireLocalhostOrToken(req);
+    expect(result).not.toBeNull();
+    expect(result!.status).toBe(403);
   });
 });

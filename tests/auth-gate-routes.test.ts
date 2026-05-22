@@ -12,7 +12,7 @@
  * TCO-010 — maintenance routes return valid JSON shape from loopback with 0 items.
  * NEW-TCO-002 — NEW-SECA-001..019: all newly-gated write routes return 403 from external.
  */
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { GET as wishlistGET } from '@/app/api/wishlist/route';
 import { GET as activityGET } from '@/app/api/activity/route';
 import { GET as downloadStatusGET } from '@/app/api/download-status/route';
@@ -463,5 +463,25 @@ describe('NEW-TCO-002 — NEW-SECA-001..019: newly-gated routes return 403 from 
 
   it('POST /api/producer/[id]/refresh', async () => {
     expect((await producerRefreshPOST(externalReq('/api/producer/p1/refresh', 'POST'), ctx('p1'))).status).toBe(403);
+  });
+});
+
+describe('auth gate — happy-path: valid Bearer token from external origin (NEW-TCO-007)', () => {
+  const TEST_TOKEN = 'auth-gate-happy-path-token-tco007';
+  const savedToken = process.env.VN_ADMIN_TOKEN;
+
+  beforeAll(() => { process.env.VN_ADMIN_TOKEN = TEST_TOKEN; });
+  afterAll(() => {
+    if (savedToken !== undefined) process.env.VN_ADMIN_TOKEN = savedToken;
+    else delete process.env.VN_ADMIN_TOKEN;
+  });
+
+  it('GET /api/wishlist with correct Bearer from external IP returns 200', async () => {
+    const req = new NextRequest('http://93.184.216.34/api/wishlist', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${TEST_TOKEN}` },
+    });
+    const res = await wishlistGET(req);
+    expect(res.status).toBe(200);
   });
 });
