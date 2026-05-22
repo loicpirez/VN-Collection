@@ -155,7 +155,7 @@ function TagSection({
                 lie={tag.lie}
                 currentSpoilerLevel={effectiveLevel}
                 showSexual={settings.showSexualTraits}
-                href={links.libraryHref}
+                href={links.tagPageHref}
                 title={`${tag.name} — ${tag.rating.toFixed(1)} / 3`}
               >
                 <span className="inline-flex items-center gap-1">

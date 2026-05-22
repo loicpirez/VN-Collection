@@ -72,6 +72,10 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   }, [src]);
   useEffect(() => {
     setBannerLoaded(false);
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) {
+      setBannerLoaded(true);
+    }
   }, [liveSrc]);
   useEffect(() => {
     setRotation(initialRotation);

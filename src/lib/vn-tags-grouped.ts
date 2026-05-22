@@ -86,7 +86,7 @@ export function tagLinks(tagId: string): TagLinks {
   const id = tagId.toLowerCase();
   return {
     libraryHref: `/?tag=${encodeURIComponent(id)}`,
-    tagPageHref: `/tag/${encodeURIComponent(id)}`,
+    tagPageHref: `/tag/${encodeURIComponent(id)}?tab=vndb`,
     vndbExternal: `https://vndb.org/${id}`,
   };
 }

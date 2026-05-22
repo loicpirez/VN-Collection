@@ -1683,8 +1683,6 @@ const PAGE_LAYOUT_DENSITY_SCOPES: Partial<Record<PageSpaceScope, readonly Densit
  */
 function PerPageLayoutPanel() {
   const t = useT();
-  const router = useRouter();
-  const [, startPageTransition] = useTransition();
   const { settings, set } = useDisplaySettings();
   const pageSpace = settings.pageSpace ?? {};
   const density = settings.density ?? {};
@@ -1694,14 +1692,12 @@ function PerPageLayoutPanel() {
     if (preset === PAGE_SPACE_SCOPE_DEFAULTS[scope]) delete next[scope];
     else next[scope] = preset;
     set('pageSpace', next);
-    startPageTransition(() => router.refresh());
   }
 
   function resetSpaceScope(scope: PageSpaceScope) {
     const next: PageSpaceOverrides = { ...pageSpace };
     delete next[scope];
     set('pageSpace', next);
-    startPageTransition(() => router.refresh());
   }
 
   function resetDensityScope(scope: DensityScope) {

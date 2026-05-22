@@ -90,6 +90,9 @@ const PRIMARY_ROW_CLASSES =
 const ACTION_BUTTON_CLASSES =
   'inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
 
+const SECONDARY_BUTTON_CLASSES =
+  'inline-flex h-8 items-center justify-center gap-1 rounded-none border-0 bg-transparent px-2.5 py-1 text-[11px] font-medium text-muted transition-colors hover:bg-accent/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
+
 export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBanner }: Props) {
   const t = await getDict();
   const isEgsOnly = vn.id.startsWith('egs_');
@@ -134,10 +137,10 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
       label={t.detail.actions.groupTracking}
       trigger={
         <>
-          <ListChecks className="h-4 w-4" aria-hidden /> {t.detail.actions.groupTracking}
+          <ListChecks className="h-3.5 w-3.5" aria-hidden /> {t.detail.actions.groupTracking}
         </>
       }
-      triggerClassName={ACTION_BUTTON_CLASSES}
+      triggerClassName={SECONDARY_BUTTON_CLASSES}
       menuClassName="w-56 rounded-lg border border-border bg-bg-card p-1 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -163,10 +166,10 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
       label={t.detail.actions.groupExternal}
       trigger={
         <>
-          <ExternalLink className="h-4 w-4" aria-hidden /> {t.detail.actions.groupExternal}
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden /> {t.detail.actions.groupExternal}
         </>
       }
-      triggerClassName={ACTION_BUTTON_CLASSES}
+      triggerClassName={SECONDARY_BUTTON_CLASSES}
       menuClassName="w-72 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -203,10 +206,10 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
       label={t.detail.actions.groupMedia}
       trigger={
         <>
-          <ImageIcon className="h-4 w-4" aria-hidden /> {t.detail.actions.groupMedia}
+          <ImageIcon className="h-3.5 w-3.5" aria-hidden /> {t.detail.actions.groupMedia}
         </>
       }
-      triggerClassName={ACTION_BUTTON_CLASSES}
+      triggerClassName={SECONDARY_BUTTON_CLASSES}
       menuClassName="w-64 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -259,10 +262,10 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
       label={t.detail.actions.groupData}
       trigger={
         <>
-          <Database className="h-4 w-4" aria-hidden /> {t.detail.actions.groupData}
+          <Database className="h-3.5 w-3.5" aria-hidden /> {t.detail.actions.groupData}
         </>
       }
-      triggerClassName={ACTION_BUTTON_CLASSES}
+      triggerClassName={SECONDARY_BUTTON_CLASSES}
       menuClassName="w-72 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -276,10 +279,10 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
       label={t.detail.actions.groupMapping}
       trigger={
         <>
-          <Link2 className="h-4 w-4" aria-hidden /> {t.detail.actions.groupMapping}
+          <Link2 className="h-3.5 w-3.5" aria-hidden /> {t.detail.actions.groupMapping}
         </>
       }
-      triggerClassName={ACTION_BUTTON_CLASSES}
+      triggerClassName={SECONDARY_BUTTON_CLASSES}
       menuClassName="w-64 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-right"
     >
@@ -320,11 +323,25 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
       className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-bg-elev/25 p-2"
     >
       {collection}
-      {tracking}
-      {external}
-      {media}
-      {data}
-      {mapping}
+      {/*
+        Secondary-actions cluster: all five dropdowns (Tracking, External,
+        Artwork, Data, Mapping) share a single pill border with dividers
+        between them. ActionMenu renders <span class="relative inline-block">
+        as the direct child, so the first/last CSS selectors target those
+        spans and round only the outermost trigger buttons. overflow-visible
+        keeps dropdown panels from being clipped.
+      */}
+      <div
+        role="group"
+        aria-label={t.detail.actions.ariaLabel}
+        className="inline-flex items-stretch divide-x divide-border/60 overflow-visible rounded-md border border-border/70 [&>span:first-child>button]:rounded-l-md [&>span:last-child>button]:rounded-r-md"
+      >
+        {tracking}
+        {external}
+        {media}
+        {data}
+        {mapping}
+      </div>
       {dangerous}
     </nav>
   );

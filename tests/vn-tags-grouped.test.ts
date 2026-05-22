@@ -89,7 +89,7 @@ describe('tagLinks', () => {
   it('exposes the library, tag-page, and external VNDB hrefs', () => {
     const l = tagLinks('g9001');
     expect(l.libraryHref).toBe('/?tag=g9001');
-    expect(l.tagPageHref).toBe('/tag/g9001');
+    expect(l.tagPageHref).toBe('/tag/g9001?tab=vndb');
     expect(l.vndbExternal).toBe('https://vndb.org/g9001');
   });
 
