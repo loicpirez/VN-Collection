@@ -167,6 +167,7 @@ const SETTINGS_TABS = [
   'account',
   'integrations',
   'automation',
+  'shortcuts',
 ] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
@@ -810,6 +811,52 @@ export function SettingsButton() {
                     >
                       <GraduationCap className="h-3.5 w-3.5" aria-hidden /> {t.tour.runAgain}
                     </button>
+                  </div>
+                </div>
+                )}
+
+                {activeTab === 'shortcuts' && (
+                <div
+                  role="tabpanel"
+                  id="settings-panel-shortcuts"
+                  aria-labelledby="settings-tab-shortcuts"
+                  className="space-y-4"
+                >
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+                    <h3 className="text-sm font-bold">{t.shortcuts.title}</h3>
+                  </div>
+                  <p className="text-[11px] text-muted">
+                    <kbd className="rounded bg-bg-elev px-1.5 py-0.5 font-mono text-[10px]">?</kbd>
+                    {' '}— {t.shortcuts.help}
+                  </p>
+                  <div className="space-y-3">
+                    <section>
+                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
+                        {t.shortcuts.title}
+                      </h4>
+                      <ul className="space-y-1.5">
+                        <ShortcutRow k="/" label={t.shortcuts.focusSearch} />
+                        <ShortcutRow k="?" label={t.shortcuts.help} />
+                        <ShortcutRow k="Esc" label={t.shortcuts.close} />
+                      </ul>
+                    </section>
+                    <section>
+                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
+                        g …
+                      </h4>
+                      <ul className="space-y-1.5">
+                        <ShortcutRow k="g h" label={t.shortcuts.goHome} />
+                        <ShortcutRow k="g s" label={t.shortcuts.goSearch} />
+                        <ShortcutRow k="g w" label={t.shortcuts.goWishlist} />
+                        <ShortcutRow k="g r" label={t.shortcuts.goRecommend} />
+                        <ShortcutRow k="g u" label={t.shortcuts.goUpcoming} />
+                        <ShortcutRow k="g q" label={t.shortcuts.goQuotes} />
+                        <ShortcutRow k="g y" label={t.shortcuts.goYear} />
+                        <ShortcutRow k="g t" label={t.shortcuts.goStats} />
+                        <ShortcutRow k="g d" label={t.shortcuts.goData} />
+                      </ul>
+                    </section>
                   </div>
                 </div>
                 )}
@@ -1831,5 +1878,14 @@ function Toggle({
         />
       </button>
     </div>
+  );
+}
+
+function ShortcutRow({ k, label }: { k: string; label: string }) {
+  return (
+    <li className="flex items-center justify-between gap-3">
+      <kbd className="rounded bg-bg-elev px-2 py-0.5 font-mono text-[11px]">{k}</kbd>
+      <span className="text-[11px] text-muted">{label}</span>
+    </li>
   );
 }
