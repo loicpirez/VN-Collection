@@ -11,6 +11,10 @@ import 'server-only';
  * downloading and notice when something goes wrong.
  */
 
+/**
+ * Discriminator for the kind of background fan-out job.
+ * Surfaced in `DownloadStatusBar` to group and label progress entries.
+ */
 export type JobKind =
   | 'staff'
   | 'characters'
@@ -18,10 +22,6 @@ export type JobKind =
   | 'vndb-pull'
   | 'egs-sync'
   | 'vn-fetch'
-  // `cache-refresh` covers the global refresh fan-out, which busts &
-  // re-fetches a mix of VNDB AND EGS caches (anticipated, upcoming, stats,
-  // tags, traits, ...). Tagging it as `vndb-pull` was misleading on
-  // /upcoming?tab=anticipated where the user only sees EGS content.
   | 'cache-refresh';
 
 export interface DownloadJob {
@@ -84,6 +84,14 @@ function emit(): void {
   });
 }
 
+/**
+ * Register a listener that fires whenever any job changes state (start / tick /
+ * error / finish). Notifications are coalesced per microtask so bulk updates
+ * (e.g. hundreds of `tickJob` calls during a fan-out) produce a single callback.
+ *
+ * @param listener Zero-argument callback invoked on each state change beat.
+ * @returns A teardown function — call it to unsubscribe (e.g. on SSE disconnect).
+ */
 export function subscribeStatus(listener: Listener): () => void {
   // Defence against runaway listener counts (e.g. a reverse proxy
   // that drops SSE connections without firing `abort`). Evicts the
@@ -100,6 +108,10 @@ export function subscribeStatus(listener: Listener): () => void {
   };
 }
 
+/**
+ * Manually trigger a status notification outside the normal job lifecycle —
+ * e.g. when the VNDB throttler transitions in or out of cooldown.
+ */
 export function bumpStatus(): void {
   emit();
 }
@@ -122,6 +134,15 @@ function gc(): void {
   }
 }
 
+/**
+ * Register a new fan-out job and return its handle.
+ *
+ * @param kind   Job category displayed in `DownloadStatusBar`.
+ * @param label  Human-readable description, e.g. `"Staff for v90017"`.
+ * @param total  Expected number of work items (used to drive the progress bar).
+ * @param vnId   Optional VN id to associate with the job for per-VN filtering.
+ * @returns The newly created `DownloadJob` — pass `job.id` to `tickJob` / `finishJob`.
+ */
 export function startJob(kind: JobKind, label: string, total: number, vnId: string | null = null): DownloadJob {
   gc();
   const id = `${kind}:${nextSeq++}`;
@@ -142,6 +163,12 @@ export function startJob(kind: JobKind, label: string, total: number, vnId: stri
   return job;
 }
 
+/**
+ * Increment the `done` counter for a job, capped at `total`.
+ *
+ * @param jobId The job identifier returned by `startJob`.
+ * @param by    Increment amount (default `1`).
+ */
 export function tickJob(jobId: string, by = 1): void {
   const j = jobs.get(jobId);
   if (!j) return;
@@ -163,6 +190,15 @@ export function setJobCurrent(jobId: string, item: string | null): void {
   emit();
 }
 
+/**
+ * Append an error entry to a job's `errors` list and emit a status beat.
+ * The error is also written to `console.error` so it appears in server logs
+ * alongside the job kind and item identifier.
+ *
+ * @param jobId   The job identifier returned by `startJob`.
+ * @param item    Short identifier for the failing item (e.g. a staff id or character id).
+ * @param message Human-readable error description (typically `(e as Error).message`).
+ */
 export function recordError(jobId: string, item: string, message: string): void {
   const j = jobs.get(jobId);
   if (!j) return;
@@ -172,6 +208,12 @@ export function recordError(jobId: string, item: string, message: string): void 
   emit();
 }
 
+/**
+ * Mark a job as complete: sets `finished_at`, clears `current_item`, and
+ * advances `done` to `total` if some ticks were skipped.
+ *
+ * @param jobId The job identifier returned by `startJob`.
+ */
 export function finishJob(jobId: string): void {
   const j = jobs.get(jobId);
   if (!j) return;
@@ -185,6 +227,13 @@ export function finishJob(jobId: string): void {
   emit();
 }
 
+/**
+ * Return all tracked jobs sorted newest-first. Called by
+ * `GET /api/download-status` (polling) and `GET /api/download-status/stream` (SSE)
+ * to build the snapshot sent to clients.
+ *
+ * @returns Array of `DownloadJob` records, most-recently-started first.
+ */
 export function listJobs(): DownloadJob[] {
   return Array.from(jobs.values()).sort((a, b) => b.started_at - a.started_at);
 }

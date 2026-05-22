@@ -161,6 +161,7 @@ function writeCache(key: string, value: unknown, ttlMs = CACHE_TTL_MS): void {
  */
 export type EgsUnreachableKind = 'network' | 'server' | 'throttled' | 'blocked';
 
+/** Thrown when an EGS request could not complete; callers catch this to show a specific error. */
 export class EgsUnreachable extends Error {
   readonly kind: EgsUnreachableKind;
   readonly status: number | null;
@@ -775,6 +776,7 @@ export async function searchEgsByName(query: string, opts: { force?: boolean } =
   return game;
 }
 
+/** Slim EGS game record returned by the manual-link candidate search. */
 export interface EgsCandidate {
   id: number;
   gamename: string;

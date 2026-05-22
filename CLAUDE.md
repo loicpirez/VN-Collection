@@ -736,6 +736,129 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 4. Add a UI section / page that consumes the route.
 5. Add i18n keys.
 
+### Adding a new API route
+
+**File location**: `src/app/api/<resource>/route.ts` or `src/app/api/<resource>/[id]/route.ts`.
+
+Every route exports named handler functions (`GET`, `POST`, `PATCH`, `DELETE`) and declares:
+
+```ts
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+```
+
+**Required boilerplate for every mutating handler (POST / PATCH / DELETE / PUT)**:
+
+```ts
+import { NextRequest, NextResponse } from 'next/server';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { readJsonObject } from '@/lib/api-body';
+import { upstreamError } from '@/lib/api-error';
+
+export async function POST(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
+
+  const { id } = await ctx.params;
+  if (!/^v\d+$/i.test(id)) {
+    return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  }
+
+  const body = (await readJsonObject(req)) as { name?: string };
+  if (typeof body.name !== 'string' || !body.name.trim()) {
+    return NextResponse.json({ error: 'name required' }, { status: 400 });
+  }
+
+  try {
+    const result = doDbWork(id, body.name.trim());
+    return NextResponse.json(result);
+  } catch (e) {
+    return upstreamError('resource/[id]', e);
+  }
+}
+```
+
+Rules:
+- **Auth gate first** — `requireLocalhostOrToken` fires before any DB or network work.
+  The 403 path is pure HTTP metadata; tests need no mocking.
+- **Validate inputs before use** — read with `readJsonObject(req)`, check every field
+  before touching the DB. Return `400` with `{ error: '…' }` on bad input.
+- **Response shape** — always `NextResponse.json({ … }, { status: N })`. Errors use
+  `{ error: 'message' }` with an appropriate 4xx/5xx. Never return raw strings.
+- **Upstream errors** — wrap calls to VNDB / EGS in `upstreamError('route-name', e)`;
+  it formats a 502 with the upstream message so the client gets actionable feedback.
+- **Test the gate** — add a 403 test in `tests/auth-gate-routes.test.ts` alongside the
+  other mutation tests.
+
+### Adding a database migration
+
+All schema work lives in `initDb()` / `open()` in `src/lib/db.ts`.
+
+#### Rule 1 — Append-only (new columns only)
+
+```ts
+ensureColumn(db, 'collection', 'my_new_field', 'TEXT');
+```
+
+Never `DROP TABLE`, `ALTER TABLE … DROP COLUMN`, or truncate data.
+`ensureColumn` is idempotent — it `ALTER TABLE … ADD COLUMN` only if the column is absent,
+so existing installs upgrade in place without wiping data.
+
+#### Rule 2 — One-shot migrations (marker pattern)
+
+For data backfills or index rebuilds that must run exactly once:
+
+```ts
+const migrationDone = db
+  .prepare(`SELECT value FROM app_setting WHERE key = 'my_migration_v1'`)
+  .get() as { value: string } | undefined;
+
+if (!migrationDone) {
+  db.transaction(() => {
+    db.prepare('UPDATE collection SET my_new_field = ? WHERE my_new_field IS NULL')
+      .run('default');
+    db.prepare(
+      `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('my_migration_v1', '1')`,
+    ).run();
+  })();
+}
+```
+
+The marker key prevents the block from re-running on every cold start. Use the `_v1`
+suffix so a future incompatible version can use `_v2`.
+
+#### Rule 3 — Transaction wrapping
+
+Any operation that writes to more than one row or table must be wrapped:
+
+```ts
+db.transaction(() => {
+  db.prepare('INSERT INTO …').run(…);
+  db.prepare('UPDATE … WHERE …').run(…);
+})();
+```
+
+A crash mid-operation leaves no partial state. The IIF pattern `db.transaction(fn)()`
+is preferred over storing the result of `db.transaction` and calling it separately.
+
+#### Rule 4 — Index maintenance
+
+After adding a column that will be filtered or joined on, add a `CREATE INDEX IF NOT EXISTS`
+call inside `initDb()` alongside the `ensureColumn`:
+
+```ts
+ensureColumn(db, 'vn', 'my_tag', 'TEXT');
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_vn_my_tag ON vn(my_tag)
+    WHERE my_tag IS NOT NULL;
+`);
+```
+
+Partial indexes (`WHERE … IS NOT NULL`) keep the index lean when most rows will have `NULL`.
+
 ### Caching gotchas
 - TTL is **per request body** — two different search queries cache separately even if they hit the same VNDB endpoint.
 - After a write that changes the VNDB-side data (you wouldn't be doing that —

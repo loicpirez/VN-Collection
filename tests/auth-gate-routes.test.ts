@@ -105,6 +105,32 @@ import { POST as staffDownloadPOST } from '@/app/api/staff/[id]/download/route';
 import { POST as producerRefreshPOST } from '@/app/api/producer/[id]/refresh/route';
 import { GET as textualGET } from '@/app/api/search/textual/route';
 import { GET as findGET } from '@/app/api/collection/find/route';
+import {
+  POST as shelvesPOST,
+  PATCH as shelvesPATCH,
+} from '@/app/api/shelves/route';
+import {
+  PATCH as shelvesIdPATCH,
+  DELETE as shelvesIdDELETE,
+} from '@/app/api/shelves/[id]/route';
+import {
+  POST as shelvesSlotsPOST,
+  DELETE as shelvesSlotsDELETE,
+} from '@/app/api/shelves/[id]/slots/route';
+import {
+  POST as shelvesDisplaysPOST,
+  DELETE as shelvesDisplaysDELETE,
+} from '@/app/api/shelves/[id]/displays/route';
+import {
+  POST as readingQueuePOST,
+  DELETE as readingQueueDELETE,
+  PATCH as readingQueuePATCH,
+} from '@/app/api/reading-queue/route';
+import {
+  POST as savedFiltersPOST,
+  DELETE as savedFiltersDELETE,
+  PATCH as savedFiltersPATCH,
+} from '@/app/api/saved-filters/route';
 import { NextRequest } from 'next/server';
 
 function externalReq(path: string, method = 'GET', body?: unknown): NextRequest {
@@ -493,6 +519,56 @@ describe('NEW-TCO-002 — NEW-SECA-001..019: newly-gated routes return 403 from 
   it('DELETE /api/vn/[id]/erogamescape', async () => {
     const res = await erogamescapeDELETE(externalReq('/api/vn/v1/erogamescape', 'DELETE'), ctx());
     expect(res.status).toBe(403);
+  });
+});
+
+describe('auth gate — shelves (T-2)', () => {
+  const ctx = (id = '1') => ({ params: Promise.resolve({ id }) });
+
+  it('POST /api/shelves', async () => {
+    expect((await shelvesPOST(externalReq('/api/shelves', 'POST', { name: 'test' }))).status).toBe(403);
+  });
+  it('PATCH /api/shelves', async () => {
+    expect((await shelvesPATCH(externalReq('/api/shelves', 'PATCH', { order: [1] }))).status).toBe(403);
+  });
+  it('PATCH /api/shelves/[id]', async () => {
+    expect((await shelvesIdPATCH(externalReq('/api/shelves/1', 'PATCH', { name: 'x' }), ctx())).status).toBe(403);
+  });
+  it('DELETE /api/shelves/[id]', async () => {
+    expect((await shelvesIdDELETE(externalReq('/api/shelves/1', 'DELETE'), ctx())).status).toBe(403);
+  });
+  it('POST /api/shelves/[id]/slots', async () => {
+    expect((await shelvesSlotsPOST(externalReq('/api/shelves/1/slots', 'POST', { row: 0, col: 0, vn_id: 'v1', release_id: 'r1' }), ctx())).status).toBe(403);
+  });
+  it('DELETE /api/shelves/[id]/slots', async () => {
+    expect((await shelvesSlotsDELETE(externalReq('/api/shelves/1/slots', 'DELETE', { vn_id: 'v1', release_id: 'r1' }), ctx())).status).toBe(403);
+  });
+  it('POST /api/shelves/[id]/displays', async () => {
+    expect((await shelvesDisplaysPOST(externalReq('/api/shelves/1/displays', 'POST', { after_row: 0, position: 0, vn_id: 'v1', release_id: 'r1' }), ctx())).status).toBe(403);
+  });
+  it('DELETE /api/shelves/[id]/displays', async () => {
+    expect((await shelvesDisplaysDELETE(externalReq('/api/shelves/1/displays', 'DELETE', { vn_id: 'v1', release_id: 'r1' }), ctx())).status).toBe(403);
+  });
+});
+
+describe('auth gate — reading-goal/queue (T-3)', () => {
+  it('POST /api/reading-queue', async () => {
+    expect((await readingQueuePOST(externalReq('/api/reading-queue', 'POST', { vn_id: 'v1' }))).status).toBe(403);
+  });
+  it('DELETE /api/reading-queue', async () => {
+    expect((await readingQueueDELETE(externalReq('/api/reading-queue?vn_id=v1', 'DELETE'))).status).toBe(403);
+  });
+  it('PATCH /api/reading-queue', async () => {
+    expect((await readingQueuePATCH(externalReq('/api/reading-queue', 'PATCH', { ids: ['v1'] }))).status).toBe(403);
+  });
+  it('POST /api/saved-filters', async () => {
+    expect((await savedFiltersPOST(externalReq('/api/saved-filters', 'POST', { name: 'f', params: '{}' }))).status).toBe(403);
+  });
+  it('DELETE /api/saved-filters', async () => {
+    expect((await savedFiltersDELETE(externalReq('/api/saved-filters?id=1', 'DELETE'))).status).toBe(403);
+  });
+  it('PATCH /api/saved-filters', async () => {
+    expect((await savedFiltersPATCH(externalReq('/api/saved-filters', 'PATCH', { ids: [1] }))).status).toBe(403);
   });
 });
 

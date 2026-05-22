@@ -20,6 +20,13 @@
  */
 export const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
 
+/**
+ * Type guard: returns `true` when `id` matches the canonical VN identifier
+ * shape (`v\d+` or `egs_\d+`).
+ *
+ * @param id Value to test — `null` and `undefined` both return `false`.
+ * @returns `true` when `id` is a non-empty string matching `VN_ID_RE`.
+ */
 export function isValidVnId(id: string | null | undefined): id is string {
   return typeof id === 'string' && VN_ID_RE.test(id);
 }
@@ -34,6 +41,14 @@ export function isValidVnId(id: string | null | undefined): id is string {
  */
 export const VNDB_VN_ID_RE = /^v\d+$/i;
 
+/**
+ * Type guard: returns `true` when `id` is a real VNDB VN identifier (`v\d+`).
+ * Rejects synthetic `egs_*` ids so callers that call the upstream VNDB API
+ * can fast-fail on EGS-only entries.
+ *
+ * @param id Value to test — `null` and `undefined` both return `false`.
+ * @returns `true` when `id` matches `VNDB_VN_ID_RE`.
+ */
 export function isVndbVnId(id: string | null | undefined): id is string {
   return typeof id === 'string' && VNDB_VN_ID_RE.test(id);
 }
