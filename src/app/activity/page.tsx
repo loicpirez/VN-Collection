@@ -170,19 +170,28 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   const kind = first(sp.kind).trim();
   const rawEntity = first(sp.entity).trim();
   const entity = rawEntity && ALLOWED_ENTITIES.has(rawEntity) ? rawEntity : '';
-  const vnPage = Math.max(0, parseInt(first(sp.vnPage) || '0', 10));
-  const sysPage = Math.max(0, parseInt(first(sp.sysPage) || '0', 10));
+  const vnPage = Math.max(0, parseInt(first(sp.vnPage) || '0', 10) || 0);
+  const sysPage = Math.max(0, parseInt(first(sp.sysPage) || '0', 10) || 0);
   const vnOffset = vnPage * PAGE_SIZE;
   const sysOffset = sysPage * PAGE_SIZE;
 
-  const kinds = listActivityKinds();
-  const sysRowsAll = listUserActivity({ q: q || null, kind: kind || null, entity: entity || null, limit: sysOffset + PAGE_SIZE + 1 });
-  const sysRows = sysRowsAll.slice(sysOffset, sysOffset + PAGE_SIZE);
-  const sysHasMore = sysRowsAll.length > sysOffset + PAGE_SIZE;
+  let kinds: string[] = [];
+  let sysRows: ReturnType<typeof listUserActivity> = [];
+  let sysHasMore = false;
+  let vnRows: ReturnType<typeof listRecentActivity> = [];
+  let vnHasMore = false;
+  try {
+    kinds = listActivityKinds();
+    const sysRowsAll = listUserActivity({ q: q || null, kind: kind || null, entity: entity || null, limit: sysOffset + PAGE_SIZE + 1 });
+    sysRows = sysRowsAll.slice(sysOffset, sysOffset + PAGE_SIZE);
+    sysHasMore = sysRowsAll.length > sysOffset + PAGE_SIZE;
 
-  const vnRowsAll = listRecentActivity(vnOffset + PAGE_SIZE + 1);
-  const vnRows = vnRowsAll.slice(vnOffset, vnOffset + PAGE_SIZE);
-  const vnHasMore = vnRowsAll.length > vnOffset + PAGE_SIZE;
+    const vnRowsAll = listRecentActivity(vnOffset + PAGE_SIZE + 1);
+    vnRows = vnRowsAll.slice(vnOffset, vnOffset + PAGE_SIZE);
+    vnHasMore = vnRowsAll.length > vnOffset + PAGE_SIZE;
+  } catch (err) {
+    console.error('[activity page] DB error:', (err as Error).message);
+  }
 
   const fmt = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' });
   const statusLabels = t.status as Record<string, string>;

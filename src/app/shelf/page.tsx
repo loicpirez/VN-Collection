@@ -104,31 +104,53 @@ export default async function ShelfPage({
   // used both by ShelfSpatialView (defaultOrientation, displayRowOrientations)
   // and by ShelfReadOnlyControls (initialPrefs). Reading from two separate
   // blocks in the JSX below would duplicate the DB calls.
-  const spatialPrefs = (() => {
-    const overrides = parseShelfDisplayOverridesV1(getAppSetting('shelf_display_overrides_v1'));
-    const legacyGlobal = parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1'));
-    const shelvesList = listShelves();
-    const activeShelfEntry = shelvesList[activeShelfNum - 1] ?? null;
-    const activeShelfKey = activeShelfEntry ? String(activeShelfEntry.id) : '';
-    const effective = activeShelfKey
-      ? resolveShelfPrefs(overrides, activeShelfKey)
-      : overrides.global;
-    const prefs = activeShelfKey && overrides.shelves[activeShelfKey]
-      ? effective
-      : legacyGlobal;
-    return { overrides, legacyGlobal, effective, prefs, activeShelfEntry, activeShelfKey };
-  })();
-
-  // We always need the flat owned-release list to compute the
-  // header summary (`N éditions · N VN uniques · totals`). The
-  // spatial view's GRID still reads shelf_unit/slot/display_slot
-  // tables directly — `items` here is only used for the header
-  // counts and the flat release/item views. The earlier "only
-  // load when view is release|item" optimisation was incorrect:
-  // it made the spatial-view header always show '0 éditions ·
-  // 0 VN uniques' even when the user had owned editions placed
-  // on shelves — manual QA flagged this as a regression.
-  const items = listAllOwnedReleases();
+  let spatialPrefs: {
+    overrides: ReturnType<typeof parseShelfDisplayOverridesV1>;
+    legacyGlobal: ReturnType<typeof parseShelfViewPrefsV1>;
+    effective: ReturnType<typeof resolveShelfPrefs>;
+    prefs: ReturnType<typeof parseShelfViewPrefsV1>;
+    activeShelfEntry: ReturnType<typeof listShelves>[number] | null;
+    activeShelfKey: string;
+  };
+  let items: ReturnType<typeof listAllOwnedReleases> = [];
+  try {
+    spatialPrefs = (() => {
+      const overrides = parseShelfDisplayOverridesV1(getAppSetting('shelf_display_overrides_v1'));
+      const legacyGlobal = parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1'));
+      const shelvesList = listShelves();
+      const activeShelfEntry = shelvesList[activeShelfNum - 1] ?? null;
+      const activeShelfKey = activeShelfEntry ? String(activeShelfEntry.id) : '';
+      const effective = activeShelfKey
+        ? resolveShelfPrefs(overrides, activeShelfKey)
+        : overrides.global;
+      const prefs = activeShelfKey && overrides.shelves[activeShelfKey]
+        ? effective
+        : legacyGlobal;
+      return { overrides, legacyGlobal, effective, prefs, activeShelfEntry, activeShelfKey };
+    })();
+    // We always need the flat owned-release list to compute the
+    // header summary (`N éditions · N VN uniques · totals`). The
+    // spatial view's GRID still reads shelf_unit/slot/display_slot
+    // tables directly — `items` here is only used for the header
+    // counts and the flat release/item views. The earlier "only
+    // load when view is release|item" optimisation was incorrect:
+    // it made the spatial-view header always show '0 éditions ·
+    // 0 VN uniques' even when the user had owned editions placed
+    // on shelves — manual QA flagged this as a regression.
+    items = listAllOwnedReleases();
+  } catch (err) {
+    console.error('[shelf page] DB error:', (err as Error).message);
+    const overrides = parseShelfDisplayOverridesV1(null);
+    const legacyGlobal = parseShelfViewPrefsV1(null);
+    spatialPrefs = {
+      overrides,
+      legacyGlobal,
+      effective: overrides.global,
+      prefs: legacyGlobal,
+      activeShelfEntry: null,
+      activeShelfKey: '',
+    };
+  }
 
   // Per-item view collapses multiple owned releases for the same VN
   // into one card. The card surfaces "N editions" so the user keeps

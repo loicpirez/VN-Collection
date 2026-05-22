@@ -24,13 +24,19 @@ export const dynamic = 'force-dynamic';
  * every VN ID to a third party for every label printed. Self-hosted
  * privacy posture demands local generation.
  */
+const MAX_LABELS = 200;
+
 async function qrSvg(text: string): Promise<string> {
-  return qrToString(text, {
-    type: 'svg',
-    errorCorrectionLevel: 'M',
-    margin: 1,
-    color: { dark: '#000000', light: '#ffffff' },
-  });
+  try {
+    return await qrToString(text, {
+      type: 'svg',
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+  } catch {
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><text x="2" y="14" font-size="10" fill="#cc0000">QR error</text></svg>';
+  }
 }
 
 const VN_ID_PATTERN = /^(v\d+|egs_\d+)$/i;
@@ -72,9 +78,11 @@ export default async function LabelsPage({
   // Push id filtering into SQL so we don't load the full library just
   // to drop most rows.
   const idList = filter ? Array.from(filter) : undefined;
-  const items = listCollection({ sort: 'title', vnIds: idList }).filter(
+  const allItems = listCollection({ sort: 'title', vnIds: idList }).filter(
     (it) => !status || it.status === status,
   );
+  const truncated = allItems.length > MAX_LABELS;
+  const items = truncated ? allItems.slice(0, MAX_LABELS) : allItems;
 
   // Pre-render every QR SVG server-side, so the printed sheet doesn't
   // depend on any third-party service.
@@ -91,6 +99,12 @@ export default async function LabelsPage({
 
       <h1 className="mb-4 text-2xl font-bold print:hidden">{t.labels.title}</h1>
       <p className="mb-6 text-sm text-muted print:hidden">{t.labels.hint}</p>
+
+      {truncated && (
+        <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-400 print:hidden">
+          Showing first {MAX_LABELS} of {allItems.length} labels. Use the filter to narrow the selection.
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted print:hidden">
