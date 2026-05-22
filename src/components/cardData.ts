@@ -37,6 +37,7 @@ export function toCardData(it: CollectionItem): CardData {
     length_minutes: it.length_minutes,
     status: it.status as Status | undefined,
     favorite: it.favorite,
+    inReadingQueue: it.in_reading_queue,
     developers: it.developers,
     publishers: it.publishers,
     isFanDisc: (it.relations ?? []).some((r) => r.relation === 'orig'),

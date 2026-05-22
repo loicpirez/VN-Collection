@@ -180,6 +180,8 @@ export type CollectionItem = VnRow &
     aspect_keys?: Array<'4:3' | '16:9' | '16:10' | '21:9' | 'other' | 'unknown'>;
     /** Number of personal lists this VN is currently a member of. */
     list_count?: number;
+    /** Whether this VN is currently in the reading queue. */
+    in_reading_queue?: boolean;
   };
 
 export interface VndbSearchHit {

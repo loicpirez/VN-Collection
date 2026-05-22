@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   countListMembershipsByVn,
   db,
+  getReadingQueueVnIds,
   getStats,
   isValidEditionType,
   isValidStatus,
@@ -158,7 +159,12 @@ export async function GET(req: NextRequest) {
     // the library grid renders the ListsPicker badge correctly on first
     // paint without needing a popover open per card.
     const listCounts = countListMembershipsByVn();
-    const items = raw.map((it) => ({ ...it, list_count: listCounts.get(it.id) ?? 0 }));
+    const queueIds = getReadingQueueVnIds();
+    const items = raw.map((it) => ({
+      ...it,
+      list_count: listCounts.get(it.id) ?? 0,
+      in_reading_queue: queueIds.has(it.id),
+    }));
     return NextResponse.json({ items, stats: getStats() });
   } catch (err) {
     console.error('[collection] DB error:', (err as Error).message);

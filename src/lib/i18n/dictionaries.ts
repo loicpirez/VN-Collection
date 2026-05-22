@@ -496,6 +496,7 @@ export const dictionaries = {
         hasReleased: 'Avec date de sortie',
         isNsfw: 'Contenu R18',
         isNukige: 'Nukige (pur ero)',
+        inReadingQueue: 'Dans la file de lecture',
         resetAll: 'Réinitialiser tous les filtres avancés',
       },
       filterByProducer: 'Filtrer par développeur',
@@ -1802,6 +1803,7 @@ export const dictionaries = {
       categorySexual: 'Contenu sexuel',
       categoryTechnical: 'Technique',
       emptyAfterFilter: 'Aucun tag visible avec ces filtres.',
+      tagRatingAria: 'note {n}',
     },
     charactersSearch: {
       pageTitle: 'Personnages',
@@ -3147,6 +3149,7 @@ export const dictionaries = {
         hasReleased: 'Has release date',
         isNsfw: 'R18 content',
         isNukige: 'Nukige (pure ero)',
+        inReadingQueue: 'In reading queue',
         resetAll: 'Reset all advanced filters',
       },
       filterByProducer: 'Filter by developer',
@@ -4453,6 +4456,7 @@ export const dictionaries = {
       categorySexual: 'Sexual content',
       categoryTechnical: 'Technical',
       emptyAfterFilter: 'No tags visible with these filters.',
+      tagRatingAria: 'rating {n}',
     },
     charactersSearch: {
       pageTitle: 'Characters',
@@ -5795,6 +5799,7 @@ export const dictionaries = {
         hasReleased: '発売日あり',
         isNsfw: 'R18 コンテンツ',
         isNukige: '抜きゲー（純エロ）',
+        inReadingQueue: '読書キューに追加済',
         resetAll: '詳細フィルターをリセット',
       },
       filterByProducer: '開発元で絞り込み',
@@ -7101,6 +7106,7 @@ export const dictionaries = {
       categorySexual: '性的内容',
       categoryTechnical: '技術',
       emptyAfterFilter: 'このフィルター条件に一致するタグはありません。',
+      tagRatingAria: '評価 {n}',
     },
     charactersSearch: {
       pageTitle: 'キャラクター',

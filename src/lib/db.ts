@@ -7138,6 +7138,15 @@ export function listReadingQueue(): ReadingQueueEntry[] {
     .all() as ReadingQueueEntry[];
 }
 
+/**
+ * Returns the set of VN ids currently in the reading queue.
+ * Used by the collection API to annotate items for the library filter badge.
+ */
+export function getReadingQueueVnIds(): Set<string> {
+  const rows = db.prepare('SELECT vn_id FROM reading_queue').all() as { vn_id: string }[];
+  return new Set(rows.map((r) => r.vn_id));
+}
+
 export function addToReadingQueue(vnId: string): ReadingQueueEntry {
   return db.transaction(() => {
     const next = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM reading_queue').get() as { p: number }).p;

@@ -384,6 +384,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const urlHasReleased = searchParams.get('has_released');
   const urlIsNsfw = searchParams.get('is_nsfw');
   const urlIsNukige = searchParams.get('is_nukige');
+  const urlInReadingQueue = searchParams.get('in_reading_queue');
 
   // Count of filters that live inside the Advanced drawer (used for
   // the chip-badge on the drawer toggle so the user knows the drawer
@@ -409,7 +410,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     (urlHasBanner ? 1 : 0) +
     (urlHasReleased ? 1 : 0) +
     (urlIsNsfw ? 1 : 0) +
-    (urlIsNukige ? 1 : 0);
+    (urlIsNukige ? 1 : 0) +
+    (urlInReadingQueue ? 1 : 0);
 
   function ternaryMatches(want: string | null, actual: boolean): boolean {
     if (want === '1') return actual === true;
@@ -462,6 +464,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           urlIsNukige,
           (it.tags ?? []).some((tag) => tag.name?.toLowerCase() === 'nukige'),
         )) return false;
+        if (!ternaryMatches(urlInReadingQueue, !!it.in_reading_queue)) return false;
         return true;
       }),
     [
@@ -479,6 +482,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       urlHasReleased,
       urlIsNsfw,
       urlIsNukige,
+      urlInReadingQueue,
     ],
   );
   const hiddenBySexualCount = items.length - visibleItems.length;
@@ -737,6 +741,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               has_released: urlHasReleased,
               is_nsfw: urlIsNsfw,
               is_nukige: urlIsNukige,
+              in_reading_queue: urlInReadingQueue,
             }}
             onCycle={(key) => {
               const cur = searchParams.get(key);
@@ -756,6 +761,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                 'has_released',
                 'is_nsfw',
                 'is_nukige',
+                'in_reading_queue',
               ];
               replaceParams((sp) => {
                 for (const k of keys) sp.delete(k);
@@ -1142,7 +1148,8 @@ type FilterKey =
   | 'is_favorite'
   | 'has_released'
   | 'is_nsfw'
-  | 'is_nukige';
+  | 'is_nukige'
+  | 'in_reading_queue';
 
 interface GridMeasurements {
   width: number;
@@ -1198,6 +1205,7 @@ function MoreFilters({
     { key: 'has_released', label: t.library.moreFilters.hasReleased },
     { key: 'is_nsfw', label: t.library.moreFilters.isNsfw },
     { key: 'is_nukige', label: t.library.moreFilters.isNukige },
+    { key: 'in_reading_queue', label: t.library.moreFilters.inReadingQueue },
   ];
   const activeCount = FILTERS.filter((f) => values[f.key] === '1' || values[f.key] === '0').length;
 

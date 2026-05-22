@@ -2,7 +2,7 @@
 import { memo, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, MoreVertical, Package, Plus, Sparkles, X } from 'lucide-react';
+import { Star, BookMarked, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, MoreVertical, Package, Plus, Sparkles, X } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
@@ -29,6 +29,8 @@ export interface CardData {
   length_minutes?: number | null;
   status?: Status;
   favorite?: boolean;
+  /** Whether this VN is currently in the reading queue. */
+  inReadingQueue?: boolean;
   inCollectionBadge?: boolean;
   developers?: { id?: string; name: string }[];
   /**
@@ -210,6 +212,12 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
         <Star
           aria-label={t.form.favorite}
           className="absolute right-2 top-2 z-10 h-5 w-5 fill-accent text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+        />
+      )}
+      {data.inReadingQueue && (
+        <BookMarked
+          aria-label={t.library.moreFilters.inReadingQueue}
+          className="absolute bottom-2 left-2 z-10 h-4 w-4 fill-accent/80 text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
         />
       )}
       {!selectable && (data.status || data.inCollectionBadge || data.favorite) && (
