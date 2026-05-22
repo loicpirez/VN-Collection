@@ -5,6 +5,7 @@ import { getCharacter, type VndbCharacter } from '@/lib/vndb';
 import { findCharacterSiblings, getVasForCharacter, getAppSetting, isInCollectionMany } from '@/lib/db';
 import { Check } from 'lucide-react';
 import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -24,11 +25,13 @@ export const dynamic = 'force-dynamic';
 
 const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
 
-function fmtBirthday(b: [number, number] | null, locale: string): string | null {
+const BCP47_MAP: Record<Locale, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
+
+function fmtBirthday(b: [number, number] | null, locale: Locale): string | null {
   if (!b) return null;
   const [m, d] = b;
   if (!m) return null;
-  if (!d) return new Date(0, m - 1).toLocaleString(locale, { month: 'long' });
+  if (!d) return new Date(0, m - 1).toLocaleString(BCP47_MAP[locale], { month: 'long' });
   return `${d}/${String(m).padStart(2, '0')}`;
 }
 

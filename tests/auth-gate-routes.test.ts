@@ -94,6 +94,8 @@ import {
 } from '@/app/api/collection/[id]/custom-description/route';
 import { POST as staffDownloadPOST } from '@/app/api/staff/[id]/download/route';
 import { POST as producerRefreshPOST } from '@/app/api/producer/[id]/refresh/route';
+import { GET as textualGET } from '@/app/api/search/textual/route';
+import { GET as findGET } from '@/app/api/collection/find/route';
 import { NextRequest } from 'next/server';
 
 function externalReq(path: string, method = 'GET', body?: unknown): NextRequest {
@@ -213,21 +215,29 @@ describe('AUD-SEC-006 — reading-goal year clamping (loopback)', () => {
   });
 });
 
-describe('AUD-SEC-010 — q length cap on search (loopback)', () => {
-  it('/api/search/textual truncates q at 300 chars (source-pin)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { join } = await import('node:path');
-    const src = readFileSync(join(__dirname, '..', 'src/app/api/search/textual/route.ts'), 'utf8');
-    expect(src).toMatch(/slice\(0,\s*Q_MAX\)/);
-    expect(src).toMatch(/Q_MAX\s*=\s*300/);
+describe('AUD-SEC-010 — q length cap on search (loopback behavioral)', () => {
+  it('/api/search/textual: 301-char query returns same hits as 300-char query (truncation proof)', async () => {
+    const q300 = 'a'.repeat(300);
+    const q301 = 'a'.repeat(301);
+    const res300 = await textualGET(new NextRequest(`http://127.0.0.1/api/search/textual?q=${q300}`));
+    const res301 = await textualGET(new NextRequest(`http://127.0.0.1/api/search/textual?q=${q301}`));
+    expect(res300.status).toBe(200);
+    expect(res301.status).toBe(200);
+    const body300 = await res300.json() as { hits: unknown[] };
+    const body301 = await res301.json() as { hits: unknown[] };
+    expect(body301.hits.length).toBe(body300.hits.length);
   });
 
-  it('/api/collection/find truncates q at 300 chars (source-pin)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { join } = await import('node:path');
-    const src = readFileSync(join(__dirname, '..', 'src/app/api/collection/find/route.ts'), 'utf8');
-    expect(src).toMatch(/slice\(0,\s*Q_MAX\)/);
-    expect(src).toMatch(/Q_MAX\s*=\s*300/);
+  it('/api/collection/find: 301-char query returns same hits as 300-char query (truncation proof)', async () => {
+    const q300 = 'a'.repeat(300);
+    const q301 = 'a'.repeat(301);
+    const res300 = await findGET(new NextRequest(`http://127.0.0.1/api/collection/find?q=${q300}`));
+    const res301 = await findGET(new NextRequest(`http://127.0.0.1/api/collection/find?q=${q301}`));
+    expect(res300.status).toBe(200);
+    expect(res301.status).toBe(200);
+    const body300 = await res300.json() as { matches: unknown[] };
+    const body301 = await res301.json() as { matches: unknown[] };
+    expect(body301.matches.length).toBe(body300.matches.length);
   });
 });
 

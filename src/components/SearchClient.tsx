@@ -11,7 +11,8 @@ import { useToast } from './ToastProvider';
 import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
 import { platformLabel } from '@/lib/platform-label';
 import { languageDisplayName } from '@/lib/language-names';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 import type { VndbSearchHit } from '@/lib/types';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -118,6 +119,7 @@ function searchCardData(r: VndbSearchHit): CardData {
 
 export function SearchClient() {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -657,7 +659,7 @@ export function SearchClient() {
                         </span>
                       )}
                       {c.count != null && (
-                        <span>{c.count.toLocaleString()} {t.egs.votes}</span>
+                        <span>{fmtNum(c.count, locale)} {t.egs.votes}</span>
                       )}
                     </div>
                   </div>

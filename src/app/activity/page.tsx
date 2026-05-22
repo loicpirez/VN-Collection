@@ -5,6 +5,7 @@ import { listActivityKinds, listUserActivity } from '@/lib/activity';
 import { listRecentActivity, type RecentActivityEntry } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { formatMinutes } from '@/lib/format';
+import { fmtDate } from '@/lib/locale-number';
 
 export const dynamic = 'force-dynamic';
 
@@ -193,7 +194,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
     console.error('[activity page] DB error:', (err as Error).message);
   }
 
-  const fmt = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' });
+  const fmt = { format: (d: Date) => fmtDate(d, locale, { dateStyle: 'medium', timeStyle: 'short' }) };
   const statusLabels = t.status as Record<string, string>;
 
   function baseParams() {

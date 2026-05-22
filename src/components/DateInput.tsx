@@ -10,7 +10,7 @@ interface Props {
   ariaLabel?: string;
 }
 
-const LOCALE_TAG: Record<string, string> = { fr: 'fr-FR', en: 'en-GB', ja: 'ja-JP' };
+const LOCALE_TAG: Record<string, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
 
 function pad(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;

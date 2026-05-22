@@ -282,7 +282,7 @@ export function MapVnToEgsButton({
                       <span className="font-mono">EGS #{c.id}</span>
                       {c.sellday && <span>{c.sellday}</span>}
                       {c.median != null && <span>{c.median}/100</span>}
-                      {c.count != null && <span>{c.count} votes</span>}
+                      {c.count != null && <span>{c.count} {t.egs.votes}</span>}
                     </div>
                   </div>
                   <a

@@ -2,14 +2,33 @@
 
 import { useEffect, useState } from 'react';
 
-const VALID_LOCALES = ['fr', 'en', 'ja'];
+const VALID_LOCALES = ['fr', 'en', 'ja'] as const;
+type SupportedLocale = typeof VALID_LOCALES[number];
 
-function readLocaleCookie(): string | null {
+function readLocaleCookie(): SupportedLocale | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.match(/(?:^|;\s*)locale=([^;]+)/);
   const loc = match?.[1];
-  return loc && VALID_LOCALES.includes(loc) ? loc : null;
+  return loc && (VALID_LOCALES as readonly string[]).includes(loc) ? (loc as SupportedLocale) : null;
 }
+
+const STRINGS: Record<SupportedLocale, { title: string; body: string; retry: string }> = {
+  fr: {
+    title: 'Une erreur est survenue.',
+    body: "La page a rencontré une erreur inattendue. Essayez de rafraîchir — si le problème persiste, redémarrez le serveur.",
+    retry: 'Réessayer',
+  },
+  en: {
+    title: 'Something broke.',
+    body: 'The page hit an unexpected error. Try refreshing — if it persists, restart the server.',
+    retry: 'Try again',
+  },
+  ja: {
+    title: 'エラーが発生しました。',
+    body: 'ページで予期しないエラーが発生しました。更新してみてください。問題が続く場合はサーバーを再起動してください。',
+    retry: '再試行',
+  },
+};
 
 /**
  * Top-level error boundary for crashes in the root layout itself.
@@ -29,7 +48,7 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const [lang, setLang] = useState<string>('fr');
+  const [lang, setLang] = useState<SupportedLocale>('fr');
 
   useEffect(() => {
     console.error('Global error:', error);
@@ -37,15 +56,17 @@ export default function GlobalError({
     if (loc) setLang(loc);
   }, [error]);
 
+  const s = STRINGS[lang];
+
   return (
     <html lang={lang}>
       <body style={{ fontFamily: 'system-ui, sans-serif', padding: 40, background: '#0b1220', color: '#fff' }}>
         <div style={{ maxWidth: 480, margin: '60px auto', textAlign: 'center' }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
-            Something broke.
+            {s.title}
           </h1>
           <p style={{ color: '#94a3b8', marginBottom: 16 }}>
-            The page hit an unexpected error. Try refreshing — if it persists, restart the server.
+            {s.body}
           </p>
           {error.digest && (
             <p style={{ fontFamily: 'monospace', fontSize: 11, color: '#64748b', marginBottom: 16 }}>
@@ -65,7 +86,7 @@ export default function GlobalError({
               fontWeight: 600,
             }}
           >
-            Try again
+            {s.retry}
           </button>
         </div>
       </body>

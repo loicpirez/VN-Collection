@@ -602,3 +602,144 @@ All rows from the six parallel audits (security, UI/UX, feature-completeness, i1
 | TCO-010 | test coverage | Maintenance routes tested for 403 only — no body assertions on success path. | `tests/auth-gate-routes.test.ts:69–77` | eb01e79 | Maintenance route tests now assert localhost success bodies: duplicates returns HTTP 200 with `groups: []`, and stale returns HTTP 200 with `rows: []` when empty. | FIXED_VERIFIED |
 | TCO-011 | test coverage | `auth-gate.ts` whitespace-only `VN_ADMIN_TOKEN` behavior untested. | `src/lib/auth-gate.ts` | eb01e79 | Three auth-gate tests cover whitespace-only env tokens, whitespace bearer tokens, and real env with whitespace bearer, each rejecting access instead of granting it. | FIXED_VERIFIED |
 | TCO-012 | test coverage | `src/lib/reading-speed.ts` `getReadingSpeedProfile()` and `predictReadingMinutes()` have zero tests. | `src/lib/reading-speed.ts` | eb01e79 | `tests/reading-speed.test.ts` covers 0, 2, and 3 sample thresholds, VNDB and EGS multipliers, median ratio behavior, and null prediction paths. | FIXED_VERIFIED |
+| NEW-SECA-001 | security | POST/PATCH/DELETE /api/collection/[id] missing auth gate | `src/app/api/collection/[id]/route.ts:138,190,218` | cec6ecc | requireLocalhostOrToken added to all three methods; 44 new 403 tests in auth-gate-routes.test.ts; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-002 | security | POST/PATCH/DELETE /api/collection/[id]/banner missing auth gate | `src/app/api/collection/[id]/banner/route.ts:35,101,137` | cec6ecc | requireLocalhostOrToken added to all three methods; 403 test asserts banner POST/PATCH/DELETE; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-003 | security | POST/DELETE/PATCH /api/collection/[id]/cover missing auth gate | `src/app/api/collection/[id]/cover/route.ts:28,97,121` | cec6ecc | requireLocalhostOrToken added to all three methods; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-004 | security | POST /api/vn/[id]/link-vndb missing auth gate | `src/app/api/vn/[id]/link-vndb/route.ts:21` | cec6ecc | requireLocalhostOrToken added; 403 test; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-005 | security | POST/PATCH/DELETE /api/collection/[id]/game-log missing auth gate | `src/app/api/collection/[id]/game-log/route.ts:55,82,119` | cec6ecc | requireLocalhostOrToken added to all three methods; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-006 | security | POST/PATCH/DELETE /api/collection/[id]/owned-releases missing auth gate | `src/app/api/collection/[id]/owned-releases/route.ts` | cec6ecc | requireLocalhostOrToken added to all three methods; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-007 | security | GET/POST /api/steam/sync missing auth gate | `src/app/api/steam/sync/route.ts` | cec6ecc | requireLocalhostOrToken added to GET and POST; 403 tests for both; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-008 | security | POST/DELETE /api/steam/link missing auth gate | `src/app/api/steam/link/route.ts` | cec6ecc | requireLocalhostOrToken added to POST and DELETE; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-009 | security | PATCH/DELETE /api/vn/[id]/vndb-status missing auth gate | `src/app/api/vn/[id]/vndb-status/route.ts` | cec6ecc | requireLocalhostOrToken added to PATCH and DELETE; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-010 | security | POST/DELETE /api/wishlist/[id] missing auth gate | `src/app/api/wishlist/[id]/route.ts` | cec6ecc | requireLocalhostOrToken added to POST and DELETE; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-011 | security | series routes missing auth gate | `src/app/api/series/` routes | cec6ecc | requireLocalhostOrToken added to series POST, PATCH, DELETE, vn POST/DELETE, image POST; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-012 | security | lists routes missing auth gate | `src/app/api/lists/` routes | cec6ecc | requireLocalhostOrToken added to lists POST, [id] PATCH/DELETE (items already had auth); 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-013 | security | GET /api/collection/[id]/activity missing auth gate | `src/app/api/collection/[id]/activity/route.ts` | cec6ecc | requireLocalhostOrToken added to GET handler; 403 test; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-014 | security | producer logo route missing auth gate | `src/app/api/producer/[id]/logo/route.ts` | cec6ecc | requireLocalhostOrToken added to POST and DELETE; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-015 | security | egs/[id]/vndb route missing auth gate | `src/app/api/egs/[id]/vndb/route.ts` | cec6ecc | requireLocalhostOrToken added to POST and DELETE; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-016 | security | route/[routeId] route missing auth gate | `src/app/api/route/[routeId]/route.ts` | cec6ecc | requireLocalhostOrToken added to PATCH and DELETE; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-017 | security | custom-description route missing auth gate | `src/app/api/custom-description/route.ts` | cec6ecc | requireLocalhostOrToken added to POST, PATCH, DELETE; 403 tests; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-018 | security | staff/[id]/download route missing auth gate | `src/app/api/staff/[id]/download/route.ts` | cec6ecc | requireLocalhostOrToken added; NextRequest adopted; 403 test; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-019 | security | producer/[id]/refresh route missing auth gate | `src/app/api/producer/[id]/refresh/route.ts` | cec6ecc | requireLocalhostOrToken added; NextRequest adopted; 403 test; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-SECA-021 | security | lists field length caps missing | `src/app/api/lists/` routes | 88840ab | name ≤200, description ≤2000, color/icon ≤64 via .slice(); source-pin tests; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-SECA-022 | security | game-log note length cap missing | `src/app/api/collection/[id]/game-log/route.ts` | 88840ab | note capped at 10000 chars; body parsed before collection check for early rejection; test asserts 400 on oversized note; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-SECA-023 | security | Security headers missing in next.config.mjs | `next.config.mjs` | 88840ab | headers() added: X-Content-Type-Options nosniff, X-Frame-Options SAMEORIGIN, Referrer-Policy, Permissions-Policy; source-pin test; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-UXA-001 | UX | Button system uses ad-hoc Tailwind instead of btn primitive | `src/components/` button usages | — | — | TODO |
+| NEW-UXA-002 | UX | Inconsistent button heights across toolbar/forms | various components | — | — | TODO |
+| NEW-UXA-003 | UX | title attribute missing on icon-only buttons | various components | — | — | TODO |
+| NEW-UXA-004 | UX | Dropdown menu items missing keyboard focus ring | various dropdowns | — | — | TODO |
+| NEW-UXA-005 | UX | Modal close button missing visible label | various modals | — | — | TODO |
+| NEW-UXA-006 | UX | Toast messages not announced to screen readers | toast component | — | — | TODO |
+| NEW-UXA-007 | UX | Loading states inconsistent across async sections | various pages | — | — | TODO |
+| NEW-UXA-008 | UX | Empty states missing after fetch resolves with zero items | various pages | — | — | TODO |
+| NEW-UXA-009 | UX | Pagination controls missing aria-label | pagination components | — | — | TODO |
+| NEW-UXA-010 | UX | Search input missing clear button | search components | — | — | TODO |
+| NEW-UXA-011 | UX | Filter chips not dismissible with keyboard | filter components | — | — | TODO |
+| NEW-UXA-012 | UX | Card hover states missing focus-visible equivalent | card components | — | — | TODO |
+| NEW-UXA-013 | UX | Tooltip content clipped in overflow-hidden containers | tooltip usages | — | — | TODO |
+| NEW-UXA-014 | UX | Confirmation dialogs missing cancel keyboard shortcut | dialog components | — | — | TODO |
+| NEW-UXA-015 | UX | Date input locale mismatch en-GB vs en-US | `src/components/DateInput.tsx` | — | — | TODO |
+| NEW-UXA-016 | UX | Number formatting not locale-aware in all views | various number displays | — | — | TODO |
+| NEW-UXA-017 | UX | VN detail page cover aspect-ratio jumps on load | `src/app/vn/[id]/` cover area | — | — | TODO |
+| NEW-UXA-018 | UX | Skeleton placeholders missing on character/staff pages | character/staff pages | — | — | TODO |
+| NEW-UXA-019 | UX | Back navigation uses browser back — breaks new-tab flows | back buttons | — | — | TODO |
+| NEW-UXA-020 | UX | Form validation errors not associated with inputs | form components | — | — | TODO |
+| NEW-UXA-021 | UX | Tag filter checkboxes have no visible focus ring | tag filter UI | — | — | TODO |
+| NEW-UXA-022 | UX | Mobile: long VN titles overflow card width | VnCard | — | — | TODO |
+| NEW-UXA-023 | UX | Mobile: toolbar wraps uncleanly on small viewport | toolbar on mobile | — | — | TODO |
+| NEW-UXA-024 | UX | SafeImage virtual scroll recycles cause skeleton flash | `src/components/SafeImage.tsx` | a54b072 | loadedUrlsRef caches seen URLs; wasPreloaded suppresses transition | FIXED_VERIFIED |
+| NEW-A11Y-001 | a11y | Multiple h1 tags on library page | `src/app/library/` | — | — | TODO |
+| NEW-A11Y-002 | a11y | Heading hierarchy skips levels on detail pages | detail pages | — | — | TODO |
+| NEW-A11Y-003 | a11y | aria-controls targets non-existent IDs | various components | — | — | TODO |
+| NEW-A11Y-004 | a11y | Disclosure buttons missing aria-expanded | accordion/collapsible | — | — | TODO |
+| NEW-A11Y-005 | a11y | Form labels not associated with inputs by htmlFor | form components | — | — | TODO |
+| NEW-A11Y-006 | a11y | Color contrast ratio below 4.5:1 for muted text | muted text usages | — | — | TODO |
+| NEW-A11Y-007 | a11y | Focus trap missing in modal dialogs | modal components | — | — | TODO |
+| NEW-A11Y-008 | a11y | Image alt text too generic or missing | various images | — | — | TODO |
+| NEW-A11Y-009 | a11y | Link text not descriptive ("click here", "more") | link usages | — | — | TODO |
+| NEW-A11Y-010 | a11y | Interactive elements smaller than 44×44 px touch target | small buttons | — | — | TODO |
+| NEW-A11Y-011 | a11y | Table missing thead/th/scope | data tables | — | — | TODO |
+| NEW-A11Y-012 | a11y | Live region missing for dynamic content updates | dynamic content | — | — | TODO |
+| NEW-A11Y-013 | a11y | Skip-to-content link missing | layout | — | — | TODO |
+| NEW-A11Y-014 | a11y | Keyboard navigation breaks in virtual grid | LibraryClient virtualizer | — | — | TODO |
+| NEW-A11Y-015 | a11y | Icon buttons missing accessible name | icon-only buttons | — | — | TODO |
+| NEW-A11Y-016 | a11y | Landmark regions not labeled when multiple of same type | page layouts | — | — | TODO |
+| NEW-A11Y-017 | a11y | Select dropdowns missing label | select elements | — | — | TODO |
+| NEW-A11Y-018 | a11y | Error messages not associated with invalid fields | form errors | — | — | TODO |
+| NEW-A11Y-019 | a11y | Disabled elements retain pointer events | disabled buttons | — | — | TODO |
+| NEW-A11Y-020 | a11y | Toast notifications not announced via aria-live | toast component | — | — | TODO |
+| NEW-A11Y-021 | a11y | Tab order not logical in sidebar layout | sidebar | — | — | TODO |
+| NEW-A11Y-022 | a11y | Dropdown menus not keyboard-navigable with arrow keys | dropdown menus | — | — | TODO |
+| NEW-A11Y-023 | a11y | Carousel/gallery missing keyboard controls | media gallery | — | — | TODO |
+| NEW-A11Y-024 | a11y | Checkboxes missing visible checked state indicator | checkbox usages | — | — | TODO |
+| NEW-A11Y-025 | a11y | Radio groups missing fieldset/legend | radio groups | — | — | TODO |
+| NEW-A11Y-026 | a11y | Expandable sections missing aria-hidden on collapsed content | collapsible sections | — | — | TODO |
+| NEW-A11Y-027 | a11y | Breadcrumb navigation missing aria-label="breadcrumb" | breadcrumbs | — | — | TODO |
+| NEW-A11Y-028 | a11y | Progress indicators missing aria-valuenow/valuemin/valuemax | progress bars | — | — | TODO |
+| NEW-A11Y-029 | a11y | Alert dialogs missing role="alertdialog" | alert dialogs | — | — | TODO |
+| NEW-I18N-001 | i18n | DateInput uses en-GB locale instead of en-US | `src/components/DateInput.tsx` | — | — | TODO |
+| NEW-I18N-002 | i18n | Hardcoded "No image" string not in translation keys | various components | — | — | TODO |
+| NEW-I18N-003 | i18n | BCP47 short codes inconsistent (fr vs fr-FR) | locale config | — | — | TODO |
+| NEW-I18N-004 | i18n | Number formatting bypasses fmtNum in some views | various number displays | — | — | TODO |
+| NEW-I18N-005 | i18n | Date formatting bypasses fmtDate in some views | various date displays | — | — | TODO |
+| NEW-I18N-006 | i18n | Pluralization not locale-aware | plural strings | — | — | TODO |
+| NEW-I18N-007 | i18n | RTL layout not supported | layout | — | — | TODO |
+| NEW-I18N-008 | i18n | lang attribute on html element not dynamic | `src/app/layout.tsx` | — | — | TODO |
+| NEW-I18N-009 | i18n | Missing translations for new UI strings | translation files | — | — | TODO |
+| NEW-I18N-010 | i18n | allowedDevOrigins includes 127.0.0.1 hardcoded | `next.config.mjs` | — | — | TODO |
+| NEW-I18N-011 | i18n | Currency formatting not locale-aware | currency displays | — | — | TODO |
+| NEW-RESP-001 | responsive | Mobile: controls hidden with hidden sm:inline violate no-functionality-compromise rule | various components | — | — | TODO |
+| NEW-RESP-002 | responsive | Tablet: sidebar layout not usable on portrait tablet | sidebar | — | — | TODO |
+| NEW-RESP-003 | responsive | Mobile: data tables not scrollable horizontally | data tables | — | — | TODO |
+| NEW-RESP-004 | responsive | Mobile: dialog modals overflow viewport | modal dialogs | — | — | TODO |
+| NEW-DBA-001 | DB | json_each queries on languages/platforms not using index tables | `src/lib/db.ts` | — | — | TODO |
+| NEW-DBA-002 | DB | json_each queries on developers/publishers not using index tables | `src/lib/db.ts` | — | — | TODO |
+| NEW-DBA-005 | DB | LIKE queries on unindexed columns (title, search fields) | `src/lib/db.ts` | — | — | TODO |
+| NEW-TCO-001 | test coverage | SafeImage buildRotationStyle source-pin tests replaced by runtime tests | `tests/safe-image-rotation.test.ts` | — | — | TODO |
+| NEW-TCO-002 | test coverage | requireLocalhostOrToken not tested for all new routes | `tests/auth-gate-routes.test.ts` | eb2e59f | 44 new tests in NEW-TCO-002 describe block; all NEW-SECA-001..019 write handlers return 403 from external; yarn test 1536/1536 | FIXED_VERIFIED |
+| NEW-TCO-003 | test coverage | game-log note length cap not tested | `tests/` | 88840ab | seca-input-length-caps.test.ts covers POST 400 on note >10000; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-TCO-004 | test coverage | lists field length cap not tested | `tests/` | 88840ab | seca-input-length-caps.test.ts source-pins .slice(0,200/2000/64) in both route files; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-TCO-005 | test coverage | Activity page parseInt NaN not tested | `tests/` | — | — | TODO |
+| NEW-TCO-006 | test coverage | Labels QR cap not tested | `tests/` | — | — | TODO |
+| NEW-TCO-007 | test coverage | Security headers in next.config not tested | `tests/` | 88840ab | seca-input-length-caps.test.ts source-pins X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy in next.config.mjs; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-CQ-001 | code quality | Unused imports in multiple components | various | — | — | TODO |
+| NEW-CQ-002 | code quality | Dead code branches (unreachable after refactor) | various | — | — | TODO |
+| NEW-CQ-003 | code quality | Inline styles instead of Tailwind classes | various | — | — | TODO |
+| NEW-CQ-006 | code quality | Magic numbers without named constants | various | — | — | TODO |
+| NEW-CQ-007 | code quality | Long functions exceeding 100 lines | various | — | — | TODO |
+| NEW-CQ-008 | code quality | Duplicate logic across similar route handlers | API routes | — | — | TODO |
+| NEW-CQ-009 | code quality | LibraryClient element type swap at line 933 causes React children error | `src/app/library/LibraryClient.tsx:933` | — | — | TODO |
+| NEW-CQ-010 | code quality | VnCard icon swap at line 282 causes React children error | `src/components/VnCard.tsx:282` | — | — | TODO |
+| NEW-PERF-001 | performance | json_each on languages column scans all rows | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-002 | performance | json_each on platforms column scans all rows | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-003 | performance | json_each on developers column scans all rows | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-006 | performance | Missing LIMIT on activity feed queries | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-007 | performance | Missing LIMIT on staff credits queries | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-008 | performance | Missing LIMIT on character relations queries | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-009 | performance | LIKE '%term%' on title column lacks index | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-010 | performance | N+1 queries in collection list rendering | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-011 | performance | No query result cache for repeated identical queries | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-012 | performance | Large JSON columns deserialized on every row read | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-013 | performance | Unindexed sort columns (release_date, rating) | DB schema | — | — | TODO |
+| NEW-PERF-014 | performance | Full table scan on vn_collection for count queries | `src/lib/db.ts` | — | — | TODO |
+| NEW-PERF-015 | performance | Missing composite index on (status, added_date) | DB schema | — | — | TODO |
+| NEW-PERF-016 | performance | Image preload not triggered for above-fold covers | `src/components/SafeImage.tsx` | — | — | TODO |
+| NEW-PERF-017 | performance | Bundle includes unused lodash/moment imports | bundle analysis | — | — | TODO |
+| NEW-PERF-018 | performance | RSC data fetching not parallelized with Promise.all | server components | — | — | TODO |
+| NEW-BUG-001 | bug | Cover upload resets custom rotation to 0 | cover upload flow | — | — | TODO |
+| NEW-BUG-002 | bug | Steam sync skips VNs with special characters in title | steam sync | — | — | TODO |
+| NEW-BUG-003 | bug | Tag filter AND/OR mode not persisted across navigation | tag filter | — | — | TODO |
+| NEW-BUG-004 | bug | Virtual grid scroll position lost on back navigation | LibraryClient | — | — | TODO |
+| NEW-BUG-005 | bug | Activity DB calls no try/catch — uncaught errors crash route | `src/app/activity/page.tsx` | f21d57d | listRecentActivity + listUserActivity wrapped in try/catch; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-BUG-006 | bug | Character filter by trait returns incorrect results for multi-trait | character filter | — | — | TODO |
+| NEW-BUG-007 | bug | Shelf DB calls no try/catch | `src/app/shelf/` | f21d57d | spatialPrefs + listAllOwnedReleases wrapped in try/catch with defaults; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-BUG-008 | bug | Rating display rounds differently than VNDB | rating display | — | — | TODO |
+| NEW-BUG-009 | bug | EGS sync playtime overrides manual entry without warning | EGS sync | — | — | TODO |
+| NEW-BUG-010 | bug | Producer logo fallback shows broken img instead of placeholder | producer pages | — | — | TODO |
+| NEW-BUG-011 | bug | Labels page QR code generation blocks main thread | `src/app/labels/page.tsx` | — | — | TODO |
+| NEW-BUG-012 | bug | Labels QR cap + notice missing | `src/app/labels/page.tsx:75,81` | f21d57d | MAX_LABELS=200; allItems.slice + truncation notice; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-BUG-013 | bug | Labels qrSvg generation no try/catch | `src/app/labels/page.tsx` | f21d57d | qrSvg wrapped in try/catch with fallback SVG; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-BUG-014 | bug | Activity page parseInt NaN propagation | `src/app/activity/page.tsx:173` | f21d57d | parseInt(…,10) || 0 applied; Math.max(0,NaN) no longer propagates; yarn test 1541/1541 | FIXED_VERIFIED |
+| NEW-FEAT-001 | feature | Bulk-edit status for multiple VNs simultaneously | library UI | — | — | TODO |
+| NEW-FEAT-002 | feature | Export collection as CSV/JSON | export feature | — | — | TODO |
+| NEW-FEAT-003 | feature | Empty state copy missing after fetch resolves zero items | various pages | — | — | TODO |

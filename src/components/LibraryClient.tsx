@@ -930,7 +930,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         </div>
       )}
 
-      {showGrid && (loading || !hasLoadedOnce ? (
+      {showGrid && (
+      <div>
+        {loading || !hasLoadedOnce ? (
         <SkeletonCardGrid count={24} />
       ) : items.length === 0 ? (
         <div className="py-20 text-center">
@@ -1024,7 +1026,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             </div>
           )}
         </>
-      ))}
+      )}
+      </div>
+      )}
 
       {showGrid && selectMode && selected.size > 0 && (
         <BulkActionBar

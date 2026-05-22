@@ -36,7 +36,7 @@ const ROUTE = readFileSync(join(ROOT, 'src/app/api/vn/[id]/vndb-status/route.ts'
 describe('R5-198 — DateInput uses app locale + ISO wire format', () => {
   it('LOCALE_TAG maps fr / en / ja to explicit BCP-47 tags', () => {
     expect(DATE_INPUT).toMatch(/LOCALE_TAG[\s\S]*fr:\s*['"]fr-FR['"]/);
-    expect(DATE_INPUT).toMatch(/LOCALE_TAG[\s\S]*en:\s*['"]en-GB['"]/);
+    expect(DATE_INPUT).toMatch(/LOCALE_TAG[\s\S]*en:\s*['"]en-US['"]/);
     expect(DATE_INPUT).toMatch(/LOCALE_TAG[\s\S]*ja:\s*['"]ja-JP['"]/);
   });
 

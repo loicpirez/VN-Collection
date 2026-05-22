@@ -6,7 +6,7 @@ import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRele
 import { EgsUnreachable, fetchEgsAnticipatedPage, type EgsAnticipated } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtDate, fmtNum } from '@/lib/locale-number';
 import { db, getCacheFreshness } from '@/lib/db';
 import { SkeletonRows } from '@/components/Skeleton';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
@@ -171,7 +171,7 @@ async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t:
 
 function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: Locale }) {
   const when = fetchedAt
-    ? new Date(fetchedAt).toLocaleString(locale)
+    ? fmtDate(new Date(fetchedAt), locale)
     : '—';
   return (
     <div

@@ -1,15 +1,19 @@
 import Link from 'next/link';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { fmtNum } from '@/lib/locale-number';
 
 interface Props {
   data: { label: string; value: number; href?: string; sublabel?: string }[];
   formatValue?: (v: number) => string;
+  /** BCP47 locale used when `formatValue` is not provided. */
+  locale?: Locale;
   /** Percentage width for the longest bar (default 100). Use lower for visual padding. */
   maxWidthPct?: number;
   emptyMessage?: string;
   barClassName?: string;
 }
 
-export function HBarChart({ data, formatValue, maxWidthPct = 100, emptyMessage, barClassName = 'bg-accent' }: Props) {
+export function HBarChart({ data, formatValue, locale, maxWidthPct = 100, emptyMessage, barClassName = 'bg-accent' }: Props) {
   if (data.length === 0) {
     // No hardcoded default — every caller passes i18n copy. When the
     // caller forgets, render nothing instead of a stray French word.
@@ -34,7 +38,7 @@ export function HBarChart({ data, formatValue, maxWidthPct = 100, emptyMessage, 
               />
             </div>
             <span className="tabular-nums font-bold">
-              {formatValue ? formatValue(d.value) : d.value.toLocaleString()}
+              {formatValue ? formatValue(d.value) : locale ? fmtNum(d.value, locale) : d.value.toLocaleString()}
               {d.sublabel && <span className="ml-1 font-normal text-muted">{d.sublabel}</span>}
             </span>
           </div>
@@ -67,12 +71,15 @@ export function VBarChart({
   data,
   height = 160,
   formatValue,
+  locale,
   barClassName = 'bg-accent',
   emptyMessage,
 }: {
   data: VBarPoint[];
   height?: number;
   formatValue?: (v: number) => string;
+  /** BCP47 locale used when `formatValue` is not provided. */
+  locale?: Locale;
   /** Tailwind class applied to each bar div. */
   barClassName?: string;
   emptyMessage?: string;
@@ -91,7 +98,7 @@ export function VBarChart({
     >
       {data.map((d, i) => {
         const h = max > 0 ? (d.value / max) * height : 0;
-        const formatted = formatValue ? formatValue(d.value) : d.value.toLocaleString();
+        const formatted = formatValue ? formatValue(d.value) : locale ? fmtNum(d.value, locale) : d.value.toLocaleString();
         const tooltip = d.tooltip ?? `${d.label} · ${formatted}`;
         const inner = (
           <div

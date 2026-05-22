@@ -279,7 +279,9 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-accent/90 px-2 py-0.5 text-[11px] font-bold text-bg shadow-card transition-opacity hover:bg-accent disabled:opacity-50 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
           title={t.form.add}
         >
-          {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+          <span className="inline-flex h-3 w-3 items-center justify-center">
+            {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+          </span>
           {t.cardAdd}
         </button>
       )}

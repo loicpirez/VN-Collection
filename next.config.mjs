@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: ['127.0.0.1'],
   // better-sqlite3 has a native `.node` binding; keep it external so
   // Turbopack doesn't try to bundle the prebuilt binary.
   serverExternalPackages: ['better-sqlite3'],

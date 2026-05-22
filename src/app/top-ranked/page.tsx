@@ -6,7 +6,7 @@ import { fetchVndbTopRankedPage, VNDB_TOP_MIN_VOTES, type VndbTopRanked } from '
 import { egsBayesianScore, fetchEgsTopRankedPage, EGS_TOP_MIN_VOTES, EgsUnreachable, type EgsTopRanked } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtDate, fmtNum } from '@/lib/locale-number';
 import { db, getCacheFreshness } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
@@ -203,7 +203,7 @@ async function TabContent({
  * a generic error block.
  */
 function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: Locale }) {
-  const when = fetchedAt ? new Date(fetchedAt).toLocaleString(locale) : '—';
+  const when = fetchedAt ? fmtDate(new Date(fetchedAt), locale) : '—';
   return (
     <div
       className="mb-4 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-[12px] text-status-on_hold"
@@ -225,7 +225,7 @@ function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t:
  * which already exposed this signal.
  */
 function StaleVndbBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: Locale }) {
-  const when = fetchedAt ? new Date(fetchedAt).toLocaleString(locale) : '—';
+  const when = fetchedAt ? fmtDate(new Date(fetchedAt), locale) : '—';
   return (
     <div
       className="mb-4 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-[12px] text-status-on_hold"

@@ -23,6 +23,7 @@ import {
   resolveShelfPrefs,
 } from '@/lib/shelf-view-prefs';
 import { getAppSetting } from '@/lib/db';
+import type { Locale } from '@/lib/i18n/dictionaries';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,11 +52,14 @@ function bucketKey(e: ShelfEntry): string {
   return e.physical_location[0];
 }
 
-function fmtMoneyLocale(amount: number | null, currency: string | null, locale: string): string {
+const BCP47_MAP: Record<Locale, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
+
+function fmtMoneyLocale(amount: number | null, currency: string | null, locale: Locale): string {
   if (amount == null) return '—';
+  const bcp47 = BCP47_MAP[locale];
   if (currency && /^[A-Z]{3}$/i.test(currency)) {
     try {
-      return new Intl.NumberFormat(locale, {
+      return new Intl.NumberFormat(bcp47, {
         style: 'currency',
         currency: currency.toUpperCase(),
       }).format(amount);
