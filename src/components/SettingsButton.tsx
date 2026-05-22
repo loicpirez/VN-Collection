@@ -827,6 +827,23 @@ export function SettingsButton() {
                         <ShortcutRow k="n" label={t.shortcuts.vnJumpNotes} />
                       </ul>
                     </section>
+                    <section>
+                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
+                        {t.shortcuts.libPage}
+                      </h4>
+                      <ul className="space-y-1.5">
+                        <ShortcutRow k="f" label={t.shortcuts.libOpenFilter} />
+                      </ul>
+                    </section>
+                    <section>
+                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
+                        {t.shortcuts.tagsPage}
+                      </h4>
+                      <ul className="space-y-1.5">
+                        <ShortcutRow k="1" label={t.shortcuts.tagsTabLocal} />
+                        <ShortcutRow k="2" label={t.shortcuts.tagsTabVndb} />
+                      </ul>
+                    </section>
                   </div>
                 </div>
                 )}

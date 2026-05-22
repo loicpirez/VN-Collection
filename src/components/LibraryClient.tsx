@@ -1494,6 +1494,7 @@ function AdvancedFiltersDrawer({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={drawerId}
+        data-shortcut="lib-filter"
         className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
           activeCount > 0
             ? 'border-accent bg-accent/10 text-accent'

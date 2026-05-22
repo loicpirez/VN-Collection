@@ -182,6 +182,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           type="button"
           role="tab"
           aria-selected={mode === 'local'}
+          data-shortcut="tags-tab-local"
           onClick={() => switchMode('local')}
           className={`rounded px-2.5 py-1 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
@@ -191,6 +192,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           type="button"
           role="tab"
           aria-selected={mode === 'vndb'}
+          data-shortcut="tags-tab-vndb"
           onClick={() => switchMode('vndb')}
           className={`rounded px-2.5 py-1 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >

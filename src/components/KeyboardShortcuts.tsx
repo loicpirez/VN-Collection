@@ -29,17 +29,29 @@ const ROUTES: Record<string, string> = {
  * "?" opens the help dialog. Modifier keys / open inputs are ignored so
  * the shortcuts never fight a typing user.
  *
- * Page-specific shortcuts (only active when on `/vn/*`):
- *   - "f" → click the inline favourite toggle button
- *   - "e" → scroll to #section-edit (tracking form)
- *   - "n" → scroll to #section-notes (personal notes)
+ * Page-specific shortcuts (active only on the matching route):
+ *
+ *   /vn/* :
+ *     f → click [data-shortcut="vn-favorite"]
+ *     e → scroll to #section-edit
+ *     n → scroll to #section-notes
+ *
+ *   / (library home) :
+ *     f → toggle advanced filter drawer
+ *
+ *   /tags :
+ *     1 → switch to local tab
+ *     2 → switch to VNDB tab
  */
 export function KeyboardShortcuts() {
   const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const [help, setHelp] = useState(false);
+
   const isVnPage = pathname.startsWith('/vn/');
+  const isLibrary = pathname === '/';
+  const isTagsPage = pathname === '/tags' || pathname.startsWith('/tags?');
 
   useEffect(() => {
     let armed = false;
@@ -57,6 +69,10 @@ export function KeyboardShortcuts() {
     function scrollToAnchor(id: string) {
       const el = document.getElementById(id);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function clickShortcut(selector: string) {
+      document.querySelector<HTMLButtonElement>(`[data-shortcut="${selector}"]`)?.click();
     }
 
     function onKey(e: KeyboardEvent) {
@@ -87,7 +103,7 @@ export function KeyboardShortcuts() {
       if (isVnPage) {
         if (e.key === 'f') {
           e.preventDefault();
-          document.querySelector<HTMLButtonElement>('[data-shortcut="vn-favorite"]')?.click();
+          clickShortcut('vn-favorite');
           return;
         }
         if (e.key === 'e') {
@@ -98,6 +114,27 @@ export function KeyboardShortcuts() {
         if (e.key === 'n') {
           e.preventDefault();
           scrollToAnchor('section-notes');
+          return;
+        }
+      }
+
+      if (isLibrary) {
+        if (e.key === 'f') {
+          e.preventDefault();
+          clickShortcut('lib-filter');
+          return;
+        }
+      }
+
+      if (isTagsPage) {
+        if (e.key === '1') {
+          e.preventDefault();
+          clickShortcut('tags-tab-local');
+          return;
+        }
+        if (e.key === '2') {
+          e.preventDefault();
+          clickShortcut('tags-tab-vndb');
           return;
         }
       }
@@ -122,13 +159,13 @@ export function KeyboardShortcuts() {
       window.removeEventListener('keydown', onKey);
       if (timer) clearTimeout(timer);
     };
-  }, [help, router, isVnPage]);
+  }, [help, router, isVnPage, isLibrary, isTagsPage]);
 
   return (
     <Dialog
       open={help}
       onClose={() => setHelp(false)}
-      panelClassName="w-[min(92vw,440px)] p-4 sm:p-6"
+      panelClassName="w-[min(92vw,480px)] p-4 sm:p-6"
       title={
         <span className="inline-flex items-center gap-2">
           <Keyboard className="h-5 w-5 text-accent" aria-hidden /> {t.shortcuts.title}
@@ -159,19 +196,36 @@ export function KeyboardShortcuts() {
           <Row k="Esc" label={t.shortcuts.close} />
         </ul>
         {isVnPage && (
-          <div>
-            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">
-              {t.shortcuts.vnPage}
-            </div>
-            <ul className="space-y-1.5 text-sm">
-              <Row k="f" label={t.shortcuts.vnToggleFavorite} />
-              <Row k="e" label={t.shortcuts.vnJumpEdit} />
-              <Row k="n" label={t.shortcuts.vnJumpNotes} />
-            </ul>
-          </div>
+          <PageSection label={t.shortcuts.vnPage}>
+            <Row k="f" label={t.shortcuts.vnToggleFavorite} />
+            <Row k="e" label={t.shortcuts.vnJumpEdit} />
+            <Row k="n" label={t.shortcuts.vnJumpNotes} />
+          </PageSection>
+        )}
+        {isLibrary && (
+          <PageSection label={t.shortcuts.libPage}>
+            <Row k="f" label={t.shortcuts.libOpenFilter} />
+          </PageSection>
+        )}
+        {isTagsPage && (
+          <PageSection label={t.shortcuts.tagsPage}>
+            <Row k="1" label={t.shortcuts.tagsTabLocal} />
+            <Row k="2" label={t.shortcuts.tagsTabVndb} />
+          </PageSection>
         )}
       </div>
     </Dialog>
+  );
+}
+
+function PageSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">
+        {label}
+      </div>
+      <ul className="space-y-1.5 text-sm">{children}</ul>
+    </div>
   );
 }
 
