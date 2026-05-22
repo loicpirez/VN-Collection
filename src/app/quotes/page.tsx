@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, Quote, Search } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Quote, Search } from 'lucide-react';
 import { listAllQuotes } from '@/lib/db';
 import { QuoteAvatar } from '@/components/QuoteAvatar';
 import { getDict } from '@/lib/i18n/server';
@@ -12,15 +12,28 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: dict.nav.quotes };
 }
 
+const PAGE_SIZE = 50;
+
 export default async function QuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, page: pageParam } = await searchParams;
   const t = await getDict();
-  const QUOTES_LIMIT = 300;
-  const items = listAllQuotes(q, QUOTES_LIMIT);
+  const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1);
+  const offset = (page - 1) * PAGE_SIZE;
+  const fetched = listAllQuotes(q, PAGE_SIZE + 1, offset);
+  const hasNext = fetched.length > PAGE_SIZE;
+  const items = hasNext ? fetched.slice(0, PAGE_SIZE) : fetched;
+
+  function pageHref(p: number) {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (p > 1) params.set('page', String(p));
+    const qs = params.toString();
+    return `/quotes${qs ? `?${qs}` : ''}`;
+  }
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -51,50 +64,69 @@ export default async function QuotesPage({
         </p>
       ) : (
         <>
-        {items.length >= QUOTES_LIMIT && (
-          <p className="mb-3 rounded-md border border-border bg-bg-elev/40 px-3 py-2 text-[11px] text-muted">
-            {t.quotesPage.localLimitNotice}
-          </p>
-        )}
-        <ul className="space-y-3">
-          {items.map((it) => (
-            <li
-              key={`${it.vn_id}:${it.quote_id}`}
-              className="group rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
-            >
-              <blockquote className="whitespace-pre-wrap text-sm leading-relaxed text-white/90 before:mr-1 before:text-accent before:content-['“'] after:ml-1 after:text-accent after:content-['”']">
-                {it.quote}
-              </blockquote>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
-                {/*
-                  Avatar + linked character name on the left side of
-                  the citation row. The `QuoteAvatar` falls back to a
-                  `<UserCircle>` icon when no local portrait is
-                  mirrored, so we always render the row at the same
-                  height even when `character_local_image` is null.
-                */}
-                <span className="inline-flex items-center gap-2">
-                  <QuoteAvatar quote={it} size={28} />
-                  <span>
-                    {it.character_name && it.character_id ? (
-                      <Link
-                        href={`/character/${it.character_id}`}
-                        className="font-semibold text-white/85 hover:text-accent"
-                      >
-                        {it.character_name}
-                      </Link>
-                    ) : it.character_name ? (
-                      <span className="font-semibold text-white/85">{it.character_name}</span>
-                    ) : null}
-                    {it.character_name && ' · '}
-                    <Link href={`/vn/${it.vn_id}`} className="hover:text-accent">{it.vn_title}</Link>
+          <ul className="space-y-3">
+            {items.map((it) => (
+              <li
+                key={`${it.vn_id}:${it.quote_id}`}
+                className="group rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
+              >
+                <blockquote className={'whitespace-pre-wrap text-sm leading-relaxed text-white/90 before:mr-1 before:text-accent before:content-[\'"\'] after:ml-1 after:text-accent after:content-[\'"\']'}>
+                  {it.quote}
+                </blockquote>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
+                  {/*
+                    Avatar + linked character name on the left side of
+                    the citation row. The `QuoteAvatar` falls back to a
+                    `<UserCircle>` icon when no local portrait is
+                    mirrored, so we always render the row at the same
+                    height even when `character_local_image` is null.
+                  */}
+                  <span className="inline-flex items-center gap-2">
+                    <QuoteAvatar quote={it} size={28} />
+                    <span>
+                      {it.character_name && it.character_id ? (
+                        <Link
+                          href={`/character/${it.character_id}`}
+                          className="font-semibold text-white/85 hover:text-accent"
+                        >
+                          {it.character_name}
+                        </Link>
+                      ) : it.character_name ? (
+                        <span className="font-semibold text-white/85">{it.character_name}</span>
+                      ) : null}
+                      {it.character_name && ' · '}
+                      <Link href={`/vn/${it.vn_id}`} className="hover:text-accent">{it.vn_title}</Link>
+                    </span>
                   </span>
-                </span>
-                <span className="font-mono">{it.score}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
+                  <span className="font-mono">{it.score}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {(page > 1 || hasNext) && (
+            <nav className="mt-6 flex items-center justify-between gap-4" aria-label={t.quotesPage.pageIndicator.replace('{page}', String(page))}>
+              {page > 1 ? (
+                <Link href={pageHref(page - 1)} className="btn btn-xs inline-flex items-center gap-1">
+                  <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+                  {t.quotesPage.prevPage}
+                </Link>
+              ) : (
+                <span />
+              )}
+              <span className="text-xs text-muted">
+                {t.quotesPage.pageIndicator.replace('{page}', String(page))}
+              </span>
+              {hasNext ? (
+                <Link href={pageHref(page + 1)} className="btn btn-xs inline-flex items-center gap-1">
+                  {t.quotesPage.nextPage}
+                  <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+              ) : (
+                <span />
+              )}
+            </nav>
+          )}
         </>
       )}
     </div>

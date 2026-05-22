@@ -37,6 +37,7 @@ export function ImportPanel() {
   const { confirm } = useConfirm();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadCtrlRef = useRef<AbortController | null>(null);
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -44,15 +45,15 @@ export function ImportPanel() {
   const [drag, setDrag] = useState(false);
 
   async function upload(file: File) {
+    uploadCtrlRef.current?.abort();
+    const ctrl = new AbortController();
+    uploadCtrlRef.current = ctrl;
     setBusy(true);
     setError(null);
     setSummary(null);
     try {
       const kind = await detectKind(file);
       if (kind === 'db') {
-        // DB restore wipes every existing row — gate behind a
-        // type-to-confirm so an accidental drop doesn't atomic-
-        // destroy the local collection.
         const ok = await confirm({
           message: t.dataMgmt.restoreConfirm,
           tone: 'danger',
@@ -63,7 +64,7 @@ export function ImportPanel() {
       const fd = new FormData();
       fd.append('file', file);
       const url = kind === 'db' ? '/api/backup/restore' : '/api/collection/import';
-      const res = await fetch(url, { method: 'POST', body: fd });
+      const res = await fetch(url, { method: 'POST', body: fd, signal: ctrl.signal });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || t.dataMgmt.importError);
@@ -76,9 +77,10 @@ export function ImportPanel() {
       }
       startTransition(() => router.refresh());
     } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      if (!ctrl.signal.aborted) setBusy(false);
     }
   }
 

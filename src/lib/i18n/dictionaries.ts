@@ -504,6 +504,7 @@ export const dictionaries = {
       toolbarOptionsLabel: 'Options de la barre d\'outils',
       saveCurrentPreset: 'Enregistrer ce préréglage',
       resetFilters: 'Réinitialiser les filtres',
+      virtualScrollNotice: '{n} VN — défilement virtuel actif',
     },
     search: {
       placeholder: 'Rechercher un Visual Novel sur VNDB (titre, ou ID v90017…)',
@@ -746,6 +747,8 @@ export const dictionaries = {
       startedDate: 'Commencé le',
       finishedDate: 'Terminé le',
       personalNotes: 'Notes personnelles',
+      notesEmpty: 'Aucune note pour l\'instant — modifiez votre collection pour en ajouter.',
+      andNMore: '(+{n} de plus)',
       notesPlaceholder: 'Mes impressions, mes routes préférées, mes citations…',
       save: 'Enregistrer',
       saving: 'Sauvegarde…',
@@ -1398,6 +1401,9 @@ export const dictionaries = {
       searchPlaceholder: 'Filtrer par texte ou personnage…',
       empty: 'Aucune citation disponible. Récupère-en depuis la fiche d\'un VN.',
       localLimitNotice: 'Affichage limité à 300 résultats — affine ta recherche pour en voir plus.',
+      prevPage: 'Précédent',
+      nextPage: 'Suivant',
+      pageIndicator: 'Page {page}',
     },
     statsExtras: {
       histogramTitle: 'Mes notes vs VNDB',
@@ -1993,6 +1999,7 @@ export const dictionaries = {
       sourceAuto: 'EGS auto',
       sourceManual: 'EGS manuel',
       sourceNone: 'Aucun équivalent EGS',
+      top20Notice: 'Top 20 résultats affichés',
     },
     inventory: {
       section: 'Mes éditions',
@@ -2465,6 +2472,9 @@ export const dictionaries = {
       playtimeHours: 'Heures jouées',
       avgRating: 'Note moyenne',
       favorites: 'Favoris',
+      emptyTitle: 'Aucun VN dans la collection',
+      emptyDesc: 'Ajoute ton premier VN depuis la recherche pour voir les statistiques.',
+      emptyCta: 'Rechercher sur VNDB',
     },
     charts: {
       finishedByMonth: 'VN terminés par mois (12 derniers)',
@@ -3044,6 +3054,7 @@ export const dictionaries = {
       toolbarOptionsLabel: 'Library toolbar options',
       saveCurrentPreset: 'Save current filter as preset',
       resetFilters: 'Reset filters',
+      virtualScrollNotice: '{n} VNs — virtual scroll active',
     },
     search: {
       placeholder: 'Search a Visual Novel on VNDB (title, or ID v90017…)',
@@ -3286,6 +3297,8 @@ export const dictionaries = {
       startedDate: 'Started on',
       finishedDate: 'Finished on',
       personalNotes: 'Personal notes',
+      notesEmpty: 'No notes yet — edit your collection entry to add some.',
+      andNMore: '(+{n} more)',
       notesPlaceholder: 'My thoughts, favorite routes, quotes…',
       save: 'Save',
       saving: 'Saving…',
@@ -3938,6 +3951,9 @@ export const dictionaries = {
       searchPlaceholder: 'Filter by text or character…',
       empty: 'No quotes available yet. Fetch some from a VN detail page.',
       localLimitNotice: 'Showing up to 300 results — refine your search to see more.',
+      prevPage: 'Previous',
+      nextPage: 'Next',
+      pageIndicator: 'Page {page}',
     },
     statsExtras: {
       histogramTitle: 'My ratings vs VNDB',
@@ -4530,6 +4546,7 @@ export const dictionaries = {
       sourceAuto: 'EGS auto',
       sourceManual: 'EGS manual',
       sourceNone: 'No EGS counterpart',
+      top20Notice: 'Showing top 20 results',
     },
     inventory: {
       section: 'My editions',
@@ -5002,6 +5019,9 @@ export const dictionaries = {
       playtimeHours: 'Hours played',
       avgRating: 'Average rating',
       favorites: 'Favorites',
+      emptyTitle: 'No VNs in collection',
+      emptyDesc: 'Add your first VN from search to see statistics here.',
+      emptyCta: 'Search VNDB',
     },
     charts: {
       finishedByMonth: 'VNs finished per month (last 12)',
@@ -5581,6 +5601,7 @@ export const dictionaries = {
       toolbarOptionsLabel: 'ライブラリ ツールバーの操作',
       saveCurrentPreset: '現在のフィルターを保存',
       resetFilters: 'フィルターをリセット',
+      virtualScrollNotice: '{n} 件 — 仮想スクロール有効',
     },
     search: {
       placeholder: 'VNDB を検索（タイトルまたは ID v90017…）',
@@ -5823,6 +5844,8 @@ export const dictionaries = {
       startedDate: '開始日',
       finishedDate: '終了日',
       personalNotes: '個人メモ',
+      notesEmpty: 'まだメモがありません — コレクションを編集して追加してください。',
+      andNMore: '（+{n} 件）',
       notesPlaceholder: '感想、好きなルート、名台詞…',
       save: '保存',
       saving: '保存中…',
@@ -6475,6 +6498,9 @@ export const dictionaries = {
       searchPlaceholder: 'テキストやキャラ名で絞り込み…',
       empty: 'まだ名言がありません。VN 詳細ページから取得してください。',
       localLimitNotice: '最大300件を表示 — 検索を絞り込むと他の結果が表示されます。',
+      prevPage: '前のページ',
+      nextPage: '次のページ',
+      pageIndicator: '{page} ページ',
     },
     statsExtras: {
       histogramTitle: '自分の評価 vs VNDB',
@@ -7066,6 +7092,7 @@ export const dictionaries = {
       sourceAuto: 'EGS 自動',
       sourceManual: 'EGS 手動',
       sourceNone: 'EGS 該当なし',
+      top20Notice: 'トップ 20 件を表示',
     },
     inventory: {
       section: '所有エディション',
@@ -7538,6 +7565,9 @@ export const dictionaries = {
       playtimeHours: 'プレイ時間',
       avgRating: '平均評価',
       favorites: 'お気に入り',
+      emptyTitle: 'コレクションが空です',
+      emptyDesc: '統計を表示するには、検索から最初の VN を追加してください。',
+      emptyCta: 'VNDB を検索',
     },
     charts: {
       finishedByMonth: '月別クリア（直近 12 ヶ月）',

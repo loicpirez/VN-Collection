@@ -1004,13 +1004,20 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                 }}
               />
             ) : (
-              <Grid
-                items={visibleItems}
-                selectMode={selectMode}
-                selected={selected}
-                onToggle={toggleSelected}
-                dense={settings.denseLibrary}
-              />
+              <>
+                {items.length > VIRTUAL_GRID_THRESHOLD && (
+                  <p className="mb-2 text-right text-[11px] text-muted">
+                    {t.library.virtualScrollNotice.replace('{n}', fmtNum(items.length, locale))}
+                  </p>
+                )}
+                <Grid
+                  items={visibleItems}
+                  selectMode={selectMode}
+                  selected={selected}
+                  onToggle={toggleSelected}
+                  dense={settings.denseLibrary}
+                />
+              </>
             )
           ) : (
             <div className="space-y-10">

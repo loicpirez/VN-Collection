@@ -414,6 +414,9 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                         {a}
                       </span>
                     ))}
+                    {(vn.aliases ?? []).length > 6 && (
+                      <span className="text-muted/60">{t.form.andNMore.replace('{n}', String((vn.aliases ?? []).length - 6))}</span>
+                    )}
                   </div>
                 )}
                 <VnListMemberships
@@ -549,6 +552,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                         {platformLabel(p)}
                       </Link>
                     ))}
+                    {vn.platforms.length > 10 && (
+                      <span className="text-xs text-muted/60">
+                        {t.form.andNMore.replace('{n}', String(vn.platforms.length - 10))}
+                      </span>
+                    )}
                   </dd>
                 </div>
               )}
@@ -804,11 +812,15 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         const sectionOpens = (id: keyof typeof layout.sections): boolean =>
           !layout.sections[id].collapsedByDefault;
         const sectionNodes: Partial<Record<VnSectionId, React.ReactNode>> = {};
-        if (inCol && vn.notes) {
+        if (inCol) {
           sectionNodes['notes'] = (
             <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.form.personalNotes}</h2>
-              <MarkdownView source={vn.notes} />
+              {vn.notes ? (
+                <MarkdownView source={vn.notes} />
+              ) : (
+                <p className="text-xs text-muted">{t.form.notesEmpty}</p>
+              )}
             </div>
           );
         }

@@ -437,7 +437,7 @@ function EgsPicker({
   const titleId = useId();
   useDialogA11y({ open: true, onClose, panelRef });
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (signal?: AbortSignal) => {
     const q = query.trim();
     if (!q) {
       setCandidates([]);
@@ -445,22 +445,23 @@ function EgsPicker({
     }
     setLoading(true);
     try {
-      const r = await fetch(`/api/egs/search?q=${encodeURIComponent(q)}&limit=20`);
+      const r = await fetch(`/api/egs/search?q=${encodeURIComponent(q)}&limit=20`, { signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { candidates: EgsCandidate[] };
       setCandidates(d.candidates);
     } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
       toast.error((e as Error).message);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [query, t.common.error, toast]);
 
   useEffect(() => {
-    // Initial search when seeded.
-    if (initialQuery.trim()) {
-      run();
-    }
+    if (!initialQuery.trim()) return;
+    const ctrl = new AbortController();
+    run(ctrl.signal);
+    return () => ctrl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -530,6 +531,9 @@ function EgsPicker({
         </form>
         {candidates.length === 0 && !loading && query.trim() && (
           <p className="py-6 text-center text-sm text-muted">{t.egs.noResults}</p>
+        )}
+        {candidates.length === 20 && (
+          <p className="mb-1 text-right text-[11px] text-muted">{t.egs.top20Notice}</p>
         )}
         {candidates.length > 0 && (
           <ul className="max-h-[60vh] overflow-y-auto rounded-lg border border-border">

@@ -101,18 +101,27 @@ export default async function StatsPage() {
           <Star className="h-5 w-5 text-accent" aria-hidden />
           <h2 className="text-lg font-bold">{t.stats.myTitle}</h2>
         </div>
-        <p className="mb-4 text-xs text-muted">{t.stats.mySubtitle}</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label={t.stats.total} value={my.total} locale={locale} />
-          <Stat label={t.stats.playtimeHours} value={`${fmtNum(myH, locale)}h`} locale={locale} />
-          <Stat label={t.stats.avgRating} value={myAvg} locale={locale} />
-          <Stat label={t.stats.favorites} value={my.favorites} locale={locale} />
-        </div>
-
-        {statusDonut.length > 0 && (
-          <div className="mt-6">
-            <DonutChart data={statusDonut} />
+        {my.total === 0 ? (
+          <div className="py-8 text-center">
+            <p className="mb-1 text-sm font-semibold">{t.stats.emptyTitle}</p>
+            <p className="mb-4 text-xs text-muted">{t.stats.emptyDesc}</p>
+            <Link href="/search" className="btn btn-primary btn-xs">{t.stats.emptyCta}</Link>
           </div>
+        ) : (
+          <>
+            <p className="mb-4 text-xs text-muted">{t.stats.mySubtitle}</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat label={t.stats.total} value={my.total} locale={locale} />
+              <Stat label={t.stats.playtimeHours} value={`${fmtNum(myH, locale)}h`} locale={locale} />
+              <Stat label={t.stats.avgRating} value={myAvg} locale={locale} />
+              <Stat label={t.stats.favorites} value={my.favorites} locale={locale} />
+            </div>
+            {statusDonut.length > 0 && (
+              <div className="mt-6">
+                <DonutChart data={statusDonut} />
+              </div>
+            )}
+          </>
         )}
       </section>
 

@@ -41,19 +41,19 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let alive = true;
-    fetch(`/api/vn/${vnId}/erogamescape`, { cache: 'no-store' })
+    const ctrl = new AbortController();
+    fetch(`/api/vn/${vnId}/erogamescape`, { cache: 'no-store', signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: EgsExtra | null) => {
-        if (alive) setRaw(d?.game?.raw ?? null);
+        if (!ctrl.signal.aborted) setRaw(d?.game?.raw ?? null);
       })
       .catch(() => {
         // panel just hides on error
       })
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
+      .finally(() => {
+        if (!ctrl.signal.aborted) setLoading(false);
+      });
+    return () => ctrl.abort();
   }, [vnId]);
 
   if (loading) {

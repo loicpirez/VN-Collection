@@ -2659,7 +2659,7 @@ export interface QuoteWithVn {
  * insensitive substring filter applied to the quote text or character
  * name.
  */
-export function listAllQuotes(q?: string, limit = 200): QuoteWithVn[] {
+export function listAllQuotes(q?: string, limit = 200, offset = 0): QuoteWithVn[] {
   const trimmed = q?.trim() ?? '';
   if (!trimmed) {
     return db
@@ -2675,9 +2675,9 @@ export function listAllQuotes(q?: string, limit = 200): QuoteWithVn[] {
         JOIN vn v ON v.id = q.vn_id
         LEFT JOIN character_image ci ON ci.char_id = q.character_id
         ORDER BY q.score DESC, v.title COLLATE NOCASE ASC
-        LIMIT ?
+        LIMIT ? OFFSET ?
 `)
-      .all(limit) as QuoteWithVn[];
+      .all(limit, offset) as QuoteWithVn[];
   }
   const like = `%${trimmed.replace(/[%_]/g, '\\$&')}%`;
   return db
@@ -2694,9 +2694,9 @@ export function listAllQuotes(q?: string, limit = 200): QuoteWithVn[] {
       LEFT JOIN character_image ci ON ci.char_id = q.character_id
       WHERE q.quote LIKE ? ESCAPE '\\' OR q.character_name LIKE ? ESCAPE '\\'
       ORDER BY q.score DESC, v.title COLLATE NOCASE ASC
-      LIMIT ?
+      LIMIT ? OFFSET ?
 `)
-    .all(like, like, limit) as QuoteWithVn[];
+    .all(like, like, limit, offset) as QuoteWithVn[];
 }
 
 export function getRandomLocalQuote(): LocalQuote | null {

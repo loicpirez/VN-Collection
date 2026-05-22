@@ -1,6 +1,6 @@
 import { Gauge } from 'lucide-react';
 import { getReadingSpeedProfile, predictReadingMinutes } from '@/lib/reading-speed';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
 
 function fmt(m: number | null | undefined): string {
   if (!m || m <= 0) return '—';
@@ -21,8 +21,10 @@ interface Props {
  * times into one compact row. Hidden entirely when neither side has a value
  * (the parent already shows "—" in that case).
  */
+const BCP47_MAP = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' } as const;
+
 export async function ReadingSpeedBadge({ vndbLength, egsLength }: Props) {
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const profile = getReadingSpeedProfile();
   const predicted = predictReadingMinutes(vndbLength, egsLength, profile);
   if (vndbLength == null && egsLength == null) return null;
@@ -43,7 +45,9 @@ export async function ReadingSpeedBadge({ vndbLength, egsLength }: Props) {
         <span title={t.readingSpeed.tooltip.replace('{n}', String(profile.sampleSize))}>
           {t.readingSpeed.you}: <span className="font-semibold text-accent">≈ {fmt(predicted)}</span>
           {multiplier != null && (
-            <span className="ml-1 opacity-70">×{multiplier.toFixed(2)}</span>
+            <span className="ml-1 opacity-70">
+              ×{multiplier.toLocaleString(BCP47_MAP[locale], { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
           )}
         </span>
       ) : (
