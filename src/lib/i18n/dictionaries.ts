@@ -953,11 +953,11 @@ export const dictionaries = {
         // Tabs reorganised to match the operator's "7 buckets"
         // contract (item 9). Functional content unchanged; labels
         // map directly onto the requested buckets.
-        display: 'Défauts globaux',
+        display: 'Affichage',
         content: 'Spoilers / Contenu',
         library: 'Bibliothèque',
         home: 'Mise en page (Accueil)',
-        'vn-page': 'Mise en page des pages',
+        'vn-page': 'Mise en page',
         account: 'Comptes / Jetons',
         integrations: 'Intégrations',
         automation: 'Téléchargements / Données',
@@ -3574,11 +3574,11 @@ export const dictionaries = {
         // Tabs reorganised to match the operator's "7 buckets"
         // contract (item 9). Functional content unchanged; labels
         // map directly onto the requested buckets.
-        display: 'Global defaults',
+        display: 'Display',
         content: 'Spoiler / Content',
         library: 'Library',
         home: 'Page layout (Home)',
-        'vn-page': 'Page layouts',
+        'vn-page': 'Layout',
         account: 'Accounts / Tokens',
         integrations: 'Integrations',
         automation: 'Downloads / Data',
@@ -6192,11 +6192,11 @@ export const dictionaries = {
         // Tabs reorganised to match the operator's "7 buckets"
         // contract (item 9). Functional content unchanged; labels
         // map directly onto the requested buckets.
-        display: 'グローバル既定',
+        display: '表示設定',
         content: 'スポイラー / コンテンツ',
         library: 'ライブラリ',
         home: 'ページレイアウト（ホーム）',
-        'vn-page': 'ページレイアウト',
+        'vn-page': 'レイアウト',
         account: 'アカウント / トークン',
         integrations: '連携',
         automation: 'ダウンロード / データ',

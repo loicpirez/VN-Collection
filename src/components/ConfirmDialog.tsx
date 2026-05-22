@@ -202,7 +202,7 @@ function ConfirmDialog({
 
   return (
     <div
-      role="dialog"
+      role={danger ? 'alertdialog' : 'dialog'}
       aria-modal="true"
       aria-labelledby={titleId}
       aria-describedby={bodyId}

@@ -471,50 +471,10 @@ export function SettingsButton() {
                       />
                     </div>
                     <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
-                      <span className="text-sm font-semibold">{t.settings.globalPageWidth}</span>
-                      <span className="text-[11px] text-muted">{t.settings.globalPageWidthHint}</span>
-                      <div className="flex flex-wrap gap-1">
-                        <button
-                          type="button"
-                          aria-pressed={settings.globalPageSpace == null}
-                          onClick={() => set('globalPageSpace', null)}
-                          className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
-                            settings.globalPageSpace == null
-                              ? 'border-accent bg-accent/15 text-accent'
-                              : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-                          }`}
-                        >
-                          {t.settings.globalPageWidthOff}
-                        </button>
-                        {PAGE_SPACE_PRESET_IDS.map((preset) => {
-                          const active = settings.globalPageSpace === preset;
-                          return (
-                            <button
-                              key={preset}
-                              type="button"
-                              aria-pressed={active}
-                              onClick={() => set('globalPageSpace', preset)}
-                              className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
-                                active
-                                  ? 'border-accent bg-accent/15 text-accent'
-                                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-                              }`}
-                            >
-                              {t.pageSpace.preset[preset]}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
                       <span className="text-sm font-semibold">{t.settings.cardDensityDefault}</span>
                       <span className="text-[11px] text-muted">{t.settings.cardDensityDefaultHint}</span>
                       <GlobalCardDensitySlider className="mt-1 self-start" />
                     </div>
-                    <h3 className="mt-2 text-[11px] font-bold uppercase tracking-widest text-muted">
-                      {t.settings.iaPerPageOverrides}
-                    </h3>
-                    <PerPageLayoutPanel />
                   </div>
                 )}
 
@@ -1058,7 +1018,59 @@ export function SettingsButton() {
                     role="tabpanel"
                     id="settings-panel-vn-page"
                     aria-labelledby="settings-tab-vn-page"
+                    className="space-y-4"
                   >
+                    {/*
+                      Global page width — applies the same preset to every
+                      page at once. Per-page overrides below let you
+                      fine-tune individual routes. Moved from Display tab
+                      so all layout controls live in one place.
+                    */}
+                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
+                      <span className="text-sm font-semibold">{t.settings.globalPageWidth}</span>
+                      <span className="text-[11px] text-muted">{t.settings.globalPageWidthHint}</span>
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          aria-pressed={settings.globalPageSpace == null}
+                          onClick={() => set('globalPageSpace', null)}
+                          className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                            settings.globalPageSpace == null
+                              ? 'border-accent bg-accent/15 text-accent'
+                              : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+                          }`}
+                        >
+                          {t.settings.globalPageWidthOff}
+                        </button>
+                        {PAGE_SPACE_PRESET_IDS.map((preset) => {
+                          const active = settings.globalPageSpace === preset;
+                          return (
+                            <button
+                              key={preset}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() => set('globalPageSpace', preset)}
+                              className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                                active
+                                  ? 'border-accent bg-accent/15 text-accent'
+                                  : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+                              }`}
+                            >
+                              {t.pageSpace.preset[preset]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {/*
+                      Per-page width overrides — each route can override
+                      the global preset (or card density) independently.
+                    */}
+                    <PerPageLayoutPanel />
+                    {/*
+                      Section ordering — drag-and-drop reorder or
+                      hide/show sections on each detail page type.
+                    */}
                     <nav
                       role="tablist"
                       aria-label={t.settings.tabs['vn-page']}
