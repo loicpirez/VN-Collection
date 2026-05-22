@@ -224,6 +224,11 @@ function collapse(tokens: Token[]): string {
       case 'spoiler':
         out += collapse(tok.children);
         break;
+      default: {
+        const _exhaustive: never = tok;
+        void _exhaustive;
+        break;
+      }
     }
   }
   return out;

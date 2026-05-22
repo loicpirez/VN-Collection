@@ -303,6 +303,11 @@ export function sortCharacters(
       case 'birthday':
         cmp = nullableNumberCompare(birthdayMonth(a), birthdayMonth(b));
         break;
+      default: {
+        const _exhaustive: never = params.sort;
+        void _exhaustive;
+        break;
+      }
     }
     if (cmp === 0) cmp = a.id.localeCompare(b.id);
     return params.reverse ? -cmp : cmp;

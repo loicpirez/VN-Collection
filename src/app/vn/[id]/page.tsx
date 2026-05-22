@@ -30,7 +30,8 @@ import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
 import { resolveField } from '@/lib/source-resolve';
 import { formatMinutes } from '@/lib/format';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 import { EditForm } from '@/components/EditForm';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SafeImage } from '@/components/SafeImage';
@@ -165,7 +166,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   // accepted here — the startup migration converts them to `egs_NNNN`.
   const id = decodeURIComponent(rawId).replace(/^egs:/, 'egs_');
   if (!/^(v\d+|egs_\d+)$/i.test(id)) notFound();
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const { vn, error } = await loadVn(id);
   if (!vn) {
     return (
@@ -428,7 +429,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 <Star className="h-6 w-6 self-center fill-accent" aria-hidden /> {ratingNum}
               </span>
               <span className="text-sm text-muted">
-                {t.detail.ratingOf10} · {vn.votecount ?? 0} {t.detail.votes}
+                {t.detail.ratingOf10} · {fmtNum(vn.votecount ?? 0, locale)} {t.detail.votes}
               </span>
               {vn.user_rating != null && (
                 <span className="ml-3 rounded-md bg-accent/15 px-2 py-1 text-xs font-bold text-accent">

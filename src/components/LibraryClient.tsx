@@ -14,7 +14,8 @@ import { RandomPickButton } from './RandomPickButton';
 import { SAVED_FILTERS_OPEN_EVENT, SavedFilters } from './SavedFilters';
 import { HOME_LAYOUT_OPEN_EVENT } from './HomeLayoutEditorTrigger';
 import { readApiError } from '@/lib/api-error-read';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { CardDensitySlider } from './CardDensitySlider';
@@ -92,6 +93,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const showControls = mode !== 'grid-only';
   const showGrid = mode !== 'controls-only';
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const { confirm } = useConfirm();
   const router = useRouter();
@@ -206,6 +208,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const [error, setError] = useState<string | null>(null);
   const [tagName, setTagName] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [resettingOrder, setResettingOrder] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [yearMinInput, setYearMinInput] = useState(urlYearMin);
@@ -895,7 +898,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             className="flex gap-6 text-sm text-muted"
           >
             <span><b className="text-white">{stats.total}</b> {t.library.stats.vnCount}</span>
-            <span><b className="text-white">{totalH}h</b> {t.library.stats.playedHours}</span>
+            <span><b className="text-white">{fmtNum(totalH, locale)}h</b> {t.library.stats.playedHours}</span>
           </div>
           {stats.total > 0 && (
             <button
@@ -955,20 +958,24 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               <span>{t.library.customSortHint}</span>
               <button
                 type="button"
+                disabled={resettingOrder}
                 onClick={async () => {
                   const ok = await confirm({
                     message: t.library.customSortReset,
                     tone: 'danger',
                   });
                   if (!ok) return;
+                  setResettingOrder(true);
                   try {
                     await fetch('/api/collection/order', { method: 'DELETE' });
                     setRefreshKey((k) => k + 1);
                   } catch {
                     // best-effort
+                  } finally {
+                    setResettingOrder(false);
                   }
                 }}
-                className="rounded border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] hover:border-accent hover:text-accent"
+                className="rounded border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] hover:border-accent hover:text-accent disabled:opacity-50"
               >
                 {t.library.customSortReset}
               </button>

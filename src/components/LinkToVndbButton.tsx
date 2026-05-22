@@ -152,7 +152,7 @@ export function LinkToVndbButton({ vnId, seedQuery }: { vnId: string; seedQuery:
                     href={`https://vndb.org/${h.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded p-1 text-muted hover:text-accent"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-2 text-muted hover:text-accent"
                     title={t.linkVndb.openVndb}
                     onClick={(e) => e.stopPropagation()}
                   >

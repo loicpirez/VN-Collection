@@ -104,7 +104,7 @@ export default async function StatsPage() {
         <p className="mb-4 text-xs text-muted">{t.stats.mySubtitle}</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label={t.stats.total} value={my.total} locale={locale} />
-          <Stat label={t.stats.playtimeHours} value={`${myH}h`} locale={locale} />
+          <Stat label={t.stats.playtimeHours} value={`${fmtNum(myH, locale)}h`} locale={locale} />
           <Stat label={t.stats.avgRating} value={myAvg} locale={locale} />
           <Stat label={t.stats.favorites} value={my.favorites} locale={locale} />
         </div>
@@ -136,12 +136,12 @@ export default async function StatsPage() {
             />
             <Stat
               label={t.stats.egsSumPlaytime}
-              value={`${Math.round(agg.egs.sum_playtime_minutes / 60)}h`}
+              value={`${fmtNum(Math.round(agg.egs.sum_playtime_minutes / 60), locale)}h`}
               locale={locale}
             />
             <Stat
               label={t.stats.egsTotalPlaytime}
-              value={`${Math.round((my.playtime_minutes + agg.egs.sum_playtime_minutes) / 60)}h`}
+              value={`${fmtNum(Math.round((my.playtime_minutes + agg.egs.sum_playtime_minutes) / 60), locale)}h`}
               locale={locale}
             />
           </div>

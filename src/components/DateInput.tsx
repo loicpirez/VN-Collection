@@ -173,7 +173,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
       </div>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-[280px] rounded-xl border border-border bg-bg-card p-3 shadow-card">
+        <div className="absolute left-0 top-full z-50 mt-1 w-[280px] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-bg-card p-3 shadow-card">
           <div className="mb-2 flex items-center gap-1">
             <button
               type="button"

@@ -289,7 +289,7 @@ export function MapVnToEgsButton({
                     href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${c.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded p-1 text-muted hover:text-accent"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-2 text-muted hover:text-accent"
                     title={t.mapVn.openEgs}
                     onClick={(e) => e.stopPropagation()}
                   >

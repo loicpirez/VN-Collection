@@ -197,11 +197,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   try {
-    if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
     const body = (await readJsonObject(req)) as Record<string, unknown>;
     const { fields, error } = pickFields(body);
     if (error) return NextResponse.json({ error }, { status: 400 });
-    updateCollection(id, fields);
+    const checkAndUpdate = db.transaction(() => {
+      if (!isInCollection(id)) throw Object.assign(new Error('not in collection'), { code: 'NOT_FOUND' });
+      updateCollection(id, fields);
+    });
+    try {
+      checkAndUpdate();
+    } catch (e) {
+      if ((e as { code?: string }).code === 'NOT_FOUND') {
+        return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+      }
+      throw e;
+    }
     recordActivity({
       kind: 'collection.update',
       entity: 'vn',

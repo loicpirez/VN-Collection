@@ -48,12 +48,14 @@ export function DataMaintenance() {
       ]);
       setDups((d as { groups: DupGroup[] }).groups);
       setStale((s as { rows: StaleVn[] }).rows);
+    } catch (e) {
+      console.error('[DataMaintenance] load error:', (e as Error).message);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load().catch(() => {}); }, []);
 
   async function refreshOne(id: string) {
     setRefreshing(id);

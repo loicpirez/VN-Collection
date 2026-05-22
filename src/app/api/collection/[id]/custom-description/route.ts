@@ -28,7 +28,12 @@ async function applyPatch(req: NextRequest, id: string): Promise<NextResponse> {
     return NextResponse.json({ error: 'text must be a string or null' }, { status: 400 });
   }
   const next = (raw as string | null) ?? null;
-  setCustomDescription(id, next);
+  try {
+    setCustomDescription(id, next);
+  } catch (e) {
+    console.error(`[custom-description:${id}] DB error:`, (e as Error).message);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
+  }
   logActivity(id, next);
   return NextResponse.json({ ok: true });
 }
@@ -66,7 +71,12 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  setCustomDescription(id, null);
+  try {
+    setCustomDescription(id, null);
+  } catch (e) {
+    console.error(`[custom-description:${id}] DB error:`, (e as Error).message);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
+  }
   logActivity(id, null);
   return NextResponse.json({ ok: true });
 }

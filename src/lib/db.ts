@@ -1590,6 +1590,7 @@ export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly
     LEFT JOIN collection c ON c.vn_id = sc.vn_id
     WHERE sc.sid = ? ${where}
     ORDER BY v.released DESC NULLS LAST, v.title
+    LIMIT 5000
   `).all(sid) as Array<{
     id: string; title: string; alttitle: string | null;
     image_url: string | null; image_thumb: string | null; image_sexual: number | null;
@@ -1633,6 +1634,7 @@ export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boole
     LEFT JOIN character_image ci ON ci.char_id = va.c_id
     WHERE va.sid = ? ${where}
     ORDER BY v.released DESC NULLS LAST, v.title, va.c_name
+    LIMIT 5000
   `).all(sid) as Array<{
     id: string; title: string; alttitle: string | null;
     image_url: string | null; image_thumb: string | null; image_sexual: number | null;
