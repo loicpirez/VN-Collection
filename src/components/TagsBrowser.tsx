@@ -210,6 +210,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         </div>
         <select
           className="input max-w-[220px]"
+          aria-label={t.tags.categoryFilter}
           value={category}
           onChange={(e) => setCategory(e.target.value as 'cont' | 'ero' | 'tech' | '')}
         >

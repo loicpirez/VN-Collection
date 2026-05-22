@@ -496,7 +496,7 @@ async function TagVndbResults({ tagId, page }: { tagId: string; page: number }) 
           );
         })}
       </ul>
-      <nav className="flex items-center justify-between gap-3 text-sm">
+      <nav className="flex items-center justify-between gap-3 text-sm" aria-label={t.tagPage.paginationLabel}>
         {page > 1 ? <Link className="btn" href={tagPageTabHref(tagId, 'vndb', page - 1)}>{t.common.prev}</Link> : <span />}
         <span className="text-xs text-muted">{t.tagPage.pageLabel.replace('{n}', String(page))}</span>
         {more ? <Link className="btn" href={tagPageTabHref(tagId, 'vndb', page + 1)}>{t.common.next}</Link> : <span />}

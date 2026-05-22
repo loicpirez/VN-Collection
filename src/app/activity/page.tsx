@@ -355,7 +355,7 @@ function Pagination({
 }) {
   if (page === 0 && !hasMore) return null;
   return (
-    <nav className="mt-4 flex items-center gap-2 text-xs">
+    <nav className="mt-4 flex items-center gap-2 text-xs" aria-label={t.userActivity.paginationLabel}>
       {page > 0 && (
         <Link href={pageHref(page - 1)} className="btn">
           <ArrowLeft className="h-4 w-4" aria-hidden /> {t.common.prev}
