@@ -1,6 +1,7 @@
 import { Activity } from 'lucide-react';
 import { getVaTimeline } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
+import { ScrollFadeRight } from './ScrollFadeRight';
 
 /**
  * Year-by-year credit heatmap for a VA. Each column is a calendar year,
@@ -36,10 +37,10 @@ export async function VaTimeline({ sid }: { sid: string }) {
         <Activity className="h-4 w-4 text-accent" /> {t.staff.timeline.title}
       </h3>
       <p className="mb-4 text-[11px] text-muted">{t.staff.timeline.hint}</p>
-      <div
+      <ScrollFadeRight
         role="img"
         aria-label={t.staff.timeline.title}
-        className="scroll-fade-right flex items-end gap-1 overflow-x-auto pb-1"
+        className="flex items-end gap-1 pb-1"
       >
         {filled.map((b) => {
           const heightPct = b.total > 0 ? Math.max(8, Math.round((b.total / max) * 100)) : 0;
@@ -67,7 +68,7 @@ export async function VaTimeline({ sid }: { sid: string }) {
             </div>
           );
         })}
-      </div>
+      </ScrollFadeRight>
       {unknown && (
         <p className="mt-3 text-[10px] text-muted">
           + {unknown.total} {t.staff.timeline.unknownYear}

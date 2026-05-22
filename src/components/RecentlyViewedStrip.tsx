@@ -5,6 +5,7 @@ import { SafeImage } from './SafeImage';
 import { useRecentlyViewed } from '@/lib/recentlyViewed';
 import { useT } from '@/lib/i18n/client';
 import { HomeSectionControls, useHomeSection } from './HomeSectionMenu';
+import { ScrollFadeRight } from './ScrollFadeRight';
 import type { HomeSectionState } from '@/lib/home-section-layout';
 
 interface Props {
@@ -43,11 +44,8 @@ export function RecentlyViewedStrip({ initialState }: Props) {
         />
       </div>
       {!isCollapsed && (
-        <div
-          className="scroll-fade-right flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 no-scrollbar"
-          // `scroll-snap-x` pins each tile so the strip pans cleanly
-          // on narrow viewports (the previous `flex gap-3 overflow-x-
-          // auto` row could jitter mid-drag with rounded card widths).
+        <ScrollFadeRight
+          className="flex snap-x snap-mandatory gap-3 pb-1 no-scrollbar"
         >
           {items.map((it) => (
             <Link
@@ -75,7 +73,7 @@ export function RecentlyViewedStrip({ initialState }: Props) {
               </span>
             </Link>
           ))}
-        </div>
+        </ScrollFadeRight>
       )}
     </section>
   );

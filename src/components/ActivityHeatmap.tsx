@@ -1,5 +1,6 @@
 import { activityHeatmap, type DailyCount } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
+import { ScrollFadeRight } from './ScrollFadeRight';
 
 /**
  * GitHub-style 52-week heatmap. Each column is a calendar week (Mon-Sun),
@@ -53,7 +54,7 @@ export async function ActivityHeatmap({ year }: { year: number }) {
           {total} {t.year.heatmap.entries} · {active} {t.year.heatmap.activeDays}
         </span>
       </div>
-      <div className="scroll-fade-right flex gap-[3px] overflow-x-auto">
+      <ScrollFadeRight className="flex gap-[3px]">
         {weeks.map((wk, i) => {
           const wkKey = wk.find(Boolean)?.day ?? `pad-w${i}`;
           return (
@@ -72,7 +73,7 @@ export async function ActivityHeatmap({ year }: { year: number }) {
             </div>
           );
         })}
-      </div>
+      </ScrollFadeRight>
       <div className="mt-2 flex items-center gap-1 text-[10px] text-muted">
         <span>{t.year.heatmap.less}</span>
         {tones.slice(1).map((tn) => (

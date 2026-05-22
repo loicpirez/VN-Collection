@@ -38,8 +38,8 @@ describe('LibraryClient grid spacing', () => {
 describe('RecentlyViewedStrip overflow + snap', () => {
   const src = read('src/components/RecentlyViewedStrip.tsx');
 
-  it('declares overflow-x-auto so the strip pans on narrow viewports', () => {
-    expect(src).toMatch(/overflow-x-auto/);
+  it('delegates scrolling to ScrollFadeRight (which supplies overflow-x-auto)', () => {
+    expect(src).toMatch(/ScrollFadeRight/);
   });
 
   it('opts into scroll-snap-x so each tile snaps cleanly', () => {
