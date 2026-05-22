@@ -239,6 +239,7 @@ export function EditionInfoTrigger({
         <div
           ref={popoverRef}
           role="dialog"
+          aria-modal="true"
           aria-label={ariaLabel}
           onPointerDown={stop}
           onMouseDown={stop}

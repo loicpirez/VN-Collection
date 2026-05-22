@@ -115,7 +115,7 @@ export function UpcomingCard({
         }}
       >
         {internalHref ? (
-          <Link href={internalHref} className="block h-full w-full" aria-label={t.upcoming.openVn.replace('{title}', title)}>
+          <Link href={internalHref} className="block h-full w-full" tabIndex={-1}>
             <SafeImage
               src={coverUrl}
               localSrc={coverLocal ?? null}
@@ -130,7 +130,7 @@ export function UpcomingCard({
             target="_blank"
             rel="noopener noreferrer"
             className="block h-full w-full"
-            aria-label={title}
+            tabIndex={-1}
           >
             <SafeImage
               src={coverUrl}

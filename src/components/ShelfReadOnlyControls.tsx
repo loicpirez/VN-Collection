@@ -321,6 +321,7 @@ export function ShelfReadOnlyControls({
         <div
           ref={popRef}
           role="dialog"
+          aria-modal="true"
           aria-label={dict.title}
           className="absolute right-0 top-full z-30 mt-2 w-72 rounded-xl border border-border bg-bg-card p-3 shadow-card"
         >

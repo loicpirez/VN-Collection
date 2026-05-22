@@ -44,6 +44,7 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
               <Link
                 href={`/character/${c.id}`}
                 className="block h-20 w-14 shrink-0 overflow-hidden rounded"
+                tabIndex={-1}
               >
                 <SafeImage
                   src={c.image?.url ?? null}

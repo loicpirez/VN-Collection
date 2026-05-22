@@ -86,7 +86,7 @@ export function CachePanel() {
       >
         {open ? <ChevronDown className="h-4 w-4 text-muted" aria-hidden /> : <ChevronRight className="h-4 w-4 text-muted" aria-hidden />}
         <Database className="h-5 w-5 text-accent" aria-hidden />
-        <h2 className="flex-1 text-lg font-bold">{t.cache.title}</h2>
+        <span className="flex-1 text-lg font-bold">{t.cache.title}</span>
         {stats && (
           <span className="text-xs text-muted">
             {stats.total} {t.cache.entries}

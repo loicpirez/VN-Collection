@@ -461,6 +461,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                     disabled={busy || pending}
                     className="inline-flex h-7 items-center gap-1 rounded-md bg-bg-card/90 px-2 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:text-white"
                     title={t.banner.resetPosition}
+                    aria-label={t.banner.resetPosition}
                   >
                     <RotateCcw className="h-3 w-3" aria-hidden />
                   </button>
@@ -478,6 +479,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                 }}
                 className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white"
                 title={t.common.cancel}
+                aria-label={t.common.cancel}
               >
                 <X className="h-3 w-3" aria-hidden />
               </button>

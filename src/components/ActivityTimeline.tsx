@@ -182,6 +182,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
           placeholder={t.activity.placeholder}
+          aria-label={t.activity.placeholder}
           className="input min-w-[220px] flex-1"
         />
         <button

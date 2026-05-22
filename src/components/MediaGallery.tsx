@@ -222,6 +222,7 @@ export function MediaGallery({
             {visible[active].alt}
           </h2>
           <button
+            type="button"
             className="absolute right-4 top-4 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card text-white"
             onClick={(e) => { e.stopPropagation(); close(); }}
             aria-label={t.common.close}
@@ -231,6 +232,7 @@ export function MediaGallery({
           {visible.length > 1 && (
             <>
               <button
+                type="button"
                 className="absolute left-4 top-1/2 -translate-y-1/2 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card text-white"
                 onClick={(e) => { e.stopPropagation(); prev(); }}
                 aria-label={t.common.prev}
@@ -238,6 +240,7 @@ export function MediaGallery({
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
+                type="button"
                 className="absolute right-4 top-1/2 -translate-y-1/2 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card text-white"
                 onClick={(e) => { e.stopPropagation(); next(); }}
                 aria-label={t.common.next}

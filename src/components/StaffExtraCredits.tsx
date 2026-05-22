@@ -148,7 +148,7 @@ function ExternalVnCard({
         inCollection ? 'border-accent/40' : 'border-border'
       } hover:border-accent`}
     >
-      <Link href={`/vn/${vn.id}`} className="block h-24 w-16 shrink-0 overflow-hidden rounded">
+      <Link href={`/vn/${vn.id}`} className="block h-24 w-16 shrink-0 overflow-hidden rounded" tabIndex={-1}>
         <SafeImage src={vn.image_url || vn.image_thumb} alt={vn.title} className="h-full w-full" />
       </Link>
       <div className="min-w-0 flex-1">

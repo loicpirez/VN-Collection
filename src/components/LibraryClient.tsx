@@ -1229,6 +1229,7 @@ function MoreFilters({
               key={key}
               type="button"
               onClick={() => onCycle(key)}
+              aria-pressed={tone === 'yes' ? true : tone === 'no' ? 'mixed' : false}
               className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
                 tone === 'yes'
                   ? 'border-status-completed bg-status-completed/15 text-status-completed'
