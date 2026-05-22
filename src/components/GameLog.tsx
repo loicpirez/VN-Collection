@@ -193,11 +193,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
             <button
               type="button"
               onClick={() => setAttachSession((v) => !v)}
-              className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors ${
-                attachSession
-                  ? 'border-accent/60 bg-accent/15 text-accent'
-                  : 'border-border bg-bg-elev/40 text-muted hover:text-white'
-              }`}
+              className={`chip btn-xs uppercase tracking-wider ${attachSession ? 'chip-active' : ''}`}
               title={attachSession ? t.gameLog.attachedSessionNo : t.gameLog.attachedSession.replace('{n}', String(liveSessionMinutes))}
             >
               <Sparkles className="h-3 w-3" />

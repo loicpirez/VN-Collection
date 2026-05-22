@@ -863,7 +863,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             <button
               type="button"
               onClick={() => setShowCreate((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-lg border border-dashed border-border bg-bg-elev/30 px-2.5 py-1 text-xs font-bold text-muted hover:border-accent hover:text-accent"
+              className="btn btn-xs"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden /> {t.shelfLayout.newShelf}
             </button>
@@ -876,7 +876,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               <button
                 type="button"
                 onClick={() => setFullscreen((v) => !v)}
-                className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent"
+                className="btn btn-xs"
               >
                 {fullscreen ? (
                   <Minimize2 className="h-3 w-3" aria-hidden />
@@ -888,11 +888,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               <button
                 type="button"
                 onClick={() => setShowFrontDisplay((v) => !v)}
-                className={`inline-flex items-center gap-1 rounded border px-2 py-1 ${
-                  showFrontDisplay
-                    ? 'border-accent/50 bg-accent/10 text-accent'
-                    : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-                }`}
+                className={`btn btn-xs ${showFrontDisplay ? 'border-accent/50 bg-accent/10 text-accent' : ''}`}
               >
                 <Layers className="h-3 w-3" aria-hidden /> {t.shelfLayout.frontDisplay}
               </button>
@@ -916,7 +912,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                 type="button"
                 onClick={handleRename}
                 disabled={busy}
-                className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                className="btn btn-xs"
               >
                 <Edit3 className="h-3 w-3" aria-hidden /> {t.shelfLayout.rename}
               </button>
@@ -924,7 +920,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                 type="button"
                 onClick={handleDelete}
                 disabled={busy}
-                className="inline-flex items-center gap-1 rounded border border-status-dropped/40 bg-status-dropped/10 px-2 py-1 text-status-dropped hover:border-status-dropped disabled:opacity-50"
+                className="btn btn-danger btn-xs"
               >
                 <Trash2 className="h-3 w-3" aria-hidden /> {t.shelfLayout.delete}
               </button>

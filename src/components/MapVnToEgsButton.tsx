@@ -158,7 +158,7 @@ export function MapVnToEgsButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[11px] font-medium text-accent hover:bg-accent/20"
+        className="btn btn-primary btn-xs"
         title={t.mapVn.title}
       >
         <Link2 className="h-3.5 w-3.5" />
@@ -235,7 +235,7 @@ export function MapVnToEgsButton({
                       type="button"
                       onClick={() => pin('reset', 'reset')}
                       disabled={busy != null}
-                      className="ml-auto inline-flex items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[10px] font-medium text-muted hover:border-accent hover:text-accent"
+                      className="btn btn-xs ml-auto"
                     >
                       {busy === 'reset' ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -318,7 +318,7 @@ export function MapVnToEgsButton({
                 type="button"
                 onClick={() => pin('none', 'none')}
                 disabled={busy != null}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-[10px] font-medium hover:border-status-dropped hover:text-status-dropped"
+                className="btn btn-danger btn-xs"
               >
                 {busy === 'none' ? (
                   <Loader2 className="h-3 w-3 animate-spin" />

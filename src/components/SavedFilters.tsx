@@ -269,7 +269,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
               <button type="button" onClick={save} disabled={busy === 'save'} className="btn btn-primary btn-xs">
                 {busy === 'save' ? <Loader2 className="h-3 w-3 animate-spin" /> : t.common.save}
               </button>
-              <button type="button" onClick={() => setNameOpen(false)} className="rounded text-muted hover:text-white">
+              <button type="button" onClick={() => setNameOpen(false)} className="btn btn-xs" aria-label={t.common.cancel}>
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>

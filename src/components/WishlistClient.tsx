@@ -535,7 +535,7 @@ export function WishlistClient() {
                   type="button"
                   onClick={deleteSelected}
                   disabled={deleting}
-                  className="inline-flex items-center gap-1 rounded-md bg-status-dropped px-3 py-1 text-xs font-bold text-bg disabled:opacity-50"
+                  className="btn btn-danger btn-xs"
                 >
                   {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                   {t.wishlist.deleteSelected}
