@@ -58,7 +58,7 @@ export async function StaffExtraCredits({
       {extraVoice.length > 0 && (
         <div className="mb-6">
           <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.staff.voiceCredits}</h3>
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
             {extraVoice.map((c) => (
               <li key={c.id}>
                 <ExternalVnCard
@@ -85,7 +85,7 @@ export async function StaffExtraCredits({
       {extraProduction.length > 0 && (
         <div>
           <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.staff.productionCredits}</h3>
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
             {extraProduction.map((c) => (
               <li key={c.id}>
                 <ExternalVnCard

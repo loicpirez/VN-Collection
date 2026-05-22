@@ -3650,9 +3650,16 @@ export function listCollection({
   // 500 VNs that meant 500 extra round-trips per page load.
   const seriesMap = listSeriesForVnsMany(ids);
   const aspectMap = listAspectKeysForVns(ids);
+  // Batch-fetch the merged place index so `group=place` and
+  // `item.physical_location` reflect both collection.physical_location
+  // AND owned_release.physical_location — the same source the
+  // `?place=` filter uses.
+  const placeIndexMap = listPlacesForVnsMany(ids);
   for (const item of items) {
     item.series = seriesMap.get(item.id) ?? [];
     item.aspect_keys = aspectMap.get(item.id) ?? ['unknown'];
+    const indexedPlaces = placeIndexMap.get(item.id);
+    if (indexedPlaces !== undefined) item.physical_location = indexedPlaces;
     const egs = egsMap.get(item.id);
     item.egs = egs
       ? {
@@ -3692,6 +3699,20 @@ export function listCollection({
  */
 export function listCollectionForCards(opts: ListOptions = {}): CollectionItem[] {
   return listCollection({ ...opts, _projection: 'cards' });
+}
+
+function listPlacesForVnsMany(vnIds: string[]): Map<string, string[]> {
+  if (vnIds.length === 0) return new Map();
+  const ph = vnIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT vn_id, place FROM collection_place_index WHERE vn_id IN (${ph})`)
+    .all(...vnIds) as { vn_id: string; place: string }[];
+  const map = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!map.has(r.vn_id)) map.set(r.vn_id, []);
+    map.get(r.vn_id)!.push(r.place);
+  }
+  return map;
 }
 
 function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {

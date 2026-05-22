@@ -333,7 +333,7 @@ export default async function CharacterPage({
               <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
                 <Mic2 className="h-4 w-4 text-accent" /> {t.characters.alsoVoicedBy}
               </h2>
-              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
                 {vas.map((va) => (
                   <li key={va.sid}>
                     <Link href={`/staff/${va.sid}`} className="block rounded-lg border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent">
@@ -364,7 +364,7 @@ export default async function CharacterPage({
               <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
                 {t.characters.appearsIn} · {sortedVns.length}
               </h2>
-              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
                 {sortedVns.map((v) => {
                   const year = v.released?.slice(0, 4);
                   const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
