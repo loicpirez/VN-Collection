@@ -39,12 +39,15 @@ interface MappingState {
 export function MapVnToEgsButton({
   vnId,
   seedQuery,
-  /** Lay out as a full-width row or as a compact icon button. */
   variant = 'inline',
+  triggerClassName,
 }: {
   vnId: string;
   seedQuery: string;
+  /** Lay out as a full-width row or as a compact icon button. */
   variant?: 'inline' | 'compact';
+  /** Override the trigger button class (inline variant only). */
+  triggerClassName?: string;
 }) {
   const t = useT();
   const toast = useToast();
@@ -158,10 +161,10 @@ export function MapVnToEgsButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white"
+        className={triggerClassName ?? 'inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white'}
         title={t.mapVn.title}
       >
-        <Link2 className="h-3.5 w-3.5 shrink-0" />
+        <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>{t.mapVn.cta}</span>
       </button>
     );

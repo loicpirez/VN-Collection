@@ -53,11 +53,14 @@ describe('VnDetailActionsBar gating contract', () => {
     expect(bar).not.toMatch(/const data = inCollection \?/);
   });
 
-  it('Mapping cluster renders unconditionally', () => {
-    // Mapping is built without a ternary — it's always present in
-    // the linear cluster list. The block opens with a bare const
-    // assignment to an `<ActionMenu>`.
-    expect(line('const mapping = ')).toMatch(/const mapping = \(\s*<ActionMenu/);
+  it('Mapping cluster renders unconditionally as standalone buttons', () => {
+    // Mapping no longer uses an ActionMenu wrapper — the buttons manage
+    // their own dialog state and must not be nested inside a panel that
+    // unmounts on click. The block opens with a bare const assignment to
+    // a React fragment containing CompareWithButton.
+    expect(line('const mapping = ')).toMatch(/const mapping = \(/);
+    expect(bar).toMatch(/CompareWithButton/);
+    expect(bar).toMatch(/MapVnToEgsButton/);
   });
 
   it('External cluster gates on the showExternalMenu computed flag, not on inCollection', () => {

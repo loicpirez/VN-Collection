@@ -29,9 +29,11 @@ interface Props {
   vnId: string;
   /** Defaults to 'complete' so existing call sites keep the old label set. */
   dataState?: VnDataState;
+  /** Class applied to each action button. Defaults to the standard `btn`. */
+  buttonClassName?: string;
 }
 
-export function DownloadAssetsButton({ vnId, dataState = 'complete' }: Props) {
+export function DownloadAssetsButton({ vnId, dataState = 'complete', buttonClassName = 'btn' }: Props) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -88,7 +90,7 @@ export function DownloadAssetsButton({ vnId, dataState = 'complete' }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button
-        className="btn"
+        className={buttonClassName}
         onClick={() => go(false)}
         disabled={busy || pending}
         title={primaryHint}
@@ -103,7 +105,7 @@ export function DownloadAssetsButton({ vnId, dataState = 'complete' }: Props) {
       */}
       {dataState !== 'none' && (
         <button
-          className="btn"
+          className={buttonClassName}
           onClick={() => go(true)}
           disabled={busy || pending}
           title={t.assets.fullHint}
