@@ -58,6 +58,7 @@ import { VnListMemberships } from '@/components/VnListMemberships';
 import { PlaytimeCompare } from '@/components/PlaytimeCompare';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { VnDetailActionsBar } from '@/components/VnDetailActionsBar';
+import { NotesSectionToggle } from '@/components/NotesSectionToggle';
 import { ScoreSection } from '@/components/ScoreSection';
 import { ReleasesSection } from '@/components/ReleasesSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
@@ -822,14 +823,13 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         const sectionNodes: Partial<Record<VnSectionId, React.ReactNode>> = {};
         if (inCol) {
           sectionNodes['notes'] = (
-            <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.form.personalNotes}</h2>
-              {vn.notes ? (
-                <MarkdownView source={vn.notes} />
-              ) : (
-                <p className="text-xs text-muted">{t.form.notesEmpty}</p>
-              )}
-            </div>
+            <NotesSectionToggle
+              notes={vn.notes}
+              emptyLabel={t.form.notesEmpty}
+              titleLabel={t.form.personalNotes}
+              showLabel={t.detail.scoreShowBreakdown}
+              hideLabel={t.detail.scoreHideBreakdown}
+            />
           );
         }
         if (inCol) {

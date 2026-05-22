@@ -131,7 +131,9 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
   // ── Cluster 2: Tracking (single dropdown) ────────────────────────
   // Anchor links inside the dropdown jump to the in-page sections
   // (notes / series / owned-editions) so the inline row never has
-  // to grow beyond its four primaries.
+  // to grow beyond its four primaries. The destructive "Remove from
+  // collection" action lives below a separator at the bottom of this
+  // dropdown instead of being a separate cluster.
   const tracking = inCollection ? (
     <ActionMenu
       label={t.detail.actions.groupTracking}
@@ -153,6 +155,9 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
         <TrackingAnchor href="#section-edit" label={t.form.myTracking} />
         <TrackingAnchor href="#section-notes" label={t.form.personalNotes} />
         <TrackingAnchor href="#section-owned" label={t.inventory.section} />
+        <div className="border-t border-border/50 pt-1 mt-1">
+          <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />
+        </div>
       </div>
     </ActionMenu>
   ) : null;
@@ -265,7 +270,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
           <Database className="h-3.5 w-3.5" aria-hidden /> {t.detail.actions.groupData}
         </>
       }
-      triggerClassName={SECONDARY_BUTTON_CLASSES}
+      triggerClassName={ACTION_BUTTON_CLASSES}
       menuClassName="w-72 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-left"
     >
@@ -282,7 +287,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
           <Link2 className="h-3.5 w-3.5" aria-hidden /> {t.detail.actions.groupMapping}
         </>
       }
-      triggerClassName={SECONDARY_BUTTON_CLASSES}
+      triggerClassName={ACTION_BUTTON_CLASSES}
       menuClassName="w-64 rounded-lg border border-border bg-bg-card p-2 shadow-card"
       defaultPlacement="bottom-right"
     >
@@ -306,17 +311,6 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
     </ActionMenu>
   );
 
-  // The dropdown cluster groups every secondary dropdown trigger
-  const dangerous = inCollection ? (
-    <div
-      role="group"
-      aria-label={t.detail.actions.groupDangerous}
-      className="ml-auto flex flex-wrap items-center gap-2"
-    >
-      <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />
-    </div>
-  ) : null;
-
   return (
     <nav
       aria-label={t.detail.actions.ariaLabel}
@@ -324,11 +318,12 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
     >
       {collection}
       {/*
-        Secondary-actions cluster: all five dropdowns (Tracking, External,
-        Artwork, Data, Mapping) share a single pill border with dividers
-        between them. ActionMenu renders <span class="relative inline-block">
-        as the direct child, so the first/last CSS selectors target those
-        spans and round only the outermost trigger buttons. overflow-visible
+        Secondary-actions cluster: Tracking, External, and Media share a
+        single pill border with dividers between them. Data and Mapping
+        are standalone ACTION_BUTTON_CLASSES buttons placed after the pill.
+        ActionMenu renders <span class="relative inline-block"> as the
+        direct child, so the first/last CSS selectors target those spans
+        and round only the outermost trigger buttons. overflow-visible
         keeps dropdown panels from being clipped.
       */}
       <div
@@ -339,10 +334,9 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
         {tracking}
         {external}
         {media}
-        {data}
-        {mapping}
       </div>
-      {dangerous}
+      {data}
+      {mapping}
     </nav>
   );
 }

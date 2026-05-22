@@ -191,6 +191,7 @@ export function SettingsButton() {
   // specific concern and the freshest landing is Display.
   const [activeTab, setActiveTab] = useState<SettingsTab>('display');
   const [activePageLayoutTab, setActivePageLayoutTab] = useState<'home' | 'vn' | 'character' | 'staff' | 'producer' | 'series'>('home');
+  const [layoutSubTab, setLayoutSubTab] = useState<'perpage' | 'spacing' | 'sections'>('perpage');
   const PAGE_LAYOUT_TABS = ['home', 'vn', 'character', 'staff', 'producer', 'series'] as const;
   type PageLayoutTab = typeof PAGE_LAYOUT_TABS[number];
 
@@ -1057,175 +1058,206 @@ export function SettingsButton() {
                     aria-labelledby="settings-tab-vn-page"
                     className="space-y-4"
                   >
-                    {/*
-                      Global page width — applies the same preset to every
-                      page at once. Per-page overrides below let you
-                      fine-tune individual routes. Moved from Display tab
-                      so all layout controls live in one place.
-                    */}
-                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
-                      <span className="text-sm font-semibold">{t.settings.globalPageWidth}</span>
-                      <span className="text-[11px] text-muted">{t.settings.globalPageWidthHint}</span>
-                      <div className="flex flex-wrap gap-1">
+                    <div className="mb-4 flex flex-wrap gap-1 rounded-lg border border-border bg-bg-elev/20 p-1">
+                      {(['perpage', 'spacing', 'sections'] as const).map((tab) => (
                         <button
+                          key={tab}
                           type="button"
-                          aria-pressed={settings.globalPageSpace == null}
-                          onClick={() => set('globalPageSpace', null)}
-                          className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
-                            settings.globalPageSpace == null
-                              ? 'border-accent bg-accent/15 text-accent'
-                              : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+                          onClick={() => setLayoutSubTab(tab)}
+                          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                            layoutSubTab === tab
+                              ? 'bg-accent text-bg'
+                              : 'text-muted hover:text-white'
                           }`}
                         >
-                          {t.settings.globalPageWidthOff}
+                          {tab === 'perpage' ? 'Pages' : tab === 'spacing' ? 'Espacement' : 'Sections'}
                         </button>
-                        {PAGE_SPACE_PRESET_IDS.map((preset) => {
-                          const active = settings.globalPageSpace === preset;
-                          return (
+                      ))}
+                    </div>
+
+                    {layoutSubTab === 'spacing' && (
+                      <>
+                        {/*
+                          Global page width — applies the same preset to every
+                          page at once. Per-page overrides below let you
+                          fine-tune individual routes. Moved from Display tab
+                          so all layout controls live in one place.
+                        */}
+                        <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
+                          <span className="text-sm font-semibold">{t.settings.globalPageWidth}</span>
+                          <span className="text-[11px] text-muted">{t.settings.globalPageWidthHint}</span>
+                          <div className="flex flex-wrap gap-1">
                             <button
-                              key={preset}
                               type="button"
-                              aria-pressed={active}
-                              onClick={() => set('globalPageSpace', preset)}
+                              aria-pressed={settings.globalPageSpace == null}
+                              onClick={() => set('globalPageSpace', null)}
                               className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
-                                active
+                                settings.globalPageSpace == null
                                   ? 'border-accent bg-accent/15 text-accent'
                                   : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
                               }`}
                             >
-                              {t.pageSpace.preset[preset]}
+                              {t.settings.globalPageWidthOff}
                             </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    {/*
-                      Per-page width overrides — each route can override
-                      the global preset (or card density) independently.
-                    */}
-                    <PerPageLayoutPanel />
-                    {/*
-                      Section ordering — drag-and-drop reorder or
-                      hide/show sections on each detail page type.
-                    */}
-                    <nav
-                      role="tablist"
-                      aria-label={t.settings.tabs['vn-page']}
-                      className="mb-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
-                      onKeyDown={(e) => {
-                        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
-                        e.preventDefault();
-                        const idx = PAGE_LAYOUT_TABS.indexOf(activePageLayoutTab as PageLayoutTab);
-                        let next: PageLayoutTab;
-                        if (e.key === 'Home') next = PAGE_LAYOUT_TABS[0];
-                        else if (e.key === 'End') next = PAGE_LAYOUT_TABS[PAGE_LAYOUT_TABS.length - 1];
-                        else if (e.key === 'ArrowRight') next = PAGE_LAYOUT_TABS[(idx + 1) % PAGE_LAYOUT_TABS.length];
-                        else next = PAGE_LAYOUT_TABS[(idx - 1 + PAGE_LAYOUT_TABS.length) % PAGE_LAYOUT_TABS.length];
-                        setActivePageLayoutTab(next);
-                        document.getElementById(`page-layout-tab-${next}`)?.focus();
-                      }}
-                    >
-                      {(
-                        [
-                          ['home', t.homeLayout.openEditor],
-                          ['vn', t.vnLayout.restoreTitle],
-                          ['character', t.characterLayout.restoreTitle],
-                          ['staff', t.staffLayout.restoreTitle],
-                          ['producer', t.producerLayout.restoreTitle],
-                          ['series', t.seriesLayout.restoreTitle],
-                        ] as const
-                      ).map(([key, label]) => (
-                        <button
-                          key={key}
-                          id={`page-layout-tab-${key}`}
-                          type="button"
-                          role="tab"
-                          aria-selected={activePageLayoutTab === key}
-                          aria-controls={`page-layout-panel-${key}`}
-                          tabIndex={activePageLayoutTab === key ? 0 : -1}
-                          onClick={() => setActivePageLayoutTab(key)}
-                          className={`rounded px-2.5 py-1 ${activePageLayoutTab === key ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+                            {PAGE_SPACE_PRESET_IDS.map((preset) => {
+                              const active = settings.globalPageSpace === preset;
+                              return (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  aria-pressed={active}
+                                  onClick={() => set('globalPageSpace', preset)}
+                                  className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                                    active
+                                      ? 'border-accent bg-accent/15 text-accent'
+                                      : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+                                  }`}
+                                >
+                                  {t.pageSpace.preset[preset]}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {layoutSubTab === 'perpage' && (
+                      <>
+                        {/*
+                          Per-page width overrides — each route can override
+                          the global preset (or card density) independently.
+                        */}
+                        <PerPageLayoutPanel />
+                      </>
+                    )}
+
+                    {layoutSubTab === 'sections' && (
+                      <>
+                        {/*
+                          Section ordering — drag-and-drop reorder or
+                          hide/show sections on each detail page type.
+                        */}
+                        <nav
+                          role="tablist"
+                          aria-label={t.settings.tabs['vn-page']}
+                          className="mb-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
+                          onKeyDown={(e) => {
+                            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+                            e.preventDefault();
+                            const idx = PAGE_LAYOUT_TABS.indexOf(activePageLayoutTab as PageLayoutTab);
+                            let next: PageLayoutTab;
+                            if (e.key === 'Home') next = PAGE_LAYOUT_TABS[0];
+                            else if (e.key === 'End') next = PAGE_LAYOUT_TABS[PAGE_LAYOUT_TABS.length - 1];
+                            else if (e.key === 'ArrowRight') next = PAGE_LAYOUT_TABS[(idx + 1) % PAGE_LAYOUT_TABS.length];
+                            else next = PAGE_LAYOUT_TABS[(idx - 1 + PAGE_LAYOUT_TABS.length) % PAGE_LAYOUT_TABS.length];
+                            setActivePageLayoutTab(next);
+                            document.getElementById(`page-layout-tab-${next}`)?.focus();
+                          }}
                         >
-                          {label}
-                        </button>
-                      ))}
-                    </nav>
-                    {activePageLayoutTab === 'home' && (
-                      <div role="tabpanel" id="page-layout-panel-home" aria-labelledby="page-layout-tab-home">
-                        <HomeLayoutPanel
-                          layout={server?.home_section_layout_v1 ?? DEFAULT_HOME_LAYOUT}
-                          onChange={(next) => saveServer({ home_section_layout_v1: next })}
-                        />
-                      </div>
-                    )}
-                    {activePageLayoutTab === 'vn' && (
-                      <div role="tabpanel" id="page-layout-panel-vn" aria-labelledby="page-layout-tab-vn">
-                        <VnLayoutPanel
-                          layout={server?.vn_detail_section_layout_v1 ?? defaultVnDetailLayoutV1()}
-                          onSave={(next) => saveServer({ vn_detail_section_layout_v1: next })}
-                          onReset={() => saveServer({ vn_detail_section_layout_v1: null })}
-                        />
-                      </div>
-                    )}
-                    {activePageLayoutTab === 'character' && (
-                      <div role="tabpanel" id="page-layout-panel-character" aria-labelledby="page-layout-tab-character">
-                        <PageLayoutPanel
-                          title={t.characterLayout.restoreTitle}
-                          desc={t.characterLayout.restoreDesc}
-                          resetLabel={t.characterLayout.reset}
-                          layout={server?.character_detail_section_layout_v1 ?? defaultCharacterDetailLayoutV1()}
-                          sectionIds={CHARACTER_SECTION_IDS}
-                          sectionLabels={t.characterLayout.sectionLabels as Record<string, string>}
-                          eventName={CHARACTER_DETAIL_LAYOUT_EVENT}
-                          onSave={(next) => saveServer({ character_detail_section_layout_v1: next })}
-                          onReset={() => saveServer({ character_detail_section_layout_v1: null })}
-                        />
-                      </div>
-                    )}
-                    {activePageLayoutTab === 'staff' && (
-                      <div role="tabpanel" id="page-layout-panel-staff" aria-labelledby="page-layout-tab-staff">
-                        <PageLayoutPanel
-                          title={t.staffLayout.restoreTitle}
-                          desc={t.staffLayout.restoreDesc}
-                          resetLabel={t.staffLayout.reset}
-                          layout={server?.staff_detail_section_layout_v1 ?? defaultStaffDetailLayoutV1()}
-                          sectionIds={STAFF_SECTION_IDS}
-                          sectionLabels={t.staffLayout.sectionLabels as Record<string, string>}
-                          eventName={STAFF_DETAIL_LAYOUT_EVENT}
-                          onSave={(next) => saveServer({ staff_detail_section_layout_v1: next })}
-                          onReset={() => saveServer({ staff_detail_section_layout_v1: null })}
-                        />
-                      </div>
-                    )}
-                    {activePageLayoutTab === 'producer' && (
-                      <div role="tabpanel" id="page-layout-panel-producer" aria-labelledby="page-layout-tab-producer">
-                        <PageLayoutPanel
-                          title={t.producerLayout.restoreTitle}
-                          desc={t.producerLayout.restoreDesc}
-                          resetLabel={t.producerLayout.reset}
-                          layout={server?.producer_detail_section_layout_v1 ?? defaultProducerDetailLayoutV1()}
-                          sectionIds={PRODUCER_SECTION_IDS}
-                          sectionLabels={t.producerLayout.sectionLabels as Record<string, string>}
-                          eventName={PRODUCER_DETAIL_LAYOUT_EVENT}
-                          onSave={(next) => saveServer({ producer_detail_section_layout_v1: next })}
-                          onReset={() => saveServer({ producer_detail_section_layout_v1: null })}
-                        />
-                      </div>
-                    )}
-                    {activePageLayoutTab === 'series' && (
-                      <div role="tabpanel" id="page-layout-panel-series" aria-labelledby="page-layout-tab-series">
-                        <PageLayoutPanel
-                          title={t.seriesLayout.restoreTitle}
-                          desc={t.seriesLayout.restoreDesc}
-                          resetLabel={t.seriesLayout.reset}
-                          layout={server?.series_detail_section_layout_v1 ?? defaultSeriesDetailLayoutV1()}
-                          sectionIds={SERIES_DETAIL_SECTION_IDS}
-                          sectionLabels={t.seriesLayout.sectionLabels as Record<string, string>}
-                          eventName={SERIES_DETAIL_LAYOUT_EVENT}
-                          onSave={(next) => saveServer({ series_detail_section_layout_v1: next })}
-                          onReset={() => saveServer({ series_detail_section_layout_v1: null })}
-                        />
-                      </div>
+                          {(
+                            [
+                              ['home', t.homeLayout.openEditor],
+                              ['vn', t.vnLayout.restoreTitle],
+                              ['character', t.characterLayout.restoreTitle],
+                              ['staff', t.staffLayout.restoreTitle],
+                              ['producer', t.producerLayout.restoreTitle],
+                              ['series', t.seriesLayout.restoreTitle],
+                            ] as const
+                          ).map(([key, label]) => (
+                            <button
+                              key={key}
+                              id={`page-layout-tab-${key}`}
+                              type="button"
+                              role="tab"
+                              aria-selected={activePageLayoutTab === key}
+                              aria-controls={`page-layout-panel-${key}`}
+                              tabIndex={activePageLayoutTab === key ? 0 : -1}
+                              onClick={() => setActivePageLayoutTab(key)}
+                              className={`rounded px-2.5 py-1 ${activePageLayoutTab === key ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </nav>
+                        {activePageLayoutTab === 'home' && (
+                          <div role="tabpanel" id="page-layout-panel-home" aria-labelledby="page-layout-tab-home">
+                            <HomeLayoutPanel
+                              layout={server?.home_section_layout_v1 ?? DEFAULT_HOME_LAYOUT}
+                              onChange={(next) => saveServer({ home_section_layout_v1: next })}
+                            />
+                          </div>
+                        )}
+                        {activePageLayoutTab === 'vn' && (
+                          <div role="tabpanel" id="page-layout-panel-vn" aria-labelledby="page-layout-tab-vn">
+                            <VnLayoutPanel
+                              layout={server?.vn_detail_section_layout_v1 ?? defaultVnDetailLayoutV1()}
+                              onSave={(next) => saveServer({ vn_detail_section_layout_v1: next })}
+                              onReset={() => saveServer({ vn_detail_section_layout_v1: null })}
+                            />
+                          </div>
+                        )}
+                        {activePageLayoutTab === 'character' && (
+                          <div role="tabpanel" id="page-layout-panel-character" aria-labelledby="page-layout-tab-character">
+                            <PageLayoutPanel
+                              title={t.characterLayout.restoreTitle}
+                              desc={t.characterLayout.restoreDesc}
+                              resetLabel={t.characterLayout.reset}
+                              layout={server?.character_detail_section_layout_v1 ?? defaultCharacterDetailLayoutV1()}
+                              sectionIds={CHARACTER_SECTION_IDS}
+                              sectionLabels={t.characterLayout.sectionLabels as Record<string, string>}
+                              eventName={CHARACTER_DETAIL_LAYOUT_EVENT}
+                              onSave={(next) => saveServer({ character_detail_section_layout_v1: next })}
+                              onReset={() => saveServer({ character_detail_section_layout_v1: null })}
+                            />
+                          </div>
+                        )}
+                        {activePageLayoutTab === 'staff' && (
+                          <div role="tabpanel" id="page-layout-panel-staff" aria-labelledby="page-layout-tab-staff">
+                            <PageLayoutPanel
+                              title={t.staffLayout.restoreTitle}
+                              desc={t.staffLayout.restoreDesc}
+                              resetLabel={t.staffLayout.reset}
+                              layout={server?.staff_detail_section_layout_v1 ?? defaultStaffDetailLayoutV1()}
+                              sectionIds={STAFF_SECTION_IDS}
+                              sectionLabels={t.staffLayout.sectionLabels as Record<string, string>}
+                              eventName={STAFF_DETAIL_LAYOUT_EVENT}
+                              onSave={(next) => saveServer({ staff_detail_section_layout_v1: next })}
+                              onReset={() => saveServer({ staff_detail_section_layout_v1: null })}
+                            />
+                          </div>
+                        )}
+                        {activePageLayoutTab === 'producer' && (
+                          <div role="tabpanel" id="page-layout-panel-producer" aria-labelledby="page-layout-tab-producer">
+                            <PageLayoutPanel
+                              title={t.producerLayout.restoreTitle}
+                              desc={t.producerLayout.restoreDesc}
+                              resetLabel={t.producerLayout.reset}
+                              layout={server?.producer_detail_section_layout_v1 ?? defaultProducerDetailLayoutV1()}
+                              sectionIds={PRODUCER_SECTION_IDS}
+                              sectionLabels={t.producerLayout.sectionLabels as Record<string, string>}
+                              eventName={PRODUCER_DETAIL_LAYOUT_EVENT}
+                              onSave={(next) => saveServer({ producer_detail_section_layout_v1: next })}
+                              onReset={() => saveServer({ producer_detail_section_layout_v1: null })}
+                            />
+                          </div>
+                        )}
+                        {activePageLayoutTab === 'series' && (
+                          <div role="tabpanel" id="page-layout-panel-series" aria-labelledby="page-layout-tab-series">
+                            <PageLayoutPanel
+                              title={t.seriesLayout.restoreTitle}
+                              desc={t.seriesLayout.restoreDesc}
+                              resetLabel={t.seriesLayout.reset}
+                              layout={server?.series_detail_section_layout_v1 ?? defaultSeriesDetailLayoutV1()}
+                              sectionIds={SERIES_DETAIL_SECTION_IDS}
+                              sectionLabels={t.seriesLayout.sectionLabels as Record<string, string>}
+                              eventName={SERIES_DETAIL_LAYOUT_EVENT}
+                              onSave={(next) => saveServer({ series_detail_section_layout_v1: next })}
+                              onReset={() => saveServer({ series_detail_section_layout_v1: null })}
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

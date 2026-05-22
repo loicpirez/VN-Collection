@@ -4,8 +4,10 @@
  * of mounting the component we lint the source string itself for
  * the conditional patterns that ARE the contract:
  *
- *   - Collection-only clusters (`media`, `dangerous`, the favorite /
+ *   - Collection-only clusters (`media`, `tracking`, the favorite /
  *     queue primaries) gate on `inCollection`.
+ *   - The destructive "remove" action (`mode="danger"`) lives inside
+ *     the `tracking` dropdown, which itself gates on `inCollection`.
  *   - Data / Mapping clusters do NOT gate on `inCollection` — they
  *     gate on `isEgsOnly` or render unconditionally.
  *
@@ -38,8 +40,11 @@ describe('VnDetailActionsBar gating contract', () => {
     expect(line('const media = ')).toMatch(/const media = inCollection \?/);
   });
 
-  it('Destructive cluster gates on inCollection', () => {
-    expect(line('const dangerous = ')).toMatch(/const dangerous = inCollection \?/);
+  it('Destructive action (mode="danger") lives inside tracking which gates on inCollection', () => {
+    expect(line('const tracking = ')).toMatch(/const tracking = inCollection \?/);
+    const trackingIdx = bar.indexOf('const tracking = inCollection ?');
+    const dangerIdx = bar.indexOf('mode="danger"');
+    expect(dangerIdx).toBeGreaterThan(trackingIdx);
   });
 
   it('Data cluster does NOT gate on inCollection (gates on !isEgsOnly)', () => {

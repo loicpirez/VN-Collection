@@ -832,24 +832,36 @@ function open(): Database.Database {
   }
 
   const placeIndexBackfilled = (db
-    .prepare(`SELECT value FROM app_setting WHERE key = 'collection_place_index_v1'`)
+    .prepare(`SELECT value FROM app_setting WHERE key = 'collection_place_index_v2'`)
     .get() as { value: string | null } | undefined)?.value;
   if (placeIndexBackfilled !== '1') {
-    const rows = db
+    const collRows = db
       .prepare(`SELECT vn_id, physical_location FROM collection`)
       .all() as { vn_id: string; physical_location: string | null }[];
+    const ownedRows = db
+      .prepare(`SELECT vn_id, physical_location FROM owned_release WHERE physical_location IS NOT NULL`)
+      .all() as { vn_id: string; physical_location: string }[];
+    const placesByVn = new Map<string, Set<string>>();
+    for (const row of collRows) {
+      if (!placesByVn.has(row.vn_id)) placesByVn.set(row.vn_id, new Set());
+      for (const p of parsePlaces(row.physical_location)) placesByVn.get(row.vn_id)!.add(p);
+    }
+    for (const row of ownedRows) {
+      if (!placesByVn.has(row.vn_id)) placesByVn.set(row.vn_id, new Set());
+      for (const p of parsePlaces(row.physical_location)) placesByVn.get(row.vn_id)!.add(p);
+    }
     const insert = db.prepare(
       `INSERT OR IGNORE INTO collection_place_index (vn_id, place) VALUES (?, ?)`,
     );
     db.transaction(() => {
       db.prepare('DELETE FROM collection_place_index').run();
-      for (const row of rows) {
-        for (const place of new Set(parsePlaces(row.physical_location))) {
-          insert.run(row.vn_id, place);
+      for (const [vnId, places] of placesByVn) {
+        for (const place of places) {
+          insert.run(vnId, place);
         }
       }
       db.prepare(
-        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('collection_place_index_v1', '1')`,
+        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('collection_place_index_v2', '1')`,
       ).run();
     })();
   }
@@ -1282,11 +1294,20 @@ function serializePlaces(value: unknown): string | null {
   return cleaned.length ? JSON.stringify(cleaned) : null;
 }
 
-function writeCollectionPlaceIndex(vnId: string, storedPlaces: string | null | undefined): void {
-  const places = new Set(parsePlaces(storedPlaces));
-  const del = db.prepare('DELETE FROM collection_place_index WHERE vn_id = ?');
+function rebuildVnPlaceIndex(vnId: string): void {
+  const collRow = db
+    .prepare('SELECT physical_location FROM collection WHERE vn_id = ?')
+    .get(vnId) as { physical_location: string | null } | undefined;
+  const ownedRows = db
+    .prepare('SELECT physical_location FROM owned_release WHERE vn_id = ? AND physical_location IS NOT NULL')
+    .all(vnId) as { physical_location: string }[];
+  const places = new Set<string>();
+  for (const p of parsePlaces(collRow?.physical_location)) places.add(p);
+  for (const r of ownedRows) {
+    for (const p of parsePlaces(r.physical_location)) places.add(p);
+  }
+  db.prepare('DELETE FROM collection_place_index WHERE vn_id = ?').run(vnId);
   const ins = db.prepare('INSERT OR IGNORE INTO collection_place_index (vn_id, place) VALUES (?, ?)');
-  del.run(vnId);
   for (const place of places) {
     ins.run(vnId, place);
   }
@@ -2774,7 +2795,7 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
       now,
       now,
     );
-    writeCollectionPlaceIndex(vnId, physicalLocation);
+    rebuildVnPlaceIndex(vnId);
     invalidateAggregateStats();
   })();
 }
@@ -2830,7 +2851,7 @@ function buildUpdateCollectionTx(): (vnId: string, fields: CollectionPatch) => v
   params.push(vnId);
   db.prepare(`UPDATE collection SET ${sets.join(', ')} WHERE vn_id = ?`).run(...params);
   if ('physical_location' in fields) {
-    writeCollectionPlaceIndex(vnId, serializePlaces(fields.physical_location ?? null));
+    rebuildVnPlaceIndex(vnId);
   }
 
   if (!before) return;
@@ -6714,6 +6735,7 @@ export function markReleaseOwned(
           )
       `).run(vnId, releaseId);
     }
+    rebuildVnPlaceIndex(vnId);
   })();
 }
 
@@ -6747,10 +6769,14 @@ export function updateOwnedRelease(
   if (sets.length === 0) return;
   params.push(vnId, releaseId);
   db.prepare(`UPDATE owned_release SET ${sets.join(', ')} WHERE vn_id = ? AND release_id = ?`).run(...params);
+  if ('physical_location' in patch) {
+    rebuildVnPlaceIndex(vnId);
+  }
 }
 
 export function unmarkReleaseOwned(vnId: string, releaseId: string): void {
   db.prepare('DELETE FROM owned_release WHERE vn_id = ? AND release_id = ?').run(vnId, releaseId);
+  rebuildVnPlaceIndex(vnId);
 }
 
 export function listKnownPlaces(): string[] {
@@ -7746,7 +7772,7 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
             c.notes, c.favorite ? 1 : 0, c.location ?? 'unknown', c.edition_type ?? 'none',
             c.edition_label, c.physical_location, c.updated_at ?? Date.now(), c.vn_id,
           );
-          writeCollectionPlaceIndex(c.vn_id, physicalLocation);
+          rebuildVnPlaceIndex(c.vn_id);
         } else {
           const physicalLocation = c.physical_location ?? null;
           db.prepare(`
@@ -7759,7 +7785,7 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
             c.notes, c.favorite ? 1 : 0, c.location ?? 'unknown', c.edition_type ?? 'none',
             c.edition_label, c.physical_location, c.added_at ?? Date.now(), c.updated_at ?? Date.now(),
           );
-          writeCollectionPlaceIndex(c.vn_id, physicalLocation);
+          rebuildVnPlaceIndex(c.vn_id);
         }
         summary.collection_upserted++;
       } catch (e) {

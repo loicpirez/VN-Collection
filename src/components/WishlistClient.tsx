@@ -1,7 +1,7 @@
 'use client';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CheckSquare, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { CheckSquare, Filter, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
@@ -14,11 +14,11 @@ import { useT } from '@/lib/i18n/client';
 
 import { readApiError } from '@/lib/api-error-read';
 import { languageDisplayName } from '@/lib/language-names';
-type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc';
-type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'status';
+type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc' | 'egs_rating_desc';
+type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'platform' | 'status';
 
-const SORT_KEYS: WishlistSort[] = ['added_desc', 'added_asc', 'title', 'rating_desc', 'released_desc', 'released_asc', 'length_desc'];
-const GROUP_KEYS: WishlistGroup[] = ['none', 'year', 'developer', 'language', 'status'];
+const SORT_KEYS: WishlistSort[] = ['added_desc', 'added_asc', 'title', 'rating_desc', 'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc'];
+const GROUP_KEYS: WishlistGroup[] = ['none', 'year', 'developer', 'language', 'platform', 'status'];
 
 const PREFS_STORAGE_KEY = 'wishlist_defaults_v1';
 
@@ -173,6 +173,12 @@ export function WishlistClient() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  const [filterLang, setFilterLang] = useState('');
+  const [filterPlatform, setFilterPlatform] = useState('');
+  const [filterRatingMin, setFilterRatingMin] = useState('');
+  const [filterRatingMax, setFilterRatingMax] = useState('');
+  const [filterYearMin, setFilterYearMin] = useState('');
+  const [filterYearMax, setFilterYearMax] = useState('');
   // Seed `hideOwned`, `sort`, and `group` from localStorage so the
   // user's preferred view is restored on every visit (audit/QA #13:
   // wishlist prefs should auto-save like the rest of the app). The
@@ -295,10 +301,49 @@ export function WishlistClient() {
 
   const ownedCount = items.filter((it) => it.in_collection).length;
 
+  const availableLanguages = useMemo(() => {
+    const langs = new Set<string>();
+    for (const it of items) for (const l of it.vn.languages) langs.add(l);
+    return Array.from(langs).sort();
+  }, [items]);
+
+  const availablePlatforms = useMemo(() => {
+    const plats = new Set<string>();
+    for (const it of items) for (const p of it.vn.platforms) plats.add(p);
+    return Array.from(plats).sort();
+  }, [items]);
+
+  const activeFilterCount =
+    (filterLang ? 1 : 0) +
+    (filterPlatform ? 1 : 0) +
+    (filterRatingMin ? 1 : 0) +
+    (filterRatingMax ? 1 : 0) +
+    (filterYearMin ? 1 : 0) +
+    (filterYearMax ? 1 : 0);
+
+  function resetFilters() {
+    setFilterLang('');
+    setFilterPlatform('');
+    setFilterRatingMin('');
+    setFilterRatingMax('');
+    setFilterYearMin('');
+    setFilterYearMax('');
+  }
+
   const filtered = useMemo(() => {
     const lower = q.trim().toLowerCase();
+    const rMin = filterRatingMin ? Number(filterRatingMin) : null;
+    const rMax = filterRatingMax ? Number(filterRatingMax) : null;
+    const yMin = filterYearMin || null;
+    const yMax = filterYearMax || null;
     return items.filter((it) => {
       if (hideOwned && it.in_collection) return false;
+      if (filterLang && !it.vn.languages.includes(filterLang)) return false;
+      if (filterPlatform && !it.vn.platforms.includes(filterPlatform)) return false;
+      if (rMin !== null && (it.vn.rating == null || it.vn.rating < rMin)) return false;
+      if (rMax !== null && (it.vn.rating == null || it.vn.rating > rMax)) return false;
+      if (yMin && (!it.vn.released || it.vn.released.slice(0, 4) < yMin)) return false;
+      if (yMax && (!it.vn.released || it.vn.released.slice(0, 4) > yMax)) return false;
       if (!lower) return true;
       return (
         it.vn.title.toLowerCase().includes(lower) ||
@@ -306,7 +351,7 @@ export function WishlistClient() {
         it.vn.developers.some((d) => d.name.toLowerCase().includes(lower))
       );
     });
-  }, [items, q, hideOwned]);
+  }, [items, q, hideOwned, filterLang, filterPlatform, filterRatingMin, filterRatingMax, filterYearMin, filterYearMax]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -319,6 +364,7 @@ export function WishlistClient() {
         case 'released_desc': return (b.vn.released ?? '').localeCompare(a.vn.released ?? '');
         case 'released_asc': return (a.vn.released ?? '').localeCompare(b.vn.released ?? '');
         case 'length_desc': return (b.vn.length_minutes ?? 0) - (a.vn.length_minutes ?? 0);
+        case 'egs_rating_desc': return (b.egs?.median ?? 0) - (a.egs?.median ?? 0);
         default: {
           const _exhaustive: never = sort;
           return String(_exhaustive).localeCompare('');
@@ -337,6 +383,7 @@ export function WishlistClient() {
         case 'year': key = it.vn.released?.slice(0, 4) || t.wishlist.groupUnknown; break;
         case 'developer': key = it.vn.developers[0]?.name || t.wishlist.groupUnknown; break;
         case 'language': key = it.vn.languages[0] ? languageDisplayName(it.vn.languages[0]) : t.wishlist.groupUnknown; break;
+        case 'platform': key = it.vn.platforms[0] || t.wishlist.groupUnknown; break;
         case 'status': key = it.in_collection ? t.wishlist.groupOwned : t.wishlist.groupTodo; break;
         default: key = '';
       }
@@ -422,7 +469,7 @@ export function WishlistClient() {
         </div>
       ) : (
         <>
-          <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
               <input
@@ -494,6 +541,109 @@ export function WishlistClient() {
               {' · '}
               {filtered.length} / {items.length}
             </span>
+          </div>
+
+          {/* Advanced filters panel */}
+          <div className="mb-4 rounded-lg border border-border bg-bg-elev/20 p-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+                <Filter className="h-3 w-3" aria-hidden />
+                {t.wishlist.filterLabel}
+                {activeFilterCount > 0 && (
+                  <span className="rounded bg-accent/20 px-1 text-accent">
+                    {t.wishlist.filterActiveCount.replace('{n}', String(activeFilterCount))}
+                  </span>
+                )}
+              </span>
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-status-dropped"
+                >
+                  <X className="h-3 w-3" aria-hidden />
+                  {t.wishlist.filterReset}
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {availableLanguages.length > 0 && (
+                <select
+                  value={filterLang}
+                  onChange={(e) => setFilterLang(e.target.value)}
+                  className="input h-7 py-0 text-xs"
+                  aria-label={t.wishlist.filterByLanguage}
+                >
+                  <option value="">{t.wishlist.filterByLanguage}</option>
+                  {availableLanguages.map((l) => (
+                    <option key={l} value={l}>{languageDisplayName(l)}</option>
+                  ))}
+                </select>
+              )}
+              {availablePlatforms.length > 0 && (
+                <select
+                  value={filterPlatform}
+                  onChange={(e) => setFilterPlatform(e.target.value)}
+                  className="input h-7 py-0 text-xs"
+                  aria-label={t.wishlist.filterByPlatform}
+                >
+                  <option value="">{t.wishlist.filterByPlatform}</option>
+                  {availablePlatforms.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              )}
+              <div className="inline-flex items-center gap-1">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input h-7 w-20 py-0 text-xs"
+                  placeholder={t.wishlist.filterRatingMin}
+                  value={filterRatingMin}
+                  min={0}
+                  max={100}
+                  onChange={(e) => setFilterRatingMin(e.target.value)}
+                  aria-label={t.wishlist.filterRatingMin}
+                />
+                <span className="text-xs text-muted">–</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input h-7 w-20 py-0 text-xs"
+                  placeholder={t.wishlist.filterRatingMax}
+                  value={filterRatingMax}
+                  min={0}
+                  max={100}
+                  onChange={(e) => setFilterRatingMax(e.target.value)}
+                  aria-label={t.wishlist.filterRatingMax}
+                />
+              </div>
+              <div className="inline-flex items-center gap-1">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input h-7 w-20 py-0 text-xs"
+                  placeholder={t.wishlist.filterYearMin}
+                  value={filterYearMin}
+                  min={1980}
+                  max={2040}
+                  onChange={(e) => setFilterYearMin(e.target.value)}
+                  aria-label={t.wishlist.filterYearMin}
+                />
+                <span className="text-xs text-muted">–</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input h-7 w-20 py-0 text-xs"
+                  placeholder={t.wishlist.filterYearMax}
+                  value={filterYearMax}
+                  min={1980}
+                  max={2040}
+                  onChange={(e) => setFilterYearMax(e.target.value)}
+                  aria-label={t.wishlist.filterYearMax}
+                />
+              </div>
+            </div>
           </div>
 
           {grouped.map((g) => (

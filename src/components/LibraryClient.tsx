@@ -66,8 +66,8 @@ const SORT_KEYS: SortKey[] = [
   'custom',
 ];
 
-type GroupKey = 'none' | 'tag' | 'producer' | 'publisher' | 'status' | 'series' | 'aspect';
-const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series', 'aspect'];
+type GroupKey = 'none' | 'tag' | 'producer' | 'publisher' | 'status' | 'series' | 'aspect' | 'year' | 'place' | 'edition';
+const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series', 'aspect', 'year', 'place', 'edition'];
 
 const Q_DEBOUNCE_MS = 300;
 
@@ -199,6 +199,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const [producers, setProducers] = useState<ProducerStat[]>([]);
   const [publishers, setPublishers] = useState<ProducerStat[]>([]);
   const [series, setSeries] = useState<SeriesRow[]>([]);
+  const [knownPlaces, setKnownPlaces] = useState<string[]>([]);
+  const [collectionTags, setCollectionTags] = useState<{ id: string; name: string; vn_count: number }[]>([]);
   const [loading, setLoading] = useState(true);
   // Gates the empty-state copy so we never flash "no results" before
   // at least one fetch has resolved. setLoading alone is not enough —
@@ -250,6 +252,22 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       })
       .then((d) => setSeries(d.series ?? []))
       .catch((e: Error) => toast.error(`${t.common.error}: ${e.message}`));
+    fetch('/api/places')
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d: { places: string[] }) => setKnownPlaces(d.places ?? []))
+      .catch((e: Error) => { console.error('[LibraryClient] places fetch failed:', e.message); });
+    fetch('/api/collection/tags')
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d: { tags: { id: string; name: string; vn_count: number }[] }) =>
+        setCollectionTags((d.tags ?? []).slice(0, 200)),
+      )
+      .catch((e: Error) => { console.error('[LibraryClient] tags fetch failed:', e.message); });
   }, [toast, t.common.error]);
 
   // Resolve tag name when filtered by tag
@@ -375,6 +393,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     (producer ? 1 : 0) +
     (publisher ? 1 : 0) +
     (seriesId ? 1 : 0) +
+    (urlTag ? 1 : 0) +
+    (urlPlace ? 1 : 0) +
+    (urlEdition ? 1 : 0) +
     (urlAspectSet.length > 0 ? 1 : 0) +
     (urlDumped ? 1 : 0) +
     (urlYearMin || urlYearMax ? 1 : 0) +
@@ -563,6 +584,43 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               <option value="">{t.library.filterBySeries}</option>
               {series.map((s) => (
                 <option key={s.id} value={String(s.id)}>{s.name}</option>
+              ))}
+            </select>
+            <select
+              className="input w-full"
+              value={urlTag}
+              onChange={(e) => setParam('tag', e.target.value || null)}
+              aria-label={t.library.filterByTag}
+            >
+              <option value="">{t.library.filterByTag}</option>
+              {collectionTags.map((tg) => (
+                <option key={tg.id} value={tg.id}>
+                  {tg.name} · {tg.vn_count}
+                </option>
+              ))}
+            </select>
+            <select
+              className="input w-full"
+              value={urlPlace}
+              onChange={(e) => setParam('place', e.target.value || null)}
+              aria-label={t.library.filterByPlace}
+            >
+              <option value="">{t.library.filterByPlace}</option>
+              {knownPlaces.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <select
+              className="input w-full"
+              value={urlEdition}
+              onChange={(e) => setParam('edition', e.target.value || null)}
+              aria-label={t.library.filterByEdition}
+            >
+              <option value="">{t.library.filterByEdition}</option>
+              {(['physical', 'digital', 'limited', 'standard', 'collector', 'download_code'] as const).map((ed) => (
+                <option key={ed} value={ed}>
+                  {(t.editions as Record<string, string>)[ed] ?? ed}
+                </option>
               ))}
             </select>
             {/* Multi-select aspect filter. User can pick any
@@ -884,6 +942,12 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   ? t.library.groupSeries
                   : g === 'aspect'
                   ? t.library.groupAspect
+                  : g === 'year'
+                  ? t.library.groupYear
+                  : g === 'place'
+                  ? t.library.groupPlace
+                  : g === 'edition'
+                  ? t.library.groupEdition
                   : t.library.groupStatus}
               </option>
             ))}
@@ -1428,6 +1492,30 @@ function groupItems(
           map.get(k)!.items.push(it);
         }
       }
+    } else if (group === 'year') {
+      const y = it.released?.slice(0, 4) || '__none__';
+      const label = y === '__none__' ? t.library.groupOther : y;
+      if (!map.has(y)) map.set(y, { key: y, label, items: [] });
+      map.get(y)!.items.push(it);
+    } else if (group === 'place') {
+      const places = it.physical_location && it.physical_location.length > 0
+        ? it.physical_location
+        : null;
+      if (!places) {
+        const fb = map.get('__none__') ?? fallback(t.library.groupOther);
+        fb.items.push(it);
+        map.set('__none__', fb);
+      } else {
+        for (const pl of places) {
+          if (!map.has(pl)) map.set(pl, { key: pl, label: pl, items: [] });
+          map.get(pl)!.items.push(it);
+        }
+      }
+    } else if (group === 'edition') {
+      const ed = it.edition_type ?? 'none';
+      const label = (t.editions as Record<string, string>)[ed] ?? ed;
+      if (!map.has(ed)) map.set(ed, { key: ed, label, items: [] });
+      map.get(ed)!.items.push(it);
     }
   }
   // Group ordering policy:
@@ -1445,8 +1533,13 @@ function groupItems(
     (group === 'publisher' && sort === 'publisher') ||
     group === 'series' ||
     group === 'tag' ||
-    group === 'aspect';
-  if (sortAlphabetical) {
+    group === 'aspect' ||
+    group === 'place' ||
+    group === 'edition';
+  if (group === 'year') {
+    groups.sort((a, b) => b.key.localeCompare(a.key));
+    if (order === 'asc') groups.reverse();
+  } else if (sortAlphabetical) {
     groups.sort((a, b) => a.label.localeCompare(b.label));
     if (order === 'desc') groups.reverse();
   } else {
