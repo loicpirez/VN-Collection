@@ -980,7 +980,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             className="flex gap-6 text-sm text-muted"
           >
             <span><b className="text-white">{stats.total}</b> {t.library.stats.vnCount}</span>
-            <span><b className="text-white">{fmtNum(totalH, locale)}h</b> {t.library.stats.playedHours}</span>
+            <span><b className="text-white">{fmtNum(totalH, locale)}{t.year.hoursUnit}</b> {t.library.stats.playedHours}</span>
           </div>
           {stats.total > 0 && (
             <button

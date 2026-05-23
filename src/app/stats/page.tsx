@@ -145,12 +145,12 @@ export default async function StatsPage() {
             />
             <Stat
               label={t.stats.egsSumPlaytime}
-              value={`${fmtNum(Math.round(agg.egs.sum_playtime_minutes / 60), locale)}h`}
+              value={`${fmtNum(Math.round(agg.egs.sum_playtime_minutes / 60), locale)}${t.year.hoursUnit}`}
               locale={locale}
             />
             <Stat
               label={t.stats.egsTotalPlaytime}
-              value={`${fmtNum(Math.round((my.playtime_minutes + agg.egs.sum_playtime_minutes) / 60), locale)}h`}
+              value={`${fmtNum(Math.round((my.playtime_minutes + agg.egs.sum_playtime_minutes) / 60), locale)}${t.year.hoursUnit}`}
               locale={locale}
             />
           </div>
