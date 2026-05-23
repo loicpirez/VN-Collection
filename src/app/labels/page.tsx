@@ -127,7 +127,7 @@ export default async function LabelsPage({
                 This pattern is reviewed on every `qrcode` dependency update.
               */}
               <div
-                aria-label={`QR ${it.id}`}
+                aria-label={t.labels.qrCodeFor.replace('{id}', it.id)}
                 className="shrink-0 bg-white p-1 [&_svg]:h-20 [&_svg]:w-20"
                 dangerouslySetInnerHTML={{ __html: qrs[i] }}
               />

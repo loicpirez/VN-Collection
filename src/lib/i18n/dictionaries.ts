@@ -1656,6 +1656,7 @@ export const dictionaries = {
       empty: 'Aucun VN ne correspond à ce filtre.',
       print: 'Imprimer',
       open: 'Étiquettes QR',
+      qrCodeFor: 'Code QR — {id}',
     },
     textualSearch: {
       title: 'Dans tes notes et citations (local)',
@@ -4309,6 +4310,7 @@ export const dictionaries = {
       empty: 'No VN matches this filter.',
       print: 'Print',
       open: 'QR labels',
+      qrCodeFor: 'QR code — {id}',
     },
     textualSearch: {
       title: 'In your notes and quotes (local)',
@@ -6959,6 +6961,7 @@ export const dictionaries = {
       empty: '該当する VN がありません。',
       print: '印刷',
       open: 'QR ラベル',
+      qrCodeFor: 'QR コード — {id}',
     },
     textualSearch: {
       title: 'メモ・名言から検索（ローカル）',
