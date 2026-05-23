@@ -1,8 +1,8 @@
 'use client';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2, RefreshCw, Database } from 'lucide-react';
-import { SkeletonBlock } from './Skeleton';
 import type { Locale } from '@/lib/i18n/dictionaries';
+import { SkeletonBlock } from './Skeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { fmtDate, fmtNum } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
@@ -18,10 +18,10 @@ interface CacheStat {
   by_path: { path: string; n: number }[];
 }
 
-function bytes(n: number): string {
+function bytes(n: number, locale: Locale): string {
   if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} kB`;
-  return `${(n / 1024 / 1024).toFixed(2)} MB`;
+  if (n < 1024 * 1024) return `${fmtNum(n / 1024, locale, 1)} kB`;
+  return `${fmtNum(n / 1024 / 1024, locale, 2)} MB`;
 }
 
 function fmtTime(ts: number | null, locale: Locale): string {
@@ -110,7 +110,7 @@ export function CachePanel() {
             <Stat label={t.cache.entries} value={stats.total} locale={locale} />
             <Stat label={t.cache.fresh} value={stats.fresh} accent locale={locale} />
             <Stat label={t.cache.stale} value={stats.stale} locale={locale} />
-            <Stat label={t.cache.size} value={bytes(stats.bytes)} locale={locale} />
+            <Stat label={t.cache.size} value={bytes(stats.bytes, locale)} locale={locale} />
           </div>
           <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-muted sm:grid-cols-2">
             <div>{t.cache.oldest}: <span className="text-white">{fmtTime(stats.oldest, locale)}</span></div>

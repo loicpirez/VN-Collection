@@ -38,7 +38,7 @@ export function HBarChart({ data, formatValue, locale, maxWidthPct = 100, emptyM
               />
             </div>
             <span className="tabular-nums font-bold">
-              {formatValue ? formatValue(d.value) : locale ? fmtNum(d.value, locale) : d.value.toLocaleString()}
+              {formatValue ? formatValue(d.value) : locale ? fmtNum(d.value, locale) : d.value.toLocaleString(locale)}
               {d.sublabel && <span className="ml-1 font-normal text-muted">{d.sublabel}</span>}
             </span>
           </div>
@@ -98,7 +98,7 @@ export function VBarChart({
     >
       {data.map((d, i) => {
         const h = max > 0 ? (d.value / max) * height : 0;
-        const formatted = formatValue ? formatValue(d.value) : locale ? fmtNum(d.value, locale) : d.value.toLocaleString();
+        const formatted = formatValue ? formatValue(d.value) : locale ? fmtNum(d.value, locale) : d.value.toLocaleString(locale);
         const tooltip = d.tooltip ?? `${d.label} · ${formatted}`;
         const inner = (
           <div

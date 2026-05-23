@@ -1,3 +1,4 @@
+import { fmtNum } from '@/lib/locale-number';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, ArrowDown, Box, Coins, Eye, Layers, LayoutGrid, Library, Package } from 'lucide-react';
@@ -68,7 +69,7 @@ function fmtMoneyLocale(amount: number | null, currency: string | null, locale: 
     }
   }
   const cur = currency || '';
-  return `${amount.toFixed(2)} ${cur}`.trim();
+  return `${fmtNum(amount, locale, 2)} ${cur}`.trim();
 }
 
 function boxTypeLabel(value: string, dict: Awaited<ReturnType<typeof getDict>>): string {
