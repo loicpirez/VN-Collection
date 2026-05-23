@@ -31,6 +31,7 @@ import { getVn } from '@/lib/vndb';
 import { resolveField } from '@/lib/source-resolve';
 import { formatMinutes } from '@/lib/format';
 import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
 import { EditForm } from '@/components/EditForm';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -84,8 +85,8 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 const CACHE_MS = 24 * 3600 * 1000;
 
-function fmtMinutes(m: number | null | undefined): string {
-  return formatMinutes(m, { fallback: '—', emptyValue: 'strict_positive' });
+function fmtMinutes(m: number | null | undefined, locale: Locale, t: any = {}): string {
+  return formatMinutes(m, locale, t.year, { fallback: '—', emptyValue: 'strict_positive' });
 }
 
 function combinedScore(vndb: number | null, egs: number | null): number | null {
@@ -515,7 +516,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                     />
                   ) : (
                     <>
-                      {fmtMinutes(vn.length_minutes)}
+                      {fmtMinutes(vn.length_minutes, locale, t)}
                       {vn.length_votes != null && vn.length_votes > 0 && (
                         <span className="ml-2 text-xs font-normal text-muted">
                           · {vn.length_votes} {t.detail.lengthVotes}

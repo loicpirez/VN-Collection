@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-react';
 import { db, getCollectionItem } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
 import { formatMinutes } from '@/lib/format';
 import { roleLabel } from '@/lib/staff-roles';
 import { platformLabel } from '@/lib/platform-label';
@@ -28,8 +29,8 @@ function parseIds(raw: string | undefined): string[] {
     .slice(0, 4);
 }
 
-function fmtMinutes(m: number | null | undefined): string {
-  return formatMinutes(m, { fallback: '—', emptyValue: 'strict_positive' });
+function fmtMinutes(m: number | null | undefined, locale: Locale, t: any): string {
+  return formatMinutes(m, locale, t.year, { fallback: '—', emptyValue: 'strict_positive' });
 }
 
 function intersection<T>(sets: Set<T>[]): Set<T> {
@@ -79,6 +80,7 @@ export default async function ComparePage({
   const { ids: idsRaw } = await searchParams;
   const ids = parseIds(idsRaw);
   const t = await getDict();
+  const locale = await getLocale();
 
   const items = ids
     .map((id) => getCollectionItem(id))
@@ -298,7 +300,7 @@ export default async function ComparePage({
 
             <CellHead label={t.compareView.row.length} />
             {items.map((it) => (
-              <div key={`len-${it.id}`} className="bg-bg-card p-3 text-sm">{fmtMinutes(it.length_minutes)}</div>
+              <div key={`len-${it.id}`} className="bg-bg-card p-3 text-sm">{fmtMinutes(it.length_minutes, locale, t)}</div>
             ))}
 
             <CellHead label={t.compareView.row.languages} />

@@ -21,7 +21,7 @@ function n(v: string | null | undefined): number | null {
 }
 
 function fmtMin(m: number | null): string | null {
-  const v = formatMinutes(m, { emptyValue: 'strict_positive' });
+  const v = formatMinutes(m, undefined, undefined, { emptyValue: 'strict_positive' });
   return v === '' ? null : v;
 }
 

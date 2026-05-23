@@ -16,8 +16,8 @@ describe('formatMinutes', () => {
   });
 
   it('honours the fallback option', () => {
-    expect(formatMinutes(null, { fallback: '—' })).toBe('—');
-    expect(formatMinutes(0, { fallback: '—' })).toBe('—');
+    expect(formatMinutes(null, undefined, undefined, { fallback: '—' })).toBe('—');
+    expect(formatMinutes(0, undefined, undefined, { fallback: '—' })).toBe('—');
   });
 
   it('treats 0 as missing under the default (strict_positive) policy', () => {
@@ -26,7 +26,7 @@ describe('formatMinutes', () => {
   });
 
   it('lets 0 through when `emptyValue: "allow_zero"`', () => {
-    expect(formatMinutes(0, { emptyValue: 'allow_zero' })).toBe('0m');
+    expect(formatMinutes(0, undefined, undefined, { emptyValue: 'allow_zero' })).toBe('0m');
   });
 
   it('formats hours-and-minutes', () => {

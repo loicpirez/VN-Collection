@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 
-function VnActivitySummary({
+async function VnActivitySummary({
   entry,
   t,
   statusLabels,
@@ -66,15 +66,17 @@ function VnActivitySummary({
       const from = typeof p?.from === 'number' ? p.from : 0;
       const to = typeof p?.to === 'number' ? p.to : 0;
       const delta = typeof p?.delta === 'number' ? p.delta : (to - from);
+      const t = await getDict();
+      const locale = await getLocale();
       return (
         <span>
-          {formatMinutes(to, { emptyValue: 'allow_zero', fallback: '0m' })}
+          {formatMinutes(to, locale, t.year, { emptyValue: 'allow_zero', fallback: '0m' })}
           {delta !== 0 && (
             <span className={`ml-1.5 inline-flex items-center gap-0.5 text-[10px] ${delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
               {delta > 0
                 ? <ArrowUp className="h-2.5 w-2.5" aria-hidden />
                 : <ArrowDown className="h-2.5 w-2.5" aria-hidden />}
-              {ta.playtimeDelta} {formatMinutes(Math.abs(delta), { emptyValue: 'allow_zero', fallback: '0m' })}
+              {ta.playtimeDelta} {formatMinutes(Math.abs(delta), locale, t.year, { emptyValue: 'allow_zero', fallback: '0m' })}
             </span>
           )}
         </span>

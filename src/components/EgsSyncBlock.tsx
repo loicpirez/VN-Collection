@@ -21,7 +21,7 @@ interface Suggestion {
 }
 
 function fmtMin(n: number | null): string {
-  return formatMinutes(n, { fallback: '—', emptyValue: 'allow_zero' });
+  return formatMinutes(n, undefined, undefined, { fallback: '—', emptyValue: 'allow_zero' });
 }
 
 /**
