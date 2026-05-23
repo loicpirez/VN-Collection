@@ -50,6 +50,15 @@ const ALLOWLIST = new Set([
   'docs/test-matrix.md',
   'docs/TODO_/0.md',
   'docs/TODO_/1.md',
+  'docs/TODO_/2.md',
+  'docs/TODO_/3.md',
+  'docs/TODO_/4.md',
+  'docs/TODO_/5.md',
+  'docs/TODO_/6.md',
+  'docs/TODO_/agent-todos-2025-05-22.md',
+  'docs/TODO_/audit-2025-05-22.md',
+  'docs/TODO_/round4-regression-checklist.md',
+  'docs/TODO_/round5-master-regression-checklist.md',
 ]);
 
 const ROOTS = ['tests', 'scripts', 'docs', 'src'];

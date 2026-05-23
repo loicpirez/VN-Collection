@@ -6,13 +6,14 @@ import { Star, BookMarked, CheckCheck, Clock, Hourglass, Building2, Check, Disc3
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
-import { useT } from '@/lib/i18n/client';
+import { useT, useLocale } from '@/lib/i18n/client';
 import { useResolvedTitle } from './TitleLine';
 import { CardContextMenu } from './CardContextMenu';
 import { FavoriteToggleButton } from './FavoriteToggleButton';
 import { ListsPickerButton } from './ListsPickerButton';
 import type { Status } from '@/lib/types';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
+import { fmtNum } from '@/lib/locale-number';
 
 export interface CardData {
   id: string;
@@ -86,6 +87,7 @@ export const VnCard = memo(VnCardImpl);
  */
 function VnCardImpl({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded, badge, onRemoveFromWishlist }: VnCardProps) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
   const [adding, setAdding] = useState(false);
@@ -168,7 +170,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
     }
   }
   const ratingNum = data.user_rating ?? data.rating;
-  const rating = ratingNum != null ? (ratingNum / 10).toFixed(1) : null;
+  const rating = ratingNum != null ? fmtNum(ratingNum / 10, locale, 1) : null;
   const year = data.released?.slice(0, 4);
   const myPlaytimeMin = data.playtime_minutes ?? null;
   const vndbLengthMin = data.length_minutes ?? null;

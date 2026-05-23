@@ -321,7 +321,7 @@ export function EgsPanel({
           <Stat
             icon={<Star className="h-3 w-3" />}
             label={t.egs.average}
-            value={game.average != null ? game.average.toFixed(1) : '—'}
+            value={game.average != null ? fmtNum(game.average, locale, 1) : '—'}
           />
           <Stat
             icon={<Users className="h-3 w-3" />}
@@ -339,7 +339,7 @@ export function EgsPanel({
           <div className="mt-4 grid gap-3 rounded-lg border border-border bg-bg-elev/40 p-3 sm:grid-cols-3">
             <Stat
               label={t.egs.vndbRating}
-              value={vndbRating != null ? `${(vndbRating / 10).toFixed(1)} / 10` : '—'}
+              value={vndbRating != null ? `${fmtNum(vndbRating / 10, locale, 1)} / 10` : '—'}
               hint={vndbVoteCount != null ? `${fmtNum(vndbVoteCount, locale)} ${t.egs.votes}` : undefined}
             />
             <Stat

@@ -6,8 +6,9 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { DateInput } from './DateInput';
 import { SkeletonBlock } from './Skeleton';
-import { useT } from '@/lib/i18n/client';
+import { useT, useLocale } from '@/lib/i18n/client';
 import { CollapsibleSummary } from './CollapsibleSummary';
+import { fmtNum } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
 interface Label {
@@ -40,6 +41,7 @@ interface State {
  */
 export function VndbStatusPanel({ vnId }: { vnId: string }) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const { confirm } = useConfirm();
   const router = useRouter();
@@ -179,7 +181,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
 
       {state.entry && state.entry.vote != null && (
         <p className="mb-2 text-[11px] text-muted">
-          {t.vndbStatus.currentVote}: <b className="text-accent">{(state.entry.vote / 10).toFixed(1)}/10</b>
+          {t.vndbStatus.currentVote}: <b className="text-accent">{fmtNum(state.entry.vote / 10, locale, 1)}/10</b>
         </p>
       )}
 
@@ -238,8 +240,9 @@ function UlistDetailsEditor({
   onSaved: () => Promise<void>;
 }) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
-  const [vote, setVote] = useState<string>(entry?.vote != null ? (entry.vote / 10).toFixed(1) : '');
+  const [vote, setVote] = useState<string>(entry?.vote != null ? fmtNum(entry.vote / 10, locale, 1) : '');
   const [started, setStarted] = useState<string>(entry?.started ?? '');
   const [finished, setFinished] = useState<string>(entry?.finished ?? '');
   const [notes, setNotes] = useState<string>(entry?.notes ?? '');
@@ -253,11 +256,11 @@ function UlistDetailsEditor({
 
   useEffect(() => {
     if (dirty.current) return;
-    setVote(entry?.vote != null ? (entry.vote / 10).toFixed(1) : '');
+    setVote(entry?.vote != null ? fmtNum(entry.vote / 10, locale, 1) : '');
     setStarted(entry?.started ?? '');
     setFinished(entry?.finished ?? '');
     setNotes(entry?.notes ?? '');
-  }, [entry?.vote, entry?.started, entry?.finished, entry?.notes]);
+  }, [entry?.vote, entry?.started, entry?.finished, entry?.notes, locale]);
 
   const markDirty = (setter: (v: string) => void) => (next: string) => {
     dirty.current = true;

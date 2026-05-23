@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useT, useLocale } from '@/lib/i18n/client';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { SpoilerChip } from './SpoilerChip';
+import { fmtNum } from '@/lib/locale-number';
 import {
   filterAndGroupTags,
   spoilerModeToLevel,
@@ -138,6 +139,7 @@ function TagSection({
   sectionLevel: 0 | 1 | 2;
 }) {
   const t = useT();
+  const locale = useLocale();
   const effectiveLevel = Math.max(settings.spoilerLevel, sectionLevel) as 0 | 1 | 2;
   return (
     <div>
@@ -147,6 +149,7 @@ function TagSection({
       <div className="flex flex-wrap gap-1.5">
         {tags.map((tag) => {
           const links = tagLinks(tag.id);
+          const rating = fmtNum(tag.rating, locale, 1);
           return (
             <span key={tag.id} className="inline-flex items-stretch overflow-hidden rounded-md">
               <SpoilerChip
@@ -156,16 +159,16 @@ function TagSection({
                 currentSpoilerLevel={effectiveLevel}
                 showSexual={settings.showSexualTraits}
                 href={links.tagPageHref}
-                title={`${tag.name} — ${tag.rating.toFixed(1)} / 3`}
+                title={`${tag.name} — ${rating} / 3`}
               >
                 <span className="inline-flex items-center gap-1">
                   {tag.name}
                   {tag.lie && <AlertTriangle className="h-2.5 w-2.5" aria-hidden />}
                   <span
                     className="ml-0.5 rounded bg-bg-elev/80 px-1 text-[9px] font-bold tabular-nums text-muted"
-                    aria-label={t.vnTags.tagRatingAria.replace('{n}', tag.rating.toFixed(1))}
+                    aria-label={t.vnTags.tagRatingAria.replace('{n}', rating)}
                   >
-                    {tag.rating.toFixed(1)}
+                    {rating}
                   </span>
                 </span>
               </SpoilerChip>

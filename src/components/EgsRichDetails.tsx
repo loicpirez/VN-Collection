@@ -157,7 +157,7 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
         {softHard != null && (
           <Stat
             label={t.egsRich.softHard}
-            value={`${softHard.toFixed(1)} / 5`}
+            value={`${fmtNum(softHard, locale, 1)} / 5`}
             hint={t.egsRich.softHardHint}
           />
         )}

@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { Award, Clock, Layers, Star } from 'lucide-react';
 import { bestRoi, ratingHistogram, tagsCompletedPerYear } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 
 function fmt(m: number): string {
   if (m <= 0) return '—';
@@ -25,6 +26,7 @@ function fmt(m: number): string {
  */
 export async function StatsExtras() {
   const t = await getDict();
+  const locale = await getLocale();
   const hist = ratingHistogram();
   const roi = bestRoi(15);
   const tagYears = tagsCompletedPerYear(8);
@@ -89,7 +91,7 @@ export async function StatsExtras() {
                   <Link href={`/vn/${r.id}`} className="font-semibold hover:text-accent">{r.title}</Link>
                 </span>
                 <span className="text-[11px] text-muted">
-                  <span className="text-accent">{(r.user_rating / 10).toFixed(1)}</span>
+                  <span className="text-accent">{fmtNum(r.user_rating / 10, locale, 1)}</span>
                   <span className="mx-1 opacity-50">/</span>
                   <Clock className="mr-0.5 inline-block h-3 w-3" />
                   <span>{fmt(r.playtime_minutes)}</span>

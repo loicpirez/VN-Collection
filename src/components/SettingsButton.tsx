@@ -47,8 +47,9 @@ import {
   type PageSpaceScope,
 } from '@/lib/page-space';
 import { GlobalCardDensitySlider } from './CardDensitySlider';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { fmtNum } from '@/lib/locale-number';
 import {
   DEFAULT_HOME_LAYOUT,
   HOME_LAYOUT_EVENT,
@@ -177,6 +178,7 @@ type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export function SettingsButton() {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -560,7 +562,7 @@ export function SettingsButton() {
                         onChange={(e) => set('nsfwThreshold', Number(e.target.value))}
                         className="accent-accent"
                       />
-                      <span className="text-xs text-muted">{settings.nsfwThreshold.toFixed(1)} / 2.0</span>
+                      <span className="text-xs text-muted">{fmtNum(settings.nsfwThreshold, locale, 1)} / 2.0</span>
                     </label>
                   </div>
                 )}

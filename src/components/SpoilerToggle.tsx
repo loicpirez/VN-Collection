@@ -2,7 +2,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Eye, EyeOff, Settings2, ShieldAlert } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 
 /**
  * Content-safety hub. The closed-eye icon in the navbar opens a
@@ -24,6 +25,7 @@ import { useT } from '@/lib/i18n/client';
  */
 export function SpoilerToggle() {
   const t = useT();
+  const locale = useLocale();
   const { settings, set } = useDisplaySettings();
   const [open, setOpen] = useState(false);
   const popRef = useRef<HTMLDivElement | null>(null);
@@ -151,7 +153,7 @@ export function SpoilerToggle() {
               <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
                 <span className="font-semibold">{t.settings.nsfwThreshold}</span>
                 <span className="font-mono text-[11px] text-accent">
-                  {settings.nsfwThreshold.toFixed(1)} / 2.0
+                  {fmtNum(settings.nsfwThreshold, locale, 1)} / 2.0
                 </span>
               </div>
               <input

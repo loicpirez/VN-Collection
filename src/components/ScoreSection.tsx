@@ -1,7 +1,9 @@
 'use client';
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Star } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useT, useLocale } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
+import type { Locale } from '@/lib/i18n/dictionaries';
 
 interface ScoreTileProps {
   label: string;
@@ -32,8 +34,8 @@ interface Props {
   votes: string;
 }
 
-function fmtScore10(score: number | null | undefined): string {
-  return score == null ? '—' : (score / 10).toFixed(1);
+function fmtScore10(score: number | null | undefined, locale: Locale): string {
+  return score == null ? '—' : fmtNum(score / 10, locale, 1);
 }
 
 function fmtScore100(score: number | null | undefined): string {
@@ -52,6 +54,7 @@ export function ScoreSection({
   votes,
 }: Props) {
   const t = useT();
+  const locale = useLocale();
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -59,7 +62,7 @@ export function ScoreSection({
       <div className="flex items-center gap-2 flex-wrap">
         <Star className="h-5 w-5 shrink-0 fill-accent text-accent" aria-hidden />
         <span className="text-2xl font-bold tabular-nums text-accent">
-          {fmtScore10(unifiedRating)}
+          {fmtScore10(unifiedRating, locale)}
         </span>
         <span className="text-sm text-muted">{ratingOf10}</span>
         <span className="text-[11px] text-muted/70">· {unifiedRatingSource}</span>
@@ -79,7 +82,7 @@ export function ScoreSection({
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <ScoreTile
             label={t.detail.scoreVndb}
-            value={`${fmtScore10(vndbRating)}${ratingOf10}`}
+            value={`${fmtScore10(vndbRating, locale)}${ratingOf10}`}
             meta={`${formattedVotecount} ${votes}`}
           />
           <ScoreTile
@@ -89,12 +92,12 @@ export function ScoreSection({
           />
           <ScoreTile
             label={t.detail.scoreVndbRaw}
-            value={`${fmtScore10(vndbAverage)}${ratingOf10}`}
+            value={`${fmtScore10(vndbAverage, locale)}${ratingOf10}`}
             meta={vndbAverage == null ? t.detail.scoreUnavailable : t.detail.scoreVndbRawHint}
           />
           <ScoreTile
             label={t.detail.myRatingLabel}
-            value={`${fmtScore10(userRating)}${ratingOf10}`}
+            value={`${fmtScore10(userRating, locale)}${ratingOf10}`}
             meta={userRating == null ? t.detail.scoreUnavailable : t.detail.scoreMineHint}
           />
         </div>
