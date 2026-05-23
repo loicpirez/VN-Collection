@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Building2, Crown, Download, Package, Trophy, Wrench } from 'lucide-react';
 import { listProducerStats, listPublisherStats } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 import { ProducerLogo } from '@/components/ProducerLogo';
 import type { ProducerStat } from '@/lib/types';
 
@@ -30,6 +31,7 @@ export default async function ProducersPage({
   searchParams: Promise<{ role?: string }>;
 }) {
   const t = await getDict();
+  const locale = await getLocale();
   const sp = await searchParams;
   const role: RoleTab = sp.role === 'publisher' ? 'publisher' : 'developer';
 
@@ -79,7 +81,7 @@ export default async function ProducersPage({
           </Link>
         </div>
       ) : (
-        <ProducerTable producers={producers} role={role} t={t} />
+        <ProducerTable producers={producers} role={role} t={t} locale={locale} />
       )}
     </div>
   );
@@ -114,10 +116,12 @@ function ProducerTable({
   producers,
   role,
   t,
+  locale,
 }: {
   producers: ProducerStat[];
   role: RoleTab;
   t: Awaited<ReturnType<typeof getDict>>;
+  locale: Awaited<ReturnType<typeof getLocale>>;
 }) {
   const roleHeader = role === 'publisher' ? t.detail.publishers : t.detail.developers;
   return (
@@ -134,8 +138,8 @@ function ProducerTable({
         </thead>
         <tbody>
           {producers.map((p, i) => {
-            const displayUserAvg = p.avg_user_rating != null ? (p.avg_user_rating / 10).toFixed(1) : '—';
-            const displayAvg = p.avg_rating != null ? (p.avg_rating / 10).toFixed(1) : '—';
+            const displayUserAvg = p.avg_user_rating != null ? fmtNum(p.avg_user_rating / 10, locale, 1) : '—';
+            const displayAvg = p.avg_rating != null ? fmtNum(p.avg_rating / 10, locale, 1) : '—';
             return (
               <tr key={p.id} className="border-t border-border hover:bg-bg-elev/30">
                 <td className="px-3 py-3 align-middle sm:px-4">
