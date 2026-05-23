@@ -7,8 +7,11 @@ const BCP47: Record<Locale, string> = {
 };
 
 /** Format a number using locale-appropriate thousands separators. */
-export function fmtNum(n: number, locale: Locale): string {
-  return n.toLocaleString(BCP47[locale]);
+export function fmtNum(n: number, locale: Locale, fractionDigits?: number): string {
+  return n.toLocaleString(BCP47[locale], {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
 }
 
 /** Format a Date/timestamp with locale-appropriate representation. */

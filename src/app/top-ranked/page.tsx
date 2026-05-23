@@ -591,11 +591,14 @@ function EgsSection({
                     <span
                       className="rounded border border-accent/30 bg-accent/10 px-1 text-[10px] font-bold tabular-nums text-accent"
                       title={t.topRanked.scoreMethodEgsBayes}
-                      aria-label={`Bayes ${egsBayesianScore(r.median, r.count).toFixed(0)}/100 — ${t.topRanked.scoreMethodEgsBayes}`}
+                      aria-label={`${t.topRanked.bayesScoreShort.replace(
+                        '{n}',
+                        fmtNum(egsBayesianScore(r.median, r.count), locale, 0),
+                      )} — ${t.topRanked.scoreMethodEgsBayes}`}
                     >
                       {t.topRanked.bayesScoreShort.replace(
                         '{n}',
-                        egsBayesianScore(r.median, r.count).toFixed(0),
+                        fmtNum(egsBayesianScore(r.median, r.count), locale, 0),
                       )}
                     </span>
                   )}
