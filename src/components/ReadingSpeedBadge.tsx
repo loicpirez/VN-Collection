@@ -39,8 +39,8 @@ export async function ReadingSpeedBadge({ vndbLength, egsLength }: Props) {
         <Gauge className="h-3 w-3 text-accent" aria-hidden />
         <span className="font-bold uppercase tracking-wider">{t.readingSpeed.label}</span>
       </span>
-      <span>VNDB: <span className="font-semibold text-white/85">{fmt(vndbLength)}</span></span>
-      <span>EGS: <span className="font-semibold text-white/85">{fmt(egsLength)}</span></span>
+      <span>{t.readingSpeed.sourceVndb} <span className="font-semibold text-white/85">{fmt(vndbLength)}</span></span>
+      <span>{t.readingSpeed.sourceEgs} <span className="font-semibold text-white/85">{fmt(egsLength)}</span></span>
       {predicted != null ? (
         <span title={t.readingSpeed.tooltip.replace('{n}', String(profile.sampleSize))}>
           {t.readingSpeed.you}: <span className="font-semibold text-accent">≈ {fmt(predicted)}</span>

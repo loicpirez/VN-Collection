@@ -1410,6 +1410,8 @@ export const dictionaries = {
       tooltip: 'Calculé sur {n} VN terminé(s) avec un temps de jeu enregistré.',
       notEnough: 'pas assez de VN terminés pour estimer ton rythme',
       notEnoughHint: 'Termine au moins 3 VN avec un temps de jeu pour activer la prédiction.',
+      sourceVndb: 'VNDB :',
+      sourceEgs: 'EGS :',
     },
     quickActions: {
       title: 'Actions rapides',
@@ -4064,6 +4066,8 @@ export const dictionaries = {
       tooltip: 'Computed from {n} completed VN(s) with recorded playtime.',
       notEnough: 'not enough completed VNs to estimate your pace',
       notEnoughHint: 'Finish at least 3 VNs with a playtime to unlock the prediction.',
+      sourceVndb: 'VNDB:',
+      sourceEgs: 'EGS:',
     },
     quickActions: {
       title: 'Quick actions',
@@ -6715,6 +6719,8 @@ export const dictionaries = {
       tooltip: 'プレイ時間が記録された {n} 本の完了 VN から計算。',
       notEnough: 'ペース推定には完了 VN が足りません',
       notEnoughHint: 'プレイ時間付きで 3 本以上完了すると予測が有効になります。',
+      sourceVndb: 'VNDB:',
+      sourceEgs: 'EGS:',
     },
     quickActions: {
       title: 'クイック操作',
