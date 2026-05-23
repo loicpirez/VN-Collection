@@ -70,7 +70,9 @@ export default async function DataPage() {
             tone={auth ? 'good' : status.vndb_token === 'none' ? 'muted' : 'warn'}
             sub={
               auth
-                ? `${t.dataMgmt.statusVndbSource}: ${status.vndb_token === 'db' ? 'DB' : 'env'}`
+                ? `${t.dataMgmt.statusVndbSource}: ${
+                    status.vndb_token === 'db' ? t.dataMgmt.statusVndbSourceDb : t.dataMgmt.statusVndbSourceEnv
+                  }`
                 : authError ?? undefined
             }
           />
