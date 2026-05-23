@@ -12,21 +12,24 @@ function readLocaleCookie(): SupportedLocale | null {
   return loc && (VALID_LOCALES as readonly string[]).includes(loc) ? (loc as SupportedLocale) : null;
 }
 
-const STRINGS: Record<SupportedLocale, { title: string; body: string; retry: string }> = {
+const STRINGS: Record<SupportedLocale, { title: string; body: string; retry: string; digest: string }> = {
   fr: {
     title: 'Une erreur est survenue.',
     body: "La page a rencontré une erreur inattendue. Essayez de rafraîchir — si le problème persiste, redémarrez le serveur.",
     retry: 'Réessayer',
+    digest: 'digest :',
   },
   en: {
     title: 'Something broke.',
     body: 'The page hit an unexpected error. Try refreshing — if it persists, restart the server.',
     retry: 'Try again',
+    digest: 'digest:',
   },
   ja: {
     title: 'エラーが発生しました。',
     body: 'ページで予期しないエラーが発生しました。更新してみてください。問題が続く場合はサーバーを再起動してください。',
     retry: '再試行',
+    digest: 'ダイジェスト:',
   },
 };
 
@@ -70,7 +73,7 @@ export default function GlobalError({
           </p>
           {error.digest && (
             <p style={{ fontFamily: 'monospace', fontSize: 11, color: '#64748b', marginBottom: 16 }}>
-              digest: {error.digest}
+              {s.digest} {error.digest}
             </p>
           )}
           <button
