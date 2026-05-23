@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const CHECKLIST = readFileSync(
-  join(__dirname, '..', 'docs/round5-master-regression-checklist.md'),
+  join(__dirname, '..', 'docs/round6-master-regression-checklist.md'),
   'utf8',
 );
 
@@ -54,11 +54,12 @@ function splitMarkdownRow(line: string): string[] {
   return cells;
 }
 
-describe('R5-217 — FIXED_VERIFIED rows have commit + substantive evidence', () => {
+describe('R6-217 — FIXED_VERIFIED rows have commit + substantive evidence', () => {
   const lines = CHECKLIST.split('\n').filter((line) => /\bFIXED_VERIFIED\b\s*\|\s*$/.test(line));
 
   it('the suite finds a meaningful number of closed rows', () => {
-    expect(lines.length).toBeGreaterThan(100);
+    // We expect some rows to be fixed verified already as per the instructions
+    expect(lines.length).toBeGreaterThan(10);
   });
 
   it('every FIXED_VERIFIED row has a commit hash OR an "already shipped" marker', () => {

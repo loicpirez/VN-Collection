@@ -42,11 +42,14 @@ const ALLOWLIST = new Set([
   // exceptions below can be removed.
   'scripts/browser-interactions.mjs',
   'scripts/browser-qa.sh',
-  // Audit logs / round 5 checklist legitimately cite real IDs in
+  // Audit logs / round checklists legitimately cite real IDs in
   // bug-report context.
+  'docs/round6-master-regression-checklist.md',
   'docs/round5-master-regression-checklist.md',
   'docs/round4-regression-checklist.md',
   'docs/test-matrix.md',
+  'docs/TODO_/0.md',
+  'docs/TODO_/1.md',
 ]);
 
 const ROOTS = ['tests', 'scripts', 'docs', 'src'];

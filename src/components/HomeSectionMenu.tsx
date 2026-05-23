@@ -137,6 +137,7 @@ export function HomeSectionControls({
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Click-outside / Escape close the menu.
   useEffect(() => {
@@ -145,7 +146,10 @@ export function HomeSectionControls({
       if (!containerRef.current?.contains(e.target as Node)) setMenuOpen(false);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setMenuOpen(false);
+      if (e.key === 'Escape') {
+        setMenuOpen(false);
+        triggerRef.current?.focus();
+      }
     }
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -214,6 +218,7 @@ export function HomeSectionControls({
                 : <ChevronDown className="h-3.5 w-3.5" aria-hidden />}
             </button>
             <button
+              ref={triggerRef}
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
               disabled={busy}
