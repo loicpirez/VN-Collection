@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   BookHeart,
+  Building2,
   Database,
   ExternalLink,
   Link2,
@@ -48,6 +49,7 @@ interface KobeItem {
   vn_image_url: string | null;
   vn_local_image: string | null;
   vn_image_sexual: number | null;
+  vn_developers: string | null;
 }
 
 interface KobeStats {
@@ -284,6 +286,11 @@ type ActiveOp =
 
 interface PendingCounts { vndb_pending: number; egs_pending: number }
 
+function parseDevs(json: string | null): { id: string; name: string }[] {
+  if (!json) return [];
+  try { return JSON.parse(json) as { id: string; name: string }[]; } catch { return []; }
+}
+
 /**
  * Client-side page for the Alice Kobe second-hand stock browser.
  *
@@ -296,7 +303,7 @@ interface PendingCounts { vndb_pending: number; egs_pending: number }
  * All steps can be run individually or chained with "Download all".
  * Any step can be stopped with the Stop button.
  */
-export function KobeClient() {
+export function AlicesoftKobeClient() {
   const t = useT();
   const toast = useToast();
   const [items, setItems] = useState<KobeItem[]>([]);
@@ -309,6 +316,7 @@ export function KobeClient() {
   const [opTotal, setOpTotal] = useState(0);
   const [opLabel, setOpLabel] = useState('');
   const [filter, setFilter] = useState<FilterTab>('all');
+  const [producerFilter, setProducerFilter] = useState('');
   const [search, setSearch] = useState('');
   const [linkTarget, setLinkTarget] = useState<KobeItem | null>(null);
   const stopRef = useRef(false);
@@ -446,12 +454,28 @@ export function KobeClient() {
   const opPct = opTotal > 0 ? Math.round((opDone / opTotal) * 100) : 0;
   const matchPct = stats.total > 0 ? Math.round((stats.matched / stats.total) * 100) : 0;
 
+  const producers = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of items) {
+      const devs = parseDevs(item.vn_developers);
+      for (const d of devs) {
+        if (d.id && !map.has(d.id)) map.set(d.id, d.name || d.id);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [items]);
+
   const filtered = useMemo(() => {
     let list = items;
     if (filter === 'matched') list = list.filter((i) => i.vn_id !== null);
     else if (filter === 'unmatched') list = list.filter((i) => i.vn_id === null && i.vn_match_source !== 'none');
     else if (filter === 'none_found') list = list.filter((i) => i.vn_match_source === 'none');
     else if (filter === 'wishlist') list = list.filter((i) => i.in_wishlist === 1);
+    if (producerFilter) {
+      list = list.filter((i) => parseDevs(i.vn_developers).some((d) => d.id === producerFilter));
+    }
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -463,7 +487,7 @@ export function KobeClient() {
       );
     }
     return list;
-  }, [items, filter, search]);
+  }, [items, filter, producerFilter, search]);
 
   const tabs: { id: FilterTab; label: string; count: number }[] = [
     { id: 'all', label: t.kobe.kobeFilterAll, count: stats.total },
@@ -632,39 +656,73 @@ export function KobeClient() {
         )}
       </div>
 
-      {/* Filter tabs + search */}
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="flex flex-1 flex-wrap gap-1 border-b border-border">
-          {tabs.map((tab) => (
+      {/* Filter tabs + producer select + search */}
+      <div className="mb-4 space-y-2">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-1 flex-wrap gap-1 border-b border-border">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilter(tab.id)}
+                className={`flex items-center gap-1.5 rounded-t px-3 py-1.5 text-sm transition-colors ${
+                  filter === tab.id
+                    ? 'border-b-2 border-accent font-medium text-accent'
+                    : 'text-muted hover:text-white'
+                }`}
+              >
+                {tab.id === 'wishlist' && <BookHeart className="h-3 w-3" aria-hidden />}
+                {tab.label}
+                <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="relative min-w-[200px]">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t.kobe.kobeSearchPlaceholder}
+              aria-label={t.kobe.kobeSearchPlaceholder}
+              className="input w-full pl-8 text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Producer filter row */}
+        {producers.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Building2 className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
             <button
-              key={tab.id}
               type="button"
-              onClick={() => setFilter(tab.id)}
-              className={`flex items-center gap-1.5 rounded-t px-3 py-1.5 text-sm transition-colors ${
-                filter === tab.id
-                  ? 'border-b-2 border-accent font-medium text-accent'
-                  : 'text-muted hover:text-white'
+              onClick={() => setProducerFilter('')}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                producerFilter === ''
+                  ? 'border-accent bg-accent/10 font-medium text-accent'
+                  : 'border-border text-muted hover:border-accent hover:text-white'
               }`}
             >
-              {tab.id === 'wishlist' && <BookHeart className="h-3 w-3" aria-hidden />}
-              {tab.label}
-              <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}>
-                {tab.count}
-              </span>
+              {t.kobe.kobeFilterProducerAll}
             </button>
-          ))}
-        </div>
-        <div className="relative min-w-[200px]">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t.kobe.kobeSearchPlaceholder}
-            aria-label={t.kobe.kobeSearchPlaceholder}
-            className="input w-full pl-8 text-sm"
-          />
-        </div>
+            {producers.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setProducerFilter(producerFilter === p.id ? '' : p.id)}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                  producerFilter === p.id
+                    ? 'border-accent bg-accent/10 font-medium text-accent'
+                    : 'border-border text-muted hover:border-accent hover:text-white'
+                }`}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Item list */}
@@ -683,6 +741,7 @@ export function KobeClient() {
               ? (() => { try { return JSON.parse(item.vn_candidates) as KobeCandidate[]; } catch { return []; } })()
               : [];
             const showSearched = item.search_title && item.search_title !== item.title;
+            const devs = parseDevs(item.vn_developers);
             return (
               <li key={item.code} className="rounded-xl border border-border bg-bg-card p-3 transition-shadow hover:shadow-card">
                 <div className="flex gap-3">
@@ -705,6 +764,26 @@ export function KobeClient() {
                           {item.release_date && <span>{item.release_date}</span>}
                           <span className="font-mono opacity-50">{item.code}</span>
                         </div>
+                        {devs.length > 0 && (
+                          <div className="mt-0.5 flex flex-wrap gap-1">
+                            {devs.map((d) => (
+                              <button
+                                key={d.id}
+                                type="button"
+                                onClick={() => setProducerFilter(producerFilter === d.id ? '' : d.id)}
+                                className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] transition-colors ${
+                                  producerFilter === d.id
+                                    ? 'bg-accent/20 text-accent'
+                                    : 'bg-bg-elev/50 text-muted hover:text-accent'
+                                }`}
+                                title={t.kobe.kobeFilterProducer}
+                              >
+                                <Building2 className="h-2.5 w-2.5" aria-hidden />
+                                {d.name || d.id}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         {showSearched && (
                           <p className="mt-0.5 text-[10px] italic text-muted/60">
                             {t.kobe.kobeSearchedAs.replace('{q}', item.search_title!)}

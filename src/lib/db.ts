@@ -6978,7 +6978,12 @@ export function listProducerStats(): ProducerStat[] {
     .prepare(`
       SELECT
         di.producer_id AS id,
-        COALESCE(p.name, di.producer_id) AS name,
+        COALESCE(
+          p.name,
+          (SELECT json_extract(d.value, '$.name') FROM json_each(v.developers) d
+           WHERE json_extract(d.value, '$.id') = di.producer_id LIMIT 1),
+          di.producer_id
+        ) AS name,
         p.original, p.lang, p.type, p.description, p.aliases, p.extlinks, p.logo_path,
         COALESCE(p.fetched_at, 0) AS fetched_at,
         COUNT(DISTINCT di.vn_id) AS vn_count,
@@ -7013,7 +7018,12 @@ export function listPublisherStats(): ProducerStat[] {
     .prepare(`
       SELECT
         pi.producer_id AS id,
-        COALESCE(p.name, pi.producer_id) AS name,
+        COALESCE(
+          p.name,
+          (SELECT json_extract(d.value, '$.name') FROM json_each(v.publishers) d
+           WHERE json_extract(d.value, '$.id') = pi.producer_id LIMIT 1),
+          pi.producer_id
+        ) AS name,
         p.original, p.lang, p.type, p.description, p.aliases, p.extlinks, p.logo_path,
         COALESCE(p.fetched_at, 0) AS fetched_at,
         COUNT(DISTINCT pi.vn_id) AS vn_count,
@@ -8525,18 +8535,19 @@ export function upsertKobeStock(
   return { added, updated, removed };
 }
 
-export function listKobeStock(): (KobeStockRow & { in_wishlist: number })[] {
+export function listKobeStock(): (KobeStockRow & { in_wishlist: number; vn_developers: string | null })[] {
   return db.prepare(`
     SELECT k.*,
            CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_wishlist,
            v.image_url        AS vn_image_url,
            v.local_image      AS vn_local_image,
-           v.image_sexual     AS vn_image_sexual
+           v.image_sexual     AS vn_image_sexual,
+           v.developers       AS vn_developers
     FROM   alicesoft_kobe_stock k
     LEFT   JOIN collection c ON c.vn_id = k.vn_id
     LEFT   JOIN vn          v ON v.id    = k.vn_id
     ORDER  BY k.title
-  `).all() as (KobeStockRow & { in_wishlist: number })[];
+  `).all() as (KobeStockRow & { in_wishlist: number; vn_developers: string | null })[];
 }
 
 export function getKobeStockItem(code: string): KobeStockRow | null {
