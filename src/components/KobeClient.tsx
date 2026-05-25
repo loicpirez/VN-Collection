@@ -11,7 +11,6 @@ import {
   RotateCcw,
   Search,
   ShoppingBag,
-  Square,
   X,
   Zap,
 } from 'lucide-react';
@@ -352,10 +351,11 @@ export function KobeClient() {
     body: Record<string, unknown>,
     label: string,
     getRemaining: (d: { processed: number; remaining: number }) => number,
+    initialTotal = 0,
   ) {
     let done = 0;
     setOpDone(0);
-    setOpTotal(0);
+    setOpTotal(initialTotal);
     setOpLabel(label);
     while (!stopRef.current) {
       const r = await fetch(endpoint, {
@@ -380,13 +380,13 @@ export function KobeClient() {
         setOpLabel(t.kobe.kobeDownloading);
         await downloadStock();
       } else if (op === 'matching') {
-        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining);
+        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining, stats.unmatched);
       } else if (op === 'retrying') {
-        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, t.kobe.kobeRetryNone, (d) => d.remaining);
+        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, t.kobe.kobeRetryNone, (d) => d.remaining, stats.none_found);
       } else if (op === 'download-vndb') {
-        await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining);
+        await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending);
       } else if (op === 'resolve-egs') {
-        await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining);
+        await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining, pending.egs_pending);
       }
       await load();
     } catch (e) {
@@ -403,11 +403,11 @@ export function KobeClient() {
       setOpLabel(t.kobe.kobeDownloading);
       await downloadStock();
       if (stopRef.current) return;
-      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining);
+      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining, stats.unmatched);
       if (stopRef.current) return;
-      await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining);
+      await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending);
       if (stopRef.current) return;
-      await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining);
+      await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining, pending.egs_pending);
       await load();
     } catch (e) {
       toast.error((e as Error).message);
@@ -510,32 +510,34 @@ export function KobeClient() {
       {/* Toolbar */}
       <div className="mb-5 rounded-xl border border-border bg-bg-card p-3">
         {isBusy ? (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-start gap-3">
             <button
               type="button"
               onClick={() => { stopRef.current = true; }}
-              className="btn btn-danger btn-sm shrink-0"
+              className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
             >
-              <Square className="h-3.5 w-3.5" />
               {t.kobe.kobeStopMatch}
             </button>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" aria-hidden />
-                <p className="truncate text-xs text-muted">{opLabel}</p>
+            <div className="min-w-0 flex-1" role="status" aria-live="polite">
+              <div className="flex items-center gap-2 text-xs text-muted">
+                <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden />
+                <span className="truncate">{opLabel}</span>
                 {opTotal > 0 && (
-                  <span className="shrink-0 text-[10px] tabular-nums text-muted">{opDone}/{opTotal} ({opPct}%)</span>
+                  <span className="ml-auto shrink-0 tabular-nums">{opDone}/{opTotal}</span>
                 )}
               </div>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev">
-                {opTotal > 0 ? (
-                  <div
-                    className="h-full rounded-full bg-accent transition-all duration-500"
-                    style={{ width: `${opPct}%` }}
-                  />
-                ) : (
-                  <div className="h-full w-full animate-pulse rounded-full bg-accent/40" />
-                )}
+              <div
+                role="progressbar"
+                aria-valuenow={Math.round(opPct)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={opLabel}
+                className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev"
+              >
+                <div
+                  className="h-full bg-accent transition-[width] duration-200"
+                  style={{ width: `${opPct}%` }}
+                />
               </div>
             </div>
           </div>
