@@ -808,7 +808,7 @@ export function AlicesoftKobeClient() {
                             {t.kobe.kobeInWishlist}
                           </span>
                         )}
-                        {item.in_collection === 1 && item.in_wishlist === 0 && (
+                        {item.in_collection === 1 && (
                           <span className="inline-flex items-center gap-1 rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] text-green-400">
                             <BookHeart className="h-2.5 w-2.5" aria-hidden />
                             {t.kobe.kobeInCollection}
