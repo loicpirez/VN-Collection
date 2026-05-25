@@ -8,10 +8,10 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function POST(req: NextRequest, { params }: { params: { code: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ code: string }> }) {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const code = params.code;
+  const { code } = await ctx.params;
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const vnId = body.vn_id;
   if (vnId !== null && (typeof vnId !== 'string' || !isVndbVnId(vnId as string))) {
@@ -24,10 +24,10 @@ export async function POST(req: NextRequest, { params }: { params: { code: strin
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { code: string } }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ code: string }> }) {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const code = params.code;
+  const { code } = await ctx.params;
   clearKobeVnLink(code);
   return NextResponse.json({ ok: true });
 }

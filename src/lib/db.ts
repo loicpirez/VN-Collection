@@ -8469,6 +8469,12 @@ export interface KobeStockRow {
   last_matched_at: number | null;
   fetched_at: number;
   updated_at: number;
+  /** VN cover URL (remote VNDB CDN) — populated when vn_id is matched. */
+  vn_image_url: string | null;
+  /** VN cover local mirror path — populated when vn_id is matched and image downloaded. */
+  vn_local_image: string | null;
+  /** VN cover sexual score (0–2) — used by SafeImage for NSFW gating. */
+  vn_image_sexual: number | null;
 }
 
 export function upsertKobeStock(
@@ -8522,9 +8528,13 @@ export function upsertKobeStock(
 export function listKobeStock(): (KobeStockRow & { in_wishlist: number })[] {
   return db.prepare(`
     SELECT k.*,
-           CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_wishlist
+           CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_wishlist,
+           v.image_url        AS vn_image_url,
+           v.local_image      AS vn_local_image,
+           v.image_sexual     AS vn_image_sexual
     FROM   alicesoft_kobe_stock k
     LEFT   JOIN collection c ON c.vn_id = k.vn_id AND c.status = 'planning'
+    LEFT   JOIN vn          v ON v.id    = k.vn_id
     ORDER  BY k.title
   `).all() as (KobeStockRow & { in_wishlist: number })[];
 }

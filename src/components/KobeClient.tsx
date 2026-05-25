@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useDialogA11y } from './Dialog';
 import { useToast } from './ToastProvider';
+import { SafeImage } from './SafeImage';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { readApiError } from '@/lib/api-error-read';
@@ -44,6 +45,9 @@ interface KobeItem {
   last_matched_at: number | null;
   fetched_at: number;
   updated_at: number;
+  vn_image_url: string | null;
+  vn_local_image: string | null;
+  vn_image_sexual: number | null;
 }
 
 interface KobeStats {
@@ -569,6 +573,14 @@ export function KobeClient() {
             return (
               <li key={item.code} className="py-3">
                 <div className="flex flex-wrap items-start gap-3">
+                  <SafeImage
+                    src={item.vn_image_url}
+                    localSrc={item.vn_local_image}
+                    sexual={item.vn_image_sexual}
+                    alt={item.title}
+                    className="h-14 w-10 shrink-0 rounded"
+                    fit="cover"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium" title={item.title}>{item.title}</span>
