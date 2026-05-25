@@ -8533,7 +8533,7 @@ export function listKobeStock(): (KobeStockRow & { in_wishlist: number })[] {
            v.local_image      AS vn_local_image,
            v.image_sexual     AS vn_image_sexual
     FROM   alicesoft_kobe_stock k
-    LEFT   JOIN collection c ON c.vn_id = k.vn_id AND c.status = 'planning'
+    LEFT   JOIN collection c ON c.vn_id = k.vn_id
     LEFT   JOIN vn          v ON v.id    = k.vn_id
     ORDER  BY k.title
   `).all() as (KobeStockRow & { in_wishlist: number })[];
@@ -8609,7 +8609,7 @@ export function countKobeStock(): {
         SUM(CASE WHEN k.vn_match_source = 'none' THEN 1 ELSE 0 END)         AS none_found,
         SUM(CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS in_wishlist
       FROM alicesoft_kobe_stock k
-      LEFT JOIN collection c ON c.vn_id = k.vn_id AND c.status = 'planning'
+      LEFT JOIN collection c ON c.vn_id = k.vn_id
     `)
     .get() as { total: number; matched: number; none_found: number; in_wishlist: number };
   const matched = row.matched ?? 0;

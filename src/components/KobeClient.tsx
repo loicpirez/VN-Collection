@@ -470,7 +470,7 @@ export function KobeClient() {
     { id: 'matched', label: t.kobe.kobeFilterMatched, count: stats.matched },
     { id: 'unmatched', label: t.kobe.kobeFilterUnmatched, count: stats.unmatched },
     { id: 'none_found', label: t.kobe.kobeNoneFound, count: stats.none_found },
-    { id: 'wishlist', label: t.kobe.kobeFilterWishlist, count: stats.in_wishlist },
+    { id: 'wishlist', label: t.kobe.kobeInCollection, count: stats.in_wishlist },
   ];
 
   return (
@@ -505,10 +505,10 @@ export function KobeClient() {
         </div>
         <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
           <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
-            <BookHeart className="h-3 w-3 text-rose-400" aria-hidden />
-            {t.kobe.kobeFilterWishlist}
+            <BookHeart className="h-3 w-3 text-green-400" aria-hidden />
+            {t.kobe.kobeInCollection}
           </div>
-          <div className="text-2xl font-bold text-rose-400">{stats.in_wishlist}</div>
+          <div className="text-2xl font-bold text-green-400">{stats.in_wishlist}</div>
         </div>
       </div>
 
@@ -715,9 +715,9 @@ export function KobeClient() {
                       {/* Match status + actions */}
                       <div className="flex flex-wrap items-center gap-2">
                         {item.in_wishlist === 1 && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-400">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] text-green-400">
                             <BookHeart className="h-2.5 w-2.5" aria-hidden />
-                            {t.kobe.kobeInWishlist}
+                            {t.kobe.kobeInCollection}
                           </span>
                         )}
 
