@@ -31,8 +31,7 @@ import { getVn } from '@/lib/vndb';
 import { resolveField } from '@/lib/source-resolve';
 import { formatMinutes } from '@/lib/format';
 import { getDict, getLocale } from '@/lib/i18n/server';
-import type { Locale } from '@/lib/i18n/dictionaries';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, formatVndbDateString } from '@/lib/locale-number';
 import { EditForm } from '@/components/EditForm';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SafeImage } from '@/components/SafeImage';
@@ -96,6 +95,29 @@ function combinedScore(vndb: number | null, egs: number | null): number | null {
   return Math.round((vndb + egs) / 2);
 }
 
+function titleCandidates(vn: CollectionItem): string[] {
+  const candidates = [
+    vn.title,
+    vn.alttitle,
+    ...vn.titles.flatMap((title) => [title.title, title.latin]),
+  ];
+  return candidates
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => value.trim());
+}
+
+function displayTitleForVn(vn: CollectionItem): string {
+  const current = vn.title.trim();
+  const normalized = current.toLocaleLowerCase();
+  const longerContainingCurrent = titleCandidates(vn)
+    .filter((candidate) => {
+      const lower = candidate.toLocaleLowerCase();
+      return lower !== normalized && lower.includes(normalized) && candidate.length > current.length;
+    })
+    .sort((a, b) => a.length - b.length)[0];
+  return longerContainingCurrent ?? current;
+}
+
 
 /**
  * Resolve a VN id to its on-screen detail data.
@@ -153,7 +175,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   // the row immediately; for a not-yet-seen VNDB id we fetch
   // and upsert ONCE per request.
   const { vn } = await loadVn(id);
-  const title = vn?.title ?? `VN ${id}`;
+  const title = vn ? displayTitleForVn(vn) : `VN ${id}`;
   return { title };
 }
 
@@ -217,6 +239,13 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     );
   }
   const inCol = isInCollection(id);
+  const displayTitle = displayTitleForVn(vn);
+  const displayAltTitle =
+    vn.alttitle && vn.alttitle !== displayTitle
+      ? vn.alttitle
+      : displayTitle !== vn.title
+        ? vn.title
+        : vn.alttitle;
   const allSeries = listSeries();
   const listsForThisVn = listListsForVn(id);
   if (isVndbVnId(vn.id)) {
@@ -277,7 +306,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     <div className="w-full">
       <RecordRecentView
         id={vn.id}
-        title={vn.title}
+        title={displayTitle}
         poster={vn.image_url || vn.image_thumb}
         localPoster={vn.local_image || vn.local_image_thumb}
         sexual={vn.image_sexual}
@@ -347,7 +376,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                     initialRemote={heroPoster.remote}
                     initialLocal={heroPoster.local}
                     sexual={vn.image_sexual ?? null}
-                    alt={vn.title}
+                    alt={displayTitle}
                     initialRotation={vn.cover_rotation}
                     inCollection={inCol}
                   />
@@ -388,7 +417,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <MatchBadges egsOnly={vn.id.startsWith('egs_')} egs={egsRow} t={t} />
-                <TitleLine title={vn.title} alttitle={vn.alttitle} />
+                <TitleLine title={displayTitle} alttitle={displayAltTitle} />
                 {(vn.titles ?? []).length > 1 && (
                   <details className="group mt-1 text-[11px]">
                     <summary className="inline-flex cursor-pointer items-center gap-1 text-muted hover:text-white [&::-webkit-details-marker]:hidden [list-style:none]">
@@ -480,11 +509,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                             href={`/?yearMin=${year}&yearMax=${year}`}
                             className="transition-colors hover:text-accent"
                           >
-                            {vn.released}
+                            {formatVndbDateString(vn.released, locale)}
                           </Link>
                         );
                       }
-                      return vn.released;
+                      return formatVndbDateString(vn.released, locale);
                     })()}
                   </dd>
                 </div>

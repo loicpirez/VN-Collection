@@ -245,6 +245,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   const [xRaw, yRaw] = activePos.split(' ');
   const xPct = parseFloat(xRaw);
   const yPct = parseFloat(yRaw);
+  const rotatedStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null);
 
   if (settings.hideImages && !editing) {
     return (
@@ -338,10 +339,21 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
               // the className above adds. `buildRotationStyle` returns
               // `{}` when rotation is 0 so the existing blur classes
               // keep working unchanged.
-              ...buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null),
+              ...rotatedStyle,
             }}
             onLoad={() => setBannerLoaded(true)}
           />
+          {!customBanner && bannerLoaded && !editing && !shouldBlurR18 && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={liveSrc}
+              alt=""
+              aria-hidden
+              draggable={false}
+              className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain object-center opacity-95 drop-shadow-[0_16px_32px_rgba(0,0,0,0.45)]"
+              style={rotatedStyle}
+            />
+          )}
         </>
       ) : (
         <div className="pointer-events-none h-full w-full bg-gradient-to-b from-bg-elev to-bg-card" />
