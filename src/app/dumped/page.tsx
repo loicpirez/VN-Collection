@@ -220,21 +220,15 @@ export default async function DumpedPage({
                 // so the bar never overflows its track.
                 const onShelfHere = onShelf.has(e.vn_id);
                 return (
-                  <li key={e.vn_id} className="relative">
-                    {/*
-                      The whole card is a single anchor to the VN
-                      page (title appears once — only inside the
-                      `<p>`). The shelf deep-link sits ABOVE the
-                      card via `absolute` so it doesn't nest a
-                      second `<a>` inside the outer Link (HTML
-                      validity rule). Pointer events on the chip
-                      win over the outer link via z-index.
-                    */}
+                  <li
+                    key={e.vn_id}
+                    className={`overflow-hidden rounded-lg border bg-bg-elev/40 transition-colors ${
+                      fullyDumped ? 'border-status-completed/50' : 'border-border'
+                    } hover:border-accent`}
+                  >
                     <Link
                       href={noEditions ? dumpedEditionsAnchor(e.vn_id) : dumpedVnHref(e.vn_id)}
-                      className={`group flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors ${
-                        fullyDumped ? 'border-status-completed/50' : 'border-border'
-                      } hover:border-accent`}
+                      className="group flex gap-3 p-2"
                     >
                       {/* Density-aware cover — the card column
                           scales via --card-density-px, so the cover
@@ -299,14 +293,16 @@ export default async function DumpedPage({
                       </div>
                     </Link>
                     {onShelfHere && (
-                      <Link
-                        href={dumpedShelfHref(e.vn_id)}
-                        className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md border border-border bg-bg-card/95 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm transition-colors hover:border-accent hover:text-accent"
-                        title={t.dumped.viewOnShelf}
-                      >
-                        <LayoutGrid className="h-3 w-3" aria-hidden />
-                        {t.dumped.viewOnShelf}
-                      </Link>
+                      <div className="border-t border-border/60 px-2 pb-2 pt-1.5">
+                        <Link
+                          href={dumpedShelfHref(e.vn_id)}
+                          className="inline-flex min-h-8 max-w-full items-center gap-1 rounded-md border border-border bg-bg-card/80 px-2 py-1 text-[10px] font-semibold text-muted transition-colors hover:border-accent hover:text-accent"
+                          title={t.dumped.viewOnShelf}
+                        >
+                          <LayoutGrid className="h-3 w-3 shrink-0" aria-hidden />
+                          <span className="truncate">{t.dumped.viewOnShelf}</span>
+                        </Link>
+                      </div>
                     )}
                   </li>
                 );

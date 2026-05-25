@@ -35,14 +35,17 @@ interface EgsWarning {
 
 interface Props {
   onItemDone?: () => void;
+  itemsOverride?: { id: string; title: string }[];
+  label?: string;
 }
 
-export function BulkDownloadButton({ onItemDone }: Props = {}) {
+export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props = {}) {
   const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const onLibrary = pathname === '/';
+  const hasOverride = Array.isArray(itemsOverride);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(0);
   const [total, setTotal] = useState(0);
@@ -155,6 +158,10 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
     // all" pass. Fire-and-forget; failures show in the download panel.
     void fetch('/api/refresh/global', { method: 'POST' }).catch((e: unknown) => { console.error('[BulkDownloadButton] global refresh failed:', e); });
     try {
+      if (itemsOverride) {
+        await runItems(itemsOverride, full);
+        return;
+      }
       const r = await fetch('/api/collection?sort=title&order=asc', { cache: 'no-store' });
       if (!r.ok) throw new Error(t.common.error);
       const data = (await r.json()) as { items: { id: string; title: string }[] };
@@ -175,6 +182,13 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
     if (failures.length === 0) return;
     const failedIds = new Set(failures.map((f) => f.id));
     try {
+      if (itemsOverride) {
+        const subset = itemsOverride.filter((it) => failedIds.has(it.id));
+        if (subset.length === 0) return;
+        setFailures([]);
+        await runItems(subset, true);
+        return;
+      }
       const r = await fetch('/api/collection?sort=title&order=asc', { cache: 'no-store' });
       if (!r.ok) throw new Error(t.common.error);
       const data = (await r.json()) as { items: { id: string; title: string }[] };
@@ -206,11 +220,11 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
           type="button"
           className="btn"
           onClick={() => setPickerOpen((v) => !v)}
-          disabled={running}
+          disabled={running || (hasOverride && (itemsOverride?.length ?? 0) === 0)}
           title={t.bulk.tooltip}
         >
           {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
-          {running ? `${done}/${total}` : t.bulk.cta}
+          {running ? `${done}/${total}` : (label ?? t.bulk.cta)}
         </button>
         {pickerOpen && !running && (
           <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card">
@@ -236,20 +250,22 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
               </span>
               <span className="text-[10px] text-muted">{t.bulk.fullHint}</span>
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPickerOpen(false);
-                setSelectiveOpen(true);
-              }}
-              className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
-            >
-              <span className="inline-flex items-center gap-1 font-bold">
-                <CheckSquare className="h-3.5 w-3.5 text-accent" />
-                {t.bulk.selective}
-              </span>
-              <span className="text-[10px] text-muted">{t.bulk.selectiveHint}</span>
-            </button>
+            {!hasOverride && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPickerOpen(false);
+                  setSelectiveOpen(true);
+                }}
+                className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
+              >
+                <span className="inline-flex items-center gap-1 font-bold">
+                  <CheckSquare className="h-3.5 w-3.5 text-accent" />
+                  {t.bulk.selective}
+                </span>
+                <span className="text-[10px] text-muted">{t.bulk.selectiveHint}</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -275,7 +291,7 @@ export function BulkDownloadButton({ onItemDone }: Props = {}) {
         />
       </Dialog>
 
-      {onLibrary && (running || finished || aborted || error) && (
+      {(onLibrary || hasOverride) && (running || finished || aborted || error) && (
         <div
           // R5-161: respect iOS safe-area on devices with a
           // home-indicator pill so the panel doesn't sit

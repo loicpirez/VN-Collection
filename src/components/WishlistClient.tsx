@@ -11,6 +11,8 @@ import { useConfirm } from './ConfirmDialog';
 import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
 import { useSearchParams } from 'next/navigation';
 import { useT } from '@/lib/i18n/client';
+import { platformLabel } from '@/lib/platform-label';
+import { BulkDownloadButton } from './BulkDownloadButton';
 
 import { readApiError } from '@/lib/api-error-read';
 import { languageDisplayName } from '@/lib/language-names';
@@ -352,6 +354,10 @@ export function WishlistClient() {
       );
     });
   }, [items, q, hideOwned, filterLang, filterPlatform, filterRatingMin, filterRatingMax, filterYearMin, filterYearMax]);
+  const downloadItems = useMemo(
+    () => filtered.map((it) => ({ id: it.vn.id, title: it.vn.title })),
+    [filtered],
+  );
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -383,7 +389,7 @@ export function WishlistClient() {
         case 'year': key = it.vn.released?.slice(0, 4) || t.wishlist.groupUnknown; break;
         case 'developer': key = it.vn.developers[0]?.name || t.wishlist.groupUnknown; break;
         case 'language': key = it.vn.languages[0] ? languageDisplayName(it.vn.languages[0]) : t.wishlist.groupUnknown; break;
-        case 'platform': key = it.vn.platforms[0] || t.wishlist.groupUnknown; break;
+        case 'platform': key = it.vn.platforms[0] ? platformLabel(it.vn.platforms[0]) : t.wishlist.groupUnknown; break;
         case 'status': key = it.in_collection ? t.wishlist.groupOwned : t.wishlist.groupTodo; break;
         default: key = '';
       }
@@ -521,6 +527,7 @@ export function WishlistClient() {
               <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
               {t.wishlist.refresh}
             </button>
+            <BulkDownloadButton itemsOverride={downloadItems} label={t.wishlist.downloadVisible} />
             <button
               type="button"
               onClick={() => (selectMode ? clearSelection() : setSelectMode(true))}
@@ -589,7 +596,7 @@ export function WishlistClient() {
                 >
                   <option value="">{t.wishlist.filterByPlatform}</option>
                   {availablePlatforms.map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p} value={p}>{platformLabel(p)}</option>
                   ))}
                 </select>
               )}

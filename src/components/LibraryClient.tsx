@@ -2,7 +2,7 @@
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, Check, CheckSquare, ChevronDown, Circle, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, Check, CheckSquare, ChevronDown, Circle, Clock, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, Star, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { toCardData } from './cardData';
 import { SkeletonCardGrid } from './Skeleton';
@@ -68,8 +68,27 @@ const SORT_KEYS: SortKey[] = [
 
 type GroupKey = 'none' | 'tag' | 'producer' | 'publisher' | 'status' | 'series' | 'aspect' | 'year' | 'place' | 'edition';
 const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series', 'aspect', 'year', 'place', 'edition'];
+type GroupSortKey = 'count' | 'name' | 'released';
+const GROUP_SORT_KEYS: GroupSortKey[] = ['count', 'name', 'released'];
 
 const Q_DEBOUNCE_MS = 300;
+
+function filterScore(it: CollectionItem): number | null {
+  const values = [it.user_rating, it.rating, it.egs?.median].filter(
+    (value): value is number => typeof value === 'number' && Number.isFinite(value),
+  );
+  if (values.length === 0) return null;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function filterPlaytimeHours(it: CollectionItem): number | null {
+  const minutes =
+    it.playtime_minutes && it.playtime_minutes > 0 ? it.playtime_minutes
+    : it.egs?.playtime_median_minutes && it.egs.playtime_median_minutes > 0 ? it.egs.playtime_median_minutes
+    : it.length_minutes && it.length_minutes > 0 ? it.length_minutes
+    : null;
+  return minutes == null ? null : Math.round(minutes / 60);
+}
 
 /**
  * Render mode for the Library client.
@@ -109,6 +128,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const urlEdition = searchParams.get('edition') ?? '';
   const urlYearMin = searchParams.get('yearMin') ?? '';
   const urlYearMax = searchParams.get('yearMax') ?? '';
+  const urlRatingMin = searchParams.get('ratingMin') ?? '';
+  const urlRatingMax = searchParams.get('ratingMax') ?? '';
+  const urlPlaytimeMin = searchParams.get('playtimeMin') ?? '';
+  const urlPlaytimeMax = searchParams.get('playtimeMax') ?? '';
   const urlDumped = searchParams.get('dumped') ?? '';
   // Multi-select aspect. URL state encoded as comma-separated:
   // `?aspect=4:3,16:9`. Back-compat with the prior single-value URL.
@@ -159,6 +182,11 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const group: GroupKey = urlGroup && (GROUP_KEYS as readonly string[]).includes(urlGroup)
     ? (urlGroup as GroupKey)
     : defaultGroup;
+  const urlGroupSort = searchParams.get('groupSort');
+  const groupSort: GroupSortKey =
+    urlGroupSort && (GROUP_SORT_KEYS as readonly string[]).includes(urlGroupSort)
+      ? (urlGroupSort as GroupSortKey)
+      : 'count';
 
   // Local input state for the search box, debounced to URL.
   const [qInput, setQInput] = useState(urlQ);
@@ -215,6 +243,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [yearMinInput, setYearMinInput] = useState(urlYearMin);
   const [yearMaxInput, setYearMaxInput] = useState(urlYearMax);
+  const [ratingMinInput, setRatingMinInput] = useState(urlRatingMin);
+  const [ratingMaxInput, setRatingMaxInput] = useState(urlRatingMax);
+  const [playtimeMinInput, setPlaytimeMinInput] = useState(urlPlaytimeMin);
+  const [playtimeMaxInput, setPlaytimeMaxInput] = useState(urlPlaytimeMax);
 
   function toggleSelected(id: string) {
     setSelected((prev) => {
@@ -344,7 +376,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   );
   const totalH = Math.round(stats.playtime_minutes / 60);
   const hasFilters =
-    !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlEdition || !!urlYearMin || !!urlYearMax || urlAspectSet.length > 0 || urlDumped === '1' || urlDumped === '0';
+    !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlEdition || !!urlYearMin || !!urlYearMax || !!urlRatingMin || !!urlRatingMax || !!urlPlaytimeMin || !!urlPlaytimeMax || urlAspectSet.length > 0 || urlDumped === '1' || urlDumped === '0';
   const yearLabel = urlYearMin && urlYearMax
     ? urlYearMin === urlYearMax
       ? urlYearMin
@@ -365,10 +397,27 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     router.replace(qs ? `/?${qs}` : '/', { scroll: false });
   }
 
+  function clearRange(minKey: string, maxKey: string, setMin: (value: string) => void, setMax: (value: string) => void) {
+    setMin('');
+    setMax('');
+    replaceParams((sp) => {
+      sp.delete(minKey);
+      sp.delete(maxKey);
+    });
+  }
+
   useEffect(() => {
     setYearMinInput(urlYearMin);
     setYearMaxInput(urlYearMax);
   }, [urlYearMin, urlYearMax]);
+  useEffect(() => {
+    setRatingMinInput(urlRatingMin);
+    setRatingMaxInput(urlRatingMax);
+  }, [urlRatingMin, urlRatingMax]);
+  useEffect(() => {
+    setPlaytimeMinInput(urlPlaytimeMin);
+    setPlaytimeMaxInput(urlPlaytimeMax);
+  }, [urlPlaytimeMin, urlPlaytimeMax]);
 
   // URL-driven checkbox filters. Each value is `'1'` (only-matching),
   // `'0'` (only-NOT-matching), or absent (no filter). Names map to keys of
@@ -400,6 +449,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     (urlAspectSet.length > 0 ? 1 : 0) +
     (urlDumped ? 1 : 0) +
     (urlYearMin || urlYearMax ? 1 : 0) +
+    (urlRatingMin || urlRatingMax ? 1 : 0) +
+    (urlPlaytimeMin || urlPlaytimeMax ? 1 : 0) +
     (urlMatchVndb ? 1 : 0) +
     (urlMatchEgs ? 1 : 0) +
     (urlOnlyEgsOnly ? 1 : 0) +
@@ -444,7 +495,17 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const visibleItems = useMemo(
     () =>
       items.filter((it) => {
+        const ratingMin = urlRatingMin ? Number(urlRatingMin) : null;
+        const ratingMax = urlRatingMax ? Number(urlRatingMax) : null;
+        const playtimeMinHours = urlPlaytimeMin ? Number(urlPlaytimeMin) : null;
+        const playtimeMaxHours = urlPlaytimeMax ? Number(urlPlaytimeMax) : null;
+        const score = filterScore(it);
+        const playtimeHours = filterPlaytimeHours(it);
         if (settings.hideSexual && isAdult(it)) return false;
+        if (ratingMin != null && Number.isFinite(ratingMin) && (score == null || score < ratingMin)) return false;
+        if (ratingMax != null && Number.isFinite(ratingMax) && (score == null || score > ratingMax)) return false;
+        if (playtimeMinHours != null && Number.isFinite(playtimeMinHours) && (playtimeHours == null || playtimeHours < playtimeMinHours)) return false;
+        if (playtimeMaxHours != null && Number.isFinite(playtimeMaxHours) && (playtimeHours == null || playtimeHours > playtimeMaxHours)) return false;
         if (!ternaryMatches(urlOnlyEgsOnly, it.id.startsWith('egs_'))) return false;
         if (!ternaryMatches(urlMatchVndb, !it.id.startsWith('egs_'))) return false;
         if (!ternaryMatches(urlMatchEgs, !!it.egs?.egs_id)) return false;
@@ -483,10 +544,14 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       urlIsNsfw,
       urlIsNukige,
       urlInReadingQueue,
+      urlRatingMin,
+      urlRatingMax,
+      urlPlaytimeMin,
+      urlPlaytimeMax,
     ],
   );
   const hiddenBySexualCount = items.length - visibleItems.length;
-  const groups = useMemo(() => groupItems(visibleItems, group, t, sort, order), [visibleItems, group, t, sort, order]);
+  const groups = useMemo(() => groupItems(visibleItems, group, t, sort, order, groupSort), [visibleItems, group, t, sort, order, groupSort]);
 
   return (
     <DensityScopeProvider scope="library">
@@ -701,6 +766,82 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                 />
               </div>
             </div>
+            <div className="flex flex-col gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1.5">
+              <div className="inline-flex items-center gap-1.5 text-xs text-muted">
+                <Star className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{t.library.filterByScore}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input w-24"
+                  placeholder={t.library.scoreMin}
+                  value={ratingMinInput}
+                  min={0}
+                  max={100}
+                  onChange={(e) => setRatingMinInput(e.target.value)}
+                  onBlur={() => setParam('ratingMin', ratingMinInput.trim() || null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setParam('ratingMin', ratingMinInput.trim() || null);
+                  }}
+                  aria-label={t.library.scoreMin}
+                />
+                <span className="text-muted">–</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input w-24"
+                  placeholder={t.library.scoreMax}
+                  value={ratingMaxInput}
+                  min={0}
+                  max={100}
+                  onChange={(e) => setRatingMaxInput(e.target.value)}
+                  onBlur={() => setParam('ratingMax', ratingMaxInput.trim() || null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setParam('ratingMax', ratingMaxInput.trim() || null);
+                  }}
+                  aria-label={t.library.scoreMax}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1.5">
+              <div className="inline-flex items-center gap-1.5 text-xs text-muted">
+                <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{t.library.filterByPlaytime}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input w-24"
+                  placeholder={t.library.playtimeMin}
+                  value={playtimeMinInput}
+                  min={0}
+                  onChange={(e) => setPlaytimeMinInput(e.target.value)}
+                  onBlur={() => setParam('playtimeMin', playtimeMinInput.trim() || null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setParam('playtimeMin', playtimeMinInput.trim() || null);
+                  }}
+                  aria-label={t.library.playtimeMin}
+                />
+                <span className="text-muted">–</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="input w-24"
+                  placeholder={t.library.playtimeMax}
+                  value={playtimeMaxInput}
+                  min={0}
+                  onChange={(e) => setPlaytimeMaxInput(e.target.value)}
+                  onBlur={() => setParam('playtimeMax', playtimeMaxInput.trim() || null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setParam('playtimeMax', playtimeMaxInput.trim() || null);
+                  }}
+                  aria-label={t.library.playtimeMax}
+                />
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -866,6 +1007,22 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               t={t}
             />
           ))}
+          {(urlRatingMin || urlRatingMax) && (
+            <FilterChip
+              icon={<Star className="h-3 w-3" aria-hidden />}
+              label={`${urlRatingMin || '0'}-${urlRatingMax || '100'}`}
+              onClear={() => clearRange('ratingMin', 'ratingMax', setRatingMinInput, setRatingMaxInput)}
+              t={t}
+            />
+          )}
+          {(urlPlaytimeMin || urlPlaytimeMax) && (
+            <FilterChip
+              icon={<Clock className="h-3 w-3" aria-hidden />}
+              label={`${urlPlaytimeMin || '0'}-${urlPlaytimeMax || 'max'}h`}
+              onClear={() => clearRange('playtimeMin', 'playtimeMax', setPlaytimeMinInput, setPlaytimeMaxInput)}
+              t={t}
+            />
+          )}
           {urlDumped && (
             <FilterChip
               icon={<HardDriveDownload className="h-3 w-3" aria-hidden />}
@@ -900,6 +1057,21 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             ))}
           </select>
         </label>
+        {group !== 'none' && (
+          <label className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupSortLabel}</span>
+            <select
+              className="input w-auto"
+              value={groupSort}
+              onChange={(e) => setParam('groupSort', e.target.value)}
+              aria-label={t.library.groupSortLabel}
+            >
+              <option value="count">{t.library.groupSortCount}</option>
+              <option value="name">{t.library.groupSortName}</option>
+              <option value="released">{t.library.groupSortReleased}</option>
+            </select>
+          </label>
+        )}
         <button
           className="btn"
           onClick={() => setParam('order', order === 'asc' ? 'desc' : 'asc')}
@@ -1429,6 +1601,7 @@ function groupItems(
   t: ReturnType<typeof useT>,
   sort: SortKey,
   order: 'asc' | 'desc',
+  groupSort: GroupSortKey,
 ): Group[] {
   if (group === 'none') return [{ key: 'all', label: '', items }];
   const map = new Map<string, Group>();
@@ -1529,32 +1702,39 @@ function groupItems(
       map.get(ed)!.items.push(it);
     }
   }
-  // Group ordering policy:
-  //   - Group axis matches sort axis (producer+producer, publisher+
-  //     publisher): alphabetical by group label, honoring sort
-  //     direction.
-  //   - Series / tag groupings: always alphabetical (those axes
-  //     don't have a corresponding numeric sort).
-  //   - Everything else (status, publisher when sorted by something
-  //     unrelated): biggest bucket first.
-  // In all cases the "Other" bucket goes last.
   const groups = Array.from(map.values());
-  const sortAlphabetical =
+  const direction = order === 'asc' ? 1 : -1;
+  if (groupSort === 'name') {
+    groups.sort((a, b) => a.label.localeCompare(b.label) * direction);
+  } else if (groupSort === 'released') {
+    groups.sort((a, b) => {
+      const av = latestReleased(a.items);
+      const bv = latestReleased(b.items);
+      if (!av && !bv) return a.label.localeCompare(b.label);
+      if (!av) return 1;
+      if (!bv) return -1;
+      const cmp = av.localeCompare(bv);
+      return cmp === 0 ? a.label.localeCompare(b.label) : cmp * direction;
+    });
+  } else if (group === 'year') {
+    groups.sort((a, b) => b.key.localeCompare(a.key));
+    if (order === 'asc') groups.reverse();
+  } else if (
     (group === 'producer' && sort === 'producer') ||
     (group === 'publisher' && sort === 'publisher') ||
     group === 'series' ||
     group === 'tag' ||
     group === 'aspect' ||
     group === 'place' ||
-    group === 'edition';
-  if (group === 'year') {
-    groups.sort((a, b) => b.key.localeCompare(a.key));
-    if (order === 'asc') groups.reverse();
-  } else if (sortAlphabetical) {
+    group === 'edition'
+  ) {
     groups.sort((a, b) => a.label.localeCompare(b.label));
     if (order === 'desc') groups.reverse();
   } else {
-    groups.sort((a, b) => b.items.length - a.items.length);
+    groups.sort((a, b) => {
+      const cmp = b.items.length - a.items.length;
+      return order === 'asc' ? -cmp : cmp;
+    });
   }
   const otherIdx = groups.findIndex((g) => g.key === '__none__');
   if (otherIdx !== -1) {
@@ -1562,6 +1742,14 @@ function groupItems(
     groups.push(other);
   }
   return groups;
+}
+
+function latestReleased(items: CollectionItem[]): string {
+  let latest = '';
+  for (const item of items) {
+    if (item.released && item.released > latest) latest = item.released;
+  }
+  return latest;
 }
 
 /**

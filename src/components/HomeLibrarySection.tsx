@@ -36,7 +36,7 @@ export function HomeLibraryControlsSection({
   );
   if (isHidden) return null;
   return (
-    <section className="mt-8" aria-labelledby="home-library-controls-heading">
+    <section aria-labelledby="home-library-controls-heading">
       <header className="mb-3 flex items-center justify-between gap-2">
         {/*
           Promoted from text-xs/uppercase/muted to a proper section
@@ -109,7 +109,7 @@ function GridSectionInner({
 }) {
   const t = useT();
   return (
-    <section className="mt-3" aria-label={t.homeLayout.sectionLabels['library-grid']}>
+    <section aria-label={t.homeLayout.sectionLabels['library-grid']}>
       {/* Discrete inline controls — top-right, dim by default,
           full opacity on hover. No banner heading: the controls-
           section heading above already says "Ma bibliothèque". */}

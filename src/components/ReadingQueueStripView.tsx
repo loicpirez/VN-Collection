@@ -34,7 +34,7 @@ export function ReadingQueueStripView({ title, entries, initialState }: Props) {
   if (isHidden) return null;
 
   return (
-    <aside className="mb-4 rounded-xl border border-border bg-bg-card p-3">
+    <aside className="rounded-xl border border-border bg-bg-card p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-muted">
           <ListOrdered className="h-3.5 w-3.5 text-accent" aria-hidden /> {title}
