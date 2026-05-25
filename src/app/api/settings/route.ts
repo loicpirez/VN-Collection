@@ -33,6 +33,11 @@ import {
 } from '@/lib/shelf-view-prefs';
 import { recordActivity } from '@/lib/activity';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
+import {
+  getProxyConfigForDisplay,
+  saveProxyConfig,
+  type ProviderId,
+} from '@/lib/proxy-config';
 
 import { readJsonObject } from '@/lib/api-body';
 
@@ -43,6 +48,9 @@ const SENSITIVE_LOG_KEYS = new Set([
   'vndb_token',
   'steam_api_key',
   'vndb_backup_url',
+  'vndb_proxy_config',
+  'vndbmirror_proxy_config',
+  'egs_proxy_config',
 ]);
 
 function maskPayloadValues(obj: Record<string, unknown>): Record<string, unknown> {
@@ -78,6 +86,9 @@ const SAFE_KEYS = new Set([
   'steam_id',
   'egs_username',
   'vndb_fanout',
+  'vndb_proxy_config',
+  'vndbmirror_proxy_config',
+  'egs_proxy_config',
 ]);
 
 const DEFAULT_VNDB_BACKUP_URL = 'https://api.yorhel.org/kana';
@@ -181,6 +192,9 @@ export async function GET(req: Request) {
       steam_id: getAppSetting('steam_id') ?? '',
       egs_username: getAppSetting('egs_username') ?? '',
       vndb_fanout: getAppSetting('vndb_fanout') !== '0',
+      vndb_proxy_config: getProxyConfigForDisplay('vndb'),
+      vndbmirror_proxy_config: getProxyConfigForDisplay('vndbmirror'),
+      egs_proxy_config: getProxyConfigForDisplay('egs'),
     });
   } catch (err) {
     console.error('[settings GET] DB error:', (err as Error).message);
@@ -489,6 +503,22 @@ export async function PATCH(req: NextRequest) {
     } else {
       return NextResponse.json({ error: 'egs_username must be a string' }, { status: 400 });
     }
+  }
+  for (const [key, providerId] of [
+    ['vndb_proxy_config', 'vndb'],
+    ['vndbmirror_proxy_config', 'vndbmirror'],
+    ['egs_proxy_config', 'egs'],
+  ] as [string, ProviderId][]) {
+    if (!(key in body)) continue;
+    const v = body[key];
+    if (typeof v !== 'object' || v == null || Array.isArray(v)) {
+      return NextResponse.json(
+        { error: `${key} must be an object` },
+        { status: 400 },
+      );
+    }
+    const err = saveProxyConfig(providerId, v as Record<string, unknown>);
+    if (err) return NextResponse.json({ error: err }, { status: 400 });
   }
     if (changedKeys.length > 0) {
       recordActivity({
