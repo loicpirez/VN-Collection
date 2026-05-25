@@ -43,29 +43,16 @@ const ALLOWLIST = new Set([
   'scripts/browser-interactions.mjs',
   'scripts/browser-qa.sh',
   // Audit logs / round checklists legitimately cite real IDs in
-  // bug-report context.
+  // bug-report context. docs/TODO_/ is an archive directory and is
+  // excluded from the walk entirely (see walker below).
   'docs/round6-master-regression-checklist.md',
-  'docs/round5-master-regression-checklist.md',
-  'docs/round4-regression-checklist.md',
-  'docs/test-matrix.md',
-  'docs/TODO_/0.md',
-  'docs/TODO_/1.md',
-  'docs/TODO_/2.md',
-  'docs/TODO_/3.md',
-  'docs/TODO_/4.md',
-  'docs/TODO_/5.md',
-  'docs/TODO_/6.md',
-  'docs/TODO_/agent-todos-2025-05-22.md',
-  'docs/TODO_/audit-2025-05-22.md',
-  'docs/TODO_/round4-regression-checklist.md',
-  'docs/TODO_/round5-master-regression-checklist.md',
 ]);
 
 const ROOTS = ['tests', 'scripts', 'docs', 'src'];
 
 function* walk(dir: string): Generator<string> {
   for (const name of readdirSync(dir)) {
-    if (name === 'node_modules' || name === '.next' || name === '.qa' || name === 'fixtures') continue;
+    if (name === 'node_modules' || name === '.next' || name === '.qa' || name === 'fixtures' || name === 'TODO_') continue;
     const full = join(dir, name);
     const stat = statSync(full);
     if (stat.isDirectory()) yield* walk(full);
