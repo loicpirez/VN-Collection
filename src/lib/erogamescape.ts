@@ -1,5 +1,6 @@
 import 'server-only';
 import { isAllowedHttpTarget } from './url-allowlist';
+import { providerFetch } from './proxy-fetch';
 import {
   clearEgsForVn,
   clearVnEgsLink,
@@ -181,15 +182,19 @@ async function fetchTableOnce(sql: string): Promise<string[][]> {
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(SQL_ENDPOINT, {
-      method: 'POST',
-      signal: ctrl.signal,
-      headers: {
-        'User-Agent': 'vndb-collection/1.0 (personal use)',
-        'Content-Type': 'application/x-www-form-urlencoded',
+    res = await providerFetch(
+      SQL_ENDPOINT,
+      {
+        method: 'POST',
+        signal: ctrl.signal,
+        headers: {
+          'User-Agent': 'vndb-collection/1.0 (personal use)',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ sql }).toString(),
       },
-      body: new URLSearchParams({ sql }).toString(),
-    });
+      'egs',
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw new EgsUnreachable('network', msg);
