@@ -26,7 +26,10 @@ export interface OwnedEditionsChangedDetail {
 
 interface Props {
   vnId: string;
+  vnTitle: string;
+  vnRelation: 'trial' | 'partial' | 'complete';
   releaseId: string;
+  initialInCollection: boolean;
   initialOwned: boolean;
 }
 
@@ -40,26 +43,41 @@ interface Props {
  * and any other live consumer can append/remove the edition without a
  * full page reload.
  */
-export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
+export function ReleaseOwnedToggle({
+  vnId,
+  vnTitle,
+  vnRelation,
+  releaseId,
+  initialInCollection,
+  initialOwned,
+}: Props) {
   const t = useT();
   const toast = useToast();
+  const [inCollection, setInCollection] = useState(initialInCollection);
   const [owned, setOwned] = useState(initialOwned);
   const [busy, setBusy] = useState(false);
 
   async function toggle() {
     setBusy(true);
     try {
-      const url = owned
-        ? `/api/collection/${vnId}/owned-releases?release_id=${encodeURIComponent(releaseId)}`
-        : `/api/collection/${vnId}/owned-releases`;
-      const init: RequestInit = owned
-        ? { method: 'DELETE' }
-        : {
+      if (!owned && !inCollection) {
+        const add = await fetch(`/api/collection/${vnId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'planning' }),
+        });
+        if (!add.ok) throw new Error(await readApiError(add, t.common.error));
+        setInCollection(true);
+      }
+      const r = owned
+        ? await fetch(`/api/collection/${vnId}/owned-releases?release_id=${encodeURIComponent(releaseId)}`, {
+            method: 'DELETE',
+          })
+        : await fetch(`/api/collection/${vnId}/owned-releases`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ release_id: releaseId }),
-          };
-      const r = await fetch(url, init);
+          });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const nowOwned = !owned;
       setOwned(nowOwned);
@@ -85,9 +103,17 @@ export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
         owned ? 'border-status-completed/50 bg-status-completed/5' : 'border-border bg-bg-elev/30'
       }`}
     >
-      <Link href={`/vn/${vnId}`} className="inline-flex items-center gap-1 text-xs text-muted hover:text-accent">
-        <ArrowRight className="h-3 w-3" aria-hidden />
-        <span className="font-mono">{vnId}</span>
+      <Link href={`/vn/${vnId}#my-editions`} className="min-w-0 flex-1 text-xs text-muted hover:text-accent">
+        <span className="inline-flex max-w-full items-center gap-1">
+          <ArrowRight className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="truncate font-semibold text-white/90">{vnTitle}</span>
+        </span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px]">
+          <span className="font-mono">{vnId}</span>
+          <span className="rounded bg-bg px-1 py-0.5 uppercase tracking-wider">
+            {t.releases.rtype[vnRelation]}
+          </span>
+        </span>
       </Link>
       <div className="flex items-center gap-1">
         <button
@@ -112,7 +138,7 @@ export function ReleaseOwnedToggle({ vnId, releaseId, initialOwned }: Props) {
         </button>
         {owned && (
           <Link
-            href={`/vn/${vnId}`}
+            href={`/vn/${vnId}?edit_release=${encodeURIComponent(releaseId)}#my-editions`}
             className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
           >
             <Pencil className="h-3 w-3" aria-hidden />

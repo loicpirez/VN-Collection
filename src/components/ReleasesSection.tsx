@@ -15,8 +15,9 @@ import {
   Plus,
   Shield,
 } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { platformLabel } from '@/lib/platform-label';
+import { formatVndbDateString } from '@/lib/locale-number';
 import { SkeletonRows } from './Skeleton';
 import {
   OWNED_EDITIONS_EVENT,
@@ -54,6 +55,7 @@ export function ReleasesSection({
   initialOpen?: boolean;
 }) {
   const t = useT();
+  const locale = useLocale();
   const [open, setOpen] = useState(initialOpen);
   const [releases, setReleases] = useState<VndbRelease[] | null>(null);
   const [owned, setOwned] = useState<Set<string>>(new Set());
@@ -222,7 +224,11 @@ export function ReleasesSection({
                       </Link>
                     </h4>
                     <div className="flex items-center gap-2">
-                      {r.released && <span className="text-xs text-muted tabular-nums">{r.released}</span>}
+                      {r.released && (
+                        <span className="text-xs text-muted tabular-nums">
+                          {formatVndbDateString(r.released, locale)}
+                        </span>
+                      )}
                       {inCollection && (
                         <button
                           type="button"

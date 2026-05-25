@@ -31,7 +31,7 @@ import {
   type OwnedEditionsChangedDetail,
 } from './ReleaseOwnedToggle';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, formatIsoDateString, formatVndbDateString } from '@/lib/locale-number';
 import { derivePlatformDisplay } from '@/lib/platform-display';
 import { platformLabel } from '@/lib/platform-label';
 import { BOX_TYPES, LOCATIONS, type BoxType, type Location } from '@/lib/types';
@@ -123,6 +123,7 @@ interface SectionProps {
 
 export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: SectionProps) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const { confirm } = useConfirm();
   const [owned, setOwned] = useState<OwnedEdition[]>([]);
@@ -376,7 +377,11 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                           </Link>
                         )}
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
-                          {release?.released && <span className="tabular-nums">{release.released}</span>}
+                          {release?.released && (
+                            <span className="tabular-nums">
+                              {formatVndbDateString(release.released, locale)}
+                            </span>
+                          )}
                           {release?.languages.map((l) => (
                             <LangFlag key={l.lang} lang={l.lang} className="text-xs" />
                           ))}
@@ -507,7 +512,7 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
         <Field icon={<Coins className="h-3 w-3" />} label={t.inventory.pricePaid} value={price} />
       )}
       {edition.acquired_date && (
-        <Field icon={<CalendarDays className="h-3 w-3" />} label={t.inventory.acquired} value={edition.acquired_date} />
+        <Field icon={<CalendarDays className="h-3 w-3" />} label={t.inventory.acquired} value={formatIsoDateString(edition.acquired_date, locale)} />
       )}
       {edition.purchase_place && (
         <Field icon={<MapPin className="h-3 w-3" />} label={t.inventory.purchasePlace} value={edition.purchase_place} />
@@ -618,6 +623,7 @@ function EditionEditor({
   onCancel: () => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const [editionLabel, setEditionLabel] = useState(edition.edition_label ?? '');
   const [location, setLocation] = useState<Location>(edition.location);
   const [boxType, setBoxType] = useState<BoxType>(edition.box_type as BoxType);
@@ -924,6 +930,7 @@ function EditionPicker({
   onAdd: (releaseId: string) => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const [search, setSearch] = useState('');
   const [filterLang, setFilterLang] = useState<string>('');
   const [filterPlatform, setFilterPlatform] = useState<string>('');
@@ -1143,7 +1150,7 @@ function EditionPicker({
                   <div className="line-clamp-1 text-[10px] text-muted" title={r.alttitle}>{r.alttitle}</div>
                 )}
                 <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-muted">
-                  {r.released && <span className="tabular-nums">{r.released}</span>}
+                  {r.released && <span className="tabular-nums">{formatVndbDateString(r.released, locale)}</span>}
                   {r.languages.slice(0, 4).map((l) => (
                     <span key={l.lang} className="inline-flex items-center gap-0.5">
                       <LangFlag lang={l.lang} className="text-[10px]" />
@@ -1158,7 +1165,7 @@ function EditionPicker({
                     </span>
                   ))}
                   {r.platforms.slice(0, 3).map((p) => (
-                    <span key={p}>{p}</span>
+                    <span key={p}>{platformLabel(p)}</span>
                   ))}
                   {res && <span>{res}</span>}
                 </div>

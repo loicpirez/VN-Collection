@@ -5,18 +5,20 @@ import { after } from 'next/server';
 import { ArrowLeft, Boxes, ExternalLink, Globe, Languages, Mic2, Package, Shield } from 'lucide-react';
 import { getRelease, type VndbRelease } from '@/lib/vndb';
 import { getCollectionItem, getOwnedRelease, isInCollectionMany, upsertReleaseResolutionCache } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { LangFlag } from '@/components/LangFlag';
 import { ReleaseOwnedToggle } from '@/components/ReleaseOwnedToggle';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { safeHref } from '@/lib/safe-href';
+import { platformLabel } from '@/lib/platform-label';
+import { formatVndbDateString } from '@/lib/locale-number';
 
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const release = await getRelease(id.toLowerCase()).catch(() => null);
   const name = release?.title ?? id;
   return { title: `${name} — ${t.releases.section}` };
@@ -48,7 +50,7 @@ const TYPE_LABEL: Record<string, 'pkgfront' | 'pkgback' | 'pkgcontent' | 'pkgsid
 export default async function ReleasePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^r\d+$/i.test(id)) notFound();
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   let release: VndbRelease | null = null;
   let error: string | null = null;
   try {
@@ -109,9 +111,11 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
   // anthologies, etc.).
   const ownedSet = isInCollectionMany(release.vns.map((v) => v.id));
   const ownedContexts = release.vns
-    .filter((v) => ownedSet.has(v.id))
     .map((v) => ({
       vnId: v.id,
+      vnTitle: v.title || v.id,
+      vnRelation: v.rtype,
+      inCollection: ownedSet.has(v.id),
       owned: getOwnedRelease(v.id, release.id),
     }));
 
@@ -152,7 +156,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           {release.released && (
             <div>
               <dt className="text-[10px] uppercase tracking-wider text-muted">{t.detail.released}</dt>
-              <dd className="font-semibold">{release.released}</dd>
+              <dd className="font-semibold">{formatVndbDateString(release.released, locale)}</dd>
             </div>
           )}
           {release.languages.length > 0 && (
@@ -177,7 +181,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                 <Globe className="mr-1 inline h-3 w-3" />
                 {t.detail.platforms}
               </dt>
-              <dd className="font-semibold">{release.platforms.join(', ')}</dd>
+              <dd className="font-semibold">{release.platforms.map(platformLabel).join(', ')}</dd>
             </div>
           )}
           {release.minage != null && (
@@ -329,12 +333,18 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {t.releases.inventoryShortcut}
           </h2>
+          {release.vns.length > 1 && (
+            <p className="mb-3 text-xs text-muted">{t.releases.multiVnInventoryHint}</p>
+          )}
           <div className="space-y-2">
             {ownedContexts.map((ctx) => (
               <ReleaseOwnedToggle
                 key={ctx.vnId}
                 vnId={ctx.vnId}
+                vnTitle={ctx.vnTitle}
+                vnRelation={ctx.vnRelation}
                 releaseId={release!.id}
+                initialInCollection={ctx.inCollection}
                 initialOwned={!!ctx.owned}
               />
             ))}
