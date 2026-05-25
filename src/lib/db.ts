@@ -8538,8 +8538,8 @@ export function upsertKobeStock(
 export function listKobeStock(): (KobeStockRow & { in_collection: number; in_wishlist: number; vn_developers: string | null })[] {
   return db.prepare(`
     SELECT k.*,
-           CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END                        AS in_collection,
-           CASE WHEN c.vn_id IS NOT NULL AND c.status = 'planning' THEN 1 ELSE 0 END AS in_wishlist,
+           CASE WHEN c.vn_id IS NOT NULL AND c.status != 'planning' THEN 1 ELSE 0 END AS in_collection,
+           CASE WHEN c.vn_id IS NOT NULL AND c.status = 'planning'  THEN 1 ELSE 0 END AS in_wishlist,
            v.image_url        AS vn_image_url,
            v.local_image      AS vn_local_image,
            v.image_sexual     AS vn_image_sexual,
@@ -8620,8 +8620,8 @@ export function countKobeStock(): {
         COUNT(*)                                                                         AS total,
         SUM(CASE WHEN k.vn_id IS NOT NULL THEN 1 ELSE 0 END)                           AS matched,
         SUM(CASE WHEN k.vn_match_source = 'none' THEN 1 ELSE 0 END)                    AS none_found,
-        SUM(CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END)                           AS in_collection,
-        SUM(CASE WHEN c.vn_id IS NOT NULL AND c.status = 'planning' THEN 1 ELSE 0 END) AS in_wishlist
+        SUM(CASE WHEN c.vn_id IS NOT NULL AND c.status != 'planning' THEN 1 ELSE 0 END) AS in_collection,
+        SUM(CASE WHEN c.vn_id IS NOT NULL AND c.status = 'planning'  THEN 1 ELSE 0 END) AS in_wishlist
       FROM alicesoft_kobe_stock k
       LEFT JOIN collection c ON c.vn_id = k.vn_id
     `)

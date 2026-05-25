@@ -516,7 +516,7 @@ export function AlicesoftKobeClient() {
       </div>
 
       {/* Stats grid */}
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
           <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterAll}</div>
           <div className="text-2xl font-bold">{stats.total}</div>
@@ -537,12 +537,13 @@ export function AlicesoftKobeClient() {
             {t.kobe.kobeInCollection}
           </div>
           <div className="text-2xl font-bold text-green-400">{stats.in_collection}</div>
-          {stats.in_wishlist > 0 && (
-            <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-rose-400">
-              <BookHeart className="h-2.5 w-2.5" aria-hidden />
-              {stats.in_wishlist} {t.kobe.kobeInWishlist}
-            </div>
-          )}
+        </div>
+        <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+          <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
+            <BookHeart className="h-3 w-3 text-rose-400" aria-hidden />
+            {t.kobe.kobeInWishlist}
+          </div>
+          <div className="text-2xl font-bold text-rose-400">{stats.in_wishlist}</div>
         </div>
       </div>
 
