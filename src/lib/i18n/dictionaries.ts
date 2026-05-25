@@ -1149,6 +1149,7 @@ export const dictionaries = {
       kobeDownloadAllHint: 'Stock → VNDB match → Données VNDB → Résolution EGS',
       kobeStockRemoved: '{n} article(s) retiré(s) du stock.',
       kobeSearchPlaceholder: 'Filtrer par titre, code…',
+      kobeSyncStock: 'Sync stock',
     },
     markdown: {
       edit: 'Édition',
@@ -3894,6 +3895,7 @@ export const dictionaries = {
       kobeDownloadAllHint: 'Stock → VNDB match → VNDB data → EGS resolve',
       kobeStockRemoved: '{n} item(s) removed from stock.',
       kobeSearchPlaceholder: 'Filter by title, code…',
+      kobeSyncStock: 'Sync stock',
     },
     markdown: {
       edit: 'Edit',
@@ -6636,6 +6638,7 @@ export const dictionaries = {
       kobeDownloadAllHint: 'Stock → VNDB マッチ → VNDB データ → EGS 解決',
       kobeStockRemoved: '{n} 件が在庫から削除されました。',
       kobeSearchPlaceholder: 'タイトル・コードで絞り込み…',
+      kobeSyncStock: 'Stock 更新',
     },
     markdown: {
       edit: '編集',

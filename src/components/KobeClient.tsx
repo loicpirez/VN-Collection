@@ -352,6 +352,7 @@ export function KobeClient() {
     label: string,
     getRemaining: (d: { processed: number; remaining: number }) => number,
     initialTotal = 0,
+    batchSize = 5,
   ) {
     let done = 0;
     setOpDone(0);
@@ -361,7 +362,7 @@ export function KobeClient() {
       const r = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batch: 50, ...body }),
+        body: JSON.stringify({ batch: batchSize, ...body }),
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { processed: number; remaining: number };
@@ -378,19 +379,21 @@ export function KobeClient() {
     try {
       if (op === 'downloading') {
         setOpLabel(t.kobe.kobeDownloading);
+        setOpDone(0);
+        setOpTotal(0);
         await downloadStock();
       } else if (op === 'matching') {
-        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining, stats.unmatched);
+        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining, stats.unmatched, 5);
       } else if (op === 'retrying') {
-        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, t.kobe.kobeRetryNone, (d) => d.remaining, stats.none_found);
+        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, t.kobe.kobeRetryNone, (d) => d.remaining, stats.none_found, 5);
       } else if (op === 'download-vndb') {
-        await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending);
+        await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending, 10);
       } else if (op === 'resolve-egs') {
-        await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining, pending.egs_pending);
+        await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining, pending.egs_pending, 10);
       }
       await load();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(`${opLabel}: ${(e as Error).message}`);
     } finally {
       setActiveOp('idle');
     }
@@ -401,16 +404,18 @@ export function KobeClient() {
     setActiveOp('download-all');
     try {
       setOpLabel(t.kobe.kobeDownloading);
+      setOpDone(0);
+      setOpTotal(0);
       await downloadStock();
       if (stopRef.current) return;
-      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining, stats.unmatched);
+      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining, stats.unmatched, 5);
       if (stopRef.current) return;
-      await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending);
+      await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending, 10);
       if (stopRef.current) return;
-      await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining, pending.egs_pending);
+      await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining, pending.egs_pending, 10);
       await load();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(`${opLabel}: ${(e as Error).message}`);
     } finally {
       setActiveOp('idle');
     }
@@ -526,100 +531,103 @@ export function KobeClient() {
                   <span className="ml-auto shrink-0 tabular-nums">{opDone}/{opTotal}</span>
                 )}
               </div>
-              <div
-                role="progressbar"
-                aria-valuenow={Math.round(opPct)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={opLabel}
-                className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev"
-              >
+              {opTotal > 0 && (
                 <div
-                  className="h-full bg-accent transition-[width] duration-200"
-                  style={{ width: `${opPct}%` }}
-                />
-              </div>
+                  role="progressbar"
+                  aria-valuenow={Math.round(opPct)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={opLabel}
+                  className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev"
+                >
+                  <div
+                    className="h-full bg-accent transition-[width] duration-200"
+                    style={{ width: `${opPct}%` }}
+                  />
+                </div>
+              )}
             </div>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => runSingleOp('downloading')}
-              className="btn btn-primary btn-sm"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              {t.kobe.kobeDownload}
-            </button>
-            <button
-              type="button"
-              onClick={runDownloadAll}
-              className="btn btn-primary btn-sm"
-              title={t.kobe.kobeDownloadAllHint}
-            >
-              <Zap className="h-3.5 w-3.5" />
-              {t.kobe.kobeDownloadAll}
-            </button>
-
-            <div className="my-auto h-5 w-px bg-border" aria-hidden />
-
-            <button
-              type="button"
-              onClick={() => runSingleOp('matching')}
-              disabled={stats.unmatched === 0}
-              className="btn btn-sm"
-            >
-              <Search className="h-3.5 w-3.5" />
-              {t.kobe.kobeMatchVndbEgs}
-              {stats.unmatched > 0 && (
-                <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{stats.unmatched}</span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => runSingleOp('download-vndb')}
-              disabled={pending.vndb_pending === 0}
-              className="btn btn-sm"
-            >
-              <Database className="h-3.5 w-3.5" />
-              {t.kobe.kobeDownloadVndb}
-              {pending.vndb_pending > 0 && (
-                <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.vndb_pending}</span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => runSingleOp('resolve-egs')}
-              disabled={pending.egs_pending === 0}
-              className="btn btn-sm"
-            >
-              <Zap className="h-3.5 w-3.5" />
-              {t.kobe.kobeResolveEgs}
-              {pending.egs_pending > 0 && (
-                <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.egs_pending}</span>
-              )}
-            </button>
-
-            <div className="my-auto h-5 w-px bg-border" aria-hidden />
-
-            <button
-              type="button"
-              onClick={() => runSingleOp('retrying')}
-              disabled={stats.none_found === 0}
-              className="btn btn-sm"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              {t.kobe.kobeRetryNone}
-            </button>
-            <button
-              type="button"
-              onClick={resetAutoMatches}
-              disabled={stats.matched === 0}
-              className="btn btn-sm text-muted hover:text-red-400"
-            >
-              <X className="h-3.5 w-3.5" />
-              {t.kobe.kobeResetAutoMatches}
-            </button>
+          <div className="space-y-2">
+            {/* Primary action */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={runDownloadAll}
+                className="btn btn-primary btn-sm"
+                title={t.kobe.kobeDownloadAllHint}
+              >
+                <Zap className="h-3.5 w-3.5" />
+                {t.kobe.kobeDownloadAll}
+              </button>
+            </div>
+            {/* Individual steps */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => runSingleOp('downloading')}
+                className="btn btn-sm"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                {t.kobe.kobeSyncStock}
+              </button>
+              <button
+                type="button"
+                onClick={() => runSingleOp('matching')}
+                disabled={stats.unmatched === 0}
+                className="btn btn-sm"
+              >
+                <Search className="h-3.5 w-3.5" />
+                {t.kobe.kobeMatchVndbEgs}
+                {stats.unmatched > 0 && (
+                  <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{stats.unmatched}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => runSingleOp('download-vndb')}
+                disabled={pending.vndb_pending === 0}
+                className="btn btn-sm"
+              >
+                <Database className="h-3.5 w-3.5" />
+                {t.kobe.kobeDownloadVndb}
+                {pending.vndb_pending > 0 && (
+                  <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.vndb_pending}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => runSingleOp('resolve-egs')}
+                disabled={pending.egs_pending === 0}
+                className="btn btn-sm"
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                {t.kobe.kobeResolveEgs}
+                {pending.egs_pending > 0 && (
+                  <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.egs_pending}</span>
+                )}
+              </button>
+              <div className="my-auto h-5 w-px bg-border" aria-hidden />
+              <button
+                type="button"
+                onClick={() => runSingleOp('retrying')}
+                disabled={stats.none_found === 0}
+                className="btn btn-sm"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                {t.kobe.kobeRetryNone}
+              </button>
+              <button
+                type="button"
+                onClick={resetAutoMatches}
+                disabled={stats.matched === 0}
+                className="btn btn-sm text-muted hover:text-red-400"
+              >
+                <X className="h-3.5 w-3.5" />
+                {t.kobe.kobeResetAutoMatches}
+              </button>
+            </div>
           </div>
         )}
       </div>
