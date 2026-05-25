@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import { ExternalLink, Link2, Loader2, Search, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { formatVndbDateString } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
 interface SearchHit {
@@ -26,6 +27,7 @@ interface SearchHit {
  */
 export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOpen }: { vnId: string; seedQuery: string; triggerClassName?: string; keepMenuOpen?: boolean }) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const { confirm } = useConfirm();
   const router = useRouter();
@@ -144,7 +146,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
                     <div className="truncate font-bold" title={h.title}>{h.title}</div>
                     <div className="flex flex-wrap gap-x-2 text-[10px] text-muted">
                       <span className="font-mono">{h.id}</span>
-                      {h.released && <span>{h.released}</span>}
+                      {h.released && <span>{formatVndbDateString(h.released, locale)}</span>}
                       {h.developers?.slice(0, 2).map((d) => (
                         <span key={d.id}>{d.name}</span>
                       ))}

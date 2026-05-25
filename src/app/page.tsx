@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Fragment, Suspense } from 'react';
 import { LibraryClient } from '@/components/LibraryClient';
 import { RecentlyViewedStrip } from '@/components/RecentlyViewedStrip';
 import { AnniversaryFeed } from '@/components/AnniversaryFeed';
@@ -48,9 +48,11 @@ export default function HomePage() {
   return (
     <Suspense fallback={<SkeletonCardGrid count={12} />}>
       <HomeLayoutEditorTrigger layout={layout} />
-      {layout.order.map((id) => (
-        <div key={id}>{sectionRenderers[id]}</div>
-      ))}
+      <div className="space-y-5">
+        {layout.order.map((id) => (
+          <Fragment key={id}>{sectionRenderers[id]}</Fragment>
+        ))}
+      </div>
     </Suspense>
   );
 }

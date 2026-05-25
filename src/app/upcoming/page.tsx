@@ -140,17 +140,17 @@ async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t:
           {stale && (
             <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} locale={locale} />
           )}
-          <AnticipatedSection rows={rows} vndbCovers={vndbCovers} t={t} startRank={(page - 1) * ANTICIPATED_PAGE_SIZE} />
+          <AnticipatedSection rows={rows} vndbCovers={vndbCovers} t={t} locale={locale} startRank={(page - 1) * ANTICIPATED_PAGE_SIZE} />
           <AnticipatedPaginator page={page} hasMore={hasMore} t={t} locale={locale} />
         </>
       );
     }
     if (tab === 'all') {
       const rows = await fetchAllUpcomingFromVndb(200);
-      return <ReleasesSection rows={rows} empty={t.upcoming.emptyAll} t={t} />;
+      return <ReleasesSection rows={rows} empty={t.upcoming.emptyAll} t={t} locale={locale} />;
     }
     const rows = await fetchUpcomingForCollection();
-    return <ReleasesSection rows={rows} empty={t.upcoming.empty} t={t} />;
+    return <ReleasesSection rows={rows} empty={t.upcoming.empty} t={t} locale={locale} />;
   } catch (e) {
     // EGS unreachable AND no cached payload at all: actionable state.
     if (e instanceof EgsUnreachable) {
@@ -370,10 +370,12 @@ function ReleasesSection({
   rows,
   empty,
   t,
+  locale,
 }: {
   rows: UpcomingRelease[];
   empty: string;
   t: Dictionary;
+  locale: Locale;
 }) {
   if (rows.length === 0) {
     return (
@@ -448,7 +450,7 @@ function ReleasesSection({
               );
               return (
                 <li key={r.id}>
-                  <UpcomingCard data={data} meta={meta} t={t} />
+                  <UpcomingCard data={data} meta={meta} t={t} locale={locale} />
                 </li>
               );
             })}
@@ -463,11 +465,13 @@ function AnticipatedSection({
   rows,
   vndbCovers,
   t,
+  locale,
   startRank = 0,
 }: {
   rows: EgsAnticipated[];
   vndbCovers: Map<string, VndbCoverInfo>;
   t: Dictionary;
+  locale: Locale;
   startRank?: number;
 }) {
   if (rows.length === 0) {
@@ -550,7 +554,7 @@ function AnticipatedSection({
               <span className="absolute -left-2 -top-2 z-10 flex h-8 min-w-8 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-bg shadow-card">
                 {startRank + i + 1}
               </span>
-              <UpcomingCard data={cardData} meta={cardMeta} t={t} />
+              <UpcomingCard data={cardData} meta={cardMeta} t={t} locale={locale} />
             </li>
           );
         })}

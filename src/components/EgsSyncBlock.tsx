@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, Check, Clock, Loader2, RefreshCw, Save, Sparkles, Star } from 'lucide-react';
 import Link from 'next/link';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { formatMinutes } from '@/lib/format';
+import { formatIsoDateString } from '@/lib/locale-number';
 import { useToast } from './ToastProvider';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -34,6 +35,7 @@ function fmtMin(n: number | null): string {
  */
 export function EgsSyncBlock() {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const [username, setUsername] = useState('');
   const [usernameDirty, setUsernameDirty] = useState(false);
@@ -216,7 +218,7 @@ export function EgsSyncBlock() {
                   )}
                   {s.egs_finish_date && (
                     <span className="mr-2 inline-flex items-center gap-1">
-                      <Check className="h-3 w-3" aria-hidden /> {s.egs_finish_date}
+                      <Check className="h-3 w-3" aria-hidden /> {formatIsoDateString(s.egs_finish_date, locale)}
                     </span>
                   )}
                 </span>

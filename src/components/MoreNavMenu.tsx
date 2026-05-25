@@ -354,9 +354,10 @@ function MobileSheet({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="absolute right-0 top-0 h-full w-72 max-w-[85vw] overflow-y-auto border-l border-border bg-bg-card shadow-card outline-none"
+        className="absolute inset-y-0 right-0 h-full w-full max-w-[30rem] overflow-y-auto border-l border-border bg-bg-card shadow-card outline-none"
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex min-h-14 items-center justify-between border-b border-border px-4 py-3">
           <span id={titleId} className="text-sm font-bold tracking-wide">
             {t.nav.openMenu}
           </span>
@@ -369,10 +370,10 @@ function MobileSheet({
             <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
-        <div className="px-2 py-2 text-sm">
+        <div className="px-3 py-3 text-sm">
           {groups.map((g, gi) => (
-            <div key={g.title} className={gi > 0 ? 'mt-3 border-t border-border/60 pt-3' : 'mb-3'}>
-              <div className="px-2 pb-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted/80">
+            <div key={g.title} className={gi > 0 ? 'mt-4 border-t border-border/60 pt-4' : 'mb-4'}>
+              <div className="inline-flex items-center gap-1 px-2 pb-2 text-[10px] font-bold uppercase tracking-widest text-muted/80">
                 <g.icon className="h-3 w-3" aria-hidden />
                 {g.title}
               </div>
@@ -384,14 +385,14 @@ function MobileSheet({
                     href={item.href}
                     onClick={onClose}
                     aria-current={active ? 'page' : undefined}
-                    className={`flex items-center gap-2 rounded-md px-2 py-2 transition-colors ${
+                    className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
                       active
                         ? 'bg-accent/15 text-accent border-l-2 border-accent'
                         : 'text-muted hover:bg-bg-elev hover:text-white'
                     }`}
                   >
-                    <item.icon className="h-4 w-4" aria-hidden />
-                    {item.label}
+                    <item.icon className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="min-w-0 truncate">{item.label}</span>
                   </Link>
                 );
               })}

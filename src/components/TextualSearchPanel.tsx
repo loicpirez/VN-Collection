@@ -1,15 +1,27 @@
 'use client';
 import { useEffect, useId, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, FileText, MessageSquareQuote, Quote } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, Library, MessageSquareQuote, Quote } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { SkeletonBlock } from './Skeleton';
+import { SafeImage } from './SafeImage';
 
 interface Hit {
   vn_id: string;
   title: string;
   source: 'notes' | 'custom_description' | 'quote';
   snippet: string;
+}
+
+interface LibraryHit {
+  id: string;
+  title: string;
+  alttitle: string | null;
+  image_url: string | null;
+  image_thumb: string | null;
+  local_image: string | null;
+  local_image_thumb: string | null;
+  image_sexual: number | null;
 }
 
 const ICONS = {
@@ -53,6 +65,7 @@ export function TextualSearchPanel({
 }) {
   const t = useT();
   const panelId = useId();
+  const [libraryHits, setLibraryHits] = useState<LibraryHit[]>([]);
   const [hits, setHits] = useState<Hit[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(mode === 'standalone');
@@ -60,6 +73,7 @@ export function TextualSearchPanel({
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
+      setLibraryHits([]);
       setHits([]);
       setLoading(false);
       return;
@@ -67,9 +81,15 @@ export function TextualSearchPanel({
     let alive = true;
     setLoading(true);
     const timer = setTimeout(() => {
-      fetch(`/api/search/textual?q=${encodeURIComponent(trimmed)}`)
-        .then((r) => r.json())
-        .then((d: { hits: Hit[] }) => { if (alive) setHits(d.hits); })
+      Promise.all([
+        fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`).then((r) => r.json()),
+        fetch(`/api/search/textual?q=${encodeURIComponent(trimmed)}`).then((r) => r.json()),
+      ])
+        .then(([library, textual]: [{ matches?: LibraryHit[] }, { hits?: Hit[] }]) => {
+          if (!alive) return;
+          setLibraryHits(library.matches ?? []);
+          setHits(textual.hits ?? []);
+        })
         .catch(() => undefined)
         .finally(() => { if (alive) setLoading(false); });
     }, 280);
@@ -78,7 +98,7 @@ export function TextualSearchPanel({
 
   if (mode === 'accordion') {
     if (query.trim().length < 2) return null;
-    if (!loading && hits.length === 0) return null;
+    if (!loading && libraryHits.length === 0 && hits.length === 0) return null;
   } else {
     if (query.trim().length < 2) {
       return (
@@ -88,7 +108,7 @@ export function TextualSearchPanel({
         </div>
       );
     }
-    if (!loading && hits.length === 0) {
+    if (!loading && libraryHits.length === 0 && hits.length === 0) {
       return <div className="py-20 text-center text-muted">{t.textualSearch.empty}</div>;
     }
   }
@@ -111,7 +131,7 @@ export function TextualSearchPanel({
               <span className="text-[10px] text-muted">· {t.common.loading}</span>
             ) : (
               <span className="rounded-full bg-bg-elev/50 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted">
-                {hits.length}
+                {libraryHits.length + hits.length}
               </span>
             )}
           </span>
@@ -141,7 +161,50 @@ export function TextualSearchPanel({
               ))}
             </ul>
           ) : (
-            <ul className="space-y-1.5">
+            <div className="space-y-3">
+              {libraryHits.length > 0 && (
+                <section>
+                  <h3 className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted">
+                    <Library className="h-3 w-3 text-accent" aria-hidden />
+                    {t.textualSearch.libraryTitle}
+                  </h3>
+                  <ul className="grid gap-1.5 sm:grid-cols-2">
+                    {libraryHits.map((h) => (
+                      <li key={h.id}>
+                        <Link
+                          href={`/vn/${h.id}`}
+                          className="group flex gap-2 rounded-md border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
+                        >
+                          <div className="w-10 shrink-0 overflow-hidden rounded border border-border bg-bg">
+                            <SafeImage
+                              src={h.image_thumb || h.image_url}
+                              localSrc={h.local_image_thumb || h.local_image}
+                              sexual={h.image_sexual}
+                              alt={h.title}
+                              className="aspect-[2/3] w-full"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="line-clamp-1 text-xs font-bold transition-colors group-hover:text-accent">
+                              {h.title}
+                            </div>
+                            {h.alttitle && h.alttitle !== h.title && (
+                              <div className="line-clamp-1 text-[10px] text-muted">{h.alttitle}</div>
+                            )}
+                            <div className="mt-0.5 font-mono text-[9px] text-muted">{h.id}</div>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {hits.length > 0 && (
+                <section>
+                  <h3 className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted">
+                    {t.textualSearch.title}
+                  </h3>
+                  <ul className="space-y-1.5">
               {hits.map((h, i) => {
                 const Icon = ICONS[h.source];
                 return (
@@ -166,7 +229,10 @@ export function TextualSearchPanel({
                   </li>
                 );
               })}
-            </ul>
+                  </ul>
+                </section>
+              )}
+            </div>
           )}
         </div>
       )}

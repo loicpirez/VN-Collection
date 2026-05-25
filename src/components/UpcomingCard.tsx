@@ -3,7 +3,8 @@ import { ExternalLink, Library as LibraryIcon } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { MapEgsToVndbButton } from './MapEgsToVndbButton';
 import { AddMissingVnButton } from './AddMissingVnButton';
-import type { Dictionary } from '@/lib/i18n/dictionaries';
+import type { Dictionary, Locale } from '@/lib/i18n/dictionaries';
+import { formatVndbDateString } from '@/lib/locale-number';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
@@ -56,11 +57,13 @@ export interface UpcomingCardData {
 export function UpcomingCard({
   data,
   meta,
+  locale,
   t,
 }: {
   data: UpcomingCardData;
   /** Per-tab metadata strip — producers chip row, badges, EGS stats, …. */
   meta?: React.ReactNode;
+  locale: Locale;
   t: Dictionary;
 }) {
   const {
@@ -176,7 +179,7 @@ export function UpcomingCard({
           )}
           {released && (
             <span className="rounded bg-bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-accent">
-              {released}
+              {formatVndbDateString(released, locale)}
             </span>
           )}
           {inCollection && (

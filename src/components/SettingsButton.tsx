@@ -48,6 +48,11 @@ import {
 } from '@/lib/page-space';
 import { GlobalCardDensitySlider } from './CardDensitySlider';
 import { useLocale, useT } from '@/lib/i18n/client';
+import {
+  globalShortcutRows,
+  pageShortcutSections,
+  routeShortcutRows,
+} from '@/lib/shortcut-registry';
 import { useToast } from './ToastProvider';
 import { fmtNum } from '@/lib/locale-number';
 import {
@@ -200,6 +205,10 @@ export function SettingsButton() {
   const [layoutSubTab, setLayoutSubTab] = useState<'perpage' | 'spacing' | 'sections'>('perpage');
   const PAGE_LAYOUT_TABS = ['home', 'vn', 'character', 'staff', 'producer', 'series'] as const;
   type PageLayoutTab = typeof PAGE_LAYOUT_TABS[number];
+  const shortcutYear = new Date().getFullYear();
+  const shortcutGlobalRows = globalShortcutRows(t);
+  const shortcutRouteRows = routeShortcutRows(t, shortcutYear);
+  const shortcutPageSections = pageShortcutSections(t);
 
   const loadAbortRef = useRef<AbortController | null>(null);
 
@@ -807,61 +816,40 @@ export function SettingsButton() {
                     <kbd className="rounded bg-bg-elev px-1.5 py-0.5 font-mono text-[10px]">?</kbd>
                     {' '}— {t.shortcuts.help}
                   </p>
-                  <div className="space-y-3">
-                    <section>
-                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
-                        {t.shortcuts.title}
-                      </h4>
-                      <ul className="space-y-1.5">
-                        <ShortcutRow k="/" label={t.shortcuts.focusSearch} />
-                        <ShortcutRow k="?" label={t.shortcuts.help} />
-                        <ShortcutRow k="Esc" label={t.shortcuts.close} />
-                      </ul>
-                    </section>
-                    <section>
-                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
-                        g …
-                      </h4>
-                      <ul className="space-y-1.5">
-                        <ShortcutRow k="g h" label={t.shortcuts.goHome} />
-                        <ShortcutRow k="g s" label={t.shortcuts.goSearch} />
-                        <ShortcutRow k="g w" label={t.shortcuts.goWishlist} />
-                        <ShortcutRow k="g r" label={t.shortcuts.goRecommend} />
-                        <ShortcutRow k="g u" label={t.shortcuts.goUpcoming} />
-                        <ShortcutRow k="g q" label={t.shortcuts.goQuotes} />
-                        <ShortcutRow k="g y" label={t.shortcuts.goYear} />
-                        <ShortcutRow k="g t" label={t.shortcuts.goStats} />
-                        <ShortcutRow k="g d" label={t.shortcuts.goData} />
-                      </ul>
-                    </section>
-                    <section>
-                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
-                        {t.shortcuts.vnPage}
-                      </h4>
-                      <ul className="space-y-1.5">
-                        <ShortcutRow k="f" label={t.shortcuts.vnToggleFavorite} />
-                        <ShortcutRow k="e" label={t.shortcuts.vnJumpEdit} />
-                        <ShortcutRow k="n" label={t.shortcuts.vnJumpNotes} />
-                      </ul>
-                    </section>
-                    <section>
-                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
-                        {t.shortcuts.libPage}
-                      </h4>
-                      <ul className="space-y-1.5">
-                        <ShortcutRow k="f" label={t.shortcuts.libOpenFilter} />
-                      </ul>
-                    </section>
-                    <section>
-                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
-                        {t.shortcuts.tagsPage}
-                      </h4>
-                      <ul className="space-y-1.5">
-                        <ShortcutRow k="1" label={t.shortcuts.tagsTabLocal} />
-                        <ShortcutRow k="2" label={t.shortcuts.tagsTabVndb} />
-                      </ul>
-                    </section>
-                  </div>
+	                  <div className="space-y-3">
+	                    <section>
+	                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
+	                        {t.shortcuts.title}
+	                      </h4>
+	                      <ul className="space-y-1.5">
+	                        {shortcutGlobalRows.map((row) => (
+	                          <ShortcutRow key={row.key} k={row.key} label={row.label} />
+	                        ))}
+	                      </ul>
+	                    </section>
+	                    <section>
+	                      <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
+	                        g
+	                      </h4>
+	                      <ul className="space-y-1.5">
+	                        {shortcutRouteRows.map((row) => (
+	                          <ShortcutRow key={row.key} k={row.key} label={row.label} />
+	                        ))}
+	                      </ul>
+	                    </section>
+	                    {shortcutPageSections.map((section) => (
+	                      <section key={section.label}>
+	                        <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted">
+	                          {section.label}
+	                        </h4>
+	                        <ul className="space-y-1.5">
+	                          {section.rows.map((row) => (
+	                            <ShortcutRow key={row.key} k={row.key} label={row.label} />
+	                          ))}
+	                        </ul>
+	                      </section>
+	                    ))}
+	                  </div>
                 </div>
                 )}
 

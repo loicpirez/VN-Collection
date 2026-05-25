@@ -12,7 +12,7 @@ import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client'
 import { platformLabel } from '@/lib/platform-label';
 import { languageDisplayName } from '@/lib/language-names';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import type { VndbSearchHit } from '@/lib/types';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -654,7 +654,7 @@ export function SearchClient() {
                     <div className="line-clamp-2 text-sm font-semibold" title={c.gamename}>{c.gamename}</div>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted">
                       <span>EGS #{c.id}</span>
-                      {c.sellday && <span>{c.sellday}</span>}
+                      {c.sellday && <span>{formatIsoDateString(c.sellday, locale)}</span>}
                       {c.median != null && (
                         <span className="inline-flex items-center gap-0.5 text-accent">
                           <Star className="h-2.5 w-2.5 fill-accent" /> {c.median}

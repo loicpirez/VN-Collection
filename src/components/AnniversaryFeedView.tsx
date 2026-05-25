@@ -44,7 +44,7 @@ export function AnniversaryFeedView({ title, yearsAgoTemplate, entries, initialS
   if (entries.length === 0) return null;
 
   return (
-    <aside className="mb-4 rounded-xl border border-accent/30 bg-accent/5 p-3">
+    <aside className="rounded-xl border border-accent/30 bg-accent/5 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-accent">
           <CakeSlice className="h-3.5 w-3.5" aria-hidden /> {title}

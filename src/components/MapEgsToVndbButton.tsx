@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useDialogA11y } from './Dialog';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { formatVndbDateString } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
 interface SearchHit {
@@ -57,6 +58,7 @@ export function MapEgsToVndbButton({
   variant?: 'inline' | 'compact';
 }) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -271,7 +273,7 @@ export function MapEgsToVndbButton({
                     <div className="truncate font-bold" title={h.title}>{h.title}</div>
                     <div className="flex flex-wrap gap-x-2 text-[10px] text-muted">
                       <span className="font-mono">{h.id}</span>
-                      {h.released && <span>{h.released}</span>}
+                      {h.released && <span>{formatVndbDateString(h.released, locale)}</span>}
                       {h.developers?.slice(0, 2).map((d) => (
                         <span key={d.id}>{d.name}</span>
                       ))}
