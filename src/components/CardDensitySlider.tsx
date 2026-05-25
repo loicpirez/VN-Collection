@@ -94,7 +94,7 @@ export function CardDensitySlider({
         onClick={() => writeScoped(value - 20)}
         aria-label={t.cardDensity.denser}
         title={t.cardDensity.denser}
-        className="tap-target-tight rounded p-1 text-muted hover:text-accent"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent"
       >
         <Minimize2 className="h-3 w-3" aria-hidden />
       </button>
@@ -117,7 +117,7 @@ export function CardDensitySlider({
         onClick={() => writeScoped(value + 20)}
         aria-label={t.cardDensity.larger}
         title={t.cardDensity.larger}
-        className="tap-target-tight rounded p-1 text-muted hover:text-accent"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent"
       >
         <Maximize2 className="h-3 w-3" aria-hidden />
       </button>
@@ -138,7 +138,7 @@ export function CardDensitySlider({
         disabled={!canReset && value === CARD_DENSITY_DEFAULT}
         aria-label={t.cardDensity.reset}
         title={t.cardDensity.reset}
-        className="tap-target-tight rounded p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
       >
         <RotateCcw className="h-3 w-3" aria-hidden />
       </button>
@@ -178,7 +178,7 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
         onClick={() => set('cardDensityPx', clampCardDensity(value - 20))}
         aria-label={t.cardDensity.denser}
         title={t.cardDensity.denser}
-        className="tap-target-tight rounded p-1 text-muted hover:text-accent"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent"
       >
         <Minimize2 className="h-3 w-3" aria-hidden />
       </button>
@@ -201,7 +201,7 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
         onClick={() => set('cardDensityPx', clampCardDensity(value + 20))}
         aria-label={t.cardDensity.larger}
         title={t.cardDensity.larger}
-        className="tap-target-tight rounded p-1 text-muted hover:text-accent"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent"
       >
         <Maximize2 className="h-3 w-3" aria-hidden />
       </button>
@@ -214,7 +214,7 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
         disabled={value === CARD_DENSITY_DEFAULT}
         aria-label={t.cardDensity.reset}
         title={t.cardDensity.reset}
-        className="tap-target-tight rounded p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
       >
         <RotateCcw className="h-3 w-3" aria-hidden />
       </button>

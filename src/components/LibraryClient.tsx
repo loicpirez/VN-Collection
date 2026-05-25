@@ -290,7 +290,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         return r.json();
       })
       .then((d: { places: string[] }) => setKnownPlaces(d.places ?? []))
-      .catch((e: Error) => { console.error('[LibraryClient] places fetch failed:', e.message); });
+      .catch((e: Error) => toast.error(`${t.common.error}: ${e.message}`));
     fetch('/api/collection/tags')
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -299,7 +299,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       .then((d: { tags: { id: string; name: string; vn_count: number }[] }) =>
         setCollectionTags((d.tags ?? []).slice(0, 200)),
       )
-      .catch((e: Error) => { console.error('[LibraryClient] tags fetch failed:', e.message); });
+      .catch((e: Error) => toast.error(`${t.common.error}: ${e.message}`));
   }, [toast, t.common.error]);
 
   // Resolve tag name when filtered by tag
@@ -315,8 +315,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         const found = d.tags?.find((tag) => tag.id === urlTag);
         if (found) setTagName(found.name);
       })
-      .catch((e: unknown) => { console.error('[LibraryClient] tag name fetch failed:', e); });
-  }, [urlTag]);
+      .catch((e: unknown) => toast.error(`${t.common.error}: ${(e as Error).message ?? String(e)}`));
+  }, [urlTag, toast, t.common.error]);
 
   useEffect(() => {
     // AbortController so rapid filter/sort/q changes cancel the
@@ -375,7 +375,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     [stats],
   );
   const totalH = Math.round(stats.playtime_minutes / 60);
-  const hasFilters =
+  const baseHasFilters =
     !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlEdition || !!urlYearMin || !!urlYearMax || !!urlRatingMin || !!urlRatingMax || !!urlPlaytimeMin || !!urlPlaytimeMax || urlAspectSet.length > 0 || urlDumped === '1' || urlDumped === '0';
   const yearLabel = urlYearMin && urlYearMax
     ? urlYearMin === urlYearMax
@@ -434,6 +434,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const urlIsNsfw = searchParams.get('is_nsfw');
   const urlIsNukige = searchParams.get('is_nukige');
   const urlInReadingQueue = searchParams.get('in_reading_queue');
+  const urlInList = searchParams.get('in_list');
 
   // Count of filters that live inside the Advanced drawer (used for
   // the chip-badge on the drawer toggle so the user knows the drawer
@@ -462,7 +463,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     (urlHasReleased ? 1 : 0) +
     (urlIsNsfw ? 1 : 0) +
     (urlIsNukige ? 1 : 0) +
-    (urlInReadingQueue ? 1 : 0);
+    (urlInReadingQueue ? 1 : 0) +
+    (urlInList ? 1 : 0);
+  const hasFilters = baseHasFilters || advancedFilterCount > 0;
 
   function ternaryMatches(want: string | null, actual: boolean): boolean {
     if (want === '1') return actual === true;
@@ -526,6 +529,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           (it.tags ?? []).some((tag) => tag.name?.toLowerCase() === 'nukige'),
         )) return false;
         if (!ternaryMatches(urlInReadingQueue, !!it.in_reading_queue)) return false;
+        if (!ternaryMatches(urlInList, (it.list_count ?? 0) > 0)) return false;
         return true;
       }),
     [
@@ -544,6 +548,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       urlIsNsfw,
       urlIsNukige,
       urlInReadingQueue,
+      urlInList,
       urlRatingMin,
       urlRatingMax,
       urlPlaytimeMin,
@@ -883,6 +888,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               is_nsfw: urlIsNsfw,
               is_nukige: urlIsNukige,
               in_reading_queue: urlInReadingQueue,
+              in_list: urlInList,
             }}
             onCycle={(key) => {
               const cur = searchParams.get(key);
@@ -903,6 +909,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                 'is_nsfw',
                 'is_nukige',
                 'in_reading_queue',
+                'in_list',
               ];
               replaceParams((sp) => {
                 for (const k of keys) sp.delete(k);
@@ -1033,7 +1040,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           )}
           <button
             type="button"
-            className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted hover:text-status-dropped"
+            className="ml-auto inline-flex min-h-[44px] items-center gap-1 px-2 text-xs text-muted hover:text-status-dropped"
             onClick={clearAll}
             title={t.library.clearFilters}
           >
@@ -1223,8 +1230,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   try {
                     await fetch('/api/collection/order', { method: 'DELETE' });
                     setRefreshKey((k) => k + 1);
-                  } catch {
-                    // best-effort
+                  } catch (e) {
+                    toast.error(`${t.common.error}: ${(e as Error).message}`);
                   } finally {
                     setResettingOrder(false);
                   }
@@ -1252,8 +1259,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ids: orderedIds }),
-                  }).catch(() => {
-                    // Best-effort — the next refresh will resync if it failed.
+                  }).catch((e: Error) => {
+                    toast.error(`${t.common.error}: ${e.message}`);
                   });
                 }}
               />
@@ -1321,7 +1328,8 @@ type FilterKey =
   | 'has_released'
   | 'is_nsfw'
   | 'is_nukige'
-  | 'in_reading_queue';
+  | 'in_reading_queue'
+  | 'in_list';
 
 interface GridMeasurements {
   width: number;
@@ -1378,6 +1386,7 @@ function MoreFilters({
     { key: 'is_nsfw', label: t.library.moreFilters.isNsfw },
     { key: 'is_nukige', label: t.library.moreFilters.isNukige },
     { key: 'in_reading_queue', label: t.library.moreFilters.inReadingQueue },
+    { key: 'in_list', label: t.nav.lists },
   ];
   const activeCount = FILTERS.filter((f) => values[f.key] === '1' || values[f.key] === '0').length;
 
@@ -1834,11 +1843,11 @@ function FilterChip({
     <button
       type="button"
       onClick={onClear}
-      className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] text-accent hover:border-status-dropped hover:bg-status-dropped/10 hover:text-status-dropped"
+      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs text-accent hover:border-status-dropped hover:bg-status-dropped/10 hover:text-status-dropped"
       title={t.library.clearFilters}
     >
       {icon}
-      <span className="max-w-[160px] truncate">{label}</span>
+      <span className="max-w-[160px] truncate" title={label}>{label}</span>
       <X className="h-2.5 w-2.5 opacity-70" aria-hidden />
     </button>
   );

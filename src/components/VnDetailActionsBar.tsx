@@ -88,7 +88,7 @@ const PRIMARY_ROW_CLASSES =
   'flex flex-wrap items-center gap-2';
 
 const ACTION_BUTTON_CLASSES =
-  'inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
 
 
 export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBanner }: Props) {
@@ -339,6 +339,8 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
  * `ExternalLink` glyph + a label; opens in a new tab with `rel`
  * hardening. The label is truncated with a tooltip carrying the full
  * text so a long URL doesn't break the layout.
+ *
+ * Items carry role="menuitem" and are reachable via CSS selector [role="menuitem"].
  */
 function ExternalLinkGridItem({ href, label }: { href: string; label: string }) {
   // R5-124: every dynamic extlink the actions toolbar emits flows
@@ -353,7 +355,7 @@ function ExternalLinkGridItem({ href, label }: { href: string; label: string }) 
       target="_blank"
       rel="noopener noreferrer"
       role="menuitem"
-      className="inline-flex h-9 items-center gap-1.5 truncate rounded-md border border-border bg-bg-elev px-2 py-1.5 text-xs text-muted hover:border-accent hover:text-accent"
+      className="inline-flex min-h-[44px] items-center gap-1.5 truncate rounded-md border border-border bg-bg-elev px-2 py-1.5 text-xs text-muted hover:border-accent hover:text-accent"
       title={label}
     >
       <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
@@ -372,7 +374,7 @@ function TrackingAnchor({ href, label }: { href: string; label: string }) {
     <a
       href={href}
       role="menuitem"
-      className="rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white"
+      className="inline-flex min-h-[44px] items-center rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white"
     >
       {label}
     </a>

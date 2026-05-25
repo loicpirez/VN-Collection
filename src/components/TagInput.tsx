@@ -76,7 +76,7 @@ export function TagInput({
                 e.stopPropagation();
                 remove(i);
               }}
-              className="-mr-1 tap-target-tight inline-flex h-4 w-4 items-center justify-center rounded text-muted hover:bg-status-dropped hover:text-bg"
+              className="-mr-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:bg-status-dropped hover:text-bg"
               aria-label={t.tagInput.removeTag.replace('{v}', v)}
             >
               <X className="h-3 w-3" />
@@ -113,7 +113,7 @@ export function TagInput({
                 e.preventDefault();
                 commit(s);
               }}
-              className="rounded-md bg-bg px-2 py-0.5 text-[11px] text-muted hover:bg-accent hover:text-bg"
+              className="min-h-[44px] rounded-md bg-bg px-2 py-1 text-[11px] text-muted hover:bg-accent hover:text-bg"
             >
               {s}
             </button>

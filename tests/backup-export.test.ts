@@ -6,7 +6,7 @@
  *  2. Body is a valid SQLite file (starts with the SQLite magic header).
  *  3. Content-Length matches the actual body length.
  *  4. No WAL checkpoint pragma is issued (old approach removed).
- *  5. Unauthenticated request from a non-localhost origin is rejected (401/403).
+ *  5. Unauthenticated request from a non-localhost origin is rejected with 403.
  */
 import { describe, expect, it } from 'vitest';
 import { GET } from '@/app/api/backup/route';
@@ -54,6 +54,6 @@ describe('GET /api/backup — db.backup() online snapshot', () => {
   it('rejects request from non-localhost origin', async () => {
     const req = new Request('http://192.168.1.100/api/backup');
     const res = await GET(req);
-    expect([401, 403]).toContain(res.status);
+    expect(res.status).toBe(403);
   });
 });

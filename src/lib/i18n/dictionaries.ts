@@ -7393,7 +7393,7 @@ export const dictionaries = {
       idleHint: '名前を入力して検索してください。',
       empty: '該当するキャラクターはいません。',
       resultsCount: '件',
-      paginationLabel: 'キャラクターのページ送り',
+      paginationLabel: 'キャラクターのページ移動',
       pageLabel: '{current} / {total} ページ',
       prevPage: '前へ',
       nextPage: '次へ',

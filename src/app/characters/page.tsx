@@ -21,6 +21,8 @@ import { searchLocalCharacters } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { NavTabStrip } from '@/components/NavTabStrip';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import {
   characterBrowseHref,
   filterCharacters,
@@ -37,6 +39,7 @@ import {
 } from '@/lib/character-browse';
 
 export const dynamic = 'force-dynamic';
+const PAGE_SIZE = 60;
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -78,6 +81,8 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   const includeEro = sp.ero === '1';
   const tab = params.tab;
   const query = params.q;
+  const rawPage = typeof sp.page === 'string' ? Number(sp.page) : 1;
+  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
 
   if (/^c\d+$/i.test(query)) {
     redirect(`/character/${query.toLowerCase()}`);
@@ -126,7 +131,11 @@ export default async function CharactersPage({ searchParams }: PageProps) {
     : allResults.filter((c) => !((c.image?.sexual ?? 0) >= 1.5));
   const filtered = filterCharacters(ageGated, params);
   const sorted = sortCharacters(filtered, params);
-  const groups = groupCharacters(sorted, params.groupBy);
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const paged = sorted.slice(pageStart, pageStart + PAGE_SIZE);
+  const groups = groupCharacters(paged, params.groupBy);
 
   const ranges = {
     ageMin: params.ageMin?.toString() ?? '',
@@ -162,7 +171,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   });
 
   return (
-    <div className="w-full">
+    <DensityScopeProvider scope="characterWorks" as="main" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
@@ -435,6 +444,9 @@ export default async function CharactersPage({ searchParams }: PageProps) {
             </ChipLink>
           ))}
         </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <CardDensitySlider scope="characterWorks" />
+        </div>
       </header>
 
       {!shouldQuery ? (
@@ -457,6 +469,11 @@ export default async function CharactersPage({ searchParams }: PageProps) {
         <>
           <p className="mb-3 text-xs text-muted">
             {sorted.length} {t.charactersSearch.resultsCount}
+            {pageCount > 1 && (
+              <span className="ml-2">
+                {t.charactersSearch.pageLabel.replace('{current}', String(currentPage)).replace('{total}', String(pageCount))}
+              </span>
+            )}
             {localResults.length >= 200 && tab !== 'vndb' && (
               <span className="ml-2 text-status-on_hold">
                 {t.charactersSearch.localLimitNotice}
@@ -472,7 +489,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
               )}
               <ul
                 className="grid gap-3"
-                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}
+                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(var(--card-density-px, 180px), 100%), 1fr))' }}
               >
                 {bucket.items.map((c) => {
                   const primarySex = c.sex?.[0];
@@ -517,10 +534,46 @@ export default async function CharactersPage({ searchParams }: PageProps) {
               </ul>
             </section>
           ))}
+          {pageCount > 1 && (
+            <nav className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs" aria-label={t.charactersSearch.paginationLabel}>
+              <Link
+                href={characterPageHref(sp, Math.max(1, currentPage - 1))}
+                aria-disabled={currentPage === 1}
+                className={`btn ${currentPage === 1 ? 'pointer-events-none opacity-40' : ''}`}
+              >
+                {t.charactersSearch.prevPage}
+              </Link>
+              <span className="text-muted">
+                {t.charactersSearch.pageLabel.replace('{current}', String(currentPage)).replace('{total}', String(pageCount))}
+              </span>
+              <Link
+                href={characterPageHref(sp, Math.min(pageCount, currentPage + 1))}
+                aria-disabled={currentPage === pageCount}
+                className={`btn ${currentPage === pageCount ? 'pointer-events-none opacity-40' : ''}`}
+              >
+                {t.charactersSearch.nextPage}
+              </Link>
+            </nav>
+          )}
         </>
       )}
-    </div>
+    </DensityScopeProvider>
   );
+}
+
+function characterPageHref(sp: Record<string, string | string[] | undefined>, page: number): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (key === 'page') continue;
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item);
+    } else if (typeof value === 'string' && value) {
+      params.set(key, value);
+    }
+  }
+  if (page > 1) params.set('page', String(page));
+  const qs = params.toString();
+  return qs ? `/characters?${qs}` : '/characters';
 }
 
 function forwardChip(name: string, value: string | null) {

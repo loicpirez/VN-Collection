@@ -270,6 +270,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
             type="text"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
+            aria-label={t.selectiveFullDownload.searchPlaceholder}
             placeholder={t.selectiveFullDownload.searchPlaceholder}
             className="input w-full pl-7 text-xs"
           />

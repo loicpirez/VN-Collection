@@ -53,7 +53,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   if (!/^g\d+$/i.test(id)) notFound();
   const sp = await searchParams;
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const tagId = id.toLowerCase();
   const { tab, page } = parseTagPageParams(sp);
 
@@ -205,7 +205,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
                     <div className="flex items-center gap-2 text-[11px] text-muted">
                       {v.rating != null && (
                         <span className="inline-flex items-center gap-0.5 text-accent">
-                          <Star className="h-3 w-3 fill-accent" aria-hidden /> {(v.rating / 10).toFixed(1)}
+                          <Star className="h-3 w-3 fill-accent" aria-hidden /> {fmtNum(v.rating / 10, locale, 1)}
                         </span>
                       )}
                       {v.released?.slice(0, 4) && <span>{v.released.slice(0, 4)}</span>}
@@ -429,7 +429,7 @@ function TagVndbSkeleton() {
  * 429 / 502) rather than just "no results".
  */
 async function TagVndbResults({ tagId, page }: { tagId: string; page: number }) {
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   let topVndb: Array<{
     id: string;
     title: string;
@@ -466,7 +466,7 @@ async function TagVndbResults({ tagId, page }: { tagId: string; page: number }) 
       >
         {topVndb.map((v) => {
           const year = v.released?.slice(0, 4);
-          const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
+          const ratingDisplay = v.rating != null ? fmtNum(v.rating / 10, locale, 1) : null;
           return (
             <li key={v.id}>
               <Link

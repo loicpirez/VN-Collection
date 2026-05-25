@@ -273,7 +273,7 @@ function SortableSection({
           <button
             type="button"
             onClick={onToggleCollapsed}
-            className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
             title={collapsed ? t.layout.expandSection : t.layout.collapseSection}
           >
             {collapsed
@@ -284,7 +284,7 @@ function SortableSection({
         <button
           type="button"
           onClick={onToggleVisible}
-          className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
           aria-label={visible ? t.layout.hideSection : t.layout.showSection}
           title={visible ? t.layout.hideSection : t.layout.showSection}
         >
@@ -292,7 +292,7 @@ function SortableSection({
         </button>
         <button
           type="button"
-          className="tap-target-tight cursor-grab inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent active:cursor-grabbing"
+          className="inline-flex min-h-[44px] min-w-[44px] cursor-grab items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent active:cursor-grabbing"
           title={t.layout.drag}
           {...attributes}
           {...listeners}
@@ -325,7 +325,7 @@ function CollapsibleSectionHeader({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="mb-2 flex w-full items-center gap-2 text-left text-xs font-bold uppercase tracking-widest text-muted hover:text-white transition-colors"
+        className="mb-2 flex min-h-[44px] w-full items-center gap-2 text-left text-xs font-bold uppercase tracking-widest text-muted transition-colors hover:text-white"
       >
         {open
           ? <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />

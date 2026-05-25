@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, Tags } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, SearchX, Tags } from 'lucide-react';
 import { RefreshScopeButton } from './RefreshScopeButton';
 import { SkeletonRows } from './Skeleton';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -182,6 +182,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           type="button"
           role="tab"
           aria-selected={mode === 'local'}
+          aria-controls="tags-results-panel"
           data-shortcut="tags-tab-local"
           onClick={() => switchMode('local')}
           className={`rounded px-2.5 py-1 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
@@ -192,6 +193,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           type="button"
           role="tab"
           aria-selected={mode === 'vndb'}
+          aria-controls="tags-results-panel"
           data-shortcut="tags-tab-vndb"
           onClick={() => switchMode('vndb')}
           className={`rounded px-2.5 py-1 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
@@ -205,6 +207,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
           <input
             className="input pl-9"
+            aria-label={t.tags.searchPlaceholder}
             placeholder={t.tags.searchPlaceholder}
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -234,17 +237,23 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         </div>
       )}
 
-      {loading ? (
-        mode === 'vndb' && !q && !category ? <VndbTreeSkeleton /> : <SkeletonRows count={12} withThumb={false} />
-      ) : results.length === 0 ? (
-        mode === 'vndb' && !q && !category && homeTree ? (
-          <VndbTreeView tree={homeTree} localCounts={localCounts} locale={locale} />
+      <div id="tags-results-panel" role="tabpanel">
+        {loading ? (
+          mode === 'vndb' && !q && !category ? <VndbTreeSkeleton /> : <SkeletonRows count={12} withThumb={false} />
+        ) : results.length === 0 ? (
+          mode === 'vndb' && !q && !category && homeTree ? (
+            <VndbTreeView tree={homeTree} localCounts={localCounts} locale={locale} />
+          ) : (
+            <div className="rounded-xl border border-border bg-bg-card px-4 py-12 text-center text-muted">
+              <SearchX className="mx-auto mb-3 h-8 w-8 text-muted/70" aria-hidden />
+              <div className="text-sm font-bold text-white">{t.tags.emptyTitle}</div>
+              <p className="mx-auto mt-1 max-w-md text-xs">{t.tags.emptyBody}</p>
+            </div>
+          )
         ) : (
-          <div className="py-12 text-center text-muted">{t.search.noResults}</div>
-        )
-      ) : (
-        <TagFlatView results={results} mode={mode} q={q} localCounts={localCounts} locale={locale} />
-      )}
+          <TagFlatView results={results} mode={mode} q={q} localCounts={localCounts} locale={locale} />
+        )}
+      </div>
     </div>
   );
 }
@@ -438,7 +447,7 @@ function TagFlatView({ results, mode, q, localCounts, locale }: { results: VndbT
                     href={tagChipHref(mode, tag.id)}
                     className="block focus-visible:outline-none"
                   >
-                    <h3 className="text-sm font-bold transition-colors group-hover:text-accent">{tag.name}</h3>
+                    <h3 className="text-sm font-bold transition-colors group-hover:text-accent" title={tag.name}>{tag.name}</h3>
                     {tag.description && (
                       <p className="mt-1 line-clamp-2 text-xs text-muted">
                         {stripVndbMarkup(tag.description)}

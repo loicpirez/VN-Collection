@@ -10,7 +10,9 @@ import {
   listStaffProductionCredits,
   listStaffVaCredits,
 } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { fmtNum } from '@/lib/locale-number';
 import { SafeImage } from '@/components/SafeImage';
 import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
@@ -61,7 +63,7 @@ export default async function StaffPage({
   if (!/^s\d+$/i.test(id)) notFound();
   const { scope } = await searchParams;
   const inCollectionOnly = scope === 'collection';
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const profile = getStaffProfileFromCredits(id);
   // Fetch the all-credits arrays once, then derive both filtered
   // views + the toggle counters from them in JS. The previous flow
@@ -323,7 +325,7 @@ export default async function StaffPage({
           >
             {voice.map((credit) => (
               <li key={credit.vn.id}>
-                <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} openOnVndb={t.detail.openOnVndb}>
+                <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} openOnVndb={t.detail.openOnVndb} locale={locale}>
                   {/*
                     Each voiced character renders with a thumbnail
                     next to the name. The thumbnail uses the local
@@ -387,7 +389,7 @@ export default async function StaffPage({
                   <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
                     {g.credits.map((credit) => (
                       <li key={credit.vn.id}>
-                        <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} openOnVndb={t.detail.openOnVndb} />
+                        <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} openOnVndb={t.detail.openOnVndb} locale={locale} />
                       </li>
                     ))}
                   </ul>
@@ -449,6 +451,7 @@ function VnCard({
   ownedLabel,
   ownedTitle,
   openOnVndb,
+  locale,
   children,
 }: {
   vn: {
@@ -467,10 +470,11 @@ function VnCard({
   ownedLabel: string;
   ownedTitle: string;
   openOnVndb: string;
+  locale: Locale;
   children?: React.ReactNode;
 }) {
   const year = vn.released?.slice(0, 4);
-  const ratingDisplay = vn.rating != null ? (vn.rating / 10).toFixed(1) : null;
+  const ratingDisplay = vn.rating != null ? fmtNum(vn.rating / 10, locale, 1) : null;
   // VNDB id format `vN` only — egs_* synthetic ids don't have a
   // public VNDB page. Hide the external link in that case.
   const vndbUrl = isVndbVnId(vn.id) ? `https://vndb.org/${vn.id}` : null;

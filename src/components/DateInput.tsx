@@ -39,6 +39,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<Date>(() => parseIso(value) ?? new Date());
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click + Escape
   useEffect(() => {
@@ -48,6 +49,22 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Tab') {
+        const focusables = Array.from(
+          popupRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? [],
+        );
+        if (focusables.length === 0) return;
+        const first = focusables.at(0);
+        const last = focusables.at(-1);
+        if (!first || !last) return;
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -153,7 +170,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
           id={id}
           aria-label={ariaLabel}
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex flex-1 items-center gap-2 text-left"
+          className="inline-flex min-h-[44px] flex-1 items-center gap-2 text-left"
         >
           <Calendar className="h-4 w-4 text-muted" aria-hidden />
           <span className={value ? 'text-white' : 'text-muted/60'}>
@@ -165,7 +182,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
             type="button"
             onClick={clear}
             aria-label={t.dateInput.clear}
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
+            className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
           >
             <X className="h-3 w-3" aria-hidden />
           </button>
@@ -173,12 +190,18 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
       </div>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-[280px] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-bg-card p-3 shadow-card">
+        <div
+          ref={popupRef}
+          role="dialog"
+          aria-modal="false"
+          aria-label={ariaLabel ?? t.dateInput.empty}
+          className="absolute left-0 top-full z-50 mt-1 w-[280px] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-bg-card p-3 shadow-card"
+        >
           <div className="mb-2 flex items-center gap-1">
             <button
               type="button"
               onClick={() => shiftYear(-1)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
               aria-label={t.dateInput.prevYear}
               title={t.dateInput.prevYear}
             >
@@ -188,7 +211,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
             <button
               type="button"
               onClick={() => shiftMonth(-1)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
               aria-label={t.dateInput.prevMonth}
               title={t.dateInput.prevMonth}
             >
@@ -200,7 +223,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
             <button
               type="button"
               onClick={() => shiftMonth(1)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
               aria-label={t.dateInput.nextMonth}
               title={t.dateInput.nextMonth}
             >
@@ -209,7 +232,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
             <button
               type="button"
               onClick={() => shiftYear(1)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
               aria-label={t.dateInput.nextYear}
               title={t.dateInput.nextYear}
             >
@@ -234,7 +257,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
                   key={iso}
                   type="button"
                   onClick={() => setSelected(date)}
-                  className={`h-8 rounded text-xs tabular-nums transition-colors ${
+                  className={`min-h-[44px] rounded text-xs tabular-nums transition-colors ${
                     !inMonth ? 'text-muted/30' : 'text-white'
                   } ${
                     isSelected

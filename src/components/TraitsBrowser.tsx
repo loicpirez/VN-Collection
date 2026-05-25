@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Library, Loader2, Search, Sparkles } from 'lucide-react';
+import { Library, Loader2, Search, SearchX, Sparkles } from 'lucide-react';
 import { RefreshScopeButton } from './RefreshScopeButton';
 import { SkeletonRows } from './Skeleton';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -72,6 +72,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
           <input
             className="input pl-9"
+            aria-label={t.traits.searchPlaceholder}
             placeholder={t.traits.searchPlaceholder}
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -93,7 +94,11 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
       {loading ? (
         <SkeletonRows count={8} withThumb={false} />
       ) : results.length === 0 ? (
-        <div className="py-12 text-center text-muted">{t.search.noResults}</div>
+        <div className="rounded-xl border border-border bg-bg-card px-4 py-12 text-center text-muted">
+          <SearchX className="mx-auto mb-3 h-8 w-8 text-muted/70" aria-hidden />
+          <div className="text-sm font-bold text-white">{t.traits.emptyTitle}</div>
+          <p className="mx-auto mt-1 max-w-md text-xs">{t.traits.emptyBody}</p>
+        </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {results.map((tr) => (
@@ -103,7 +108,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
               className="group block rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
             >
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-sm font-bold transition-colors group-hover:text-accent">
+                <h3 className="text-sm font-bold transition-colors group-hover:text-accent" title={`${tr.group_name ? `${tr.group_name} / ` : ''}${tr.name}`}>
                   {tr.group_name && <span className="text-muted">{tr.group_name} / </span>}
                   {tr.name}
                 </h3>
@@ -126,4 +131,3 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
     </div>
   );
 }
-

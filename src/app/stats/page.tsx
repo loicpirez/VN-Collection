@@ -66,7 +66,7 @@ export default async function StatsPage() {
   const auth = await getAuthInfo();
 
   const myH = Math.round(my.playtime_minutes / 60);
-  const myAvg = my.avg_user_rating != null ? (my.avg_user_rating / 10).toFixed(1) : '—';
+  const myAvg = my.avg_user_rating != null ? fmtNum(my.avg_user_rating / 10, locale, 1) : '—';
 
   // Each donut slice doubles as a deep-link into the Library
   // filtered by that status. The chart legend renders as `<Link>`s
@@ -140,7 +140,7 @@ export default async function StatsPage() {
             <Stat label={t.stats.egsMatched} value={`${agg.egs.matched} / ${agg.egs.matched + agg.egs.unmatched}`} locale={locale} />
             <Stat
               label={t.stats.egsAvgMedian}
-              value={agg.egs.avg_median != null ? `${agg.egs.avg_median.toFixed(1)} / 100` : '—'}
+              value={agg.egs.avg_median != null ? `${fmtNum(agg.egs.avg_median, locale, 1)} / 100` : '—'}
               locale={locale}
             />
             <Stat

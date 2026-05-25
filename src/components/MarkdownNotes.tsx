@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Edit3, Eye, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -31,13 +31,21 @@ interface Props {
 export function MarkdownNotes({ value, onChange, placeholder }: Props) {
   const t = useT();
   const [tab, setTab] = useState<'edit' | 'preview'>('edit');
+  const editTabId = useId();
+  const previewTabId = useId();
+  const editPanelId = useId();
+  const previewPanelId = useId();
   const empty = !value.trim();
 
   return (
     <div className="rounded-lg border border-border bg-bg overflow-hidden">
-      <div className="flex items-center gap-1 border-b border-border bg-bg-elev/60 px-2 py-1">
+      <div role="tablist" className="flex items-center gap-1 border-b border-border bg-bg-elev/60 px-2 py-1">
         <button
           type="button"
+          id={editTabId}
+          role="tab"
+          aria-selected={tab === 'edit'}
+          aria-controls={editPanelId}
           className={`btn btn-xs ${tab === 'edit' ? 'btn-primary' : 'text-muted hover:text-white'}`}
           onClick={() => setTab('edit')}
         >
@@ -45,6 +53,10 @@ export function MarkdownNotes({ value, onChange, placeholder }: Props) {
         </button>
         <button
           type="button"
+          id={previewTabId}
+          role="tab"
+          aria-selected={tab === 'preview'}
+          aria-controls={previewPanelId}
           className={`btn btn-xs ${tab === 'preview' ? 'btn-primary' : 'text-muted hover:text-white'}`}
           onClick={() => setTab('preview')}
         >
@@ -53,16 +65,18 @@ export function MarkdownNotes({ value, onChange, placeholder }: Props) {
         <span className="ml-auto text-[11px] text-muted">{t.markdown.hint}</span>
       </div>
       {tab === 'edit' ? (
-        <textarea
-          className="block w-full resize-y bg-transparent p-3 font-mono text-sm text-white outline-none placeholder:text-muted/60"
-          rows={8}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder ?? t.markdown.placeholder}
-          aria-label={placeholder ?? t.markdown.placeholder}
-        />
+        <div id={editPanelId} role="tabpanel" aria-labelledby={editTabId}>
+          <textarea
+            className="block w-full resize-y bg-transparent p-3 font-mono text-sm text-white outline-none placeholder:text-muted/60"
+            rows={8}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder ?? t.markdown.placeholder}
+            aria-label={placeholder ?? t.markdown.placeholder}
+          />
+        </div>
       ) : (
-        <div className="prose-invert min-h-[140px] p-4 text-sm">
+        <div id={previewPanelId} role="tabpanel" aria-labelledby={previewTabId} className="prose-invert min-h-[140px] p-4 text-sm">
           {empty ? (
             <p className="text-muted">{t.markdown.empty}</p>
           ) : (

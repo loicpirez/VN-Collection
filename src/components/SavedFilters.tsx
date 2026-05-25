@@ -44,6 +44,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
   const [open, setOpen] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const popoverId = useId();
 
@@ -98,10 +99,17 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
   }, [open]);
 
   async function load() {
-    const r = await fetch('/api/saved-filters', { cache: 'no-store' });
-    if (!r.ok) return;
-    const data = (await r.json()) as { filters: Filter[] };
-    setFilters(data.filters);
+    setLoadError(null);
+    try {
+      const r = await fetch('/api/saved-filters', { cache: 'no-store' });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      const data = (await r.json()) as { filters: Filter[] };
+      setFilters(data.filters);
+    } catch (e) {
+      const message = (e as Error).message;
+      setLoadError(message);
+      toast.error(message);
+    }
   }
 
   function currentParamsKey(): string {
@@ -181,7 +189,11 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
           aria-label={t.savedFilters.title}
           className="absolute left-0 top-full z-30 mt-1 w-[min(92vw,18rem)] rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card"
         >
-          {filters.length === 0 ? (
+          {loadError ? (
+            <p role="alert" className="mb-2 rounded-md border border-status-dropped/40 bg-status-dropped/10 px-2 py-1.5 text-status-dropped">
+              {loadError}
+            </p>
+          ) : filters.length === 0 ? (
             <div className="space-y-2 px-1 py-1">
               <p className="text-muted">{t.savedFilters.popoverEmpty}</p>
               {!currentKey && (

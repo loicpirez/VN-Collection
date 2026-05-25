@@ -6,6 +6,7 @@ import { findCharacterSiblings, getVasForCharacter, getAppSetting, isInCollectio
 import { Check } from 'lucide-react';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
+import { fmtNum } from '@/lib/locale-number';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -367,7 +368,7 @@ export default async function CharacterPage({
               <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
                 {sortedVns.map((v) => {
                   const year = v.released?.slice(0, 4);
-                  const ratingDisplay = v.rating != null ? (v.rating / 10).toFixed(1) : null;
+                  const ratingDisplay = v.rating != null ? fmtNum(v.rating / 10, locale, 1) : null;
                   const role = t.characters.roles[v.role as keyof typeof t.characters.roles] ?? v.role;
                   const owned = appearsInOwned.has(v.id);
                   return (

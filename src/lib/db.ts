@@ -8535,10 +8535,11 @@ export function upsertKobeStock(
   return { added, updated, removed };
 }
 
-export function listKobeStock(): (KobeStockRow & { in_wishlist: number; vn_developers: string | null })[] {
+export function listKobeStock(): (KobeStockRow & { in_collection: number; in_wishlist: number; vn_developers: string | null })[] {
   return db.prepare(`
     SELECT k.*,
-           CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_wishlist,
+           CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END                        AS in_collection,
+           CASE WHEN c.vn_id IS NOT NULL AND c.status = 'planning' THEN 1 ELSE 0 END AS in_wishlist,
            v.image_url        AS vn_image_url,
            v.local_image      AS vn_local_image,
            v.image_sexual     AS vn_image_sexual,
@@ -8547,7 +8548,7 @@ export function listKobeStock(): (KobeStockRow & { in_wishlist: number; vn_devel
     LEFT   JOIN collection c ON c.vn_id = k.vn_id
     LEFT   JOIN vn          v ON v.id    = k.vn_id
     ORDER  BY k.title
-  `).all() as (KobeStockRow & { in_wishlist: number; vn_developers: string | null })[];
+  `).all() as (KobeStockRow & { in_collection: number; in_wishlist: number; vn_developers: string | null })[];
 }
 
 export function getKobeStockItem(code: string): KobeStockRow | null {

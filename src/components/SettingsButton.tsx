@@ -47,6 +47,7 @@ import {
   type PageSpaceScope,
 } from '@/lib/page-space';
 import { GlobalCardDensitySlider } from './CardDensitySlider';
+import { SkeletonBlock } from './Skeleton';
 import { useLocale, useT } from '@/lib/i18n/client';
 import {
   globalShortcutRows,
@@ -563,7 +564,7 @@ export function SettingsButton() {
                 <nav
                   role="tablist"
                   aria-label={t.settings.tabsLabel}
-                  className="mb-5 flex flex-wrap gap-1 rounded-lg border border-border bg-bg-elev/30 p-1"
+                  className="mb-5 flex gap-1 overflow-x-auto rounded-lg border border-border bg-bg-elev/30 p-1"
                   onKeyDown={(e) => {
                     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
                     e.preventDefault();
@@ -597,9 +598,9 @@ export function SettingsButton() {
                         aria-controls={`settings-panel-${tab}`}
                         tabIndex={active ? 0 : -1}
                         onClick={() => setActiveTab(tab)}
-                        className={`btn btn-xs tap-target-tight ${
+                        className={`inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                           active
-                            ? 'btn-primary'
+                            ? 'bg-accent text-bg'
                             : 'text-muted hover:text-white'
                         }`}
                       >
@@ -690,7 +691,7 @@ export function SettingsButton() {
                               role="radio"
                               aria-checked={settings.spoilerLevel === lvl}
                               onClick={() => set('spoilerLevel', lvl as 0 | 1 | 2)}
-                              className={`btn btn-xs ${
+                              className={`inline-flex min-h-[44px] items-center justify-center rounded-md border border-border px-3 py-1.5 text-xs font-semibold transition-colors ${
                                 settings.spoilerLevel === lvl
                                   ? 'border-accent bg-accent/15 text-accent'
                                   : 'text-muted hover:text-white'
@@ -751,10 +752,10 @@ export function SettingsButton() {
                   {server?.vndb_token.hasToken && !server.vndb_token.preview && server.vndb_token.envFallback && (
                     <p className="mb-2 text-[11px] text-muted">{t.settings.vndbTokenEnv}</p>
                   )}
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <input
                       type="password"
-                      className="input flex-1"
+                      className="input min-w-[14rem] flex-1"
                       placeholder={t.settings.vndbTokenPlaceholder}
                       value={tokenInput}
                       onChange={(e) => setTokenInput(e.target.value)}
@@ -762,7 +763,7 @@ export function SettingsButton() {
                     />
                     <button
                       type="button"
-                      className="btn btn-primary"
+                      className="btn btn-primary min-h-[44px]"
                       onClick={onSaveToken}
                       disabled={savingToken || !tokenInput.trim()}
                     >
@@ -773,7 +774,7 @@ export function SettingsButton() {
                   {server?.vndb_token.hasToken && (
                     <button
                       type="button"
-                      className="mt-2 text-[11px] text-muted hover:text-status-dropped"
+                      className="mt-2 inline-flex min-h-[44px] items-center rounded px-2 text-xs text-muted hover:text-status-dropped"
                       onClick={() => saveServer({ vndb_token: null })}
                     >
                       {t.settings.vndbTokenClear}
@@ -1236,13 +1237,13 @@ export function SettingsButton() {
                     aria-labelledby="settings-tab-vn-page"
                     className="space-y-4"
                   >
-                    <div className="mb-4 flex flex-wrap gap-1 rounded-lg border border-border bg-bg-elev/20 p-1">
+                    <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg border border-border bg-bg-elev/20 p-1">
                       {(['perpage', 'spacing', 'sections'] as const).map((tab) => (
                         <button
                           key={tab}
                           type="button"
                           onClick={() => setLayoutSubTab(tab)}
-                          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          className={`min-h-[44px] shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                             layoutSubTab === tab
                               ? 'bg-accent text-bg'
                               : 'text-muted hover:text-white'
@@ -1269,7 +1270,7 @@ export function SettingsButton() {
                               type="button"
                               aria-pressed={settings.globalPageSpace == null}
                               onClick={() => set('globalPageSpace', null)}
-                              className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                              className={`min-h-[44px] rounded-md border px-3 py-1 text-xs font-semibold transition-colors ${
                                 settings.globalPageSpace == null
                                   ? 'border-accent bg-accent/15 text-accent'
                                   : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -1285,7 +1286,7 @@ export function SettingsButton() {
                                   type="button"
                                   aria-pressed={active}
                                   onClick={() => set('globalPageSpace', preset)}
-                                  className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                                  className={`min-h-[44px] rounded-md border px-3 py-1 text-xs font-semibold transition-colors ${
                                     active
                                       ? 'border-accent bg-accent/15 text-accent'
                                       : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -1946,8 +1947,13 @@ const PAGE_LAYOUT_DENSITY_SCOPES: Partial<Record<PageSpaceScope, readonly Densit
 function PerPageLayoutPanel() {
   const t = useT();
   const { settings, set } = useDisplaySettings();
+  const [hydrated, setHydrated] = useState(false);
   const pageSpace = settings.pageSpace ?? {};
   const density = settings.density ?? {};
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   function setScopePreset(scope: PageSpaceScope, preset: PageSpacePreset) {
     const next: PageSpaceOverrides = { ...pageSpace };
@@ -1989,6 +1995,20 @@ function PerPageLayoutPanel() {
   const someSpaceOverride = PAGE_SPACE_SCOPES.some((scope) => hasPageSpaceOverride(settings, scope));
   const someDensityOverride = DENSITY_SCOPES.some((scope) => hasScopeOverride(settings, scope));
 
+  if (!hydrated) {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3" aria-busy="true">
+        <SkeletonBlock className="h-4 w-44" />
+        <SkeletonBlock className="h-3 w-72" />
+        <div className="mt-1 grid gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonBlock key={i} className="h-16 w-full rounded-md" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
       <span className="text-sm font-semibold">{t.settings.perPageLayout}</span>
@@ -2025,7 +2045,7 @@ function PerPageLayoutPanel() {
                       type="button"
                       aria-pressed={active}
                       onClick={() => setScopePreset(scope, preset)}
-                      className={`min-h-8 rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                      className={`min-h-[44px] rounded-md border px-3 py-1 text-xs font-semibold transition-colors ${
                         active
                           ? 'border-accent bg-accent/15 text-accent'
                           : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -2040,7 +2060,7 @@ function PerPageLayoutPanel() {
                   type="button"
                   onClick={() => resetSpaceScope(scope)}
                   disabled={!spaceOverridden}
-                  className="min-h-8 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
+                  className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-3 py-1 text-xs text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
                   title={t.settings.pageSpaceReset}
                 >
                   {t.settings.pageSpaceReset}
@@ -2063,7 +2083,7 @@ function PerPageLayoutPanel() {
                           type="button"
                           onClick={() => setScopeDensity(densityScope, resolved - 20)}
                           aria-label={t.cardDensity.denser}
-                          className="tap-target-tight rounded text-muted hover:text-accent"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-accent"
                         >
                           <Minimize2 className="h-3 w-3" aria-hidden />
                         </button>
@@ -2081,7 +2101,7 @@ function PerPageLayoutPanel() {
                           type="button"
                           onClick={() => setScopeDensity(densityScope, resolved + 20)}
                           aria-label={t.cardDensity.larger}
-                          className="tap-target-tight rounded text-muted hover:text-accent"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-accent"
                         >
                           <Maximize2 className="h-3 w-3" aria-hidden />
                         </button>
@@ -2094,7 +2114,7 @@ function PerPageLayoutPanel() {
                           disabled={!overridden}
                           aria-label={t.settings.densityReset}
                           title={t.settings.densityReset}
-                          className="tap-target-tight rounded text-muted hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-muted"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-muted"
                         >
                           <RotateCcw className="h-3 w-3" aria-hidden />
                         </button>
@@ -2114,7 +2134,7 @@ function PerPageLayoutPanel() {
           type="button"
           onClick={resetAllSpaceScopes}
           disabled={!someSpaceOverride}
-          className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
+          className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-3 py-1 text-xs text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
         >
           {t.settings.pageSpaceResetAll}
         </button>
@@ -2122,14 +2142,14 @@ function PerPageLayoutPanel() {
           type="button"
           onClick={resetAllDensityScopes}
           disabled={!someDensityOverride}
-          className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
+          className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-3 py-1 text-xs text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-border disabled:hover:text-muted"
         >
           {t.settings.perPageResetAll}
         </button>
         <button
           type="button"
           onClick={resetEverything}
-          className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-status-dropped hover:text-status-dropped"
+          className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-3 py-1 text-xs text-muted hover:border-status-dropped hover:text-status-dropped"
         >
           {t.settings.resetEverything}
         </button>

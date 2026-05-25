@@ -193,7 +193,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
             <button
               type="button"
               onClick={() => setAttachSession((v) => !v)}
-              className={`chip btn-xs uppercase tracking-wider ${attachSession ? 'chip-active' : ''}`}
+              className={`chip min-h-[44px] px-3 py-1 text-xs uppercase tracking-wider ${attachSession ? 'chip-active' : ''}`}
               title={attachSession ? t.gameLog.attachedSessionNo : t.gameLog.attachedSession.replace('{n}', String(liveSessionMinutes))}
             >
               <Sparkles className="h-3 w-3" />
@@ -260,7 +260,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                             <button
                               type="button"
                               onClick={() => startEdit(entry)}
-                              className="rounded p-1 text-muted hover:text-white"
+                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-white"
                               aria-label={t.gameLog.edit}
                               title={t.gameLog.edit}
                             >
@@ -269,7 +269,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                             <button
                               type="button"
                               onClick={() => remove(entry.id)}
-                              className="rounded p-1 text-muted hover:text-status-dropped"
+                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-status-dropped"
                               aria-label={t.gameLog.delete}
                               title={t.gameLog.delete}
                             >

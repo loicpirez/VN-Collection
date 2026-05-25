@@ -59,9 +59,10 @@ export default async function QuotesPage({
       </header>
 
       {items.length === 0 ? (
-        <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
-          {t.quotesPage.empty}
-        </p>
+        <div className="rounded-xl border border-border bg-bg-card p-6 text-center text-sm text-muted">
+          <Quote className="mx-auto mb-3 h-6 w-6 text-accent" aria-hidden />
+          <p>{t.quotesPage.empty}</p>
+        </div>
       ) : (
         <>
           <ul className="space-y-3">

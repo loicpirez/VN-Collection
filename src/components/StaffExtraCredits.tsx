@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { CloudDownload, Check, Star } from 'lucide-react';
 import { isInCollectionMany } from '@/lib/db';
 import { downloadFullStaffInfo, readStaffFullCache } from '@/lib/staff-full';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { fmtNum } from '@/lib/locale-number';
 import { roleLabel } from '@/lib/staff-roles';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
@@ -23,7 +25,7 @@ export async function StaffExtraCredits({
   knownProdVnIds: Set<string>;
   knownVaVnIds: Set<string>;
 }) {
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
 
   let fullCache = readStaffFullCache(sid);
   if (!fullCache) {
@@ -65,6 +67,7 @@ export async function StaffExtraCredits({
                   vn={{ id: c.id, title: c.title, alttitle: c.alttitle, released: c.released, rating: c.rating, image_url: c.image_url, image_thumb: c.image_thumb }}
                   inCollection={inCollectionIds.has(c.id)}
                   ownedLabel={t.staff.ownedLabel}
+                  locale={locale}
                 >
                   <ul className="mt-2 space-y-1 text-[11px] text-muted">
                     {c.characters.map((ch) => (
@@ -92,6 +95,7 @@ export async function StaffExtraCredits({
                   vn={{ id: c.id, title: c.title, alttitle: c.alttitle, released: c.released, rating: c.rating, image_url: c.image_url, image_thumb: c.image_thumb }}
                   inCollection={inCollectionIds.has(c.id)}
                   ownedLabel={t.staff.ownedLabel}
+                  locale={locale}
                 >
                   <div className="mt-1 text-[10px] text-muted">
                     {c.roles.map((r) => roleLabel(r.role, t.staff)).join(' · ')}
@@ -124,6 +128,7 @@ function ExternalVnCard({
   vn,
   inCollection,
   ownedLabel,
+  locale,
   children,
 }: {
   vn: {
@@ -138,10 +143,11 @@ function ExternalVnCard({
   inCollection: boolean;
   /** Localised "in collection" chip label (e.g. `t.staff.ownedLabel`). */
   ownedLabel: string;
+  locale: Locale;
   children?: React.ReactNode;
 }) {
   const year = vn.released?.slice(0, 4);
-  const ratingDisplay = vn.rating != null ? (vn.rating / 10).toFixed(1) : null;
+  const ratingDisplay = vn.rating != null ? fmtNum(vn.rating / 10, locale, 1) : null;
   return (
     <div
       className={`flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors ${

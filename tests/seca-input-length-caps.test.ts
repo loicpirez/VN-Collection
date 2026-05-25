@@ -79,5 +79,6 @@ describe('NEW-SECA-023 / NEW-TCO-007 — security headers in next.config.mjs', (
     expect(src).toContain('SAMEORIGIN');
     expect(src).toContain('Referrer-Policy');
     expect(src).toContain('Permissions-Policy');
+    expect(src).toContain('poweredByHeader: false');
   });
 });

@@ -47,12 +47,12 @@ beforeEach(() => {
 });
 
 describe('POST /api/backup/restore', () => {
-  it('rejects request from non-localhost origin with 401/403', async () => {
+  it('rejects request from non-localhost origin with 403', async () => {
     const buf = makeSqliteFile();
     const file = new Blob([buf]);
     const req = makeRequest(file, 'http://192.168.1.100/api/backup/restore');
     const res = await POST(req);
-    expect([401, 403]).toContain(res.status);
+    expect(res.status).toBe(403);
   });
 
   it('rejects non-multipart content-type with 400', async () => {

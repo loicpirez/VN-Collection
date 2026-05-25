@@ -610,7 +610,7 @@ function TileKebab({
         // hover/focus reveals it on desktop only. focus-visible
         // forces the kebab to appear the moment a keyboard user
         // tabs into the tile so they never lose the entry point.
-        className="absolute right-1.5 top-1.5 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md bg-black/70 text-white shadow backdrop-blur-sm transition-opacity hover:bg-accent hover:text-bg focus-visible:opacity-100 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+        className="absolute right-1.5 top-1.5 z-10 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-black/70 text-white shadow backdrop-blur-sm transition-opacity hover:bg-accent hover:text-bg focus-visible:opacity-100 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden />
       </button>

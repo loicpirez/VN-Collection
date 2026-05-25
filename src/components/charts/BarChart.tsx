@@ -155,12 +155,13 @@ export function DonutChart({
 }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return null;
+  const label = data.map((d) => `${d.label}: ${d.value}`).join(', ');
   const r = (size - thickness) / 2;
   const c = 2 * Math.PI * r;
   let acc = 0;
   return (
     <div className="flex items-center gap-4">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <svg role="img" aria-label={label} width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <g transform={`translate(${size / 2}, ${size / 2})`}>
           <circle r={r} fill="none" className="stroke-bg-elev" strokeWidth={thickness} />
           {data.map((d, i) => {

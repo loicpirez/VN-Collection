@@ -135,7 +135,7 @@ function ToastView({ toast, onDismiss }: { toast: ToastEntry; onDismiss: () => v
       <button
         type="button"
         onClick={onDismiss}
-        className="ml-1 tap-target-tight inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted hover:text-white"
+        className="ml-1 inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded text-muted hover:text-white"
         aria-label={t.common.dismiss}
       >
         <X className="h-3 w-3" />

@@ -167,7 +167,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     const rect = el.getBoundingClientRect();
     const x = clamp(((e.clientX - rect.left) / rect.width) * 100);
     const y = clamp(((e.clientY - rect.top) / rect.height) * 100);
-    return `${x.toFixed(1)}% ${y.toFixed(1)}%`;
+    return `${Math.round(x * 10) / 10}% ${Math.round(y * 10) / 10}%`;
   }
 
   function onPointerDown(e: React.PointerEvent) {

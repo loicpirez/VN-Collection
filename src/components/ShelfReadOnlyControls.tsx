@@ -413,7 +413,7 @@ export function ShelfReadOnlyControls({
             max={SHELF_VIEW_PREFS_BOUNDS.coverScale.max}
             step={0.05}
             suffix="×"
-            onChange={(n) => void persist({ ...prefs, coverScale: Number(n.toFixed(2)) })}
+            onChange={(n) => void persist({ ...prefs, coverScale: Math.round(n * 100) / 100 })}
           />
           <div className="grid gap-x-3 sm:grid-cols-2">
             <Slider

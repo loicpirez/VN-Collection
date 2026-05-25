@@ -122,7 +122,7 @@ export function AspectOverrideControl({
               onClick={() => save(active ? null : k)}
               disabled={saving}
               aria-pressed={active}
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-50 ${
+              className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-50 ${
                 active
                   ? 'border-accent bg-accent/15 text-accent font-bold'
                   : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -137,7 +137,7 @@ export function AspectOverrideControl({
             type="button"
             onClick={() => save(null)}
             disabled={saving}
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped"
           >
             <X className="h-3 w-3" aria-hidden />
             {t.aspectOverride.clear}

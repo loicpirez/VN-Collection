@@ -211,7 +211,7 @@ export function HomeSectionControls({
               aria-expanded={!state.collapsed}
               aria-label={state.collapsed ? expandLabel : collapseLabel}
               title={state.collapsed ? expandLabel : collapseLabel}
-              className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-50"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white disabled:opacity-50"
             >
               {state.collapsed
                 ? <ChevronRight className="h-3.5 w-3.5" aria-hidden />
@@ -227,7 +227,7 @@ export function HomeSectionControls({
               aria-controls={menuId}
               aria-label={optionsLabel}
               title={optionsLabel}
-              className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-50"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white disabled:opacity-50"
             >
               <MoreVertical className="h-3.5 w-3.5" aria-hidden />
             </button>
@@ -250,7 +250,7 @@ export function HomeSectionControls({
               setMenuOpen(false);
               onCollapseToggle();
             }}
-            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white"
+            className="flex min-h-[44px] w-full items-center gap-2 rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white"
           >
             {state.collapsed
               ? <ChevronRight className="h-3.5 w-3.5" aria-hidden />
@@ -264,7 +264,7 @@ export function HomeSectionControls({
               setMenuOpen(false);
               onHide();
             }}
-            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white"
+            className="flex min-h-[44px] w-full items-center gap-2 rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white"
           >
             <EyeOff className="h-3.5 w-3.5" aria-hidden />
             {t.homeSections.hide}
@@ -277,7 +277,7 @@ export function HomeSectionControls({
                 setMenuOpen(false);
                 onClearData();
               }}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-status-dropped hover:bg-status-dropped/10"
+              className="flex min-h-[44px] w-full items-center gap-2 rounded px-2 py-1.5 text-left text-status-dropped hover:bg-status-dropped/10"
             >
               <Trash2 className="h-3.5 w-3.5" aria-hidden />
               {clearLabel ?? t.homeSections.clearData}

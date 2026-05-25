@@ -489,7 +489,7 @@ export function WishlistClient() {
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as WishlistSort)}
-              className="input h-8 py-0 text-xs"
+              className="input min-h-[44px] py-0 text-xs"
               title={t.wishlist.sortLabel}
               aria-label={t.wishlist.sortLabel}
             >
@@ -500,7 +500,7 @@ export function WishlistClient() {
             <select
               value={group}
               onChange={(e) => setGroup(e.target.value as WishlistGroup)}
-              className="input h-8 py-0 text-xs"
+              className="input min-h-[44px] py-0 text-xs"
               title={t.wishlist.groupLabel}
               aria-label={t.wishlist.groupLabel}
             >
@@ -578,7 +578,7 @@ export function WishlistClient() {
                 <select
                   value={filterLang}
                   onChange={(e) => setFilterLang(e.target.value)}
-                  className="input h-7 py-0 text-xs"
+                  className="input min-h-[44px] py-0 text-xs"
                   aria-label={t.wishlist.filterByLanguage}
                 >
                   <option value="">{t.wishlist.filterByLanguage}</option>
@@ -591,7 +591,7 @@ export function WishlistClient() {
                 <select
                   value={filterPlatform}
                   onChange={(e) => setFilterPlatform(e.target.value)}
-                  className="input h-7 py-0 text-xs"
+                  className="input min-h-[44px] py-0 text-xs"
                   aria-label={t.wishlist.filterByPlatform}
                 >
                   <option value="">{t.wishlist.filterByPlatform}</option>
@@ -604,7 +604,7 @@ export function WishlistClient() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  className="input h-7 w-20 py-0 text-xs"
+                  className="input min-h-[44px] w-20 py-0 text-xs"
                   placeholder={t.wishlist.filterRatingMin}
                   value={filterRatingMin}
                   min={0}
@@ -616,7 +616,7 @@ export function WishlistClient() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  className="input h-7 w-20 py-0 text-xs"
+                  className="input min-h-[44px] w-20 py-0 text-xs"
                   placeholder={t.wishlist.filterRatingMax}
                   value={filterRatingMax}
                   min={0}
@@ -629,7 +629,7 @@ export function WishlistClient() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  className="input h-7 w-20 py-0 text-xs"
+                  className="input min-h-[44px] w-20 py-0 text-xs"
                   placeholder={t.wishlist.filterYearMin}
                   value={filterYearMin}
                   min={1980}
@@ -641,7 +641,7 @@ export function WishlistClient() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  className="input h-7 w-20 py-0 text-xs"
+                  className="input min-h-[44px] w-20 py-0 text-xs"
                   placeholder={t.wishlist.filterYearMax}
                   value={filterYearMax}
                   min={1980}
@@ -661,7 +661,7 @@ export function WishlistClient() {
                 </h2>
               )}
               <div
-                className="grid gap-5"
+                className="grid gap-3"
                 style={{ gridTemplateColumns: cardGridColumns(density) }}
               >
                 {g.items.map((it) => (

@@ -4,7 +4,8 @@ import { ArrowLeft, Sparkles, Star } from 'lucide-react';
 import { getCollectionItem } from '@/lib/db';
 import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
 import { applyGenericPenalty } from '@/lib/recommend';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
@@ -50,7 +51,7 @@ export default async function SimilarPage({
   searchParams: Promise<{ vn?: string; tags?: string }>;
 }) {
   const { vn: seedId, tags: rawTags } = await searchParams;
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   if (!seedId || !/^(v\d+|egs_\d+)$/i.test(seedId)) {
     return (
       <div className="w-full">
@@ -224,9 +225,10 @@ export default async function SimilarPage({
       </div>
 
       {results.length === 0 ? (
-        <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
-          {t.similar.empty}
-        </p>
+        <div className="rounded-xl border border-border bg-bg-card p-6 text-center text-sm text-muted">
+          <Sparkles className="mx-auto mb-3 h-6 w-6 text-accent" aria-hidden />
+          <p>{t.similar.empty}</p>
+        </div>
       ) : (
         <>
         {results.length >= 24 && (
@@ -237,7 +239,7 @@ export default async function SimilarPage({
         <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
           {results.map((r) => {
             const year = r.released?.slice(0, 4);
-            const rating = r.rating != null ? (r.rating / 10).toFixed(1) : null;
+            const rating = r.rating != null ? fmtNum(r.rating / 10, locale, 1) : null;
             return (
               <li
                 key={r.id}

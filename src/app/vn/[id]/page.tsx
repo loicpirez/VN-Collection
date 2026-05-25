@@ -3,7 +3,7 @@ import { cache } from 'react';
 import Link from 'next/link';
 import { after } from 'next/server';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Box, ChevronRight, ExternalLink, HardDriveDownload, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, Box, ChevronRight, Disc3, ExternalLink, HardDriveDownload, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
 import {
   deriveVnAspectDisplay,
   deriveVnAspectKey,
@@ -302,6 +302,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   const location = (vn.location as Location | undefined) ?? 'unknown';
   const editionType = (vn.edition_type as EditionType | undefined) ?? 'none';
   const boxType = (vn.box_type as BoxType | undefined) ?? 'none';
+  const isFanDisc = (vn.relations ?? []).some((r) => r.relation === 'orig');
 
   return (
     <div className="w-full">
@@ -418,6 +419,12 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <MatchBadges egsOnly={vn.id.startsWith('egs_')} egs={egsRow} t={t} />
+                {isFanDisc && (
+                  <span className="mb-2 inline-flex items-center gap-1 rounded-md border border-accent-blue/40 bg-accent-blue/15 px-2 py-1 text-xs font-bold text-accent-blue" title={t.library.fanDiscHint}>
+                    <Disc3 className="h-3.5 w-3.5" aria-hidden />
+                    {t.library.fanDisc}
+                  </span>
+                )}
                 <TitleLine title={displayTitle} alttitle={displayAltTitle} />
                 {(vn.titles ?? []).length > 1 && (
                   <details className="group mt-1 text-[11px]">

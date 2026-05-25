@@ -406,7 +406,7 @@ function EditableRow({
         {...listeners}
         aria-label={dragHandleLabel}
         title={dragHandleLabel}
-        className="tap-target-tight inline-flex h-7 w-7 cursor-grab items-center justify-center rounded text-muted hover:text-white active:cursor-grabbing"
+        className="inline-flex min-h-[44px] min-w-[44px] cursor-grab items-center justify-center rounded text-muted hover:text-white active:cursor-grabbing"
       >
         <GripVertical className="h-4 w-4" aria-hidden />
       </button>
@@ -425,7 +425,7 @@ function EditableRow({
         onClick={() => onPatch({ visible: !state.visible })}
         aria-pressed={!state.visible}
         title={state.visible ? hideLabel : showLabel}
-        className={`tap-target-tight inline-flex h-7 w-7 items-center justify-center rounded ${
+        className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded ${
           state.visible
             ? 'text-muted hover:bg-bg-elev hover:text-white'
             : 'text-accent hover:bg-accent/10'

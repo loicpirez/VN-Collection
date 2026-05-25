@@ -5,6 +5,7 @@ import { ArrowLeft, ListChecks, Pin } from 'lucide-react';
 import {
   countListMembershipsByVn,
   db,
+  getReadingQueueVnIds,
   getUserList,
   listUserListItems,
   type UserListItem,
@@ -47,9 +48,12 @@ function listCardData(
     playtime_minutes: row.playtime_minutes ?? 0,
     length_minutes: row.length_minutes,
     status: (row.status as Status | null) ?? undefined,
+    editionType: (row.edition_type as CardData['editionType']) ?? null,
     favorite: !!row.favorite,
+    inReadingQueue: row.in_reading_queue,
     developers,
     publishers,
+    isFanDisc: parseRelations(row.relations).some((relation) => relation === 'orig'),
     // R5-114: preload the ListsPicker membership-count chip so the
     // badge renders immediately on the list page (the popover-open
     // round-trip was the only thing populating it before).
@@ -75,12 +79,15 @@ interface VnRow {
   playtime_minutes: number | null;
   length_minutes: number | null;
   status: string | null;
+  edition_type: string | null;
   favorite: number | null;
   developers: string | null;
   publishers: string | null;
+  relations: string | null;
+  in_reading_queue: boolean;
 }
 
-function loadCards(items: UserListItem[]): Map<string, VnRow> {
+function loadCards(items: UserListItem[], queueIds: Set<string>): Map<string, VnRow> {
   if (items.length === 0) return new Map();
   const ids = items.map((i) => i.vn_id);
   const placeholders = ids.map(() => '?').join(',');
@@ -90,14 +97,14 @@ function loadCards(items: UserListItem[]): Map<string, VnRow> {
               v.local_image, v.local_image_thumb,
               c.custom_cover, v.released, v.rating,
               c.user_rating, c.playtime_minutes, v.length_minutes,
-              c.status, c.favorite,
-              v.developers, v.publishers
+              c.status, c.edition_type, c.favorite,
+              v.developers, v.publishers, v.relations
          FROM vn v
     LEFT JOIN collection c ON c.vn_id = v.id
         WHERE v.id IN (${placeholders})`,
     )
-    .all(...ids) as VnRow[];
-  return new Map(rows.map((r) => [r.id, r]));
+    .all(...ids) as Omit<VnRow, 'in_reading_queue'>[];
+  return new Map(rows.map((r) => [r.id, { ...r, in_reading_queue: queueIds.has(r.id) }]));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -116,7 +123,8 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   if (!list) notFound();
   const t = await getDict();
   const items = listUserListItems(listId);
-  const rows = loadCards(items);
+  const queueIds = getReadingQueueVnIds();
+  const rows = loadCards(items, queueIds);
   // R5-114: preload the ListsPicker membership-count chip on every
   // card via the same compact `vn_id → list_count` map the
   // `/api/collection` route uses. Without this annotation, every
@@ -216,6 +224,20 @@ function parseDevelopers(raw: string | null): { id?: string; name: string }[] {
       .filter((d): d is { id?: string; name?: string } => typeof d === 'object' && d !== null)
       .map((d) => ({ id: typeof d.id === 'string' ? d.id : undefined, name: String(d.name ?? '') }))
       .filter((d) => d.name);
+  } catch {
+    return [];
+  }
+}
+
+function parseRelations(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item): item is { relation?: unknown } => typeof item === 'object' && item !== null)
+      .map((item) => item.relation)
+      .filter((relation): relation is string => typeof relation === 'string');
   } catch {
     return [];
   }

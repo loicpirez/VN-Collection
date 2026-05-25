@@ -333,7 +333,7 @@ export function EditionInfoTrigger({
                         onPointerDown={stop}
                         onMouseDown={stop}
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-0.5 rounded border border-accent/40 bg-accent/10 px-1 py-0.5 text-[9px] uppercase tracking-wider text-accent hover:bg-accent/20"
+                        className="inline-flex min-h-[44px] items-center gap-0.5 rounded border border-accent/40 bg-accent/10 px-2 py-1 text-xs uppercase tracking-wider text-accent hover:bg-accent/20"
                         title={state.releasePlatforms.join(' · ').toUpperCase()}
                       >
                         <Edit3 className="h-2.5 w-2.5" aria-hidden />
@@ -382,7 +382,7 @@ export function EditionInfoTrigger({
                               setRefreshing(false);
                             }
                           }}
-                          className="inline-flex items-center gap-0.5 rounded border border-border bg-bg-elev/50 px-1 py-0.5 text-[9px] uppercase tracking-wider text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                          className="inline-flex min-h-[44px] items-center gap-0.5 rounded border border-border bg-bg-elev/50 px-2 py-1 text-xs uppercase tracking-wider text-muted hover:border-accent hover:text-accent disabled:opacity-50"
                           title={t.shelfLayout.refreshReleases}
                         >
                           {refreshing ? (
@@ -414,22 +414,22 @@ export function EditionInfoTrigger({
               visible without being confused with the owned-platform
               pin. Spec: "Cette sortie existe aussi sur : WIN · PS4 …".
             */}
-            {data.owned_platform && data.rel_platforms.length > 1 && (
+            {data.owned_platform && data.rel_platforms.length > 1 && (() => {
+              const ownedPlatform = data.owned_platform;
+              if (!ownedPlatform) return null;
+              const otherPlatforms = data.rel_platforms.filter((p) => p.toLowerCase() !== ownedPlatform.toLowerCase());
+              return (
               <div className="text-[10px] text-muted/70">
                 {t.shelfLayout.alsoAvailableOn}{' '}
                 <span
                   className="text-white/80"
-                  title={data.rel_platforms
-                    .filter((p) => p.toLowerCase() !== data.owned_platform!.toLowerCase())
-                    .join(' · ')}
+                  title={otherPlatforms.join(' · ')}
                 >
-                  {data.rel_platforms
-                    .filter((p) => p.toLowerCase() !== data.owned_platform!.toLowerCase())
-                    .map((p) => platformLabel(p))
-                    .join(' · ')}
+                  {otherPlatforms.map((p) => platformLabel(p)).join(' · ')}
                 </span>
               </div>
-            )}
+              );
+            })()}
             {(() => {
               const released = data.rel_released ?? data.vn_released;
               if (!released) return null;

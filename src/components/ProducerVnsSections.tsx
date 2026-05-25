@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { AlertTriangle, Check, Package, Star, Wrench } from 'lucide-react';
 import { fetchProducerAssociations, type ProducerAssociations, type ProducerVnRef } from '@/lib/producer-associations';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 import { SafeImage } from './SafeImage';
 import { AddMissingVnButton } from './AddMissingVnButton';
 import { ProducerRefreshButton } from './ProducerRefreshButton';
@@ -27,7 +28,7 @@ export async function ProducerVnsSections({
   producerId: string;
   scope?: 'all' | 'collection';
 }) {
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   let data: ProducerAssociations;
   try {
     data = await fetchProducerAssociations(producerId);
@@ -131,6 +132,7 @@ export async function ProducerVnsSections({
           icon="dev"
           vns={developerVns}
           t={t}
+          locale={locale}
         />
       )}
 
@@ -141,6 +143,7 @@ export async function ProducerVnsSections({
           icon="pub"
           vns={publisherVns}
           t={t}
+          locale={locale}
         />
       )}
     </section>
@@ -153,12 +156,14 @@ function RoleSection({
   icon,
   vns,
   t,
+  locale,
 }: {
   title: string;
   emptyMessage: string;
   icon: 'dev' | 'pub';
   vns: ProducerVnRef[];
   t: Awaited<ReturnType<typeof getDict>>;
+  locale: Awaited<ReturnType<typeof getLocale>>;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
@@ -222,7 +227,7 @@ function RoleSection({
                     {v.released?.slice(0, 4) && <span>{v.released.slice(0, 4)}</span>}
                     {v.rating != null && (
                       <span className="inline-flex items-center gap-0.5 text-accent">
-                        <Star className="h-2.5 w-2.5 fill-accent" aria-hidden /> {(v.rating / 10).toFixed(1)}
+                        <Star className="h-2.5 w-2.5 fill-accent" aria-hidden /> {fmtNum(v.rating / 10, locale, 1)}
                       </span>
                     )}
                   </p>

@@ -147,7 +147,7 @@ export function CoverRotationButtons({
         title={t.coverActions.rotateLeft}
         // Rotate buttons keep the hover-fade so the cover is not
         // permanently visually cluttered when no rotation is set.
-        className={`inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50 ${
+        className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50 ${
           hasRotation ? 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100' : ''
         }`}
       >
@@ -159,7 +159,7 @@ export function CoverRotationButtons({
         disabled={busy}
         aria-label={t.coverActions.rotateRight}
         title={t.coverActions.rotateRight}
-        className={`inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50 ${
+        className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50 ${
           hasRotation ? 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100' : ''
         }`}
       >
@@ -176,7 +176,7 @@ export function CoverRotationButtons({
         // anchor. When no rotation is active it's a passive '0°'
         // readout (disabled). When the user has rotated, the chip
         // stays visible so they can reset without hovering.
-        className="rounded-md bg-bg-card/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-45"
+        className="min-h-[44px] rounded-md bg-bg-card/80 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-45"
       >
         {rotation}°
       </button>

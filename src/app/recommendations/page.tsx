@@ -547,17 +547,19 @@ async function ResultsPanel({
 
   if (seeds.length === 0) {
     return (
-      <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
-        {t.recommend.empty}
-      </p>
+      <div className="rounded-xl border border-border bg-bg-card p-6 text-center text-sm text-muted">
+        <Lightbulb className="mx-auto mb-3 h-6 w-6 text-accent" aria-hidden />
+        <p>{t.recommend.empty}</p>
+      </div>
     );
   }
 
   if (results.length === 0) {
     return (
-      <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
-        {t.recommend.empty}
-      </p>
+      <div className="rounded-xl border border-border bg-bg-card p-6 text-center text-sm text-muted">
+        <Lightbulb className="mx-auto mb-3 h-6 w-6 text-accent" aria-hidden />
+        <p>{t.recommend.empty}</p>
+      </div>
     );
   }
 
@@ -572,6 +574,7 @@ async function ResultsPanel({
         includeWishlist={includeWishlist}
         includeEro={includeEro}
         t={t}
+        locale={locale}
       />
       <ResultsGrid mode={mode} results={results} t={t} locale={locale} />
     </>
@@ -596,6 +599,7 @@ function RecommendExplanationPanel({
   includeWishlist,
   includeEro,
   t,
+  locale,
 }: {
   mode: RecommendMode;
   seeds: RecommendationSeed[];
@@ -605,6 +609,7 @@ function RecommendExplanationPanel({
   includeWishlist: boolean;
   includeEro: boolean;
   t: Dictionary;
+  locale: Locale;
 }) {
   if (!signalCounts || signalCounts.total === 0) return null;
   const modeMeta = MODE_META[mode];
@@ -647,7 +652,7 @@ function RecommendExplanationPanel({
                 className="inline-flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent"
               >
                 {s.name}
-                <span className="font-mono opacity-70">{s.weight.toFixed(1)}</span>
+                <span className="font-mono opacity-70">{fmtNum(s.weight, locale, 1)}</span>
               </span>
             ))}
           </div>
@@ -724,8 +729,8 @@ function ResultsGrid({
     >
       {results.map((r) => {
         const year = r.released?.slice(0, 4);
-        const rating = r.rating != null ? (r.rating / 10).toFixed(1) : null;
-        const ratingForReason = r.rating != null ? (r.rating / 10).toFixed(1) : '—';
+        const rating = r.rating != null ? fmtNum(r.rating / 10, locale, 1) : null;
+        const ratingForReason = r.rating != null ? fmtNum(r.rating / 10, locale, 1) : '—';
         const votesForReason = r.votecount != null ? fmtNum(r.votecount, locale) : '—';
         // Dedup matched tags before slicing so two seeds that both
         // matched the same tag don't double up.

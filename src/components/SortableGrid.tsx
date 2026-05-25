@@ -1,5 +1,5 @@
 'use client';
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -157,5 +157,6 @@ function SortableCard({ item, isDragGhost }: { item: CollectionItem; isDragGhost
 }
 
 const CardInner = memo(function CardInner({ item }: { item: CollectionItem }) {
-  return <VnCard data={toCardData(item)} />;
+  const data = useMemo(() => toCardData(item), [item]);
+  return <VnCard data={data} />;
 });

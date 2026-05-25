@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Award, ChevronLeft, ChevronRight, Clock, Sparkles, Star } from 'lucide-react';
 import { getReadingGoal, yearReview } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { fmtNum } from '@/lib/locale-number';
 import { ActivityHeatmap } from '@/components/ActivityHeatmap';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +31,7 @@ export default async function YearPage({
 }) {
   const { y } = await searchParams;
   const year = pickYear(y);
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const review = yearReview(year);
   const goal = getReadingGoal(year);
   const progress = goal?.target ? Math.min(100, Math.round((review.completed / goal.target) * 100)) : null;
@@ -80,7 +81,7 @@ export default async function YearPage({
         />
         <Stat
           label={t.year.avgRating}
-          value={review.avgUserRating != null ? (review.avgUserRating / 10).toFixed(1) : '—'}
+          value={review.avgUserRating != null ? fmtNum(review.avgUserRating / 10, locale, 1) : '—'}
           icon={<Star className="h-4 w-4" />}
         />
       </div>
@@ -138,7 +139,7 @@ export default async function YearPage({
                   <span className="mr-2 text-[10px] text-muted">#{i + 1}</span>
                   <Link href={`/vn/${b.id}`} className="font-semibold hover:text-accent">{b.title}</Link>
                 </span>
-                <span className="font-mono text-accent">{(b.rating / 10).toFixed(1)}</span>
+                <span className="font-mono text-accent">{fmtNum(b.rating / 10, locale, 1)}</span>
               </li>
             ))}
           </ol>

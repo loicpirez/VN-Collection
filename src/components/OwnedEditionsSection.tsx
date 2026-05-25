@@ -1014,7 +1014,7 @@ function EditionPicker({
             <select
               value={filterLang}
               onChange={(e) => setFilterLang(e.target.value)}
-              className="input h-7 py-0 text-[11px]"
+              className="input min-h-[44px] py-0 text-[11px]"
               aria-label={t.inventory.pickerFilterLang}
             >
               <option value="">{t.inventory.pickerFilterLang}</option>
@@ -1025,7 +1025,7 @@ function EditionPicker({
             <select
               value={filterPlatform}
               onChange={(e) => setFilterPlatform(e.target.value)}
-              className="input h-7 py-0 text-[11px]"
+              className="input min-h-[44px] py-0 text-[11px]"
               aria-label={t.inventory.pickerFilterPlatform}
             >
               <option value="">{t.inventory.pickerFilterPlatform}</option>
@@ -1036,7 +1036,7 @@ function EditionPicker({
             <select
               value={filterOfficial}
               onChange={(e) => setFilterOfficial(e.target.value as typeof filterOfficial)}
-              className="input h-7 py-0 text-[11px]"
+              className="input min-h-[44px] py-0 text-[11px]"
               aria-label={t.inventory.pickerFilterType}
             >
               <option value="all">{t.inventory.pickerFilterType}</option>
@@ -1046,7 +1046,7 @@ function EditionPicker({
             <select
               value={filterEro}
               onChange={(e) => setFilterEro(e.target.value as typeof filterEro)}
-              className="input h-7 py-0 text-[11px]"
+              className="input min-h-[44px] py-0 text-[11px]"
               aria-label={t.inventory.pickerFilterEro}
             >
               <option value="all">{t.inventory.pickerFilterEro}</option>
@@ -1056,7 +1056,7 @@ function EditionPicker({
             <select
               value={filterMtl}
               onChange={(e) => setFilterMtl(e.target.value as typeof filterMtl)}
-              className="input h-7 py-0 text-[11px]"
+              className="input min-h-[44px] py-0 text-[11px]"
               aria-label={t.inventory.pickerFilterMtl}
             >
               <option value="all">{t.inventory.pickerFilterMtl}</option>

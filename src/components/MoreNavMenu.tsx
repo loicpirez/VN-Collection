@@ -367,7 +367,7 @@ function MobileSheet({
           <button
             type="button"
             onClick={onClose}
-            className="tap-target-tight rounded-md p-1 text-muted hover:text-white"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-1 text-muted hover:text-white"
             aria-label={t.common.close}
           >
             <X className="h-4 w-4" aria-hidden />

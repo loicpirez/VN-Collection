@@ -36,6 +36,8 @@ export function toCardData(it: CollectionItem): CardData {
     playtime_minutes: it.playtime_minutes,
     length_minutes: it.length_minutes,
     status: it.status as Status | undefined,
+    editionType: it.edition_type,
+    aspectKeys: it.aspect_keys,
     favorite: it.favorite,
     inReadingQueue: it.in_reading_queue,
     developers: it.developers,
@@ -50,4 +52,3 @@ export function toCardData(it: CollectionItem): CardData {
   cardDataCache.set(it, data);
   return data;
 }
-

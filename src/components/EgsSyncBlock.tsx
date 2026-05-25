@@ -134,6 +134,7 @@ export function EgsSyncBlock() {
           className="input"
           value={username}
           placeholder={t.egsSync.usernamePlaceholder}
+          aria-label={t.egsSync.usernamePlaceholder}
           onChange={(e) => {
             setUsername(e.target.value);
             setUsernameDirty(true);
@@ -183,7 +184,16 @@ export function EgsSyncBlock() {
             return (
               <li
                 key={s.vn_id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={picked}
                 onClick={() => togglePick(s.vn_id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    togglePick(s.vn_id);
+                  }
+                }}
                 className={`flex cursor-pointer items-center gap-3 rounded-lg border bg-bg-elev/30 p-2 text-xs transition-colors ${
                   picked ? 'border-accent ring-1 ring-accent/30' : 'border-border hover:border-accent/50'
                 }`}

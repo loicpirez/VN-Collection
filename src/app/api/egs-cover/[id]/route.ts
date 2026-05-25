@@ -221,6 +221,10 @@ function shopUrl(raw: RawRow): string | null {
 async function proxyImage(target: string, origin: string): Promise<Response> {
   if (target.startsWith(`${origin}/`) || target.startsWith('/')) {
     const absolute = target.startsWith('/') ? `${origin}${target}` : target;
+    const url = new URL(absolute);
+    if (url.origin !== origin || !url.pathname.startsWith('/api/files/')) {
+      return new NextResponse(null, { status: 403 });
+    }
     return NextResponse.redirect(absolute, 302);
   }
   if (!isAllowedTarget(target)) {

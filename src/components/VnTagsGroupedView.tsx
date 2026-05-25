@@ -165,7 +165,7 @@ function TagSection({
                   {tag.name}
                   {tag.lie && <AlertTriangle className="h-2.5 w-2.5" aria-hidden />}
                   <span
-                    className="ml-0.5 rounded bg-bg-elev/80 px-1 text-[9px] font-bold tabular-nums text-muted"
+                    className="ml-0.5 rounded bg-bg-elev/80 px-1 text-xs font-bold tabular-nums text-muted"
                     aria-label={t.vnTags.tagRatingAria.replace('{n}', rating)}
                   >
                     {rating}
@@ -180,7 +180,7 @@ function TagSection({
                 href={links.vndbExternal}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="-ml-px inline-flex items-center rounded-r-md border border-l-0 border-border bg-bg-elev/40 px-1 text-[9px] uppercase tracking-wider text-muted hover:border-accent hover:text-accent"
+                className="-ml-px inline-flex min-h-[44px] items-center rounded-r-md border border-l-0 border-border bg-bg-elev/40 px-2 text-xs uppercase tracking-wider text-muted hover:border-accent hover:text-accent"
                 aria-label={t.detail.openOnVndb}
                 title={t.detail.openOnVndb}
               >

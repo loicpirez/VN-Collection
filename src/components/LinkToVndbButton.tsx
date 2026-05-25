@@ -1,9 +1,10 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ExternalLink, Link2, Loader2, Search, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
+import { useDialogA11y } from './Dialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { formatVndbDateString } from '@/lib/locale-number';
 
@@ -37,6 +38,9 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
   const [searching, setSearching] = useState(false);
   const [linkingId, setLinkingId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
+  useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
 
   const search = useCallback(async (q: string) => {
     if (!q.trim()) {
@@ -108,15 +112,25 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur" onClick={() => setOpen(false)}>
           <div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
             onClick={(e) => e.stopPropagation()}
-            className="w-[min(92vw,640px)] max-h-[80vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
+            className="max-h-[80vh] w-[min(92vw,640px)] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 shadow-card outline-none sm:p-5"
           >
             <header className="mb-3 flex items-baseline justify-between gap-3">
               <div>
-                <h2 className="text-base font-bold">{t.linkVndb.title}</h2>
+                <h2 id={titleId} className="text-base font-bold">{t.linkVndb.title}</h2>
                 <p className="text-[11px] text-muted">{t.linkVndb.hint}</p>
               </div>
-              <button type="button" onClick={() => setOpen(false)} aria-label={t.common.close} className="text-muted hover:text-white">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label={t.common.close}
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white"
+              >
                 <X className="h-4 w-4" />
               </button>
             </header>

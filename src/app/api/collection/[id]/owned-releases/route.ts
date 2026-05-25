@@ -20,6 +20,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
 const VALID_CONDITIONS = new Set(['new', 'used', 'sealed', 'opened', 'damaged']);
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; error?: string } {
   const patch: OwnedReleasePatch = {};
@@ -54,7 +55,7 @@ function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; e
   if ('acquired_date' in body) {
     const v = body.acquired_date;
     if (v === null || v === '') patch.acquired_date = null;
-    else if (typeof v === 'string') patch.acquired_date = v;
+    else if (typeof v === 'string' && ISO_DATE_RE.test(v)) patch.acquired_date = v;
     else return { patch, error: 'invalid acquired_date' };
   }
   if ('purchase_place' in body) {

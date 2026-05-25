@@ -4,7 +4,7 @@ import { ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-reac
 import { db, getCollectionItem } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
-import { formatVndbDateString } from '@/lib/locale-number';
+import { fmtNum, formatVndbDateString } from '@/lib/locale-number';
 import { formatMinutes } from '@/lib/format';
 import { roleLabel } from '@/lib/staff-roles';
 import { platformLabel } from '@/lib/platform-label';
@@ -283,11 +283,11 @@ export default async function ComparePage({
               <div key={`rating-${it.id}`} className="bg-bg-card p-3 text-sm">
                 <span className="inline-flex items-baseline gap-1 text-accent">
                   <Star className="h-3 w-3 self-center fill-accent" />
-                  {it.rating != null ? (it.rating / 10).toFixed(1) : '—'}
+                  {it.rating != null ? fmtNum(it.rating / 10, locale, 1) : '—'}
                 </span>
                 {it.user_rating != null && (
                   <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">
-                    {(it.user_rating / 10).toFixed(1)}
+                    {fmtNum(it.user_rating / 10, locale, 1)}
                   </span>
                 )}
               </div>

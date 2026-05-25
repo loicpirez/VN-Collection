@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { GitCompare, Heart, Loader2, MapPin, Package, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -22,11 +22,12 @@ type BulkField =
   | { kind: 'box_type'; value: BoxType }
   | { kind: 'favorite'; value: boolean };
 
-async function patchOne(vnId: string, body: Record<string, unknown>): Promise<void> {
+async function patchOne(vnId: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<void> {
   const res = await fetch(`/api/collection/${vnId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -34,8 +35,8 @@ async function patchOne(vnId: string, body: Record<string, unknown>): Promise<vo
   }
 }
 
-async function deleteOne(vnId: string): Promise<void> {
-  const res = await fetch(`/api/collection/${vnId}`, { method: 'DELETE' });
+async function deleteOne(vnId: string, signal?: AbortSignal): Promise<void> {
+  const res = await fetch(`/api/collection/${vnId}`, { method: 'DELETE', signal });
   if (!res.ok) throw new Error(`${vnId}: HTTP ${res.status}`);
 }
 
@@ -46,28 +47,69 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [operation, setOperation] = useState({ label: '', currentId: '', aborted: false });
   const [errors, setErrors] = useState<string[]>([]);
+  const cancelRef = useRef(false);
+  const controllerRef = useRef<AbortController | null>(null);
   const [, startTransition] = useTransition();
   const canCompare = selectedIds.length >= 2 && selectedIds.length <= 4;
 
+  function labelForField(field: BulkField): string {
+    switch (field.kind) {
+      case 'status':
+        return `${t.bulkEdit.setStatus.replace(/\u2026$/, '')}: ${t.status[field.value]}`;
+      case 'location':
+        return `${t.bulkEdit.setLocation.replace(/\u2026$/, '')}: ${t.locations[field.value]}`;
+      case 'edition_type':
+        return `${t.bulkEdit.setEdition.replace(/\u2026$/, '')}: ${t.editions[field.value]}`;
+      case 'box_type':
+        return `${t.bulkEdit.setBox.replace(/\u2026$/, '')}: ${t.boxTypes[field.value]}`;
+      case 'favorite':
+        return field.value ? t.bulkEdit.markFavorite : t.bulkEdit.unmarkFavorite;
+    }
+  }
+
+  function requestStop() {
+    cancelRef.current = true;
+    controllerRef.current?.abort();
+    setOperation((prev) => ({ ...prev, aborted: true }));
+  }
+
   async function applyField(field: BulkField) {
     if (selectedIds.length === 0) return;
+    cancelRef.current = false;
     setBusy(true);
     setErrors([]);
     setProgress({ done: 0, total: selectedIds.length });
+    setOperation({ label: labelForField(field), currentId: '', aborted: false });
     const localErrors: string[] = [];
     let done = 0;
     for (const id of selectedIds) {
+      if (cancelRef.current) break;
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      setOperation((prev) => ({ ...prev, currentId: id }));
       try {
-        await patchOne(id, { [field.kind]: field.value });
+        await patchOne(id, { [field.kind]: field.value }, controller.signal);
       } catch (e) {
-        localErrors.push((e as Error).message);
+        if (!cancelRef.current) localErrors.push((e as Error).message);
       }
+      if (controllerRef.current === controller) controllerRef.current = null;
+      if (cancelRef.current) break;
       done++;
       setProgress({ done, total: selectedIds.length });
     }
+    const aborted = cancelRef.current;
+    cancelRef.current = false;
+    controllerRef.current = null;
     setBusy(false);
+    setOperation((prev) => ({ ...prev, currentId: '', aborted }));
     setErrors(localErrors);
+    if (aborted) {
+      toast.warning(t.bulk.abortedTitle);
+      onApplied();
+      return;
+    }
     if (localErrors.length === 0) {
       toast.success(t.toast.bulkApplied.replace('{n}', String(selectedIds.length)));
       startTransition(() => {
@@ -88,22 +130,39 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
       requireTyping: selectedIds.length >= 5 ? 'DELETE' : undefined,
     });
     if (!ok) return;
+    cancelRef.current = false;
     setBusy(true);
     setErrors([]);
     setProgress({ done: 0, total: selectedIds.length });
+    setOperation({ label: t.bulkEdit.deleteAll, currentId: '', aborted: false });
     const localErrors: string[] = [];
     let done = 0;
     for (const id of selectedIds) {
+      if (cancelRef.current) break;
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      setOperation((prev) => ({ ...prev, currentId: id }));
       try {
-        await deleteOne(id);
+        await deleteOne(id, controller.signal);
       } catch (e) {
-        localErrors.push((e as Error).message);
+        if (!cancelRef.current) localErrors.push((e as Error).message);
       }
+      if (controllerRef.current === controller) controllerRef.current = null;
+      if (cancelRef.current) break;
       done++;
       setProgress({ done, total: selectedIds.length });
     }
+    const aborted = cancelRef.current;
+    cancelRef.current = false;
+    controllerRef.current = null;
     setBusy(false);
+    setOperation((prev) => ({ ...prev, currentId: '', aborted }));
     setErrors(localErrors);
+    if (aborted) {
+      toast.warning(t.bulk.abortedTitle);
+      onApplied();
+      return;
+    }
     if (localErrors.length === 0) {
       toast.success(t.toast.bulkDeleted.replace('{n}', String(selectedIds.length)));
     } else {
@@ -201,20 +260,34 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
       </div>
 
       {busy && (
-        <div className="mt-2">
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            {progress.done}/{progress.total}
+        <div className="mt-2" role="status" aria-live="polite">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            <span className="font-semibold text-text">{operation.label}</span>
+            {operation.currentId && <span>{operation.currentId}</span>}
+            <span>
+              {progress.done}/{progress.total}
+            </span>
+            <button
+              type="button"
+              className="ml-auto inline-flex min-h-[44px] items-center justify-center rounded-md border border-border bg-bg-elev/40 px-3 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-white"
+              onClick={requestStop}
+            >
+              {t.bulk.stop}
+            </button>
           </div>
           <div
             role="progressbar"
             aria-valuenow={Math.round(pct)}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`${progress.done}/${progress.total}`}
+            aria-label={`${operation.label} ${progress.done}/${progress.total}`}
             className="mt-1 h-1 w-full overflow-hidden rounded-full bg-bg-elev"
           >
-            <div className="h-full bg-accent transition-[width] duration-150" style={{ width: `${pct}%` }} />
+            <div
+              className={`h-full transition-[width] duration-150 ${operation.aborted ? 'bg-status-on_hold' : 'bg-accent'}`}
+              style={{ width: `${pct}%` }}
+            />
           </div>
         </div>
       )}

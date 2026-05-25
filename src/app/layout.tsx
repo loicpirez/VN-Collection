@@ -101,7 +101,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 >
                   {dict.app.skipToContent}
                 </a>
-                <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur">
+                <header
+                  className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur"
+                  style={{ paddingTop: 'env(safe-area-inset-top)' }}
+                >
                   <HeaderSpaceFrame className="flex flex-wrap items-center gap-2 py-3 sm:gap-4">
                     <Link href="/" className="flex items-center gap-2">
                       <Library className="h-6 w-6 text-accent" aria-hidden />

@@ -139,7 +139,7 @@ export function SearchClient() {
   const [q, setQ] = useState(initialQ);
   const [results, setResults] = useState<VndbSearchHit[]>([]);
   const [egsResults, setEgsResults] = useState<EgsCandidate[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!!initialQ || isAdvActive(initialAdv));
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(!!initialQ || isAdvActive(initialAdv));
   const [advOpen, setAdvOpen] = useState(isAdvActive(initialAdv));
@@ -467,7 +467,7 @@ export function SearchClient() {
 
       {advOpen && source === 'vndb' && (
         <div className="mb-6 rounded-xl border border-border bg-bg-card p-4 text-xs">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             <div>
               <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.search.langsField}</h4>
               <div className="flex flex-wrap gap-1.5">
@@ -714,7 +714,7 @@ function SearchResultsGrid({ results }: { results: VndbSearchHit[] }) {
     gridTemplateColumns: cardGridColumns(density),
   };
   return (
-    <div className="grid gap-5" style={gridStyle}>
+    <div className="grid gap-3" style={gridStyle}>
       {results.map((r) => (
         <VnCard key={r.id} enableAdd data={searchCardData(r)} />
       ))}

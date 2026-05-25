@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { CheckSquare, CloudDownload, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -46,6 +46,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
   const searchParams = useSearchParams();
   const onLibrary = pathname === '/';
   const hasOverride = Array.isArray(itemsOverride);
+  const menuId = useId();
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(0);
   const [total, setTotal] = useState(0);
@@ -222,14 +223,23 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
           onClick={() => setPickerOpen((v) => !v)}
           disabled={running || (hasOverride && (itemsOverride?.length ?? 0) === 0)}
           title={t.bulk.tooltip}
+          aria-haspopup="menu"
+          aria-expanded={pickerOpen}
+          aria-controls={menuId}
         >
           {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
           {running ? `${done}/${total}` : (label ?? t.bulk.cta)}
         </button>
         {pickerOpen && !running && (
-          <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card">
+          <div
+            id={menuId}
+            role="menu"
+            aria-label={t.bulk.cta}
+            className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card"
+          >
             <button
               type="button"
+              role="menuitem"
               onClick={() => start(false)}
               className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
             >
@@ -241,6 +251,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
             </button>
             <button
               type="button"
+              role="menuitem"
               onClick={() => start(true)}
               className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
             >
@@ -253,6 +264,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
             {!hasOverride && (
               <button
                 type="button"
+                role="menuitem"
                 onClick={() => {
                   setPickerOpen(false);
                   setSelectiveOpen(true);

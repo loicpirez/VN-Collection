@@ -3,7 +3,7 @@
  *
  * The operator's spec for round 5 is:
  *   - one coherent toolbar primitive (single component)
- *   - uniform button height (`h-9`) and padding (`px-3 py-1.5`)
+ *   - uniform touch-safe button height (`min-h-[44px]`) and padding (`px-3 py-1.5`)
  *   - plain row wrappers; size and padding live on the actual controls
  *   - no `class="btn "` drift (trailing-space mass-edit signature)
  *   - no useless `<span className="contents">` wrappers
@@ -24,7 +24,7 @@ const SOURCE = readFileSync(
 describe('VnDetailActionsBar — shape invariants', () => {
   it('pins the shared toolbar action button sizing contract', () => {
     expect(SOURCE).toMatch(
-      /ACTION_BUTTON_CLASSES[\s\S]*?inline-flex h-9[\s\S]*?gap-1\.5[\s\S]*?px-3 py-1\.5[\s\S]*?text-xs/,
+      /ACTION_BUTTON_CLASSES[\s\S]*?inline-flex min-h-\[44px\][\s\S]*?gap-1\.5[\s\S]*?px-3 py-1\.5[\s\S]*?text-xs/,
     );
   });
 

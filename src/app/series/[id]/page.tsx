@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Bookmark } from 'lucide-react';
-import { countListMembershipsByVn, getAppSetting, getSeries, listCollection } from '@/lib/db';
+import { countListMembershipsByVn, getAppSetting, getReadingQueueVnIds, getSeries, listCollection } from '@/lib/db';
 import { publicUrlFor } from '@/lib/files';
 import { getDict } from '@/lib/i18n/server';
 import { VnCard } from '@/components/VnCard';
@@ -40,7 +40,12 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
   // showing zero and only fetches the real count when the popover
   // opens, which made the chip useless as an at-a-glance affordance.
   const listCounts = countListMembershipsByVn();
-  const items = rawItems.map((it) => ({ ...it, list_count: listCounts.get(it.id) ?? 0 }));
+  const queueIds = getReadingQueueVnIds();
+  const items = rawItems.map((it) => ({
+    ...it,
+    list_count: listCounts.get(it.id) ?? 0,
+    in_reading_queue: queueIds.has(it.id),
+  }));
   const layout = parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1'));
 
   // Build the section list — each is wrapped into a slot the layout
@@ -97,7 +102,10 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
     <div className="space-y-4">
       <SeriesAddVnForm seriesId={series.id} />
       {items.length === 0 ? (
-        <div className="py-12 text-center text-muted">{t.series.emptyDetail}</div>
+        <div className="rounded-xl border border-border bg-bg-card p-6 text-center text-sm text-muted">
+          <Bookmark className="mx-auto mb-3 h-6 w-6 text-accent" aria-hidden />
+          <p>{t.series.emptyDetail}</p>
+        </div>
       ) : (
         <div
           className="grid gap-5"

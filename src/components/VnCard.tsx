@@ -11,7 +11,8 @@ import { useResolvedTitle } from './TitleLine';
 import { CardContextMenu } from './CardContextMenu';
 import { FavoriteToggleButton } from './FavoriteToggleButton';
 import { ListsPickerButton } from './ListsPickerButton';
-import type { Status } from '@/lib/types';
+import type { EditionType, Status } from '@/lib/types';
+import type { AspectKey } from '@/lib/aspect-ratio';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
 import { fmtNum } from '@/lib/locale-number';
 
@@ -29,6 +30,8 @@ export interface CardData {
   playtime_minutes?: number | null;
   length_minutes?: number | null;
   status?: Status;
+  editionType?: EditionType | null;
+  aspectKeys?: AspectKey[] | null;
   favorite?: boolean;
   /** Whether this VN is currently in the reading queue. */
   inReadingQueue?: boolean;
@@ -189,6 +192,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   const allPlaytime = fmtMinutes(allPlaytimeMin);
   const egsScore = data.egs_median != null ? Math.round(data.egs_median) : null;
   const titlePair = useResolvedTitle(data.title, data.alttitle ?? null);
+  const visibleAspectKeys = (data.aspectKeys ?? []).filter((key) => key !== 'unknown');
 
   const localSrc = data.customCover || data.localPoster || null;
 
@@ -324,6 +328,17 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
             </span>
           )}
           {year && <span>{year}</span>}
+          {data.editionType && data.editionType !== 'none' && (
+            <span className="inline-flex rounded bg-bg-elev/70 px-1.5 py-0.5 text-muted" title={t.form.editionType}>
+              {t.editions[data.editionType] ?? data.editionType}
+            </span>
+          )}
+          {visibleAspectKeys.length > 0 && (
+            <span className="inline-flex rounded bg-bg-elev/70 px-1.5 py-0.5 text-muted" title={t.aspectOverride.title}>
+              {visibleAspectKeys.slice(0, 2).map((key) => t.aspect.keys[key]).join(' / ')}
+              {visibleAspectKeys.length > 2 ? ` +${visibleAspectKeys.length - 2}` : ''}
+            </span>
+          )}
         </div>
         {allPlaytime && (
           <div className="text-[11px]">

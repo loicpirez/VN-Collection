@@ -5,7 +5,7 @@ import {
   upsertReleaseResolutionCache,
   db,
 } from '@/lib/db';
-import { aspectKeyForResolution, parseResolutionValue } from '@/lib/aspect-ratio';
+import { aspectKeyForResolution, isAspectKey, parseResolutionValue } from '@/lib/aspect-ratio';
 
 function clear(): void {
   db.exec(`
@@ -41,6 +41,17 @@ beforeEach(() => {
 });
 
 describe('aspect ratio helpers', () => {
+  it('recognizes valid aspect keys and rejects invalid values', () => {
+    expect(isAspectKey('4:3')).toBe(true);
+    expect(isAspectKey('16:9')).toBe(true);
+    expect(isAspectKey('16:10')).toBe(true);
+    expect(isAspectKey('21:9')).toBe(true);
+    expect(isAspectKey('other')).toBe(true);
+    expect(isAspectKey('unknown')).toBe(true);
+    expect(isAspectKey('3:2')).toBe(false);
+    expect(isAspectKey(null)).toBe(false);
+  });
+
   it('normalizes common resolution buckets', () => {
     expect(aspectKeyForResolution(640, 480)).toBe('4:3');
     expect(aspectKeyForResolution(1280, 720)).toBe('16:9');
@@ -86,4 +97,3 @@ describe('collection aspect filtering', () => {
     expect(listCollection({ aspect: 'unknown' }).map((v) => v.id)).toEqual(['v1']);
   });
 });
-

@@ -467,9 +467,9 @@ function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]
                   <span
                     className="inline-flex items-center gap-0.5 text-accent"
                     title={t.topRanked.scoreMethodVndb}
-                    aria-label={`${(v.rating / 10).toFixed(1)} — ${t.topRanked.scoreMethodVndb}`}
+                    aria-label={`${fmtNum(v.rating / 10, locale, 1)} — ${t.topRanked.scoreMethodVndb}`}
                   >
-                    <Star className="h-3 w-3 fill-accent" aria-hidden /> {(v.rating / 10).toFixed(1)}
+                    <Star className="h-3 w-3 fill-accent" aria-hidden /> {fmtNum(v.rating / 10, locale, 1)}
                   </span>
                 )}
                 {v.votecount != null && (
