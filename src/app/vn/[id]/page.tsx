@@ -31,6 +31,7 @@ import { getVn } from '@/lib/vndb';
 import { resolveField } from '@/lib/source-resolve';
 import { formatMinutes } from '@/lib/format';
 import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum, formatVndbDateString } from '@/lib/locale-number';
 import { EditForm } from '@/components/EditForm';
 import { StatusBadge } from '@/components/StatusBadge';

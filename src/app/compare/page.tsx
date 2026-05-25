@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-react';
 import { db, getCollectionItem } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
+import type { Locale } from '@/lib/i18n/dictionaries';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { formatMinutes } from '@/lib/format';
 import { roleLabel } from '@/lib/staff-roles';
