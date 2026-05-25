@@ -17,9 +17,6 @@ const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
 const CELL_RE = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
 const TAG_RE = /<[^>]+>/g;
 
-/** Minimum delay between items during auto-match to avoid hammering VNDB/EGS. */
-const MATCH_INTER_ITEM_DELAY_MS = 1500;
-
 export interface KobeCandidate {
   id: string;
   title: string;
@@ -29,10 +26,6 @@ export interface KobeCandidate {
 
 function stripTags(html: string): string {
   return html.replace(TAG_RE, '').trim();
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -141,56 +134,46 @@ export function resetKobeAutoMatches(): number {
  * Auto-match a batch of unlinked Kobe items against VNDB and EGS.
  *
  * Rate-limiting strategy:
- *   - VNDB: handled by the shared throttle queue (≤ 1 req/s)
- *   - EGS:  1 500ms inter-item delay so consecutive searches don't pile up
- *   - Both APIs cache results, so repeated identical queries are free
+ *   - VNDB: handled by the shared throttle queue (≤ 1 req/s); no extra sleep needed.
+ *   - EGS:  runs concurrently with VNDB via Promise.all — zero added latency.
+ *   - Both APIs cache results, so repeated identical queries are free.
  *
  * Stores up to 3 VNDB candidates per item for quick-pick remapping in the UI.
  * The first candidate is auto-selected as `vn_id`; the user can pick another.
  *
- * @param batchSize  Number of items to process (clamped 1–20)
+ * @param batchSize  Number of items to process (clamped 1–100)
  * @param retryNone  When true, also retries items previously marked 'none'
  */
 export async function matchNextKobeItems(
   batchSize: number,
   retryNone = false,
 ): Promise<{ processed: number; remaining: number }> {
-  const safe = Math.min(20, Math.max(1, Math.floor(batchSize)));
+  const safe = Math.min(100, Math.max(1, Math.floor(batchSize)));
   const items = listKobeUnmatched(safe, retryNone);
-  for (let i = 0; i < items.length; i++) {
-    if (i > 0) await sleep(MATCH_INTER_ITEM_DELAY_MS);
-    const item = items[i];
+  for (const item of items) {
     const query = normalizeTitle(item.title);
     if (!query) {
       setKobeVnLink(item.code, null, 'none', null, item.title);
       continue;
     }
-    try {
-      const vnResult = await searchVn(query, { results: 3 });
-      const candidates: KobeCandidate[] = (vnResult.results ?? []).slice(0, 3).map((v) => ({
-        id: v.id,
-        title: v.title,
-        alttitle: v.alttitle,
-        released: v.released,
-      }));
-      const topVn = candidates[0];
-      const candidatesJson = candidates.length > 0 ? JSON.stringify(candidates) : null;
-      if (topVn) {
-        setKobeVnLink(item.code, topVn.id, 'auto', candidatesJson, query);
-      } else {
-        setKobeVnLink(item.code, null, 'none', null, query);
-      }
-    } catch {
-      // leave unmatched on transient error
-    }
-    try {
-      const egsResult = await searchEgsByName(query);
-      if (egsResult) {
-        setKobeEgsLink(item.code, egsResult.id, 'auto');
-      }
-    } catch {
-      // leave egs unmatched on error
-    }
+    await Promise.all([
+      searchVn(query, { results: 3 })
+        .then((vnResult) => {
+          const candidates: KobeCandidate[] = (vnResult.results ?? []).slice(0, 3).map((v) => ({
+            id: v.id,
+            title: v.title,
+            alttitle: v.alttitle,
+            released: v.released,
+          }));
+          const top = candidates[0];
+          const candidatesJson = candidates.length > 0 ? JSON.stringify(candidates) : null;
+          setKobeVnLink(item.code, top?.id ?? null, top ? 'auto' : 'none', candidatesJson, query);
+        })
+        .catch(() => {}),
+      searchEgsByName(query)
+        .then((r) => { if (r) setKobeEgsLink(item.code, r.id, 'auto'); })
+        .catch(() => {}),
+    ]);
   }
   const stats = countKobeStock();
   return {

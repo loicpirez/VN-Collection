@@ -1,7 +1,8 @@
 'use client';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   BookHeart,
+  Database,
   ExternalLink,
   Link2,
   Link2Off,
@@ -247,7 +248,7 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
   }
 
   return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+    <div className="mt-2 flex flex-wrap items-center gap-1">
       <span className="text-[10px] text-muted">{t.kobe.kobeCandidates}:</span>
       {candidates.map((c) => {
         const isActive = c.id === currentId;
@@ -289,9 +290,9 @@ interface PendingCounts { vndb_pending: number; egs_pending: number }
  *
  * Download sequence (manual or via "Download all"):
  *   1. Download stock from AliceNET (uses configured proxy if set)
- *   2. Find VNDB matches (throttled, 1 500ms inter-item delay)
+ *   2. Find VNDB + EGS matches (VNDB throttled at 1 req/s; EGS runs concurrently)
  *   3. Download VNDB metadata for matched VNs
- *   4. Resolve EGS via VNDB ext-links + title search (most accurate)
+ *   4. Resolve EGS via VNDB ext-links + title search
  *
  * All steps can be run individually or chained with "Download all".
  * Any step can be stopped with the Stop button.
@@ -309,6 +310,7 @@ export function KobeClient() {
   const [opTotal, setOpTotal] = useState(0);
   const [opLabel, setOpLabel] = useState('');
   const [filter, setFilter] = useState<FilterTab>('all');
+  const [search, setSearch] = useState('');
   const [linkTarget, setLinkTarget] = useState<KobeItem | null>(null);
   const stopRef = useRef(false);
 
@@ -359,7 +361,7 @@ export function KobeClient() {
       const r = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batch: 5, ...body }),
+        body: JSON.stringify({ batch: 50, ...body }),
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { processed: number; remaining: number };
@@ -437,14 +439,26 @@ export function KobeClient() {
 
   const isBusy = activeOp !== 'idle';
   const opPct = opTotal > 0 ? Math.round((opDone / opTotal) * 100) : 0;
+  const matchPct = stats.total > 0 ? Math.round((stats.matched / stats.total) * 100) : 0;
 
-  const filtered = items.filter((item) => {
-    if (filter === 'matched') return item.vn_id !== null;
-    if (filter === 'unmatched') return item.vn_id === null && item.vn_match_source !== 'none';
-    if (filter === 'none_found') return item.vn_match_source === 'none';
-    if (filter === 'wishlist') return item.in_wishlist === 1;
-    return true;
-  });
+  const filtered = useMemo(() => {
+    let list = items;
+    if (filter === 'matched') list = list.filter((i) => i.vn_id !== null);
+    else if (filter === 'unmatched') list = list.filter((i) => i.vn_id === null && i.vn_match_source !== 'none');
+    else if (filter === 'none_found') list = list.filter((i) => i.vn_match_source === 'none');
+    else if (filter === 'wishlist') list = list.filter((i) => i.in_wishlist === 1);
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (i) =>
+          i.title.toLowerCase().includes(q) ||
+          (i.search_title?.toLowerCase().includes(q) ?? false) ||
+          i.code.includes(q) ||
+          (i.vn_id?.toLowerCase().includes(q) ?? false),
+      );
+    }
+    return list;
+  }, [items, filter, search]);
 
   const tabs: { id: FilterTab; label: string; count: number }[] = [
     { id: 'all', label: t.kobe.kobeFilterAll, count: stats.total },
@@ -454,209 +468,311 @@ export function KobeClient() {
     { id: 'wishlist', label: t.kobe.kobeFilterWishlist, count: stats.in_wishlist },
   ];
 
-  const lastFetchLabel = lastFetch
-    ? t.kobe.kobeLastFetch.replace('{date}', new Date(lastFetch).toLocaleString())
-    : null;
-
-  const statsLabel = t.kobe.kobeStats
-    .replace('{matched}', String(stats.matched))
-    .replace('{total}', String(stats.total));
-
   return (
     <div className="page-space mx-auto max-w-screen-xl px-4 py-6">
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+
+      {/* Header */}
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <ShoppingBag className="h-5 w-5 text-accent" aria-hidden />
         <h1 className="text-xl font-bold">{t.kobe.kobeTitle}</h1>
-        <span className="text-sm text-muted">{statsLabel}</span>
-        {lastFetchLabel && <span className="text-xs text-muted">{lastFetchLabel}</span>}
+        {lastFetch && (
+          <span className="text-xs text-muted">
+            {t.kobe.kobeLastFetch.replace('{date}', new Date(lastFetch).toLocaleString())}
+          </span>
+        )}
       </div>
 
-      {/* Action bar */}
-      {isBusy ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => { stopRef.current = true; }} className="btn btn-danger btn-sm">
-            <Square className="h-3.5 w-3.5" />
-            {t.kobe.kobeStopMatch}
-          </button>
-          <span className="text-xs text-muted">{opLabel}</span>
+      {/* Stats grid */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+          <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterAll}</div>
+          <div className="text-2xl font-bold">{stats.total}</div>
         </div>
-      ) : (
-        <div className="mb-3 flex flex-wrap gap-2">
-          <button type="button" onClick={() => runSingleOp('downloading')} disabled={isBusy} className="btn btn-primary btn-sm">
-            <RefreshCw className="h-3.5 w-3.5" />
-            {t.kobe.kobeDownload}
-          </button>
-          <button type="button" onClick={() => runSingleOp('matching')} disabled={isBusy || stats.unmatched === 0} className="btn btn-sm">
-            <Zap className="h-3.5 w-3.5" />
-            {t.kobe.kobeMatchVndbEgs}
-          </button>
-          <button type="button" onClick={() => runSingleOp('download-vndb')} disabled={isBusy || pending.vndb_pending === 0} className="btn btn-sm">
-            <RefreshCw className="h-3.5 w-3.5" />
-            {t.kobe.kobeDownloadVndb}
-            {pending.vndb_pending > 0 && (
-              <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.vndb_pending}</span>
-            )}
-          </button>
-          <button type="button" onClick={() => runSingleOp('resolve-egs')} disabled={isBusy || pending.egs_pending === 0} className="btn btn-sm">
-            <Zap className="h-3.5 w-3.5" />
-            {t.kobe.kobeResolveEgs}
-            {pending.egs_pending > 0 && (
-              <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.egs_pending}</span>
-            )}
-          </button>
-          <button type="button" onClick={runDownloadAll} disabled={isBusy} className="btn btn-primary btn-sm" title={t.kobe.kobeDownloadAllHint}>
-            <RefreshCw className="h-3.5 w-3.5" />
-            {t.kobe.kobeDownloadAll}
-          </button>
+        <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+          <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterMatched}</div>
+          <div className="text-2xl font-bold text-green-400">{stats.matched}</div>
+          {stats.total > 0 && <div className="mt-0.5 text-[10px] text-muted">{matchPct}%</div>}
         </div>
-      )}
-      {!isBusy && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          <button type="button" onClick={() => runSingleOp('retrying')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm">
-            <RotateCcw className="h-3.5 w-3.5" />
-            {t.kobe.kobeRetryNone}
-          </button>
-          <button type="button" onClick={resetAutoMatches} disabled={isBusy || stats.matched === 0} className="btn btn-sm text-muted hover:text-red-400">
-            <X className="h-3.5 w-3.5" />
-            {t.kobe.kobeResetAutoMatches}
-          </button>
+        <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+          <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterUnmatched}</div>
+          <div className="text-2xl font-bold">{stats.unmatched}</div>
+          {stats.none_found > 0 && <div className="mt-0.5 text-[10px] text-amber-400/80">{stats.none_found} none</div>}
         </div>
-      )}
-
-      {/* Progress bar */}
-      {isBusy && opTotal > 0 && (
-        <div className="mb-4 space-y-1">
-          <div className="flex items-center justify-between text-xs text-muted">
-            <span>{opDone}/{opTotal}</span>
-            <span>{opPct}%</span>
+        <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+          <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
+            <BookHeart className="h-3 w-3 text-rose-400" aria-hidden />
+            {t.kobe.kobeFilterWishlist}
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-elev">
-            <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${opPct}%` }} />
-          </div>
+          <div className="text-2xl font-bold text-rose-400">{stats.in_wishlist}</div>
         </div>
-      )}
+      </div>
 
-      {/* Tabs */}
-      <div className="mb-4 flex flex-wrap gap-1 border-b border-border">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setFilter(tab.id)}
-            className={`flex items-center gap-1.5 rounded-t px-3 py-1.5 text-sm transition-colors ${filter === tab.id ? 'border-b-2 border-accent font-medium text-accent' : 'text-muted hover:text-white'}`}
-          >
-            {tab.id === 'wishlist' && <BookHeart className="h-3 w-3" aria-hidden />}
-            {tab.label}
-            <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}>
-              {tab.count}
-            </span>
-          </button>
-        ))}
+      {/* Toolbar */}
+      <div className="mb-5 rounded-xl border border-border bg-bg-card p-3">
+        {isBusy ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => { stopRef.current = true; }}
+              className="btn btn-danger btn-sm shrink-0"
+            >
+              <Square className="h-3.5 w-3.5" />
+              {t.kobe.kobeStopMatch}
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs text-muted">{opLabel}</p>
+              {opTotal > 0 && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-elev">
+                    <div
+                      className="h-full rounded-full bg-accent transition-all duration-500"
+                      style={{ width: `${opPct}%` }}
+                    />
+                  </div>
+                  <span className="shrink-0 text-[10px] tabular-nums text-muted">{opDone}/{opTotal}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => runSingleOp('downloading')}
+              className="btn btn-primary btn-sm"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              {t.kobe.kobeDownload}
+            </button>
+            <button
+              type="button"
+              onClick={runDownloadAll}
+              className="btn btn-primary btn-sm"
+              title={t.kobe.kobeDownloadAllHint}
+            >
+              <Zap className="h-3.5 w-3.5" />
+              {t.kobe.kobeDownloadAll}
+            </button>
+
+            <div className="my-auto h-5 w-px bg-border" aria-hidden />
+
+            <button
+              type="button"
+              onClick={() => runSingleOp('matching')}
+              disabled={stats.unmatched === 0}
+              className="btn btn-sm"
+            >
+              <Search className="h-3.5 w-3.5" />
+              {t.kobe.kobeMatchVndbEgs}
+              {stats.unmatched > 0 && (
+                <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{stats.unmatched}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => runSingleOp('download-vndb')}
+              disabled={pending.vndb_pending === 0}
+              className="btn btn-sm"
+            >
+              <Database className="h-3.5 w-3.5" />
+              {t.kobe.kobeDownloadVndb}
+              {pending.vndb_pending > 0 && (
+                <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.vndb_pending}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => runSingleOp('resolve-egs')}
+              disabled={pending.egs_pending === 0}
+              className="btn btn-sm"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              {t.kobe.kobeResolveEgs}
+              {pending.egs_pending > 0 && (
+                <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.egs_pending}</span>
+              )}
+            </button>
+
+            <div className="my-auto h-5 w-px bg-border" aria-hidden />
+
+            <button
+              type="button"
+              onClick={() => runSingleOp('retrying')}
+              disabled={stats.none_found === 0}
+              className="btn btn-sm"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              {t.kobe.kobeRetryNone}
+            </button>
+            <button
+              type="button"
+              onClick={resetAutoMatches}
+              disabled={stats.matched === 0}
+              className="btn btn-sm text-muted hover:text-red-400"
+            >
+              <X className="h-3.5 w-3.5" />
+              {t.kobe.kobeResetAutoMatches}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Filter tabs + search */}
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="flex flex-1 flex-wrap gap-1 border-b border-border">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setFilter(tab.id)}
+              className={`flex items-center gap-1.5 rounded-t px-3 py-1.5 text-sm transition-colors ${
+                filter === tab.id
+                  ? 'border-b-2 border-accent font-medium text-accent'
+                  : 'text-muted hover:text-white'
+              }`}
+            >
+              {tab.id === 'wishlist' && <BookHeart className="h-3 w-3" aria-hidden />}
+              {tab.label}
+              <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="relative min-w-[200px]">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t.kobe.kobeSearchPlaceholder}
+            aria-label={t.kobe.kobeSearchPlaceholder}
+            className="input w-full pl-8 text-sm"
+          />
+        </div>
       </div>
 
       {/* Item list */}
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="h-16 animate-pulse rounded-md bg-bg-elev/40" />
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-bg-elev/40" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted">{t.kobe.kobeUnmatched}</p>
+        <p className="py-8 text-center text-sm text-muted">{t.kobe.kobeUnmatched}</p>
       ) : (
-        <ul className="divide-y divide-border">
+        <ul className="space-y-2">
           {filtered.map((item) => {
             const candidates = item.vn_candidates
               ? (() => { try { return JSON.parse(item.vn_candidates) as KobeCandidate[]; } catch { return []; } })()
               : [];
             const showSearched = item.search_title && item.search_title !== item.title;
             return (
-              <li key={item.code} className="py-3">
-                <div className="flex flex-wrap items-start gap-3">
+              <li key={item.code} className="rounded-xl border border-border bg-bg-card p-3 transition-shadow hover:shadow-card">
+                <div className="flex gap-3">
                   <SafeImage
                     src={item.vn_image_url}
                     localSrc={item.vn_local_image}
                     sexual={item.vn_image_sexual}
                     alt={item.title}
-                    className="h-14 w-10 shrink-0 rounded"
+                    className="h-16 w-11 shrink-0 rounded-lg"
                     fit="cover"
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate font-medium" title={item.title}>{item.title}</span>
-                      {item.in_wishlist === 1 && (
-                        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] bg-rose-500/20 text-rose-400">
-                          <BookHeart className="h-2.5 w-2.5" aria-hidden />
-                          {t.kobe.kobeInWishlist}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-muted">
-                      {item.sale_price && <span>{item.sale_price}</span>}
-                      {item.release_date && <span>{item.release_date}</span>}
-                      <span className="font-mono opacity-60">{item.code}</span>
-                    </div>
-                    {showSearched && (
-                      <div className="mt-0.5 text-[10px] text-muted/60 italic">
-                        {t.kobe.kobeSearchedAs.replace('{q}', item.search_title!)}
-                      </div>
-                    )}
-                  </div>
+                    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    {item.vn_id ? (
-                      <>
-                        <a
-                          href={`/vn/${item.vn_id}`}
-                          className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-mono text-accent hover:underline"
-                        >
-                          <Link2 className="h-3 w-3" />
-                          {item.vn_id}
-                        </a>
-                        {item.vn_match_source && (
-                          <span className={`rounded px-1.5 py-0.5 text-[10px] ${item.vn_match_source === 'manual' ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}>
-                            {item.vn_match_source}
+                      {/* Title + metadata */}
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold leading-tight" title={item.title}>{item.title}</p>
+                        <div className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] text-muted">
+                          {item.sale_price && <span>{item.sale_price}</span>}
+                          {item.release_date && <span>{item.release_date}</span>}
+                          <span className="font-mono opacity-50">{item.code}</span>
+                        </div>
+                        {showSearched && (
+                          <p className="mt-0.5 text-[10px] italic text-muted/60">
+                            {t.kobe.kobeSearchedAs.replace('{q}', item.search_title!)}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Match status + actions */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {item.in_wishlist === 1 && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-400">
+                            <BookHeart className="h-2.5 w-2.5" aria-hidden />
+                            {t.kobe.kobeInWishlist}
                           </span>
                         )}
-                        <button type="button" onClick={() => clearLink(item.code)} className="btn btn-xs" title={t.kobe.kobeClearMatch}>
-                          <X className="h-3 w-3" />
-                          {t.kobe.kobeClearMatch}
+
+                        {item.vn_id ? (
+                          <>
+                            <a
+                              href={`/vn/${item.vn_id}`}
+                              className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[11px] font-mono text-accent hover:bg-accent/20"
+                            >
+                              <Link2 className="h-3 w-3" />
+                              {item.vn_id}
+                            </a>
+                            {item.vn_match_source === 'manual' && (
+                              <span className="rounded-full border border-accent/20 bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
+                                manual
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => clearLink(item.code)}
+                              className="btn btn-xs text-muted hover:text-red-400"
+                              title={t.kobe.kobeClearMatch}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </>
+                        ) : (
+                          <span className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                            item.vn_match_source === 'none'
+                              ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
+                              : 'border-border bg-bg-elev text-muted'
+                          }`}>
+                            {item.vn_match_source === 'none' ? t.kobe.kobeNoneFound : t.kobe.kobeNotYetMatched}
+                          </span>
+                        )}
+
+                        {item.egs_id && (
+                          <a
+                            href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${item.egs_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-elev/50 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+                            title={`${t.kobe.kobeEgsId} ${item.egs_id}`}
+                          >
+                            <ExternalLink className="h-2.5 w-2.5" />
+                            EGS{item.egs_match_source === 'manual' ? ' ✓' : ''}
+                          </a>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setLinkTarget(item)}
+                          className="btn btn-xs"
+                        >
+                          <Search className="h-3 w-3" />
+                          {item.vn_id ? t.kobe.kobeRemap : t.kobe.kobeFindMatch}
                         </button>
-                      </>
-                    ) : (
-                      <span className={`text-[11px] ${item.vn_match_source === 'none' ? 'text-amber-500/80' : 'text-muted'}`}>
-                        {item.vn_match_source === 'none' ? t.kobe.kobeNoneFound : t.kobe.kobeNotYetMatched}
-                      </span>
-                    )}
+                      </div>
+                    </div>
 
-                    {item.egs_id && (
-                      <a
-                        href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${item.egs_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent"
-                        title={`${t.kobe.kobeEgsId} ${item.egs_id}`}
-                      >
-                        <ExternalLink className="h-2.5 w-2.5" />
-                        {t.kobe.kobeEgsId} {item.egs_match_source === 'manual' ? '✓' : '~'}
-                      </a>
+                    {candidates.length > 1 && (
+                      <CandidateChips
+                        candidates={candidates}
+                        currentId={item.vn_id}
+                        code={item.code}
+                        onRemapped={load}
+                      />
                     )}
-
-                    <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs">
-                      <Search className="h-3 w-3" />
-                      {item.vn_id ? t.kobe.kobeRemap : t.kobe.kobeFindMatch}
-                    </button>
                   </div>
                 </div>
-
-                {candidates.length > 1 && (
-                  <CandidateChips
-                    candidates={candidates}
-                    currentId={item.vn_id}
-                    code={item.code}
-                    onRemapped={load}
-                  />
-                )}
               </li>
             );
           })}
