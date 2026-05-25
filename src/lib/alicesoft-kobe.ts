@@ -424,9 +424,13 @@ function isSafeEgsCandidate(candidate: EgsCandidate | null, score: number, query
     || Boolean(furigana && (furigana.includes(q) || q.includes(furigana)))
     || (q.length >= 6 && title.startsWith(q.slice(0, 6)))
     || Boolean(q.length >= 6 && furigana && furigana.startsWith(q.slice(0, 6)));
-  if (!textMatch) return false;
+  const exactRelease = Boolean(releaseDate && candidate.sellday === releaseDate);
+  // Older cached EGS candidate rows did not include furigana. If the row came
+  // back from an EGS title/furigana search and the release date is exact, keep
+  // it eligible instead of rejecting valid kana -> romanized-title matches.
+  if (!textMatch && !(exactRelease && q.length >= 4)) return false;
   if (q.length < 4) return Boolean(releaseDate && candidate.sellday === releaseDate);
-  return Boolean(releaseDate && candidate.sellday === releaseDate) || score >= 60;
+  return exactRelease || score >= 60;
 }
 
 async function searchKobeEgsCandidate(item: KobeStockRow): Promise<{ game: EgsGame | null; query: string | null }> {
