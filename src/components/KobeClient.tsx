@@ -269,27 +269,41 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
   );
 }
 
+type ActiveOp =
+  | 'idle'
+  | 'downloading'
+  | 'matching'
+  | 'retrying'
+  | 'download-vndb'
+  | 'resolve-egs'
+  | 'download-all';
+
+interface PendingCounts { vndb_pending: number; egs_pending: number }
+
 /**
  * Client-side page for the Alice Kobe second-hand stock browser.
  *
- * - Stock is fetched from AliceNet ONLY on manual Download button click.
- * - VNDB/EGS matching uses a 1 500ms inter-item delay server-side; cached
- *   results are free (no extra request). Both can be stopped mid-run.
- * - Auto-matched items show top-3 candidate chips for one-click remapping.
- * - Wishlist tab cross-references matched VN IDs against local collection
- *   entries with status = 'planning'.
+ * Download sequence (manual or via "Download all"):
+ *   1. Download stock from AliceNET (uses configured proxy if set)
+ *   2. Find VNDB matches (throttled, 1 500ms inter-item delay)
+ *   3. Download VNDB metadata for matched VNs
+ *   4. Resolve EGS via VNDB ext-links + title search (most accurate)
+ *
+ * All steps can be run individually or chained with "Download all".
+ * Any step can be stopped with the Stop button.
  */
 export function KobeClient() {
   const t = useT();
   const toast = useToast();
   const [items, setItems] = useState<KobeItem[]>([]);
   const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, unmatched: 0, none_found: 0, in_wishlist: 0 });
+  const [pending, setPending] = useState<PendingCounts>({ vndb_pending: 0, egs_pending: 0 });
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
-  const [matchMode, setMatchMode] = useState<'idle' | 'matching' | 'retrying'>('idle');
-  const [matchDone, setMatchDone] = useState(0);
-  const [matchTotal, setMatchTotal] = useState(0);
+  const [activeOp, setActiveOp] = useState<ActiveOp>('idle');
+  const [opDone, setOpDone] = useState(0);
+  const [opTotal, setOpTotal] = useState(0);
+  const [opLabel, setOpLabel] = useState('');
   const [filter, setFilter] = useState<FilterTab>('all');
   const [linkTarget, setLinkTarget] = useState<KobeItem | null>(null);
   const stopRef = useRef(false);
@@ -299,9 +313,15 @@ export function KobeClient() {
     try {
       const r = await fetch('/api/alice-kobe', { cache: 'no-store' });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { items: KobeItem[]; stats: KobeStats; last_fetch: number | null };
+      const d = (await r.json()) as {
+        items: KobeItem[];
+        stats: KobeStats;
+        pending: PendingCounts;
+        last_fetch: number | null;
+      };
       setItems(d.items);
       setStats(d.stats);
+      setPending(d.pending);
       setLastFetch(d.last_fetch);
     } catch (e) {
       toast.error((e as Error).message);
@@ -312,44 +332,77 @@ export function KobeClient() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function download() {
-    setDownloading(true);
-    try {
-      const r = await fetch('/api/alice-kobe/fetch', { method: 'POST' });
+  async function downloadStock() {
+    const r = await fetch('/api/alice-kobe/fetch', { method: 'POST' });
+    if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+  }
+
+  async function runLoop(
+    endpoint: string,
+    body: Record<string, unknown>,
+    label: string,
+    getRemaining: (d: { processed: number; remaining: number }) => number,
+  ) {
+    let done = 0;
+    setOpDone(0);
+    setOpTotal(0);
+    setOpLabel(label);
+    while (!stopRef.current) {
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch: 5, ...body }),
+      });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      await load();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setDownloading(false);
+      const d = (await r.json()) as { processed: number; remaining: number };
+      done += d.processed;
+      setOpDone(done);
+      setOpTotal(done + getRemaining(d));
+      if (d.processed === 0 || d.remaining === 0) break;
     }
   }
 
-  async function runMatchLoop(retryNone: boolean) {
+  async function runSingleOp(op: Exclude<ActiveOp, 'idle' | 'download-all'>) {
     stopRef.current = false;
-    setMatchMode(retryNone ? 'retrying' : 'matching');
-    setMatchDone(0);
-    setMatchTotal(retryNone ? stats.unmatched + stats.none_found : stats.unmatched);
-    let done = 0;
+    setActiveOp(op);
     try {
-      while (!stopRef.current) {
-        const r = await fetch('/api/alice-kobe/match-next', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ batch: 5, retry_none: retryNone }),
-        });
-        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-        const d = (await r.json()) as { processed: number; remaining: number };
-        done += d.processed;
-        setMatchDone(done);
-        setMatchTotal(done + d.remaining);
-        if (d.processed === 0 || d.remaining === 0) break;
+      if (op === 'downloading') {
+        setOpLabel(t.kobe.kobeDownloading);
+        await downloadStock();
+      } else if (op === 'matching') {
+        await runLoop('/api/alice-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining);
+      } else if (op === 'retrying') {
+        await runLoop('/api/alice-kobe/match-next', { retry_none: true }, t.kobe.kobeRetryNone, (d) => d.remaining);
+      } else if (op === 'download-vndb') {
+        await runLoop('/api/alice-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining);
+      } else if (op === 'resolve-egs') {
+        await runLoop('/api/alice-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining);
       }
       await load();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setMatchMode('idle');
+      setActiveOp('idle');
+    }
+  }
+
+  async function runDownloadAll() {
+    stopRef.current = false;
+    setActiveOp('download-all');
+    try {
+      setOpLabel(t.kobe.kobeDownloading);
+      await downloadStock();
+      if (stopRef.current) return;
+      await runLoop('/api/alice-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining);
+      if (stopRef.current) return;
+      await runLoop('/api/alice-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining);
+      if (stopRef.current) return;
+      await runLoop('/api/alice-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining);
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setActiveOp('idle');
     }
   }
 
@@ -374,7 +427,8 @@ export function KobeClient() {
     }
   }
 
-  const isBusy = downloading || matchMode !== 'idle';
+  const isBusy = activeOp !== 'idle';
+  const opPct = opTotal > 0 ? Math.round((opDone / opTotal) * 100) : 0;
 
   const filtered = items.filter((item) => {
     if (filter === 'matched') return item.vn_id !== null;
@@ -391,8 +445,6 @@ export function KobeClient() {
     { id: 'none_found', label: t.kobe.kobeNoneFound, count: stats.none_found },
     { id: 'wishlist', label: t.kobe.kobeFilterWishlist, count: stats.in_wishlist },
   ];
-
-  const matchProgressPct = matchTotal > 0 ? Math.round((matchDone / matchTotal) * 100) : 0;
 
   const lastFetchLabel = lastFetch
     ? t.kobe.kobeLastFetch.replace('{date}', new Date(lastFetch).toLocaleString())
@@ -412,77 +464,66 @@ export function KobeClient() {
       </div>
 
       {/* Action bar */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={download}
-          disabled={isBusy}
-          className="btn btn-primary btn-sm"
-        >
-          {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          {downloading ? t.kobe.kobeDownloading : t.kobe.kobeDownload}
-        </button>
-
-        {matchMode !== 'idle' ? (
-          <button
-            type="button"
-            onClick={() => { stopRef.current = true; }}
-            className="btn btn-danger btn-sm"
-          >
+      {isBusy ? (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => { stopRef.current = true; }} className="btn btn-danger btn-sm">
             <Square className="h-3.5 w-3.5" />
             {t.kobe.kobeStopMatch}
           </button>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => runMatchLoop(false)}
-              disabled={isBusy || stats.unmatched === 0}
-              className="btn btn-sm"
-            >
-              <Zap className="h-3.5 w-3.5" />
-              {t.kobe.kobeMatchVndbEgs}
-            </button>
-            <button
-              type="button"
-              onClick={() => runMatchLoop(true)}
-              disabled={isBusy || stats.none_found === 0}
-              className="btn btn-sm"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              {t.kobe.kobeRetryNone}
-            </button>
-            <button
-              type="button"
-              onClick={resetAutoMatches}
-              disabled={isBusy || stats.matched === 0}
-              className="btn btn-sm btn-xs text-muted hover:text-red-400"
-            >
-              <X className="h-3.5 w-3.5" />
-              {t.kobe.kobeResetAutoMatches}
-            </button>
-          </>
-        )}
-      </div>
+          <span className="text-xs text-muted">{opLabel}</span>
+        </div>
+      ) : (
+        <div className="mb-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => runSingleOp('downloading')} disabled={isBusy} className="btn btn-primary btn-sm">
+            <RefreshCw className="h-3.5 w-3.5" />
+            {t.kobe.kobeDownload}
+          </button>
+          <button type="button" onClick={() => runSingleOp('matching')} disabled={isBusy || stats.unmatched === 0} className="btn btn-sm">
+            <Zap className="h-3.5 w-3.5" />
+            {t.kobe.kobeMatchVndbEgs}
+          </button>
+          <button type="button" onClick={() => runSingleOp('download-vndb')} disabled={isBusy || pending.vndb_pending === 0} className="btn btn-sm">
+            <RefreshCw className="h-3.5 w-3.5" />
+            {t.kobe.kobeDownloadVndb}
+            {pending.vndb_pending > 0 && (
+              <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.vndb_pending}</span>
+            )}
+          </button>
+          <button type="button" onClick={() => runSingleOp('resolve-egs')} disabled={isBusy || pending.egs_pending === 0} className="btn btn-sm">
+            <Zap className="h-3.5 w-3.5" />
+            {t.kobe.kobeResolveEgs}
+            {pending.egs_pending > 0 && (
+              <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.egs_pending}</span>
+            )}
+          </button>
+          <button type="button" onClick={runDownloadAll} disabled={isBusy} className="btn btn-primary btn-sm" title={t.kobe.kobeDownloadAllHint}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            {t.kobe.kobeDownloadAll}
+          </button>
+        </div>
+      )}
+      {!isBusy && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button type="button" onClick={() => runSingleOp('retrying')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm">
+            <RotateCcw className="h-3.5 w-3.5" />
+            {t.kobe.kobeRetryNone}
+          </button>
+          <button type="button" onClick={resetAutoMatches} disabled={isBusy || stats.matched === 0} className="btn btn-sm text-muted hover:text-red-400">
+            <X className="h-3.5 w-3.5" />
+            {t.kobe.kobeResetAutoMatches}
+          </button>
+        </div>
+      )}
 
-      {/* Match progress bar */}
-      {matchMode !== 'idle' && (
+      {/* Progress bar */}
+      {isBusy && opTotal > 0 && (
         <div className="mb-4 space-y-1">
           <div className="flex items-center justify-between text-xs text-muted">
-            <span>
-              {matchMode === 'retrying'
-                ? t.kobe.kobeRetryingNone
-                : t.kobe.kobeMatchingVndbEgs
-                    .replace('{done}', String(matchDone))
-                    .replace('{total}', String(matchTotal))}
-            </span>
-            <span>{matchProgressPct}%</span>
+            <span>{opDone}/{opTotal}</span>
+            <span>{opPct}%</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-elev">
-            <div
-              className="h-full rounded-full bg-accent transition-all duration-500"
-              style={{ width: `${matchProgressPct}%` }}
-            />
+            <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${opPct}%` }} />
           </div>
         </div>
       )}

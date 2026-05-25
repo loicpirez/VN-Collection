@@ -11,9 +11,10 @@ const PROVIDER_TEST_URLS: Record<ProviderId, string> = {
   vndb: 'https://api.vndb.org/kana/schema',
   vndbmirror: 'https://api.yorhel.org/kana/schema',
   egs: 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/sql_for_erogamer_form.php',
+  alice_kobe: 'https://www.alice-kobe.com/html/page4.html',
 };
 
-const VALID_PROVIDERS = new Set<string>(['vndb', 'vndbmirror', 'egs']);
+const VALID_PROVIDERS = new Set<string>(['vndb', 'vndbmirror', 'egs', 'alice_kobe']);
 
 export async function POST(req: NextRequest) {
   const denied = requireLocalhostOrToken(req);
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   if (typeof provider !== 'string' || !VALID_PROVIDERS.has(provider)) {
     return NextResponse.json(
-      { error: 'provider must be one of: vndb, vndbmirror, egs' },
+      { error: 'provider must be one of: vndb, vndbmirror, egs, alice_kobe' },
       { status: 400 },
     );
   }

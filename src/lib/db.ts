@@ -8573,3 +8573,58 @@ export function countKobeStock(): {
     in_wishlist: row.in_wishlist ?? 0,
   };
 }
+
+/**
+ * Returns up to `limit` VN IDs from kobe items that have a vn_id
+ * but whose VN row does not yet exist in the local `vn` table.
+ * Used by the "Download VNDB data" step.
+ */
+export function listKobeVnidsToDownload(limit: number): string[] {
+  return (
+    db
+      .prepare(
+        `SELECT DISTINCT k.vn_id
+         FROM alice_kobe_stock k
+         LEFT JOIN vn v ON v.id = k.vn_id
+         WHERE k.vn_id IS NOT NULL AND v.id IS NULL
+         LIMIT ?`,
+      )
+      .all(limit) as { vn_id: string }[]
+  ).map((r) => r.vn_id);
+}
+
+/**
+ * Returns kobe items that have a vn_id but no egs_id yet.
+ * Used by the "Resolve EGS via VNDB" step.
+ */
+export function listKobeItemsForEgsResolve(
+  limit: number,
+): { code: string; vn_id: string }[] {
+  return db
+    .prepare(
+      `SELECT code, vn_id
+       FROM alice_kobe_stock
+       WHERE vn_id IS NOT NULL AND egs_id IS NULL
+       ORDER BY code
+       LIMIT ?`,
+    )
+    .all(limit) as { code: string; vn_id: string }[];
+}
+
+/**
+ * Counts kobe items needing each download step.
+ * vndb_pending: items with vn_id not yet in local vn table.
+ * egs_pending:  items with vn_id set but no egs_id.
+ */
+export function countKobeDownloadPending(): { vndb_pending: number; egs_pending: number } {
+  const row = db
+    .prepare(
+      `SELECT
+         SUM(CASE WHEN k.vn_id IS NOT NULL AND v.id IS NULL THEN 1 ELSE 0 END) AS vndb_pending,
+         SUM(CASE WHEN k.vn_id IS NOT NULL AND k.egs_id IS NULL THEN 1 ELSE 0 END) AS egs_pending
+       FROM alice_kobe_stock k
+       LEFT JOIN vn v ON v.id = k.vn_id`,
+    )
+    .get() as { vndb_pending: number; egs_pending: number };
+  return { vndb_pending: row.vndb_pending ?? 0, egs_pending: row.egs_pending ?? 0 };
+}

@@ -1,6 +1,7 @@
 import 'server-only';
 import { searchVn } from './vndb';
 import { searchEgsByName } from './erogamescape';
+import { providerFetch } from './proxy-fetch';
 import {
   countKobeStock,
   listKobeUnmatched,
@@ -99,10 +100,11 @@ export function parseAliceKobeHtml(
  * Only called on explicit user action — never auto-fetched on page load.
  */
 export async function fetchAliceKobeHtml(): Promise<string> {
-  const res = await fetch(ALICE_KOBE_URL, {
-    headers: { 'User-Agent': 'vndb-collection/1.0 (personal use)' },
-    cache: 'no-store',
-  });
+  const res = await providerFetch(
+    ALICE_KOBE_URL,
+    { headers: { 'User-Agent': 'vndb-collection/1.0 (personal use)' } },
+    'alice_kobe',
+  );
   if (!res.ok) throw new Error(`Alice Kobe fetch failed: HTTP ${res.status}`);
   const buffer = await res.arrayBuffer();
   const decoder = new TextDecoder('euc-jp');
