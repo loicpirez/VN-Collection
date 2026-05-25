@@ -35,6 +35,7 @@ import {
   UserSquare,
   Wand2,
   X,
+  ShoppingBag,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
@@ -65,7 +66,7 @@ interface NavItem {
  * screen readers and the visual layer agree. The "More" catch-all bin
  * is gone — every item lives in a named category.
  */
-export function GroupedNav() {
+export function GroupedNav({ kobeEnabled = false }: { kobeEnabled?: boolean }) {
   const t = useT();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -121,6 +122,7 @@ export function GroupedNav() {
     { href: '/egs', label: t.nav.egs, icon: Gamepad2 },
     { href: '/schema', label: t.nav.schema, icon: FileCode2 },
     { href: '/data', label: t.nav.data, icon: Database },
+    ...(kobeEnabled ? [{ href: '/kobe', label: t.nav.kobe, icon: ShoppingBag }] : []),
   ];
 
   // Active when any item in the group matches the current route — the

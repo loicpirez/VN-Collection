@@ -107,7 +107,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       <Library className="h-6 w-6 text-accent" aria-hidden />
                       <span className="text-base font-bold tracking-wide">{dict.app.title}</span>
                     </Link>
-                    <GroupedNav />
+                    <GroupedNav kobeEnabled={!!process.env.ALICE_KOBE_ENABLED} />
                     <div className="ml-auto flex items-center gap-2">
                       <SpoilerToggle />
                       <SettingsButton />
