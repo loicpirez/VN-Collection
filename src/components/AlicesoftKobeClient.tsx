@@ -42,6 +42,7 @@ interface KobeItem {
   search_title: string | null;
   egs_id: number | null;
   egs_match_source: 'auto' | 'manual' | null;
+  in_collection: number;
   in_wishlist: number;
   last_matched_at: number | null;
   fetched_at: number;
@@ -57,6 +58,7 @@ interface KobeStats {
   matched: number;
   unmatched: number;
   none_found: number;
+  in_collection: number;
   in_wishlist: number;
 }
 
@@ -67,7 +69,7 @@ interface SearchHit {
   developers?: { id: string; name: string }[];
 }
 
-type FilterTab = 'all' | 'matched' | 'unmatched' | 'none_found' | 'wishlist';
+type FilterTab = 'all' | 'matched' | 'unmatched' | 'none_found' | 'collection' | 'wishlist';
 
 interface LinkDialogProps {
   item: KobeItem;
@@ -307,7 +309,7 @@ export function AlicesoftKobeClient() {
   const t = useT();
   const toast = useToast();
   const [items, setItems] = useState<KobeItem[]>([]);
-  const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, unmatched: 0, none_found: 0, in_wishlist: 0 });
+  const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, unmatched: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
   const [pending, setPending] = useState<PendingCounts>({ vndb_pending: 0, egs_pending: 0 });
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -472,6 +474,7 @@ export function AlicesoftKobeClient() {
     if (filter === 'matched') list = list.filter((i) => i.vn_id !== null);
     else if (filter === 'unmatched') list = list.filter((i) => i.vn_id === null && i.vn_match_source !== 'none');
     else if (filter === 'none_found') list = list.filter((i) => i.vn_match_source === 'none');
+    else if (filter === 'collection') list = list.filter((i) => i.in_collection === 1);
     else if (filter === 'wishlist') list = list.filter((i) => i.in_wishlist === 1);
     if (producerFilter) {
       list = list.filter((i) => parseDevs(i.vn_developers).some((d) => d.id === producerFilter));
@@ -489,12 +492,13 @@ export function AlicesoftKobeClient() {
     return list;
   }, [items, filter, producerFilter, search]);
 
-  const tabs: { id: FilterTab; label: string; count: number }[] = [
+  const tabs: { id: FilterTab; label: string; count: number; icon?: React.ReactNode }[] = [
     { id: 'all', label: t.kobe.kobeFilterAll, count: stats.total },
     { id: 'matched', label: t.kobe.kobeFilterMatched, count: stats.matched },
     { id: 'unmatched', label: t.kobe.kobeFilterUnmatched, count: stats.unmatched },
     { id: 'none_found', label: t.kobe.kobeNoneFound, count: stats.none_found },
-    { id: 'wishlist', label: t.kobe.kobeInCollection, count: stats.in_wishlist },
+    { id: 'collection', label: t.kobe.kobeInCollection, count: stats.in_collection, icon: <BookHeart className="h-3 w-3 text-green-400" aria-hidden /> },
+    { id: 'wishlist', label: t.kobe.kobeInWishlist, count: stats.in_wishlist, icon: <BookHeart className="h-3 w-3 text-rose-400" aria-hidden /> },
   ];
 
   return (
@@ -532,7 +536,13 @@ export function AlicesoftKobeClient() {
             <BookHeart className="h-3 w-3 text-green-400" aria-hidden />
             {t.kobe.kobeInCollection}
           </div>
-          <div className="text-2xl font-bold text-green-400">{stats.in_wishlist}</div>
+          <div className="text-2xl font-bold text-green-400">{stats.in_collection}</div>
+          {stats.in_wishlist > 0 && (
+            <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-rose-400">
+              <BookHeart className="h-2.5 w-2.5" aria-hidden />
+              {stats.in_wishlist} {t.kobe.kobeInWishlist}
+            </div>
+          )}
         </div>
       </div>
 
@@ -671,7 +681,7 @@ export function AlicesoftKobeClient() {
                   : 'text-muted hover:text-white'
               }`}
             >
-              {tab.id === 'wishlist' && <BookHeart className="h-3 w-3" aria-hidden />}
+              {tab.icon ?? null}
               {tab.label}
               <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}>
                 {tab.count}
@@ -785,6 +795,12 @@ export function AlicesoftKobeClient() {
                       {/* Match status + actions */}
                       <div className="flex flex-wrap items-center gap-2">
                         {item.in_wishlist === 1 && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-400">
+                            <BookHeart className="h-2.5 w-2.5" aria-hidden />
+                            {t.kobe.kobeInWishlist}
+                          </span>
+                        )}
+                        {item.in_collection === 1 && item.in_wishlist === 0 && (
                           <span className="inline-flex items-center gap-1 rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] text-green-400">
                             <BookHeart className="h-2.5 w-2.5" aria-hidden />
                             {t.kobe.kobeInCollection}

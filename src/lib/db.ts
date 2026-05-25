@@ -8611,19 +8611,21 @@ export function countKobeStock(): {
   matched: number;
   unmatched: number;
   none_found: number;
+  in_collection: number;
   in_wishlist: number;
 } {
   const row = db
     .prepare(`
       SELECT
-        COUNT(*)                                                              AS total,
-        SUM(CASE WHEN k.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS matched,
-        SUM(CASE WHEN k.vn_match_source = 'none' THEN 1 ELSE 0 END)         AS none_found,
-        SUM(CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS in_wishlist
+        COUNT(*)                                                                         AS total,
+        SUM(CASE WHEN k.vn_id IS NOT NULL THEN 1 ELSE 0 END)                           AS matched,
+        SUM(CASE WHEN k.vn_match_source = 'none' THEN 1 ELSE 0 END)                    AS none_found,
+        SUM(CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END)                           AS in_collection,
+        SUM(CASE WHEN c.vn_id IS NOT NULL AND c.status = 'planning' THEN 1 ELSE 0 END) AS in_wishlist
       FROM alicesoft_kobe_stock k
       LEFT JOIN collection c ON c.vn_id = k.vn_id
     `)
-    .get() as { total: number; matched: number; none_found: number; in_wishlist: number };
+    .get() as { total: number; matched: number; none_found: number; in_collection: number; in_wishlist: number };
   const matched = row.matched ?? 0;
   const noneFound = row.none_found ?? 0;
   return {
@@ -8631,6 +8633,7 @@ export function countKobeStock(): {
     matched,
     unmatched: row.total - matched - noneFound,
     none_found: noneFound,
+    in_collection: row.in_collection ?? 0,
     in_wishlist: row.in_wishlist ?? 0,
   };
 }
