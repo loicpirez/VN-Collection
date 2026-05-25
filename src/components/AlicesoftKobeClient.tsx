@@ -284,6 +284,8 @@ type ActiveOp =
   | 'retrying'
   | 'vndb-from-egs'
   | 'retry-vndb-aggressive'
+  | 'search-egs'
+  | 'search-egs-aggressive'
   | 'download-vndb'
   | 'resolve-egs'
   | 'download-all';
@@ -402,6 +404,10 @@ export function AlicesoftKobeClient() {
         await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', { batch: 500 }, t.kobe.kobeMatchVndbFromEgs, (d) => d.remaining, stats.none_found, 500);
       } else if (op === 'retry-vndb-aggressive') {
         await runLoop('/api/alicesoft-kobe/retry-vndb-aggressive', { batch: 50 }, t.kobe.kobeRetryVndbAggressive, (d) => d.remaining, stats.none_found, 50);
+      } else if (op === 'search-egs') {
+        await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { batch: 50, aggressive: false }, t.kobe.kobeSearchEgsForNoVndb, (d) => d.remaining, stats.none_found, 50);
+      } else if (op === 'search-egs-aggressive') {
+        await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { batch: 50, aggressive: true }, t.kobe.kobeSearchEgsForNoVndbAggressive, (d) => d.remaining, stats.none_found, 50);
       } else if (op === 'download-vndb') {
         await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending, 10);
       } else if (op === 'resolve-egs') {
@@ -708,7 +714,7 @@ export function AlicesoftKobeClient() {
         </div>
       </div>
 
-      {/* Per-tab actions for "No VNDB result" items: two recovery strategies */}
+      {/* Per-tab actions for "No VNDB result" items: four recovery strategies */}
       {filter === 'none_found' && stats.none_found > 0 && (
         <div className="mb-4 space-y-2 rounded-lg border border-border bg-bg-card p-2.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -739,6 +745,36 @@ export function AlicesoftKobeClient() {
             >
               <Search className="h-3.5 w-3.5" />
               {t.kobe.kobeRetryVndbAggressive}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
+            <span className="min-w-0 flex-1 text-xs text-muted">
+              {t.kobe.kobeSearchEgsForNoVndbHint}
+            </span>
+            <button
+              type="button"
+              onClick={() => runSingleOp('search-egs')}
+              disabled={isBusy}
+              className="btn btn-sm"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              {t.kobe.kobeSearchEgsForNoVndb}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
+            <span className="min-w-0 flex-1 text-xs text-muted">
+              {t.kobe.kobeSearchEgsForNoVndbAggressiveHint}
+            </span>
+            <button
+              type="button"
+              onClick={() => runSingleOp('search-egs-aggressive')}
+              disabled={isBusy}
+              className="btn btn-sm"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              {t.kobe.kobeSearchEgsForNoVndbAggressive}
             </button>
           </div>
         </div>

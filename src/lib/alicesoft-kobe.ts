@@ -5,6 +5,7 @@ import { providerFetch } from './proxy-fetch';
 import { isVndbVnId } from './vn-id-shape';
 import {
   countKobeStock,
+  listKobeNoVndbNoEgs,
   listKobeNoVndbResult,
   listKobeUnmatched,
   resetKobeAutoMatches as dbResetKobeAutoMatches,
@@ -327,6 +328,53 @@ export async function retryVndbForKobeAggressive(
         }
       } catch {
         // VNDB unreachable or 4xx — skip and let the user retry.
+      }
+    }
+  }
+  return { processed: items.length, matched, remaining: 0 };
+}
+
+/**
+ * Fresh EGS title search for "No VNDB result" items that also lack an
+ * `egs_id`. The original `matchNextKobeItems` already runs `searchEgsByName`,
+ * but only once and only with the standard normalization. This entry point
+ * lets the user re-run it on demand, optionally with the more aggressive
+ * cleanup that strips edition / 版 suffixes and (when used as a second pass)
+ * collapses whitespace.
+ *
+ * On hit, persists `egs_id` with source 'auto'. On miss, leaves the row
+ * untouched so the user can manually link or try the other recovery actions.
+ * Returns `remaining: 0` so the UI loop terminates after a single pass.
+ *
+ * @param batchSize  Max rows processed (clamped 1–500).
+ * @param aggressive When true, uses `normalizeTitleAggressive` and additionally
+ *                   tries a whitespace-collapsed variant.
+ */
+export async function searchEgsForKobeNoVndb(
+  batchSize: number,
+  aggressive: boolean,
+): Promise<{ processed: number; matched: number; remaining: number }> {
+  const safe = Math.min(500, Math.max(1, Math.floor(batchSize)));
+  const items = listKobeNoVndbNoEgs(safe);
+  let matched = 0;
+  for (const item of items) {
+    const primary = aggressive ? normalizeTitleAggressive(item.title) : normalizeTitle(item.title);
+    if (!primary) continue;
+    const queries: string[] = [primary];
+    if (aggressive) {
+      const noSpaces = primary.replace(/\s+/g, '');
+      if (noSpaces && noSpaces !== primary) queries.push(noSpaces);
+    }
+    for (const q of queries) {
+      try {
+        const r = await searchEgsByName(q);
+        if (r) {
+          setKobeEgsLink(item.code, r.id, 'auto');
+          matched++;
+          break;
+        }
+      } catch {
+        // EGS unreachable — skip and let user retry.
       }
     }
   }

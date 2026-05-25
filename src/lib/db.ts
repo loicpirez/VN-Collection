@@ -8579,6 +8579,22 @@ export function listKobeNoVndbResult(limit: number): KobeStockRow[] {
     .all(limit) as KobeStockRow[];
 }
 
+/**
+ * Subset of "No VNDB result" rows that also lack an EGS match. Used by the
+ * dedicated EGS-search retry button — there's no point re-searching EGS for
+ * a row that already has an `egs_id`.
+ */
+export function listKobeNoVndbNoEgs(limit: number): KobeStockRow[] {
+  return db
+    .prepare(
+      `SELECT * FROM alicesoft_kobe_stock
+       WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NULL
+       ORDER BY code
+       LIMIT ?`,
+    )
+    .all(limit) as KobeStockRow[];
+}
+
 export function setKobeVnLink(
   code: string,
   vnId: string | null,
