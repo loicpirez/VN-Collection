@@ -54,7 +54,7 @@ export const dictionaries = {
       similar: 'Similaire',
       compare: 'Comparer',
       brandOverlap: 'Chevauchement',
-      kobe: 'Stock Kobe',
+      alicesoft_kobe: 'AliceSoft Kobe',
     },
     recommend: {
       title: 'Pour toi',
@@ -2790,7 +2790,7 @@ export const dictionaries = {
       similar: 'Similar',
       compare: 'Compare',
       brandOverlap: 'Brand overlap',
-      kobe: 'Stock Kobe',
+      alicesoft_kobe: 'AliceSoft Kobe',
     },
     recommend: {
       title: 'For you',
@@ -5523,7 +5523,7 @@ export const dictionaries = {
       similar: '類似VN',
       compare: '比較',
       brandOverlap: 'ブランド重複',
-      kobe: '在庫 (Kobe)',
+      alicesoft_kobe: '在庫 (AliceSoft Kobe)',
     },
     recommend: {
       title: 'おすすめ',

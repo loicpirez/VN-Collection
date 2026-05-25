@@ -103,7 +103,7 @@ export async function fetchAliceKobeHtml(): Promise<string> {
   const res = await providerFetch(
     ALICE_KOBE_URL,
     { headers: { 'User-Agent': 'vndb-collection/1.0 (personal use)' } },
-    'alice_kobe',
+    'alicesoft_kobe',
   );
   if (!res.ok) throw new Error(`Alice Kobe fetch failed: HTTP ${res.status}`);
   const buffer = await res.arrayBuffer();

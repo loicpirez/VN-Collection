@@ -664,8 +664,22 @@ function open(): Database.Database {
       ON vn_va_credit(vn_id, c_id, sid, COALESCE(aid, -1), COALESCE(note, ''), COALESCE(va_lang, ''));
   `);
 
+  // One-shot migration: rename alice_kobe_stock → alicesoft_kobe_stock and related setting keys.
+  {
+    const migDone = (db.prepare(`SELECT value FROM app_setting WHERE key = 'migration_alicesoft_kobe_rename_v1'`).get() as { value: string } | undefined);
+    if (!migDone) {
+      db.transaction(() => {
+        const oldTable = db.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='alice_kobe_stock'`).get();
+        if (oldTable) db.exec(`ALTER TABLE alice_kobe_stock RENAME TO alicesoft_kobe_stock`);
+        db.prepare(`UPDATE app_setting SET key='alicesoft_kobe_proxy_config' WHERE key='alice_kobe_proxy_config'`).run();
+        db.prepare(`UPDATE app_setting SET key='alicesoft_kobe_last_fetch' WHERE key='alice_kobe_last_fetch'`).run();
+        db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('migration_alicesoft_kobe_rename_v1', '1')`).run();
+      })();
+    }
+  }
+
   db.exec(`
-    CREATE TABLE IF NOT EXISTS alice_kobe_stock (
+    CREATE TABLE IF NOT EXISTS alicesoft_kobe_stock (
       code             TEXT PRIMARY KEY,
       title            TEXT NOT NULL,
       jan              TEXT,
@@ -679,7 +693,7 @@ function open(): Database.Database {
       fetched_at       INTEGER NOT NULL DEFAULT 0,
       updated_at       INTEGER NOT NULL DEFAULT 0
     );
-    CREATE INDEX IF NOT EXISTS idx_alice_kobe_vn ON alice_kobe_stock(vn_id);
+    CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_vn ON alicesoft_kobe_stock(vn_id);
   `);
 
   // The aspect-ratio filter used to require an `owned_release` row to
@@ -996,11 +1010,11 @@ function open(): Database.Database {
   ensureColumn(db, 'series', 'banner_path', 'TEXT');
 
   // Top-3 VNDB candidates from auto-match stored as JSON for quick-pick remapping.
-  ensureColumn(db, 'alice_kobe_stock', 'vn_candidates', 'TEXT');
+  ensureColumn(db, 'alicesoft_kobe_stock', 'vn_candidates', 'TEXT');
   // Normalized title actually submitted to VNDB/EGS so mismatches are debuggable.
-  ensureColumn(db, 'alice_kobe_stock', 'search_title', 'TEXT');
+  ensureColumn(db, 'alicesoft_kobe_stock', 'search_title', 'TEXT');
   // Timestamp of the last VNDB/EGS match attempt (regardless of result).
-  ensureColumn(db, 'alice_kobe_stock', 'last_matched_at', 'INTEGER');
+  ensureColumn(db, 'alicesoft_kobe_stock', 'last_matched_at', 'INTEGER');
 
   // Migration: rewrite EGS cover URLs to point at the resolver endpoint
   // (/api/egs-cover/{egs_id}) instead of hardcoded DMM / Suruga-ya / image.php
@@ -8462,7 +8476,7 @@ export function upsertKobeStock(
 ): { added: number; updated: number; removed: number } {
   const now = Date.now();
   const upsertStmt = db.prepare(`
-    INSERT INTO alice_kobe_stock (code, title, jan, release_date, list_price, sale_price, fetched_at, updated_at)
+    INSERT INTO alicesoft_kobe_stock (code, title, jan, release_date, list_price, sale_price, fetched_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(code) DO UPDATE SET
       title        = excluded.title,
@@ -8482,7 +8496,7 @@ export function upsertKobeStock(
     const incomingCodes = new Set(items.map((r) => r.code));
 
     const existingCodes = new Set(
-      (db.prepare(`SELECT code FROM alice_kobe_stock`).all() as { code: string }[]).map((r) => r.code),
+      (db.prepare(`SELECT code FROM alicesoft_kobe_stock`).all() as { code: string }[]).map((r) => r.code),
     );
 
     for (const r of items) {
@@ -8497,7 +8511,7 @@ export function upsertKobeStock(
     const toDelete = [...existingCodes].filter((c) => !incomingCodes.has(c));
     if (toDelete.length > 0) {
       const placeholders = toDelete.map(() => '?').join(',');
-      removed = db.prepare(`DELETE FROM alice_kobe_stock WHERE code IN (${placeholders})`).run(...toDelete).changes;
+      removed = db.prepare(`DELETE FROM alicesoft_kobe_stock WHERE code IN (${placeholders})`).run(...toDelete).changes;
     }
   });
 
@@ -8509,14 +8523,14 @@ export function listKobeStock(): (KobeStockRow & { in_wishlist: number })[] {
   return db.prepare(`
     SELECT k.*,
            CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_wishlist
-    FROM   alice_kobe_stock k
+    FROM   alicesoft_kobe_stock k
     LEFT   JOIN collection c ON c.vn_id = k.vn_id AND c.status = 'planning'
     ORDER  BY k.title
   `).all() as (KobeStockRow & { in_wishlist: number })[];
 }
 
 export function getKobeStockItem(code: string): KobeStockRow | null {
-  return (db.prepare(`SELECT * FROM alice_kobe_stock WHERE code = ?`).get(code) as KobeStockRow | undefined) ?? null;
+  return (db.prepare(`SELECT * FROM alicesoft_kobe_stock WHERE code = ?`).get(code) as KobeStockRow | undefined) ?? null;
 }
 
 export function listKobeUnmatched(limit: number, retryNone = false): KobeStockRow[] {
@@ -8524,7 +8538,7 @@ export function listKobeUnmatched(limit: number, retryNone = false): KobeStockRo
     ? `(vn_id IS NULL AND vn_match_source IS NULL) OR vn_match_source = 'none'`
     : `vn_id IS NULL AND vn_match_source IS NULL`;
   return db
-    .prepare(`SELECT * FROM alice_kobe_stock WHERE ${condition} ORDER BY code LIMIT ?`)
+    .prepare(`SELECT * FROM alicesoft_kobe_stock WHERE ${condition} ORDER BY code LIMIT ?`)
     .all(limit) as KobeStockRow[];
 }
 
@@ -8537,7 +8551,7 @@ export function setKobeVnLink(
 ): void {
   const now = Date.now();
   db.prepare(
-    `UPDATE alice_kobe_stock
+    `UPDATE alicesoft_kobe_stock
      SET vn_id = ?, vn_match_source = ?, vn_candidates = ?, search_title = ?,
          last_matched_at = ?, updated_at = ?
      WHERE code = ?`,
@@ -8547,7 +8561,7 @@ export function setKobeVnLink(
 export function clearKobeVnLink(code: string): void {
   const now = Date.now();
   db.prepare(
-    `UPDATE alice_kobe_stock
+    `UPDATE alicesoft_kobe_stock
      SET vn_id = NULL, vn_match_source = NULL, vn_candidates = NULL,
          search_title = NULL, last_matched_at = NULL, updated_at = ?
      WHERE code = ?`,
@@ -8557,7 +8571,7 @@ export function clearKobeVnLink(code: string): void {
 export function resetKobeAutoMatches(): number {
   return db
     .prepare(
-      `UPDATE alice_kobe_stock
+      `UPDATE alicesoft_kobe_stock
        SET vn_id = NULL, vn_match_source = NULL, vn_candidates = NULL,
            search_title = NULL, last_matched_at = NULL, updated_at = ?
        WHERE vn_match_source = 'auto'`,
@@ -8566,7 +8580,7 @@ export function resetKobeAutoMatches(): number {
 }
 
 export function setKobeEgsLink(code: string, egsId: number | null, source: 'auto' | 'manual'): void {
-  db.prepare(`UPDATE alice_kobe_stock SET egs_id = ?, egs_match_source = ?, updated_at = ? WHERE code = ?`)
+  db.prepare(`UPDATE alicesoft_kobe_stock SET egs_id = ?, egs_match_source = ?, updated_at = ? WHERE code = ?`)
     .run(egsId, source, Date.now(), code);
 }
 
@@ -8584,7 +8598,7 @@ export function countKobeStock(): {
         SUM(CASE WHEN k.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS matched,
         SUM(CASE WHEN k.vn_match_source = 'none' THEN 1 ELSE 0 END)         AS none_found,
         SUM(CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS in_wishlist
-      FROM alice_kobe_stock k
+      FROM alicesoft_kobe_stock k
       LEFT JOIN collection c ON c.vn_id = k.vn_id AND c.status = 'planning'
     `)
     .get() as { total: number; matched: number; none_found: number; in_wishlist: number };
@@ -8609,7 +8623,7 @@ export function listKobeVnidsToDownload(limit: number): string[] {
     db
       .prepare(
         `SELECT DISTINCT k.vn_id
-         FROM alice_kobe_stock k
+         FROM alicesoft_kobe_stock k
          LEFT JOIN vn v ON v.id = k.vn_id
          WHERE k.vn_id IS NOT NULL AND v.id IS NULL
          LIMIT ?`,
@@ -8628,7 +8642,7 @@ export function listKobeItemsForEgsResolve(
   return db
     .prepare(
       `SELECT code, vn_id
-       FROM alice_kobe_stock
+       FROM alicesoft_kobe_stock
        WHERE vn_id IS NOT NULL AND egs_id IS NULL
        ORDER BY code
        LIMIT ?`,
@@ -8647,7 +8661,7 @@ export function countKobeDownloadPending(): { vndb_pending: number; egs_pending:
       `SELECT
          SUM(CASE WHEN k.vn_id IS NOT NULL AND v.id IS NULL THEN 1 ELSE 0 END) AS vndb_pending,
          SUM(CASE WHEN k.vn_id IS NOT NULL AND k.egs_id IS NULL THEN 1 ELSE 0 END) AS egs_pending
-       FROM alice_kobe_stock k
+       FROM alicesoft_kobe_stock k
        LEFT JOIN vn v ON v.id = k.vn_id`,
     )
     .get() as { vndb_pending: number; egs_pending: number };

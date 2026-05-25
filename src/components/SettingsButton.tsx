@@ -179,7 +179,7 @@ interface ServerSettings {
   vndb_proxy_config?: ProxyDisplayConfig;
   vndbmirror_proxy_config?: ProxyDisplayConfig;
   egs_proxy_config?: ProxyDisplayConfig;
-  alice_kobe_proxy_config?: ProxyDisplayConfig;
+  alicesoft_kobe_proxy_config?: ProxyDisplayConfig;
 }
 
 const SETTINGS_TABS = [
@@ -410,7 +410,7 @@ export function SettingsButton() {
       vndb_proxy_config: Record<string, unknown>;
       vndbmirror_proxy_config: Record<string, unknown>;
       egs_proxy_config: Record<string, unknown>;
-      alice_kobe_proxy_config: Record<string, unknown>;
+      alicesoft_kobe_proxy_config: Record<string, unknown>;
     }>,
   ) {
     try {
@@ -1143,10 +1143,10 @@ export function SettingsButton() {
                   />
                   <ProxySettingsSection
                     t={t}
-                    providerKey="alice_kobe_proxy_config"
+                    providerKey="alicesoft_kobe_proxy_config"
                     label={t.settings.proxyProviderAliceKobe}
-                    config={server?.alice_kobe_proxy_config}
-                    onSave={(patch) => saveServer({ alice_kobe_proxy_config: patch })}
+                    config={server?.alicesoft_kobe_proxy_config}
+                    onSave={(patch) => saveServer({ alicesoft_kobe_proxy_config: patch })}
                   />
 
                   <section className="border-t border-border pt-5">

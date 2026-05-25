@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { matchNextKobeItems } from '@/lib/alice-kobe';
+import { matchNextKobeItems } from '@/lib/alicesoft-kobe';
 import { readJsonObject } from '@/lib/api-body';
 
 export const dynamic = 'force-dynamic';

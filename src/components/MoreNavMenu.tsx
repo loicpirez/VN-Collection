@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useDialogA11y } from './Dialog';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -122,7 +123,7 @@ export function GroupedNav({ kobeEnabled = false }: { kobeEnabled?: boolean }) {
     { href: '/egs', label: t.nav.egs, icon: Gamepad2 },
     { href: '/schema', label: t.nav.schema, icon: FileCode2 },
     { href: '/data', label: t.nav.data, icon: Database },
-    ...(kobeEnabled ? [{ href: '/kobe', label: t.nav.kobe, icon: ShoppingBag }] : []),
+    ...(kobeEnabled ? [{ href: '/alicesoft_kobe', label: t.nav.alicesoft_kobe, icon: ShoppingBag }] : []),
   ];
 
   // Active when any item in the group matches the current route — the
@@ -347,7 +348,7 @@ function MobileSheet({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   useDialogA11y({ open: true, onClose, panelRef });
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 md:hidden">
       <div className="absolute inset-0 bg-bg/80 backdrop-blur" onClick={onClose} aria-hidden />
       <div
@@ -402,7 +403,8 @@ function MobileSheet({
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

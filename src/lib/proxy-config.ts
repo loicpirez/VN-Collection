@@ -2,7 +2,7 @@ import 'server-only';
 import { getAppSetting, setAppSetting } from './db';
 
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h';
-export type ProviderId = 'vndb' | 'vndbmirror' | 'egs' | 'alice_kobe';
+export type ProviderId = 'vndb' | 'vndbmirror' | 'egs' | 'alicesoft_kobe';
 
 export interface ProxyConfig {
   protocol: ProxyProtocol;
@@ -28,14 +28,14 @@ const ENV_PREFIX: Record<ProviderId, string> = {
   vndb: 'VNDB',
   vndbmirror: 'VNDBMIRROR',
   egs: 'EGS',
-  alice_kobe: 'ALICE_KOBE',
+  alicesoft_kobe: 'ALICE_KOBE',
 };
 
 export const PROXY_DB_KEY: Record<ProviderId, string> = {
   vndb: 'vndb_proxy_config',
   vndbmirror: 'vndbmirror_proxy_config',
   egs: 'egs_proxy_config',
-  alice_kobe: 'alice_kobe_proxy_config',
+  alicesoft_kobe: 'alicesoft_kobe_proxy_config',
 };
 
 interface StoredProxyConfig {

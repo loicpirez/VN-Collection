@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   if (!process.env.ALICE_KOBE_ENABLED) return {};
   const t = await getDict();
-  return { title: t.nav.kobe };
+  return { title: t.nav.alicesoft_kobe };
 }
 
 export default function KobePage() {

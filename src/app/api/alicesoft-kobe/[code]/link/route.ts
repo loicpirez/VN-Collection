@@ -20,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: { code: strin
   const item = getKobeStockItem(code);
   if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
   setKobeVnLink(code, vnId as string | null, vnId === null ? 'none' : 'manual');
-  recordActivity({ kind: 'kobe.link', entity: 'alice_kobe_stock', entityId: code, label: item.title, payload: { vn_id: vnId } });
+  recordActivity({ kind: 'kobe.link', entity: 'alicesoft_kobe_stock', entityId: code, label: item.title, payload: { vn_id: vnId } });
   return NextResponse.json({ ok: true });
 }
 

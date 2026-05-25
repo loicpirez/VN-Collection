@@ -26,6 +26,7 @@ No cloud account. No telemetry. No bundled games. No bundled copyrighted media.
 - Browse discovery pages such as upcoming releases, top-ranked VNs, recommendations, dumped status, and statistics.
 - Customize layouts, density, filters, spoiler visibility, and content display.
 - Export, import, and back up the local SQLite database.
+- Browse and match second-hand stock from AliceSoft Kobe against VNDB/EGS (optional, env-gated).
 
 ---
 
@@ -95,6 +96,18 @@ VNDB and ErogameScape are independent third-party projects. Their data, site con
 - Recommendations based on tags, ratings, ownership state, and discovery mode.
 - Top-ranked pages with vote thresholds and weighted ranking.
 - Upcoming and anticipated releases with cache freshness indicators.
+
+### Alice Kobe stock browser (optional)
+
+Set `ALICESOFT_KOBE_ENABLED=true` in `.env.local` to enable the `/alicesoft_kobe` page.
+
+- Download the current second-hand stock from [Alice Kobe](https://www.alice-kobe.com/) on demand (never auto-fetched).
+- Full sync: items no longer listed (sold) are deleted from the local DB.
+- Auto-match stock entries against VNDB and ErogameScape with rate-limited batch processing.
+- Top-3 VNDB candidates stored per item for quick remapping without re-searching.
+- Four-step "Download all": stock → VNDB match → VNDB data download → EGS resolution.
+- Filter tabs: All · Matched · Unmatched · No result · Wishlist.
+- Outbound fetch can route through a per-provider SOCKS5/HTTP proxy.
 
 ### Stats and maintenance
 
@@ -179,6 +192,38 @@ Never commit `.env.local`.
 ErogameScape integration does not require an API key. The app can query publicly reachable EGS pages/forms, cache the results locally, and link back to the source.
 
 If you configure an EGS user id, the app can also help sync user-specific public review/playtime data where available.
+
+---
+
+## Proxy configuration
+
+Some outbound requests (ErogameScape, VNDB mirror, Alice Kobe) can be routed through a SOCKS5 or HTTP proxy. Set env vars or configure per-provider in Settings → Integrations.
+
+```env
+EGS_PROXY_ENABLED=true
+EGS_PROXY_PROTOCOL=socks5h
+EGS_PROXY_HOST=proxy.example.com
+EGS_PROXY_PORT=1080
+EGS_PROXY_USERNAME=user
+EGS_PROXY_PASSWORD=pass
+```
+
+Same pattern for `ALICESOFT_KOBE_` and `VNDBMIRROR_` prefixes. The proxy is applied **only** to the configured provider — all other traffic uses a direct connection.
+
+Proxy passwords are never logged or echoed by the settings API.
+
+---
+
+## Advanced environment variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `DB_PATH` | `./data/collection.db` | Override SQLite file location |
+| `STORAGE_ROOT` | `./data/storage/` | Override media/image storage directory |
+| `ALICESOFT_KOBE_ENABLED` | unset | Set to `true` to enable the `/alicesoft_kobe` stock browser page |
+| `VN_ADMIN_TOKEN` | unset | Admin bearer token (alternative to localhost-only auth) |
+| `ALLOW_TRUSTED_PROXY` | unset | Enable trusted proxy mode for reverse-proxy setups |
+| `TRUSTED_PROXY_SECRET` | unset | Secret shared with the trusted proxy |
 
 ---
 

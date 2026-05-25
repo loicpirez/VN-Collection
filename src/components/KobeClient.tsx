@@ -117,7 +117,7 @@ function LinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
     const key = vnId ?? 'none';
     setBusy(key);
     try {
-      const r = await fetch(`/api/alice-kobe/${encodeURIComponent(item.code)}/link`, {
+      const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(item.code)}/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: vnId }),
@@ -228,7 +228,7 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
   async function pick(vnId: string) {
     setBusy(vnId);
     try {
-      const r = await fetch(`/api/alice-kobe/${encodeURIComponent(code)}/link`, {
+      const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: vnId }),
@@ -311,7 +311,7 @@ export function KobeClient() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch('/api/alice-kobe', { cache: 'no-store' });
+      const r = await fetch('/api/alicesoft-kobe', { cache: 'no-store' });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as {
         items: KobeItem[];
@@ -333,7 +333,7 @@ export function KobeClient() {
   useEffect(() => { load(); }, [load]);
 
   async function downloadStock() {
-    const r = await fetch('/api/alice-kobe/fetch', { method: 'POST' });
+    const r = await fetch('/api/alicesoft-kobe/fetch', { method: 'POST' });
     if (!r.ok) throw new Error(await readApiError(r, t.common.error));
     const d = (await r.json()) as { count: number; added: number; updated: number; removed: number };
     if (d.removed > 0) {
@@ -374,13 +374,13 @@ export function KobeClient() {
         setOpLabel(t.kobe.kobeDownloading);
         await downloadStock();
       } else if (op === 'matching') {
-        await runLoop('/api/alice-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining);
+        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining);
       } else if (op === 'retrying') {
-        await runLoop('/api/alice-kobe/match-next', { retry_none: true }, t.kobe.kobeRetryNone, (d) => d.remaining);
+        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, t.kobe.kobeRetryNone, (d) => d.remaining);
       } else if (op === 'download-vndb') {
-        await runLoop('/api/alice-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining);
+        await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining);
       } else if (op === 'resolve-egs') {
-        await runLoop('/api/alice-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining);
+        await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining);
       }
       await load();
     } catch (e) {
@@ -397,11 +397,11 @@ export function KobeClient() {
       setOpLabel(t.kobe.kobeDownloading);
       await downloadStock();
       if (stopRef.current) return;
-      await runLoop('/api/alice-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining);
+      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining);
       if (stopRef.current) return;
-      await runLoop('/api/alice-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining);
+      await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining);
       if (stopRef.current) return;
-      await runLoop('/api/alice-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining);
+      await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining);
       await load();
     } catch (e) {
       toast.error((e as Error).message);
@@ -413,7 +413,7 @@ export function KobeClient() {
   async function resetAutoMatches() {
     if (!window.confirm(t.kobe.kobeResetConfirm)) return;
     try {
-      const r = await fetch('/api/alice-kobe/reset-matches', { method: 'POST' });
+      const r = await fetch('/api/alicesoft-kobe/reset-matches', { method: 'POST' });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await load();
     } catch (e) {
@@ -423,7 +423,7 @@ export function KobeClient() {
 
   async function clearLink(code: string) {
     try {
-      const r = await fetch(`/api/alice-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE' });
+      const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE' });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await load();
     } catch (e) {

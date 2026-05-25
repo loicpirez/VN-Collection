@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const items = listKobeStock();
   const stats = countKobeStock();
   const pending = countKobeDownloadPending();
-  const lastFetch = getAppSetting('alice_kobe_last_fetch');
+  const lastFetch = getAppSetting('alicesoft_kobe_last_fetch');
   return NextResponse.json({
     items,
     stats,
