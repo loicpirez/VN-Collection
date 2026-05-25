@@ -26,6 +26,7 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
 
   async function add(): Promise<void> {
     setBusy(true);
@@ -40,7 +41,10 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
         const body = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error || t.common.error);
       }
+      setAdded(true);
+      window.dispatchEvent(new CustomEvent('vn:collection-changed', { detail: { vnId } }));
       startTransition(() => router.refresh());
+      window.setTimeout(() => router.refresh(), 250);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -49,6 +53,7 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
   }
 
   const working = busy || pending;
+  if (added) return null;
   return (
     <div
       role="status"
