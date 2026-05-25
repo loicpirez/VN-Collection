@@ -54,6 +54,37 @@ export function normalizeTitle(rawTitle: string): string {
 export { normalizeTitle as getKobeTitleForSearch };
 
 /**
+ * Aggressive title normalization for the "retry without edition" pass.
+ * Layers on top of `normalizeTitle` and additionally strips:
+ *  - Any trailing token ending in 版 (普及版 / 完全限定生産版 / 抱き枕カバー付限定版 / …),
+ *    applied iteratively so chained markers ("豪華限定版 通常版") are both removed.
+ *  - Standalone media-format markers (DVD-ROM / Blu-ray / CD-ROM, HDリマスター, …).
+ *  - Edition / packaging descriptors at the end (パッケージ, ボックス, BOX, セット, パック,
+ *    アペンドパッチ, 拡張パック, アニバーサリー*, プレミアム*, デラックス*, タペストリー付, etc.).
+ *  - A trailing `～subtitle～` block.
+ * Used only as a retry attempt; the primary match-next path keeps `normalizeTitle`.
+ */
+export function normalizeTitleAggressive(rawTitle: string): string {
+  let t = normalizeTitle(rawTitle);
+  // Iteratively strip trailing tokens that end in 版.
+  let prev = '';
+  while (prev !== t) {
+    prev = t;
+    t = t.replace(/\s+\S*版\s*$/u, '');
+  }
+  // Media-format markers anywhere in the string.
+  t = t.replace(/\s*(DVD-?ROM|Blu-?ray|CD-?ROM|HDリマスター|HDサイズエディション)\b/gi, '');
+  // Common trailing edition/packaging descriptors.
+  t = t.replace(
+    /\s+(エディション|パッケージ|ボックス|BOX|セット|パック|アペンドパッチ|拡張パック|追加データ|スキルパック|キャラクターパック|アニバーサリー\S*|スペシャル\S*|プレミアム\S*|デラックス\S*|限定生産|完全生産|抱き枕カバー付|タペストリー付|オナホール同梱|フルセット|普及|破格|廉価)\s*$/gi,
+    '',
+  );
+  // A trailing ～...～ subtitle block.
+  t = t.replace(/\s*[～~〜][^～~〜]*[～~〜]\s*$/g, '');
+  return t.replace(/\s{2,}/g, ' ').trim();
+}
+
+/**
  * Parse the Alice Kobe HTML page into structured stock rows.
  * Skips the header row and any rows without the expected code format.
  */
@@ -240,5 +271,64 @@ export async function matchVndbFromEgsForKobe(
   }
   // remaining is intentionally 0 so the front-end runLoop exits after one
   // pass — re-running would just re-process the same failed rows.
+  return { processed: items.length, matched, remaining: 0 };
+}
+
+/**
+ * Retry VNDB search for "No VNDB result" items using an aggressively cleaned
+ * title. The original `matchNextKobeItems` failed because titles like
+ *   "ぱらだいすおーしゃん　完全限定生産版"
+ *   "いますぐお兄ちゃんに・・・　完全生産限定版"
+ *   "ましろ色シンフォニー　サナエディション"
+ * carry edition / packaging markers that VNDB doesn't index. We strip those via
+ * `normalizeTitleAggressive` and try two queries per item:
+ *   1) cleaned title with spaces preserved
+ *   2) same title with all whitespace removed (catches "ｔａｎ．タンジェント" vs
+ *      "ｔａｎ． －タンジェント－")
+ *
+ * On hit, `setKobeVnLink` writes the new vn_id and the candidates JSON so the
+ * UI's quick-pick chips still work. On miss we leave the row untouched ('none')
+ * so this pass is idempotent — re-running does the same work, cached.
+ *
+ * @param batchSize  Max rows processed this call (clamped 1–500). The endpoint
+ *                   returns `remaining: 0` so the UI loop exits after one pass.
+ */
+export async function retryVndbForKobeAggressive(
+  batchSize: number,
+): Promise<{ processed: number; matched: number; remaining: number }> {
+  const safe = Math.min(500, Math.max(1, Math.floor(batchSize)));
+  // listKobeNoVndbResult already returns vn_match_source='none' AND vn_id IS NULL.
+  const items = listKobeNoVndbResult(safe);
+  let matched = 0;
+  for (const item of items) {
+    const aggressive = normalizeTitleAggressive(item.title);
+    const noSpaces = aggressive.replace(/\s+/g, '');
+    // Build the queries to try; skip any that are identical to the previously
+    // failed search_title (re-running the same query just burns the VNDB quota).
+    const queries: string[] = [];
+    if (aggressive && aggressive !== item.search_title) queries.push(aggressive);
+    if (noSpaces && noSpaces !== aggressive && noSpaces !== item.search_title) queries.push(noSpaces);
+    if (queries.length === 0) continue;
+    for (const q of queries) {
+      try {
+        const vnResult = await searchVn(q, { results: 3 });
+        const cands = (vnResult.results ?? []).slice(0, 3);
+        const top = cands[0];
+        if (top) {
+          const candidatesJson = JSON.stringify(cands.map((v) => ({
+            id: v.id,
+            title: v.title,
+            alttitle: v.alttitle,
+            released: v.released,
+          })));
+          setKobeVnLink(item.code, top.id, 'auto', candidatesJson, q);
+          matched++;
+          break; // stop trying further queries for this item
+        }
+      } catch {
+        // VNDB unreachable or 4xx — skip and let the user retry.
+      }
+    }
+  }
   return { processed: items.length, matched, remaining: 0 };
 }
