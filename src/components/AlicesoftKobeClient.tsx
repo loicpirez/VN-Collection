@@ -287,7 +287,7 @@ type ActiveOp =
   | 'resolve-egs'
   | 'download-all';
 
-interface PendingCounts { vndb_pending: number; egs_pending: number; egs_to_vndb_pending: number }
+interface PendingCounts { vndb_pending: number; egs_pending: number }
 
 function parseDevs(json: string | null): { id: string; name: string }[] {
   if (!json) return [];
@@ -311,7 +311,7 @@ export function AlicesoftKobeClient() {
   const toast = useToast();
   const [items, setItems] = useState<KobeItem[]>([]);
   const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, unmatched: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
-  const [pending, setPending] = useState<PendingCounts>({ vndb_pending: 0, egs_pending: 0, egs_to_vndb_pending: 0 });
+  const [pending, setPending] = useState<PendingCounts>({ vndb_pending: 0, egs_pending: 0 });
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeOp, setActiveOp] = useState<ActiveOp>('idle');
@@ -398,7 +398,7 @@ export function AlicesoftKobeClient() {
       } else if (op === 'retrying') {
         await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, t.kobe.kobeRetryNone, (d) => d.remaining, stats.none_found, 5);
       } else if (op === 'vndb-from-egs') {
-        await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, t.kobe.kobeMatchVndbFromEgs, (d) => d.remaining, pending.egs_to_vndb_pending, 10);
+        await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', { batch: 500 }, t.kobe.kobeMatchVndbFromEgs, (d) => d.remaining, stats.none_found, 500);
       } else if (op === 'download-vndb') {
         await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending, 10);
       } else if (op === 'resolve-egs') {
@@ -422,8 +422,6 @@ export function AlicesoftKobeClient() {
       await downloadStock();
       if (stopRef.current) return;
       await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining, stats.unmatched, 5);
-      if (stopRef.current) return;
-      await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, t.kobe.kobeMatchVndbFromEgs, (d) => d.remaining, pending.egs_to_vndb_pending, 10);
       if (stopRef.current) return;
       await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending, 10);
       if (stopRef.current) return;
@@ -626,19 +624,6 @@ export function AlicesoftKobeClient() {
               </button>
               <button
                 type="button"
-                onClick={() => runSingleOp('vndb-from-egs')}
-                disabled={pending.egs_to_vndb_pending === 0}
-                className="btn btn-sm"
-                title={t.kobe.kobeMatchVndbFromEgsHint}
-              >
-                <Link2 className="h-3.5 w-3.5" />
-                {t.kobe.kobeMatchVndbFromEgs}
-                {pending.egs_to_vndb_pending > 0 && (
-                  <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.egs_to_vndb_pending}</span>
-                )}
-              </button>
-              <button
-                type="button"
                 onClick={() => runSingleOp('download-vndb')}
                 disabled={pending.vndb_pending === 0}
                 className="btn btn-sm"
@@ -719,6 +704,25 @@ export function AlicesoftKobeClient() {
           />
         </div>
       </div>
+
+      {/* Per-tab action: try EGS as VNDB-id source for "No VNDB result" items */}
+      {filter === 'none_found' && stats.none_found > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-card p-2.5">
+          <Link2 className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
+          <span className="flex-1 text-xs text-muted">
+            {t.kobe.kobeMatchVndbFromEgsHint}
+          </span>
+          <button
+            type="button"
+            onClick={() => runSingleOp('vndb-from-egs')}
+            disabled={isBusy}
+            className="btn btn-sm btn-primary"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            {t.kobe.kobeMatchVndbFromEgs}
+          </button>
+        </div>
+      )}
 
       {/* Producer filter — additive on top of whichever tab is active */}
       {producers.length > 0 && (

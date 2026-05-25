@@ -5,9 +5,8 @@ import { providerFetch } from './proxy-fetch';
 import { isVndbVnId } from './vn-id-shape';
 import {
   countKobeStock,
-  countKobeWithEgsNoVndb,
+  listKobeNoVndbResult,
   listKobeUnmatched,
-  listKobeWithEgsNoVndb,
   resetKobeAutoMatches as dbResetKobeAutoMatches,
   setKobeEgsLink,
   setKobeVnLink,
@@ -186,52 +185,60 @@ export async function matchNextKobeItems(
 }
 
 /**
- * Best-effort EGS → VNDB resolution for kobe items that already have an EGS
- * match but still lack a VNDB id. EGS exposes a per-game `vndb` column
- * (curated by users), so when title search via VNDB couldn't find a match
- * we can sometimes recover one for free by reading the EGS row.
+ * Resolve VNDB ids for items in the "No VNDB result" tab via ErogameScape.
  *
- * For each item:
- *  - Fetch the EGS game (24h cached by `fetchEgsGame`, so repeated runs
- *    are cheap once the entry has been hit once).
- *  - If `raw.vndb` is a syntactically valid VN id, set `vn_id` + source 'auto'.
- *  - Otherwise mark `vn_match_source = 'none'` so the item drops out of the
- *    batch and the loop terminates. The user can still recover it via the
- *    existing "retry none" path (which re-runs the title search) or by
- *    linking manually.
+ * Walks every kobe row where `vn_match_source = 'none' AND vn_id IS NULL`
+ * (i.e. title search against VNDB previously returned nothing). For each:
+ *  1. If we don't yet have an `egs_id`, run a fresh `searchEgsByName` and
+ *     persist whatever it finds.
+ *  2. If we now have an `egs_id`, call `fetchEgsGame` (24h cached) and read
+ *     the curated `vndb` column. Valid VN ids are written back via
+ *     `setKobeVnLink`.
  *
- * Items where EGS itself can't be fetched (network failure, throttled) are
- * left untouched so the next click can retry them.
+ * Failures (EGS unreachable, no matching EGS row, EGS row with empty `vndb`)
+ * are intentionally left untouched — the row stays as 'none' and the user
+ * can manually link it. Returns `remaining: 0` unconditionally so the UI's
+ * batch loop terminates after a single pass.
  *
- * @param batchSize  Number of items to process (clamped 1–100)
+ * @param batchSize  Max number of rows to process this call (clamped 1–500)
  */
 export async function matchVndbFromEgsForKobe(
   batchSize: number,
 ): Promise<{ processed: number; matched: number; remaining: number }> {
-  const safe = Math.min(100, Math.max(1, Math.floor(batchSize)));
-  const items = listKobeWithEgsNoVndb(safe);
+  const safe = Math.min(500, Math.max(1, Math.floor(batchSize)));
+  const items = listKobeNoVndbResult(safe);
   let matched = 0;
   for (const item of items) {
-    if (item.egs_id == null) continue;
+    let egsId = item.egs_id;
+    // Step 1: if EGS title search hasn't been tried yet (or returned null),
+    // try again now. This is the same query used during match-next.
+    if (egsId == null) {
+      const query = normalizeTitle(item.title);
+      if (!query) continue;
+      try {
+        const r = await searchEgsByName(query);
+        if (r) {
+          egsId = r.id;
+          setKobeEgsLink(item.code, egsId, 'auto');
+        }
+      } catch {
+        // EGS unreachable for this query — skip and let the user retry.
+      }
+    }
+    if (egsId == null) continue;
+    // Step 2: read the EGS row's curated `vndb` column.
     try {
-      const game = await fetchEgsGame(item.egs_id);
+      const game = await fetchEgsGame(egsId);
       const vndbRaw = game?.raw?.vndb?.trim() ?? '';
       if (game && isVndbVnId(vndbRaw)) {
-        setKobeVnLink(item.code, vndbRaw, 'auto', null, item.search_title ?? null);
+        setKobeVnLink(item.code, vndbRaw, 'auto', null, item.search_title ?? item.title);
         matched++;
-      } else {
-        // EGS row exists but has no valid VNDB id. Record the negative so
-        // this item won't show up in subsequent batches.
-        setKobeVnLink(item.code, null, 'none', null, item.search_title ?? null);
       }
     } catch {
-      // EGS unreachable for this id — leave the item untouched so the
-      // user can re-run the batch later.
+      // EGS unreachable for this id — leave row as 'none', user can retry.
     }
   }
-  return {
-    processed: items.length,
-    matched,
-    remaining: countKobeWithEgsNoVndb(),
-  };
+  // remaining is intentionally 0 so the front-end runLoop exits after one
+  // pass — re-running would just re-process the same failed rows.
+  return { processed: items.length, matched, remaining: 0 };
 }
