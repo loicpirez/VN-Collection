@@ -13,7 +13,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, formatIsoDateString, formatVndbDateString } from '@/lib/locale-number';
 import { derivePlatformDisplay } from '@/lib/platform-display';
 import { platformLabel } from '@/lib/platform-label';
 import { useToast } from './ToastProvider';
@@ -39,6 +39,10 @@ export interface EditionInfoPopoverData {
   vn_image_url: string | null;
   vn_local_image_thumb: string | null;
   vn_image_sexual: number | null;
+  rel_image_thumb?: string | null;
+  rel_image_url?: string | null;
+  rel_local_image_thumb?: string | null;
+  rel_image_sexual?: number | null;
   /** Per-edition pin (lowercase VNDB code). Beats rel_platforms. */
   owned_platform: string | null;
   edition_label: string | null;
@@ -224,6 +228,7 @@ export function EditionInfoTrigger({
         type="button"
         onPointerDown={stop}
         onMouseDown={stop}
+        onTouchStart={stop}
         onClick={(e) => {
           stop(e);
           setOpen((v) => !v);
@@ -231,7 +236,7 @@ export function EditionInfoTrigger({
         aria-expanded={open}
         aria-label={ariaLabel}
         title={ariaLabel}
-        className={`${buttonPositionClassName} inline-flex h-6 w-6 items-center justify-center rounded bg-bg/80 text-muted hover:text-accent ${hoverOpacityClass} ${buttonClassName}`}
+        className={`${buttonPositionClassName} z-20 inline-flex h-6 w-6 items-center justify-center rounded bg-bg/80 text-muted hover:text-accent ${hoverOpacityClass} ${buttonClassName}`}
       >
         <Info className="h-3 w-3" aria-hidden />
       </button>
@@ -431,7 +436,7 @@ export function EditionInfoTrigger({
               return (
                 <div>
                   {t.detail.released}:{' '}
-                  <span className="text-white tabular-nums">{released}</span>
+                  <span className="text-white tabular-nums">{formatVndbDateString(released, locale)}</span>
                   {data.rel_released && (
                     <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
                       {t.shelfLayout.releaseFieldBadge}
@@ -489,7 +494,8 @@ export function EditionInfoTrigger({
             )}
             {data.acquired_date && (
               <div>
-                {t.inventory.acquired}: <span className="text-white">{data.acquired_date}</span>
+                {t.inventory.acquired}:{' '}
+                <span className="text-white">{formatIsoDateString(data.acquired_date, locale)}</span>
               </div>
             )}
             {data.dumped && (

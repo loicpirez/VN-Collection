@@ -311,11 +311,15 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           vn_id: source.vn_id,
           release_id: source.release_id,
           vn_title: ed.vn_title,
-          vn_image_thumb: ed.vn_image_thumb,
-          vn_image_url: ed.vn_image_url,
-          vn_local_image_thumb: ed.vn_local_image_thumb,
-          vn_image_sexual: ed.vn_image_sexual,
-          edition_label: ed.edition_label,
+	          vn_image_thumb: ed.vn_image_thumb,
+	          vn_image_url: ed.vn_image_url,
+	          vn_local_image_thumb: ed.vn_local_image_thumb,
+	          vn_image_sexual: ed.vn_image_sexual,
+	          rel_image_thumb: ed.rel_image_thumb ?? null,
+	          rel_image_url: ed.rel_image_url ?? null,
+	          rel_local_image_thumb: ed.rel_local_image_thumb ?? null,
+	          rel_image_sexual: ed.rel_image_sexual ?? null,
+	          edition_label: ed.edition_label,
           box_type: ed.box_type as ShelfSlotEntry['box_type'],
           condition: ed.condition,
           // Optimistic snapshot — server response on next refetch
@@ -427,11 +431,15 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             release_id: source.release_id,
             placed_at: Date.now(),
             vn_title: ed.vn_title,
-            vn_image_thumb: ed.vn_image_thumb,
-            vn_image_url: ed.vn_image_url,
-            vn_local_image_thumb: ed.vn_local_image_thumb,
-            vn_image_sexual: ed.vn_image_sexual,
-            edition_label: ed.edition_label,
+	            vn_image_thumb: ed.vn_image_thumb,
+	            vn_image_url: ed.vn_image_url,
+	            vn_local_image_thumb: ed.vn_local_image_thumb,
+	            vn_image_sexual: ed.vn_image_sexual,
+	            rel_image_thumb: ed.rel_image_thumb ?? null,
+	            rel_image_url: ed.rel_image_url ?? null,
+	            rel_local_image_thumb: ed.rel_local_image_thumb ?? null,
+	            rel_image_sexual: ed.rel_image_sexual ?? null,
+	            edition_label: ed.edition_label,
             box_type: ed.box_type as ShelfDisplaySlotEntry['box_type'],
             condition: ed.condition,
             // Mirror the slot-placement optimistic forward — see the
@@ -1306,6 +1314,7 @@ function DraggableDisplayItem({
   const t = useT();
   const id = `display|${slot.vn_id}|${slot.release_id}|${slot.shelf_id}|${slot.after_row}|${slot.position}`;
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
+  const artwork = editionArtwork(slot);
   const label =
     slot.after_row === 0
       ? t.shelfLayout.frontDisplayTop
@@ -1332,13 +1341,13 @@ function DraggableDisplayItem({
         {...listeners}
         className="absolute inset-0 cursor-grab touch-none select-none active:cursor-grabbing"
       >
-        <SafeImage
-          src={slot.vn_image_url || slot.vn_image_thumb}
-          localSrc={slot.vn_local_image_thumb}
-          sexual={slot.vn_image_sexual}
-          alt={slot.vn_title}
-          className="h-full w-full"
-        />
+	        <SafeImage
+	          src={artwork.src}
+	          localSrc={artwork.localSrc}
+	          sexual={artwork.sexual}
+	          alt={slot.vn_title}
+	          className="h-full w-full"
+	        />
       </div>
       <span className="pointer-events-none absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-accent/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-bg">
         <Layers className="h-2.5 w-2.5" aria-hidden />
@@ -1386,6 +1395,7 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
   // on open, flip up when there isn't enough space below, and shift
   // horizontally if the panel would clip the right viewport edge.
   const containerRef = useRef<HTMLLIElement>(null);
+  const artwork = editionArtwork(entry);
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
   };
@@ -1406,13 +1416,13 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
         className="cursor-grab touch-none select-none active:cursor-grabbing"
       >
         <div className="aspect-[2/3] w-full overflow-hidden rounded">
-          <SafeImage
-            src={entry.vn_image_url || entry.vn_image_thumb}
-            localSrc={entry.vn_local_image_thumb}
-            sexual={entry.vn_image_sexual}
-            alt={entry.vn_title}
-            className="h-full w-full"
-          />
+	          <SafeImage
+	            src={artwork.src}
+	            localSrc={artwork.localSrc}
+	            sexual={artwork.sexual}
+	            alt={entry.vn_title}
+	            className="h-full w-full"
+	          />
         </div>
         <p className="mt-1 line-clamp-2 text-[10px] font-bold leading-tight" title={entry.vn_title}>{entry.vn_title}</p>
         {/*
@@ -1477,6 +1487,7 @@ function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highli
   // round-trip through parseDragId.
   const id = `slot|${slot.vn_id}|${slot.release_id}|${slot.shelf_id}|${slot.row}|${slot.col}`;
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id });
+  const artwork = editionArtwork(slot);
   return (
     <div
       data-shelf-vn={slot.vn_id}
@@ -1496,13 +1507,13 @@ function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highli
         {...listeners}
         className="absolute inset-0 cursor-grab touch-none select-none active:cursor-grabbing"
       >
-        <SafeImage
-          src={slot.vn_image_url || slot.vn_image_thumb}
-          localSrc={slot.vn_local_image_thumb}
-          sexual={slot.vn_image_sexual}
-          alt={slot.vn_title}
-          className="h-full w-full"
-        />
+	        <SafeImage
+	          src={artwork.src}
+	          localSrc={artwork.localSrc}
+	          sexual={artwork.sexual}
+	          alt={slot.vn_title}
+	          className="h-full w-full"
+	        />
       </div>
       {slot.box_type !== 'none' && (
         <span className="pointer-events-none absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-bg/75 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted">
@@ -1561,16 +1572,17 @@ function DragGhost({
 }) {
   const ed = findEdition(from, slots, displays, pool);
   if (!ed) return null;
+  const artwork = editionArtwork(ed);
   return (
     <div className="rotate-[3deg] cursor-grabbing">
       <div className="h-24 w-16 overflow-hidden rounded-md shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] ring-2 ring-accent">
-        <SafeImage
-          src={ed.vn_image_url || ed.vn_image_thumb}
-          localSrc={ed.vn_local_image_thumb}
-          sexual={ed.vn_image_sexual}
-          alt={ed.vn_title}
-          className="h-full w-full"
-        />
+	        <SafeImage
+	          src={artwork.src}
+	          localSrc={artwork.localSrc}
+	          sexual={artwork.sexual}
+	          alt={ed.vn_title}
+	          className="h-full w-full"
+	        />
       </div>
     </div>
   );
@@ -1668,6 +1680,10 @@ function findEdition(
   vn_image_url: string | null;
   vn_local_image_thumb: string | null;
   vn_image_sexual: number | null;
+  rel_image_thumb?: string | null;
+  rel_image_url?: string | null;
+  rel_local_image_thumb?: string | null;
+  rel_image_sexual?: number | null;
   edition_label: string | null;
   box_type: ShelfEntry['box_type'];
   condition: string | null;
@@ -1721,6 +1737,10 @@ function findEdition(
       vn_image_url: pooled.vn_image_url,
       vn_local_image_thumb: pooled.vn_local_image_thumb,
       vn_image_sexual: pooled.vn_image_sexual,
+      rel_image_thumb: pooled.rel_image_thumb,
+      rel_image_url: pooled.rel_image_url,
+      rel_local_image_thumb: pooled.rel_local_image_thumb,
+      rel_image_sexual: pooled.rel_image_sexual,
       edition_label: pooled.edition_label,
       box_type: pooled.box_type,
       condition: pooled.condition,
@@ -1744,6 +1764,23 @@ function findEdition(
   return null;
 }
 
+function editionArtwork(item: {
+  vn_image_thumb: string | null;
+  vn_image_url: string | null;
+  vn_local_image_thumb: string | null;
+  vn_image_sexual: number | null;
+  rel_image_thumb?: string | null;
+  rel_image_url?: string | null;
+  rel_local_image_thumb?: string | null;
+  rel_image_sexual?: number | null;
+}): { src: string | null; localSrc: string | null; sexual: number | null } {
+  return {
+    src: item.rel_image_url || item.rel_image_thumb || item.vn_image_url || item.vn_image_thumb,
+    localSrc: item.rel_local_image_thumb || item.vn_local_image_thumb,
+    sexual: item.rel_image_sexual ?? item.vn_image_sexual,
+  };
+}
+
 /**
  * Project a ShelfEntry (= owned_release joined with VN + release_meta_cache)
  * onto the EditionInfoPopover data shape. Strict subset; the popover
@@ -1759,6 +1796,10 @@ function shelfEntryToPopoverData(entry: ShelfEntry): EditionInfoPopoverData {
     vn_image_url: entry.vn_image_url,
     vn_local_image_thumb: entry.vn_local_image_thumb,
     vn_image_sexual: entry.vn_image_sexual,
+    rel_image_thumb: entry.rel_image_thumb,
+    rel_image_url: entry.rel_image_url,
+    rel_local_image_thumb: entry.rel_local_image_thumb,
+    rel_image_sexual: entry.rel_image_sexual,
     owned_platform: entry.owned_platform,
     edition_label: entry.edition_label,
     box_type: entry.box_type,
@@ -1794,6 +1835,10 @@ function shelfSlotToPopoverData(slot: ShelfSlotEntry): EditionInfoPopoverData {
     vn_image_url: slot.vn_image_url,
     vn_local_image_thumb: slot.vn_local_image_thumb,
     vn_image_sexual: slot.vn_image_sexual,
+    rel_image_thumb: slot.rel_image_thumb,
+    rel_image_url: slot.rel_image_url,
+    rel_local_image_thumb: slot.rel_local_image_thumb,
+    rel_image_sexual: slot.rel_image_sexual,
     owned_platform: slot.owned_platform,
     edition_label: slot.edition_label,
     box_type: slot.box_type,
@@ -1829,6 +1874,10 @@ function displaySlotToPopoverData(slot: ShelfDisplaySlotEntry): EditionInfoPopov
     vn_image_url: slot.vn_image_url,
     vn_local_image_thumb: slot.vn_local_image_thumb,
     vn_image_sexual: slot.vn_image_sexual,
+    rel_image_thumb: slot.rel_image_thumb,
+    rel_image_url: slot.rel_image_url,
+    rel_local_image_thumb: slot.rel_local_image_thumb,
+    rel_image_sexual: slot.rel_image_sexual,
     owned_platform: slot.owned_platform,
     edition_label: slot.edition_label,
     box_type: slot.box_type,
@@ -1870,6 +1919,10 @@ function shelfDisplayToShelfEntry(slot: ShelfDisplaySlotEntry): ShelfEntry {
     vn_image_url: slot.vn_image_url,
     vn_local_image_thumb: slot.vn_local_image_thumb,
     vn_image_sexual: slot.vn_image_sexual,
+    rel_image_thumb: slot.rel_image_thumb,
+    rel_image_url: slot.rel_image_url,
+    rel_local_image_thumb: slot.rel_local_image_thumb,
+    rel_image_sexual: slot.rel_image_sexual,
     // Forward the joined VN-aggregate + release-level metadata that
     // listShelfDisplaySlots now provides via LEFT JOIN against
     // release_meta_cache. The synthesizer is the data bridge for
@@ -1912,6 +1965,10 @@ function shelfSlotToShelfEntry(slot: ShelfSlotEntry): ShelfEntry {
     vn_image_url: slot.vn_image_url,
     vn_local_image_thumb: slot.vn_local_image_thumb,
     vn_image_sexual: slot.vn_image_sexual,
+    rel_image_thumb: slot.rel_image_thumb,
+    rel_image_url: slot.rel_image_url,
+    rel_local_image_thumb: slot.rel_local_image_thumb,
+    rel_image_sexual: slot.rel_image_sexual,
     vn_platforms: slot.vn_platforms,
     vn_languages: slot.vn_languages,
     vn_released: slot.vn_released,

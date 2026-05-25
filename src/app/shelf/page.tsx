@@ -25,6 +25,7 @@ import {
 } from '@/lib/shelf-view-prefs';
 import { getAppSetting } from '@/lib/db';
 import type { Locale } from '@/lib/i18n/dictionaries';
+import { formatIsoDateString } from '@/lib/locale-number';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +81,14 @@ function boxTypeLabel(value: string, dict: Awaited<ReturnType<typeof getDict>>):
 function conditionLabel(value: string, dict: Awaited<ReturnType<typeof getDict>>): string {
   const k = value as keyof typeof dict.inventory.conditions;
   return (dict.inventory.conditions as Record<string, string>)[k] ?? value;
+}
+
+function shelfArtwork(e: ShelfEntry): { src: string | null; localSrc: string | null; sexual: number | null } {
+  return {
+    src: e.rel_image_url || e.rel_image_thumb || e.vn_image_url || e.vn_image_thumb,
+    localSrc: e.rel_local_image_thumb || e.vn_local_image_thumb,
+    sexual: e.rel_image_sexual ?? e.vn_image_sexual,
+  };
 }
 
 export default async function ShelfPage({
@@ -437,27 +446,29 @@ export default async function ShelfPage({
                     className="grid gap-3"
                     style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}
                   >
-                    {list.map((e) => (
-                      <li key={`${e.vn_id}-${e.release_id}`}>
-                        <Link
-                          href={`/vn/${e.vn_id}`}
-                          className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
-                        >
-                          <div
-                            className="shrink-0 overflow-hidden rounded"
-                            style={{
-                              width: 'clamp(56px, calc(var(--card-density-px, 220px) * 0.28), 140px)',
-                              aspectRatio: '2 / 3',
-                            }}
+                    {list.map((e) => {
+                      const artwork = shelfArtwork(e);
+                      return (
+                        <li key={`${e.vn_id}-${e.release_id}`}>
+                          <Link
+                            href={`/vn/${e.vn_id}`}
+                            className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
                           >
-                            <SafeImage
-                              src={e.vn_image_url || e.vn_image_thumb}
-                              localSrc={e.vn_local_image_thumb}
-                              sexual={e.vn_image_sexual}
-                              alt={e.vn_title}
-                              className="h-full w-full"
-                            />
-                          </div>
+                            <div
+                              className="shrink-0 overflow-hidden rounded"
+                              style={{
+                                width: 'clamp(56px, calc(var(--card-density-px, 220px) * 0.28), 140px)',
+                                aspectRatio: '2 / 3',
+                              }}
+                            >
+                              <SafeImage
+                                src={artwork.src}
+                                localSrc={artwork.localSrc}
+                                sexual={artwork.sexual}
+                                alt={e.rel_title || e.vn_title}
+                                className="h-full w-full"
+                              />
+                            </div>
                           <div className="min-w-0 flex-1 text-[11px]">
                             <p title={e.vn_title} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
                               {e.vn_title}
@@ -584,7 +595,7 @@ export default async function ShelfPage({
                               */}
                               {e.acquired_date && (
                                 <span title={t.releases.viewDetails}>
-                                  {e.acquired_date}
+                                  {formatIsoDateString(e.acquired_date, locale)}
                                 </span>
                               )}
                               {e.dumped && (
@@ -599,9 +610,10 @@ export default async function ShelfPage({
                               )}
                             </div>
                           </div>
-                        </Link>
-                      </li>
-                    ))}
+                          </Link>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               );
@@ -633,8 +645,19 @@ export default async function ShelfPage({
               >
                 {Array.from(itemBuckets.values())
                   .sort((a, b) => a.vn_title.localeCompare(b.vn_title))
-                  .map((b) => (
-                    <li key={b.vn_id}>
+                  .map((b) => {
+                    const coverEdition =
+                      b.editions.find((ed) => ed.rel_image_url || ed.rel_image_thumb || ed.rel_local_image_thumb) ??
+                      b.editions[0];
+                    const artwork = coverEdition
+                      ? shelfArtwork(coverEdition)
+                      : {
+                          src: b.vn_image_url || b.vn_image_thumb,
+                          localSrc: b.vn_local_image_thumb,
+                          sexual: b.vn_image_sexual,
+                        };
+                    return (
+                      <li key={b.vn_id}>
                       <Link
                         href={`/vn/${b.vn_id}`}
                         className="group flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
@@ -647,9 +670,9 @@ export default async function ShelfPage({
                           }}
                         >
                           <SafeImage
-                            src={b.vn_image_url || b.vn_image_thumb}
-                            localSrc={b.vn_local_image_thumb}
-                            sexual={b.vn_image_sexual}
+                            src={artwork.src}
+                            localSrc={artwork.localSrc}
+                            sexual={artwork.sexual}
                             alt={b.vn_title}
                             className="h-full w-full"
                           />
@@ -681,7 +704,8 @@ export default async function ShelfPage({
                         </div>
                       </Link>
                     </li>
-                  ))}
+                    );
+                  })}
               </ul>
             </section>
           )}

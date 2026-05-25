@@ -654,11 +654,14 @@ function open(): Database.Database {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_vn_staff_credit_unique
       ON vn_staff_credit(vn_id, sid, role);
+    DROP INDEX IF EXISTS idx_vn_va_credit_unique;
     DELETE FROM vn_va_credit WHERE rowid NOT IN (
-      SELECT MIN(rowid) FROM vn_va_credit GROUP BY vn_id, c_id, sid
+      SELECT MIN(rowid)
+      FROM vn_va_credit
+      GROUP BY vn_id, c_id, sid, COALESCE(aid, -1), COALESCE(note, ''), COALESCE(va_lang, '')
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_vn_va_credit_unique
-      ON vn_va_credit(vn_id, c_id, sid);
+      ON vn_va_credit(vn_id, c_id, sid, COALESCE(aid, -1), COALESCE(note, ''), COALESCE(va_lang, ''));
   `);
 
   // The aspect-ratio filter used to require an `owned_release` row to
@@ -1011,7 +1014,7 @@ function open(): Database.Database {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insVa = db.prepare(`
-      INSERT INTO vn_va_credit (vn_id, sid, aid, c_id, c_name, c_original, c_image_url, va_name, va_original, va_lang, note)
+      INSERT OR IGNORE INTO vn_va_credit (vn_id, sid, aid, c_id, c_name, c_original, c_image_url, va_name, va_original, va_lang, note)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     db.transaction(() => {
@@ -1588,7 +1591,7 @@ function rebuildStaffVaCredits(vnId: string, staff: StaffEntry[], va: VaEntry[])
     insStaff.run(vnId, s.id, s.aid ?? null, s.eid ?? null, s.role ?? '', s.note ?? null, s.name, s.original ?? null, s.lang ?? null);
   }
   const insVa = db.prepare(`
-    INSERT INTO vn_va_credit (vn_id, sid, aid, c_id, c_name, c_original, c_image_url, va_name, va_original, va_lang, note)
+    INSERT OR IGNORE INTO vn_va_credit (vn_id, sid, aid, c_id, c_name, c_original, c_image_url, va_name, va_original, va_lang, note)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const v of va) {
@@ -5045,6 +5048,11 @@ export interface ShelfEntry extends OwnedReleaseRow {
   vn_image_url: string | null;
   vn_local_image_thumb: string | null;
   vn_image_sexual: number | null;
+  /** Release-package artwork preferred over VN cover art on shelf surfaces. */
+  rel_image_thumb: string | null;
+  rel_image_url: string | null;
+  rel_local_image_thumb: string | null;
+  rel_image_sexual: number | null;
   /**
    * VN-LEVEL aggregate metadata (every platform/language across all
    * releases of the VN). Kept as a fallback for synthetic-id rows
@@ -5085,6 +5093,28 @@ function parseJsonArrayField(raw: string | null | undefined): string[] {
   } catch {
     return [];
   }
+}
+
+function pickReleaseCover(raw: string | null | undefined, releaseId: string): {
+  rel_image_thumb: string | null;
+  rel_image_url: string | null;
+  rel_local_image_thumb: string | null;
+  rel_image_sexual: number | null;
+} {
+  const images = parseJsonField<ReleaseImage[]>(raw, []);
+  const matches = images.filter((img) => img.release_id === releaseId);
+  const chosen =
+    matches.find((img) => img.type === 'pkgfront') ??
+    matches.find((img) => img.type === 'pkgside') ??
+    matches.find((img) => img.type === 'pkgcontent') ??
+    matches[0] ??
+    null;
+  return {
+    rel_image_thumb: chosen?.thumbnail ?? chosen?.url ?? null,
+    rel_image_url: chosen?.url ?? chosen?.thumbnail ?? null,
+    rel_local_image_thumb: chosen?.local_thumb ?? chosen?.local ?? null,
+    rel_image_sexual: chosen?.sexual ?? null,
+  };
 }
 
 /**
@@ -5192,6 +5222,7 @@ export function listAllOwnedReleases(): ShelfEntry[] {
              v.image_url AS vn_image_url,
              v.local_image_thumb AS vn_local_image_thumb,
              v.image_sexual AS vn_image_sexual,
+             v.release_images AS vn_release_images,
              v.platforms AS vn_platforms,
              v.languages AS vn_languages,
              v.released AS vn_released,
@@ -5204,22 +5235,24 @@ export function listAllOwnedReleases(): ShelfEntry[] {
     `)
     .all(LIST_ALL_OWNED_RELEASES_LIMIT) as Array<OwnedReleaseDbRow & ReleaseMetaJoinRow & {
       vn_title: string;
-      vn_image_thumb: string | null;
-      vn_image_url: string | null;
-      vn_local_image_thumb: string | null;
-      vn_image_sexual: number | null;
-      vn_platforms: string | null;
+	      vn_image_thumb: string | null;
+	      vn_image_url: string | null;
+	      vn_local_image_thumb: string | null;
+	      vn_image_sexual: number | null;
+	      vn_release_images: string | null;
+	      vn_platforms: string | null;
       vn_languages: string | null;
       vn_released: string | null;
     }>;
   return rows.map((r) => ({
     ...mapOwnedReleaseRow(r),
     vn_title: r.vn_title,
-    vn_image_thumb: r.vn_image_thumb,
-    vn_image_url: r.vn_image_url,
-    vn_local_image_thumb: r.vn_local_image_thumb,
-    vn_image_sexual: r.vn_image_sexual,
-    vn_platforms: parseJsonArrayField(r.vn_platforms),
+	    vn_image_thumb: r.vn_image_thumb,
+	    vn_image_url: r.vn_image_url,
+	    vn_local_image_thumb: r.vn_local_image_thumb,
+	    vn_image_sexual: r.vn_image_sexual,
+	    ...pickReleaseCover(r.vn_release_images, r.release_id),
+	    vn_platforms: parseJsonArrayField(r.vn_platforms),
     vn_languages: parseJsonArrayField(r.vn_languages),
     vn_released: r.vn_released,
     ...unpackReleaseMetaJoin(r),
@@ -5571,6 +5604,10 @@ export interface ShelfSlotEntry {
   vn_image_url: string | null;
   vn_local_image_thumb: string | null;
   vn_image_sexual: number | null;
+  rel_image_thumb: string | null;
+  rel_image_url: string | null;
+  rel_local_image_thumb: string | null;
+  rel_image_sexual: number | null;
   edition_label: string | null;
   box_type: BoxType;
   condition: string | null;
@@ -5606,10 +5643,11 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
       SELECT s.shelf_id, s.row, s.col, s.vn_id, s.release_id,
              v.title             AS vn_title,
              v.image_thumb       AS vn_image_thumb,
-             v.image_url         AS vn_image_url,
-             v.local_image_thumb AS vn_local_image_thumb,
-             v.image_sexual      AS vn_image_sexual,
-             v.platforms         AS vn_platforms,
+	             v.image_url         AS vn_image_url,
+	             v.local_image_thumb AS vn_local_image_thumb,
+	             v.image_sexual      AS vn_image_sexual,
+	             v.release_images    AS vn_release_images,
+	             v.platforms         AS vn_platforms,
              v.languages         AS vn_languages,
              v.released          AS vn_released,
              o.edition_label      AS edition_label,
@@ -5638,12 +5676,13 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
       col: number;
       vn_id: string;
       release_id: string;
-      vn_title: string;
-      vn_image_thumb: string | null;
-      vn_image_url: string | null;
-      vn_local_image_thumb: string | null;
-      vn_image_sexual: number | null;
-      vn_platforms: string | null;
+	      vn_title: string;
+	      vn_image_thumb: string | null;
+	      vn_image_url: string | null;
+	      vn_local_image_thumb: string | null;
+	      vn_image_sexual: number | null;
+	      vn_release_images: string | null;
+	      vn_platforms: string | null;
       vn_languages: string | null;
       vn_released: string | null;
       edition_label: string | null;
@@ -5665,14 +5704,15 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
     shelf_id: r.shelf_id,
     row: r.row,
     col: r.col,
-    vn_id: r.vn_id,
-    release_id: r.release_id,
-    vn_title: r.vn_title,
-    vn_image_thumb: r.vn_image_thumb,
-    vn_image_url: r.vn_image_url,
-    vn_local_image_thumb: r.vn_local_image_thumb,
-    vn_image_sexual: r.vn_image_sexual,
-    edition_label: r.edition_label,
+	    vn_id: r.vn_id,
+	    release_id: r.release_id,
+	    vn_title: r.vn_title,
+	    vn_image_thumb: r.vn_image_thumb,
+	    vn_image_url: r.vn_image_url,
+	    vn_local_image_thumb: r.vn_local_image_thumb,
+	    vn_image_sexual: r.vn_image_sexual,
+	    ...pickReleaseCover(r.vn_release_images, r.release_id),
+	    edition_label: r.edition_label,
     box_type: (r.box_type ?? 'none') as BoxType,
     condition: r.condition,
     owned_platform: r.owned_platform,
@@ -5703,10 +5743,11 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
       SELECT o.*,
              v.title             AS vn_title,
              v.image_thumb       AS vn_image_thumb,
-             v.image_url         AS vn_image_url,
-             v.local_image_thumb AS vn_local_image_thumb,
-             v.image_sexual      AS vn_image_sexual,
-             v.platforms         AS vn_platforms,
+	             v.image_url         AS vn_image_url,
+	             v.local_image_thumb AS vn_local_image_thumb,
+	             v.image_sexual      AS vn_image_sexual,
+	             v.release_images    AS vn_release_images,
+	             v.platforms         AS vn_platforms,
              v.languages         AS vn_languages,
              v.released          AS vn_released,
              ${RELEASE_META_JOIN_SELECT}
@@ -5726,21 +5767,23 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
     .all() as Array<OwnedReleaseDbRow & ReleaseMetaJoinRow & {
       vn_title: string;
       vn_image_thumb: string | null;
-      vn_image_url: string | null;
-      vn_local_image_thumb: string | null;
-      vn_image_sexual: number | null;
-      vn_platforms: string | null;
+	      vn_image_url: string | null;
+	      vn_local_image_thumb: string | null;
+	      vn_image_sexual: number | null;
+	      vn_release_images: string | null;
+	      vn_platforms: string | null;
       vn_languages: string | null;
       vn_released: string | null;
     }>;
   return rows.map((r) => ({
-    ...mapOwnedReleaseRow(r),
-    vn_title: r.vn_title,
-    vn_image_thumb: r.vn_image_thumb,
-    vn_image_url: r.vn_image_url,
-    vn_local_image_thumb: r.vn_local_image_thumb,
-    vn_image_sexual: r.vn_image_sexual,
-    vn_platforms: parseJsonArrayField(r.vn_platforms),
+	    ...mapOwnedReleaseRow(r),
+	    vn_title: r.vn_title,
+	    vn_image_thumb: r.vn_image_thumb,
+	    vn_image_url: r.vn_image_url,
+	    vn_local_image_thumb: r.vn_local_image_thumb,
+	    vn_image_sexual: r.vn_image_sexual,
+	    ...pickReleaseCover(r.vn_release_images, r.release_id),
+	    vn_platforms: parseJsonArrayField(r.vn_platforms),
     vn_languages: parseJsonArrayField(r.vn_languages),
     vn_released: r.vn_released,
     ...unpackReleaseMetaJoin(r),
@@ -5946,6 +5989,10 @@ export interface ShelfDisplaySlotEntry {
   vn_image_url: string | null;
   vn_local_image_thumb: string | null;
   vn_image_sexual: number | null;
+  rel_image_thumb: string | null;
+  rel_image_url: string | null;
+  rel_local_image_thumb: string | null;
+  rel_image_sexual: number | null;
   edition_label: string | null;
   box_type: BoxType;
   condition: string | null;
@@ -5975,10 +6022,11 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
       SELECT d.shelf_id, d.after_row, d.position, d.vn_id, d.release_id, d.placed_at,
              v.title             AS vn_title,
              v.image_thumb       AS vn_image_thumb,
-             v.image_url         AS vn_image_url,
-             v.local_image_thumb AS vn_local_image_thumb,
-             v.image_sexual      AS vn_image_sexual,
-             v.platforms         AS vn_platforms,
+	             v.image_url         AS vn_image_url,
+	             v.local_image_thumb AS vn_local_image_thumb,
+	             v.image_sexual      AS vn_image_sexual,
+	             v.release_images    AS vn_release_images,
+	             v.platforms         AS vn_platforms,
              v.languages         AS vn_languages,
              v.released          AS vn_released,
              o.edition_label      AS edition_label,
@@ -6011,10 +6059,11 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
       placed_at: number;
       vn_title: string;
       vn_image_thumb: string | null;
-      vn_image_url: string | null;
-      vn_local_image_thumb: string | null;
-      vn_image_sexual: number | null;
-      vn_platforms: string | null;
+	      vn_image_url: string | null;
+	      vn_local_image_thumb: string | null;
+	      vn_image_sexual: number | null;
+	      vn_release_images: string | null;
+	      vn_platforms: string | null;
       vn_languages: string | null;
       vn_released: string | null;
       edition_label: string | null;
@@ -6040,11 +6089,12 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
     release_id: r.release_id,
     placed_at: r.placed_at,
     vn_title: r.vn_title,
-    vn_image_thumb: r.vn_image_thumb,
-    vn_image_url: r.vn_image_url,
-    vn_local_image_thumb: r.vn_local_image_thumb,
-    vn_image_sexual: r.vn_image_sexual,
-    edition_label: r.edition_label,
+	    vn_image_thumb: r.vn_image_thumb,
+	    vn_image_url: r.vn_image_url,
+	    vn_local_image_thumb: r.vn_local_image_thumb,
+	    vn_image_sexual: r.vn_image_sexual,
+	    ...pickReleaseCover(r.vn_release_images, r.release_id),
+	    edition_label: r.edition_label,
     box_type: (r.box_type ?? 'none') as BoxType,
     condition: r.condition,
     owned_platform: r.owned_platform,
@@ -8337,7 +8387,20 @@ export function batchGetStaffNames(ids: string[]): Map<string, string> {
       `SELECT sid, name FROM vn_staff_credit WHERE sid IN (${placeholders}) GROUP BY sid`,
     )
     .all(...ids) as { sid: string; name: string }[];
-  return new Map(rows.map((r) => [r.sid, r.name]));
+  const map = new Map(rows.map((r) => [r.sid, r.name]));
+  const missing = ids.filter((id) => !map.has(id));
+  if (missing.length > 0) {
+    const vaPlaceholders = missing.map(() => '?').join(',');
+    const vaRows = db
+      .prepare(
+        `SELECT sid, va_name AS name FROM vn_va_credit WHERE sid IN (${vaPlaceholders}) GROUP BY sid`,
+      )
+      .all(...missing) as { sid: string; name: string }[];
+    for (const r of vaRows) {
+      if (!map.has(r.sid) && r.name) map.set(r.sid, r.name);
+    }
+  }
+  return map;
 }
 
 export function batchGetCharNames(ids: string[]): Map<string, string> {
