@@ -57,6 +57,7 @@ interface KobeStats {
   total: number;
   matched: number;
   unmatched: number;
+  unprocessed: number;
   none_found: number;
   in_collection: number;
   in_wishlist: number;
@@ -291,6 +292,7 @@ type ActiveOp =
   | 'download-all';
 
 interface PendingCounts { vndb_pending: number; egs_pending: number }
+interface RunTotals { processed: number; matched: number }
 
 function parseDevs(json: string | null): { id: string; name: string }[] {
   if (!json) return [];
@@ -313,7 +315,7 @@ export function AlicesoftKobeClient() {
   const t = useT();
   const toast = useToast();
   const [items, setItems] = useState<KobeItem[]>([]);
-  const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, unmatched: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
+  const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
   const [pending, setPending] = useState<PendingCounts>({ vndb_pending: 0, egs_pending: 0 });
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -321,6 +323,7 @@ export function AlicesoftKobeClient() {
   const [opDone, setOpDone] = useState(0);
   const [opTotal, setOpTotal] = useState(0);
   const [opLabel, setOpLabel] = useState('');
+  const [lastRun, setLastRun] = useState<{ label: string; processed: number; matched: number; error?: string } | null>(null);
   const [filter, setFilter] = useState<FilterTab>('all');
   const [producerFilter, setProducerFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -367,8 +370,10 @@ export function AlicesoftKobeClient() {
     getRemaining: (d: { processed: number; remaining: number }) => number,
     initialTotal = 0,
     batchSize = 5,
-  ) {
+  ): Promise<RunTotals> {
     let done = 0;
+    let matched = 0;
+    const runStartedAt = Date.now();
     setOpDone(0);
     setOpTotal(initialTotal);
     setOpLabel(label);
@@ -376,46 +381,62 @@ export function AlicesoftKobeClient() {
       const r = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batch: batchSize, ...body }),
+        body: JSON.stringify({ ...body, batch: batchSize, run_started_at: runStartedAt }),
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { processed: number; remaining: number };
+      const d = (await r.json()) as { processed: number; matched?: number; remaining: number };
       done += d.processed;
+      matched += d.matched ?? 0;
       setOpDone(done);
       setOpTotal(done + getRemaining(d));
       if (d.processed === 0 || d.remaining === 0) break;
     }
+    return { processed: done, matched };
   }
 
   async function runSingleOp(op: Exclude<ActiveOp, 'idle' | 'download-all'>) {
     stopRef.current = false;
     setActiveOp(op);
+    let label = '';
+    let totals: RunTotals = { processed: 0, matched: 0 };
     try {
       if (op === 'downloading') {
-        setOpLabel(t.kobe.kobeDownloading);
+        label = t.kobe.kobeDownloading;
+        setOpLabel(label);
         setOpDone(0);
         setOpTotal(0);
         await downloadStock();
       } else if (op === 'matching') {
-        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining, stats.unmatched, 5);
+        label = t.kobe.kobeMatchVndbEgs;
+        totals = await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, label, (d) => d.remaining, stats.unprocessed, 5);
       } else if (op === 'retrying') {
-        await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, t.kobe.kobeRetryNone, (d) => d.remaining, stats.none_found, 5);
+        label = t.kobe.kobeRetryNone;
+        totals = await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, label, (d) => d.remaining, stats.none_found, 4);
       } else if (op === 'vndb-from-egs') {
-        await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', { batch: 500 }, t.kobe.kobeMatchVndbFromEgs, (d) => d.remaining, stats.none_found, 500);
+        label = t.kobe.kobeMatchVndbFromEgs;
+        totals = await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, label, (d) => d.remaining, stats.none_found, 10);
       } else if (op === 'retry-vndb-aggressive') {
-        await runLoop('/api/alicesoft-kobe/retry-vndb-aggressive', { batch: 50 }, t.kobe.kobeRetryVndbAggressive, (d) => d.remaining, stats.none_found, 50);
+        label = t.kobe.kobeRetryVndbAggressive;
+        totals = await runLoop('/api/alicesoft-kobe/retry-vndb-aggressive', {}, label, (d) => d.remaining, stats.none_found, 4);
       } else if (op === 'search-egs') {
-        await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { batch: 50, aggressive: false }, t.kobe.kobeSearchEgsForNoVndb, (d) => d.remaining, stats.none_found, 50);
+        label = t.kobe.kobeSearchEgsForNoVndb;
+        totals = await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { aggressive: false }, label, (d) => d.remaining, stats.none_found, 10);
       } else if (op === 'search-egs-aggressive') {
-        await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { batch: 50, aggressive: true }, t.kobe.kobeSearchEgsForNoVndbAggressive, (d) => d.remaining, stats.none_found, 50);
+        label = t.kobe.kobeSearchEgsForNoVndbAggressive;
+        totals = await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { aggressive: true }, label, (d) => d.remaining, stats.none_found, 10);
       } else if (op === 'download-vndb') {
-        await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending, 10);
+        label = t.kobe.kobeDownloadVndb;
+        totals = await runLoop('/api/alicesoft-kobe/download-vndb', {}, label, (d) => d.remaining, pending.vndb_pending, 10);
       } else if (op === 'resolve-egs') {
-        await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining, pending.egs_pending, 10);
+        label = t.kobe.kobeResolveEgs;
+        totals = await runLoop('/api/alicesoft-kobe/resolve-egs', {}, label, (d) => d.remaining, pending.egs_pending, 10);
       }
       await load();
+      setLastRun({ label: label || op, ...totals });
     } catch (e) {
-      toast.error(`${opLabel}: ${(e as Error).message}`);
+      const message = `${label || op}: ${(e as Error).message}`;
+      setLastRun({ label: label || op, ...totals, error: (e as Error).message });
+      toast.error(message, 0);
     } finally {
       setActiveOp('idle');
     }
@@ -424,20 +445,24 @@ export function AlicesoftKobeClient() {
   async function runDownloadAll() {
     stopRef.current = false;
     setActiveOp('download-all');
+    let label = t.kobe.kobeDownloading;
     try {
-      setOpLabel(t.kobe.kobeDownloading);
+      setOpLabel(label);
       setOpDone(0);
       setOpTotal(0);
       await downloadStock();
       if (stopRef.current) return;
-      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, t.kobe.kobeMatchVndbEgs, (d) => d.remaining, stats.unmatched, 5);
+      label = t.kobe.kobeMatchVndbEgs;
+      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, label, (d) => d.remaining, stats.unprocessed, 5);
       if (stopRef.current) return;
-      await runLoop('/api/alicesoft-kobe/download-vndb', {}, t.kobe.kobeDownloadVndb, (d) => d.remaining, pending.vndb_pending, 10);
+      label = t.kobe.kobeDownloadVndb;
+      await runLoop('/api/alicesoft-kobe/download-vndb', {}, label, (d) => d.remaining, pending.vndb_pending, 10);
       if (stopRef.current) return;
-      await runLoop('/api/alicesoft-kobe/resolve-egs', {}, t.kobe.kobeResolveEgs, (d) => d.remaining, pending.egs_pending, 10);
+      label = t.kobe.kobeResolveEgs;
+      await runLoop('/api/alicesoft-kobe/resolve-egs', {}, label, (d) => d.remaining, pending.egs_pending, 10);
       await load();
     } catch (e) {
-      toast.error(`${opLabel}: ${(e as Error).message}`);
+      toast.error(`${label}: ${(e as Error).message}`, 0);
     } finally {
       setActiveOp('idle');
     }
@@ -484,7 +509,7 @@ export function AlicesoftKobeClient() {
   const filtered = useMemo(() => {
     let list = items;
     if (filter === 'matched') list = list.filter((i) => i.vn_id !== null);
-    else if (filter === 'unmatched') list = list.filter((i) => i.vn_id === null && i.vn_match_source !== 'none');
+    else if (filter === 'unmatched') list = list.filter((i) => i.vn_id === null);
     else if (filter === 'none_found') list = list.filter((i) => i.vn_match_source === 'none');
     else if (filter === 'collection') list = list.filter((i) => i.in_collection === 1);
     else if (filter === 'wishlist') list = list.filter((i) => i.in_wishlist === 1);
@@ -528,7 +553,7 @@ export function AlicesoftKobeClient() {
       </div>
 
       {/* Stats grid */}
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
           <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterAll}</div>
           <div className="text-2xl font-bold">{stats.total}</div>
@@ -541,7 +566,18 @@ export function AlicesoftKobeClient() {
         <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
           <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterUnmatched}</div>
           <div className="text-2xl font-bold">{stats.unmatched}</div>
-          {stats.none_found > 0 && <div className="mt-0.5 text-[10px] text-amber-400/80">{stats.none_found} none</div>}
+          {(stats.unprocessed > 0 || stats.none_found > 0) && (
+            <div className="mt-0.5 text-[10px] text-amber-400/80">
+              {t.kobe.kobeUnmatchedBreakdown
+                .replace('{new}', String(stats.unprocessed))
+                .replace('{none}', String(stats.none_found))}
+            </div>
+          )}
+        </div>
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center">
+          <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeNoneFound}</div>
+          <div className="text-2xl font-bold text-amber-400">{stats.none_found}</div>
+          {stats.unprocessed > 0 && <div className="mt-0.5 text-[10px] text-muted">{stats.unprocessed} {t.kobe.kobeNotYetMatched}</div>}
         </div>
         <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
           <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
@@ -596,21 +632,24 @@ export function AlicesoftKobeClient() {
             </div>
           </div>
         ) : (
-          <div className="space-y-2">
-            {/* Primary action */}
-            <div className="flex flex-wrap gap-2">
+          <div className="grid gap-3 lg:grid-cols-[1.1fr_1.1fr_1.25fr_1.15fr_auto]">
+            <section className="min-w-0">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.kobe.kobeActionPipeline}</div>
               <button
                 type="button"
                 onClick={runDownloadAll}
-                className="btn btn-primary btn-sm"
+                className="btn btn-primary btn-sm w-full sm:w-auto"
                 title={t.kobe.kobeDownloadAllHint}
               >
                 <Zap className="h-3.5 w-3.5" />
                 {t.kobe.kobeDownloadAll}
               </button>
-            </div>
-            {/* Individual steps */}
-            <div className="flex flex-wrap gap-2">
+              <p className="mt-1 text-[11px] leading-snug text-muted">{t.kobe.kobeDownloadAllHint}</p>
+            </section>
+
+            <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.kobe.kobeActionStock}</div>
+              <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => runSingleOp('downloading')}
@@ -622,27 +661,50 @@ export function AlicesoftKobeClient() {
               <button
                 type="button"
                 onClick={() => runSingleOp('matching')}
-                disabled={stats.unmatched === 0}
+                disabled={stats.unprocessed === 0}
                 className="btn btn-sm"
               >
                 <Search className="h-3.5 w-3.5" />
                 {t.kobe.kobeMatchVndbEgs}
-                {stats.unmatched > 0 && (
-                  <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{stats.unmatched}</span>
+                {stats.unprocessed > 0 && (
+                  <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{stats.unprocessed}</span>
                 )}
               </button>
+              </div>
+            </section>
+
+            <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.kobe.kobeActionRecovery}</div>
               <button
                 type="button"
-                onClick={() => runSingleOp('download-vndb')}
-                disabled={pending.vndb_pending === 0}
-                className="btn btn-sm"
+                onClick={() => runSingleOp('retrying')}
+                disabled={stats.none_found === 0}
+                className="btn btn-sm btn-primary w-full sm:w-auto"
               >
-                <Database className="h-3.5 w-3.5" />
-                {t.kobe.kobeDownloadVndb}
-                {pending.vndb_pending > 0 && (
-                  <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.vndb_pending}</span>
+                <RotateCcw className="h-3.5 w-3.5" />
+                {t.kobe.kobeRetryNone}
+                {stats.none_found > 0 && (
+                  <span className="ml-1 rounded bg-bg/20 px-1 text-[10px] text-bg">{stats.none_found}</span>
                 )}
               </button>
+              <p className="mt-1 text-[11px] leading-snug text-muted">{t.kobe.kobeSmartRetryHint}</p>
+            </section>
+
+            <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.kobe.kobeActionData}</div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => runSingleOp('download-vndb')}
+                  disabled={pending.vndb_pending === 0}
+                  className="btn btn-sm"
+                >
+                  <Database className="h-3.5 w-3.5" />
+                  {t.kobe.kobeDownloadVndb}
+                  {pending.vndb_pending > 0 && (
+                    <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.vndb_pending}</span>
+                  )}
+                </button>
               <button
                 type="button"
                 onClick={() => runSingleOp('resolve-egs')}
@@ -655,26 +717,21 @@ export function AlicesoftKobeClient() {
                   <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.egs_pending}</span>
                 )}
               </button>
-              <div className="my-auto h-5 w-px bg-border" aria-hidden />
-              <button
-                type="button"
-                onClick={() => runSingleOp('retrying')}
-                disabled={stats.none_found === 0}
-                className="btn btn-sm"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                {t.kobe.kobeRetryNone}
-              </button>
+              </div>
+            </section>
+
+            <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.kobe.kobeActionMaintenance}</div>
               <button
                 type="button"
                 onClick={resetAutoMatches}
                 disabled={stats.matched === 0}
-                className="btn btn-sm text-muted hover:text-red-400"
+                className="btn btn-sm text-muted hover:border-status-dropped hover:text-status-dropped"
               >
                 <X className="h-3.5 w-3.5" />
                 {t.kobe.kobeResetAutoMatches}
               </button>
-            </div>
+            </section>
           </div>
         )}
       </div>
@@ -714,10 +771,42 @@ export function AlicesoftKobeClient() {
         </div>
       </div>
 
-      {/* Per-tab actions for "No VNDB result" items: four recovery strategies */}
-      {filter === 'none_found' && stats.none_found > 0 && (
+      {lastRun && (
+        <div className={`mb-4 rounded-lg border p-3 text-sm ${
+          lastRun.error
+            ? 'border-status-dropped/40 bg-status-dropped/10 text-status-dropped'
+            : 'border-border bg-bg-card text-muted'
+        }`}>
+          <div className="font-semibold text-white">{lastRun.label}</div>
+          <div className="mt-1 text-xs">
+            {lastRun.error
+              ? lastRun.error
+              : t.kobe.kobeLastRunSummary
+                .replace('{processed}', String(lastRun.processed))
+                .replace('{matched}', String(lastRun.matched))}
+          </div>
+        </div>
+      )}
+
+      {/* Recovery actions for rows VNDB missed on the first pass. */}
+      {(filter === 'unmatched' || filter === 'none_found') && stats.none_found > 0 && (
         <div className="mb-4 space-y-2 rounded-lg border border-border bg-bg-card p-2.5">
           <div className="flex flex-wrap items-center gap-2">
+            <Search className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
+            <span className="min-w-0 flex-1 text-xs text-muted">
+              {t.kobe.kobeSmartRetryHint}
+            </span>
+            <button
+              type="button"
+              onClick={() => runSingleOp('retrying')}
+              disabled={isBusy}
+              className="btn btn-sm btn-primary"
+            >
+              <Search className="h-3.5 w-3.5" />
+              {t.kobe.kobeRetryNone}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
             <Link2 className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
             <span className="min-w-0 flex-1 text-xs text-muted">
               {t.kobe.kobeMatchVndbFromEgsHint}
@@ -726,25 +815,10 @@ export function AlicesoftKobeClient() {
               type="button"
               onClick={() => runSingleOp('vndb-from-egs')}
               disabled={isBusy}
-              className="btn btn-sm btn-primary"
+              className="btn btn-sm"
             >
               <Link2 className="h-3.5 w-3.5" />
               {t.kobe.kobeMatchVndbFromEgs}
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
-            <Search className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-            <span className="min-w-0 flex-1 text-xs text-muted">
-              {t.kobe.kobeRetryVndbAggressiveHint}
-            </span>
-            <button
-              type="button"
-              onClick={() => runSingleOp('retry-vndb-aggressive')}
-              disabled={isBusy}
-              className="btn btn-sm"
-            >
-              <Search className="h-3.5 w-3.5" />
-              {t.kobe.kobeRetryVndbAggressive}
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">

@@ -28,10 +28,13 @@ export async function POST(req: NextRequest) {
   for (const vnId of ids) {
     try {
       const vn = await getVn(vnId);
-      if (vn) upsertVn(vn);
+      if (!vn) throw new Error(`VNDB returned no data for ${vnId}`);
+      upsertVn(vn);
       processed++;
-    } catch {
-      // leave for retry on next call
+    } catch (err) {
+      // Stop the run on VNDB/provider errors; otherwise the client keeps
+      // polling the same first id and reports progress that cannot advance.
+      throw err;
     }
   }
 

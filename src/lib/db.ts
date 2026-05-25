@@ -8554,13 +8554,39 @@ export function getKobeStockItem(code: string): KobeStockRow | null {
   return (db.prepare(`SELECT * FROM alicesoft_kobe_stock WHERE code = ?`).get(code) as KobeStockRow | undefined) ?? null;
 }
 
-export function listKobeUnmatched(limit: number, retryNone = false): KobeStockRow[] {
+function retryWindowClause(retryBefore?: number): { sql: string; params: number[] } {
+  if (!retryBefore || !Number.isFinite(retryBefore)) return { sql: '', params: [] };
+  return {
+    sql: ` AND (last_matched_at IS NULL OR last_matched_at < ?)`,
+    params: [Math.floor(retryBefore)],
+  };
+}
+
+export function listKobeUnmatched(limit: number, retryNone = false, retryBefore?: number): KobeStockRow[] {
+  const retryWindow = retryNone ? retryWindowClause(retryBefore) : { sql: '', params: [] as number[] };
   const condition = retryNone
-    ? `(vn_id IS NULL AND vn_match_source IS NULL) OR vn_match_source = 'none'`
+    ? `vn_id IS NULL AND vn_match_source = 'none'${retryWindow.sql}`
     : `vn_id IS NULL AND vn_match_source IS NULL`;
   return db
-    .prepare(`SELECT * FROM alicesoft_kobe_stock WHERE ${condition} ORDER BY code LIMIT ?`)
-    .all(limit) as KobeStockRow[];
+    .prepare(
+      `SELECT * FROM alicesoft_kobe_stock
+       WHERE ${condition}
+       ORDER BY CASE WHEN vn_match_source IS NULL THEN 0 ELSE 1 END,
+                COALESCE(last_matched_at, 0),
+                code
+       LIMIT ?`,
+    )
+    .all(...retryWindow.params, limit) as KobeStockRow[];
+}
+
+export function countKobeUnmatchedQueue(retryNone = false, retryBefore?: number): number {
+  const retryWindow = retryNone ? retryWindowClause(retryBefore) : { sql: '', params: [] as number[] };
+  const condition = retryNone
+    ? `vn_id IS NULL AND vn_match_source = 'none'${retryWindow.sql}`
+    : `vn_id IS NULL AND vn_match_source IS NULL`;
+  const row = db.prepare(`SELECT COUNT(*) AS n FROM alicesoft_kobe_stock WHERE ${condition}`)
+    .get(...retryWindow.params) as { n: number };
+  return row.n ?? 0;
 }
 
 /**
@@ -8568,15 +8594,52 @@ export function listKobeUnmatched(limit: number, retryNone = false): KobeStockRo
  * returned nothing. The EGS-fallback resolver walks these and tries to
  * recover a VN id via the EGS gamelist `vndb` column.
  */
-export function listKobeNoVndbResult(limit: number): KobeStockRow[] {
+export function listKobeNoVndbResult(limit: number, retryBefore?: number): KobeStockRow[] {
+  const retryWindow = retryWindowClause(retryBefore);
   return db
     .prepare(
       `SELECT * FROM alicesoft_kobe_stock
-       WHERE vn_match_source = 'none' AND vn_id IS NULL
-       ORDER BY code
+       WHERE vn_match_source = 'none' AND vn_id IS NULL${retryWindow.sql}
+       ORDER BY COALESCE(last_matched_at, 0), code
        LIMIT ?`,
     )
-    .all(limit) as KobeStockRow[];
+    .all(...retryWindow.params, limit) as KobeStockRow[];
+}
+
+export function countKobeNoVndbResult(retryBefore?: number): number {
+  const retryWindow = retryWindowClause(retryBefore);
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n
+       FROM alicesoft_kobe_stock
+       WHERE vn_match_source = 'none' AND vn_id IS NULL${retryWindow.sql}`,
+    )
+    .get(...retryWindow.params) as { n: number };
+  return row.n ?? 0;
+}
+
+export function listKobeNoVndbWithEgs(limit: number, retryBefore?: number): KobeStockRow[] {
+  const retryWindow = retryWindowClause(retryBefore);
+  return db
+    .prepare(
+      `SELECT * FROM alicesoft_kobe_stock
+       WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NOT NULL${retryWindow.sql}
+       ORDER BY COALESCE(last_matched_at, 0), code
+       LIMIT ?`,
+    )
+    .all(...retryWindow.params, limit) as KobeStockRow[];
+}
+
+export function countKobeNoVndbWithEgs(retryBefore?: number): number {
+  const retryWindow = retryWindowClause(retryBefore);
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n
+       FROM alicesoft_kobe_stock
+       WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NOT NULL${retryWindow.sql}`,
+    )
+    .get(...retryWindow.params) as { n: number };
+  return row.n ?? 0;
 }
 
 /**
@@ -8584,15 +8647,28 @@ export function listKobeNoVndbResult(limit: number): KobeStockRow[] {
  * dedicated EGS-search retry button — there's no point re-searching EGS for
  * a row that already has an `egs_id`.
  */
-export function listKobeNoVndbNoEgs(limit: number): KobeStockRow[] {
+export function listKobeNoVndbNoEgs(limit: number, retryBefore?: number): KobeStockRow[] {
+  const retryWindow = retryWindowClause(retryBefore);
   return db
     .prepare(
       `SELECT * FROM alicesoft_kobe_stock
-       WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NULL
-       ORDER BY code
+       WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NULL${retryWindow.sql}
+       ORDER BY COALESCE(last_matched_at, 0), code
        LIMIT ?`,
     )
-    .all(limit) as KobeStockRow[];
+    .all(...retryWindow.params, limit) as KobeStockRow[];
+}
+
+export function countKobeNoVndbNoEgs(retryBefore?: number): number {
+  const retryWindow = retryWindowClause(retryBefore);
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n
+       FROM alicesoft_kobe_stock
+       WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NULL${retryWindow.sql}`,
+    )
+    .get(...retryWindow.params) as { n: number };
+  return row.n ?? 0;
 }
 
 export function setKobeVnLink(
@@ -8641,6 +8717,7 @@ export function countKobeStock(): {
   total: number;
   matched: number;
   unmatched: number;
+  unprocessed: number;
   none_found: number;
   in_collection: number;
 } {
@@ -8649,18 +8726,21 @@ export function countKobeStock(): {
       SELECT
         COUNT(*)                                                              AS total,
         SUM(CASE WHEN k.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS matched,
+        SUM(CASE WHEN k.vn_id IS NULL AND k.vn_match_source IS NULL THEN 1 ELSE 0 END) AS unprocessed,
         SUM(CASE WHEN k.vn_match_source = 'none' THEN 1 ELSE 0 END)         AS none_found,
         SUM(CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS in_collection
       FROM alicesoft_kobe_stock k
       LEFT JOIN collection c ON c.vn_id = k.vn_id
     `)
-    .get() as { total: number; matched: number; none_found: number; in_collection: number };
+    .get() as { total: number; matched: number; unprocessed: number; none_found: number; in_collection: number };
   const matched = row.matched ?? 0;
   const noneFound = row.none_found ?? 0;
+  const unprocessed = row.unprocessed ?? 0;
   return {
     total: row.total,
     matched,
-    unmatched: row.total - matched - noneFound,
+    unmatched: row.total - matched,
+    unprocessed,
     none_found: noneFound,
     in_collection: row.in_collection ?? 0,
   };
@@ -8694,10 +8774,11 @@ export function listKobeItemsForEgsResolve(
 ): { code: string; vn_id: string }[] {
   return db
     .prepare(
-      `SELECT code, vn_id
-       FROM alicesoft_kobe_stock
-       WHERE vn_id IS NOT NULL AND egs_id IS NULL
-       ORDER BY code
+      `SELECT k.code, k.vn_id
+       FROM alicesoft_kobe_stock k
+       JOIN vn v ON v.id = k.vn_id
+       WHERE k.vn_id IS NOT NULL AND k.egs_id IS NULL AND k.egs_match_source IS NULL
+       ORDER BY k.code
        LIMIT ?`,
     )
     .all(limit) as { code: string; vn_id: string }[];
@@ -8706,14 +8787,14 @@ export function listKobeItemsForEgsResolve(
 /**
  * Counts kobe items needing each download step.
  * vndb_pending: items with vn_id not yet in local vn table.
- * egs_pending:  items with vn_id set but no egs_id.
+ * egs_pending:  items with local VNDB metadata ready and no EGS resolve attempt yet.
  */
 export function countKobeDownloadPending(): { vndb_pending: number; egs_pending: number } {
   const row = db
     .prepare(
       `SELECT
          SUM(CASE WHEN k.vn_id IS NOT NULL AND v.id IS NULL THEN 1 ELSE 0 END) AS vndb_pending,
-         SUM(CASE WHEN k.vn_id IS NOT NULL AND k.egs_id IS NULL THEN 1 ELSE 0 END) AS egs_pending
+         SUM(CASE WHEN k.vn_id IS NOT NULL AND v.id IS NOT NULL AND k.egs_id IS NULL AND k.egs_match_source IS NULL THEN 1 ELSE 0 END) AS egs_pending
        FROM alicesoft_kobe_stock k
        LEFT JOIN vn v ON v.id = k.vn_id`,
     )

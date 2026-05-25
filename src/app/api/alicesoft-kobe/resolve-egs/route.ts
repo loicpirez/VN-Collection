@@ -35,8 +35,10 @@ export async function POST(req: NextRequest) {
         setKobeEgsLink(item.code, null, 'auto');
       }
       processed++;
-    } catch {
-      // leave for retry on next call
+    } catch (err) {
+      // Stop the run on provider/network errors; otherwise the client keeps
+      // polling the same first row and shows progress that cannot advance.
+      throw err;
     }
   }
 

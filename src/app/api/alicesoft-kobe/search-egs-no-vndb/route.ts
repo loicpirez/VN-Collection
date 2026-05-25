@@ -15,8 +15,9 @@ export async function POST(req: NextRequest) {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as Record<string, unknown>;
-  const batch = typeof body.batch === 'number' ? body.batch : 50;
+  const batch = typeof body.batch === 'number' ? body.batch : 10;
   const aggressive = body.aggressive === true;
-  const result = await searchEgsForKobeNoVndb(batch, aggressive);
+  const runStartedAt = typeof body.run_started_at === 'number' ? body.run_started_at : undefined;
+  const result = await searchEgsForKobeNoVndb(batch, aggressive, runStartedAt);
   return NextResponse.json(result);
 }

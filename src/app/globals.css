@@ -21,6 +21,9 @@
   .btn-danger {
     @apply text-status-dropped hover:bg-status-dropped hover:text-bg hover:border-status-dropped;
   }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs gap-1.5 rounded-md;
+  }
   /*
    * Compact button — same shape contract as `.btn` but at the
    * inline-text scale (12px font, 8px horizontal / 4px vertical

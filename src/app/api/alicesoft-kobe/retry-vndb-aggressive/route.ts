@@ -15,7 +15,8 @@ export async function POST(req: NextRequest) {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as Record<string, unknown>;
-  const batch = typeof body.batch === 'number' ? body.batch : 50;
-  const result = await retryVndbForKobeAggressive(batch);
+  const batch = typeof body.batch === 'number' ? body.batch : 4;
+  const runStartedAt = typeof body.run_started_at === 'number' ? body.run_started_at : undefined;
+  const result = await retryVndbForKobeAggressive(batch, runStartedAt);
   return NextResponse.json(result);
 }

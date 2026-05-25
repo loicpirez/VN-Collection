@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const batch = typeof body.batch === 'number' ? body.batch : 5;
   const retryNone = body.retry_none === true;
-  const result = await matchNextKobeItems(batch, retryNone);
+  const runStartedAt = typeof body.run_started_at === 'number' ? body.run_started_at : undefined;
+  const result = await matchNextKobeItems(batch, retryNone, runStartedAt);
   return NextResponse.json(result);
 }
