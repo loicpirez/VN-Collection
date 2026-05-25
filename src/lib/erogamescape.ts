@@ -785,6 +785,7 @@ export async function searchEgsByName(query: string, opts: { force?: boolean } =
 export interface EgsCandidate {
   id: number;
   gamename: string;
+  gamename_furigana: string | null;
   median: number | null;
   count: number | null;
   sellday: string | null;
@@ -801,7 +802,7 @@ export async function searchEgsCandidates(query: string, limit = 20): Promise<Eg
   const escaped = sanitizeForEgsLike(trimmed);
   if (!escaped) return [];
   const sql = `
-    SELECT id, gamename, median, count2 AS count, sellday FROM gamelist
+    SELECT id, gamename, furigana AS gamename_furigana, median, count2 AS count, sellday FROM gamelist
     WHERE gamename ILIKE '%${escaped}%' OR furigana ILIKE '%${escaped}%'
     ORDER BY (count2 IS NULL), count2 DESC
     LIMIT ${safeLimit}
@@ -823,6 +824,7 @@ export async function searchEgsCandidates(query: string, limit = 20): Promise<Eg
     out.push({
       id,
       gamename: r[colIdx('gamename')] ?? '',
+      gamename_furigana: r[colIdx('gamename_furigana')] ?? null,
       median: toNumber(r[colIdx('median')]),
       count: toNumber(r[colIdx('count')]),
       sellday: r[colIdx('sellday')] ?? null,

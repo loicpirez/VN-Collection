@@ -401,11 +401,14 @@ function egsMeta(game: EgsGame | null | undefined): Parameters<typeof setKobeEgs
 
 function egsCandidateScore(candidate: EgsCandidate, query: string, releaseDate: string | null, index: number): number {
   const title = comparableTitle(candidate.gamename);
+  const furigana = comparableTitle(candidate.gamename_furigana);
   const q = comparableTitle(query);
   let score = Math.max(0, 30 - index);
   if (releaseDate && candidate.sellday === releaseDate) score += 120;
   if (q && title && (title.includes(q) || q.includes(title))) score += 45;
+  if (q && furigana && (furigana.includes(q) || q.includes(furigana))) score += 45;
   if (q && q.length >= 5 && title.startsWith(q.slice(0, Math.min(q.length, 12)))) score += 15;
+  if (q && q.length >= 5 && furigana.startsWith(q.slice(0, Math.min(q.length, 12)))) score += 15;
   if (candidate.count != null) score += Math.min(20, Math.log10(candidate.count + 1) * 8);
   return score;
 }
@@ -414,8 +417,13 @@ function isSafeEgsCandidate(candidate: EgsCandidate | null, score: number, query
   if (!candidate) return false;
   const q = comparableTitle(query);
   const title = comparableTitle(candidate.gamename);
+  const furigana = comparableTitle(candidate.gamename_furigana);
   if (!q || !title) return false;
-  const textMatch = title.includes(q) || q.includes(title) || (q.length >= 6 && title.startsWith(q.slice(0, 6)));
+  const textMatch = title.includes(q)
+    || q.includes(title)
+    || Boolean(furigana && (furigana.includes(q) || q.includes(furigana)))
+    || (q.length >= 6 && title.startsWith(q.slice(0, 6)))
+    || Boolean(q.length >= 6 && furigana && furigana.startsWith(q.slice(0, 6)));
   if (!textMatch) return false;
   if (q.length < 4) return Boolean(releaseDate && candidate.sellday === releaseDate);
   return Boolean(releaseDate && candidate.sellday === releaseDate) || score >= 60;
