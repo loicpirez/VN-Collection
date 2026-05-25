@@ -20,7 +20,13 @@ import { ProducerRefreshButton } from './ProducerRefreshButton';
  * back empty and the component renders only the refresh button + an
  * empty-state hint, so the page still has the producer header.
  */
-export async function ProducerVnsSections({ producerId }: { producerId: string }) {
+export async function ProducerVnsSections({
+  producerId,
+  scope = 'all',
+}: {
+  producerId: string;
+  scope?: 'all' | 'collection';
+}) {
   const t = await getDict();
   let data: ProducerAssociations;
   try {
@@ -38,9 +44,12 @@ export async function ProducerVnsSections({ producerId }: { producerId: string }
     };
   }
 
+  const developerVns = scope === 'collection' ? data.developerVns.filter((v) => v.owned) : data.developerVns;
+  const publisherVns = scope === 'collection' ? data.publisherVns.filter((v) => v.owned) : data.publisherVns;
   const totalCount = data.developerVns.length + data.publisherVns.length;
   const ownedTotal =
     data.developerVns.filter((v) => v.owned).length + data.publisherVns.filter((v) => v.owned).length;
+  const scopedTotal = developerVns.length + publisherVns.length;
 
   return (
     <section className="mb-8 space-y-6">
@@ -74,6 +83,38 @@ export async function ProducerVnsSections({ producerId }: { producerId: string }
         </div>
         <ProducerRefreshButton producerId={producerId} />
       </div>
+      <nav className="flex flex-wrap gap-1.5" aria-label={t.producerVns.scopeLabel}>
+        <Link
+          href={`/producer/${producerId}`}
+          aria-current={scope === 'all' ? 'page' : undefined}
+          className={`inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+            scope === 'all'
+              ? 'border-accent bg-accent/15 text-accent'
+              : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'
+          }`}
+        >
+          {t.producerVns.scopeAll}
+          <span className="rounded bg-bg/40 px-1 text-[10px] tabular-nums">{data.totalUnique}</span>
+        </Link>
+        <Link
+          href={`/producer/${producerId}?scope=collection`}
+          aria-current={scope === 'collection' ? 'page' : undefined}
+          className={`inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+            scope === 'collection'
+              ? 'border-accent bg-accent/15 text-accent'
+              : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'
+          }`}
+        >
+          {t.producerVns.scopeCollection}
+          <span className="rounded bg-bg/40 px-1 text-[10px] tabular-nums">{data.ownedUnique}</span>
+        </Link>
+      </nav>
+
+      {scope === 'collection' && scopedTotal === 0 && (
+        <p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">
+          {t.producerVns.collectionEmpty}
+        </p>
+      )}
 
       {/*
         Hide an empty role section when the other side has data — a
@@ -82,23 +123,23 @@ export async function ProducerVnsSections({ producerId }: { producerId: string }
         render the developer section as a single empty state so the
         page isn't completely blank.
       */}
-      {(data.developerVns.length > 0 ||
-        (data.developerVns.length === 0 && data.publisherVns.length === 0)) && (
+      {(developerVns.length > 0 ||
+        (developerVns.length === 0 && publisherVns.length === 0 && scopedTotal > 0)) && (
         <RoleSection
           title={t.producerVns.developerCredits}
           emptyMessage={t.producerVns.noDeveloper}
           icon="dev"
-          vns={data.developerVns}
+          vns={developerVns}
           t={t}
         />
       )}
 
-      {data.publisherVns.length > 0 && (
+      {publisherVns.length > 0 && (
         <RoleSection
           title={t.producerVns.publisherCredits}
           emptyMessage={t.producerVns.noPublisher}
           icon="pub"
-          vns={data.publisherVns}
+          vns={publisherVns}
           t={t}
         />
       )}

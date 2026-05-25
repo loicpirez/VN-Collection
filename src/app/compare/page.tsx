@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-react';
 import { db, getCollectionItem } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
-import type { Locale } from '@/lib/i18n/dictionaries';
+import { formatVndbDateString } from '@/lib/locale-number';
 import { formatMinutes } from '@/lib/format';
 import { roleLabel } from '@/lib/staff-roles';
 import { platformLabel } from '@/lib/platform-label';
@@ -79,8 +79,7 @@ export default async function ComparePage({
 }) {
   const { ids: idsRaw } = await searchParams;
   const ids = parseIds(idsRaw);
-  const t = await getDict();
-  const locale = await getLocale();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
 
   const items = ids
     .map((id) => getCollectionItem(id))
@@ -295,7 +294,9 @@ export default async function ComparePage({
 
             <CellHead label={t.compareView.row.released} />
             {items.map((it) => (
-              <div key={`released-${it.id}`} className="bg-bg-card p-3 text-sm">{it.released ?? '—'}</div>
+              <div key={`released-${it.id}`} className="bg-bg-card p-3 text-sm">
+                {formatVndbDateString(it.released, locale)}
+              </div>
             ))}
 
             <CellHead label={t.compareView.row.length} />

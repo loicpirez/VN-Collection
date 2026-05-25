@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { findSharedVasForVns } from '@/lib/compare-credits';
-import { listCollection, upsertVn } from '@/lib/db';
+import { listCollection, listStaffVaCredits, upsertVn } from '@/lib/db';
 
 listCollection({});
 const db = new Database(process.env.DB_PATH!);
@@ -69,5 +69,28 @@ describe('compare page shared seiyuu matching', () => {
     expect(compareSource).toContain('const uniqueVas = Array.from(');
     expect(compareSource).toContain('Number(sharedVaIds.has(b.staff.id)) - Number(sharedVaIds.has(a.staff.id))');
     expect(compareSource).toContain("shared ? 'bg-accent/15 font-bold text-accent' : 'text-muted'");
+  });
+
+  it('keeps distinct voice-credit rows for the same VN character and staff when notes differ', () => {
+    upsertVn({
+      id: 'v9602',
+      title: 'fixture C',
+      va: [
+        {
+          note: 'first route',
+          character: { id: 'c9602', name: 'heroine C', original: null },
+          staff: { id: 's9602', aid: 1, name: 'voice C', original: null, lang: 'ja' },
+        },
+        {
+          note: 'second route',
+          character: { id: 'c9602', name: 'heroine C', original: null },
+          staff: { id: 's9602', aid: 1, name: 'voice C', original: null, lang: 'ja' },
+        },
+      ],
+    });
+
+    const credits = listStaffVaCredits('s9602');
+    expect(credits).toHaveLength(1);
+    expect(credits[0].characters.map((c) => c.note)).toEqual(['first route', 'second route']);
   });
 });

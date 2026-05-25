@@ -55,8 +55,17 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return local?.name ? { title: local.name } : {};
 }
 
-export default async function ProducerPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProducerPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  const sp = await searchParams;
+  const rawScope = Array.isArray(sp.scope) ? sp.scope[0] : sp.scope;
+  const scope = rawScope === 'collection' ? 'collection' : 'all';
   if (!/^p\d+$/i.test(id)) notFound();
   const t = await getDict();
   let producer = await loadProducer(id);
@@ -207,7 +216,7 @@ export default async function ProducerPage({ params }: { params: Promise<{ id: s
           label: sectionLabels.works,
           node: (
             <Suspense fallback={<ProducerVnsSkeleton />}>
-              <ProducerVnsSections producerId={producer.id} />
+              <ProducerVnsSections producerId={producer.id} scope={scope} />
             </Suspense>
           ),
         });

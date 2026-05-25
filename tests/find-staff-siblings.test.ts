@@ -10,7 +10,7 @@
  */
 import Database from 'better-sqlite3';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { findStaffSiblings } from '@/lib/db';
+import { batchGetStaffNames, findStaffSiblings } from '@/lib/db';
 
 findStaffSiblings('s90000');
 const db = new Database(process.env.DB_PATH!);
@@ -96,6 +96,13 @@ describe('findStaffSiblings (R5-239)', () => {
     const sibs = findStaffSiblings('s9300');
     expect(sibs).toHaveLength(1);
     expect(sibs[0].sid).toBe('s9301');
+  });
+
+  it('resolves staff names from voice credits when production credits are absent', () => {
+    seedVn('v9022', 'Voice only', true);
+    seedVaCredit('v9022', 's9302', 'c9102', 'Voice Only Person');
+
+    expect(batchGetStaffNames(['s9302'])).toEqual(new Map([['s9302', 'Voice Only Person']]));
   });
 
   it('excludes candidate sids whose VN is NOT in the collection', () => {

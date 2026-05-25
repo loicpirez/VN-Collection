@@ -83,10 +83,11 @@ export default async function StaffPage({
   // (no auto-merge). The UI labels every row "Possible match".
   const staffSiblings = findStaffSiblings(id);
 
-  const totalAll = allProduction.length + allVoice.length;
-  const totalCol =
-    allProduction.filter((c) => c.vn.in_collection).length +
-    allVoice.filter((c) => c.vn.in_collection).length;
+  const totalAll = countDistinctVnIds(allProduction, allVoice);
+  const totalCol = countDistinctVnIds(
+    allProduction.filter((c) => c.vn.in_collection),
+    allVoice.filter((c) => c.vn.in_collection),
+  );
 
   // Locally-known credits paint immediately. The full VNDB download streams
   // in via <Suspense> in <StaffExtraCredits> below — that lets the user see
@@ -433,6 +434,14 @@ function dedupeByVnId<T extends { vn: { id: string } }>(items: T[]): T[] {
     seen.add(i.vn.id);
     return true;
   });
+}
+
+function countDistinctVnIds(...groups: Array<Array<{ vn: { id: string } }>>): number {
+  const ids = new Set<string>();
+  for (const group of groups) {
+    for (const item of group) ids.add(item.vn.id);
+  }
+  return ids.size;
 }
 
 function VnCard({
