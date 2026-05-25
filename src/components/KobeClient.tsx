@@ -520,18 +520,23 @@ export function KobeClient() {
               {t.kobe.kobeStopMatch}
             </button>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs text-muted">{opLabel}</p>
-              {opTotal > 0 && (
-                <div className="mt-1.5 flex items-center gap-2">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-elev">
-                    <div
-                      className="h-full rounded-full bg-accent transition-all duration-500"
-                      style={{ width: `${opPct}%` }}
-                    />
-                  </div>
-                  <span className="shrink-0 text-[10px] tabular-nums text-muted">{opDone}/{opTotal}</span>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5">
+                <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" aria-hidden />
+                <p className="truncate text-xs text-muted">{opLabel}</p>
+                {opTotal > 0 && (
+                  <span className="shrink-0 text-[10px] tabular-nums text-muted">{opDone}/{opTotal} ({opPct}%)</span>
+                )}
+              </div>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev">
+                {opTotal > 0 ? (
+                  <div
+                    className="h-full rounded-full bg-accent transition-all duration-500"
+                    style={{ width: `${opPct}%` }}
+                  />
+                ) : (
+                  <div className="h-full w-full animate-pulse rounded-full bg-accent/40" />
+                )}
+              </div>
             </div>
           </div>
         ) : (
