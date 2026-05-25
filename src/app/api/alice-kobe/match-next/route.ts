@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const batch = typeof body.batch === 'number' ? body.batch : 5;
-  const result = await matchNextKobeItems(batch);
+  const retryNone = body.retry_none === true;
+  const result = await matchNextKobeItems(batch, retryNone);
   return NextResponse.json(result);
 }

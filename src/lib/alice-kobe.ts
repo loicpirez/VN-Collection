@@ -4,6 +4,7 @@ import { searchEgsByName } from './erogamescape';
 import {
   countKobeStock,
   listKobeUnmatched,
+  resetKobeAutoMatches as dbResetKobeAutoMatches,
   setKobeEgsLink,
   setKobeVnLink,
   upsertKobeStock,
@@ -14,6 +15,9 @@ const ALICE_KOBE_URL = 'https://www.alice-kobe.com/html/page4.html';
 const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
 const CELL_RE = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
 const TAG_RE = /<[^>]+>/g;
+
+/** Minimum delay between items during auto-match to avoid hammering VNDB/EGS. */
+const MATCH_INTER_ITEM_DELAY_MS = 1500;
 
 export interface KobeCandidate {
   id: string;
@@ -26,11 +30,15 @@ function stripTags(html: string): string {
   return html.replace(TAG_RE, '').trim();
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Normalize a raw Kobe title for use as a VNDB/EGS search query.
  * Strips used-goods markers, edition/platform labels, age-rating tags,
  * and converts full-width ASCII to half-width so the search engine
- * gets the cleanest possible game title.
+ * receives the cleanest possible game title.
  */
 export function normalizeTitle(rawTitle: string): string {
   return rawTitle
@@ -88,6 +96,7 @@ export function parseAliceKobeHtml(
 
 /**
  * Fetch the Alice Kobe stock page, decoding EUC-JP to UTF-8.
+ * Only called on explicit user action — never auto-fetched on page load.
  */
 export async function fetchAliceKobeHtml(): Promise<string> {
   const res = await fetch(ALICE_KOBE_URL, {
@@ -102,6 +111,7 @@ export async function fetchAliceKobeHtml(): Promise<string> {
 
 /**
  * Download the latest stock from Alice Kobe and persist it to the DB.
+ * Triggered only by the Download button — never called automatically.
  */
 export async function refreshKobeStock(): Promise<{ count: number; fetched_at: number }> {
   const html = await fetchAliceKobeHtml();
@@ -111,17 +121,40 @@ export async function refreshKobeStock(): Promise<{ count: number; fetched_at: n
 }
 
 /**
- * Auto-match a batch of unlinked Kobe items against VNDB and EGS.
- * Stores up to 3 VNDB candidates per item so the user can remap quickly.
- * Returns counts of processed items and remaining unmatched items.
+ * Reset all auto-matched VN links so they can be re-matched.
+ * Manual links (source='manual') are preserved.
+ * Returns the number of rows cleared.
  */
-export async function matchNextKobeItems(batchSize: number): Promise<{ processed: number; remaining: number }> {
+export function resetKobeAutoMatches(): number {
+  return dbResetKobeAutoMatches();
+}
+
+/**
+ * Auto-match a batch of unlinked Kobe items against VNDB and EGS.
+ *
+ * Rate-limiting strategy:
+ *   - VNDB: handled by the shared throttle queue (≤ 1 req/s)
+ *   - EGS:  1 500ms inter-item delay so consecutive searches don't pile up
+ *   - Both APIs cache results, so repeated identical queries are free
+ *
+ * Stores up to 3 VNDB candidates per item for quick-pick remapping in the UI.
+ * The first candidate is auto-selected as `vn_id`; the user can pick another.
+ *
+ * @param batchSize  Number of items to process (clamped 1–20)
+ * @param retryNone  When true, also retries items previously marked 'none'
+ */
+export async function matchNextKobeItems(
+  batchSize: number,
+  retryNone = false,
+): Promise<{ processed: number; remaining: number }> {
   const safe = Math.min(20, Math.max(1, Math.floor(batchSize)));
-  const items = listKobeUnmatched(safe);
-  for (const item of items) {
+  const items = listKobeUnmatched(safe, retryNone);
+  for (let i = 0; i < items.length; i++) {
+    if (i > 0) await sleep(MATCH_INTER_ITEM_DELAY_MS);
+    const item = items[i];
     const query = normalizeTitle(item.title);
     if (!query) {
-      setKobeVnLink(item.code, null, 'none', null);
+      setKobeVnLink(item.code, null, 'none', null, item.title);
       continue;
     }
     try {
@@ -135,12 +168,12 @@ export async function matchNextKobeItems(batchSize: number): Promise<{ processed
       const topVn = candidates[0];
       const candidatesJson = candidates.length > 0 ? JSON.stringify(candidates) : null;
       if (topVn) {
-        setKobeVnLink(item.code, topVn.id, 'auto', candidatesJson);
+        setKobeVnLink(item.code, topVn.id, 'auto', candidatesJson, query);
       } else {
-        setKobeVnLink(item.code, null, 'none', candidatesJson);
+        setKobeVnLink(item.code, null, 'none', null, query);
       }
     } catch {
-      // leave unmatched on error
+      // leave unmatched on transient error
     }
     try {
       const egsResult = await searchEgsByName(query);
@@ -152,5 +185,8 @@ export async function matchNextKobeItems(batchSize: number): Promise<{ processed
     }
   }
   const stats = countKobeStock();
-  return { processed: items.length, remaining: stats.unmatched };
+  return {
+    processed: items.length,
+    remaining: retryNone ? stats.unmatched + stats.none_found : stats.unmatched,
+  };
 }
