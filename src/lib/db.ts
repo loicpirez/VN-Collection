@@ -1015,6 +1015,14 @@ function open(): Database.Database {
   ensureColumn(db, 'alicesoft_kobe_stock', 'search_title', 'TEXT');
   // Timestamp of the last VNDB/EGS match attempt (regardless of result).
   ensureColumn(db, 'alicesoft_kobe_stock', 'last_matched_at', 'INTEGER');
+  // EGS product snapshot for rows that are real shop/game products but do not
+  // have a VNDB id. This lets Alice Kobe count and display EGS-only matches
+  // instead of leaving them in the generic "no VNDB result" bucket.
+  ensureColumn(db, 'alicesoft_kobe_stock', 'egs_title', 'TEXT');
+  ensureColumn(db, 'alicesoft_kobe_stock', 'egs_brand', 'TEXT');
+  ensureColumn(db, 'alicesoft_kobe_stock', 'egs_release_date', 'TEXT');
+  ensureColumn(db, 'alicesoft_kobe_stock', 'egs_image_url', 'TEXT');
+  ensureColumn(db, 'alicesoft_kobe_stock', 'egs_vndb_raw', 'TEXT');
 
   // Migration: rewrite EGS cover URLs to point at the resolver endpoint
   // (/api/egs-cover/{egs_id}) instead of hardcoded DMM / Suruga-ya / image.php
@@ -8476,6 +8484,11 @@ export interface KobeStockRow {
   search_title: string | null;
   egs_id: number | null;
   egs_match_source: 'auto' | 'manual' | null;
+  egs_title: string | null;
+  egs_brand: string | null;
+  egs_release_date: string | null;
+  egs_image_url: string | null;
+  egs_vndb_raw: string | null;
   last_matched_at: number | null;
   fetched_at: number;
   updated_at: number;
@@ -8565,8 +8578,8 @@ function retryWindowClause(retryBefore?: number): { sql: string; params: number[
 export function listKobeUnmatched(limit: number, retryNone = false, retryBefore?: number): KobeStockRow[] {
   const retryWindow = retryNone ? retryWindowClause(retryBefore) : { sql: '', params: [] as number[] };
   const condition = retryNone
-    ? `vn_id IS NULL AND vn_match_source = 'none'${retryWindow.sql}`
-    : `vn_id IS NULL AND vn_match_source IS NULL`;
+    ? `vn_id IS NULL AND egs_id IS NULL AND vn_match_source = 'none'${retryWindow.sql}`
+    : `vn_id IS NULL AND egs_id IS NULL AND vn_match_source IS NULL`;
   return db
     .prepare(
       `SELECT * FROM alicesoft_kobe_stock
@@ -8582,8 +8595,8 @@ export function listKobeUnmatched(limit: number, retryNone = false, retryBefore?
 export function countKobeUnmatchedQueue(retryNone = false, retryBefore?: number): number {
   const retryWindow = retryNone ? retryWindowClause(retryBefore) : { sql: '', params: [] as number[] };
   const condition = retryNone
-    ? `vn_id IS NULL AND vn_match_source = 'none'${retryWindow.sql}`
-    : `vn_id IS NULL AND vn_match_source IS NULL`;
+    ? `vn_id IS NULL AND egs_id IS NULL AND vn_match_source = 'none'${retryWindow.sql}`
+    : `vn_id IS NULL AND egs_id IS NULL AND vn_match_source IS NULL`;
   const row = db.prepare(`SELECT COUNT(*) AS n FROM alicesoft_kobe_stock WHERE ${condition}`)
     .get(...retryWindow.params) as { n: number };
   return row.n ?? 0;
@@ -8599,7 +8612,7 @@ export function listKobeNoVndbResult(limit: number, retryBefore?: number): KobeS
   return db
     .prepare(
       `SELECT * FROM alicesoft_kobe_stock
-       WHERE vn_match_source = 'none' AND vn_id IS NULL${retryWindow.sql}
+       WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NULL${retryWindow.sql}
        ORDER BY COALESCE(last_matched_at, 0), code
        LIMIT ?`,
     )
@@ -8612,7 +8625,7 @@ export function countKobeNoVndbResult(retryBefore?: number): number {
     .prepare(
       `SELECT COUNT(*) AS n
        FROM alicesoft_kobe_stock
-       WHERE vn_match_source = 'none' AND vn_id IS NULL${retryWindow.sql}`,
+       WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NULL${retryWindow.sql}`,
     )
     .get(...retryWindow.params) as { n: number };
   return row.n ?? 0;
@@ -8708,14 +8721,75 @@ export function resetKobeAutoMatches(): number {
     .run(Date.now()).changes;
 }
 
-export function setKobeEgsLink(code: string, egsId: number | null, source: 'auto' | 'manual'): void {
-  db.prepare(`UPDATE alicesoft_kobe_stock SET egs_id = ?, egs_match_source = ?, updated_at = ? WHERE code = ?`)
-    .run(egsId, source, Date.now(), code);
+export function setKobeEgsLink(
+  code: string,
+  egsId: number | null,
+  source: 'auto' | 'manual',
+  meta?: {
+    title?: string | null;
+    brand?: string | null;
+    releaseDate?: string | null;
+    imageUrl?: string | null;
+    vndbRaw?: string | null;
+  },
+): void {
+  const now = Date.now();
+  if (egsId == null) {
+    db.prepare(`
+      UPDATE alicesoft_kobe_stock
+      SET egs_id = NULL,
+          egs_match_source = ?,
+          egs_title = NULL,
+          egs_brand = NULL,
+          egs_release_date = NULL,
+          egs_image_url = NULL,
+          egs_vndb_raw = NULL,
+          updated_at = ?
+      WHERE code = ?
+    `).run(source, now, code);
+    return;
+  }
+
+  if (!meta) {
+    db.prepare(`
+      UPDATE alicesoft_kobe_stock
+      SET egs_id = ?,
+          egs_match_source = ?,
+          updated_at = ?
+      WHERE code = ?
+    `).run(egsId, source, now, code);
+    return;
+  }
+
+  db.prepare(`
+    UPDATE alicesoft_kobe_stock
+    SET egs_id = ?,
+        egs_match_source = ?,
+        egs_title = ?,
+        egs_brand = ?,
+        egs_release_date = ?,
+        egs_image_url = ?,
+        egs_vndb_raw = ?,
+        updated_at = ?
+    WHERE code = ?
+  `).run(
+    egsId,
+    source,
+    meta?.title ?? null,
+    meta?.brand ?? null,
+    meta?.releaseDate ?? null,
+    meta?.imageUrl ?? null,
+    meta?.vndbRaw ?? null,
+    now,
+    code,
+  );
 }
 
 export function countKobeStock(): {
   total: number;
   matched: number;
+  vndb_matched: number;
+  egs_only: number;
   unmatched: number;
   unprocessed: number;
   none_found: number;
@@ -8725,20 +8799,32 @@ export function countKobeStock(): {
     .prepare(`
       SELECT
         COUNT(*)                                                              AS total,
-        SUM(CASE WHEN k.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS matched,
-        SUM(CASE WHEN k.vn_id IS NULL AND k.vn_match_source IS NULL THEN 1 ELSE 0 END) AS unprocessed,
-        SUM(CASE WHEN k.vn_match_source = 'none' THEN 1 ELSE 0 END)         AS none_found,
+        SUM(CASE WHEN k.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS vndb_matched,
+        SUM(CASE WHEN k.vn_id IS NULL AND k.egs_id IS NOT NULL THEN 1 ELSE 0 END) AS egs_only,
+        SUM(CASE WHEN k.vn_id IS NOT NULL OR k.egs_id IS NOT NULL THEN 1 ELSE 0 END) AS matched,
+        SUM(CASE WHEN k.vn_id IS NULL AND k.egs_id IS NULL AND k.vn_match_source IS NULL THEN 1 ELSE 0 END) AS unprocessed,
+        SUM(CASE WHEN k.vn_id IS NULL AND k.egs_id IS NULL AND k.vn_match_source = 'none' THEN 1 ELSE 0 END) AS none_found,
         SUM(CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS in_collection
       FROM alicesoft_kobe_stock k
       LEFT JOIN collection c ON c.vn_id = k.vn_id
     `)
-    .get() as { total: number; matched: number; unprocessed: number; none_found: number; in_collection: number };
+    .get() as {
+      total: number;
+      matched: number;
+      vndb_matched: number;
+      egs_only: number;
+      unprocessed: number;
+      none_found: number;
+      in_collection: number;
+    };
   const matched = row.matched ?? 0;
   const noneFound = row.none_found ?? 0;
   const unprocessed = row.unprocessed ?? 0;
   return {
     total: row.total,
     matched,
+    vndb_matched: row.vndb_matched ?? 0,
+    egs_only: row.egs_only ?? 0,
     unmatched: row.total - matched,
     unprocessed,
     none_found: noneFound,

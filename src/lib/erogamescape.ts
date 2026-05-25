@@ -47,7 +47,7 @@ const EGS_BASE = 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki';
 //     lowercase column names. (Mixed-case `GameName` fails.)
 const SQL_ENDPOINT = `${EGS_BASE}/sql_for_erogamer_form.php`;
 const CACHE_TTL_MS = 24 * 3600 * 1000;
-const FETCH_TIMEOUT_MS = 15000;
+const FETCH_TIMEOUT_MS = 7000;
 
 export interface EgsGame {
   id: number;
@@ -81,8 +81,8 @@ interface CacheRow {
 /**
  * Strict sanitizer for values that flow into the remote EGS Postgres
  * ILIKE clause. The previous escape stripped only `' % \`; this
- * version keeps a positive allowlist of letters / digits / CJK /
- * basic punctuation that's known-safe inside a quoted LIKE pattern,
+ * version keeps a positive allowlist of letters / digits / marks /
+ * common VN title punctuation that's known-safe inside a quoted LIKE pattern,
  * and drops everything else (including `;`, `--`, `/*`, dollar
  * quotes, control chars).
  *
@@ -92,7 +92,7 @@ interface CacheRow {
  */
 function sanitizeForEgsLike(value: string): string {
   return value
-    .replace(/[^\p{Letter}\p{Number}\p{Mark}\s.\-_]/gu, '')
+    .replace(/[^\p{Letter}\p{Number}\p{Mark}\s.\-_+＋×・☆!！?？,，、。~〜～&＆／/]/gu, '')
     // `_` is a single-character LIKE wildcard in Postgres. Escape it
     // with `\` so a search for `egs_` doesn't over-match `egsX`.
     .replace(/_/g, '\\_')
@@ -174,7 +174,7 @@ export class EgsUnreachable extends Error {
   }
 }
 
-const EGS_FETCH_MAX_RETRIES = 3;
+const EGS_FETCH_MAX_RETRIES = 1;
 const EGS_FETCH_RETRY_BASE_MS = 1500;
 
 async function fetchTableOnce(sql: string): Promise<string[][]> {

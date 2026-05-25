@@ -1,6 +1,6 @@
 import 'server-only';
 import { searchVn } from './vndb';
-import { fetchEgsGame, searchEgsByName } from './erogamescape';
+import { fetchEgsGame, searchEgsByName, searchEgsCandidates, type EgsCandidate, type EgsGame } from './erogamescape';
 import { providerFetch } from './proxy-fetch';
 import { isVndbVnId } from './vn-id-shape';
 import {
@@ -24,7 +24,9 @@ const ALICE_KOBE_URL = 'https://www.alice-kobe.com/html/page4.html';
 const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
 const CELL_RE = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
 const TAG_RE = /<[^>]+>/g;
-const MAX_KOBE_QUERY_VARIANTS = 8;
+const MAX_KOBE_QUERY_VARIANTS = 32;
+const MAX_KOBE_VNDB_AUTO_QUERIES = 10;
+const MAX_KOBE_EGS_AUTO_QUERIES = 5;
 
 export interface KobeCandidate {
   id: string;
@@ -104,9 +106,23 @@ function hasJapanese(value: string): boolean {
 function insertCamelSpacing(value: string): string {
   return value
     .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/([A-Za-z])(\d)/g, '$1 $2')
-    .replace(/(\d)([A-Za-z])/g, '$1 $2')
+    .replace(/(\d)(Plus|After|Ver|Vol|Edition)\b/gi, '$1 $2')
+    .replace(/(3D2?|CM3D2|COM3D2)(CP|キャラクターパック|スキルパック|ビジュアル|性格)/gi, '$1 $2')
+    .replace(/(Vol\.?)(\d+)/gi, '$1 $2')
+    .replace(/(chapter\.?)(\d+)/gi, '$1 $2')
     .replace(/\b([A-Z]{2,})([A-Z][a-z])/g, '$1 $2');
+}
+
+function punctuationVariants(value: string): string[] {
+  const out: string[] = [];
+  if (value.includes('~')) out.push(value.replace(/~/g, '～'));
+  if (value.includes('～')) out.push(value.replace(/～/g, '~'));
+  if (value.includes('-')) out.push(value.replace(/-/g, '－'));
+  if (value.includes('－')) out.push(value.replace(/－/g, '-'));
+  if (value.includes("'")) out.push(value.replace(/'/g, '’'));
+  if (value.includes('...')) out.push(value.replace(/\.\.\./g, '…'));
+  if (value.includes('…')) out.push(value.replace(/…/g, '...'));
+  return out;
 }
 
 function withoutDecorativeSubtitle(value: string): string[] {
@@ -129,6 +145,87 @@ function withoutDecorativeSubtitle(value: string): string[] {
 function withoutFandiscMarker(value: string): string | null {
   const m = /^(.{2,}?)\s+(?:ミニ\s*)?(?:FD|ファンディスク|FANDISC|Fan\s*Disc)\b/i.exec(value);
   return m?.[1] ? tidySpaces(m[1]) : null;
+}
+
+function withoutCollectionPrefix(value: string): string[] {
+  const t = tidySpaces(value);
+  const out: string[] = [];
+  const patterns = [
+    /^(?:ヌキコレ|ヌキレコ)\s*\d+\s*(.+)$/u,
+    /^M\s*P\s*C\s*vol\.?\s*\d+\s*(.+)$/iu,
+    /^BS\s+(.+)$/iu,
+  ];
+  for (const re of patterns) {
+    const m = re.exec(t);
+    if (m?.[1]) out.push(tidySpaces(m[1]));
+  }
+  return out;
+}
+
+function splitPackVariants(value: string): string[] {
+  const t = tidySpaces(value);
+  const out: string[] = [];
+  const compact = t.replace(/\s+/g, '');
+
+  const numberedPack = /^(.+?)(?:1|１)[+＋&＆・／\/](?:2|２)(?:パック|Pack|Collection)?$/iu.exec(compact);
+  if (numberedPack?.[1]) {
+    out.push(`${numberedPack[1]}1`);
+    out.push(`${numberedPack[1]}2`);
+  }
+
+  for (const sep of ['+', '＋', '&', '＆']) {
+    if (!t.includes(sep)) continue;
+    for (const part of t.split(sep)) {
+      const cleaned = tidySpaces(part);
+      if (cleaned.length >= 4) out.push(cleaned);
+    }
+  }
+
+  return out;
+}
+
+function leadingSegmentVariants(value: string): string[] {
+  const t = tidySpaces(value);
+  const out: string[] = [];
+  const terms = t.split(/\s+/).filter(Boolean);
+
+  if (terms.length > 1) {
+    for (let n = 1; n <= Math.min(4, terms.length - 1); n++) {
+      const candidate = tidySpaces(terms.slice(0, n).join(' '));
+      if (candidate.length >= 3) out.push(candidate);
+    }
+  }
+
+  const firstPunct = t.split(/[－\-:：／/・,，、。!！?？]/u)[0];
+  if (firstPunct && firstPunct.length >= 3 && firstPunct !== t) out.push(tidySpaces(firstPunct));
+
+  return out;
+}
+
+function progressiveTrimVariants(value: string): string[] {
+  const t = tidySpaces(value);
+  const out: string[] = [];
+
+  const separatorTrim = [
+    /^(.+?)(?:\s|　)*(?:初回|通常|豪華|限定|普及|廉価|復刻|再販|再発売|パッケージ|抱き枕|タペストリー|ラフアート|特典|通販|DVD|CD|BOX|セット|パック|プレミアム|スタンダード|Standard|Limited|Edition)/iu,
+    /^(.+?)(?:\s|　)*(?:完全|フル|リマスター|エンハンスド|リリース記念|アニバーサリー)/u,
+  ];
+  for (const re of separatorTrim) {
+    const m = re.exec(t);
+    if (m?.[1] && m[1].length >= 4) out.push(tidySpaces(m[1]));
+  }
+
+  // Last resort for truncated shop titles: trim one visible character at a
+  // time, but keep these late in the query list so exact/title-token variants
+  // win first. Auto-accept still requires text/date corroboration.
+  const compact = t.replace(/\s+/g, '');
+  if (hasJapanese(compact) && compact.length >= 8) {
+    for (let len = Math.min(24, compact.length - 1); len >= Math.max(5, compact.length - 10); len--) {
+      out.push(compact.slice(0, len));
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -186,8 +283,12 @@ export function buildKobeTitleSearchQueries(rawTitle: string): string[] {
 
   for (const value of [base, aggressive]) {
     if (!value) continue;
+    variants.push(...punctuationVariants(value));
     variants.push(...withoutDecorativeSubtitle(value));
+    variants.push(...withoutCollectionPrefix(value));
+    variants.push(...splitPackVariants(value));
     variants.push(stripKnownTrailingDescriptors(value));
+    variants.push(...leadingSegmentVariants(value));
     const baseFandiscTitle = withoutFandiscMarker(value);
     if (baseFandiscTitle) variants.push(baseFandiscTitle);
     variants.push(tidySpaces(value.replace(/\bFANDISC\b/gi, 'FD')));
@@ -200,6 +301,8 @@ export function buildKobeTitleSearchQueries(rawTitle: string): string[] {
     if (!value || value.length > 80) continue;
     const compact = value.replace(/\s+/g, '');
     if (compact !== value && compact.length >= 3) variants.push(compact);
+    variants.push(...punctuationVariants(value));
+    variants.push(...progressiveTrimVariants(value));
   }
 
   return uniq(variants.map(tidySpaces))
@@ -285,12 +388,80 @@ function isSafeAutoCandidate(
   return exactRelease || score >= 45;
 }
 
+function egsMeta(game: EgsGame | null | undefined): Parameters<typeof setKobeEgsLink>[3] | undefined {
+  if (!game) return undefined;
+  return {
+    title: game.gamename,
+    brand: game.brand_name,
+    releaseDate: game.sellday,
+    imageUrl: game.image_url,
+    vndbRaw: game.raw?.vndb ?? null,
+  };
+}
+
+function egsCandidateScore(candidate: EgsCandidate, query: string, releaseDate: string | null, index: number): number {
+  const title = comparableTitle(candidate.gamename);
+  const q = comparableTitle(query);
+  let score = Math.max(0, 30 - index);
+  if (releaseDate && candidate.sellday === releaseDate) score += 120;
+  if (q && title && (title.includes(q) || q.includes(title))) score += 45;
+  if (q && q.length >= 5 && title.startsWith(q.slice(0, Math.min(q.length, 12)))) score += 15;
+  if (candidate.count != null) score += Math.min(20, Math.log10(candidate.count + 1) * 8);
+  return score;
+}
+
+function isSafeEgsCandidate(candidate: EgsCandidate | null, score: number, query: string, releaseDate: string | null): candidate is EgsCandidate {
+  if (!candidate) return false;
+  const q = comparableTitle(query);
+  const title = comparableTitle(candidate.gamename);
+  if (!q || !title) return false;
+  const textMatch = title.includes(q) || q.includes(title) || (q.length >= 6 && title.startsWith(q.slice(0, 6)));
+  if (!textMatch) return false;
+  if (q.length < 4) return Boolean(releaseDate && candidate.sellday === releaseDate);
+  return Boolean(releaseDate && candidate.sellday === releaseDate) || score >= 60;
+}
+
+async function searchKobeEgsCandidate(item: KobeStockRow): Promise<{ game: EgsGame | null; query: string | null }> {
+  const queries = buildKobeTitleSearchQueries(item.title).slice(0, MAX_KOBE_EGS_AUTO_QUERIES);
+  const releaseDate = normalizeReleaseDate(item.release_date);
+  let lastQuery = queries[0] ?? null;
+
+  for (const query of queries) {
+    lastQuery = query;
+    let candidates: EgsCandidate[];
+    try {
+      candidates = await searchEgsCandidates(query, 8);
+    } catch {
+      return { game: null, query };
+    }
+    if (candidates.length === 0) continue;
+
+    let best: { candidate: EgsCandidate; score: number } | null = null;
+    for (let index = 0; index < candidates.length; index++) {
+      const candidate = candidates[index]!;
+      const score = egsCandidateScore(candidate, query, releaseDate, index);
+      if (!best || score > best.score) best = { candidate, score };
+    }
+
+    if (!isSafeEgsCandidate(best?.candidate ?? null, best?.score ?? 0, query, releaseDate)) continue;
+    let game: EgsGame | null = null;
+    try {
+      game = await fetchEgsGame(best!.candidate.id);
+    } catch {
+      return { game: null, query };
+    }
+    if (game) return { game, query };
+  }
+
+  return { game: null, query: lastQuery };
+}
+
 async function searchKobeVndbCandidates(item: KobeStockRow): Promise<{
   top: KobeCandidate | null;
   candidatesJson: string | null;
   query: string | null;
 }> {
-  const queries = buildKobeTitleSearchQueries(item.title);
+  const queries = buildKobeTitleSearchQueries(item.title).slice(0, MAX_KOBE_VNDB_AUTO_QUERIES);
   const releaseDate = normalizeReleaseDate(item.release_date);
   if (queries.length === 0) return { top: null, candidatesJson: null, query: null };
 
@@ -403,9 +574,10 @@ export function resetKobeAutoMatches(): number {
  * Auto-match a batch of unlinked Kobe items against VNDB and EGS.
  *
  * Rate-limiting strategy:
+ *   - Fresh rows: VNDB and EGS run concurrently, then both caches make repeats cheap.
+ *   - Retry rows: VNDB is tried first with a bounded list of strong title variants;
+ *     EGS is a fast fallback so a slow remote SQL form cannot freeze the whole run.
  *   - VNDB: handled by the shared throttle queue (≤ 1 req/s); no extra sleep needed.
- *   - EGS:  runs concurrently with VNDB via Promise.all — zero added latency.
- *   - Both APIs cache results, so repeated identical queries are free.
  *
  * Stores up to 3 VNDB candidates per item for quick-pick remapping in the UI.
  * The first candidate is auto-selected as `vn_id`; the user can pick another.
@@ -417,18 +589,50 @@ export async function matchNextKobeItems(
   batchSize: number,
   retryNone = false,
   retryStartedAt?: number,
-): Promise<{ processed: number; remaining: number }> {
+): Promise<{ processed: number; matched: number; remaining: number }> {
   const safe = Math.min(100, Math.max(1, Math.floor(batchSize)));
   const items = listKobeUnmatched(safe, retryNone, retryStartedAt);
+  let matched = 0;
   for (const item of items) {
     const primaryQuery = buildKobeTitleSearchQueries(item.title)[0] ?? normalizeTitle(item.title);
     if (!primaryQuery) {
       setKobeVnLink(item.code, null, 'none', null, item.title);
       continue;
     }
-    const [vndbResult] = await Promise.allSettled([
+    if (retryNone) {
+      const vnResult = await searchKobeVndbCandidates(item);
+      if (vnResult.top) {
+        setKobeVnLink(
+          item.code,
+          vnResult.top.id,
+          'auto',
+          vnResult.candidatesJson,
+          vnResult.query ?? primaryQuery,
+        );
+        matched++;
+        continue;
+      }
+
+      const egsResult = await searchKobeEgsCandidate(item);
+      if (egsResult.game) {
+        setKobeEgsLink(item.code, egsResult.game.id, 'auto', egsMeta(egsResult.game));
+        matched++;
+        const vndbRaw = egsResult.game.raw?.vndb?.trim() ?? '';
+        if (isVndbVnId(vndbRaw)) {
+          setKobeVnLink(item.code, vndbRaw, 'auto', null, egsResult.query ?? primaryQuery);
+        } else {
+          setKobeVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query ?? egsResult.query ?? primaryQuery);
+        }
+        continue;
+      }
+      setKobeVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query ?? egsResult.query ?? primaryQuery);
+      continue;
+    }
+    let itemMatched = false;
+    const [vndbResult, egsResult] = await Promise.allSettled([
       searchKobeVndbCandidates(item)
         .then((vnResult) => {
+          if (vnResult.top) itemMatched = true;
           setKobeVnLink(
             item.code,
             vnResult.top?.id ?? null,
@@ -437,14 +641,22 @@ export async function matchNextKobeItems(
             vnResult.query ?? primaryQuery,
           );
         }),
-      searchEgsByName(primaryQuery)
-        .then((r) => { if (r) setKobeEgsLink(item.code, r.id, 'auto'); })
+      searchKobeEgsCandidate(item)
+        .then((r) => {
+          if (r.game) {
+            itemMatched = true;
+            setKobeEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
+          }
+        })
         .catch(() => {}),
     ]);
     if (vndbResult.status === 'rejected') throw vndbResult.reason;
+    if (egsResult.status === 'rejected') throw egsResult.reason;
+    if (itemMatched) matched++;
   }
   return {
     processed: items.length,
+    matched,
     remaining: countKobeUnmatchedQueue(retryNone, retryStartedAt),
   };
 }
@@ -481,6 +693,7 @@ export async function matchVndbFromEgsForKobe(
     try {
       const game = await fetchEgsGame(egsId);
       const vndbRaw = game?.raw?.vndb?.trim() ?? '';
+      if (game) setKobeEgsLink(item.code, egsId, item.egs_match_source ?? 'auto', egsMeta(game));
       if (game && isVndbVnId(vndbRaw)) {
         setKobeVnLink(item.code, vndbRaw, 'auto', null, item.search_title ?? item.title);
         matched++;
@@ -566,17 +779,26 @@ export async function searchEgsForKobeNoVndb(
   for (const item of items) {
     const primary = aggressive ? normalizeTitleAggressive(item.title) : normalizeTitle(item.title);
     if (!primary) continue;
-    const queries: string[] = [primary];
-    if (aggressive) {
-      const noSpaces = primary.replace(/\s+/g, '');
-      if (noSpaces && noSpaces !== primary) queries.push(noSpaces);
-    }
+    const queries = aggressive ? [] : [primary];
     let found = false;
+    try {
+      if (aggressive) {
+        const r = await searchKobeEgsCandidate(item);
+        if (r.game) {
+          setKobeEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
+          matched++;
+          found = true;
+        }
+      }
+    } catch (err) {
+      // Stop the batch instead of spinning over the same first rows forever.
+      throw err;
+    }
     for (const q of queries) {
       try {
         const r = await searchEgsByName(q);
         if (r) {
-          setKobeEgsLink(item.code, r.id, 'auto');
+          setKobeEgsLink(item.code, r.id, 'auto', egsMeta(r));
           matched++;
           found = true;
           break;

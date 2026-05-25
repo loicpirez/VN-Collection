@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useId, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ArrowRight, GraduationCap, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
@@ -44,6 +44,7 @@ const STEPS: Step[] = [
 export function TutorialTour() {
   const t = useT();
   const router = useRouter();
+  const pathname = usePathname();
   const titleId = useId();
   const [active, setActive] = useState(false);
   const [step, setStep] = useState(0);
@@ -57,8 +58,9 @@ export function TutorialTour() {
       router.push(STEPS[0].route);
     }
     window.addEventListener('vn-tour:start', onStart);
-    // Auto-open on first visit only.
-    if (!done) {
+    // Auto-open only on the library home page. Deep links such as
+    // /alicesoft_kobe should never be hijacked back to "/".
+    if (!done && pathname === '/') {
       const id = setTimeout(() => {
         setActive(true);
         router.push(STEPS[0].route);
@@ -69,7 +71,7 @@ export function TutorialTour() {
       };
     }
     return () => window.removeEventListener('vn-tour:start', onStart);
-  }, [router]);
+  }, [pathname, router]);
 
   useEffect(() => {
     if (!active) return;

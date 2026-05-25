@@ -30,7 +30,13 @@ export async function POST(req: NextRequest) {
     try {
       const result = await resolveEgsForVn(item.vn_id, { allowSearch: true });
       if (result.game) {
-        setKobeEgsLink(item.code, result.game.id, 'auto');
+        setKobeEgsLink(item.code, result.game.id, 'auto', {
+          title: result.game.gamename,
+          brand: result.game.brand_name,
+          releaseDate: result.game.sellday,
+          imageUrl: result.game.image_url,
+          vndbRaw: result.game.raw?.vndb ?? null,
+        });
       } else {
         setKobeEgsLink(item.code, null, 'auto');
       }

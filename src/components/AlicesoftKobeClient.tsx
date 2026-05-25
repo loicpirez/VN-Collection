@@ -3,14 +3,20 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   BookHeart,
   Building2,
+  CheckCircle2,
   Database,
   ExternalLink,
+  Filter,
+  Grid3X3,
+  List,
   Link2,
   Link2Off,
   Loader2,
+  PackageCheck,
   RefreshCw,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   ShoppingBag,
   X,
   Zap,
@@ -21,6 +27,8 @@ import { SafeImage } from './SafeImage';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { readApiError } from '@/lib/api-error-read';
+import { CardDensitySlider } from './CardDensitySlider';
+import { DensityScopeProvider } from './DensityScopeProvider';
 
 interface KobeCandidate {
   id: string;
@@ -42,6 +50,11 @@ interface KobeItem {
   search_title: string | null;
   egs_id: number | null;
   egs_match_source: 'auto' | 'manual' | null;
+  egs_title: string | null;
+  egs_brand: string | null;
+  egs_release_date: string | null;
+  egs_image_url: string | null;
+  egs_vndb_raw: string | null;
   in_collection: number;
   in_wishlist: number;
   last_matched_at: number | null;
@@ -56,6 +69,8 @@ interface KobeItem {
 interface KobeStats {
   total: number;
   matched: number;
+  vndb_matched: number;
+  egs_only: number;
   unmatched: number;
   unprocessed: number;
   none_found: number;
@@ -70,7 +85,47 @@ interface SearchHit {
   developers?: { id: string; name: string }[];
 }
 
-type FilterTab = 'all' | 'matched' | 'unmatched' | 'none_found' | 'collection' | 'wishlist';
+type FilterTab = 'all' | 'matched' | 'vndb' | 'egs_only' | 'unmatched' | 'none_found' | 'collection' | 'wishlist';
+type KobeSort = 'title' | 'release_desc' | 'release_asc' | 'price_asc' | 'price_desc' | 'match_status' | 'updated_desc';
+type KobeGroup = 'none' | 'match' | 'producer' | 'year';
+type KobeView = 'cards' | 'list';
+
+const KOBE_SORTS: KobeSort[] = ['match_status', 'release_desc', 'release_asc', 'price_asc', 'price_desc', 'title', 'updated_desc'];
+const KOBE_GROUPS: KobeGroup[] = ['none', 'match', 'producer', 'year'];
+
+function parsePrice(value: string | null): number | null {
+  if (!value) return null;
+  const n = Number(value.replace(/[^\d]/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function comparableDate(value: string | null): string {
+  if (!value) return '';
+  const m = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(value);
+  if (!m) return value;
+  return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+}
+
+function parseDevs(json: string | null): { id: string; name: string }[] {
+  if (!json) return [];
+  try { return JSON.parse(json) as { id: string; name: string }[]; } catch { return []; }
+}
+
+function matchKind(item: KobeItem): 'vndb' | 'egs' | 'unresolved' | 'new' {
+  if (item.vn_id) return 'vndb';
+  if (item.egs_id) return 'egs';
+  if (item.vn_match_source === 'none') return 'unresolved';
+  return 'new';
+}
+
+function displayTitle(item: KobeItem): string {
+  return item.egs_title || item.title;
+}
+
+function displayProducer(item: KobeItem): string {
+  const dev = parseDevs(item.vn_developers)[0]?.name;
+  return dev || item.egs_brand || '';
+}
 
 interface LinkDialogProps {
   item: KobeItem;
@@ -294,11 +349,6 @@ type ActiveOp =
 interface PendingCounts { vndb_pending: number; egs_pending: number }
 interface RunTotals { processed: number; matched: number }
 
-function parseDevs(json: string | null): { id: string; name: string }[] {
-  if (!json) return [];
-  try { return JSON.parse(json) as { id: string; name: string }[]; } catch { return []; }
-}
-
 /**
  * Client-side page for the Alice Kobe second-hand stock browser.
  *
@@ -315,7 +365,7 @@ export function AlicesoftKobeClient() {
   const t = useT();
   const toast = useToast();
   const [items, setItems] = useState<KobeItem[]>([]);
-  const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
+  const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, vndb_matched: 0, egs_only: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
   const [pending, setPending] = useState<PendingCounts>({ vndb_pending: 0, egs_pending: 0 });
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -326,6 +376,14 @@ export function AlicesoftKobeClient() {
   const [lastRun, setLastRun] = useState<{ label: string; processed: number; matched: number; error?: string } | null>(null);
   const [filter, setFilter] = useState<FilterTab>('all');
   const [producerFilter, setProducerFilter] = useState('');
+  const [sort, setSort] = useState<KobeSort>('match_status');
+  const [group, setGroup] = useState<KobeGroup>('none');
+  const [view, setView] = useState<KobeView>('cards');
+  const [showFilters, setShowFilters] = useState(true);
+  const [yearMin, setYearMin] = useState('');
+  const [yearMax, setYearMax] = useState('');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
   const [search, setSearch] = useState('');
   const [linkTarget, setLinkTarget] = useState<KobeItem | null>(null);
   const stopRef = useRef(false);
@@ -414,7 +472,7 @@ export function AlicesoftKobeClient() {
         totals = await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, label, (d) => d.remaining, stats.none_found, 4);
       } else if (op === 'vndb-from-egs') {
         label = t.kobe.kobeMatchVndbFromEgs;
-        totals = await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, label, (d) => d.remaining, stats.none_found, 10);
+        totals = await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, label, (d) => d.remaining, stats.egs_only, 10);
       } else if (op === 'retry-vndb-aggressive') {
         label = t.kobe.kobeRetryVndbAggressive;
         totals = await runLoop('/api/alicesoft-kobe/retry-vndb-aggressive', {}, label, (d) => d.remaining, stats.none_found, 4);
@@ -455,6 +513,12 @@ export function AlicesoftKobeClient() {
       label = t.kobe.kobeMatchVndbEgs;
       await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, label, (d) => d.remaining, stats.unprocessed, 5);
       if (stopRef.current) return;
+      label = t.kobe.kobeRetryNone;
+      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, label, (d) => d.remaining, stats.none_found, 4);
+      if (stopRef.current) return;
+      label = t.kobe.kobeMatchVndbFromEgs;
+      await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, label, (d) => d.remaining, stats.egs_only, 10);
+      if (stopRef.current) return;
       label = t.kobe.kobeDownloadVndb;
       await runLoop('/api/alicesoft-kobe/download-vndb', {}, label, (d) => d.remaining, pending.vndb_pending, 10);
       if (stopRef.current) return;
@@ -494,52 +558,362 @@ export function AlicesoftKobeClient() {
   const matchPct = stats.total > 0 ? Math.round((stats.matched / stats.total) * 100) : 0;
 
   const producers = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { id: string; name: string; count: number }>();
     for (const item of items) {
       const devs = parseDevs(item.vn_developers);
       for (const d of devs) {
-        if (d.id && !map.has(d.id)) map.set(d.id, d.name || d.id);
+        if (!d.id) continue;
+        const prev = map.get(d.id);
+        map.set(d.id, { id: d.id, name: d.name || d.id, count: (prev?.count ?? 0) + 1 });
+      }
+      if (devs.length === 0 && item.egs_brand) {
+        const id = `egs:${item.egs_brand}`;
+        const prev = map.get(id);
+        map.set(id, { id, name: item.egs_brand, count: (prev?.count ?? 0) + 1 });
       }
     }
-    return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
+    return Array.from(map.values())
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [items]);
 
   const filtered = useMemo(() => {
     let list = items;
-    if (filter === 'matched') list = list.filter((i) => i.vn_id !== null);
-    else if (filter === 'unmatched') list = list.filter((i) => i.vn_id === null);
-    else if (filter === 'none_found') list = list.filter((i) => i.vn_match_source === 'none');
+    if (filter === 'matched') list = list.filter((i) => i.vn_id !== null || i.egs_id !== null);
+    else if (filter === 'vndb') list = list.filter((i) => i.vn_id !== null);
+    else if (filter === 'egs_only') list = list.filter((i) => i.vn_id === null && i.egs_id !== null);
+    else if (filter === 'unmatched') list = list.filter((i) => i.vn_id === null && i.egs_id === null);
+    else if (filter === 'none_found') list = list.filter((i) => i.vn_id === null && i.egs_id === null && i.vn_match_source === 'none');
     else if (filter === 'collection') list = list.filter((i) => i.in_collection === 1);
     else if (filter === 'wishlist') list = list.filter((i) => i.in_wishlist === 1);
     if (producerFilter) {
-      list = list.filter((i) => parseDevs(i.vn_developers).some((d) => d.id === producerFilter));
+      list = list.filter((i) => {
+        if (producerFilter.startsWith('egs:')) return `egs:${i.egs_brand ?? ''}` === producerFilter;
+        return parseDevs(i.vn_developers).some((d) => d.id === producerFilter);
+      });
+    }
+    const yMin = yearMin ? Number(yearMin) : null;
+    const yMax = yearMax ? Number(yearMax) : null;
+    const pMin = priceMin ? Number(priceMin) : null;
+    const pMax = priceMax ? Number(priceMax) : null;
+    if (yMin != null || yMax != null) {
+      list = list.filter((i) => {
+        const year = Number((i.release_date || i.egs_release_date || '').slice(0, 4));
+        if (!Number.isFinite(year)) return false;
+        if (yMin != null && year < yMin) return false;
+        if (yMax != null && year > yMax) return false;
+        return true;
+      });
+    }
+    if (pMin != null || pMax != null) {
+      list = list.filter((i) => {
+        const price = parsePrice(i.sale_price);
+        if (price == null) return false;
+        if (pMin != null && price < pMin) return false;
+        if (pMax != null && price > pMax) return false;
+        return true;
+      });
     }
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
         (i) =>
           i.title.toLowerCase().includes(q) ||
+          (i.egs_title?.toLowerCase().includes(q) ?? false) ||
+          (i.egs_brand?.toLowerCase().includes(q) ?? false) ||
           (i.search_title?.toLowerCase().includes(q) ?? false) ||
           i.code.includes(q) ||
-          (i.vn_id?.toLowerCase().includes(q) ?? false),
+          (i.vn_id?.toLowerCase().includes(q) ?? false) ||
+          String(i.egs_id ?? '').includes(q),
       );
     }
     return list;
-  }, [items, filter, producerFilter, search]);
+  }, [items, filter, producerFilter, search, yearMin, yearMax, priceMin, priceMax]);
+
+  const sorted = useMemo(() => {
+    const out = [...filtered];
+    out.sort((a, b) => {
+      switch (sort) {
+        case 'title':
+          return displayTitle(a).localeCompare(displayTitle(b));
+        case 'release_desc':
+          return comparableDate(b.release_date || b.egs_release_date).localeCompare(comparableDate(a.release_date || a.egs_release_date));
+        case 'release_asc':
+          return comparableDate(a.release_date || a.egs_release_date).localeCompare(comparableDate(b.release_date || b.egs_release_date));
+        case 'price_asc':
+          return (parsePrice(a.sale_price) ?? Number.MAX_SAFE_INTEGER) - (parsePrice(b.sale_price) ?? Number.MAX_SAFE_INTEGER);
+        case 'price_desc':
+          return (parsePrice(b.sale_price) ?? 0) - (parsePrice(a.sale_price) ?? 0);
+        case 'updated_desc':
+          return (b.updated_at ?? 0) - (a.updated_at ?? 0);
+        case 'match_status': {
+          const rank = { unresolved: 0, new: 1, egs: 2, vndb: 3 } as const;
+          return rank[matchKind(a)] - rank[matchKind(b)] || displayTitle(a).localeCompare(displayTitle(b));
+        }
+        default: {
+          const _exhaustive: never = sort;
+          return String(_exhaustive).localeCompare('');
+        }
+      }
+    });
+    return out;
+  }, [filtered, sort]);
+
+  const grouped = useMemo<{ key: string; items: KobeItem[] }[]>(() => {
+    if (group === 'none') return [{ key: '', items: sorted }];
+    const buckets = new Map<string, KobeItem[]>();
+    for (const item of sorted) {
+      let key = '';
+      if (group === 'match') {
+        key = matchKind(item) === 'vndb'
+          ? t.kobe.kobeVndbMatched
+          : matchKind(item) === 'egs'
+            ? t.kobe.kobeEgsOnly
+            : t.kobe.kobeNeedsMatch;
+      } else if (group === 'producer') {
+        key = displayProducer(item) || t.wishlist.groupUnknown;
+      } else if (group === 'year') {
+        key = (item.release_date || item.egs_release_date)?.slice(0, 4) || t.wishlist.groupUnknown;
+      }
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(item);
+      else buckets.set(key, [item]);
+    }
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => (group === 'year' ? b.localeCompare(a) : a.localeCompare(b)))
+      .map(([key, items]) => ({ key, items }));
+  }, [sorted, group, t.kobe.kobeVndbMatched, t.kobe.kobeEgsOnly, t.kobe.kobeNeedsMatch, t.wishlist.groupUnknown]);
 
   const tabs: { id: FilterTab; label: string; count: number; icon?: React.ReactNode }[] = [
     { id: 'all', label: t.kobe.kobeFilterAll, count: stats.total },
     { id: 'matched', label: t.kobe.kobeFilterMatched, count: stats.matched },
+    { id: 'vndb', label: t.kobe.kobeVndbMatched, count: stats.vndb_matched },
+    { id: 'egs_only', label: t.kobe.kobeEgsOnly, count: stats.egs_only },
     { id: 'unmatched', label: t.kobe.kobeFilterUnmatched, count: stats.unmatched },
     { id: 'none_found', label: t.kobe.kobeNoneFound, count: stats.none_found },
     { id: 'collection', label: t.kobe.kobeInCollection, count: stats.in_collection, icon: <BookHeart className="h-3 w-3 text-green-400" aria-hidden /> },
     { id: 'wishlist', label: t.kobe.kobeInWishlist, count: stats.in_wishlist, icon: <BookHeart className="h-3 w-3 text-rose-400" aria-hidden /> },
   ];
 
+  const sortLabels: Record<KobeSort, string> = {
+    match_status: t.kobe.kobeSortMatchStatus,
+    release_desc: t.kobe.kobeSortReleaseDesc,
+    release_asc: t.kobe.kobeSortReleaseAsc,
+    price_asc: t.kobe.kobeSortPriceAsc,
+    price_desc: t.kobe.kobeSortPriceDesc,
+    title: t.kobe.kobeSortTitle,
+    updated_desc: t.kobe.kobeSortUpdatedDesc,
+  };
+
+  const groupLabels: Record<KobeGroup, string> = {
+    none: t.kobe.kobeGroupNone,
+    match: t.kobe.kobeGroupMatch,
+    producer: t.kobe.kobeGroupProducer,
+    year: t.kobe.kobeGroupYear,
+  };
+
+  const activeFilterCount =
+    (producerFilter ? 1 : 0) +
+    (yearMin ? 1 : 0) +
+    (yearMax ? 1 : 0) +
+    (priceMin ? 1 : 0) +
+    (priceMax ? 1 : 0);
+
+  function resetFilters() {
+    setProducerFilter('');
+    setYearMin('');
+    setYearMax('');
+    setPriceMin('');
+    setPriceMax('');
+  }
+
+  function statusBadge(item: KobeItem) {
+    const kind = matchKind(item);
+    if (kind === 'vndb') {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-green-500/25 bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-400">
+          <CheckCircle2 className="h-3 w-3" aria-hidden />
+          {t.kobe.kobeVndbMatched}
+        </span>
+      );
+    }
+    if (kind === 'egs') {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/25 bg-sky-500/10 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
+          <PackageCheck className="h-3 w-3" aria-hidden />
+          {t.kobe.kobeEgsOnly}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-400">
+        <Search className="h-3 w-3" aria-hidden />
+        {kind === 'unresolved' ? t.kobe.kobeNeedsMatch : t.kobe.kobeNotYetMatched}
+      </span>
+    );
+  }
+
+  function quickLinks(item: KobeItem) {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {item.vn_id && (
+          <a
+            href={`/vn/${item.vn_id}`}
+            className="inline-flex min-h-[32px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20"
+          >
+            <Link2 className="h-3 w-3" aria-hidden />
+            {item.vn_id}
+          </a>
+        )}
+        {item.egs_id && (
+          <a
+            href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${item.egs_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-[32px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            title={`${t.kobe.kobeEgsId} ${item.egs_id}`}
+          >
+            <ExternalLink className="h-3 w-3" aria-hidden />
+            EGS {item.egs_id}
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  function renderKobeCard(item: KobeItem) {
+    const candidates = item.vn_candidates
+      ? (() => { try { return JSON.parse(item.vn_candidates) as KobeCandidate[]; } catch { return []; } })()
+      : [];
+    const producer = displayProducer(item);
+    const image = item.vn_image_url || item.egs_image_url;
+    const date = item.release_date || item.egs_release_date;
+    return (
+      <article key={item.code} className="group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card">
+        <div className="relative aspect-[2/3] bg-bg-elev">
+          <SafeImage
+            src={image}
+            localSrc={item.vn_local_image}
+            sexual={item.vn_image_sexual}
+            alt={displayTitle(item)}
+            className="h-full w-full"
+            fit="cover"
+          />
+          <div className="absolute left-2 top-2 flex flex-wrap gap-1">{statusBadge(item)}</div>
+          <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
+            {item.in_wishlist === 1 && (
+              <span className="rounded-full border border-rose-500/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-rose-300 backdrop-blur">
+                {t.kobe.kobeInWishlist}
+              </span>
+            )}
+            {item.in_collection === 1 && (
+              <span className="rounded-full border border-green-500/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-green-300 backdrop-blur">
+                {t.kobe.kobeInCollection}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-1 flex-col gap-2 p-3">
+          <div className="min-w-0">
+            <h2 className="line-clamp-2 text-sm font-bold leading-snug" title={item.title}>{displayTitle(item)}</h2>
+            {item.egs_title && item.egs_title !== item.title && (
+              <p className="mt-0.5 line-clamp-1 text-[11px] text-muted" title={item.title}>{item.title}</p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted">
+            {item.sale_price && <span className="font-semibold text-white">{item.sale_price}</span>}
+            {date && <span>{date}</span>}
+            <span className="font-mono opacity-70">{item.code}</span>
+          </div>
+          {producer && (
+            <button
+              type="button"
+              onClick={() => {
+                const id = item.vn_developers ? parseDevs(item.vn_developers)[0]?.id : null;
+                setProducerFilter(id || (item.egs_brand ? `egs:${item.egs_brand}` : ''));
+              }}
+              className="inline-flex w-fit items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            >
+              <Building2 className="h-3 w-3" aria-hidden />
+              {producer}
+            </button>
+          )}
+          {item.search_title && (
+            <p className="line-clamp-1 text-[10px] text-muted/70" title={item.search_title}>
+              {t.kobe.kobeSearchedAs.replace('{q}', item.search_title)}
+            </p>
+          )}
+          {quickLinks(item)}
+          {candidates.length > 1 && (
+            <CandidateChips candidates={candidates} currentId={item.vn_id} code={item.code} onRemapped={load} />
+          )}
+          <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
+            <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs">
+              <Search className="h-3 w-3" />
+              {item.vn_id ? t.kobe.kobeRemap : t.kobe.kobeFindMatch}
+            </button>
+            {item.vn_id && (
+              <button
+                type="button"
+                onClick={() => clearLink(item.code)}
+                className="btn btn-xs text-muted hover:text-red-400"
+                title={t.kobe.kobeClearMatch}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  function renderKobeRow(item: KobeItem) {
+    const producer = displayProducer(item);
+    const date = item.release_date || item.egs_release_date;
+    return (
+      <li key={item.code} className="rounded-xl border border-border bg-bg-card p-3 transition-shadow hover:shadow-card">
+        <div className="flex gap-3">
+          <SafeImage
+            src={item.vn_image_url || item.egs_image_url}
+            localSrc={item.vn_local_image}
+            sexual={item.vn_image_sexual}
+            alt={displayTitle(item)}
+            className="h-20 w-14 shrink-0 rounded-lg"
+            fit="cover"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-semibold leading-tight" title={item.title}>{displayTitle(item)}</p>
+                <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted">
+                  {item.sale_price && <span className="font-semibold text-white">{item.sale_price}</span>}
+                  {date && <span>{date}</span>}
+                  <span className="font-mono opacity-60">{item.code}</span>
+                  {producer && <span>{producer}</span>}
+                </div>
+                {item.search_title && (
+                  <p className="mt-1 text-[10px] italic text-muted/70">
+                    {t.kobe.kobeSearchedAs.replace('{q}', item.search_title)}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {statusBadge(item)}
+                {quickLinks(item)}
+                <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs">
+                  <Search className="h-3 w-3" />
+                  {item.vn_id ? t.kobe.kobeRemap : t.kobe.kobeFindMatch}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </li>
+    );
+  }
+
   return (
-    <div className="page-space mx-auto max-w-screen-xl px-4 py-6">
+    <DensityScopeProvider scope="alicesoftKobe" className="page-space mx-auto max-w-screen-2xl px-4 py-6">
 
       {/* Header */}
       <div className="mb-5 flex flex-wrap items-center gap-3">
@@ -736,39 +1110,127 @@ export function AlicesoftKobeClient() {
         )}
       </div>
 
-      {/* Filter tabs + search */}
-      <div className="mb-2 flex flex-wrap items-end gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-1 border-b border-border">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setFilter(tab.id)}
-              className={`flex items-center gap-1.5 rounded-t px-3 py-1.5 text-sm transition-colors ${
-                filter === tab.id
-                  ? 'border-b-2 border-accent font-medium text-accent'
-                  : 'text-muted hover:text-white'
-              }`}
-            >
-              {tab.icon ?? null}
-              {tab.label}
-              <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
+      {/* Browsing controls */}
+      <div className="mb-4 rounded-xl border border-border bg-bg-card p-3">
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilter(tab.id)}
+                className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                  filter === tab.id
+                    ? 'border-accent bg-accent/10 font-semibold text-accent'
+                    : 'border-border bg-bg-elev/30 text-muted hover:border-accent hover:text-white'
+                }`}
+              >
+                {tab.icon ?? null}
+                <span>{tab.label}</span>
+                <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg text-muted'}`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_12rem_12rem_auto] lg:items-end">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t.kobe.kobeSearchPlaceholder}
+                aria-label={t.kobe.kobeSearchPlaceholder}
+                className="input min-h-[44px] w-full pl-9 text-sm"
+              />
+            </div>
+
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              {t.kobe.kobeSortLabel}
+              <select value={sort} onChange={(e) => setSort(e.target.value as KobeSort)} className="input min-h-[44px] text-xs normal-case tracking-normal">
+                {KOBE_SORTS.map((id) => <option key={id} value={id}>{sortLabels[id]}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              {t.kobe.kobeGroupLabel}
+              <select value={group} onChange={(e) => setGroup(e.target.value as KobeGroup)} className="input min-h-[44px] text-xs normal-case tracking-normal">
+                {KOBE_GROUPS.map((id) => <option key={id} value={id}>{groupLabels[id]}</option>)}
+              </select>
+            </label>
+
+            <div className="flex flex-wrap items-end gap-2 lg:min-w-[24rem] lg:justify-end">
+              <div className="inline-flex rounded-md border border-border bg-bg-elev/40 p-1" role="group" aria-label={t.kobe.kobeViewLabel}>
+                <button
+                  type="button"
+                  onClick={() => setView('cards')}
+                  className={`inline-flex min-h-[36px] min-w-[40px] items-center justify-center rounded px-2 ${view === 'cards' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
+                  aria-label={t.kobe.kobeViewCards}
+                  title={t.kobe.kobeViewCards}
+                >
+                  <Grid3X3 className="h-4 w-4" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView('list')}
+                  className={`inline-flex min-h-[36px] min-w-[40px] items-center justify-center rounded px-2 ${view === 'list' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
+                  aria-label={t.kobe.kobeViewList}
+                  title={t.kobe.kobeViewList}
+                >
+                  <List className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilters((v) => !v)}
+                className={`btn btn-sm ${showFilters || activeFilterCount > 0 ? 'border-accent text-accent' : ''}`}
+                aria-expanded={showFilters}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                {t.kobe.kobeFilters}
+                {activeFilterCount > 0 && <span className="rounded bg-accent/15 px-1 text-[10px] text-accent">{activeFilterCount}</span>}
+              </button>
+              <CardDensitySlider scope="alicesoftKobe" className="min-w-[14rem] max-w-full flex-1 lg:flex-none" />
+            </div>
+          </div>
         </div>
-        <div className="relative min-w-[200px]">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t.kobe.kobeSearchPlaceholder}
-            aria-label={t.kobe.kobeSearchPlaceholder}
-            className="input w-full pl-8 text-sm"
-          />
-        </div>
+
+        {showFilters && (
+          <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2 lg:grid-cols-5">
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted sm:col-span-2 lg:col-span-1">
+              {t.kobe.kobeFilterProducer}
+              <select value={producerFilter} onChange={(e) => setProducerFilter(e.target.value)} className="input min-h-[44px] text-xs normal-case tracking-normal">
+                <option value="">{t.kobe.kobeFilterProducerAll}</option>
+                {producers.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.count})</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              {t.kobe.kobeYearMin}
+              <input value={yearMin} onChange={(e) => setYearMin(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="1999" />
+            </label>
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              {t.kobe.kobeYearMax}
+              <input value={yearMax} onChange={(e) => setYearMax(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="2026" />
+            </label>
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              {t.kobe.kobePriceMin}
+              <input value={priceMin} onChange={(e) => setPriceMin(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="0" />
+            </label>
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              {t.kobe.kobePriceMax}
+              <input value={priceMax} onChange={(e) => setPriceMax(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="5000" />
+            </label>
+            <div className="flex items-end sm:col-span-2 lg:col-span-5">
+              <button type="button" onClick={resetFilters} disabled={activeFilterCount === 0} className="btn btn-sm">
+                <RotateCcw className="h-3.5 w-3.5" />
+                {t.kobe.kobeResetFilters}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {lastRun && (
@@ -788,261 +1250,66 @@ export function AlicesoftKobeClient() {
         </div>
       )}
 
-      {/* Recovery actions for rows VNDB missed on the first pass. */}
-      {(filter === 'unmatched' || filter === 'none_found') && stats.none_found > 0 && (
-        <div className="mb-4 space-y-2 rounded-lg border border-border bg-bg-card p-2.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <Search className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-            <span className="min-w-0 flex-1 text-xs text-muted">
-              {t.kobe.kobeSmartRetryHint}
-            </span>
-            <button
-              type="button"
-              onClick={() => runSingleOp('retrying')}
-              disabled={isBusy}
-              className="btn btn-sm btn-primary"
-            >
-              <Search className="h-3.5 w-3.5" />
-              {t.kobe.kobeRetryNone}
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
-            <Link2 className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-            <span className="min-w-0 flex-1 text-xs text-muted">
-              {t.kobe.kobeMatchVndbFromEgsHint}
-            </span>
-            <button
-              type="button"
-              onClick={() => runSingleOp('vndb-from-egs')}
-              disabled={isBusy}
-              className="btn btn-sm"
-            >
-              <Link2 className="h-3.5 w-3.5" />
-              {t.kobe.kobeMatchVndbFromEgs}
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
-            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-            <span className="min-w-0 flex-1 text-xs text-muted">
-              {t.kobe.kobeSearchEgsForNoVndbHint}
-            </span>
-            <button
-              type="button"
-              onClick={() => runSingleOp('search-egs')}
-              disabled={isBusy}
-              className="btn btn-sm"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              {t.kobe.kobeSearchEgsForNoVndb}
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
-            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-            <span className="min-w-0 flex-1 text-xs text-muted">
-              {t.kobe.kobeSearchEgsForNoVndbAggressiveHint}
-            </span>
-            <button
-              type="button"
-              onClick={() => runSingleOp('search-egs-aggressive')}
-              disabled={isBusy}
-              className="btn btn-sm"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              {t.kobe.kobeSearchEgsForNoVndbAggressive}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Producer filter — additive on top of whichever tab is active */}
-      {producers.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Building2 className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-          <button
-            type="button"
-            onClick={() => setProducerFilter('')}
-            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-              producerFilter === ''
-                ? 'border-accent bg-accent/10 font-medium text-accent'
-                : 'border-border text-muted hover:border-accent hover:text-white'
-            }`}
-          >
-            {t.kobe.kobeFilterProducerAll}
+      {(filter === 'unmatched' || filter === 'none_found' || filter === 'egs_only') && (stats.none_found > 0 || stats.egs_only > 0) && (
+        <div className="mb-4 grid gap-2 rounded-xl border border-border bg-bg-card p-3 md:grid-cols-2 xl:grid-cols-4">
+          <button type="button" onClick={() => runSingleOp('retrying')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
+            <Search className="h-3.5 w-3.5" />
+            <span className="min-w-0 truncate">{t.kobe.kobeRetryNone}</span>
           </button>
-          {producers.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setProducerFilter(producerFilter === p.id ? '' : p.id)}
-              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                producerFilter === p.id
-                  ? 'border-accent bg-accent/10 font-medium text-accent'
-                  : 'border-border text-muted hover:border-accent hover:text-white'
-              }`}
-            >
-              {p.name}
-            </button>
-          ))}
+          <button type="button" onClick={() => runSingleOp('vndb-from-egs')} disabled={isBusy || stats.egs_only === 0} className="btn btn-sm justify-start">
+            <Link2 className="h-3.5 w-3.5" />
+            <span className="min-w-0 truncate">{t.kobe.kobeMatchVndbFromEgs}</span>
+          </button>
+          <button type="button" onClick={() => runSingleOp('search-egs')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
+            <ExternalLink className="h-3.5 w-3.5" />
+            <span className="min-w-0 truncate">{t.kobe.kobeSearchEgsForNoVndb}</span>
+          </button>
+          <button type="button" onClick={() => runSingleOp('search-egs-aggressive')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span className="min-w-0 truncate">{t.kobe.kobeSearchEgsForNoVndbAggressive}</span>
+          </button>
         </div>
       )}
 
-      {/* Item list */}
+      {/* Items */}
       {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl bg-bg-elev/40" />
+        <div className={view === 'cards' ? 'grid gap-3' : 'space-y-2'} style={view === 'cards' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' } : undefined}>
+          {Array.from({ length: view === 'cards' ? 12 : 10 }).map((_, i) => (
+            <div key={i} className={`${view === 'cards' ? 'h-96' : 'h-24'} animate-pulse rounded-xl bg-bg-elev/40`} />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted">{t.kobe.kobeUnmatched}</p>
       ) : (
-        <ul className="space-y-2">
-          {filtered.map((item) => {
-            const candidates = item.vn_candidates
-              ? (() => { try { return JSON.parse(item.vn_candidates) as KobeCandidate[]; } catch { return []; } })()
-              : [];
-            const showSearched = item.search_title && item.search_title !== item.title;
-            const devs = parseDevs(item.vn_developers);
-            return (
-              <li key={item.code} className="rounded-xl border border-border bg-bg-card p-3 transition-shadow hover:shadow-card">
-                <div className="flex gap-3">
-                  <SafeImage
-                    src={item.vn_image_url}
-                    localSrc={item.vn_local_image}
-                    sexual={item.vn_image_sexual}
-                    alt={item.title}
-                    className="h-16 w-11 shrink-0 rounded-lg"
-                    fit="cover"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-
-                      {/* Title + metadata */}
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold leading-tight" title={item.title}>{item.title}</p>
-                        <div className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] text-muted">
-                          {item.sale_price && <span>{item.sale_price}</span>}
-                          {item.release_date && <span>{item.release_date}</span>}
-                          <span className="font-mono opacity-50">{item.code}</span>
-                        </div>
-                        {devs.length > 0 && (
-                          <div className="mt-0.5 flex flex-wrap gap-1">
-                            {devs.map((d) => (
-                              <button
-                                key={d.id}
-                                type="button"
-                                onClick={() => setProducerFilter(producerFilter === d.id ? '' : d.id)}
-                                className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] transition-colors ${
-                                  producerFilter === d.id
-                                    ? 'bg-accent/20 text-accent'
-                                    : 'bg-bg-elev/50 text-muted hover:text-accent'
-                                }`}
-                                title={t.kobe.kobeFilterProducer}
-                              >
-                                <Building2 className="h-2.5 w-2.5" aria-hidden />
-                                {d.name || d.id}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {showSearched && (
-                          <p className="mt-0.5 text-[10px] italic text-muted/60">
-                            {t.kobe.kobeSearchedAs.replace('{q}', item.search_title!)}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Match status + actions */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        {item.in_wishlist === 1 && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-400">
-                            <BookHeart className="h-2.5 w-2.5" aria-hidden />
-                            {t.kobe.kobeInWishlist}
-                          </span>
-                        )}
-                        {item.in_collection === 1 && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] text-green-400">
-                            <BookHeart className="h-2.5 w-2.5" aria-hidden />
-                            {t.kobe.kobeInCollection}
-                          </span>
-                        )}
-
-                        {item.vn_id ? (
-                          <>
-                            <a
-                              href={`/vn/${item.vn_id}`}
-                              className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[11px] font-mono text-accent hover:bg-accent/20"
-                            >
-                              <Link2 className="h-3 w-3" />
-                              {item.vn_id}
-                            </a>
-                            {item.vn_match_source === 'manual' && (
-                              <span className="rounded-full border border-accent/20 bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
-                                manual
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => clearLink(item.code)}
-                              className="btn btn-xs text-muted hover:text-red-400"
-                              title={t.kobe.kobeClearMatch}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </>
-                        ) : (
-                          <span className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                            item.vn_match_source === 'none'
-                              ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
-                              : 'border-border bg-bg-elev text-muted'
-                          }`}>
-                            {item.vn_match_source === 'none' ? t.kobe.kobeNoneFound : t.kobe.kobeNotYetMatched}
-                          </span>
-                        )}
-
-                        {item.egs_id && (
-                          <a
-                            href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${item.egs_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-elev/50 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
-                            title={`${t.kobe.kobeEgsId} ${item.egs_id}`}
-                          >
-                            <ExternalLink className="h-2.5 w-2.5" />
-                            EGS{item.egs_match_source === 'manual' ? ' ✓' : ''}
-                          </a>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => setLinkTarget(item)}
-                          className="btn btn-xs"
-                        >
-                          <Search className="h-3 w-3" />
-                          {item.vn_id ? t.kobe.kobeRemap : t.kobe.kobeFindMatch}
-                        </button>
-                      </div>
-                    </div>
-
-                    {candidates.length > 1 && (
-                      <CandidateChips
-                        candidates={candidates}
-                        currentId={item.vn_id}
-                        code={item.code}
-                        onRemapped={load}
-                      />
-                    )}
-                  </div>
+        <div className="space-y-5">
+          {grouped.map((section) => (
+            <section key={section.key || 'all'} className="space-y-2">
+              {group !== 'none' && (
+                <div className="flex items-center gap-2 border-b border-border pb-1">
+                  <h2 className="min-w-0 truncate text-sm font-semibold">{section.key}</h2>
+                  <span className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">{section.items.length}</span>
                 </div>
-              </li>
-            );
-          })}
-        </ul>
+              )}
+              {view === 'cards' ? (
+                <div
+                  className="grid gap-3"
+                  style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+                >
+                  {section.items.map(renderKobeCard)}
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {section.items.map(renderKobeRow)}
+                </ul>
+              )}
+            </section>
+          ))}
+        </div>
       )}
 
       {linkTarget && (
         <LinkDialog item={linkTarget} onClose={() => setLinkTarget(null)} onLinked={load} />
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }

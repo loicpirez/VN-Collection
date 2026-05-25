@@ -37,4 +37,27 @@ describe('Alice Kobe title cleanup', () => {
     expect(queries).toContain('ゆびさきコネクション');
     expect(queries).toContain('ゆびさきコネクションミニFDVol.1');
   });
+
+  it('keeps hardware-looking title tokens intact while spacing DLC markers', () => {
+    const customMaid = buildKobeTitleSearchQueries('(中古品) カスタムメイド３Ｄ２　ＣＰ　健康的でスポーティなボクっ娘');
+    expect(customMaid).toContain('カスタムメイド3D2 CP 健康的でスポーティなボクっ娘');
+    expect(customMaid).not.toContain('カスタムメイド3 D2 CP 健康的でスポーティなボクっ娘');
+
+    const natural = buildKobeTitleSearchQueries('(中古品) ナチュラル０Ｐｌｕｓ　通常版');
+    expect(natural).toContain('ナチュラル0 Plus');
+  });
+
+  it('tries collection-free variants for bundle and anthology shop titles', () => {
+    expect(buildKobeTitleSearchQueries('(中古品) ヌキコレ３８　ギアーズオブドラグーン'))
+      .toContain('ギアーズオブドラグーン');
+    expect(buildKobeTitleSearchQueries('(中古品) ＭＰＣｖｏｌ．３きっと、澄み渡る…＋すきま桜と…'))
+      .toContain('きっと、澄み渡る...+すきま桜と...');
+  });
+
+  it('normalizes compact roman title spacing without breaking sequel numbers', () => {
+    expect(buildKobeTitleSearchQueries('(中古品) 蒼の彼方のフォーリズムＥＸ２　スタンダードエディション'))
+      .toContain('蒼の彼方のフォーリズムEX2');
+    expect(buildKobeTitleSearchQueries('(中古品) ２００５下半期ＬＩＬＩＴＨ　ＢＥＳＴ　ＳＥＬＥＣＴＩＯＮ'))
+      .toContain('2005下半期LILITH BEST SELECTION');
+  });
 });

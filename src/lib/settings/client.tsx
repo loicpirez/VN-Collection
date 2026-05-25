@@ -23,6 +23,7 @@ export const DENSITY_SCOPES = [
   'upcoming',
   'dumped',
   'egs',
+  'alicesoftKobe',
   'staffWorks',
   'producerWorks',
   'characterWorks',
