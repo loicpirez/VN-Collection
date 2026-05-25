@@ -169,7 +169,15 @@ vndb-collection/
 │       ├── files.ts                    # storage bucket helpers (download, save, read)
 │       ├── assets.ts                   # ensureLocalImagesForVn (covers + sc + release art + char + EGS)
 │       ├── vn-detail-layout.ts         # versioned VN detail section layout config
+│       ├── character-detail-layout.ts  # versioned Character detail section layout config
+│       ├── staff-detail-layout.ts      # versioned Staff detail section layout config
+│       ├── producer-detail-layout.ts   # versioned Producer detail section layout config
+│       ├── series-detail-layout.ts     # versioned Series detail section layout config
 │       ├── home-section-layout.ts      # versioned home strip visibility/collapse config
+│       ├── section-layout.ts           # shared section-layout base utilities
+│       ├── shortcut-registry.ts        # keyboard shortcut definitions
+│       ├── download-status-names.ts    # localized job-name lookup for DownloadStatusBar
+│       ├── vn-id-shape.ts              # type guard isVndbVnId / isEgsOnlyId
 │       ├── aspect-ratio.ts             # resolution → aspect bucket helpers
 │       ├── settings/client.tsx         # DisplaySettingsProvider (localStorage) + resolveTitles
 │       └── i18n/
@@ -253,6 +261,8 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | POST | `/api/refresh/global` | Bust EGS cover cache + re-fetch page-level caches. Gated behind `requireLocalhostOrToken`. |
 | GET | `/api/download-status` | Polling snapshot of every in-flight fan-out job + throttle stats. Fallback for clients without `EventSource`. |
 | GET | `/api/collection/[id]/activity` | Per-VN audit-trail entries (status / playtime / rating changes + manual notes) |
+| GET | `/api/activity` | Global app-wide audit feed (all entity types) |
+| GET | `/api/activity/kinds` | Distinct activity kind values for the filter dropdown |
 | GET/POST | `/api/collection/[id]/custom-description` | Per-VN user-authored synopsis override |
 | GET | `/api/collection/find?q=` | Fuzzy in-collection title search (used by the Steam linker) |
 | POST | `/api/collection/full-download` | Selective bulk fan-out for a subset of VNs |
@@ -346,7 +356,17 @@ egs_game         PK vn_id (FK→vn)
                   fetched_at
 
 app_setting      PK key
-                  value                — used for vndb_token, random_quote_source
+                  value                — key/value store. Commonly-used keys:
+                  vndb_token, vndb_writeback, vndb_backup_url, vndb_backup_enabled,
+                  vndb_fanout (auto-download staff/chars/devs toggle),
+                  steam_api_key, steam_id, egs_username,
+                  random_quote_source, default_sort, default_order, default_group,
+                  home_section_layout_v1, vn_detail_section_layout_v1,
+                  character_detail_section_layout_v1, staff_detail_section_layout_v1,
+                  producer_detail_section_layout_v1, series_detail_section_layout_v1,
+                  shelf_view_prefs_v1,
+                  {provider}_proxy_config (JSON per provider: vndb, vndbmirror, egs, alicesoft_kobe),
+                  migration_* keys (one-shot migration idempotency guards)
 
 vn (additions)   egs_only INT — synthetic entries from /api/egs/[id]/add use
                   id format `egs_<numeric>` and skip VNDB-only operations
@@ -782,6 +802,10 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 ---
 
 ## Conventions
+
+### Feature flags
+- `ALICESOFT_KOBE_ENABLED=true` — enables the `/alicesoft_kobe` page and all `/api/alicesoft-kobe/*` routes.
+- `VNCOLL_DISABLE_ACTIVITY=true` — skips writes to the global `user_activity` audit table. Per-VN `vn_activity` (reading log) is unaffected.
 
 ### i18n
 - Every user-facing string lives in `src/lib/i18n/dictionaries.ts` under `fr` / `en` / `ja`.
@@ -1353,10 +1377,11 @@ unchanged by this layout convention.
 
 - Density is **per-scope**. `DENSITY_SCOPES` (in
   `src/lib/settings/client.tsx`) enumerates every surface that
-  mounts a slider (`library`, `wishlist`, `recommendations`,
-  `topRanked`, `upcoming`, `dumped`, `similar`, `egs`,
-  `producerWorks`, `staffWorks`, …). Persisted values live in
-  `DisplaySettings.density: Record<DensityScope, number>`.
+  mounts a slider. Full list: `library`, `wishlist`, `search`,
+  `recommendations`, `topRanked`, `upcoming`, `dumped`, `egs`,
+  `staffWorks`, `producerWorks`, `characterWorks`, `seriesWorks`,
+  `lists`, `vnSimilar`, `vnMedia`, `shelf`, `tagPage`.
+  Persisted values live in `DisplaySettings.density: Record<DensityScope, number>`.
 - Resolve order via `resolveCardDensity(scope, settings, urlOverride)`:
     1. URL override (`?density=N`, snapped to clamp range).
     2. Persisted per-scope value (`density[scope]`).

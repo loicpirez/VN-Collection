@@ -26,6 +26,7 @@ No cloud account. No telemetry. No bundled games. No bundled copyrighted media.
 - Browse discovery pages such as upcoming releases, top-ranked VNs, recommendations, dumped status, and statistics.
 - Customize layouts, density, filters, spoiler visibility, and content display.
 - Export, import, and back up the local SQLite database.
+- Print QR label sheets for physical editions via `/labels`.
 - Browse and match second-hand stock from AliceSoft Kobe against VNDB/EGS (optional, env-gated).
 
 ---
@@ -61,6 +62,7 @@ VNDB and ErogameScape are independent third-party projects. Their data, site con
 - Media gallery with lightbox, compact actions, and local caching.
 - Clickable metadata chips for navigation and filtering.
 - VNDB status writeback when a token is configured.
+- Character, staff, and producer detail pages also support drag-reorderable sections.
 
 ### Editions and shelf
 
@@ -224,6 +226,7 @@ Proxy passwords are never logged or echoed by the settings API.
 | `VN_ADMIN_TOKEN` | unset | Admin bearer token (alternative to localhost-only auth) |
 | `ALLOW_TRUSTED_PROXY` | unset | Enable trusted proxy mode for reverse-proxy setups |
 | `TRUSTED_PROXY_SECRET` | unset | Secret shared with the trusted proxy |
+| `VNCOLL_DISABLE_ACTIVITY` | unset | Set to `true` to disable the global `user_activity` audit log |
 
 ---
 

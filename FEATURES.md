@@ -587,6 +587,8 @@ drift over time.
 ### Reading goals ✅
 "Finish N VNs in 2026" — set a yearly target, see a progress ring on
 `/stats` with projected end date based on your speed multiplier.
+Backed by `GET/POST /api/reading-goal` (year → target) and the
+`reading_goal` table (year PK, target INT).
 
 ---
 
@@ -702,6 +704,12 @@ group across all three locales.
 ### Localisation ✅
 FR / EN / JA. Switch via the language pill in the top nav.
 
+### `VNCOLL_DISABLE_ACTIVITY` ✅
+Set `VNCOLL_DISABLE_ACTIVITY=true` in `.env.local` to disable writing rows to
+the global `user_activity` audit table. Useful for embedded / read-only
+deployments where audit persistence is unwanted. The `vn_activity` per-VN
+reading-log is unaffected.
+
 ---
 
 ## AliceSoft Kobe stock browser
@@ -799,7 +807,15 @@ only clears `source = 'auto'` rows.
 (items whose matched VN is in the local collection with `status='planning'`).
 
 DB: `listKobeStock()` LEFT JOINs the `collection` table to populate the
-`in_wishlist` flag inline.
+`in_wishlist` flag inline, and LEFT JOINs `vn` for `image_url`,
+`local_image`, and `image_sexual`.
+
+### VN cover thumbnails ✅
+Each matched row renders a small `SafeImage` thumbnail (40 × 56 px) sourced
+from the joined `vn` table. `SafeImage` handles the full content-control
+pipeline: `hideImages` shows the "eye-off" placeholder; `blurR18` blurs
+covers above the NSFW threshold with a click-to-reveal overlay. No images
+are fetched or displayed for unmatched items.
 
 ---
 
@@ -1489,6 +1505,21 @@ partial patches so the per-section menu and drag-reorder never
 clobber each other. CustomEvent: `SERIES_DETAIL_LAYOUT_EVENT`.
 Test: `tests/series-detail-layout.test.ts`.
 
+### Character detail layout customisation ✅
+`/character/[id]` follows the same drag-reorderable section pattern via
+`src/lib/character-detail-layout.ts`. Persisted as
+`character_detail_section_layout_v1` in `app_setting`.
+
+### Staff detail layout customisation ✅
+`/staff/[id]` follows the same drag-reorderable section pattern via
+`src/lib/staff-detail-layout.ts`. Persisted as
+`staff_detail_section_layout_v1` in `app_setting`.
+
+### Producer detail layout customisation ✅
+`/producer/[id]` follows the same drag-reorderable section pattern via
+`src/lib/producer-detail-layout.ts`. Persisted as
+`producer_detail_section_layout_v1` in `app_setting`.
+
 ### Shelf read-only display knobs ✅
 `<ShelfReadOnlyControls>` exposes a discreet slider trigger that
 opens a popover with four controls — cell size (60–280 px),
@@ -1611,6 +1642,9 @@ filled.
 | `vn_tag_index` | R5-138 derived index from `vn.tags` JSON | (vn_id, tag_id, spoiler, category) — narrows the `?tag=` library filter to a flat lookup |
 | `vn_developer_index` | R5-138 derived index from `vn.developers` JSON | (vn_id, producer_id) — narrows the `?producer=` library filter |
 | `vn_publisher_index` | R5-138 derived index from `vn.publishers` JSON | (vn_id, producer_id) — narrows the `?publisher=` library filter |
+| `vn_language_index` | Derived index from `vn.languages` JSON | (vn_id, language_code) — narrows the `?language=` library filter |
+| `vn_platform_index` | Derived index from `vn.platforms` JSON | (vn_id, platform_code) — narrows the `?platform=` library filter |
+| `collection_place_index` | Flattened `physical_location` JSON for filter optimisation | (vn_id, place_value) — narrows the `?place=` library filter |
 | `release_meta_cache` | Per-release metadata harvested from `POST /release` (R5-132/133) | release_id PK, vn_id, title, alttitle, platforms, languages, released, minage, patch, freeware, uncensored, official, has_ero, voiced, extlinks JSON, producers JSON, resolution, engine, fetched_at — feeds the shelf-edition popovers + the owned-editions surface |
 | `user_activity` | App-wide audit trail (refresh / import / mutation events) | id, occurred_at, kind, entity, entity_id, label, payload JSON, actor — distinct from `vn_activity` which only stores per-VN reading-log events; the `/activity` page reads this table |
 | `app_setting_audit` | Append-only audit log | id, key, prior_preview, next_preview, changed_at — last 4 chars only |
