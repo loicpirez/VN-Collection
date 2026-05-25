@@ -8563,6 +8563,38 @@ export function listKobeUnmatched(limit: number, retryNone = false): KobeStockRo
     .all(limit) as KobeStockRow[];
 }
 
+/**
+ * Items with a known EGS match but no VNDB match yet (or a previously-failed
+ * VNDB title search). EGS entries sometimes carry a `vndb` column populated
+ * by EGS curators — the EGS→VNDB matcher walks these rows and copies that
+ * id over when it's a valid VN id.
+ */
+export function listKobeWithEgsNoVndb(limit: number): KobeStockRow[] {
+  return db
+    .prepare(
+      `SELECT * FROM alicesoft_kobe_stock
+       WHERE vn_id IS NULL
+         AND egs_id IS NOT NULL
+       ORDER BY code
+       LIMIT ?`,
+    )
+    .all(limit) as KobeStockRow[];
+}
+
+/**
+ * Count of kobe items where an EGS match exists but VNDB is still missing.
+ * Used to drive the EGS→VNDB matcher's progress bar.
+ */
+export function countKobeWithEgsNoVndb(): number {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM alicesoft_kobe_stock
+       WHERE vn_id IS NULL AND egs_id IS NOT NULL`,
+    )
+    .get() as { n: number };
+  return row.n ?? 0;
+}
+
 export function setKobeVnLink(
   code: string,
   vnId: string | null,
@@ -8673,18 +8705,29 @@ export function listKobeItemsForEgsResolve(
 
 /**
  * Counts kobe items needing each download step.
- * vndb_pending: items with vn_id not yet in local vn table.
- * egs_pending:  items with vn_id set but no egs_id.
+ * vndb_pending:        items with vn_id not yet in local vn table.
+ * egs_pending:         items with vn_id set but no egs_id.
+ * egs_to_vndb_pending: items with egs_id set but no vn_id — candidates for
+ *                      EGS→VNDB resolution via the EGS gamelist `vndb` column.
  */
-export function countKobeDownloadPending(): { vndb_pending: number; egs_pending: number } {
+export function countKobeDownloadPending(): {
+  vndb_pending: number;
+  egs_pending: number;
+  egs_to_vndb_pending: number;
+} {
   const row = db
     .prepare(
       `SELECT
          SUM(CASE WHEN k.vn_id IS NOT NULL AND v.id IS NULL THEN 1 ELSE 0 END) AS vndb_pending,
-         SUM(CASE WHEN k.vn_id IS NOT NULL AND k.egs_id IS NULL THEN 1 ELSE 0 END) AS egs_pending
+         SUM(CASE WHEN k.vn_id IS NOT NULL AND k.egs_id IS NULL THEN 1 ELSE 0 END) AS egs_pending,
+         SUM(CASE WHEN k.vn_id IS NULL AND k.egs_id IS NOT NULL THEN 1 ELSE 0 END) AS egs_to_vndb_pending
        FROM alicesoft_kobe_stock k
        LEFT JOIN vn v ON v.id = k.vn_id`,
     )
-    .get() as { vndb_pending: number; egs_pending: number };
-  return { vndb_pending: row.vndb_pending ?? 0, egs_pending: row.egs_pending ?? 0 };
+    .get() as { vndb_pending: number; egs_pending: number; egs_to_vndb_pending: number };
+  return {
+    vndb_pending: row.vndb_pending ?? 0,
+    egs_pending: row.egs_pending ?? 0,
+    egs_to_vndb_pending: row.egs_to_vndb_pending ?? 0,
+  };
 }

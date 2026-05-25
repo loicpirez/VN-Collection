@@ -1,10 +1,13 @@
 import 'server-only';
 import { searchVn } from './vndb';
-import { searchEgsByName } from './erogamescape';
+import { fetchEgsGame, searchEgsByName } from './erogamescape';
 import { providerFetch } from './proxy-fetch';
+import { isVndbVnId } from './vn-id-shape';
 import {
   countKobeStock,
+  countKobeWithEgsNoVndb,
   listKobeUnmatched,
+  listKobeWithEgsNoVndb,
   resetKobeAutoMatches as dbResetKobeAutoMatches,
   setKobeEgsLink,
   setKobeVnLink,
@@ -179,5 +182,56 @@ export async function matchNextKobeItems(
   return {
     processed: items.length,
     remaining: retryNone ? stats.unmatched + stats.none_found : stats.unmatched,
+  };
+}
+
+/**
+ * Best-effort EGS → VNDB resolution for kobe items that already have an EGS
+ * match but still lack a VNDB id. EGS exposes a per-game `vndb` column
+ * (curated by users), so when title search via VNDB couldn't find a match
+ * we can sometimes recover one for free by reading the EGS row.
+ *
+ * For each item:
+ *  - Fetch the EGS game (24h cached by `fetchEgsGame`, so repeated runs
+ *    are cheap once the entry has been hit once).
+ *  - If `raw.vndb` is a syntactically valid VN id, set `vn_id` + source 'auto'.
+ *  - Otherwise mark `vn_match_source = 'none'` so the item drops out of the
+ *    batch and the loop terminates. The user can still recover it via the
+ *    existing "retry none" path (which re-runs the title search) or by
+ *    linking manually.
+ *
+ * Items where EGS itself can't be fetched (network failure, throttled) are
+ * left untouched so the next click can retry them.
+ *
+ * @param batchSize  Number of items to process (clamped 1–100)
+ */
+export async function matchVndbFromEgsForKobe(
+  batchSize: number,
+): Promise<{ processed: number; matched: number; remaining: number }> {
+  const safe = Math.min(100, Math.max(1, Math.floor(batchSize)));
+  const items = listKobeWithEgsNoVndb(safe);
+  let matched = 0;
+  for (const item of items) {
+    if (item.egs_id == null) continue;
+    try {
+      const game = await fetchEgsGame(item.egs_id);
+      const vndbRaw = game?.raw?.vndb?.trim() ?? '';
+      if (game && isVndbVnId(vndbRaw)) {
+        setKobeVnLink(item.code, vndbRaw, 'auto', null, item.search_title ?? null);
+        matched++;
+      } else {
+        // EGS row exists but has no valid VNDB id. Record the negative so
+        // this item won't show up in subsequent batches.
+        setKobeVnLink(item.code, null, 'none', null, item.search_title ?? null);
+      }
+    } catch {
+      // EGS unreachable for this id — leave the item untouched so the
+      // user can re-run the batch later.
+    }
+  }
+  return {
+    processed: items.length,
+    matched,
+    remaining: countKobeWithEgsNoVndb(),
   };
 }
