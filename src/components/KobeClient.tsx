@@ -335,6 +335,10 @@ export function KobeClient() {
   async function downloadStock() {
     const r = await fetch('/api/alice-kobe/fetch', { method: 'POST' });
     if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+    const d = (await r.json()) as { count: number; added: number; updated: number; removed: number };
+    if (d.removed > 0) {
+      toast.success(t.kobe.kobeStockRemoved.replace('{n}', String(d.removed)));
+    }
   }
 
   async function runLoop(

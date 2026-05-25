@@ -1147,6 +1147,7 @@ export const dictionaries = {
       kobeResolvingEgs: 'Résolution EGS {done}/{total}…',
       kobeDownloadAll: 'Tout télécharger',
       kobeDownloadAllHint: 'Stock → VNDB match → Données VNDB → Résolution EGS',
+      kobeStockRemoved: '{n} article(s) retiré(s) du stock.',
     },
     markdown: {
       edit: 'Édition',
@@ -3882,6 +3883,7 @@ export const dictionaries = {
       kobeResolvingEgs: 'Resolving EGS {done}/{total}…',
       kobeDownloadAll: 'Download all',
       kobeDownloadAllHint: 'Stock → VNDB match → VNDB data → EGS resolve',
+      kobeStockRemoved: '{n} item(s) removed from stock.',
     },
     markdown: {
       edit: 'Edit',
@@ -6614,6 +6616,7 @@ export const dictionaries = {
       kobeResolvingEgs: 'EGS 解決中 {done}/{total}…',
       kobeDownloadAll: 'すべてダウンロード',
       kobeDownloadAllHint: 'Stock → VNDB マッチ → VNDB データ → EGS 解決',
+      kobeStockRemoved: '{n} 件が在庫から削除されました。',
     },
     markdown: {
       edit: '編集',

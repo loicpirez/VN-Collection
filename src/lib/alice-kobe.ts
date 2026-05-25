@@ -115,11 +115,17 @@ export async function fetchAliceKobeHtml(): Promise<string> {
  * Download the latest stock from Alice Kobe and persist it to the DB.
  * Triggered only by the Download button — never called automatically.
  */
-export async function refreshKobeStock(): Promise<{ count: number; fetched_at: number }> {
+export async function refreshKobeStock(): Promise<{
+  count: number;
+  added: number;
+  updated: number;
+  removed: number;
+  fetched_at: number;
+}> {
   const html = await fetchAliceKobeHtml();
   const rows = parseAliceKobeHtml(html);
-  upsertKobeStock(rows);
-  return { count: rows.length, fetched_at: Date.now() };
+  const { added, updated, removed } = upsertKobeStock(rows);
+  return { count: rows.length, added, updated, removed, fetched_at: Date.now() };
 }
 
 /**

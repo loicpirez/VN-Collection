@@ -8459,9 +8459,9 @@ export interface KobeStockRow {
 
 export function upsertKobeStock(
   rows: Pick<KobeStockRow, 'code' | 'title' | 'jan' | 'release_date' | 'list_price' | 'sale_price'>[],
-): void {
+): { added: number; updated: number; removed: number } {
   const now = Date.now();
-  const stmt = db.prepare(`
+  const upsertStmt = db.prepare(`
     INSERT INTO alice_kobe_stock (code, title, jan, release_date, list_price, sale_price, fetched_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(code) DO UPDATE SET
@@ -8470,14 +8470,39 @@ export function upsertKobeStock(
       release_date = excluded.release_date,
       list_price   = excluded.list_price,
       sale_price   = excluded.sale_price,
-      fetched_at   = excluded.fetched_at
+      fetched_at   = excluded.fetched_at,
+      updated_at   = excluded.updated_at
   `);
+
+  let added = 0;
+  let updated = 0;
+  let removed = 0;
+
   const txn = db.transaction((items: typeof rows) => {
+    const incomingCodes = new Set(items.map((r) => r.code));
+
+    const existingCodes = new Set(
+      (db.prepare(`SELECT code FROM alice_kobe_stock`).all() as { code: string }[]).map((r) => r.code),
+    );
+
     for (const r of items) {
-      stmt.run(r.code, r.title, r.jan ?? null, r.release_date ?? null, r.list_price ?? null, r.sale_price ?? null, now, now);
+      const isNew = !existingCodes.has(r.code);
+      upsertStmt.run(
+        r.code, r.title, r.jan ?? null, r.release_date ?? null,
+        r.list_price ?? null, r.sale_price ?? null, now, now,
+      );
+      if (isNew) added++; else updated++;
+    }
+
+    const toDelete = [...existingCodes].filter((c) => !incomingCodes.has(c));
+    if (toDelete.length > 0) {
+      const placeholders = toDelete.map(() => '?').join(',');
+      removed = db.prepare(`DELETE FROM alice_kobe_stock WHERE code IN (${placeholders})`).run(...toDelete).changes;
     }
   });
+
   txn(rows);
+  return { added, updated, removed };
 }
 
 export function listKobeStock(): (KobeStockRow & { in_wishlist: number })[] {
