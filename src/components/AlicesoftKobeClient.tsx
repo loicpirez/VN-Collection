@@ -657,72 +657,63 @@ export function AlicesoftKobeClient() {
       </div>
 
       {/* Filter tabs + producer select + search */}
-      <div className="mb-4 space-y-2">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-1 flex-wrap gap-1 border-b border-border">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setFilter(tab.id)}
-                className={`flex items-center gap-1.5 rounded-t px-3 py-1.5 text-sm transition-colors ${
-                  filter === tab.id
-                    ? 'border-b-2 border-accent font-medium text-accent'
-                    : 'text-muted hover:text-white'
-                }`}
-              >
-                {tab.id === 'wishlist' && <BookHeart className="h-3 w-3" aria-hidden />}
-                {tab.label}
-                <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}>
-                  {tab.count}
-                </span>
-              </button>
-            ))}
-          </div>
-          <div className="relative min-w-[200px]">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t.kobe.kobeSearchPlaceholder}
-              aria-label={t.kobe.kobeSearchPlaceholder}
-              className="input w-full pl-8 text-sm"
-            />
-          </div>
-        </div>
-
-        {/* Producer filter row */}
-        {producers.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Building2 className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        {/* Tab bar — tabs + producer dropdown share the same border-b line */}
+        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-1 border-b border-border">
+          {tabs.map((tab) => (
             <button
+              key={tab.id}
               type="button"
-              onClick={() => setProducerFilter('')}
-              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                producerFilter === ''
-                  ? 'border-accent bg-accent/10 font-medium text-accent'
-                  : 'border-border text-muted hover:border-accent hover:text-white'
+              onClick={() => setFilter(tab.id)}
+              className={`flex items-center gap-1.5 rounded-t px-3 py-1.5 text-sm transition-colors ${
+                filter === tab.id
+                  ? 'border-b-2 border-accent font-medium text-accent'
+                  : 'text-muted hover:text-white'
               }`}
             >
-              {t.kobe.kobeFilterProducerAll}
+              {tab.id === 'wishlist' && <BookHeart className="h-3 w-3" aria-hidden />}
+              {tab.label}
+              <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}>
+                {tab.count}
+              </span>
             </button>
-            {producers.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setProducerFilter(producerFilter === p.id ? '' : p.id)}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                  producerFilter === p.id
-                    ? 'border-accent bg-accent/10 font-medium text-accent'
-                    : 'border-border text-muted hover:border-accent hover:text-white'
-                }`}
+          ))}
+
+          {/* Producer dropdown — sits on the same baseline as the tab buttons */}
+          {producers.length > 0 && (
+            <label className={`relative mb-0.5 inline-flex cursor-pointer items-center gap-1 rounded-t px-3 py-1.5 text-sm transition-colors ${
+              producerFilter !== ''
+                ? 'border-b-2 border-accent font-medium text-accent'
+                : 'text-muted hover:text-white'
+            }`}>
+              <Building2 className="h-3 w-3 shrink-0" aria-hidden />
+              <select
+                value={producerFilter}
+                onChange={(e) => setProducerFilter(e.target.value)}
+                aria-label={t.kobe.kobeFilterProducer}
+                className="appearance-none bg-transparent text-sm outline-none"
               >
-                {p.name}
-              </button>
-            ))}
-          </div>
-        )}
+                <option value="">{t.kobe.kobeFilterProducerAll}</option>
+                {producers.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+
+        {/* Search */}
+        <div className="relative min-w-[200px]">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t.kobe.kobeSearchPlaceholder}
+            aria-label={t.kobe.kobeSearchPlaceholder}
+            className="input w-full pl-8 text-sm"
+          />
+        </div>
       </div>
 
       {/* Item list */}
