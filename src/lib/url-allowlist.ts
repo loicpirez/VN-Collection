@@ -43,6 +43,7 @@ export const ALLOWED_HTTP_HOSTS: ReadonlySet<string> = new Set([
   'media.steampowered.com',
   'cdn.akamai.steamstatic.com',
   'lemmasoft.renai.us',
+  'www.alice-kobe.com',
 ]);
 
 /**
