@@ -244,7 +244,8 @@ export function DownloadStatusBar() {
 
   const live = data?.jobs.filter((j) => j.finished_at == null) ?? [];
   const visibleFinished = (data?.jobs.filter((j) => j.finished_at != null && !dismissedFinished.has(j.id)) ?? []).slice(0, 6);
-  const totalErrors = (data?.jobs ?? []).reduce((acc, j) => acc + j.errors.length, 0);
+  const visibleJobs = [...live, ...visibleFinished];
+  const totalErrors = visibleJobs.reduce((acc, j) => acc + j.errors.length, 0);
   const activeReq = data?.throttle.active ?? 0;
   const queuedReq = data?.throttle.queued ?? 0;
   // Server reports how long the most recent Retry-After still has to run.
@@ -271,6 +272,10 @@ export function DownloadStatusBar() {
 
   const labelKind = (k: Job['kind']): string =>
     k in t.downloadStatus.kinds ? t.downloadStatus.kinds[k as keyof typeof t.downloadStatus.kinds] : k;
+  const currentItemText = (j: Job): string => {
+    if (!j.current_item) return j.label;
+    return j.current_item_name ? `${j.current_item_name} (${j.current_item})` : j.current_item;
+  };
 
   return (
     // Anchored bottom-right above the QuoteFooter (which lives at bottom-0
@@ -310,7 +315,7 @@ export function DownloadStatusBar() {
         aria-label={t.downloadStatus.title}
         title={
           live.length === 1 && live[0].current_item
-            ? `${labelKind(live[0].kind)} · ${live[0].current_item}`
+            ? `${labelKind(live[0].kind)} · ${currentItemText(live[0])}`
             : t.downloadStatus.title
         }
       >
@@ -338,7 +343,7 @@ export function DownloadStatusBar() {
             retryingNow
               ? t.downloadStatus.waitingShort.replace('{s}', String(Math.ceil(localRetryMs / 1000)))
               : live.length === 1
-                ? (() => { const j = live[0]; return `${labelKind(j.kind)} · ${j.current_item || j.label}`; })()
+                ? (() => { const j = live[0]; return `${labelKind(j.kind)} · ${currentItemText(j)}`; })()
                 : live.length > 1
                   ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
                   : totalErrors > 0
@@ -350,11 +355,11 @@ export function DownloadStatusBar() {
             ? t.downloadStatus.waitingShort.replace('{s}', String(Math.ceil(localRetryMs / 1000)))
             : live.length === 1
               ? (() => {
-                  const j = live[0];
-                  const head = labelKind(j.kind);
-                  const tail = j.current_item || j.label;
-                  return `${head} · ${tail}`;
-                })()
+	                  const j = live[0];
+	                  const head = labelKind(j.kind);
+	                  const tail = currentItemText(j);
+	                  return `${head} · ${tail}`;
+	                })()
               : live.length > 1
                 ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
                 : totalErrors > 0
@@ -385,23 +390,38 @@ export function DownloadStatusBar() {
             <span className="text-[11px] font-bold uppercase tracking-widest text-muted">
               {t.downloadStatus.title}
             </span>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="tap-target-tight rounded text-muted hover:text-white"
-              aria-label={t.common.close}
-            >
-              <X className="h-3 w-3" aria-hidden />
-            </button>
-          </header>
-          <p className="mb-3 text-[10px] text-muted">
-            {t.downloadStatus.throttleStats.replace('{active}', String(activeReq)).replace('{queued}', String(queuedReq))}
-          </p>
-          {[...live, ...visibleFinished].length === 0 && (
-            <p className="text-xs text-muted">{t.downloadStatus.empty}</p>
-          )}
-          <ul className="space-y-2">
-            {[...live, ...visibleFinished].map((j) => {
+	            <button
+	              type="button"
+	              onClick={() => setOpen(false)}
+	              className="tap-target-tight rounded text-muted hover:text-white"
+	              aria-label={t.common.close}
+	            >
+	              <X className="h-3 w-3" aria-hidden />
+	            </button>
+	          </header>
+	          {visibleFinished.length > 0 && (
+	            <button
+	              type="button"
+	              onClick={() =>
+	                setDismissedFinished((prev) => {
+	                  const next = new Set(prev);
+	                  for (const j of visibleFinished) next.add(j.id);
+	                  return next;
+	                })
+	              }
+	              className="mb-2 text-[10px] font-semibold text-muted underline-offset-2 hover:text-white hover:underline"
+	            >
+	              {t.downloadStatus.dismissAll}
+	            </button>
+	          )}
+	          <p className="mb-3 text-[10px] text-muted">
+	            {t.downloadStatus.throttleStats.replace('{active}', String(activeReq)).replace('{queued}', String(queuedReq))}
+	          </p>
+	          {visibleJobs.length === 0 && (
+	            <p className="text-xs text-muted">{t.downloadStatus.empty}</p>
+	          )}
+	          <ul className="space-y-2">
+	            {visibleJobs.map((j) => {
               const pct = j.total === 0 ? 0 : Math.round((j.done / j.total) * 100);
               const finished = j.finished_at != null;
               const stateIcon = finished
