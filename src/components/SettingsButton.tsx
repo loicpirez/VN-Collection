@@ -148,6 +148,15 @@ const SORT_KEYS: SortKey[] = [
 type GroupKey = 'none' | 'status' | 'producer' | 'publisher' | 'tag' | 'series' | 'aspect';
 const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series', 'aspect'];
 
+interface ProxyDisplayConfig {
+  enabled: boolean;
+  protocol: string;
+  host: string;
+  port: number | null;
+  username: string;
+  hasPassword: boolean;
+}
+
 interface ServerSettings {
   vndb_token: { hasToken: boolean; preview: string | null; envFallback: boolean };
   random_quote_source: 'all' | 'mine';
@@ -167,6 +176,9 @@ interface ServerSettings {
   steam_api_key?: { hasKey: boolean; preview: string | null };
   steam_id?: string;
   egs_username?: string;
+  vndb_proxy_config?: ProxyDisplayConfig;
+  vndbmirror_proxy_config?: ProxyDisplayConfig;
+  egs_proxy_config?: ProxyDisplayConfig;
 }
 
 const SETTINGS_TABS = [
@@ -180,6 +192,144 @@ const SETTINGS_TABS = [
   'shortcuts',
 ] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+interface ProxySettingsSectionProps {
+  t: ReturnType<typeof useT>;
+  providerKey: string;
+  label: string;
+  config: ProxyDisplayConfig | undefined;
+  onSave: (patch: Record<string, unknown>) => void;
+}
+
+function ProxySettingsSection({ t, label, config, onSave }: ProxySettingsSectionProps) {
+  const [showPw, setShowPw] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; ms?: number; error?: string } | null>(null);
+  const [testing, startTesting] = useTransition();
+  const providerIdMap: Record<string, string> = {
+    [t.settings.proxyProviderEgs]: 'egs',
+    [t.settings.proxyProviderVndb]: 'vndb',
+    [t.settings.proxyProviderVndbmirror]: 'vndbmirror',
+  };
+  const providerId = providerIdMap[label] ?? 'egs';
+
+  function handleTest() {
+    startTesting(async () => {
+      setTestResult(null);
+      try {
+        const res = await fetch('/api/proxy/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: providerId }),
+        });
+        const data = (await res.json()) as { ok: boolean; latencyMs?: number; error?: string };
+        setTestResult(data.ok
+          ? { ok: true, ms: data.latencyMs }
+          : { ok: false, error: data.error ?? 'unknown error' });
+      } catch (e) {
+        setTestResult({ ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+    });
+  }
+
+  return (
+    <section className="border-t border-border pt-5">
+      <h3 className="mb-1 text-sm font-bold">
+        {t.settings.proxyTitle} · {label}
+      </h3>
+      <p className="mb-3 text-[11px] text-muted">{t.settings.proxyDesc}</p>
+      <div className="flex flex-col gap-3">
+        <label className="flex items-center gap-2 text-[12px]">
+          <input
+            type="checkbox"
+            checked={config?.enabled ?? false}
+            onChange={(e) => onSave({ enabled: e.target.checked })}
+            className="accent-accent"
+          />
+          {t.settings.proxyEnabled}
+        </label>
+        <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-[11px]">
+          <span className="font-semibold text-muted">{t.settings.proxyProtocol}</span>
+          <select
+            value={config?.protocol ?? 'socks5h'}
+            onChange={(e) => onSave({ protocol: e.target.value })}
+            className="input text-[11px]"
+          >
+            {(['socks5h', 'socks5', 'http', 'https'] as const).map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <span className="font-semibold text-muted">{t.settings.proxyHost}</span>
+          <input
+            type="text"
+            defaultValue={config?.host ?? ''}
+            placeholder="proxy.example.com"
+            onBlur={(e) => onSave({ host: e.target.value.trim() || null })}
+            className="input text-[11px]"
+          />
+          <span className="font-semibold text-muted">{t.settings.proxyPort}</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={65535}
+            defaultValue={config?.port ?? ''}
+            placeholder="1080"
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              onSave({ port: v ? Number(v) : null });
+            }}
+            className="input text-[11px]"
+          />
+          <span className="font-semibold text-muted">{t.settings.proxyUsername}</span>
+          <input
+            type="text"
+            autoComplete="username"
+            defaultValue={config?.username ?? ''}
+            onBlur={(e) => onSave({ username: e.target.value.trim() || null })}
+            className="input text-[11px]"
+          />
+          <span className="font-semibold text-muted">{t.settings.proxyPassword}</span>
+          <div className="flex items-center gap-1">
+            <input
+              type={showPw ? 'text' : 'password'}
+              autoComplete="current-password"
+              placeholder={config?.hasPassword ? t.settings.proxyPasswordStored : t.settings.proxyPasswordPlaceholder}
+              onBlur={(e) => {
+                if (e.target.value) onSave({ password: e.target.value });
+              }}
+              className="input flex-1 text-[11px]"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              className="rounded p-1 text-muted hover:text-fg"
+              aria-label={showPw ? 'Hide password' : 'Show password'}
+            >
+              {showPw ? <EyeOff className="h-3.5 w-3.5" aria-hidden /> : <Eye className="h-3.5 w-3.5" aria-hidden />}
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={testing || !config?.enabled}
+            onClick={handleTest}
+            className="rounded-md border border-border px-2 py-1.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {testing ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.settings.proxyTestButton}
+          </button>
+          {testResult && (
+            <span className={`text-[10px] ${testResult.ok ? 'text-status-completed' : 'text-status-dropped'}`}>
+              {testResult.ok
+                ? t.settings.proxyTestOk.replace('{ms}', String(testResult.ms ?? 0))
+                : t.settings.proxyTestFail.replace('{error}', testResult.error ?? '')}
+            </span>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export function SettingsButton() {
   const t = useT();
@@ -256,6 +406,9 @@ export function SettingsButton() {
       // the route's surface so future EGS-username UI can call save
       // without a fresh widen.
       egs_username: string | null;
+      vndb_proxy_config: Record<string, unknown>;
+      vndbmirror_proxy_config: Record<string, unknown>;
+      egs_proxy_config: Record<string, unknown>;
     }>,
   ) {
     try {
@@ -964,6 +1117,28 @@ export function SettingsButton() {
                       <span className="text-[10px] text-muted">{t.settings.egsUsernameHint}</span>
                     </label>
                   </section>
+
+                  <ProxySettingsSection
+                    t={t}
+                    providerKey="egs_proxy_config"
+                    label={t.settings.proxyProviderEgs}
+                    config={server?.egs_proxy_config}
+                    onSave={(patch) => saveServer({ egs_proxy_config: patch })}
+                  />
+                  <ProxySettingsSection
+                    t={t}
+                    providerKey="vndb_proxy_config"
+                    label={t.settings.proxyProviderVndb}
+                    config={server?.vndb_proxy_config}
+                    onSave={(patch) => saveServer({ vndb_proxy_config: patch })}
+                  />
+                  <ProxySettingsSection
+                    t={t}
+                    providerKey="vndbmirror_proxy_config"
+                    label={t.settings.proxyProviderVndbmirror}
+                    config={server?.vndbmirror_proxy_config}
+                    onSave={(patch) => saveServer({ vndbmirror_proxy_config: patch })}
+                  />
 
                   <section className="border-t border-border pt-5">
                     <h3 className="mb-1 text-sm font-bold">{t.settings.randomQuoteTitle}</h3>
