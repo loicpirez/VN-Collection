@@ -85,6 +85,8 @@ const VN_DETAIL_FIELDS = [
 const VN_SEARCH_FIELDS = [
   'title',
   'alttitle',
+  'titles{lang,title,latin,official,main}',
+  'aliases',
   'released',
   'image.url',
   'image.thumbnail',

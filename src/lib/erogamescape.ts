@@ -248,6 +248,10 @@ const CELL_RE = /<(th|td)\b[^>]*>([\s\S]*?)<\/(?:th|td)>/gi;
  */
 function decodeEntities(s: string): string {
   return s
+    .replace(/&times;/g, '×')
+    .replace(/&rarr;/g, '→')
+    .replace(/&hellip;/g, '…')
+    .replace(/&nbsp;/g, ' ')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')

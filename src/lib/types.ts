@@ -188,6 +188,8 @@ export interface VndbSearchHit {
   id: string;
   title: string;
   alttitle: string | null;
+  aliases?: string[];
+  titles?: { lang: string; title: string; latin: string | null; official: boolean; main: boolean }[];
   released: string | null;
   rating: number | null;
   votecount: number | null;

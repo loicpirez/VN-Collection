@@ -24,14 +24,15 @@ const ALICE_KOBE_URL = 'https://www.alice-kobe.com/html/page4.html';
 const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
 const CELL_RE = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
 const TAG_RE = /<[^>]+>/g;
-const MAX_KOBE_QUERY_VARIANTS = 32;
-const MAX_KOBE_VNDB_AUTO_QUERIES = 10;
-const MAX_KOBE_EGS_AUTO_QUERIES = 5;
+const MAX_KOBE_QUERY_VARIANTS = 64;
+const MAX_KOBE_VNDB_AUTO_QUERIES = 24;
+const MAX_KOBE_EGS_AUTO_QUERIES = 16;
 
 export interface KobeCandidate {
   id: string;
   title: string;
   alttitle: string | null;
+  aliases?: string[];
   released: string | null;
 }
 
@@ -55,7 +56,7 @@ function tidySpaces(value: string): string {
   return value
     .replace(/\s+/g, ' ')
     .replace(/\s+([!?,.:;])/g, '$1')
-    .replace(/([(~「『])\s+/g, '$1')
+    .replace(/([(「『])\s+/g, '$1')
     .replace(/\s+([)」』])/g, '$1')
     .trim();
 }
@@ -63,6 +64,10 @@ function tidySpaces(value: string): string {
 function normalizePunctuation(rawTitle: string): string {
   return rawTitle
     .normalize('NFKC')
+    .replace(/&times;/g, '×')
+    .replace(/&rarr;/g, '→')
+    .replace(/&hellip;/g, '…')
+    .replace(/&nbsp;/g, ' ')
     .replace(/[’‘]/g, "'")
     .replace(/[“”]/g, '"')
     .replace(/[〜～]/g, '~')
@@ -87,7 +92,7 @@ function stripKnownTrailingDescriptors(title: string): string {
     t = tidySpaces(t
       .replace(/(?:\s|^)(?:DVD-?ROM|CD-?ROM|DVD|Blu-?ray)\s*版?$/i, '')
       .replace(/(?:通常|限定|初回(?:限定(?:生産)?)?|完全(?:限定|生産)?限定?|豪華(?:限定)?|特装|特別(?:限定)?|普及|廉価|復刻|再販|再発売|アウトレット)\s*版$/u, '')
-      .replace(/(?:初回限|初回生産限定|完全限定生産|完全生産限定|豪華限定|通常|限定|豪華|普及|廉価|復刻|再販|アウトレット)$/u, '')
+      .replace(/(?:初回限|初回生産限定|完全限定生産|完全生産限定|豪華限定|初回|通常|限定|豪華|普及|廉価|復刻|再販|アウトレット)$/u, '')
       .replace(/(?:Standard|Full|Extended|Limited|Collector'?s)\s*Edition$/i, '')
       .replace(/(?:スタンダード|プレミアム|スペシャル|デラックス|ギャラクシー|クオリティ)\s*(?:エディション|版)?$/u, '')
       .replace(/(?:リマスター|エンハンスド|フルHD|HDサイズ|FHD|HD)\s*(?:エディション|版)?$/iu, '')
@@ -142,6 +147,33 @@ function withoutDecorativeSubtitle(value: string): string[] {
   return out.filter((v) => v && v !== t);
 }
 
+function subtitleOnlyVariants(value: string): string[] {
+  const out: string[] = [];
+  const t = tidySpaces(value);
+  const patterns = [
+    /[-－]\s*([^-－~～〜]{4,})\s*[-－]?$/u,
+    /[~～〜]\s*([^~～〜]{4,})\s*[~～〜]?$/u,
+    /[（(]\s*([^)）]{4,})\s*[)）]$/u,
+  ];
+  for (const re of patterns) {
+    const m = re.exec(t);
+    if (m?.[1]) out.push(tidySpaces(m[1]));
+  }
+  return out.filter((v) => v && v !== t);
+}
+
+function tailSegmentVariants(value: string): string[] {
+  const t = tidySpaces(value);
+  const out: string[] = [];
+  const normalized = t.replace(/[+＋&＆／/、,，。・:：~～〜\-－()（）!！?？]/g, ' ');
+  const parts = normalized.split(/\s+/).map(tidySpaces).filter(Boolean);
+  const tailParts = parts.length >= 3 ? parts.slice(-2) : parts.slice(-1);
+  for (const part of tailParts) {
+    if (part.length >= 3 && part !== t) out.push(part);
+  }
+  return out;
+}
+
 function withoutFandiscMarker(value: string): string | null {
   const m = /^(.{2,}?)\s+(?:ミニ\s*)?(?:FD|ファンディスク|FANDISC|Fan\s*Disc)\b/i.exec(value);
   return m?.[1] ? tidySpaces(m[1]) : null;
@@ -160,6 +192,76 @@ function withoutCollectionPrefix(value: string): string[] {
     if (m?.[1]) out.push(tidySpaces(m[1]));
   }
   return out;
+}
+
+function romanNumeralTitleVariants(value: string): string[] {
+  const t = tidySpaces(value);
+  const numerals: Record<string, string> = {
+    '1': 'I',
+    '2': 'II',
+    '3': 'III',
+    '4': 'IV',
+    '5': 'V',
+  };
+  const out: string[] = [];
+  for (const [digit, roman] of Object.entries(numerals)) {
+    out.push(t.replace(new RegExp(`D\\.C\\.${digit}`, 'gi'), `D.C.${roman}`));
+    out.push(t.replace(new RegExp(`ダ・カーポ${digit}`, 'g'), `ダ・カーポ${roman}`));
+    out.push(t
+      .replace(new RegExp(`D\\.C\\.${digit}`, 'gi'), `D.C.${roman}`)
+      .replace(new RegExp(`ダ・カーポ${digit}`, 'g'), `ダ・カーポ${roman}`));
+  }
+  out.push(t.replace(/支配の教壇2/g, '支配の教壇II'));
+  return out.filter((v) => v && v !== t);
+}
+
+function knownTitleDialectVariants(value: string): string[] {
+  const t = tidySpaces(value);
+  const out: string[] = [];
+  const replacements: Array<[RegExp, string]> = [
+    [/イチャ2/g, 'イチャ×2'],
+    [/ドキ2/g, 'ドキドキ'],
+    [/キャロットヘようこそ/g, 'キャロットへようこそ'],
+    [/神聖昴燐/g, '神聖昂燐'],
+    [/悪堕ち/g, '悪堕'],
+    [/止まらない/g, 'とまらない'],
+    [/聞かせれた/g, '聞かされた'],
+    [/サクバス/g, 'サキュバス'],
+    [/Lagunalork/gi, 'Lagnalock'],
+  ];
+  for (const [from, to] of replacements) {
+    const next = tidySpaces(t.replace(from, to));
+    if (next !== t) out.push(next);
+  }
+
+  if (/花鐘カナデグラム/i.test(t)) {
+    const chapter = /花鐘カナデグラム\s*(?:chapter\.?)?\s*(\d+)\s*(.*)$/iu.exec(t.replace(/\s+/g, ' '));
+    if (chapter?.[1]) out.push(tidySpaces(`花鐘カナデ＊グラム Chapter:${chapter[1]} ${chapter[2] ?? ''}`));
+  }
+
+  if (/メイキングラヴァーズ|メイキングラバーズ/i.test(t)) {
+    out.push(tidySpaces(t.replace(/メイキングラヴァーズ|メイキングラバーズ/gi, 'Making Lovers')));
+    out.push(tidySpaces(t.replace(/メイキングラヴァーズ|メイキングラバーズ/gi, 'Making * Lovers')));
+  }
+
+  if (/Amenity'?s\s*Life\s*FD/i.test(insertCamelSpacing(t))) {
+    out.push(tidySpaces(insertCamelSpacing(t).replace(/\bFD\b/gi, 'MiniFanDisc')));
+  }
+
+  if (/White\s*Angel\s*Fan\s*Disc/i.test(insertCamelSpacing(t))) {
+    const tail = insertCamelSpacing(t).replace(/^.*?White\s*Angel\s*Fan\s*Disc/i, '');
+    if (tail.trim()) out.push(tidySpaces(tail));
+  }
+
+  if (/Piaキャロット/i.test(t) && /G\.P\./i.test(t)) {
+    out.push('PiaキャロットへようこそG.P.');
+    out.push('Pia Carrot G.P.');
+  }
+
+  if (/A\.G\.2\.D\.C\./i.test(t)) out.push(tidySpaces(t.replace(/A\.G\.2\.D\.C\./gi, 'A.G.II.D.C.')));
+  if (/LOWな妹/i.test(t)) out.push(tidySpaces(t.replace(/LOWな妹に.*$/i, 'LOWな妹')));
+
+  return out.filter((v) => v && v !== t);
 }
 
 function splitPackVariants(value: string): string[] {
@@ -285,10 +387,14 @@ export function buildKobeTitleSearchQueries(rawTitle: string): string[] {
     if (!value) continue;
     variants.push(...punctuationVariants(value));
     variants.push(...withoutDecorativeSubtitle(value));
+    variants.push(...subtitleOnlyVariants(value));
     variants.push(...withoutCollectionPrefix(value));
     variants.push(...splitPackVariants(value));
+    variants.push(...romanNumeralTitleVariants(value));
+    variants.push(...knownTitleDialectVariants(value));
     variants.push(stripKnownTrailingDescriptors(value));
     variants.push(...leadingSegmentVariants(value));
+    variants.push(...tailSegmentVariants(value));
     const baseFandiscTitle = withoutFandiscMarker(value);
     if (baseFandiscTitle) variants.push(baseFandiscTitle);
     variants.push(tidySpaces(value.replace(/\bFANDISC\b/gi, 'FD')));
@@ -323,19 +429,30 @@ function comparableTitle(value: string | null | undefined): string {
     .toLocaleLowerCase()
     .replace(/fandisc/g, 'fd')
     .replace(/fan\s*disc/g, 'fd')
+    .replace(/d\.?\s*c\.?\s*iii/g, 'dc3')
+    .replace(/d\.?\s*c\.?\s*ii/g, 'dc2')
+    .replace(/d\.?\s*c\.?\s*v/g, 'dc5')
+    .replace(/支配の教壇ii/g, '支配の教壇2')
     .replace(/vol\.\s*0*(\d+)/g, 'vol$1')
     .replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
+function candidateTextValues(candidate: KobeCandidate): string[] {
+  return [
+    candidate.title,
+    candidate.alttitle,
+    ...(candidate.aliases ?? []),
+  ].filter((value): value is string => Boolean(value));
+}
+
 function candidateScore(candidate: KobeCandidate, query: string, releaseDate: string | null, index: number): number {
-  const title = comparableTitle(candidate.title);
-  const alt = comparableTitle(candidate.alttitle);
+  const texts = candidateTextValues(candidate).map(comparableTitle).filter(Boolean);
   const q = comparableTitle(query);
   let score = Math.max(0, 20 - index);
 
   if (releaseDate && candidate.released === releaseDate) score += 100;
-  if (q && title && (title.includes(q) || q.includes(title))) score += 35;
-  if (q && alt && (alt.includes(q) || q.includes(alt))) score += 35;
+  if (q && texts.some((text) => text === q)) score += 55;
+  if (q && texts.some((text) => text.includes(q) || q.includes(text))) score += 35;
 
   const vol = /(?:vol|volume)\.?\s*0*(\d{1,2})\b/i.exec(query)?.[1];
   if (vol) {
@@ -363,10 +480,9 @@ function pickBestCandidate(candidates: KobeCandidate[], query: string, releaseDa
 }
 
 function hasCandidateTextMatch(candidate: KobeCandidate, query: string): boolean {
-  const title = comparableTitle(candidate.title);
-  const alt = comparableTitle(candidate.alttitle);
+  const texts = candidateTextValues(candidate).map(comparableTitle).filter(Boolean);
   const q = comparableTitle(query);
-  return Boolean(q && ((title && (title.includes(q) || q.includes(title))) || (alt && (alt.includes(q) || q.includes(alt)))));
+  return Boolean(q && texts.some((text) => text.includes(q) || q.includes(text)));
 }
 
 function isSafeAutoCandidate(
@@ -383,7 +499,10 @@ function isSafeAutoCandidate(
 
   // Short fallback queries are useful for titles like ぎゃるふろ, but unsafe for
   // accidental stems like すくぅ from すくぅ～るメイト２. Require date support.
-  if (q.length < 4) return exactRelease;
+  if (q.length < 4) {
+    const exactTitle = candidateTextValues(candidate).map(comparableTitle).some((text) => text === q);
+    return exactRelease || exactTitle;
+  }
 
   return exactRelease || score >= 45;
 }
@@ -428,9 +547,10 @@ function isSafeEgsCandidate(candidate: EgsCandidate | null, score: number, query
   // Older cached EGS candidate rows did not include furigana. If the row came
   // back from an EGS title/furigana search and the release date is exact, keep
   // it eligible instead of rejecting valid kana -> romanized-title matches.
+  const exactTitle = title === q || furigana === q;
   if (!textMatch && !(exactRelease && q.length >= 4)) return false;
-  if (q.length < 4) return Boolean(releaseDate && candidate.sellday === releaseDate);
-  return exactRelease || score >= 60;
+  if (q.length < 4) return exactRelease || exactTitle;
+  return exactRelease || exactTitle || score >= 60;
 }
 
 async function searchKobeEgsCandidate(item: KobeStockRow): Promise<{ game: EgsGame | null; query: string | null }> {
@@ -485,6 +605,10 @@ async function searchKobeVndbCandidates(item: KobeStockRow): Promise<{
       id: v.id,
       title: v.title,
       alttitle: v.alttitle,
+      aliases: [
+        ...(v.aliases ?? []),
+        ...((v.titles ?? []).flatMap((title) => [title.title, title.latin]).filter((title): title is string => Boolean(title))),
+      ],
       released: v.released,
     }));
     if (candidates.length === 0) continue;

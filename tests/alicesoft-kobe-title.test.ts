@@ -60,4 +60,24 @@ describe('Alice Kobe title cleanup', () => {
     expect(buildKobeTitleSearchQueries('(中古品) ２００５下半期ＬＩＬＩＴＨ　ＢＥＳＴ　ＳＥＬＥＣＴＩＯＮ'))
       .toContain('2005下半期LILITH BEST SELECTION');
   });
+
+  it('tries common VNDB/EGS title dialects for stubborn Kobe rows', () => {
+    expect(buildKobeTitleSearchQueries('(中古品) イチャ２スタディ由乃　通常版'))
+      .toContain('イチャ×2スタディ由乃');
+    expect(buildKobeTitleSearchQueries('(中古品) ドキ２しすたぁパラダイス２　初回版'))
+      .toContain('ドキドキしすたぁパラダイス2');
+    expect(buildKobeTitleSearchQueries('(中古品) Ｄ．Ｃ．２　～ダ・カーポ２～　Ｆａｌｌ　ｉｎ　Ｌｏｖｅ　初回'))
+      .toContain('D.C.II ~ダ・カーポII~ Fall in Love');
+    expect(buildKobeTitleSearchQueries('(中古品) Ａ．Ｇ．２．Ｄ．Ｃ．　～あるぴじ学園２～　初回版'))
+      .toContain('A.G.II.D.C. ~あるぴじ学園2~');
+  });
+
+  it('extracts subtitle and tail probes when the shop title has a typo or package prefix', () => {
+    expect(buildKobeTitleSearchQueries('(中古品) 悪堕ちラビリンス　－囚われ魔王と奈落の狂人'))
+      .toContain('悪堕ラビリンス -囚われ魔王と奈落の狂人');
+    expect(buildKobeTitleSearchQueries('(中古品) ＷｈｉｔｅＡｎｇｅｌＦａｎＤｉｓｃ　天使のこばこ'))
+      .toContain('天使のこばこ');
+    expect(buildKobeTitleSearchQueries('(中古品) 神聖昴燐エストランジェ　オナホール同梱版'))
+      .toContain('神聖昂燐エストランジェ');
+  });
 });
