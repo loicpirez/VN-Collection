@@ -1,5 +1,7 @@
 import 'server-only';
 import { isAllowedHttpTarget } from './url-allowlist';
+import type { ProviderId } from './proxy-config';
+import { providerFetch } from './proxy-fetch';
 
 /**
  * Global rate limiter + circuit breaker for every outbound request to
@@ -112,7 +114,7 @@ async function sleep(ms: number): Promise<void> {
  * Other callers are unaffected unless 3+ 429s pile up in a 60 s window,
  * in which case acquire() adds a soft 10 s pause.
  */
-export async function throttledFetch(url: string, init?: RequestInit): Promise<Response> {
+export async function throttledFetch(url: string, init?: RequestInit, provider: ProviderId = 'vndb'): Promise<Response> {
   // R5-121: SSRF allowlist on every outbound write/read through the
   // VNDB throttle. The `vndb-sync` write path (PATCH/DELETE
   // /ulist/<vnId>) and any other future caller that builds a URL
@@ -130,7 +132,7 @@ export async function throttledFetch(url: string, init?: RequestInit): Promise<R
     await acquire();
     let res: Response;
     try {
-      res = await fetch(url, init);
+      res = await providerFetch(url, init ?? {}, provider);
     } catch (err) {
       release();
       if (attempt > MAX_RETRY) throw err;
@@ -161,10 +163,11 @@ export async function throttledFetch(url: string, init?: RequestInit): Promise<R
  */
 export async function probeVndbHealthy(): Promise<boolean> {
   try {
-    const r = await fetch('https://api.vndb.org/kana/schema', {
-      method: 'GET',
-      headers: { 'User-Agent': 'vndb-collection/1.0' },
-    });
+    const r = await providerFetch(
+      'https://api.vndb.org/kana/schema',
+      { method: 'GET', headers: { 'User-Agent': 'vndb-collection/1.0' } },
+      'vndb',
+    );
     return r.status < 500 && r.status !== 429;
   } catch {
     return false;

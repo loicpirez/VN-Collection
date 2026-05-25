@@ -9,6 +9,7 @@ import {
   touchCacheRow,
   type CacheRow,
 } from './db';
+import type { ProviderId } from './proxy-config';
 import { throttledFetch } from './vndb-throttle';
 import { assertNoPrivateIpRebind, isAllowedHttpTarget } from './url-allowlist';
 
@@ -228,7 +229,8 @@ async function fetchOnce<T>(
   if (cached?.etag) headers.set('If-None-Match', cached.etag);
   if (cached?.last_modified) headers.set('If-Modified-Since', cached.last_modified);
 
-  const res = await throttledFetch(url, { ...init, headers, cache: 'no-store' });
+  const provider: ProviderId = url.startsWith(PRIMARY) ? 'vndb' : 'vndbmirror';
+  const res = await throttledFetch(url, { ...init, headers, cache: 'no-store' }, provider);
   const now = Date.now();
 
   if (res.status === 304 && cached) {

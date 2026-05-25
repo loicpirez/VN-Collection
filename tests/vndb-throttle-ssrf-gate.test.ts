@@ -37,8 +37,10 @@ describe('vndb-throttle — R5-121 SSRF gate', () => {
     expect(body).toMatch(/if\s*\(\s*!isAllowedHttpTarget\(url\)\s*\)/);
     expect(body).toMatch(/throw\s+new\s+Error\(/);
     // Sanity check: the throw must come BEFORE the await/fetch loop.
+    // The actual HTTP call is now delegated to providerFetch() so the
+    // source pin matches that symbol rather than the bare fetch(url…).
     const gateIdx = body.indexOf('isAllowedHttpTarget');
-    const fetchIdx = body.indexOf('fetch(url');
+    const fetchIdx = body.indexOf('providerFetch(url');
     expect(gateIdx).toBeGreaterThan(-1);
     expect(fetchIdx).toBeGreaterThan(gateIdx);
   });
