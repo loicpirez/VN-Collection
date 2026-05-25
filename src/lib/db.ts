@@ -664,6 +664,24 @@ function open(): Database.Database {
       ON vn_va_credit(vn_id, c_id, sid, COALESCE(aid, -1), COALESCE(note, ''), COALESCE(va_lang, ''));
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS alice_kobe_stock (
+      code             TEXT PRIMARY KEY,
+      title            TEXT NOT NULL,
+      jan              TEXT,
+      release_date     TEXT,
+      list_price       TEXT,
+      sale_price       TEXT,
+      vn_id            TEXT,
+      vn_match_source  TEXT,
+      egs_id           INTEGER,
+      egs_match_source TEXT,
+      fetched_at       INTEGER NOT NULL DEFAULT 0,
+      updated_at       INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_alice_kobe_vn ON alice_kobe_stock(vn_id);
+  `);
+
   // The aspect-ratio filter used to require an `owned_release` row to
   // bridge release_id → vn_id. That made the filter useless for users
   // with no owned editions in inventory. Storing vn_id directly on the
@@ -8412,4 +8430,78 @@ export function batchGetCharNames(ids: string[]): Map<string, string> {
     )
     .all(...ids) as { c_id: string; c_name: string }[];
   return new Map(rows.map((r) => [r.c_id, r.c_name]));
+}
+
+export interface KobeStockRow {
+  code: string;
+  title: string;
+  jan: string | null;
+  release_date: string | null;
+  list_price: string | null;
+  sale_price: string | null;
+  vn_id: string | null;
+  vn_match_source: 'auto' | 'manual' | 'none' | null;
+  egs_id: number | null;
+  egs_match_source: 'auto' | 'manual' | null;
+  fetched_at: number;
+  updated_at: number;
+}
+
+export function upsertKobeStock(
+  rows: Pick<KobeStockRow, 'code' | 'title' | 'jan' | 'release_date' | 'list_price' | 'sale_price'>[],
+): void {
+  const now = Date.now();
+  const stmt = db.prepare(`
+    INSERT INTO alice_kobe_stock (code, title, jan, release_date, list_price, sale_price, fetched_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(code) DO UPDATE SET
+      title        = excluded.title,
+      jan          = excluded.jan,
+      release_date = excluded.release_date,
+      list_price   = excluded.list_price,
+      sale_price   = excluded.sale_price,
+      fetched_at   = excluded.fetched_at
+  `);
+  const txn = db.transaction((items: typeof rows) => {
+    for (const r of items) {
+      stmt.run(r.code, r.title, r.jan ?? null, r.release_date ?? null, r.list_price ?? null, r.sale_price ?? null, now, now);
+    }
+  });
+  txn(rows);
+}
+
+export function listKobeStock(): KobeStockRow[] {
+  return db.prepare(`SELECT * FROM alice_kobe_stock ORDER BY title`).all() as KobeStockRow[];
+}
+
+export function getKobeStockItem(code: string): KobeStockRow | null {
+  return (db.prepare(`SELECT * FROM alice_kobe_stock WHERE code = ?`).get(code) as KobeStockRow | undefined) ?? null;
+}
+
+export function listKobeUnmatched(limit: number): KobeStockRow[] {
+  return db
+    .prepare(`SELECT * FROM alice_kobe_stock WHERE vn_id IS NULL AND vn_match_source IS NULL ORDER BY code LIMIT ?`)
+    .all(limit) as KobeStockRow[];
+}
+
+export function setKobeVnLink(code: string, vnId: string | null, source: 'manual' | 'none' | 'auto'): void {
+  db.prepare(`UPDATE alice_kobe_stock SET vn_id = ?, vn_match_source = ?, updated_at = ? WHERE code = ?`)
+    .run(vnId, source, Date.now(), code);
+}
+
+export function clearKobeVnLink(code: string): void {
+  db.prepare(`UPDATE alice_kobe_stock SET vn_id = NULL, vn_match_source = NULL, updated_at = ? WHERE code = ?`)
+    .run(Date.now(), code);
+}
+
+export function setKobeEgsLink(code: string, egsId: number | null, source: 'auto' | 'manual'): void {
+  db.prepare(`UPDATE alice_kobe_stock SET egs_id = ?, egs_match_source = ?, updated_at = ? WHERE code = ?`)
+    .run(egsId, source, Date.now(), code);
+}
+
+export function countKobeStock(): { total: number; matched: number; unmatched: number } {
+  const row = db
+    .prepare(`SELECT COUNT(*) AS total, SUM(CASE WHEN vn_id IS NOT NULL THEN 1 ELSE 0 END) AS matched FROM alice_kobe_stock`)
+    .get() as { total: number; matched: number };
+  return { total: row.total, matched: row.matched ?? 0, unmatched: row.total - (row.matched ?? 0) };
 }
