@@ -995,6 +995,9 @@ function open(): Database.Database {
   // Allow custom banner per series — added incrementally so existing rows are fine.
   ensureColumn(db, 'series', 'banner_path', 'TEXT');
 
+  // Top-3 VNDB candidates from auto-match stored as JSON for quick-pick remapping.
+  ensureColumn(db, 'alice_kobe_stock', 'vn_candidates', 'TEXT');
+
   // Migration: rewrite EGS cover URLs to point at the resolver endpoint
   // (/api/egs-cover/{egs_id}) instead of hardcoded DMM / Suruga-ya / image.php
   // URLs. The resolver picks the right source per game by reading og:image
@@ -8441,6 +8444,7 @@ export interface KobeStockRow {
   sale_price: string | null;
   vn_id: string | null;
   vn_match_source: 'auto' | 'manual' | 'none' | null;
+  vn_candidates: string | null;
   egs_id: number | null;
   egs_match_source: 'auto' | 'manual' | null;
   fetched_at: number;
@@ -8470,8 +8474,14 @@ export function upsertKobeStock(
   txn(rows);
 }
 
-export function listKobeStock(): KobeStockRow[] {
-  return db.prepare(`SELECT * FROM alice_kobe_stock ORDER BY title`).all() as KobeStockRow[];
+export function listKobeStock(): (KobeStockRow & { in_wishlist: number })[] {
+  return db.prepare(`
+    SELECT k.*,
+           CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_wishlist
+    FROM   alice_kobe_stock k
+    LEFT   JOIN collection c ON c.vn_id = k.vn_id AND c.status = 'planning'
+    ORDER  BY k.title
+  `).all() as (KobeStockRow & { in_wishlist: number })[];
 }
 
 export function getKobeStockItem(code: string): KobeStockRow | null {
@@ -8484,13 +8494,18 @@ export function listKobeUnmatched(limit: number): KobeStockRow[] {
     .all(limit) as KobeStockRow[];
 }
 
-export function setKobeVnLink(code: string, vnId: string | null, source: 'manual' | 'none' | 'auto'): void {
-  db.prepare(`UPDATE alice_kobe_stock SET vn_id = ?, vn_match_source = ?, updated_at = ? WHERE code = ?`)
-    .run(vnId, source, Date.now(), code);
+export function setKobeVnLink(
+  code: string,
+  vnId: string | null,
+  source: 'manual' | 'none' | 'auto',
+  candidates?: string | null,
+): void {
+  db.prepare(`UPDATE alice_kobe_stock SET vn_id = ?, vn_match_source = ?, vn_candidates = ?, updated_at = ? WHERE code = ?`)
+    .run(vnId, source, candidates ?? null, Date.now(), code);
 }
 
 export function clearKobeVnLink(code: string): void {
-  db.prepare(`UPDATE alice_kobe_stock SET vn_id = NULL, vn_match_source = NULL, updated_at = ? WHERE code = ?`)
+  db.prepare(`UPDATE alice_kobe_stock SET vn_id = NULL, vn_match_source = NULL, vn_candidates = NULL, updated_at = ? WHERE code = ?`)
     .run(Date.now(), code);
 }
 
@@ -8499,9 +8514,21 @@ export function setKobeEgsLink(code: string, egsId: number | null, source: 'auto
     .run(egsId, source, Date.now(), code);
 }
 
-export function countKobeStock(): { total: number; matched: number; unmatched: number } {
+export function countKobeStock(): { total: number; matched: number; unmatched: number; in_wishlist: number } {
   const row = db
-    .prepare(`SELECT COUNT(*) AS total, SUM(CASE WHEN vn_id IS NOT NULL THEN 1 ELSE 0 END) AS matched FROM alice_kobe_stock`)
-    .get() as { total: number; matched: number };
-  return { total: row.total, matched: row.matched ?? 0, unmatched: row.total - (row.matched ?? 0) };
+    .prepare(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN k.vn_id IS NOT NULL THEN 1 ELSE 0 END) AS matched,
+        SUM(CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END) AS in_wishlist
+      FROM alice_kobe_stock k
+      LEFT JOIN collection c ON c.vn_id = k.vn_id AND c.status = 'planning'
+    `)
+    .get() as { total: number; matched: number; in_wishlist: number };
+  return {
+    total: row.total,
+    matched: row.matched ?? 0,
+    unmatched: row.total - (row.matched ?? 0),
+    in_wishlist: row.in_wishlist ?? 0,
+  };
 }

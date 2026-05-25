@@ -15,15 +15,35 @@ const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
 const CELL_RE = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
 const TAG_RE = /<[^>]+>/g;
 
+export interface KobeCandidate {
+  id: string;
+  title: string;
+  alttitle: string | null;
+  released: string | null;
+}
+
 function stripTags(html: string): string {
   return html.replace(TAG_RE, '').trim();
 }
 
-function normalizeTitle(rawTitle: string): string {
+/**
+ * Normalize a raw Kobe title for use as a VNDB/EGS search query.
+ * Strips used-goods markers, edition/platform labels, age-rating tags,
+ * and converts full-width ASCII to half-width so the search engine
+ * gets the cleanest possible game title.
+ */
+export function normalizeTitle(rawTitle: string): string {
   return rawTitle
-    .replace(/\(中古品\)\s*/g, '')
+    .replace(/[【〔\[（(][^\]】〕)）]*中古[^\]】〕)）]*[\]】〕)）]/g, '')
+    .replace(/中古品?/g, '')
+    .replace(/[【〔\[（(][^\]】〕)）]*(Windows?|Win|PC|同人|R18|18禁|全年齢|成人向け|DVD-ROM|Download|DL版|ダウンロード)[^\]】〕)）]*[\]】〕)）]/gi, '')
+    .replace(/[\[(（【〔]18禁[\])）】〕]/g, '')
+    .replace(/[\[(（【〔]全年齢[\])）】〕]/g, '')
+    .replace(/\s*(通常版|限定版|初回限定版|初回版|特典付き?|豪華版|スペシャル版|コレクターズ版|デラックス版|完全版)\s*/g, '')
+    .replace(/\s*Ver\.?\s*[\d.]+\s*/gi, '')
     .replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
     .replace(/　/g, ' ')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
@@ -92,6 +112,7 @@ export async function refreshKobeStock(): Promise<{ count: number; fetched_at: n
 
 /**
  * Auto-match a batch of unlinked Kobe items against VNDB and EGS.
+ * Stores up to 3 VNDB candidates per item so the user can remap quickly.
  * Returns counts of processed items and remaining unmatched items.
  */
 export async function matchNextKobeItems(batchSize: number): Promise<{ processed: number; remaining: number }> {
@@ -100,16 +121,23 @@ export async function matchNextKobeItems(batchSize: number): Promise<{ processed
   for (const item of items) {
     const query = normalizeTitle(item.title);
     if (!query) {
-      setKobeVnLink(item.code, null, 'none');
+      setKobeVnLink(item.code, null, 'none', null);
       continue;
     }
     try {
-      const vnResult = await searchVn(query, { results: 1 });
-      const topVn = vnResult.results?.[0];
+      const vnResult = await searchVn(query, { results: 3 });
+      const candidates: KobeCandidate[] = (vnResult.results ?? []).slice(0, 3).map((v) => ({
+        id: v.id,
+        title: v.title,
+        alttitle: v.alttitle,
+        released: v.released,
+      }));
+      const topVn = candidates[0];
+      const candidatesJson = candidates.length > 0 ? JSON.stringify(candidates) : null;
       if (topVn) {
-        setKobeVnLink(item.code, topVn.id, 'auto');
+        setKobeVnLink(item.code, topVn.id, 'auto', candidatesJson);
       } else {
-        setKobeVnLink(item.code, null, 'none');
+        setKobeVnLink(item.code, null, 'none', candidatesJson);
       }
     } catch {
       // leave unmatched on error
@@ -120,7 +148,7 @@ export async function matchNextKobeItems(batchSize: number): Promise<{ processed
         setKobeEgsLink(item.code, egsResult.id, 'auto');
       }
     } catch {
-      // leave egs unmatched
+      // leave egs unmatched on error
     }
   }
   const stats = countKobeStock();

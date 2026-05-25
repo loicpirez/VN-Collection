@@ -1125,6 +1125,10 @@ export const dictionaries = {
       kobeFilterAll: 'Tous',
       kobeFilterMatched: 'Matchés',
       kobeFilterUnmatched: 'Non matchés',
+      kobeFilterWishlist: 'Wishlist',
+      kobeInWishlist: 'Dans la wishlist',
+      kobeCandidates: 'Candidats',
+      kobeRemap: 'Remapper',
     },
     markdown: {
       edit: 'Édition',
@@ -3838,6 +3842,10 @@ export const dictionaries = {
       kobeFilterAll: 'All',
       kobeFilterMatched: 'Matched',
       kobeFilterUnmatched: 'Unmatched',
+      kobeFilterWishlist: 'Wishlist',
+      kobeInWishlist: 'In wishlist',
+      kobeCandidates: 'Candidates',
+      kobeRemap: 'Remap',
     },
     markdown: {
       edit: 'Edit',
@@ -6548,6 +6556,10 @@ export const dictionaries = {
       kobeFilterAll: 'すべて',
       kobeFilterMatched: 'マッチ済み',
       kobeFilterUnmatched: '未マッチ',
+      kobeFilterWishlist: 'ウィッシュリスト',
+      kobeInWishlist: 'ウィッシュリスト内',
+      kobeCandidates: '候補',
+      kobeRemap: '再マッチ',
     },
     markdown: {
       edit: '編集',

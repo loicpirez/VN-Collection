@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
+  BookHeart,
   ExternalLink,
   Link2,
   Link2Off,
@@ -17,6 +18,13 @@ import { useT, useLocale } from '@/lib/i18n/client';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { readApiError } from '@/lib/api-error-read';
 
+interface KobeCandidate {
+  id: string;
+  title: string;
+  alttitle: string | null;
+  released: string | null;
+}
+
 interface KobeItem {
   code: string;
   title: string;
@@ -26,8 +34,10 @@ interface KobeItem {
   sale_price: string | null;
   vn_id: string | null;
   vn_match_source: 'auto' | 'manual' | 'none' | null;
+  vn_candidates: string | null;
   egs_id: number | null;
   egs_match_source: 'auto' | 'manual' | null;
+  in_wishlist: number;
   fetched_at: number;
   updated_at: number;
 }
@@ -36,6 +46,7 @@ interface KobeStats {
   total: number;
   matched: number;
   unmatched: number;
+  in_wishlist: number;
 }
 
 interface SearchHit {
@@ -45,7 +56,7 @@ interface SearchHit {
   developers?: { id: string; name: string }[];
 }
 
-type FilterTab = 'all' | 'matched' | 'unmatched';
+type FilterTab = 'all' | 'matched' | 'unmatched' | 'wishlist';
 
 interface LinkDialogProps {
   item: KobeItem;
@@ -59,9 +70,12 @@ function LinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
   const toast = useToast();
   const [query, setQuery] = useState(() => {
     return item.title
-      .replace(/\(中古品\)\s*/g, '')
+      .replace(/[【〔\[（(][^\]】〕)）]*中古[^\]】〕)）]*[\]】〕)）]/g, '')
+      .replace(/中古品?/g, '')
+      .replace(/\s*(通常版|限定版|初回限定版|初回版|特典付き?|豪華版|スペシャル版|コレクターズ版|デラックス版|完全版)\s*/g, '')
       .replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
       .replace(/　/g, ' ')
+      .replace(/\s{2,}/g, ' ')
       .trim();
   });
   const [hits, setHits] = useState<SearchHit[]>([]);
@@ -230,15 +244,75 @@ function LinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
   );
 }
 
+interface CandidateChipsProps {
+  candidates: KobeCandidate[];
+  currentId: string | null;
+  code: string;
+  onRemapped: () => void;
+}
+
+function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateChipsProps) {
+  const t = useT();
+  const locale = useLocale();
+  const toast = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+
+  if (candidates.length === 0) return null;
+
+  async function pick(vnId: string) {
+    setBusy(vnId);
+    try {
+      const r = await fetch(`/api/alice-kobe/${encodeURIComponent(code)}/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vn_id: vnId }),
+      });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      onRemapped();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      <span className="text-[10px] text-muted">{t.kobe.kobeCandidates}:</span>
+      {candidates.map((c) => {
+        const isActive = c.id === currentId;
+        return (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => pick(c.id)}
+            disabled={busy != null || isActive}
+            title={`${c.title}${c.alttitle ? ` / ${c.alttitle}` : ''}${c.released ? ` (${formatVndbDateString(c.released, locale)})` : ''}`}
+            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors ${
+              isActive
+                ? 'bg-accent/20 text-accent cursor-default'
+                : 'border border-border bg-bg-elev/30 text-muted hover:border-accent hover:text-white'
+            }`}
+          >
+            {busy === c.id && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
+            {c.id}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Client-side page for the Alice Kobe second-hand stock browser.
- * Fetches stock from /api/alice-kobe, supports download, auto-match, and manual VNDB linking.
+ * Fetches stock from /api/alice-kobe, supports download, auto-match, manual VNDB
+ * linking, candidate quick-pick remapping, and wishlist cross-reference tab.
  */
 export function KobeClient() {
   const t = useT();
   const toast = useToast();
   const [items, setItems] = useState<KobeItem[]>([]);
-  const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, unmatched: 0 });
+  const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, unmatched: 0, in_wishlist: 0 });
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -321,8 +395,16 @@ export function KobeClient() {
   const filtered = items.filter((item) => {
     if (filter === 'matched') return item.vn_id !== null;
     if (filter === 'unmatched') return item.vn_id === null;
+    if (filter === 'wishlist') return item.in_wishlist === 1;
     return true;
   });
+
+  const tabs: { id: FilterTab; label: string; count: number }[] = [
+    { id: 'all', label: t.kobe.kobeFilterAll, count: stats.total },
+    { id: 'matched', label: t.kobe.kobeFilterMatched, count: stats.matched },
+    { id: 'unmatched', label: t.kobe.kobeFilterUnmatched, count: stats.unmatched },
+    { id: 'wishlist', label: t.kobe.kobeFilterWishlist, count: stats.in_wishlist },
+  ];
 
   const statsLabel = t.kobe.kobeStats
     .replace('{matched}', String(stats.matched))
@@ -373,14 +455,18 @@ export function KobeClient() {
       </div>
 
       <div className="mb-4 flex flex-wrap gap-1 border-b border-border">
-        {(['all', 'matched', 'unmatched'] as FilterTab[]).map((tab) => (
+        {tabs.map((tab) => (
           <button
-            key={tab}
+            key={tab.id}
             type="button"
-            onClick={() => setFilter(tab)}
-            className={`rounded-t px-3 py-1.5 text-sm transition-colors ${filter === tab ? 'border-b-2 border-accent font-medium text-accent' : 'text-muted hover:text-white'}`}
+            onClick={() => setFilter(tab.id)}
+            className={`flex items-center gap-1.5 rounded-t px-3 py-1.5 text-sm transition-colors ${filter === tab.id ? 'border-b-2 border-accent font-medium text-accent' : 'text-muted hover:text-white'}`}
           >
-            {tab === 'all' ? t.kobe.kobeFilterAll : tab === 'matched' ? t.kobe.kobeFilterMatched : t.kobe.kobeFilterUnmatched}
+            {tab.id === 'wishlist' && <BookHeart className="h-3 w-3" aria-hidden />}
+            {tab.label}
+            <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}>
+              {tab.count}
+            </span>
           </button>
         ))}
       </div>
@@ -388,66 +474,89 @@ export function KobeClient() {
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="h-12 animate-pulse rounded-md bg-bg-elev/40" />
+            <div key={i} className="h-14 animate-pulse rounded-md bg-bg-elev/40" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
         <p className="text-sm text-muted">{t.kobe.kobeUnmatched}</p>
       ) : (
         <ul className="divide-y divide-border">
-          {filtered.map((item) => (
-            <li key={item.code} className="flex flex-wrap items-start gap-3 py-3">
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium" title={item.title}>{item.title}</div>
-                <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-muted">
-                  {item.sale_price && <span>{item.sale_price}</span>}
-                  {item.release_date && <span>{item.release_date}</span>}
-                  <span className="font-mono opacity-60">{item.code}</span>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {item.vn_id ? (
-                  <>
-                    <a
-                      href={`/vn/${item.vn_id}`}
-                      className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-mono text-accent hover:underline"
-                    >
-                      <Link2 className="h-3 w-3" />
-                      {item.vn_id}
-                    </a>
-                    {item.vn_match_source && (
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] ${item.vn_match_source === 'manual' ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}
-                      >
-                        {item.vn_match_source}
+          {filtered.map((item) => {
+            const candidates = item.vn_candidates
+              ? (() => { try { return JSON.parse(item.vn_candidates) as KobeCandidate[]; } catch { return []; } })()
+              : [];
+            return (
+              <li key={item.code} className="py-3">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate font-medium" title={item.title}>{item.title}</span>
+                      {item.in_wishlist === 1 && (
+                        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] bg-rose-500/20 text-rose-400">
+                          <BookHeart className="h-2.5 w-2.5" aria-hidden />
+                          {t.kobe.kobeInWishlist}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-muted">
+                      {item.sale_price && <span>{item.sale_price}</span>}
+                      {item.release_date && <span>{item.release_date}</span>}
+                      <span className="font-mono opacity-60">{item.code}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {item.vn_id ? (
+                      <>
+                        <a
+                          href={`/vn/${item.vn_id}`}
+                          className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-mono text-accent hover:underline"
+                        >
+                          <Link2 className="h-3 w-3" />
+                          {item.vn_id}
+                        </a>
+                        {item.vn_match_source && (
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] ${item.vn_match_source === 'manual' ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'}`}
+                          >
+                            {item.vn_match_source}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => clearLink(item.code)}
+                          className="btn btn-xs"
+                          title={t.kobe.kobeClearMatch}
+                        >
+                          <X className="h-3 w-3" />
+                          {t.kobe.kobeClearMatch}
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-[11px] text-muted">
+                        {item.vn_match_source === 'none' ? t.kobe.kobeNoMatch : t.kobe.kobeUnmatched}
                       </span>
                     )}
                     <button
                       type="button"
-                      onClick={() => clearLink(item.code)}
+                      onClick={() => setLinkTarget(item)}
                       className="btn btn-xs"
-                      title={t.kobe.kobeClearMatch}
                     >
-                      <X className="h-3 w-3" />
-                      {t.kobe.kobeClearMatch}
+                      <Search className="h-3 w-3" />
+                      {item.vn_id ? t.kobe.kobeRemap : t.kobe.kobeFindMatch}
                     </button>
-                  </>
-                ) : (
-                  <span className="text-[11px] text-muted">
-                    {item.vn_match_source === 'none' ? t.kobe.kobeNoMatch : t.kobe.kobeUnmatched}
-                  </span>
+                  </div>
+                </div>
+                {candidates.length > 1 && (
+                  <CandidateChips
+                    candidates={candidates}
+                    currentId={item.vn_id}
+                    code={item.code}
+                    onRemapped={load}
+                  />
                 )}
-                <button
-                  type="button"
-                  onClick={() => setLinkTarget(item)}
-                  className="btn btn-xs"
-                >
-                  <Search className="h-3 w-3" />
-                  {t.kobe.kobeFindMatch}
-                </button>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
 
