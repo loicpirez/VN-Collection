@@ -3,19 +3,13 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Keyboard, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import {
+  globalShortcutRows,
+  pageShortcutSections,
+  routeForShortcutKey,
+  routeShortcutRows,
+} from '@/lib/shortcut-registry';
 import { Dialog } from './Dialog';
-
-const ROUTES: Record<string, string> = {
-  h: '/',
-  s: '/search',
-  w: '/wishlist',
-  r: '/recommendations',
-  u: '/upcoming',
-  q: '/quotes',
-  y: `/year?y=${new Date().getFullYear()}`,
-  d: '/data',
-  t: '/stats',
-};
 
 /**
  * Global keyboard shortcuts. Two patterns:
@@ -52,6 +46,15 @@ export function KeyboardShortcuts() {
   const isVnPage = pathname.startsWith('/vn/');
   const isLibrary = pathname === '/';
   const isTagsPage = pathname === '/tags' || pathname.startsWith('/tags?');
+  const year = new Date().getFullYear();
+  const globalRows = globalShortcutRows(t);
+  const routeRows = routeShortcutRows(t, year);
+  const scopedSections = pageShortcutSections(t).filter((section) => {
+    if (section.label === t.shortcuts.vnPage) return isVnPage;
+    if (section.label === t.shortcuts.libPage) return isLibrary;
+    if (section.label === t.shortcuts.tagsPage) return isTagsPage;
+    return false;
+  });
 
   useEffect(() => {
     let armed = false;
@@ -142,7 +145,7 @@ export function KeyboardShortcuts() {
       if (armed) {
         armed = false;
         if (timer) { clearTimeout(timer); timer = null; }
-        const route = ROUTES[e.key.toLowerCase()];
+        const route = routeForShortcutKey(e.key, new Date().getFullYear());
         if (route) {
           e.preventDefault();
           router.push(route);
@@ -182,37 +185,16 @@ export function KeyboardShortcuts() {
       </button>
       <div className="space-y-4">
         <ul className="space-y-1.5 text-sm">
-          <Row k="/" label={t.shortcuts.focusSearch} />
-          <Row k="?" label={t.shortcuts.help} />
-          <Row k="g h" label={t.shortcuts.goHome} />
-          <Row k="g s" label={t.shortcuts.goSearch} />
-          <Row k="g w" label={t.shortcuts.goWishlist} />
-          <Row k="g r" label={t.shortcuts.goRecommend} />
-          <Row k="g u" label={t.shortcuts.goUpcoming} />
-          <Row k="g q" label={t.shortcuts.goQuotes} />
-          <Row k="g y" label={t.shortcuts.goYear} />
-          <Row k="g t" label={t.shortcuts.goStats} />
-          <Row k="g d" label={t.shortcuts.goData} />
-          <Row k="Esc" label={t.shortcuts.close} />
+          {globalRows.map((row) => <Row key={row.key} k={row.key} label={row.label} />)}
         </ul>
-        {isVnPage && (
-          <PageSection label={t.shortcuts.vnPage}>
-            <Row k="f" label={t.shortcuts.vnToggleFavorite} />
-            <Row k="e" label={t.shortcuts.vnJumpEdit} />
-            <Row k="n" label={t.shortcuts.vnJumpNotes} />
+        <PageSection label="g">
+          {routeRows.map((row) => <Row key={row.key} k={row.key} label={row.label} />)}
+        </PageSection>
+        {scopedSections.map((section) => (
+          <PageSection key={section.label} label={section.label}>
+            {section.rows.map((row) => <Row key={row.key} k={row.key} label={row.label} />)}
           </PageSection>
-        )}
-        {isLibrary && (
-          <PageSection label={t.shortcuts.libPage}>
-            <Row k="f" label={t.shortcuts.libOpenFilter} />
-          </PageSection>
-        )}
-        {isTagsPage && (
-          <PageSection label={t.shortcuts.tagsPage}>
-            <Row k="1" label={t.shortcuts.tagsTabLocal} />
-            <Row k="2" label={t.shortcuts.tagsTabVndb} />
-          </PageSection>
-        )}
+        ))}
       </div>
     </Dialog>
   );
