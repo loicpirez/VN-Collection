@@ -9198,6 +9198,13 @@ export function deleteStockAlias(vnId: string, aliasTerm: string): void {
   );
 }
 
+/** Delete all cached stock offers and provider statuses for one VN. */
+export function clearVnStockCache(vnId: string): { offers: number; statuses: number } {
+  const offerResult = db.prepare(`DELETE FROM vn_stock_offer WHERE vn_id = ?`).run(vnId);
+  const statusResult = db.prepare(`DELETE FROM vn_stock_provider_status WHERE vn_id = ?`).run(vnId);
+  return { offers: offerResult.changes, statuses: statusResult.changes };
+}
+
 export function listKobeStockForVn(vnId: string): KobeStockRow[] {
   return db.prepare(`
     SELECT k.*

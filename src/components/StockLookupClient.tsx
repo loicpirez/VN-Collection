@@ -5,6 +5,7 @@ import { Search, ShoppingBag } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { readApiError } from '@/lib/api-error-read';
 import { SafeImage } from './SafeImage';
+import { StockBatchClient } from './StockBatchClient';
 import { StockPanel } from './StockPanel';
 
 interface SearchHit {
@@ -133,6 +134,8 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
           {t.stock.pickVn}
         </div>
       )}
+
+      <StockBatchClient />
     </main>
   );
 }

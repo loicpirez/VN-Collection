@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
+import { clearVnStockCache } from '@/lib/db';
 import { getStockForVn, refreshStockForVn, STOCK_PROVIDER_IDS, type StockProviderId } from '@/lib/stock';
 
 export const dynamic = 'force-dynamic';
@@ -33,4 +34,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
+}
+
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
+  const { id } = await ctx.params;
+  if (!/^(v\d+|egs_\d+)$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  const result = clearVnStockCache(id);
+  return NextResponse.json(result);
 }

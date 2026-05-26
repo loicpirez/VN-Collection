@@ -341,6 +341,33 @@ export function classifyOffer(
   };
 }
 
+export type OfferGroup = 'game' | 'series' | 'related' | 'rejected';
+
+/**
+ * Map stored classification strings to a display group.
+ * `low` and `reject` confidence go to the rejected bucket so they
+ * never pollute the "Game packages" group.
+ */
+export function classifyOfferGroup(
+  contentKind: string | null | undefined,
+  seriesRelation: string | null | undefined,
+  matchConfidence: string | null | undefined,
+): OfferGroup {
+  if (
+    contentKind === 'bonus_only' ||
+    contentKind === 'related_goods' ||
+    contentKind === 'figure' ||
+    contentKind === 'soundtrack' ||
+    contentKind === 'artbook' ||
+    contentKind === 'store_bonus_bundle' ||
+    seriesRelation === 'related_goods'
+  ) return 'related';
+  if (matchConfidence === 'reject' || matchConfidence === 'low') return 'rejected';
+  if (seriesRelation === 'same_series_previous_game' || seriesRelation === 'sequel_or_pack') return 'series';
+  if (contentKind === 'game_package' || contentKind == null) return 'game';
+  return 'game';
+}
+
 /** Serialise classification fields for storage. */
 export function classificationToFields(c: OfferClassification): {
   content_kind: string;

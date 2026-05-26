@@ -116,7 +116,7 @@ interface ParsedOffer {
 
 /** All providers with physical presence (capable). Not all produce confirmed stock data yet. */
 export const PHYSICAL_CAPABLE_PROVIDER_IDS: ReadonlyArray<StockProviderId> = [
-  'sofmap', 'surugaya', 'hgame1', 'mandarake', 'wondergoo', 'trader',
+  'sofmap', 'surugaya', 'hgame1', 'mandarake', 'wondergoo',
   'animate', 'otakarasouko', 'geo', 'joshin', 'yodobashi', 'bikkuri_takarajima',
 ] as const;
 
@@ -127,7 +127,7 @@ export const CONFIRMED_PHYSICAL_PROVIDER_IDS: ReadonlyArray<StockProviderId> = [
 
 /** Providers that cannot produce confirmed physical stock information right now. */
 export const USELESS_FOR_CONFIRMED_PHYSICAL_STOCK: ReadonlyArray<StockProviderId> = [
-  'wondergoo', 'trader', 'otakarasouko', 'bikkuri_takarajima', 'joshin',
+  'wondergoo', 'otakarasouko', 'bikkuri_takarajima', 'joshin',
   'melonbooks', 'ebten', 'getchu', 'gamers', 'gamecity',
   'asakusa_mach', 'amazon_jp', 'amiami', 'neowing',
 ] as const;
@@ -140,7 +140,7 @@ const PROVIDERS: StockProviderMeta[] = [
   { id: 'melonbooks',         label: 'Melonbooks',         kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'mandarake',          label: 'Mandarake',          kind: 'direct',    physical: true,  physicalStockMode: 'store_name_online',                      cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'wondergoo',          label: 'WonderGOO',          kind: 'direct',    physical: true,  physicalStockMode: 'store_locator_only',                     cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'trader',             label: 'Trader / 秋葉原トレーダー通販', kind: 'direct', physical: true, physicalStockMode: 'phone_only', cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'trader',             label: 'Trader / 秋葉原トレーダー通販', kind: 'direct', physical: false, physicalStockMode: 'online_only', cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'animate',            label: 'Animate',            kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'ebten',              label: 'ebten',              kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'getchu',             label: 'Getchu',             kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
@@ -1862,7 +1862,7 @@ export function getStockForVn(vnId: string): StockSnapshot {
     condition: 'Used',
     edition_label: null,
     location_label: 'AliceSoft Kobe',
-    location_branch: null,
+    location_branch: 'AliceSoft Kobe',
     source_release_id: null,
     jan: row.jan,
     fetched_at: row.fetched_at,

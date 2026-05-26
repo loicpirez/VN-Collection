@@ -66,6 +66,8 @@ import {
   POST as erogamescapePOST,
   DELETE as erogamescapeDELETE,
 } from '@/app/api/vn/[id]/erogamescape/route';
+import { DELETE as vnStockDELETE } from '@/app/api/vn/[id]/stock/route';
+import { POST as stockBatchPOST } from '@/app/api/stock/batch/route';
 import {
   POST as wishlistIdPOST,
   DELETE as wishlistIdDELETE,
@@ -524,6 +526,17 @@ describe('NEW-TCO-002 — NEW-SECA-001..019: newly-gated routes return 403 from 
   });
   it('DELETE /api/vn/[id]/erogamescape', async () => {
     const res = await erogamescapeDELETE(externalReq('/api/vn/v1/erogamescape', 'DELETE'), ctx());
+    expect(res.status).toBe(403);
+  });
+  it('DELETE /api/vn/[id]/stock', async () => {
+    const res = await vnStockDELETE(externalReq('/api/vn/v1/stock', 'DELETE'), ctx());
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('auth gate — stock batch (T-stock)', () => {
+  it('POST /api/stock/batch', async () => {
+    const res = await stockBatchPOST(externalReq('/api/stock/batch', 'POST', { vnIds: ['v1'] }));
     expect(res.status).toBe(403);
   });
 });

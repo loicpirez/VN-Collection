@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   CircleDollarSign,
+  Clock,
   ExternalLink,
   Loader2,
   Lock,
@@ -14,11 +15,14 @@ import {
   ShoppingBag,
   Square,
   Tag,
+  Trash2,
   X,
 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { readApiError } from '@/lib/api-error-read';
 import { timeAgo } from '@/lib/time-ago';
+import { classifyOfferGroup, type OfferGroup } from '@/lib/stock-classify';
+import { StockPhysicalLocations, type PhysicalOffer } from './StockPhysicalLocations';
 import { SkeletonRows } from './Skeleton';
 
 interface StockOffer {
@@ -112,8 +116,12 @@ export function StockPanel({
   const [aliases, setAliases] = useState<string[]>([]);
   const [aliasInput, setAliasInput] = useState('');
   const [aliasLoading, setAliasLoading] = useState(false);
+  const [hideStale, setHideStale] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const physicalDefaultRef = useRef(false);
+
+  const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 
   const currency = useMemo(
     () => new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }),
@@ -243,7 +251,32 @@ export function StockPanel({
     }
   }
 
-  const offers = snapshot?.offers ?? [];
+  async function clearCache() {
+    if (!confirm(t.stock.clearCacheConfirm as string)) return;
+    setClearingCache(true);
+    try {
+      await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, { method: 'DELETE' });
+      setSnapshot(null);
+      await load();
+    } catch {
+    } finally {
+      setClearingCache(false);
+    }
+  }
+
+  const now = Date.now();
+  const allOffers = snapshot?.offers ?? [];
+  const staleProviderIds = useMemo(() => {
+    if (!hideStale) return new Set<string>();
+    return new Set(
+      (snapshot?.statuses ?? [])
+        .filter((s) => now - s.fetched_at > STALE_MS)
+        .map((s) => s.provider),
+    );
+  }, [hideStale, snapshot?.statuses, now, STALE_MS]);
+  const offers = hideStale
+    ? allOffers.filter((o) => !staleProviderIds.has(o.provider))
+    : allOffers;
   const refreshableProviders = providers.filter((p) => p.kind !== 'cached');
   const selectedProviderIds = selectedProviders ?? refreshableProviders.map((p) => p.id);
   const selectedProviderSet = useMemo(() => new Set(selectedProviderIds), [selectedProviderIds]);
@@ -274,6 +307,31 @@ export function StockPanel({
   const failed = (snapshot?.statuses ?? []).filter((s) => s.status === 'error');
   const skipped = (snapshot?.statuses ?? []).filter((s) => s.status === 'skipped');
   const checkedStatuses = snapshot?.statuses ?? [];
+
+  const confirmedPhysicalIds = useMemo(
+    () => new Set(providers.filter((p) => p.confirmedPhysicalUsable).map((p) => p.id)),
+    [providers],
+  );
+
+  const physicalOffers = useMemo((): PhysicalOffer[] =>
+    offers.filter(
+      (o) =>
+        confirmedPhysicalIds.has(o.provider) &&
+        (o.availability === 'in_stock' || o.availability === 'limited') &&
+        !!o.location_label &&
+        o.location_label !== 'Online stock',
+    ).map((o) => ({
+      provider: o.provider,
+      provider_label: o.provider_label,
+      title: o.title,
+      url: o.url,
+      price: o.price,
+      availability: o.availability,
+      location_label: o.location_label,
+      location_branch: o.location_branch,
+      condition: o.condition,
+    })),
+  [offers, confirmedPhysicalIds]);
 
   const providerById = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers]);
 
@@ -347,6 +405,27 @@ export function StockPanel({
               <Square className="h-3.5 w-3.5" aria-hidden /> {t.stock.stop}
             </button>
           ) : null}
+          <button
+            type="button"
+            onClick={() => setHideStale((h) => !h)}
+            className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-bold ${
+              hideStale
+                ? 'border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" aria-hidden />
+            {hideStale ? (t.stock.showStale as string) : (t.stock.hideStale as string)}
+          </button>
+          <button
+            type="button"
+            onClick={clearCache}
+            disabled={clearingCache || refreshing}
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-status-dropped/40 bg-bg px-3 py-1.5 text-xs font-bold text-status-dropped/70 hover:border-status-dropped hover:bg-status-dropped/10 disabled:opacity-50"
+          >
+            {clearingCache ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
+            {t.stock.clearCache as string}
+          </button>
           <button
             type="button"
             onClick={refresh}
@@ -511,6 +590,10 @@ export function StockPanel({
 
       {!loading && offers.length > 0 && (
         <OffersGrouped offers={offers} best={best} currency={currency} t={t} locale={locale} />
+      )}
+
+      {!loading && confirmedPhysicalIds.size > 0 && (
+        <StockPhysicalLocations offers={physicalOffers} />
       )}
 
       {!loading && (failed.length > 0 || skipped.length > 0) && (
@@ -682,15 +765,8 @@ function AvailabilityChip({
 
 type TDict = ReturnType<typeof useT>;
 
-function classifyGroup(offer: StockOffer): 'game' | 'series' | 'related' | 'rejected' {
-  const ck = offer.content_kind;
-  const sr = offer.series_relation;
-  const mc = offer.match_confidence;
-  if (ck === 'bonus_only' || ck === 'related_goods' || ck === 'figure' || ck === 'soundtrack' || ck === 'artbook' || ck === 'store_bonus_bundle' || sr === 'related_goods') return 'related';
-  if (mc === 'reject') return 'rejected';
-  if (sr === 'same_series_previous_game' || sr === 'sequel_or_pack') return 'series';
-  if (ck === 'game_package' || ck === null) return 'game';
-  return 'game';
+function classifyGroup(offer: StockOffer): OfferGroup {
+  return classifyOfferGroup(offer.content_kind, offer.series_relation, offer.match_confidence);
 }
 
 function ConfidenceChip({ mc, t }: { mc: string | null; t: TDict }) {

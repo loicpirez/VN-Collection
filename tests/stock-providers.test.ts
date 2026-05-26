@@ -345,8 +345,12 @@ describe('stock provider parsers', () => {
 describe('PHYSICAL_CAPABLE_PROVIDER_IDS', () => {
   it('contains all expected physical-capable providers', () => {
     expect(PHYSICAL_CAPABLE_PROVIDER_IDS).toEqual(
-      expect.arrayContaining(['sofmap', 'surugaya', 'hgame1', 'mandarake', 'wondergoo', 'trader', 'animate', 'otakarasouko', 'geo', 'joshin', 'yodobashi', 'bikkuri_takarajima']),
+      expect.arrayContaining(['sofmap', 'surugaya', 'hgame1', 'mandarake', 'wondergoo', 'animate', 'otakarasouko', 'geo', 'joshin', 'yodobashi', 'bikkuri_takarajima']),
     );
+  });
+
+  it('does not contain trader (online-only store)', () => {
+    expect(PHYSICAL_CAPABLE_PROVIDER_IDS).not.toContain('trader');
   });
 
   it('contains only IDs that are present in STOCK_PROVIDER_IDS', () => {
@@ -385,10 +389,14 @@ describe('CONFIRMED_PHYSICAL_PROVIDER_IDS', () => {
 });
 
 describe('USELESS_FOR_CONFIRMED_PHYSICAL_STOCK', () => {
-  it('contains wondergoo and trader (store-locator / phone-only)', () => {
+  it('contains wondergoo (store-locator-only) and related physical-incapable providers', () => {
     expect(USELESS_FOR_CONFIRMED_PHYSICAL_STOCK).toEqual(
-      expect.arrayContaining(['wondergoo', 'trader', 'otakarasouko', 'bikkuri_takarajima', 'joshin']),
+      expect.arrayContaining(['wondergoo', 'otakarasouko', 'bikkuri_takarajima', 'joshin']),
     );
+  });
+
+  it('does not contain trader (now online-only, not physical-capable)', () => {
+    expect(USELESS_FOR_CONFIRMED_PHYSICAL_STOCK).not.toContain('trader');
   });
 
   it('contains online-only providers', () => {
@@ -437,8 +445,10 @@ describe('getProviderMeta', () => {
     expect(m?.confirmedPhysicalUsable).toBe(false);
   });
 
-  it('returns metadata for trader — phone_only', () => {
-    expect(getProviderMeta('trader')?.physicalStockMode).toBe('phone_only');
+  it('returns metadata for trader — online_only (chuko-tsuhan.com is online-only)', () => {
+    const m = getProviderMeta('trader');
+    expect(m?.physicalStockMode).toBe('online_only');
+    expect(m?.physical).toBe(false);
   });
 
   it('returns undefined for unknown id', () => {
@@ -475,8 +485,11 @@ describe('canProducePotentialPhysicalLead', () => {
     expect(canProducePotentialPhysicalLead('surugaya')).toBe(true);
     expect(canProducePotentialPhysicalLead('hgame1')).toBe(true);
     expect(canProducePotentialPhysicalLead('wondergoo')).toBe(true);
-    expect(canProducePotentialPhysicalLead('trader')).toBe(true);
     expect(canProducePotentialPhysicalLead('mandarake')).toBe(true);
+  });
+
+  it('false for trader (online-only store)', () => {
+    expect(canProducePotentialPhysicalLead('trader')).toBe(false);
   });
 
   it('false for online-only providers even if physical:false', () => {
@@ -521,7 +534,11 @@ describe('shouldShowInConfirmedPhysicalResults', () => {
 describe('shouldShowAsPhysicalLead', () => {
   it('true for physical provider that is in_stock', () => {
     expect(shouldShowAsPhysicalLead({ provider: 'wondergoo', availability: 'in_stock' })).toBe(true);
-    expect(shouldShowAsPhysicalLead({ provider: 'trader', availability: 'unknown' })).toBe(true);
+  });
+
+  it('false for trader (online-only, not a physical lead)', () => {
+    expect(shouldShowAsPhysicalLead({ provider: 'trader', availability: 'unknown' })).toBe(false);
+    expect(shouldShowAsPhysicalLead({ provider: 'trader', availability: 'in_stock' })).toBe(false);
   });
 
   it('false for physical provider that is out_of_stock', () => {
