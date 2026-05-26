@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { fetchAuthenticatedWishlist } from '@/lib/vndb';
-import { getEgsForVns, isInCollectionMany } from '@/lib/db';
+import { batchVnStockSummaries, getEgsForVns, isInCollectionMany } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     const ids = result.map((e) => e.id);
     const ownedSet = isInCollectionMany(ids);
     const egsMap = getEgsForVns(ids);
+    const stockMap = batchVnStockSummaries(ids);
     const items = result.map((e) => ({
       ...e,
       vn: { ...e.vn, id: e.id },
@@ -35,6 +36,8 @@ export async function GET(req: NextRequest) {
             playtime_median_minutes: egsMap.get(e.id)!.playtime_median_minutes,
           }
         : null,
+      stock_available: stockMap.get(e.id)?.available ?? null,
+      stock_best_price: stockMap.get(e.id)?.best_price ?? null,
     }));
     return NextResponse.json({ items });
   } catch (err) {
