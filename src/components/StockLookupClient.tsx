@@ -20,6 +20,7 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resolvedTitle, setResolvedTitle] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -50,6 +51,19 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [query, t.common.error]);
+
+  useEffect(() => {
+    if (!initialVnId) { setResolvedTitle(null); return; }
+    setResolvedTitle(null);
+    const ctrl = new AbortController();
+    fetch(`/api/vn/${encodeURIComponent(initialVnId)}`, { cache: 'no-store', signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { vn?: { title?: string } } | null) => {
+        if (data?.vn?.title) setResolvedTitle(data.vn.title);
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [initialVnId]);
 
   const selected = useMemo(() => hits.find((hit) => hit.id === initialVnId) ?? null, [hits, initialVnId]);
 
@@ -112,7 +126,7 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
 
       {initialVnId ? (
         <div className="mt-5">
-          <StockPanel vnId={initialVnId} title={selected?.title} />
+          <StockPanel vnId={initialVnId} title={selected?.title ?? resolvedTitle ?? undefined} />
         </div>
       ) : (
         <div className="mt-5 rounded-xl border border-dashed border-border bg-bg-card p-6 text-sm text-muted">

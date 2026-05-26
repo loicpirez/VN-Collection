@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { readApiError } from '@/lib/api-error-read';
+import { timeAgo } from '@/lib/time-ago';
 import { SkeletonRows } from './Skeleton';
 
 interface StockOffer {
@@ -155,11 +156,11 @@ export function StockPanel({
   const providers = snapshot?.providers ?? [];
 
   useEffect(() => {
-    if (physicalDefaultRef.current || providers.length === 0) return;
+    if (initialSnapshot || physicalDefaultRef.current || providers.length === 0) return;
     physicalDefaultRef.current = true;
     const physicalIds = providers.filter((p) => p.physical && p.kind !== 'cached').map((p) => p.id);
     if (physicalIds.length > 0) setSelectedProviders(physicalIds);
-  }, [providers.length]);
+  }, [initialSnapshot, providers.length]);
 
   async function refresh() {
     abortRef.current?.abort();
@@ -476,6 +477,7 @@ export function StockPanel({
             value={aliasInput}
             onChange={(e) => setAliasInput(e.target.value)}
             placeholder={t.stock.aliasPlaceholder}
+            aria-label={t.stock.aliasPlaceholder}
             className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none"
           />
           <button
@@ -787,6 +789,8 @@ function OfferCard({
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-[10px] text-muted">
           {t.stock.source.replace('{source}', stockSourceLabel(t, offer.source))}
+          {' · '}
+          {timeAgo(offer.fetched_at, t)}
         </span>
         <a
           href={offer.url}
