@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
@@ -10,6 +10,8 @@ interface BatchResult {
   error?: string;
 }
 
+const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
+
 export function StockBatchClient() {
   const t = useT();
   const [input, setInput] = useState('');
@@ -17,12 +19,16 @@ export function StockBatchClient() {
   const [results, setResults] = useState<BatchResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const { valid, invalid } = useMemo(() => {
+    const allLines = input.split('\n').map((l) => l.trim()).filter(Boolean);
+    const v: string[] = [];
+    const inv: string[] = [];
+    for (const line of allLines) (VN_ID_RE.test(line) ? v : inv).push(line);
+    return { valid: [...new Set(v)], invalid: inv };
+  }, [input]);
+
   async function run() {
-    const vnIds = input
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => /^(v\d+|egs_\d+)$/i.test(l));
-    if (vnIds.length === 0) return;
+    if (valid.length === 0) return;
     setRunning(true);
     setError(null);
     setResults(null);
@@ -30,7 +36,7 @@ export function StockBatchClient() {
       const r = await fetch('/api/stock/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vnIds }),
+        body: JSON.stringify({ vnIds: valid }),
       });
       if (!r.ok) {
         const data = (await r.json()) as { error?: string };
@@ -65,15 +71,23 @@ export function StockBatchClient() {
           />
         </div>
 
-        <button
-          type="button"
-          onClick={run}
-          disabled={running || !input.trim()}
-          className="btn btn-primary min-h-[44px]"
-        >
-          {running ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
-          {t.stock.batchRun as string}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={run}
+            disabled={running || valid.length === 0}
+            className="btn btn-primary min-h-[44px]"
+          >
+            {running ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
+            {t.stock.batchRun as string}
+            {valid.length > 0 && <span className="text-[10px] opacity-80">({valid.length})</span>}
+          </button>
+          {invalid.length > 0 && (
+            <span className="text-[11px] text-amber-400" role="status">
+              {(t.stock.batchInvalidCount as string).replace('{count}', String(invalid.length))}
+            </span>
+          )}
+        </div>
       </div>
 
       {error && (

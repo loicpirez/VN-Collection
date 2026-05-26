@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyOffer,
   editionFromTitle,
+  isEligibleGameStockOffer,
   normalizeTitle,
   platformFromCategory,
   platformFromTitle,
@@ -133,4 +134,65 @@ describe('classifyOffer — alias match', () => {
   const cl = classifyOffer('アイキス3Cute [限定版]', 'ニンテンドースイッチソフト', TARGET_AIKISS3);
   it('alias アイキス3Cute triggers exact_game', () => expect(cl.seriesRelation).toBe('exact_game'));
   it('matchConfidence = exact or high', () => expect(['exact', 'high']).toContain(cl.matchConfidence));
+});
+
+describe('classifyOffer — noisy media and goods titles', () => {
+  it('rejects MP3 download as related media, not a game package', () => {
+    const cl = classifyOffer('架空ゲーム 主題歌 MP3 ダウンロード', null, { title: '架空ゲーム' });
+    expect(cl.contentKind).toBe('soundtrack');
+    expect(cl.seriesRelation).toBe('related_goods');
+    expect(isEligibleGameStockOffer({
+      availability: 'in_stock',
+      content_kind: cl.contentKind,
+      series_relation: cl.seriesRelation,
+      match_confidence: cl.matchConfidence,
+    })).toBe(false);
+  });
+
+  it('rejects CD album wording as soundtrack', () => {
+    const cl = classifyOffer('架空ゲーム ミニソングアルバム CD', null, { title: '架空ゲーム' });
+    expect(cl.contentKind).toBe('soundtrack');
+    expect(cl.matchWarnings.join(' ')).toMatch(/music|media/i);
+  });
+
+  it('rejects figure wording as related goods', () => {
+    const cl = classifyOffer('架空ゲーム ヒロイン フィギュア', null, { title: '架空ゲーム' });
+    expect(cl.contentKind).toBe('figure');
+    expect(cl.seriesRelation).toBe('related_goods');
+    expect(isEligibleGameStockOffer({
+      availability: 'in_stock',
+      content_kind: cl.contentKind,
+      series_relation: cl.seriesRelation,
+      match_confidence: cl.matchConfidence,
+    })).toBe(false);
+  });
+});
+
+describe('isEligibleGameStockOffer', () => {
+  it('accepts exact direct game packages and rejects weak, related, and no-match offers', () => {
+    expect(isEligibleGameStockOffer({
+      availability: 'in_stock',
+      content_kind: 'game_package',
+      series_relation: 'exact_game',
+      match_confidence: 'high',
+    })).toBe(true);
+    expect(isEligibleGameStockOffer({
+      availability: 'in_stock',
+      content_kind: 'game_package',
+      series_relation: 'exact_game',
+      match_confidence: 'low',
+    })).toBe(false);
+    expect(isEligibleGameStockOffer({
+      availability: 'in_stock',
+      content_kind: 'soundtrack',
+      series_relation: 'related_goods',
+      match_confidence: 'high',
+    })).toBe(false);
+    expect(isEligibleGameStockOffer({
+      availability: 'in_stock',
+      content_kind: 'game_package',
+      series_relation: 'unrelated',
+      match_confidence: 'reject',
+    })).toBe(false);
+  });
 });

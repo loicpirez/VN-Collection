@@ -29,8 +29,8 @@ type Tab = 'default' | 'custom';
 /**
  * Banner-source picker mirroring CoverSourcePicker, with two tabs:
  *
- *   1. **Default** — clear the custom banner and let the page fall
- *      back to the cover-derived blurred backdrop.
+ *   1. **Default** — clear the custom banner and leave the hero without
+ *      a banner backdrop.
  *   2. **Custom** — file upload, paste a URL, *or* pick from any image
  *      already attached to the VN (screenshots + per-release art).
  *
@@ -104,8 +104,7 @@ export function BannerSourcePicker({
     try {
       const r = await fetch(`/api/collection/${vnId}/banner`, { method: 'DELETE' });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      // Reset → null src + null rotation so HeroBanner falls back to
-      // the auto-derived blurred cover.
+      // Reset → null src + null rotation so HeroBanner clears the backdrop.
       dispatchBannerChanged({ vnId, newSrc: null, newLocal: null, position: null, rotation: 0 });
       toast.success(t.toast.bannerReset);
       setOpen(false);

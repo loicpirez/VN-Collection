@@ -95,6 +95,22 @@ const SOUNDTRACK_CATEGORY_PATTERNS: ReadonlyArray<RegExp> = [/サウンドトラ
 
 const ARTBOOK_CATEGORY_PATTERNS: ReadonlyArray<RegExp> = [/画集|アートブック|artbook/i, /設定資料集/];
 
+const SOUNDTRACK_TITLE_PATTERNS: ReadonlyArray<RegExp> = [
+  /MP3\s*ダウンロード|Amazon\s*Music/i,
+  /(?:^|[\s【「『])CD(?:[\s】」』]|$)/i,
+  /サウンドトラック|soundtrack/i,
+  /主題歌|楽曲|song|songs/i,
+  /ミニ(?:ソング)?アルバム|album/i,
+  /ラジオ|radio/i,
+  /off\s*vocal|オフボーカル/i,
+  /live\s*(?:ver\.?|version|medley)?|ライブ(?:版|メドレー)?/i,
+];
+
+const RELATED_GOODS_TITLE_PATTERNS: ReadonlyArray<RegExp> = [
+  /フィギュア|figure|ホビー|hobby/i,
+  /アクリル|タペストリー|抱き枕|キーホルダー|バッジ|クリアファイル|色紙|グッズ/,
+];
+
 const SOFTWARE_CATEGORIES: ReadonlySet<string> = new Set([
   'PCソフト',
   'Windows',
@@ -140,6 +156,14 @@ function isSoundtrackCategory(category: string): boolean {
 
 function isArtbookCategory(category: string): boolean {
   return ARTBOOK_CATEGORY_PATTERNS.some((re) => re.test(category));
+}
+
+function isSoundtrackTitle(title: string): boolean {
+  return SOUNDTRACK_TITLE_PATTERNS.some((re) => re.test(title));
+}
+
+function isRelatedGoodsTitle(title: string): boolean {
+  return RELATED_GOODS_TITLE_PATTERNS.some((re) => re.test(title));
 }
 
 export function platformFromCategory(category: string): Platform {
@@ -220,12 +244,22 @@ export function classifyOffer(
   const isBonusPrefix = /^\s*\[単品\]/.test(title);
   const goodsCat = isGoodsCategory(cat);
   const softwareCat = isSoftwareCategory(cat);
+  const soundtrackTitle = isSoundtrackTitle(title);
+  const relatedGoodsTitle = isRelatedGoodsTitle(title);
 
   let contentKind: ContentKind;
   if (isBonusPrefix) {
     contentKind = 'bonus_only';
     score -= 60;
     warnings.push('bonus-only item');
+  } else if (soundtrackTitle) {
+    contentKind = 'soundtrack';
+    score -= 60;
+    warnings.push('related music/media');
+  } else if (relatedGoodsTitle) {
+    contentKind = /フィギュア|figure/i.test(title) ? 'figure' : 'related_goods';
+    score -= 55;
+    warnings.push('related goods title');
   } else if (isFigureCategory(cat)) {
     contentKind = 'figure';
     score -= 50;
@@ -277,7 +311,7 @@ export function classifyOffer(
 
   let seriesRelation: SeriesRelation;
 
-  if (goodsCat || isBonusPrefix || contentKind === 'figure' || contentKind === 'soundtrack' || contentKind === 'artbook') {
+  if (goodsCat || isBonusPrefix || contentKind === 'figure' || contentKind === 'soundtrack' || contentKind === 'artbook' || relatedGoodsTitle || soundtrackTitle) {
     seriesRelation = 'related_goods';
     if (containsTarget) {
       score -= 30;
@@ -367,6 +401,28 @@ export function classifyOfferGroup(
   if (matchConfidence === 'medium') return 'needs_review';
   if (contentKind === 'game_package' || contentKind == null) return 'game';
   return 'game';
+}
+
+export function isEligibleGameStockOffer(offer: {
+  availability: string | null | undefined;
+  content_kind?: string | null;
+  series_relation?: string | null;
+  match_confidence?: string | null;
+  price?: number | null;
+}): boolean {
+  if (offer.availability !== 'in_stock' && offer.availability !== 'limited') return false;
+  const content = offer.content_kind ?? null;
+  if (content !== null && content !== 'game_package' && content !== 'digital_download') return false;
+  const confidence = offer.match_confidence ?? null;
+  if (confidence !== null && confidence !== 'exact' && confidence !== 'high') return false;
+  const relation = offer.series_relation ?? null;
+  if (
+    relation !== null &&
+    relation !== 'exact_game' &&
+    relation !== 'same_game_different_edition' &&
+    relation !== 'same_game_different_platform'
+  ) return false;
+  return true;
 }
 
 /** Serialise classification fields for storage. */

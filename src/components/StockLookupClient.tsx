@@ -7,6 +7,7 @@ import { readApiError } from '@/lib/api-error-read';
 import { SafeImage } from './SafeImage';
 import { StockBatchClient } from './StockBatchClient';
 import { StockPanel } from './StockPanel';
+import { StockPanelBoundary } from './StockPanelBoundary';
 
 interface SearchHit {
   id: string;
@@ -127,7 +128,13 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
 
       {initialVnId ? (
         <div className="mt-5">
-          <StockPanel vnId={initialVnId} title={selected?.title ?? resolvedTitle ?? undefined} />
+          <StockPanelBoundary
+            title={t.stock.title}
+            fallbackMessage={t.stock.boundaryFallback as string}
+            retryLabel={t.stock.boundaryRetry as string}
+          >
+            <StockPanel vnId={initialVnId} title={selected?.title ?? resolvedTitle ?? undefined} />
+          </StockPanelBoundary>
         </div>
       ) : (
         <div className="mt-5 rounded-xl border border-dashed border-border bg-bg-card p-6 text-sm text-muted">

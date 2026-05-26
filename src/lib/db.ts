@@ -743,10 +743,27 @@ function open(): Database.Database {
       message    TEXT,
       fetched_at INTEGER NOT NULL,
       offer_count INTEGER NOT NULL DEFAULT 0,
+      blocked_kind TEXT,
+      fresh_offers_found INTEGER NOT NULL DEFAULT 0,
+      cached_offers_available INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (vn_id, provider)
     );
     CREATE INDEX IF NOT EXISTS idx_vn_stock_provider_status_vn
       ON vn_stock_provider_status(vn_id, fetched_at);
+
+    CREATE TABLE IF NOT EXISTS vn_stock_source (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      vn_id      TEXT NOT NULL,
+      release_id TEXT,
+      provider   TEXT NOT NULL,
+      url        TEXT NOT NULL,
+      product_id TEXT,
+      created_at INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(vn_id, url)
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_stock_source_vn
+      ON vn_stock_source(vn_id, provider);
 
     CREATE TABLE IF NOT EXISTS vn_stock_alias (
       vn_id       TEXT NOT NULL,
@@ -1098,6 +1115,11 @@ function open(): Database.Database {
   ensureColumn(db, 'vn_stock_offer', 'store_code', 'TEXT');
   ensureColumn(db, 'vn_stock_offer', 'product_id', 'TEXT');
   ensureColumn(db, 'vn_stock_offer', 'page_kind', 'TEXT');
+  ensureColumn(db, 'vn_stock_provider_status', 'blocked_kind', 'TEXT');
+  ensureColumn(db, 'vn_stock_provider_status', 'fresh_offers_found', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'vn_stock_provider_status', 'cached_offers_available', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'vn_stock_source', 'release_id', 'TEXT');
+  ensureColumn(db, 'vn_stock_source', 'product_id', 'TEXT');
 
   // Migration: rewrite EGS cover URLs to point at the resolver endpoint
   // (/api/egs-cover/{egs_id}) instead of hardcoded DMM / Suruga-ya / image.php
@@ -8964,7 +8986,14 @@ export function countKobeDownloadPending(): { vndb_pending: number; egs_pending:
 }
 
 export type VnStockAvailability = 'in_stock' | 'limited' | 'out_of_stock' | 'unknown' | 'error';
-export type VnStockProviderStatus = 'ok' | 'skipped' | 'error';
+export type VnStockProviderStatus =
+  | 'ok'
+  | 'no_results'
+  | 'partial'
+  | 'protected'
+  | 'error'
+  | 'skipped'
+  | 'not_checked';
 
 export interface VnStockOfferRow {
   vn_id: string;
@@ -9009,15 +9038,23 @@ export interface VnStockProviderStatusRow {
   message: string | null;
   fetched_at: number;
   offer_count: number;
+  blocked_kind: string | null;
+  fresh_offers_found: number;
+  cached_offers_available: number;
 }
 
 export type VnStockOfferInput = Omit<VnStockOfferRow, 'updated_at'>;
+type VnStockProviderStatusInput = Omit<
+  VnStockProviderStatusRow,
+  'vn_id' | 'provider' | 'blocked_kind' | 'fresh_offers_found' | 'cached_offers_available'
+> & Partial<Pick<VnStockProviderStatusRow, 'blocked_kind' | 'fresh_offers_found' | 'cached_offers_available'>>;
 
 export function replaceVnStockProviderSnapshot(
   vnId: string,
   provider: string,
   offers: VnStockOfferInput[],
-  status: Omit<VnStockProviderStatusRow, 'vn_id' | 'provider'>,
+  status: VnStockProviderStatusInput,
+  options: { preserveExistingOffers?: boolean } = {},
 ): void {
   const txn = db.transaction(() => {
     const insertVnStockOfferStmt = db.prepare(`
@@ -9070,15 +9107,23 @@ export function replaceVnStockProviderSnapshot(
         page_kind = excluded.page_kind
     `);
     const upsertVnStockProviderStatusStmt = db.prepare(`
-      INSERT INTO vn_stock_provider_status (vn_id, provider, status, message, fetched_at, offer_count)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO vn_stock_provider_status (
+        vn_id, provider, status, message, fetched_at, offer_count,
+        blocked_kind, fresh_offers_found, cached_offers_available
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(vn_id, provider) DO UPDATE SET
         status = excluded.status,
         message = excluded.message,
         fetched_at = excluded.fetched_at,
-        offer_count = excluded.offer_count
+        offer_count = excluded.offer_count,
+        blocked_kind = excluded.blocked_kind,
+        fresh_offers_found = excluded.fresh_offers_found,
+        cached_offers_available = excluded.cached_offers_available
     `);
-    db.prepare(`DELETE FROM vn_stock_offer WHERE vn_id = ? AND provider = ?`).run(vnId, provider);
+    if (!options.preserveExistingOffers) {
+      db.prepare(`DELETE FROM vn_stock_offer WHERE vn_id = ? AND provider = ?`).run(vnId, provider);
+    }
     for (const offer of offers) {
       insertVnStockOfferStmt.run({ ...offer, updated_at: Date.now() });
     }
@@ -9089,6 +9134,9 @@ export function replaceVnStockProviderSnapshot(
       status.message,
       status.fetched_at,
       status.offer_count,
+      status.blocked_kind ?? null,
+      status.fresh_offers_found ?? status.offer_count,
+      status.cached_offers_available ?? 0,
     );
   });
   txn();
@@ -9136,12 +9184,35 @@ export function batchVnStockSummaries(
   type Row = { vn_id: string; available: number; best_price: number | null };
   const rows = db
     .prepare(
-      `SELECT vn_id,
-              COUNT(CASE WHEN availability IN ('in_stock','limited') THEN 1 END) AS available,
-              MIN(CASE WHEN availability IN ('in_stock','limited') AND price IS NOT NULL THEN price END) AS best_price
-       FROM vn_stock_offer
-       WHERE vn_id IN (${ph})
-       GROUP BY vn_id`,
+      `WITH eligible AS (
+         SELECT vn_id,
+                price,
+                CASE
+                  WHEN source IN ('direct','manual','alicesoft_kobe') THEN 0
+                  WHEN jan IS NOT NULL AND jan <> '' THEN 1
+                  WHEN product_id IS NOT NULL AND product_id <> '' THEN 2
+                  WHEN match_confidence IN ('exact','high') THEN 3
+                  WHEN match_confidence = 'medium' THEN 4
+                  ELSE 5
+                END AS priority
+         FROM vn_stock_offer
+         WHERE vn_id IN (${ph})
+           AND availability IN ('in_stock','limited')
+           AND (content_kind IS NULL OR content_kind IN ('game_package','digital_download'))
+           AND (match_confidence IS NULL OR match_confidence IN ('exact','high'))
+           AND (series_relation IS NULL OR series_relation IN ('exact_game','same_game_different_edition','same_game_different_platform'))
+       ),
+       ranked AS (
+         SELECT vn_id, MIN(priority) AS best_priority
+         FROM eligible
+         GROUP BY vn_id
+       )
+       SELECT e.vn_id,
+              COUNT(*) AS available,
+              MIN(CASE WHEN e.priority = r.best_priority AND e.price IS NOT NULL THEN e.price END) AS best_price
+       FROM eligible e
+       JOIN ranked r ON r.vn_id = e.vn_id
+       GROUP BY e.vn_id`,
     )
     .all(...vnIds) as Row[];
   const out = new Map<string, { available: number; best_price: number | null }>();
@@ -9196,6 +9267,60 @@ export function deleteStockAlias(vnId: string, aliasTerm: string): void {
     vnId,
     aliasTerm,
   );
+}
+
+export interface VnStockSourceRow {
+  id: number;
+  vn_id: string;
+  release_id: string | null;
+  provider: string;
+  url: string;
+  product_id: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export function listStockSources(vnId: string): VnStockSourceRow[] {
+  return db
+    .prepare(`SELECT * FROM vn_stock_source WHERE vn_id = ? ORDER BY created_at ASC, id ASC`)
+    .all(vnId) as VnStockSourceRow[];
+}
+
+export function upsertStockSource(input: {
+  vn_id: string;
+  provider: string;
+  url: string;
+  release_id?: string | null;
+  product_id?: string | null;
+}): VnStockSourceRow {
+  const now = Date.now();
+  db.prepare(
+    `INSERT INTO vn_stock_source (vn_id, release_id, provider, url, product_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(vn_id, url) DO UPDATE SET
+       release_id = excluded.release_id,
+       provider = excluded.provider,
+       product_id = excluded.product_id,
+       updated_at = excluded.updated_at`,
+  ).run(
+    input.vn_id,
+    input.release_id ?? null,
+    input.provider,
+    input.url,
+    input.product_id ?? null,
+    now,
+    now,
+  );
+  const row = db
+    .prepare(`SELECT * FROM vn_stock_source WHERE vn_id = ? AND url = ?`)
+    .get(input.vn_id, input.url) as VnStockSourceRow | undefined;
+  if (!row) throw new Error('stock source upsert failed');
+  return row;
+}
+
+export function deleteStockSource(vnId: string, sourceId: number): boolean {
+  const result = db.prepare(`DELETE FROM vn_stock_source WHERE vn_id = ? AND id = ?`).run(vnId, sourceId);
+  return result.changes > 0;
 }
 
 /** Delete all cached stock offers and provider statuses for one VN. */

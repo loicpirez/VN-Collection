@@ -1,11 +1,11 @@
 import 'server-only';
 import iconv from 'iconv-lite';
-import { getCollectionItem, getEgsForVn, listKobeStockForVn, listStockAliases, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow } from './db';
+import { getCollectionItem, getEgsForVn, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
 import type { CollectionItem } from './types';
-import { classifyOffer, classificationToFields, type ClassifyTarget } from './stock-classify';
+import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
 
 export const STOCK_PROVIDER_IDS = [
   'eroge_price',
@@ -69,10 +69,14 @@ export interface StockSnapshot {
   offers: StockOffer[];
   statuses: VnStockProviderStatusRow[];
   providers: StockProviderMeta[];
+  sources: VnStockSourceRow[];
   summary: {
     total: number;
     available: number;
     best_price: number | null;
+    related_available: number;
+    needs_review: number;
+    rejected: number;
     last_refresh: number | null;
   };
 }
@@ -82,6 +86,8 @@ interface StockTarget {
   releaseId: string | null;
   jan: string | null;
   query?: string | null;
+  source?: 'direct' | 'search' | 'manual';
+  productId?: string | null;
 }
 
 interface ParsedOffer {
@@ -155,7 +161,7 @@ const PROVIDERS: StockProviderMeta[] = [
   { id: 'neowing',            label: 'Neowing',            kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'yodobashi',          label: 'Yodobashi',          kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'bikkuri_takarajima', label: 'Bikkuri Takarajima', kind: 'direct',    physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'alicesoft_kobe',     label: 'AliceSoft Kobe',     kind: 'cached',    physical: true,  physicalStockMode: 'exact_cached',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
+  { id: 'alicesoft_kobe',     label: 'AliceNet Kobe',      kind: 'cached',    physical: true,  physicalStockMode: 'exact_cached',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
 ];
 
 const PROVIDER_LABELS = new Map(PROVIDERS.map((p) => [p.id, p.label]));
@@ -242,7 +248,19 @@ const PROVIDER_HOSTS: Record<StockProviderId, RegExp> = {
   bikkuri_takarajima: /^beak-takarajima\.celosia\.co\.jp$/,
 };
 
+/**
+ * Providers where searching by JAN/EAN code typically returns the exact
+ * product. Used in addition to title queries when a release carries a GTIN.
+ * Sofmap and Hgame1 already use direct JAN URLs (handled separately above),
+ * so they're omitted here.
+ */
+const JAN_SEARCH_PROVIDERS: ReadonlySet<StockProviderId> = new Set<StockProviderId>([
+  'mandarake', 'amazon_jp', 'yodobashi', 'joshin', 'neowing',
+  'asakusa_mach', 'animate', 'getchu',
+]);
+
 const TITLE_SEARCH_URLS: Partial<Record<StockProviderId, (query: string) => string>> = {
+  melonbooks: (query) => `https://www.melonbooks.co.jp/search/search.php?name=${encodeURIComponent(query)}&category_ids%5B%5D=&search_target_ids%5B%5D=&pageno=1&disp_number=40&sort=sale_desc`,
   mandarake: (query) => `https://order.mandarake.co.jp/order/listPage/list?keyword=${encodeURIComponent(query)}`,
   animate: (query) => `https://www.animate-onlineshop.jp/products/list.php?sci=0&smt=${encodeURIComponent(query)}&ss=5&sl=40&nf=1`,
   ebten: (query) => `https://store.kadokawa.co.jp/shop/goods/search.aspx?search=x&keyword=${encodeURIComponent(query)}`,
@@ -315,14 +333,40 @@ function sourceHost(url: string): string {
   }
 }
 
-async function fetchShopText(url: string, init: RequestInit & { encoding?: string } = {}): Promise<string> {
+/** Per-request timeout for shop fetches — avoids one slow shop hanging the refresh loop. */
+const STOCK_FETCH_TIMEOUT_MS = 15_000;
+
+async function fetchShopText(url: string, init: RequestInit & { encoding?: string; timeoutMs?: number } = {}): Promise<string> {
   if (!isAllowedHttpTarget(url)) throw new Error(`Blocked stock URL: ${sourceHost(url) || 'invalid host'}`);
-  const res = await fetch(url, {
-    redirect: 'follow',
-    cache: 'no-store',
-    headers: { ...SHOP_HEADERS, ...(init.headers ?? {}) },
-    signal: init.signal,
-  });
+  const timeoutMs = init.timeoutMs ?? STOCK_FETCH_TIMEOUT_MS;
+  const timeoutCtrl = new AbortController();
+  const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
+  // Chain external signal (refresh-stop) with the internal timeout controller.
+  const cleanupExternalListener =
+    init.signal && !init.signal.aborted
+      ? (() => {
+          const onAbort = () => timeoutCtrl.abort();
+          init.signal.addEventListener('abort', onAbort, { once: true });
+          return () => init.signal!.removeEventListener('abort', onAbort);
+        })()
+      : null;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      redirect: 'follow',
+      cache: 'no-store',
+      headers: { ...SHOP_HEADERS, ...(init.headers ?? {}) },
+      signal: timeoutCtrl.signal,
+    });
+  } catch (err) {
+    if (timeoutCtrl.signal.aborted && !(init.signal && init.signal.aborted)) {
+      throw new Error(`fetch timeout after ${timeoutMs}ms from ${sourceHost(url)}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+    cleanupExternalListener?.();
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status} from ${sourceHost(url)}`);
   const buf = Buffer.from(await res.arrayBuffer());
   const charset = /charset=([^;]+)/i.exec(res.headers.get('content-type') ?? '')?.[1]?.trim();
@@ -379,19 +423,48 @@ function titleQueries(vn: CollectionItem, extraTerms: string[] = []): string[] {
   return out;
 }
 
+function hasJapanese(value: string): boolean {
+  return /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(value);
+}
+
+function titleQueriesForProvider(vn: CollectionItem, provider: StockProviderId, extraTerms: string[] = []): string[] {
+  const queries = titleQueries(vn, extraTerms);
+  if (provider !== 'amazon_jp') return queries;
+  const japanese = queries.filter(hasJapanese);
+  return (japanese.length > 0 ? japanese : queries).slice(0, 3);
+}
+
+function amazonSearchTerms(query: string): string[] {
+  const terms = [
+    `${query} PCゲーム`,
+    `${query} Windows`,
+    `${query} DVD-ROM`,
+  ];
+  return [...new Set(terms)];
+}
+
 function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProviderId, vn?: CollectionItem | null, extraTerms: string[] = []): StockTarget[] {
   const targets: StockTarget[] = [];
   for (const release of releases) {
     const jan = janFromRelease(release);
     for (const link of release.extlinks ?? []) {
       const host = sourceHost(link.url);
-      if (PROVIDER_HOSTS[provider]?.test(host)) targets.push({ url: link.url, releaseId: release.id, jan });
+      if (PROVIDER_HOSTS[provider]?.test(host)) {
+        targets.push({
+          url: provider === 'amazon_jp' ? canonicalAmazonDpUrl(link.url) ?? link.url : link.url,
+          releaseId: release.id,
+          jan,
+          source: 'direct',
+          productId: provider === 'amazon_jp' ? extractAmazonAsin(link.url) : null,
+        });
+      }
     }
     if (jan && provider === 'sofmap') {
       targets.push({
         url: `https://a.sofmap.com/product_list_parts.aspx?product_type=USED&gid=002210010010&new_jan=${encodeURIComponent(jan)}`,
         releaseId: release.id,
         jan,
+        source: 'direct',
       });
     }
     if (jan && provider === 'hgame1') {
@@ -399,13 +472,34 @@ function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProvi
         url: `https://www.hgame1.com/item/${encodeURIComponent(jan)}.html`,
         releaseId: release.id,
         jan,
+        source: 'direct',
       });
     }
   }
   if (vn) {
-    for (const query of titleQueries(vn, extraTerms)) {
+    for (const query of titleQueriesForProvider(vn, provider, extraTerms)) {
       const buildSearchUrl = TITLE_SEARCH_URLS[provider];
-      if (buildSearchUrl) targets.push({ url: buildSearchUrl(query), releaseId: null, jan: null, query });
+      if (!buildSearchUrl) continue;
+      if (provider === 'amazon_jp') {
+        for (const searchTerm of amazonSearchTerms(query)) {
+          targets.push({ url: buildSearchUrl(searchTerm), releaseId: null, jan: null, query, source: 'search' });
+        }
+      } else {
+        targets.push({ url: buildSearchUrl(query), releaseId: null, jan: null, query, source: 'search' });
+      }
+    }
+    // JAN-based search: when a release has a GTIN and the provider supports a
+    // keyword search URL, also query by JAN. JAN searches typically return
+    // very high-confidence matches because the code is unique per package.
+    if (JAN_SEARCH_PROVIDERS.has(provider)) {
+      const buildSearchUrl = TITLE_SEARCH_URLS[provider];
+      if (buildSearchUrl) {
+        for (const release of releases) {
+          const jan = janFromRelease(release);
+          if (!jan) continue;
+          targets.push({ url: buildSearchUrl(jan), releaseId: release.id, jan, query: jan, source: 'search' });
+        }
+      }
     }
   }
   return uniqTargets(targets);
@@ -418,17 +512,58 @@ function allTargetsForProvider(
   discovered: Map<StockProviderId, StockTarget[]> = new Map(),
   extraTerms: string[] = [],
 ): StockTarget[] {
-  return uniqTargets([
+  const sourceRank = (source?: StockTarget['source']): number =>
+    source === 'direct' || source === 'manual' ? 0 : source === 'search' ? 2 : 1;
+  const targets = uniqTargets([
     ...releaseTargetsForProvider(releases, provider, vn, extraTerms),
     ...(discovered.get(provider) ?? []),
-  ]);
+  ]).sort((a, b) => sourceRank(a.source) - sourceRank(b.source));
+  if (provider === 'amazon_jp' && targets.some((target) => target.source === 'direct' || target.source === 'manual')) {
+    return targets.filter((target) => target.source === 'direct' || target.source === 'manual');
+  }
+  return targets;
 }
 
-function providerForHost(host: string): StockProviderId | null {
+export function providerForHost(host: string): StockProviderId | null {
   for (const provider of STOCK_PROVIDER_IDS) {
     if (PROVIDER_HOSTS[provider].test(host)) return provider;
   }
   return null;
+}
+
+export function detectStockProviderFromUrl(url: string): StockProviderId | null {
+  return providerForHost(sourceHost(url));
+}
+
+export function extractAmazonAsin(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)amazon\.co\.jp$/.test(u.hostname.toLowerCase())) return null;
+    const match = /\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i.exec(u.pathname);
+    return match?.[1]?.toUpperCase() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function canonicalAmazonDpUrl(url: string): string | null {
+  const asin = extractAmazonAsin(url);
+  return asin ? `https://www.amazon.co.jp/dp/${asin}` : null;
+}
+
+function stockTargetSource(target: StockTarget): 'direct' | 'search' | 'manual' {
+  if (target.source === 'manual') return 'manual';
+  if (target.source === 'direct' || target.releaseId) return 'direct';
+  return 'search';
+}
+
+function offerPriorityRank(offer: Pick<VnStockOfferRow, 'source' | 'jan' | 'product_id' | 'match_confidence'>): number {
+  if (offer.source === 'direct' || offer.source === 'manual' || offer.source === 'alicesoft_kobe') return 0;
+  if (offer.jan) return 1;
+  if (offer.product_id) return 2;
+  if (offer.match_confidence === 'exact' || offer.match_confidence === 'high') return 3;
+  if (offer.match_confidence === 'medium') return 4;
+  return 5;
 }
 
 function officialRetailerSourceUrls(vn: CollectionItem, releases: VndbRelease[]): string[] {
@@ -458,7 +593,7 @@ async function discoverRetailerTargetsFromOfficialPages(
         const provider = providerForHost(sourceHost(url));
         if (!provider) continue;
         const list = out.get(provider) ?? [];
-        list.push({ url, releaseId: null, jan: null });
+        list.push({ url, releaseId: null, jan: null, source: 'direct', productId: extractAmazonAsin(url) });
         out.set(provider, list);
       }
     } catch {}
@@ -700,6 +835,28 @@ export function parseMelonbooksDetail(html: string, url: string, target: StockTa
   };
 }
 
+/**
+ * Extract product detail URLs from a Melonbooks search page.
+ * Only follows product_id-style links — never the category/filter facets.
+ */
+export function extractMelonbooksProductLinks(html: string, baseUrl: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of html.matchAll(/href=["']([^"']*\/detail\/detail\.php\?product_id=\d+[^"']*)["']/gi)) {
+    const href = m[1] ?? '';
+    if (!href) continue;
+    const abs = absUrl(baseUrl, href);
+    if (sourceHost(abs) !== 'www.melonbooks.co.jp') continue;
+    let pid: string | null = null;
+    try { pid = new URL(abs).searchParams.get('product_id'); } catch {}
+    const key = pid ?? abs;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(abs);
+  }
+  return out;
+}
+
 async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
@@ -707,8 +864,24 @@ async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: Coll
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
-  for (const target of allTargetsForProvider(releases, 'melonbooks', vn, discovered, aliases).slice(0, 12)) {
+  for (const target of allTargetsForProvider(releases, 'melonbooks', vn, discovered, aliases).slice(0, 8)) {
     const html = await fetchShopText(target.url, { signal });
+    const isSearchPage = /\/search\/search\.php/i.test(new URL(target.url).pathname);
+    if (isSearchPage) {
+      const links = extractMelonbooksProductLinks(html, target.url).slice(0, 6);
+      for (const detailUrl of links) {
+        if (signal?.aborted) break;
+        try {
+          const detailHtml = await fetchShopText(detailUrl, { signal });
+          const parsed = parseMelonbooksDetail(detailHtml, detailUrl, target);
+          if (!parsed) continue;
+          if (!targetMatchesTitle(target, parsed.title)) continue;
+          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+          offers.push(offerInput(vnId, 'melonbooks', 'search', now, { ...parsed, ...classificationToFields(cl) }));
+        } catch {}
+      }
+      continue;
+    }
     const parsed = parseMelonbooksDetail(html, target.url, target);
     if (parsed) {
       const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
@@ -1276,9 +1449,42 @@ function parseAmazonList(html: string, url: string, target: StockTarget): Parsed
     const stock = /発売予定|予約|無料配送/.test(block) ? '予約受付中' : block;
     if (!title || isSearchPagePseudoTitle(stripTags(title))) continue;
     const offer = offerFromListBlock('amazon_jp', url, target, href, title, price, stock, { location: 'Amazon JP' });
-    if (offer) offers.push({ ...offer, provider_offer_id: asin });
+    if (offer) offers.push({ ...offer, provider_offer_id: asin, product_id: asin, page_kind: 'detail' });
   }
   return offers;
+}
+
+export function parseAmazonDetail(html: string, url: string, target: StockTarget): ParsedOffer | null {
+  const asin = extractAmazonAsin(url) ?? target.productId ?? null;
+  if (!asin) return null;
+  const rawTitle =
+    firstMatchText(html, /<span[^>]+id=["']productTitle["'][^>]*>([\s\S]*?)<\/span>/i) ??
+    genericTitle(html);
+  const title = rawTitle?.replace(/\s*:\s*Amazon(?:\.co\.jp)?\s*$/i, '').trim() ?? '';
+  if (!title || isSearchPagePseudoTitle(title)) return null;
+  const price =
+    firstMatchText(html, /<span[^>]+class=["'][^"']*a-price-whole[^"']*["'][^>]*>([\s\S]*?)<\/span>/i) ??
+    firstMatchText(html, /<span[^>]+class=["']a-offscreen["'][^>]*>([\s\S]*?)<\/span>/i) ??
+    '';
+  const availabilityBlock =
+    firstMatchText(html, /<div[^>]+id=["']availability["'][^>]*>([\s\S]*?)<\/div>/i) ??
+    firstMatchText(html, /<span[^>]+class=["'][^"']*availability[^"']*["'][^>]*>([\s\S]*?)<\/span>/i) ??
+    html;
+  return {
+    provider_offer_id: asin,
+    product_id: asin,
+    page_kind: 'detail',
+    title,
+    url: canonicalAmazonDpUrl(url) ?? url,
+    price: parsePriceYen(price || html),
+    availability: availabilityFromText(availabilityBlock),
+    availability_label: stripTags(availabilityBlock).slice(0, 120) || null,
+    condition: /中古|used/i.test(html) ? 'Used' : null,
+    edition_label: null,
+    location_label: 'Amazon JP',
+    source_release_id: target.releaseId,
+    jan: target.jan,
+  };
 }
 
 function parseYahooList(html: string, url: string, target: StockTarget): ParsedOffer[] {
@@ -1331,6 +1537,10 @@ function providerListPatterns(provider: StockProviderId): RegExp[] {
 }
 
 export function parseGenericProviderPage(provider: StockProviderId, html: string, url: string, target: StockTarget): ParsedOffer[] {
+  if (provider === 'amazon_jp' && extractAmazonAsin(url)) {
+    const direct = parseAmazonDetail(html, url, target);
+    return direct ? [direct] : [];
+  }
   const knownOffers = parseKnownProviderList(provider, html, url, target);
   if (knownOffers.length > 0) return knownOffers;
   const offers: ParsedOffer[] = [];
@@ -1376,7 +1586,7 @@ async function refreshGenericProvider(provider: StockProviderId, vnId: string, r
     const html = await fetchShopText(target.url, { encoding: providerEncoding(provider), signal });
     for (const parsed of parseGenericProviderPage(provider, html, target.url, target).slice(0, 10)) {
       const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
-      offers.push(offerInput(vnId, provider, target.releaseId ? 'direct' : 'search', now, { ...parsed, ...classificationToFields(cl) }));
+      offers.push(offerInput(vnId, provider, stockTargetSource(target), now, { ...parsed, ...classificationToFields(cl) }));
     }
   }
   return offers;
@@ -1420,8 +1630,35 @@ function availabilityFromSchema(value: unknown): VnStockAvailability {
   return 'unknown';
 }
 
+/**
+ * Extracts the first absolute outbound link from an HTML fragment that points
+ * to a known shop host (excluding eroge-price itself). Used to upgrade the
+ * eroge-price row offer URL from the aggregator page to the actual seller.
+ */
+function extractFirstShopLink(html: string, baseUrl: string): string | null {
+  for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
+    const raw = m[1];
+    if (!raw) continue;
+    const abs = absUrl(baseUrl, raw);
+    const host = sourceHost(abs).toLowerCase();
+    if (!host || host === 'eroge-price.com' || host.endsWith('.eroge-price.com')) continue;
+    if (providerForHost(host)) return abs;
+  }
+  return null;
+}
+
+/**
+ * Detect a JAN/EAN code in an HTML blob. Eroge Price sometimes carries the
+ * release JAN inline so we plumb it through to dedupe against direct results.
+ */
+function extractJan(html: string): string | null {
+  const m = /\b(?:JAN|EAN|GTIN|JAN(?:\/EAN)?)\s*[:：]?\s*(\d{8}|\d{12}|\d{13})\b/i.exec(html);
+  return m?.[1] ?? null;
+}
+
 export function parseErogePrice(html: string, url: string, vnId: string, now: number): VnStockOfferInput[] {
   const title = firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i) ?? 'Eroge Price';
+  const pageJan = extractJan(html);
   const offers: VnStockOfferInput[] = [];
   for (const block of parseJsonLd(html)) {
     for (const offer of collectOffers(block)) {
@@ -1440,30 +1677,47 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
         edition_label: null,
         location_label: seller,
         source_release_id: null,
-        jan: null,
+        jan: pageJan,
       }));
     }
   }
-  for (const m of html.matchAll(/<tr>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<\/tr>/gi)) {
-    const seller = stripTags(m[1] ?? '');
-    const edition = stripTags(m[2] ?? '');
-    const priceText = stripTags(m[3] ?? '');
-    const condition = stripTags(m[4] ?? '');
+  for (const m of html.matchAll(/<tr>([\s\S]*?)<\/tr>/gi)) {
+    const rowHtml = m[1] ?? '';
+    const cells = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((cell) => cell[1] ?? '');
+    if (cells.length < 3) continue;
+    const seller = stripTags(cells[0] ?? '');
+    const edition = stripTags(cells[1] ?? '');
+    const priceText = stripTags(cells[2] ?? '');
+    const condition = stripTags(cells[3] ?? '');
+    const fifth = stripTags(cells[4] ?? '');
     if (!seller || !priceText) continue;
+    // The seller cell typically embeds the outbound link first; the row's
+    // trailing cells often hold action / point info. Prefer the seller-cell
+    // link over the page URL when available.
+    const sellerLink = extractFirstShopLink(cells[0] ?? '', url)
+      ?? extractFirstShopLink(rowHtml, url);
+    const offerUrl = sellerLink ?? url;
     const key = `${seller}:${edition}:${priceText}:${condition}`;
     if (offers.some((offer) => offer.provider_offer_id === key)) continue;
+    // Some rows carry a release-date or in-stock flag in a trailing cell.
+    const inStockFlag = /在庫あり|入荷|販売中|InStock/i.test(rowHtml);
+    const soldOutFlag = /品切|完売|販売終了|sold\s*out/i.test(rowHtml);
+    let availability: VnStockAvailability;
+    if (soldOutFlag) availability = 'out_of_stock';
+    else if (inStockFlag) availability = 'in_stock';
+    else availability = availabilityFromText(condition || fifth || seller);
     offers.push(offerInput(vnId, 'eroge_price', 'search', now, {
       provider_offer_id: key,
       title,
-      url,
+      url: offerUrl,
       price: parsePriceYen(priceText),
-      availability: availabilityFromText(condition || seller),
+      availability,
       availability_label: seller,
       condition: condition || null,
       edition_label: edition || null,
       location_label: seller,
       source_release_id: null,
-      jan: null,
+      jan: pageJan,
     }));
   }
   return offers;
@@ -1791,6 +2045,20 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
   const releases = isVndbVnId(vnId) ? await getReleasesForVn(vnId, 100) : [];
   const egsId = getEgsForVn(vnId)?.egs_id ?? null;
   const discovered = await discoverRetailerTargetsFromOfficialPages(vn, releases, signal);
+  for (const source of listStockSources(vnId)) {
+    if (!STOCK_PROVIDER_IDS.includes(source.provider as StockProviderId)) continue;
+    const provider = source.provider as StockProviderId;
+    const list = discovered.get(provider) ?? [];
+    const url = provider === 'amazon_jp' ? canonicalAmazonDpUrl(source.url) ?? source.url : source.url;
+    list.push({
+      url,
+      releaseId: source.release_id,
+      jan: null,
+      source: 'manual',
+      productId: source.product_id,
+    });
+    discovered.set(provider, uniqTargets(list));
+  }
   for (const provider of providers) {
     const now = Date.now();
     try {
@@ -1801,23 +2069,45 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
           : provider === 'surugaya' || provider === 'trader'
             ? titleQueries(vn, aliases).length > 0
             : allTargetsForProvider(releases, provider, vn, discovered, aliases).length > 0;
+      const status =
+        !hasInputs
+          ? 'skipped'
+          : offers.length === 0
+            ? 'no_results'
+            : provider === 'surugaya'
+              ? 'partial'
+              : 'ok';
       replaceVnStockProviderSnapshot(vnId, provider, offers, {
-        status: hasInputs ? 'ok' : 'skipped',
-        message: hasInputs ? null : 'No release link, JAN, or EGS id available for this provider.',
+        status,
+        message: !hasInputs
+          ? 'No release link, JAN, or EGS id available for this provider.'
+          : provider === 'surugaya' && offers.length > 0
+            ? 'Search cards parsed; product detail pages are protected or intentionally not fetched.'
+            : null,
         fetched_at: now,
         offer_count: offers.length,
+        blocked_kind: provider === 'surugaya' && offers.length > 0 ? 'detail_page' : null,
+        fresh_offers_found: offers.length,
+        cached_offers_available: 0,
       });
     } catch (e) {
       const msg = (e as Error).message;
-      const isCloudflare = msg === 'cloudflare_challenge';
+      const isCloudflare = msg === 'cloudflare_challenge' || /cloudflare|challenge|protected/i.test(msg);
+      const cachedOffers = provider === 'surugaya'
+        ? listVnStockOffers(vnId).filter((offer) => offer.provider === provider)
+        : [];
+      const preserveExistingOffers = isCloudflare && cachedOffers.length > 0;
       replaceVnStockProviderSnapshot(vnId, provider, [], {
-        status: 'error',
+        status: isCloudflare ? 'protected' : 'error',
         message: isCloudflare
           ? 'Cloudflare protected — automated access blocked.'
           : msg,
         fetched_at: now,
-        offer_count: 0,
-      });
+        offer_count: preserveExistingOffers ? cachedOffers.length : 0,
+        blocked_kind: isCloudflare ? 'search_page' : null,
+        fresh_offers_found: 0,
+        cached_offers_available: preserveExistingOffers ? cachedOffers.length : 0,
+      }, { preserveExistingOffers });
     }
   }
   return getStockForVn(vnId);
@@ -1838,11 +2128,11 @@ export function getStockForVn(vnId: string): StockSnapshot {
     price: parsePriceYen(row.sale_price ?? row.list_price ?? ''),
     currency: 'JPY',
     availability: 'in_stock' as VnStockAvailability,
-    availability_label: 'AliceSoft Kobe stock',
+    availability_label: 'AliceNet Kobe stock',
     condition: 'Used',
     edition_label: null,
-    location_label: 'AliceSoft Kobe',
-    location_branch: 'AliceSoft Kobe',
+    location_label: 'AliceNet Kobe',
+    location_branch: 'AliceNet Kobe',
     source_release_id: null,
     jan: row.jan,
     fetched_at: row.fetched_at,
@@ -1852,9 +2142,9 @@ export function getStockForVn(vnId: string): StockSnapshot {
     content_kind: 'game_package',
     platform: null,
     edition_kind: null,
-    series_relation: null,
-    match_confidence: null,
-    match_score: null,
+    series_relation: 'exact_game',
+    match_confidence: 'high',
+    match_score: 90,
     match_warnings_json: null,
     marketplace_price: null,
     marketplace_count: null,
@@ -1866,23 +2156,39 @@ export function getStockForVn(vnId: string): StockSnapshot {
   }));
   const offers = [...directOffers, ...kobeOffers].sort((a, b) => {
     const rank = (v: VnStockAvailability) => (v === 'in_stock' ? 0 : v === 'limited' ? 1 : v === 'unknown' ? 2 : v === 'out_of_stock' ? 3 : 4);
-    return rank(a.availability) - rank(b.availability) || (a.price ?? Number.MAX_SAFE_INTEGER) - (b.price ?? Number.MAX_SAFE_INTEGER);
+    return rank(a.availability) - rank(b.availability) ||
+      offerPriorityRank(a) - offerPriorityRank(b) ||
+      (a.price ?? Number.MAX_SAFE_INTEGER) - (b.price ?? Number.MAX_SAFE_INTEGER);
   });
   const statuses = listVnStockProviderStatuses(vnId);
-  const available = offers.filter((offer) => offer.availability === 'in_stock' || offer.availability === 'limited').length;
-  const priced = offers
-    .filter((o) => o.availability === 'in_stock' || o.availability === 'limited')
+  const eligibleOffers = offers.filter(isEligibleGameStockOffer);
+  const bestPriority = eligibleOffers.length > 0 ? Math.min(...eligibleOffers.map(offerPriorityRank)) : null;
+  const bestPricePool = bestPriority == null
+    ? []
+    : eligibleOffers.filter((offer) => offerPriorityRank(offer) === bestPriority);
+  const available = eligibleOffers.length;
+  const priced = bestPricePool
     .map((o) => o.price)
     .filter((price): price is number => price != null && price > 0);
+  const relatedAvailable = offers.filter(
+    (offer) => classifyOfferGroup(offer.content_kind, offer.series_relation, offer.match_confidence) === 'related' &&
+      (offer.availability === 'in_stock' || offer.availability === 'limited'),
+  ).length;
+  const needsReview = offers.filter((offer) => classifyOfferGroup(offer.content_kind, offer.series_relation, offer.match_confidence) === 'needs_review').length;
+  const rejected = offers.filter((offer) => classifyOfferGroup(offer.content_kind, offer.series_relation, offer.match_confidence) === 'rejected').length;
   const lastRefresh = Math.max(0, ...offers.map((offer) => offer.fetched_at), ...statuses.map((status) => status.fetched_at));
   return {
     offers,
     statuses,
     providers: PROVIDERS,
+    sources: listStockSources(vnId),
     summary: {
       total: offers.length,
       available,
       best_price: priced.length > 0 ? Math.min(...priced) : null,
+      related_available: relatedAvailable,
+      needs_review: needsReview,
+      rejected,
       last_refresh: lastRefresh > 0 ? lastRefresh : null,
     },
   };

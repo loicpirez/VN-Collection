@@ -11,6 +11,7 @@ import { useResolvedTitle } from './TitleLine';
 import { CardContextMenu } from './CardContextMenu';
 import { FavoriteToggleButton } from './FavoriteToggleButton';
 import { ListsPickerButton } from './ListsPickerButton';
+import { StockChip } from './StockChip';
 import type { EditionType, Status } from '@/lib/types';
 import type { AspectKey } from '@/lib/aspect-ratio';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
@@ -339,6 +340,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
               {visibleAspectKeys.length > 2 ? ` +${visibleAspectKeys.length - 2}` : ''}
             </span>
           )}
+          <StockChip vnId={data.id} />
         </div>
         {allPlaytime && (
           <div className="text-[11px]">

@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -21,7 +21,8 @@ import {
 import { useLocale, useT } from '@/lib/i18n/client';
 import { readApiError } from '@/lib/api-error-read';
 import { timeAgo } from '@/lib/time-ago';
-import { classifyOfferGroup, type OfferGroup } from '@/lib/stock-classify';
+import { normalizeProviderDiagnostic, type NormalizedProviderDiagnostic, type ProviderDiagnosticGroup } from '@/lib/stock-diagnostics';
+import { classifyOfferGroup, isEligibleGameStockOffer, type OfferGroup } from '@/lib/stock-classify';
 import { StockPhysicalLocations, type PhysicalOffer } from './StockPhysicalLocations';
 import { SkeletonRows } from './Skeleton';
 
@@ -64,10 +65,13 @@ interface StockOffer {
 
 interface StockStatus {
   provider: string;
-  status: 'ok' | 'skipped' | 'error';
+  status: 'ok' | 'no_results' | 'partial' | 'protected' | 'error' | 'skipped' | 'not_checked';
   message: string | null;
   fetched_at: number;
   offer_count: number;
+  blocked_kind: string | null;
+  fresh_offers_found: number;
+  cached_offers_available: number;
 }
 
 interface StockProvider {
@@ -85,12 +89,27 @@ interface StockSnapshot {
   offers: StockOffer[];
   statuses: StockStatus[];
   providers: StockProvider[];
+  sources: StockSource[];
   summary: {
     total: number;
     available: number;
     best_price: number | null;
+    related_available: number;
+    needs_review: number;
+    rejected: number;
     last_refresh: number | null;
   };
+}
+
+interface StockSource {
+  id: number;
+  vn_id: string;
+  release_id: string | null;
+  provider: string;
+  url: string;
+  product_id: string | null;
+  created_at: number;
+  updated_at: number;
 }
 
 export function StockPanel({
@@ -116,6 +135,10 @@ export function StockPanel({
   const [aliases, setAliases] = useState<string[]>([]);
   const [aliasInput, setAliasInput] = useState('');
   const [aliasLoading, setAliasLoading] = useState(false);
+  const [aliasError, setAliasError] = useState<string | null>(null);
+  const [sourceInput, setSourceInput] = useState('');
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceError, setSourceError] = useState<string | null>(null);
   const [hideStale, setHideStale] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -155,10 +178,12 @@ export function StockPanel({
   }, [load, initialSnapshot]);
 
   useEffect(() => {
-    fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, { cache: 'no-store' })
+    const ctrl = new AbortController();
+    fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, { cache: 'no-store', signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : { aliases: [] }))
-      .then((data: { aliases: string[] }) => setAliases(data.aliases ?? []))
-      .catch(() => {});
+      .then((data: { aliases: string[] }) => { if (!ctrl.signal.aborted) setAliases(data.aliases ?? []); })
+      .catch((e) => { if ((e as Error).name !== 'AbortError') {/* swallow */} });
+    return () => ctrl.abort();
   }, [vnId]);
 
   const providers = snapshot?.providers ?? [];
@@ -216,18 +241,23 @@ export function StockPanel({
     const term = aliasInput.trim();
     if (!term || aliasLoading) return;
     setAliasLoading(true);
+    setAliasError(null);
     try {
       const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ term, action: 'add' }),
       });
+      const data = (await r.json()) as { aliases?: string[]; error?: string };
       if (r.ok) {
-        const data = (await r.json()) as { aliases: string[] };
         setAliases(data.aliases ?? []);
         setAliasInput('');
+      } else {
+        if (Array.isArray(data.aliases)) setAliases(data.aliases);
+        setAliasError(data.error ?? t.common.error);
       }
-    } catch {
+    } catch (e) {
+      setAliasError((e as Error).message);
     } finally {
       setAliasLoading(false);
     }
@@ -251,13 +281,66 @@ export function StockPanel({
     }
   }
 
-  async function clearCache() {
-    if (!confirm(t.stock.clearCacheConfirm as string)) return;
+  async function handleAddSource(e: React.FormEvent) {
+    e.preventDefault();
+    const url = sourceInput.trim();
+    if (!url || sourceLoading) return;
+    setSourceLoading(true);
+    setSourceError(null);
+    try {
+      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/sources`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!r.ok) throw new Error(await readApiError(r, t.stock.manualSourceUnsupported));
+      setSnapshot((await r.json()) as StockSnapshot);
+      setSourceInput('');
+    } catch (e) {
+      setSourceError((e as Error).message);
+    } finally {
+      setSourceLoading(false);
+    }
+  }
+
+  async function removeSource(id: number) {
+    setSourceLoading(true);
+    setSourceError(null);
+    try {
+      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/sources`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      setSnapshot((await r.json()) as StockSnapshot);
+    } catch (e) {
+      setSourceError((e as Error).message);
+    } finally {
+      setSourceLoading(false);
+    }
+  }
+
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+
+  function clearCache() {
+    setClearConfirmOpen(true);
+  }
+
+  async function performClearCache() {
+    setClearConfirmOpen(false);
     setClearingCache(true);
     try {
-      await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, { method: 'DELETE' });
-      setSnapshot(null);
-      await load();
+      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, { method: 'DELETE' });
+      if (r.ok) {
+        const data = (await r.json()) as { snapshot?: StockSnapshot };
+        if (data.snapshot) {
+          setSnapshot(data.snapshot);
+        } else {
+          setSnapshot(null);
+          await load();
+        }
+      }
     } catch {
     } finally {
       setClearingCache(false);
@@ -289,6 +372,14 @@ export function StockPanel({
     for (const offer of offers) out.set(offer.provider, (out.get(offer.provider) ?? 0) + 1);
     return out;
   }, [offers]);
+  const diagnostics = useMemo(
+    () =>
+      providers.map((provider) =>
+        normalizeProviderDiagnostic(provider, statusByProvider.get(provider.id), offerCountByProvider.get(provider.id) ?? 0),
+      ),
+    [providers, statusByProvider, offerCountByProvider],
+  );
+  const diagnosticByProvider = useMemo(() => new Map(diagnostics.map((diag) => [diag.provider, diag])), [diagnostics]);
 
   const physicalProviderIds = useMemo(
     () => new Set(providers.filter((p) => p.physical && p.kind !== 'cached').map((p) => p.id)),
@@ -304,9 +395,10 @@ export function StockPanel({
 
   const best = snapshot?.summary.best_price ?? null;
   const lastRefresh = snapshot?.summary.last_refresh ?? null;
-  const failed = (snapshot?.statuses ?? []).filter((s) => s.status === 'error');
-  const skipped = (snapshot?.statuses ?? []).filter((s) => s.status === 'skipped');
   const checkedStatuses = snapshot?.statuses ?? [];
+  const displayDiagnostics = diagnostics.filter(
+    (diag) => diag.kind !== 'ok' && (diag.kind !== 'not_checked' || statusByProvider.has(diag.provider)),
+  );
 
   const confirmedPhysicalIds = useMemo(
     () => new Set(providers.filter((p) => p.confirmedPhysicalUsable).map((p) => p.id)),
@@ -334,14 +426,55 @@ export function StockPanel({
   [offers, confirmedPhysicalIds]);
 
   const providerById = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers]);
+  const detectedSourceProvider = useMemo(() => {
+    const raw = sourceInput.trim();
+    if (!raw || providers.length === 0) return null;
+    let host = '';
+    try { host = new URL(raw).hostname.toLowerCase(); } catch { return null; }
+    if (!host) return null;
+    const match = providers.find((p) => providerHostMatches(p.id, host));
+    return match?.label ?? null;
+  }, [sourceInput, providers]);
 
-  function setProviderGroup(kind: 'all' | 'physical' | 'aggregate') {
+  const blockedProviderCount = useMemo(() => {
+    const blockedGroups = new Set<ProviderDiagnosticGroup>(['blocked', 'attention']);
+    return refreshableProviders.filter((p) => {
+      const diag = diagnosticByProvider.get(p.id);
+      return diag ? blockedGroups.has(diag.group) : false;
+    }).length;
+  }, [refreshableProviders, diagnosticByProvider]);
+  const notCheckedCount = useMemo(
+    () => refreshableProviders.filter((p) => !statusByProvider.has(p.id)).length,
+    [refreshableProviders, statusByProvider],
+  );
+
+  function setProviderGroup(kind: 'all' | 'physical' | 'aggregate' | 'blocked' | 'not_checked') {
     if (kind === 'all') {
       setSelectedProviders(null);
       return;
     }
     if (kind === 'physical') {
       const ids = providers.filter((p) => p.physical && p.kind !== 'cached').map((p) => p.id);
+      if (ids.length > 0) setSelectedProviders(ids);
+      return;
+    }
+    if (kind === 'blocked') {
+      // Select providers currently in blocked/unreachable state so the user
+      // can re-check them after a transient issue.
+      const blockedGroups: ProviderDiagnosticGroup[] = ['blocked', 'attention'];
+      const ids = refreshableProviders
+        .map((p) => p.id)
+        .filter((id) => {
+          const diag = diagnosticByProvider.get(id);
+          return diag ? blockedGroups.includes(diag.group) : false;
+        });
+      if (ids.length > 0) setSelectedProviders(ids);
+      return;
+    }
+    if (kind === 'not_checked') {
+      const ids = refreshableProviders
+        .map((p) => p.id)
+        .filter((id) => !statusByProvider.has(id));
       if (ids.length > 0) setSelectedProviders(ids);
       return;
     }
@@ -380,14 +513,29 @@ export function StockPanel({
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
             <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1">
               <PackageSearch className="h-3 w-3" aria-hidden />
-              {t.stock.availableCount
+              {t.stock.availableGameCount
                 .replace('{available}', String(snapshot?.summary.available ?? 0))
                 .replace('{total}', String(snapshot?.summary.total ?? 0))}
             </span>
             <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1">
               <CircleDollarSign className="h-3 w-3" aria-hidden />
-              {best != null ? t.stock.bestPrice.replace('{price}', currency.format(best)) : t.stock.noPrice}
+              {best != null ? t.stock.bestGamePrice.replace('{price}', currency.format(best)) : t.stock.noPrice}
             </span>
+            {(snapshot?.summary.related_available ?? 0) > 0 && (
+              <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-1">
+                {t.stock.relatedAvailableCount.replace('{count}', String(snapshot?.summary.related_available ?? 0))}
+              </span>
+            )}
+            {(snapshot?.summary.needs_review ?? 0) > 0 && (
+              <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-1">
+                {t.stock.needsReviewCount.replace('{count}', String(snapshot?.summary.needs_review ?? 0))}
+              </span>
+            )}
+            {(snapshot?.summary.rejected ?? 0) > 0 && (
+              <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-1">
+                {t.stock.rejectedCount.replace('{count}', String(snapshot?.summary.rejected ?? 0))}
+              </span>
+            )}
             {lastRefresh && (
               <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-1">
                 {t.stock.lastChecked.replace('{date}', new Date(lastRefresh).toLocaleString(locale))}
@@ -431,12 +579,18 @@ export function StockPanel({
             onClick={refresh}
             disabled={refreshing || (selectedProviders != null && selectedProviders.length === 0)}
             className="btn btn-primary min-h-[44px]"
+            aria-busy={refreshing}
           >
             {refreshing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
             {checkButtonLabel}
           </button>
         </div>
       </header>
+      <p className="sr-only" role="status" aria-live="polite">
+        {refreshing && progress
+          ? (t.stock.checkingProviders as string).replace('{count}', `${progress.done}/${progress.total}`)
+          : ''}
+      </p>
 
       {providers.length > 0 && (
         <div className="mt-4 rounded-lg border border-border bg-bg-elev/25 p-3">
@@ -470,13 +624,42 @@ export function StockPanel({
               onClick={() => setProviderGroup('aggregate')}
               disabled={refreshing}
             />
+            {blockedProviderCount > 0 && (
+              <GroupBtn
+                label={(t.stock.groupBlockedRetry as string).replace('{count}', String(blockedProviderCount))}
+                active={false}
+                onClick={() => setProviderGroup('blocked')}
+                disabled={refreshing}
+              />
+            )}
+            {notCheckedCount > 0 && (
+              <GroupBtn
+                label={(t.stock.groupNotCheckedSelect as string).replace('{count}', String(notCheckedCount))}
+                active={false}
+                onClick={() => setProviderGroup('not_checked')}
+                disabled={refreshing}
+              />
+            )}
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3" role="group" aria-label={t.stock.providers}>
             {providers.map((provider) => {
               const status = statusByProvider.get(provider.id);
               const count = offerCountByProvider.get(provider.id) ?? status?.offer_count ?? 0;
+              const diagnostic = diagnosticByProvider.get(provider.id);
               const selectable = provider.kind !== 'cached';
               const selected = selectable ? selectedProviderSet.has(provider.id) : false;
+              const badgeLabel = diagnostic ? providerDiagnosticText(t, diagnostic.badgeKey) : null;
+              const lastChecked = status?.fetched_at
+                ? timeAgo(status.fetched_at, t)
+                : null;
+              const lastCheckedFull = status?.fetched_at
+                ? new Date(status.fetched_at).toLocaleString(locale)
+                : null;
+              const ariaLabel = `${provider.label} — ${badgeLabel ?? (selectable ? t.stock.providerNotChecked : t.stock.providerCached)}${count > 0 ? ` (${count})` : ''}`;
+              const diagnosticMessage = diagnostic ? providerDiagnosticText(t, diagnostic.messageKey) : null;
+              const tooltipParts: string[] = [];
+              if (diagnosticMessage && diagnostic?.kind !== 'ok') tooltipParts.push(diagnosticMessage);
+              if (lastCheckedFull) tooltipParts.push((t.stock.lastChecked as string).replace('{date}', lastCheckedFull));
               return (
                 <button
                   key={provider.id}
@@ -484,6 +667,8 @@ export function StockPanel({
                   onClick={() => selectable && toggleProvider(provider.id)}
                   disabled={refreshing || !selectable}
                   aria-pressed={selected}
+                  aria-label={ariaLabel}
+                  title={tooltipParts.length > 0 ? tooltipParts.join('\n') : undefined}
                   className={`min-h-[44px] rounded-lg border px-3 py-2 text-left transition-colors ${
                     selected
                       ? 'border-accent bg-accent/10 text-white'
@@ -506,13 +691,17 @@ export function StockPanel({
                                 ? t.stock.physicalCapable
                                 : t.stock.providersDirect}
                       </span>
+                      {lastChecked && (
+                        <span className="mt-0.5 block text-[10px] text-muted/70">
+                          {(t.stock.lastCheckedShort as string).replace('{time}', lastChecked)}
+                        </span>
+                      )}
                     </span>
                     <ProviderStatusBadge
                       t={t}
-                      status={status}
+                      diagnostic={diagnostic}
                       count={count}
                       cached={provider.kind === 'cached'}
-                      cloudflare={provider.cloudflare}
                       loading={refreshing && currentProvider === provider.id}
                     />
                   </span>
@@ -554,9 +743,12 @@ export function StockPanel({
           <input
             type="text"
             value={aliasInput}
-            onChange={(e) => setAliasInput(e.target.value)}
+            onChange={(e) => { setAliasInput(e.target.value); if (aliasError) setAliasError(null); }}
             placeholder={t.stock.aliasPlaceholder}
             aria-label={t.stock.aliasPlaceholder}
+            aria-invalid={aliasError ? true : undefined}
+            aria-describedby={aliasError ? 'stock-alias-error' : undefined}
+            maxLength={100}
             className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none"
           />
           <button
@@ -568,6 +760,81 @@ export function StockPanel({
             {t.stock.aliasAdd}
           </button>
         </form>
+        {aliasError && (
+          <p id="stock-alias-error" role="alert" className="mt-2 text-xs text-status-dropped">{aliasError}</p>
+        )}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-border bg-bg-elev/25 p-3">
+        <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-muted">
+          <ExternalLink className="h-3 w-3" aria-hidden />
+          {t.stock.manualSources}
+        </h3>
+        <p className="mt-1 text-[11px] text-muted">{t.stock.manualSourceHint}</p>
+        {(snapshot?.sources ?? []).length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {(snapshot?.sources ?? []).map((source) => (
+              <li
+                key={source.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-bg px-2 py-1.5 text-[11px]"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="shrink-0 rounded bg-bg-elev px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+                    {providerDisplayName(providers, source.provider)}
+                  </span>
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-w-0 truncate text-white hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                    title={source.url}
+                  >
+                    {source.product_id ?? source.url}
+                  </a>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeSource(source.id)}
+                  disabled={sourceLoading}
+                  aria-label={`${t.stock.manualSourceDelete} — ${providerDisplayName(providers, source.provider)}`}
+                  className="rounded p-0.5 text-muted hover:text-status-dropped focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped disabled:opacity-50"
+                >
+                  <X className="h-3 w-3" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form onSubmit={handleAddSource} className="mt-2 flex gap-2">
+          <input
+            type="url"
+            inputMode="url"
+            value={sourceInput}
+            onChange={(e) => { setSourceInput(e.target.value); if (sourceError) setSourceError(null); }}
+            placeholder={t.stock.manualSourcePlaceholder}
+            aria-label={t.stock.manualSourcePlaceholder}
+            aria-invalid={sourceError ? true : undefined}
+            aria-describedby={sourceError ? 'stock-source-error' : undefined}
+            maxLength={1024}
+            className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={!sourceInput.trim() || sourceLoading}
+            className="btn btn-primary text-xs"
+          >
+            {sourceLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Plus className="h-3.5 w-3.5" aria-hidden />}
+            {t.stock.manualSourceAdd}
+          </button>
+        </form>
+        {detectedSourceProvider && (
+          <p className="mt-1 text-[10px] text-muted">
+            {(t.stock.manualSourceDetected as string).replace('{provider}', detectedSourceProvider)}
+          </p>
+        )}
+        {sourceError && (
+          <p id="stock-source-error" role="alert" className="mt-2 text-xs text-status-dropped">{sourceError}</p>
+        )}
       </div>
 
       {error && (
@@ -582,9 +849,26 @@ export function StockPanel({
         </div>
       )}
 
+      {!loading && lastRefresh != null && (now - lastRefresh > STALE_MS) && offers.length > 0 && (
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200" role="status">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
+          <span>
+            {(t.stock.staleBanner as string).replace('{ago}', timeAgo(lastRefresh, t))}
+          </span>
+        </div>
+      )}
+
       {!loading && offers.length === 0 && (
-        <div className="mt-4 rounded-lg border border-dashed border-border bg-bg-elev/30 p-4 text-sm text-muted">
-          {checkedStatuses.length > 0 ? t.stock.emptyAfterCheck : t.stock.empty}
+        <div className="mt-4 flex items-start gap-3 rounded-lg border border-dashed border-border bg-bg-elev/30 p-4 text-sm text-muted">
+          <PackageSearch className="mt-0.5 h-5 w-5 shrink-0 text-muted" aria-hidden />
+          <div>
+            <p>{checkedStatuses.length > 0 ? t.stock.emptyAfterCheck : t.stock.empty}</p>
+            {checkedStatuses.length === 0 && (
+              <p className="mt-1 text-[11px] text-muted/80">
+                {(t.stock.emptyHint as string).replace('{count}', String(refreshableProviders.length))}
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -596,43 +880,70 @@ export function StockPanel({
         <StockPhysicalLocations offers={physicalOffers} />
       )}
 
-      {!loading && (failed.length > 0 || skipped.length > 0) && (
-        <div className="mt-4 rounded-lg border border-border bg-bg-elev/25 p-3 text-[11px] text-muted">
-          <h3 className="mb-2 font-bold uppercase tracking-widest text-muted">{t.stock.providerStatus}</h3>
-          <div className="flex flex-wrap gap-2">
-            {failed.map((s) => {
-              const isProtected = providerById.get(s.provider)?.cloudflare === true;
-              return isProtected ? (
-                <span
-                  key={`failed-${s.provider}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-400"
-                >
-                  <Lock className="h-3 w-3" aria-hidden />
-                  {providerDisplayName(providers, s.provider)}: {t.stock.providerStatusProtected}
-                </span>
-              ) : (
-                <span
-                  key={`failed-${s.provider}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-status-dropped/40 bg-status-dropped/10 px-2 py-1 text-status-dropped"
-                >
-                  <AlertTriangle className="h-3 w-3" aria-hidden />
-                  {providerDisplayName(providers, s.provider)}: {s.message ?? t.common.error}
-                </span>
-              );
-            })}
-            {skipped.map((s) => (
-              <span
-                key={`skipped-${s.provider}`}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1"
-              >
-                <CheckCircle2 className="h-3 w-3" aria-hidden />
-                {providerDisplayName(providers, s.provider)}: {t.stock.skipped}
-              </span>
-            ))}
-          </div>
-        </div>
+      {!loading && displayDiagnostics.length > 0 && (
+        <ProviderDiagnostics diagnostics={displayDiagnostics} t={t} />
+      )}
+
+      {clearConfirmOpen && (
+        <ClearCacheModal
+          t={t}
+          onCancel={() => setClearConfirmOpen(false)}
+          onConfirm={performClearCache}
+        />
       )}
     </section>
+  );
+}
+
+function ClearCacheModal({
+  t,
+  onCancel,
+  onConfirm,
+}: {
+  t: TDict;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const titleId = useId();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div className="w-full max-w-sm rounded-xl border border-border bg-bg-card p-4 shadow-xl">
+        <h2 id={titleId} className="text-sm font-bold text-white">
+          {t.stock.clearCache as string}
+        </h2>
+        <p className="mt-2 text-xs text-muted">{t.stock.clearCacheConfirm as string}</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-[36px] rounded-md border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            autoFocus
+          >
+            {t.common.cancel as string}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="min-h-[36px] rounded-md border border-status-dropped/50 bg-status-dropped/15 px-3 py-1.5 text-xs font-bold text-status-dropped hover:bg-status-dropped/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped"
+          >
+            {t.stock.clearCache as string}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -650,7 +961,7 @@ function GroupBtn({
   return (
     <button
       type="button"
-      className={`min-h-[36px] rounded-md border px-3 py-1.5 text-xs font-semibold ${
+      className={`min-h-[36px] rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 ${
         active
           ? 'border-accent bg-accent/15 text-accent'
           : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
@@ -672,6 +983,7 @@ function availabilityLabel(t: ReturnType<typeof useT>, offer: StockOffer): strin
 function stockSourceLabel(t: ReturnType<typeof useT>, source: string): string {
   if (source === 'direct') return t.stock.sourceLabels.direct;
   if (source === 'search') return t.stock.sourceLabels.search;
+  if (source === 'manual') return t.stock.sourceLabels.manual;
   if (source === 'alicesoft_kobe') return t.stock.sourceLabels.cached;
   return source;
 }
@@ -680,65 +992,153 @@ function providerDisplayName(providers: StockProvider[], providerId: string): st
   return providers.find((p) => p.id === providerId)?.label ?? providerId;
 }
 
+/**
+ * Client-side mirror of PROVIDER_HOSTS in stock.ts — used to live-preview the
+ * detected provider while the user types a manual source URL. Server-side
+ * canonicalisation still re-validates the URL via the API route.
+ */
+const CLIENT_PROVIDER_HOST_PATTERNS: ReadonlyArray<[providerId: string, pattern: RegExp]> = [
+  ['eroge_price', /^eroge-price\.com$/],
+  ['sofmap', /(^|\.)sofmap\.com$/],
+  ['surugaya', /(^|\.)suruga-ya\.(jp|com)$/],
+  ['hgame1', /^www\.hgame1\.com$/],
+  ['melonbooks', /^www\.melonbooks\.co\.jp$/],
+  ['mandarake', /(^|\.)mandarake\.co\.jp$/],
+  ['wondergoo', /^www\.wonder\.co\.jp$/],
+  ['trader', /(^|\.)(?:trader\.co\.jp|chuko-tsuhan\.com)$/],
+  ['animate', /^www\.animate-onlineshop\.jp$/],
+  ['ebten', /^store\.kadokawa\.co\.jp$/],
+  ['getchu', /^www\.getchu\.com$/],
+  ['gamers', /^www\.gamers\.co\.jp$/],
+  ['gamecity', /^shop\.gamecity\.ne\.jp$/],
+  ['asakusa_mach', /^shopping\.yahoo\.co\.jp$/],
+  ['amazon_jp', /^www\.amazon\.co\.jp$/],
+  ['amiami', /^www\.amiami\.jp$/],
+  ['otakarasouko', /^www\.ec\.otakarasouko\.com$/],
+  ['geo', /^ec\.geo-online\.co\.jp$/],
+  ['joshin', /^joshinweb\.jp$/],
+  ['neowing', /^www\.neowing\.co\.jp$/],
+  ['yodobashi', /^www\.yodobashi\.com$/],
+  ['bikkuri_takarajima', /^beak-takarajima\.celosia\.co\.jp$/],
+];
+
+function providerHostMatches(providerId: string, host: string): boolean {
+  const entry = CLIENT_PROVIDER_HOST_PATTERNS.find(([id]) => id === providerId);
+  return entry ? entry[1].test(host) : false;
+}
+
 function ProviderStatusBadge({
   t,
-  status,
+  diagnostic,
   count,
   cached,
-  cloudflare = false,
   loading = false,
 }: {
   t: ReturnType<typeof useT>;
-  status: StockStatus | undefined;
+  diagnostic: NormalizedProviderDiagnostic | undefined;
   count: number;
   cached: boolean;
-  cloudflare?: boolean;
   loading?: boolean;
 }) {
   if (loading) {
     return <Loader2 className="h-3 w-3 animate-spin text-accent" aria-hidden />;
   }
-  if (cached) {
+  if (cached && (!diagnostic || diagnostic.kind === 'not_checked')) {
     return <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">{count}</span>;
   }
-  if (!status) {
-    if (cloudflare) {
-      return (
-        <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">
-          <Lock className="h-3 w-3" aria-hidden />
-          {t.stock.providerStatusProtected}
-        </span>
-      );
-    }
+  if (!diagnostic || diagnostic.kind === 'not_checked') {
     return (
       <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">
         {t.stock.providerNotChecked}
       </span>
     );
   }
-  if (status.status === 'error' && cloudflare) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">
-        <Lock className="h-3 w-3" aria-hidden />
-        {t.stock.providerStatusProtected}
-      </span>
-    );
-  }
-  const cls =
-    status.status === 'error'
-      ? 'border-status-dropped/50 bg-status-dropped/10 text-status-dropped'
-      : status.status === 'skipped'
-        ? 'border-border bg-bg-elev text-muted'
-        : count > 0
-          ? 'border-status-completed/50 bg-status-completed/15 text-status-completed'
-          : 'border-border bg-bg-elev text-muted';
-  const label =
-    status.status === 'error'
-      ? t.stock.providerStatusError
-      : status.status === 'skipped'
-        ? t.stock.providerStatusSkipped
-        : t.stock.providerOfferCount.replace('{count}', String(count));
+  const cls = diagnosticToneClass(diagnostic.tone);
+  const label = providerDiagnosticText(t, diagnostic.badgeKey);
   return <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${cls}`}>{label}</span>;
+}
+
+function providerDiagnosticText(t: TDict, key: string): string {
+  const dict = t.stock.providerDiagnostics as Record<string, string> | undefined;
+  return dict?.[key] ?? key;
+}
+
+function diagnosticToneClass(tone: NormalizedProviderDiagnostic['tone']): string {
+  if (tone === 'danger') return 'border-status-dropped/50 bg-status-dropped/10 text-status-dropped';
+  if (tone === 'warning') return 'border-amber-500/50 bg-amber-500/10 text-amber-400';
+  if (tone === 'success') return 'border-status-completed/50 bg-status-completed/15 text-status-completed';
+  return 'border-border bg-bg-elev text-muted';
+}
+
+function diagnosticGroupTitle(t: TDict, group: ProviderDiagnosticGroup): string {
+  const map: Record<ProviderDiagnosticGroup, string> = {
+    attention: 'groupAttention',
+    blocked: 'groupBlocked',
+    skipped: 'groupSkipped',
+    no_results: 'groupNoResults',
+    not_checked: 'groupNotChecked',
+  };
+  return providerDiagnosticText(t, map[group]);
+}
+
+function ProviderDiagnostics({ diagnostics, t }: { diagnostics: NormalizedProviderDiagnostic[]; t: TDict }) {
+  const groups: ProviderDiagnosticGroup[] = ['attention', 'blocked', 'skipped', 'no_results', 'not_checked'];
+  const technical = diagnostics.filter((diag) => diag.technicalDetail);
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-bg-elev/25 p-3 text-[11px] text-muted">
+      <h3 className="mb-2 font-bold uppercase tracking-widest text-muted">{t.stock.providerStatus}</h3>
+      <div className="grid gap-3 md:grid-cols-2">
+        {groups.map((group) => {
+          const items = diagnostics.filter((diag) => diag.group === group);
+          if (items.length === 0) return null;
+          return (
+            <div key={group} className="rounded-lg border border-border bg-bg/40 p-2">
+              <h4 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted">{diagnosticGroupTitle(t, group)}</h4>
+              <ul className="space-y-1.5">
+                {items.map((diag) => (
+                  <li key={diag.provider} className="flex items-start gap-2">
+                    {diag.tone === 'danger' ? (
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-dropped" aria-hidden />
+                    ) : diag.group === 'blocked' ? (
+                      <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden />
+                    ) : (
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
+                    )}
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-1">
+                        <span className="font-semibold text-white">{diag.label}</span>
+                        <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${diagnosticToneClass(diag.tone)}`}>
+                          {providerDiagnosticText(t, diag.badgeKey)}
+                        </span>
+                        {diag.secondaryKey && (
+                          <span className="rounded-md border border-border bg-bg px-1.5 py-0.5 text-[10px] text-muted">
+                            {providerDiagnosticText(t, diag.secondaryKey)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-0.5 block text-muted">{providerDiagnosticText(t, diag.messageKey)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+      {technical.length > 0 && (
+        <details className="mt-3 rounded-md border border-border bg-bg/50 p-2">
+          <summary className="cursor-pointer text-[11px] font-semibold text-muted hover:text-accent">
+            {providerDiagnosticText(t, 'technicalDetails')}
+          </summary>
+          <ul className="mt-2 space-y-1 font-mono text-[10px] text-muted">
+            {technical.map((diag) => (
+              <li key={`tech-${diag.provider}`}>{diag.label}: {diag.technicalDetail}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
 }
 
 function AvailabilityChip({
@@ -782,6 +1182,25 @@ function ConfidenceChip({ mc, t }: { mc: string | null; t: TDict }) {
   return <span className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{label}</span>;
 }
 
+function notCountedReason(t: TDict, offer: StockOffer): string | null {
+  if (isEligibleGameStockOffer(offer)) return null;
+  const reasons = t.stock.notCountedReasons as Record<string, string>;
+  if (offer.availability === 'out_of_stock') return reasons.outOfStock;
+  if (offer.content_kind === 'soundtrack') return reasons.soundtrack;
+  if (offer.content_kind === 'related_media') return reasons.relatedMusic;
+  if (
+    offer.content_kind === 'figure' ||
+    offer.content_kind === 'related_goods' ||
+    offer.content_kind === 'bonus_only' ||
+    offer.content_kind === 'store_bonus_bundle' ||
+    offer.series_relation === 'related_goods'
+  ) return reasons.relatedGoods;
+  if (offer.series_relation === 'unrelated') return reasons.unrelatedTitle;
+  if (offer.match_confidence === 'low' || offer.match_confidence === 'reject') return reasons.weakMatch;
+  if (offer.source === 'search') return reasons.searchOnly;
+  return reasons.notEligible;
+}
+
 function OfferCard({
   offer,
   best,
@@ -803,6 +1222,7 @@ function OfferCard({
   const mktPrice = offer.marketplace_price;
   const mktCount = offer.marketplace_count;
   const listPrice = offer.list_price;
+  const notCounted = notCountedReason(t, offer);
 
   return (
     <li
@@ -862,17 +1282,33 @@ function OfferCard({
           ))}
         </div>
       )}
+      {notCounted && (
+        <div className="mt-1.5 rounded-md border border-amber-500/35 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200">
+          <span className="font-semibold">{t.stock.notCounted}</span>
+          {' '}
+          {notCounted}
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-[10px] text-muted">
           {t.stock.source.replace('{source}', stockSourceLabel(t, offer.source))}
           {' · '}
           {timeAgo(offer.fetched_at, t)}
+          {Date.now() - offer.fetched_at > 7 * 24 * 60 * 60 * 1000 && (
+            <span
+              className="ml-1.5 inline-flex items-center rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300"
+              title={t.stock.staleHint as string}
+            >
+              {t.stock.staleHint as string}
+            </span>
+          )}
         </span>
         <a
           href={offer.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-accent"
+          aria-label={`${t.stock.openShop} — ${offer.provider_label}`}
+          className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           {t.stock.openShop}
           <ExternalLink className="h-3 w-3" aria-hidden />
@@ -900,17 +1336,20 @@ function OfferGroup({
   defaultCollapsed?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const panelId = useId();
   if (offers.length === 0) return null;
   return (
     <div className="mt-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted">{label}</h3>
-        <span className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">{offers.length}</span>
+        <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted" id={`${panelId}-label`}>{label}</h3>
+        <span className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted" aria-label={`${offers.length}`}>{offers.length}</span>
         {defaultCollapsed && (
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
-            className="rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent"
+            className="rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            aria-expanded={!collapsed}
+            aria-controls={panelId}
           >
             {collapsed
               ? (t.stock.groupExpand as string).replace('{count}', String(offers.length))
@@ -919,7 +1358,11 @@ function OfferGroup({
         )}
       </div>
       {!collapsed && (
-        <ul className="grid gap-3 lg:grid-cols-2">
+        <ul
+          id={panelId}
+          aria-labelledby={`${panelId}-label`}
+          className="grid gap-3 lg:grid-cols-2"
+        >
           {offers.map((offer) => (
             <OfferCard key={`${offer.provider}:${offer.provider_offer_id}`} offer={offer} best={best} currency={currency} t={t} locale={locale} />
           ))}
@@ -942,11 +1385,26 @@ function OffersGrouped({
   t: TDict;
   locale: string;
 }) {
-  const game = offers.filter((o) => classifyGroup(o) === 'game');
-  const needsReview = offers.filter((o) => classifyGroup(o) === 'needs_review');
-  const series = offers.filter((o) => classifyGroup(o) === 'series');
-  const related = offers.filter((o) => classifyGroup(o) === 'related');
-  const rejected = offers.filter((o) => classifyGroup(o) === 'rejected');
+  // Single pass instead of 5 separate .filter() calls. classifyGroup is pure;
+  // result depends only on the offer's classification fields. Memoised across
+  // re-renders that share the same `offers` reference.
+  const grouped = useMemo(() => {
+    const game: StockOffer[] = [];
+    const needsReview: StockOffer[] = [];
+    const series: StockOffer[] = [];
+    const related: StockOffer[] = [];
+    const rejected: StockOffer[] = [];
+    for (const offer of offers) {
+      const group = classifyGroup(offer);
+      if (group === 'game') game.push(offer);
+      else if (group === 'needs_review') needsReview.push(offer);
+      else if (group === 'series') series.push(offer);
+      else if (group === 'related') related.push(offer);
+      else rejected.push(offer);
+    }
+    return { game, needsReview, series, related, rejected };
+  }, [offers]);
+  const { game, needsReview, series, related, rejected } = grouped;
 
   return (
     <div>
@@ -954,7 +1412,11 @@ function OffersGrouped({
         <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted">
           {t.stock.offersTitle.replace('{count}', String(offers.length))}
         </h3>
-        {best != null && <span className="text-xs font-semibold text-accent">{currency.format(best)}</span>}
+        {best != null && (
+          <span className="text-xs font-semibold text-accent">
+            {t.stock.bestGamePrice.replace('{price}', currency.format(best))}
+          </span>
+        )}
       </div>
       <OfferGroup label={t.stock.groupGame as string} offers={game} best={best} currency={currency} t={t} locale={locale} />
       <OfferGroup label={t.stock.groupNeedsReview as string} offers={needsReview} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />

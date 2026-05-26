@@ -131,7 +131,7 @@ vndb-collection/
 │   │   ├── character/[id]/page.tsx     # Character detail with "appears in" gallery
 │   │   ├── vn/[id]/page.tsx            # The big VN detail page
 │   │   ├── stock/page.tsx              # Generic per-VN stock / price lookup
-│   │   ├── alicesoft_kobe/page.tsx      # AliceSoft Kobe stock browser (KobeClient, gated)
+│   │   ├── alicesoft_kobe/page.tsx      # AliceNet Kobe stock browser (KobeClient, gated)
 │   │   ├── not-found.tsx
 │   │   └── api/                        # see "API surface" below
 │   ├── components/
@@ -163,7 +163,7 @@ vndb-collection/
 │       ├── vndb-types.ts               # types shared with client (no 'server-only')
 │       ├── erogamescape.ts             # EGS SQL form client (server-only) + resolveEgsForVn
 │       ├── stock.ts                    # Generic shop stock parsers + per-VN stock refresh
-│       ├── alicesoft-kobe.ts           # AliceSoft Kobe fetch/parse/match/refresh (server-only)
+│       ├── alicesoft-kobe.ts           # AliceNet Kobe fetch/parse/match/refresh (server-only)
 │       ├── proxy-config.ts             # Per-provider proxy configuration + credential masking
 │       ├── proxy-fetch.ts              # providerFetch() — routes through SOCKS5/HTTP agent
 │       ├── source-resolve.ts           # resolveField helper (VNDB-first auto-fallback)
@@ -295,8 +295,8 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | POST | `/api/shelves/[id]/slots` | Place an owned edition at `(row, col)` — atomic swap if both ends are slots |
 | DELETE | `/api/shelves/[id]/slots` | Return an edition to the unplaced pool |
 | GET | `/api/download-status/stream` | SSE stream of the download-status snapshot (pub/sub driven, with keep-alive comments every 25 s) |
-| GET | `/api/alicesoft-kobe` | Stats snapshot: `{ total, matched, unmatched, none_found, in_wishlist, pending: { vndb_pending, egs_pending } }`. Reads only from SQLite — never touches the AliceSoft Kobe website. |
-| POST | `/api/alicesoft-kobe/fetch` | Download the AliceSoft Kobe stock page (EUC-JP decoded), parse, full-sync the DB (`added / updated / removed`), return `{ count, added, updated, removed, fetched_at }`. |
+| GET | `/api/alicesoft-kobe` | Stats snapshot: `{ total, matched, unmatched, none_found, in_wishlist, pending: { vndb_pending, egs_pending } }`. Reads only from SQLite — never touches the AliceNet Kobe website. |
+| POST | `/api/alicesoft-kobe/fetch` | Download the AliceNet Kobe stock page (EUC-JP decoded), parse, full-sync the DB (`added / updated / removed`), return `{ count, added, updated, removed, fetched_at }`. |
 | POST | `/api/alicesoft-kobe/match-next` | Match the next batch against VNDB + EGS. Body: `{ batch?: number (1–20), retry_none?: boolean }`. Returns `{ processed, remaining }`. |
 | POST | `/api/alicesoft-kobe/reset-matches` | Clear all auto-matched VN links (`vn_match_source = 'auto'`). Returns `{ cleared }`. Manual links are preserved. |
 | POST | `/api/alicesoft-kobe/download-vndb` | Download VNDB metadata for matched items not yet in the local `vn` table. Body: `{ batch? }`. Returns `{ processed, remaining }`. |
@@ -488,7 +488,7 @@ alicesoft_kobe_stock PK code (format "###-######-###")
                   last_matched_at INTEGER,
                   egs_id INTEGER, egs_match_source,
                   fetched_at, updated_at
-                  — AliceSoft Kobe second-hand stock mirror. Full-sync on every download:
+                  — AliceNet Kobe second-hand stock mirror. Full-sync on every download:
                   items absent from the new snapshot are DELETED (sold). Route:
                   POST /api/alicesoft-kobe/fetch. Gated behind ALICESOFT_KOBE_ENABLED=true.
 ```
@@ -596,11 +596,11 @@ Stored per provider in `app_setting`:
 
 ### UI
 
-Settings → Integrations → a `ProxySettingsSection` per provider (EGS, VNDB mirror, AliceSoft Kobe). Fields: enabled toggle, protocol select, host, port, username, password (write-only input, existing value shown as `••••••••`). Test button fires `POST /api/proxy/test { provider }`.
+Settings → Integrations → a `ProxySettingsSection` per provider (EGS, VNDB mirror, AliceNet Kobe). Fields: enabled toggle, protocol select, host, port, username, password (write-only input, existing value shown as `••••••••`). Test button fires `POST /api/proxy/test { provider }`.
 
 ---
 
-## AliceSoft Kobe stock browser (src/lib/alicesoft-kobe.ts)
+## AliceNet Kobe stock browser (src/lib/alicesoft-kobe.ts)
 
 Gated behind `ALICESOFT_KOBE_ENABLED=true` in `.env.local`. The `/alicesoft_kobe` page
 renders `<KobeClient>` which is a pure client component (SSE-like polling
@@ -1774,7 +1774,7 @@ New DB tables introduced by recent batches:
 | `shelf_unit` / `shelf_slot` / `shelf_display_slot` | Drag-and-drop shelf layout | `shelf_unit` is the grid metadata; `shelf_slot` is regular cells; `shelf_display_slot` is face-out rows between shelves. Both placement tables enforce UNIQUE `(vn_id, release_id)` through helpers so one edition is placed once. |
 | `release_resolution_cache` / `owned_release_aspect_override` | Aspect-ratio filtering | VNDB release resolutions are normalized to buckets; manual per-edition overrides take precedence for library filters/groups. |
 | `vn_stock_offer` / `vn_stock_provider_status` | Generic stock lookup | Per-VN shop snapshots from VNDB release extlinks, JAN/GTIN title search, EGS price pages, and known official retailer links. Providers include Sofmap, Suruga-ya, Eroge Price, Unoya, Melonbooks, Mandarake, WonderGOO, Trader, Animate, ebten, Getchu, Gamers, GAMECITY, Asakusa Mach, Amazon JP, AmiAmi, Otakarasouko, GEO, Joshin, Neowing, Yodobashi, and Bikkuri Takarajima. |
-| `alicesoft_kobe_stock` | AliceSoft Kobe stock browser | Second-hand shop inventory with full-sync delete, VNDB/EGS match columns, candidate remap JSON, search_title. Gated behind `ALICESOFT_KOBE_ENABLED=true`. |
+| `alicesoft_kobe_stock` | AliceNet Kobe stock browser | Second-hand shop inventory with full-sync delete, VNDB/EGS match columns, candidate remap JSON, search_title. Gated behind `ALICESOFT_KOBE_ENABLED=true`. |
 
 ## Backlog cleared (2026-05-15 batch H)
 

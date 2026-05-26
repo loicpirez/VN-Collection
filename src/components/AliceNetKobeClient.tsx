@@ -361,7 +361,7 @@ interface RunTotals { processed: number; matched: number }
  * All steps can be run individually or chained with "Download all".
  * Any step can be stopped with the Stop button.
  */
-export function AlicesoftKobeClient() {
+export function AliceNetKobeClient() {
   const t = useT();
   const toast = useToast();
   const [items, setItems] = useState<KobeItem[]>([]);
@@ -556,6 +556,7 @@ export function AlicesoftKobeClient() {
   const isBusy = activeOp !== 'idle';
   const opPct = opTotal > 0 ? Math.round((opDone / opTotal) * 100) : 0;
   const matchPct = stats.total > 0 ? Math.round((stats.matched / stats.total) * 100) : 0;
+  const showStatsSkeleton = loading && items.length === 0 && stats.total === 0;
 
   const producers = useMemo(() => {
     const map = new Map<string, { id: string; name: string; count: number }>();
@@ -928,45 +929,56 @@ export function AlicesoftKobeClient() {
 
       {/* Stats grid */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
-          <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterAll}</div>
-          <div className="text-2xl font-bold">{stats.total}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
-          <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterMatched}</div>
-          <div className="text-2xl font-bold text-green-400">{stats.matched}</div>
-          {stats.total > 0 && <div className="mt-0.5 text-[10px] text-muted">{matchPct}%</div>}
-        </div>
-        <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
-          <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterUnmatched}</div>
-          <div className="text-2xl font-bold">{stats.unmatched}</div>
-          {(stats.unprocessed > 0 || stats.none_found > 0) && (
-            <div className="mt-0.5 text-[10px] text-amber-400/80">
-              {t.kobe.kobeUnmatchedBreakdown
-                .replace('{new}', String(stats.unprocessed))
-                .replace('{none}', String(stats.none_found))}
+        {showStatsSkeleton ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-bg-card p-4 text-center">
+              <div className="mx-auto mb-3 h-3 w-20 animate-pulse rounded bg-bg-elev" />
+              <div className="mx-auto h-8 w-14 animate-pulse rounded bg-bg-elev/80" />
             </div>
-          )}
-        </div>
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center">
-          <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeNoneFound}</div>
-          <div className="text-2xl font-bold text-amber-400">{stats.none_found}</div>
-          {stats.unprocessed > 0 && <div className="mt-0.5 text-[10px] text-muted">{stats.unprocessed} {t.kobe.kobeNotYetMatched}</div>}
-        </div>
-        <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
-          <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
-            <BookHeart className="h-3 w-3 text-green-400" aria-hidden />
-            {t.kobe.kobeInCollection}
-          </div>
-          <div className="text-2xl font-bold text-green-400">{stats.in_collection}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
-          <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
-            <BookHeart className="h-3 w-3 text-rose-400" aria-hidden />
-            {t.kobe.kobeInWishlist}
-          </div>
-          <div className="text-2xl font-bold text-rose-400">{stats.in_wishlist}</div>
-        </div>
+          ))
+        ) : (
+          <>
+            <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterAll}</div>
+              <div className="text-2xl font-bold">{stats.total}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterMatched}</div>
+              <div className="text-2xl font-bold text-green-400">{stats.matched}</div>
+              {stats.total > 0 && <div className="mt-0.5 text-[10px] text-muted">{matchPct}%</div>}
+            </div>
+            <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterUnmatched}</div>
+              <div className="text-2xl font-bold">{stats.unmatched}</div>
+              {(stats.unprocessed > 0 || stats.none_found > 0) && (
+                <div className="mt-0.5 text-[10px] text-amber-400/80">
+                  {t.kobe.kobeUnmatchedBreakdown
+                    .replace('{new}', String(stats.unprocessed))
+                    .replace('{none}', String(stats.none_found))}
+                </div>
+              )}
+            </div>
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center">
+              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeNoneFound}</div>
+              <div className="text-2xl font-bold text-amber-400">{stats.none_found}</div>
+              {stats.unprocessed > 0 && <div className="mt-0.5 text-[10px] text-muted">{stats.unprocessed} {t.kobe.kobeNotYetMatched}</div>}
+            </div>
+            <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+              <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
+                <BookHeart className="h-3 w-3 text-green-400" aria-hidden />
+                {t.kobe.kobeInCollection}
+              </div>
+              <div className="text-2xl font-bold text-green-400">{stats.in_collection}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+              <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
+                <BookHeart className="h-3 w-3 text-rose-400" aria-hidden />
+                {t.kobe.kobeInWishlist}
+              </div>
+              <div className="text-2xl font-bold text-rose-400">{stats.in_wishlist}</div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Toolbar */}

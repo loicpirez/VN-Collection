@@ -12,9 +12,13 @@ import {
   shouldShowAsPhysicalLead,
   parseGenericProviderPage,
   parseErogePrice,
+  detectStockProviderFromUrl,
+  extractAmazonAsin,
+  parseAmazonDetail,
   parseHgame1Detail,
   parseMandarakeDetail,
   parseMelonbooksDetail,
+  extractMelonbooksProductLinks,
   parseSofmapDetail,
   parseSofmapList,
   parseWondergooDetail,
@@ -51,30 +55,31 @@ describe('stock provider coverage', () => {
   });
 
   it.each([
-    'https://a.sofmap.com/product_detail.aspx?sku=100000000',
-    'https://www.suruga-ya.jp/product/detail/100000000',
-    'https://eroge-price.com/games/90001',
-    'https://www.hgame1.com/item/4900000000000.html',
-    'https://www.melonbooks.co.jp/detail/detail.php?product_id=90001',
-    'https://order.mandarake.co.jp/order/detailPage/item?itemCode=90001',
-    'https://www.wonder.co.jp/benefit/game/detail/?id=90001',
-    'https://trader.co.jp/shop/shopbrand.html?search=sample',
-    'https://www.animate-onlineshop.jp/products/list.php?smt=sample',
-    'https://store.kadokawa.co.jp/shop/goods/search.aspx?keyword=sample',
-    'https://www.getchu.com/php/nsearch.phtml?search_keyword=sample',
-    'https://www.gamers.co.jp/products/list.php?mode=search&smt=sample',
-    'https://shop.gamecity.ne.jp/goods-search/?k=sample',
-    'https://shopping.yahoo.co.jp/search/sample/0/',
-    'https://www.amazon.co.jp/s?k=sample',
-    'https://www.amiami.jp/top/search/list?s_keywords=sample',
-    'https://www.ec.otakarasouko.com/shop/shopbrand.html?search=&sort=order&prize1=sample',
-    'https://ec.geo-online.co.jp/shop/goods/search.aspx?keyword=sample',
-    'https://joshinweb.jp/srhzs.html?QK=sample',
-    'https://www.neowing.co.jp/searchuni?q=sample',
-    'https://www.yodobashi.com/?word=sample',
-    'https://beak-takarajima.celosia.co.jp/shop/shopbrand.html?search=&sort=order&prize1=sample',
-  ])('allows stock provider host %s', (url) => {
+    ['sofmap', 'https://a.sofmap.com/product_detail.aspx?sku=100000000'],
+    ['surugaya', 'https://www.suruga-ya.jp/product/detail/100000000'],
+    ['eroge_price', 'https://eroge-price.com/games/90001'],
+    ['hgame1', 'https://www.hgame1.com/item/4900000000000.html'],
+    ['melonbooks', 'https://www.melonbooks.co.jp/detail/detail.php?product_id=90001'],
+    ['mandarake', 'https://order.mandarake.co.jp/order/detailPage/item?itemCode=90001'],
+    ['wondergoo', 'https://www.wonder.co.jp/benefit/game/detail/?id=90001'],
+    ['trader', 'https://trader.co.jp/shop/shopbrand.html?search=sample'],
+    ['animate', 'https://www.animate-onlineshop.jp/products/list.php?smt=sample'],
+    ['ebten', 'https://store.kadokawa.co.jp/shop/goods/search.aspx?keyword=sample'],
+    ['getchu', 'https://www.getchu.com/php/nsearch.phtml?search_keyword=sample'],
+    ['gamers', 'https://www.gamers.co.jp/products/list.php?mode=search&smt=sample'],
+    ['gamecity', 'https://shop.gamecity.ne.jp/goods-search/?k=sample'],
+    ['asakusa_mach', 'https://shopping.yahoo.co.jp/search/sample/0/'],
+    ['amazon_jp', 'https://www.amazon.co.jp/s?k=sample'],
+    ['amiami', 'https://www.amiami.jp/top/search/list?s_keywords=sample'],
+    ['otakarasouko', 'https://www.ec.otakarasouko.com/shop/shopbrand.html?search=&sort=order&prize1=sample'],
+    ['geo', 'https://ec.geo-online.co.jp/shop/goods/search.aspx?keyword=sample'],
+    ['joshin', 'https://joshinweb.jp/srhzs.html?QK=sample'],
+    ['neowing', 'https://www.neowing.co.jp/searchuni?q=sample'],
+    ['yodobashi', 'https://www.yodobashi.com/?word=sample'],
+    ['bikkuri_takarajima', 'https://beak-takarajima.celosia.co.jp/shop/shopbrand.html?search=&sort=order&prize1=sample'],
+  ])('allows and detects stock provider host %s', (provider, url) => {
     expect(isAllowedHttpTarget(url)).toBe(true);
+    expect(detectStockProviderFromUrl(url)).toBe(provider);
   });
 });
 
@@ -151,6 +156,21 @@ describe('stock provider parsers', () => {
       target,
     );
     expect(offer).toMatchObject({ price: 10978, availability: 'limited', availability_label: '残りわずか' });
+  });
+
+  it('extracts Melonbooks product detail links from a search page', () => {
+    const html = `
+      <a href="/detail/detail.php?product_id=12345&category=adult">Game A</a>
+      <a href="/detail/detail.php?product_id=12345">duplicate id (deduped)</a>
+      <a href="https://www.melonbooks.co.jp/detail/detail.php?product_id=67890">Game B</a>
+      <a href="/category/list.php?genre=visual_novel">facet (ignored)</a>
+      <a href="https://shop.melonbooks.co.jp/detail/detail.php?product_id=99999">wrong host (ignored)</a>
+    `;
+    const links = extractMelonbooksProductLinks(html, 'https://www.melonbooks.co.jp/search/search.php?name=test');
+    expect(links).toEqual([
+      'https://www.melonbooks.co.jp/detail/detail.php?product_id=12345&category=adult',
+      'https://www.melonbooks.co.jp/detail/detail.php?product_id=67890',
+    ]);
   });
 
   it('parses Eroge Price aggregate table rows', () => {
@@ -306,6 +326,49 @@ describe('stock provider parsers', () => {
       { ...target, query: 'Sample VN' },
     );
     expect(offers[0]).toMatchObject({ provider_offer_id: 'B0GYS9CMJF', price: 7573, availability: 'in_stock' });
+  });
+
+  it('extracts Amazon direct DP source identity', () => {
+    const url = 'https://www.amazon.co.jp/dp/B000JF6UD2?ref_=sr_1_1';
+    expect(detectStockProviderFromUrl(url)).toBe('amazon_jp');
+    expect(extractAmazonAsin(url)).toBe('B000JF6UD2');
+  });
+
+  it('parses an Amazon direct DP page as the product identity, not a search result', () => {
+    const offer = parseAmazonDetail(
+      `<html><head><title>Direct Package : Amazon.co.jp</title></head><body>
+       <span id="productTitle">架空ゲーム Windows DVD-ROM 通常版</span>
+       <span class="a-offscreen">￥6,480</span>
+       <div id="availability">在庫あり。</div>
+       </body></html>`,
+      'https://www.amazon.co.jp/dp/B000JF6UD2?tag=sample',
+      { ...target, source: 'direct', productId: 'B000JF6UD2', query: '架空ゲーム' },
+    );
+    expect(offer).toMatchObject({
+      provider_offer_id: 'B000JF6UD2',
+      product_id: 'B000JF6UD2',
+      url: 'https://www.amazon.co.jp/dp/B000JF6UD2',
+      title: '架空ゲーム Windows DVD-ROM 通常版',
+      price: 6480,
+      availability: 'in_stock',
+    });
+  });
+
+  it('uses the Amazon direct DP parser before search-card parsing for DP URLs', () => {
+    const offers = parseGenericProviderPage(
+      'amazon_jp',
+      `<span id="productTitle">架空ゲーム Windows DVD-ROM 通常版</span>
+       <span class="a-offscreen">￥6,480</span>
+       <div id="availability">在庫あり。</div>
+       <div role="listitem" data-asin="B0MUSIC001" data-component-type="s-search-result">
+         <a href="/music/dp/B0MUSIC001"><h2 aria-label="架空ゲーム 主題歌 MP3 ダウンロード"><span>架空ゲーム 主題歌 MP3 ダウンロード</span></h2></a>
+         <span class="a-offscreen">￥1,572</span>
+       </div>`,
+      'https://www.amazon.co.jp/dp/B000JF6UD2',
+      { ...target, source: 'direct', productId: 'B000JF6UD2', query: '架空ゲーム' },
+    );
+    expect(offers).toHaveLength(1);
+    expect(offers[0]).toMatchObject({ provider_offer_id: 'B000JF6UD2', price: 6480 });
   });
 
   it('parses Yahoo Shopping result cards', () => {

@@ -71,6 +71,7 @@ import { RecordRecentView } from '@/components/RecordRecentView';
 import { NotInCollectionBanner } from '@/components/NotInCollectionBanner';
 import { TitleLine } from '@/components/TitleLine';
 import { StockPanel } from '@/components/StockPanel';
+import { StockPanelBoundary } from '@/components/StockPanelBoundary';
 import { getStockForVn } from '@/lib/stock';
 import { EgsPanel } from '@/components/EgsPanel';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
@@ -296,8 +297,8 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   else if (customPosterHas) heroPoster = customPoster;
   else if (vndbPosterHas) heroPoster = vndbPoster;
   else if (egsPosterHas) heroPoster = egsPoster;
-  // Banner override: any local path or URL the user picked. Fallback to the cover.
-  const bannerSource = vn.banner_image || vn.local_image || vn.image_url;
+  // Banner override: only render a banner when the user explicitly picked one.
+  const bannerSource = vn.banner_image;
   const bannerIsUrl = bannerSource ? /^https?:\/\//i.test(bannerSource) : false;
   const bannerSrc = bannerSource ? (bannerIsUrl ? bannerSource : `/api/files/${bannerSource}`) : null;
   const customBanner = !!vn.banner_image;
@@ -900,7 +901,15 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         if (!vn.id.startsWith('egs_')) {
           sectionNodes['vndb-status'] = <VndbStatusPanel vnId={vn.id} />;
         }
-        sectionNodes['stock'] = <StockPanel vnId={vn.id} title={displayTitle} initialSnapshot={getStockForVn(vn.id)} />;
+        sectionNodes['stock'] = (
+          <StockPanelBoundary
+            title={t.stock.title}
+            fallbackMessage={t.stock.boundaryFallback as string}
+            retryLabel={t.stock.boundaryRetry as string}
+          >
+            <StockPanel vnId={vn.id} title={displayTitle} initialSnapshot={getStockForVn(vn.id)} />
+          </StockPanelBoundary>
+        );
         sectionNodes['egs-panel'] = (
           <EgsPanel
             vnId={vn.id}

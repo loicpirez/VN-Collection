@@ -15,7 +15,7 @@ import { buildRotationStyle } from './SafeImage';
 interface Props {
   vnId: string;
   src: string | null;
-  /** True if a custom banner is set (not the auto-derived blurred cover). */
+  /** True if a user-selected banner is set. */
   customBanner: boolean;
   initialPosition: string | null;
   inCollection: boolean;

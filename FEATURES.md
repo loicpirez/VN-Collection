@@ -712,7 +712,7 @@ reading-log is unaffected.
 
 ---
 
-## AliceSoft Kobe stock browser
+## AliceNet Kobe stock browser
 
 ## Generic VN stock and price lookup
 
@@ -737,16 +737,38 @@ Provider discovery combines:
   Otakarasouko, GEO, Joshin, Neowing, Yodobashi, and Bikkuri Takarajima.
 
 Parsers are provider-specific where the page shape is stable:
-Sofmap, PC Shop Unoya, Melonbooks, Eroge Price, Suruga-ya, Mandarake,
-WonderGOO, Trader, Animate, ebten, Getchu, Gamers, GEO, Joshin,
-Yodobashi, Amazon JP, Yahoo Shopping / Asakusa Mach, Otakarasouko, and
-Bikkuri Takarajima. Dynamic or protected shops such as AmiAmi, Neowing,
+Sofmap, PC Shop Unoya, Melonbooks (direct product + search→detail
+follow), Eroge Price, Suruga-ya, Mandarake, WonderGOO, Trader, Animate,
+ebten, Getchu, Gamers, GEO, Joshin, Yodobashi, Amazon JP (direct DP +
+search), Yahoo Shopping / Asakusa Mach, Otakarasouko, and Bikkuri
+Takarajima. Dynamic or protected shops such as AmiAmi, Neowing,
 GAMECITY, and blocked Suruga-ya responses remain visible as provider
 diagnostics instead of creating fake offers from generic page titles.
 
+Provider diagnostics are normalised through `src/lib/stock-diagnostics.ts`
+so the UI never shows raw `HTTP 4xx/5xx` or `fetch failed` text in the
+primary status. Failure classes:
+- **Blocked** — HTTP 4xx (except 404) or 5xx → "Blocked by shop" with
+  per-provider copy for AmiAmi, GEO, Joshin, Yodobashi.
+- **Unreachable** — Node transport markers (`fetch failed`,
+  `ECONNREFUSED`, `ETIMEDOUT`, `fetch timeout`, `AbortError`, etc.) →
+  amber "Unreachable" badge under "Blocked / protected" group.
+- **Protected** — Cloudflare challenge → amber "Protected".
+- **Partial / Cached** — Suruga-ya specific: search OK / details
+  protected, or cached offers preserved when the latest refresh hit
+  Cloudflare.
+- **Unsupported / Skipped** — WonderGOO store-locator-only,
+  Melonbooks without searchable data, etc.
+- **Parser error** (red `danger` tone) — reserved for genuine
+  app-side parsing failures.
+
+Each `fetchShopText` call has a 15s timeout backed by an
+`AbortController` chained with the user's Stop signal, so a single
+slow shop cannot stall the sequential refresh loop.
+
 ### Stock download ✅
 `/alicesoft_kobe` — gated behind the `ALICESOFT_KOBE_ENABLED=true` env var. The page
-lists all items currently in stock at AliceSoft Kobe (a specialist second-hand
+lists all items currently in stock at AliceNet Kobe (a specialist second-hand
 game retailer). Data is fetched **only** on explicit button press via
 `POST /api/alicesoft-kobe/fetch`; the page never auto-fetches on load.
 
@@ -884,7 +906,7 @@ SOCKS5/SOCKS5h agent (`socks-proxy-agent`) or an HTTPS agent
 - `PROXY_PASSWORD_MASK = '••••••••'` is the UI sentinel.
 
 **Settings UI**: Settings → Integrations exposes a `ProxySettingsSection`
-for each provider (EGS, VNDB mirror, AliceSoft Kobe). Proxy test endpoint:
+for each provider (EGS, VNDB mirror, AliceNet Kobe). Proxy test endpoint:
 `POST /api/proxy/test { provider, … }` fires a real HEAD/GET against the
 provider's test URL through the configured proxy.
 
@@ -1684,7 +1706,7 @@ filled.
 | `reading_goal` | Yearly goals | year, target |
 | `reading_queue` | Priority queue separate from Planning | vn_id PK, position, added_at |
 | `steam_link` | VN ↔ Steam appid map | vn_id, appid, steam_name, source, last_synced_minutes |
-| `alicesoft_kobe_stock` | AliceSoft Kobe second-hand shop inventory | code PK (`###-######-###`), title, jan, release_date, list_price, sale_price, vn_id (matched VN), vn_match_source (`auto`/`manual`/`none`), vn_candidates TEXT (JSON top-3 KobeCandidate[]), search_title (normalized query), last_matched_at, egs_id, egs_match_source, fetched_at, updated_at |
+| `alicesoft_kobe_stock` | AliceNet Kobe second-hand shop inventory | code PK (`###-######-###`), title, jan, release_date, list_price, sale_price, vn_id (matched VN), vn_match_source (`auto`/`manual`/`none`), vn_candidates TEXT (JSON top-3 KobeCandidate[]), search_title (normalized query), last_matched_at, egs_id, egs_match_source, fetched_at, updated_at |
 
 Migrations are idempotent via `ensureColumn` / `CREATE TABLE IF NOT
 EXISTS`, with marker rows in `app_setting` for one-shot data migrations
