@@ -4,6 +4,7 @@ import { getCollectionItem, getEgsForVn, listKobeStockForVn, listStockAliases, l
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
+import { providerFetch } from './proxy-fetch';
 import type { CollectionItem } from './types';
 import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
 
@@ -201,9 +202,18 @@ export function shouldShowAsPhysicalLead(
   return offer.availability !== 'out_of_stock';
 }
 
+/**
+ * Browser-shaped User-Agent so providers don't trip simple bot heuristics.
+ * The previous "Mozilla/5.0 VN-Collection local stock checker" was the root
+ * cause of Suruga-ya / WonderGOO challenge pages and several 403s. We still
+ * disclose ourselves via `accept-language` (ja-JP first) so the response is
+ * the same shape a Japanese desktop visitor gets.
+ */
 const SHOP_HEADERS = {
-  'user-agent': 'Mozilla/5.0 VN-Collection local stock checker',
+  'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
   accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'accept-language': 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7',
+  'accept-encoding': 'gzip, deflate, br',
 };
 
 const TRADER_MOBILE_HEADERS = {
@@ -223,6 +233,32 @@ export function encodeEucJpQuery(value: string): string {
     .join('');
 }
 
+/**
+ * Encodes a string as Shift_JIS percent-encoded bytes for a query string.
+ * GEO's old ASP.NET `search.aspx` endpoint expects Shift_JIS in the `keyword`
+ * query string; UTF-8 percent-encoding yields garbage characters.
+ *
+ * Printable ASCII unreserved bytes (A–Z, a–z, 0–9, plus `-`, `_`, `.`, `~`)
+ * are left as literal characters — this matches how GEO's own form encodes
+ * Shift_JIS multi-byte trail bytes (e.g. `%83A%83C%83L%83X` for アイキス).
+ */
+export function encodeShiftJisQuery(value: string): string {
+  const bytes = iconv.encode(value, 'Shift_JIS') as Uint8Array;
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    const isUnreserved =
+      (b >= 0x30 && b <= 0x39) || // 0-9
+      (b >= 0x41 && b <= 0x5a) || // A-Z
+      (b >= 0x61 && b <= 0x7a) || // a-z
+      b === 0x2d || b === 0x5f || b === 0x2e || b === 0x7e; // - _ . ~
+    out += isUnreserved
+      ? String.fromCharCode(b)
+      : `%${b.toString(16).toUpperCase().padStart(2, '0')}`;
+  }
+  return out;
+}
+
 const PROVIDER_HOSTS: Record<StockProviderId, RegExp> = {
   eroge_price: /^eroge-price\.com$/,
   sofmap: /(^|\.)sofmap\.com$/,
@@ -239,7 +275,7 @@ const PROVIDER_HOSTS: Record<StockProviderId, RegExp> = {
   gamecity: /^shop\.gamecity\.ne\.jp$/,
   asakusa_mach: /^shopping\.yahoo\.co\.jp$/,
   amazon_jp: /^www\.amazon\.co\.jp$/,
-  amiami: /^www\.amiami\.jp$/,
+  amiami: /^(?:www|slist)\.amiami\.jp$/,
   otakarasouko: /^www\.ec\.otakarasouko\.com$/,
   geo: /^ec\.geo-online\.co\.jp$/,
   joshin: /^joshinweb\.jp$/,
@@ -269,9 +305,16 @@ const TITLE_SEARCH_URLS: Partial<Record<StockProviderId, (query: string) => stri
   gamecity: (query) => `https://shop.gamecity.ne.jp/goods-search/?k=${encodeURIComponent(query)}`,
   asakusa_mach: (query) => `https://shopping.yahoo.co.jp/search/${encodeURIComponent(query)}/0/?first=1&tab_ex=commerce`,
   amazon_jp: (query) => `https://www.amazon.co.jp/s?k=${encodeURIComponent(query)}`,
-  amiami: (query) => `https://www.amiami.jp/top/search/list?s_keywords=${encodeURIComponent(query)}`,
+  // AmiAmi's slist.amiami.jp endpoint returns server-rendered HTML cards; the
+  // www.amiami.jp top-level search is now SPA-only and produces a 403 for
+  // automated clients. Extra params surface preorder + backorder + newitem +
+  // used so we don't miss any availability state.
+  amiami: (query) => `https://slist.amiami.jp/top/search/list?s_keywords=${encodeURIComponent(query)}&s_st_list_preorder_available=1&s_st_list_backorder_available=1&s_st_list_newitem_available=1&s_st_condition_flg=1&pagemax=60`,
   otakarasouko: (query) => `https://www.ec.otakarasouko.com/shop/shopbrand.html?search=&sort=order&prize1=${encodeURIComponent(query)}`,
-  geo: (query) => `https://ec.geo-online.co.jp/shop/goods/search.aspx?search=x&keyword=${encodeURIComponent(query)}`,
+  // GEO requires Shift-JIS percent-encoded keywords + the legacy submit1
+  // form-button payload, otherwise the page redirects to its home.
+  geo: (query) => `https://ec.geo-online.co.jp/shop/goods/search.aspx?search=x&keyword=${encodeShiftJisQuery(query)}&submit1=${encodeShiftJisQuery('送信')}`,
+  hgame1: (query) => `https://www.hgame1.com/msearch/msearch.cgi?query=${encodeURIComponent(query)}&index=default`,
   joshin: (query) => `https://joshinweb.jp/srhzs.html?KEYWORD=&KEY=ZS_ALL&KEY_M=ALL&QK=${encodeURIComponent(query)}&REQUEST_CODE=1`,
   neowing: (query) => `https://www.neowing.co.jp/searchuni?q=${encodeURIComponent(query)}`,
   yodobashi: (query) => `https://www.yodobashi.com/?word=${encodeURIComponent(query)}`,
@@ -352,12 +395,12 @@ async function fetchShopText(url: string, init: RequestInit & { encoding?: strin
       : null;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await providerFetch(url, {
       redirect: 'follow',
       cache: 'no-store',
       headers: { ...SHOP_HEADERS, ...(init.headers ?? {}) },
       signal: timeoutCtrl.signal,
-    });
+    }, 'stock');
   } catch (err) {
     if (timeoutCtrl.signal.aborted && !(init.signal && init.signal.aborted)) {
       throw new Error(`fetch timeout after ${timeoutMs}ms from ${sourceHost(url)}`);
@@ -797,6 +840,26 @@ export function parseHgame1Detail(html: string, url: string, target: StockTarget
   };
 }
 
+/**
+ * Parse Hgame1's msearch.cgi result page.  The list page renders one product
+ * per `<a href="/item/{jan}.html">…</a>` block followed by a price span and a
+ * stock label. Returns the unique detail-page URLs for follow-up fetches.
+ */
+export function extractHgame1SearchLinks(html: string, baseUrl: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of html.matchAll(/href=["']([^"']*\/item\/[0-9A-Za-z_-]+\.html)["']/gi)) {
+    const href = m[1] ?? '';
+    if (!href) continue;
+    const abs = absUrl(baseUrl, href);
+    if (sourceHost(abs) !== 'www.hgame1.com') continue;
+    if (seen.has(abs)) continue;
+    seen.add(abs);
+    out.push(abs);
+  }
+  return out;
+}
+
 async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
@@ -804,8 +867,26 @@ async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: Collecti
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
+  const ageHeaders = { cookie: 'age_verified=1; hgame1_age_check=1' };
   for (const target of allTargetsForProvider(releases, 'hgame1', vn, discovered, aliases).slice(0, 20)) {
-    const html = await fetchShopText(target.url, { headers: { cookie: 'age_verified=1' }, signal });
+    const isSearchPage = /\/msearch\/msearch\.cgi/i.test(new URL(target.url).pathname);
+    if (isSearchPage) {
+      const searchHtml = await fetchShopText(target.url, { headers: ageHeaders, signal });
+      const detailUrls = extractHgame1SearchLinks(searchHtml, target.url).slice(0, 8);
+      for (const detailUrl of detailUrls) {
+        if (signal?.aborted) break;
+        try {
+          const html = await fetchShopText(detailUrl, { headers: ageHeaders, signal });
+          const parsed = parseHgame1Detail(html, detailUrl, target);
+          if (!parsed) continue;
+          if (!targetMatchesTitle(target, parsed.title)) continue;
+          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+          offers.push(offerInput(vnId, 'hgame1', 'search', now, { ...parsed, ...classificationToFields(cl) }));
+        } catch {}
+      }
+      continue;
+    }
+    const html = await fetchShopText(target.url, { headers: ageHeaders, signal });
     const parsed = parseHgame1Detail(html, target.url, target);
     if (parsed) {
       const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
@@ -1656,18 +1737,95 @@ function extractJan(html: string): string | null {
   return m?.[1] ?? null;
 }
 
+interface ErogePriceCellRoles {
+  seller: string;
+  sellerLink: string | null;
+  edition: string | null;
+  condition: string | null;
+  priceText: string;
+  rowHtml: string;
+}
+
+/**
+ * Detect role of each cell by content pattern. Eroge Price uses different
+ * column orders across game types (PC vs console), so positional parsing
+ * misses rows. Pattern-based parsing also handles the "shipping" / "total"
+ * / "points" cells gracefully.
+ */
+function classifyErogePriceRow(rowHtml: string, baseUrl: string): ErogePriceCellRoles | null {
+  const cellMatches = [...rowHtml.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => m[1] ?? '');
+  if (cellMatches.length < 2) return null;
+
+  let seller = '';
+  let sellerLink: string | null = null;
+  let edition: string | null = null;
+  let condition: string | null = null;
+  let priceText = '';
+
+  for (const cellHtml of cellMatches) {
+    const text = stripTags(cellHtml).trim();
+    if (!text) continue;
+
+    // Detect outbound shop link in this cell — preserves the FIRST hit so we
+    // don't pick a "go to shop" button at the end of the row.
+    if (!sellerLink) {
+      const link = extractFirstShopLink(cellHtml, baseUrl);
+      if (link) {
+        sellerLink = link;
+        if (!seller) seller = text;
+      }
+    }
+
+    // Price patterns: "¥3,300" / "3,300円" / "JPY 3300"
+    if (!priceText && (/[¥￥]\s*[\d,]+|[\d,]+\s*円|JPY\s*[\d,]+/i.test(text))) {
+      priceText = text;
+      continue;
+    }
+
+    // Condition patterns
+    if (!condition && /^(新品|中古|未開封|未使用|ランク[A-Za-z])/.test(text)) {
+      condition = text;
+      continue;
+    }
+
+    // Edition patterns
+    if (!edition && /(通常版|初回限定|限定版|完全版|豪華|デラックス|complete|deluxe|限定|初回|パッケージ|DL版|dl版|ダウンロード)/i.test(text)) {
+      edition = text;
+      continue;
+    }
+
+    // Seller fallback: first non-price, non-numeric text cell
+    if (!seller && !/^[\d,¥￥\s]+$/.test(text) && text.length >= 2) {
+      seller = text;
+    }
+  }
+
+  if (!seller && sellerLink) {
+    // If no descriptive seller text was found, use the host as a fallback.
+    try { seller = new URL(sellerLink).hostname.replace(/^www\./, ''); } catch {}
+  }
+
+  if (!seller || !priceText) return null;
+  return { seller, sellerLink, edition, condition, priceText, rowHtml };
+}
+
 export function parseErogePrice(html: string, url: string, vnId: string, now: number): VnStockOfferInput[] {
   const title = firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i) ?? 'Eroge Price';
   const pageJan = extractJan(html);
   const offers: VnStockOfferInput[] = [];
+  const seenKeys = new Set<string>();
+
   for (const block of parseJsonLd(html)) {
     for (const offer of collectOffers(block)) {
       const rawPrice = offer.price;
       const price = typeof rawPrice === 'number' ? rawPrice : typeof rawPrice === 'string' ? Number(rawPrice.replace(/[^\d]/g, '')) : NaN;
       const seller = sellerName(offer);
       const offerUrl = typeof offer.url === 'string' ? offer.url : url;
+      const key = `jsonld:${seller ?? 'offer'}:${offerUrl}`;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
       offers.push(offerInput(vnId, 'eroge_price', 'search', now, {
-        provider_offer_id: `${seller ?? 'offer'}:${offerUrl}`,
+        provider_offer_id: key,
         title,
         url: offerUrl,
         price: Number.isInteger(price) && price > 0 ? price : null,
@@ -1681,41 +1839,31 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
       }));
     }
   }
-  for (const m of html.matchAll(/<tr>([\s\S]*?)<\/tr>/gi)) {
+
+  for (const m of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
     const rowHtml = m[1] ?? '';
-    const cells = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((cell) => cell[1] ?? '');
-    if (cells.length < 3) continue;
-    const seller = stripTags(cells[0] ?? '');
-    const edition = stripTags(cells[1] ?? '');
-    const priceText = stripTags(cells[2] ?? '');
-    const condition = stripTags(cells[3] ?? '');
-    const fifth = stripTags(cells[4] ?? '');
-    if (!seller || !priceText) continue;
-    // The seller cell typically embeds the outbound link first; the row's
-    // trailing cells often hold action / point info. Prefer the seller-cell
-    // link over the page URL when available.
-    const sellerLink = extractFirstShopLink(cells[0] ?? '', url)
-      ?? extractFirstShopLink(rowHtml, url);
-    const offerUrl = sellerLink ?? url;
-    const key = `${seller}:${edition}:${priceText}:${condition}`;
-    if (offers.some((offer) => offer.provider_offer_id === key)) continue;
-    // Some rows carry a release-date or in-stock flag in a trailing cell.
-    const inStockFlag = /在庫あり|入荷|販売中|InStock/i.test(rowHtml);
-    const soldOutFlag = /品切|完売|販売終了|sold\s*out/i.test(rowHtml);
+    const row = classifyErogePriceRow(rowHtml, url);
+    if (!row) continue;
+    const offerUrl = row.sellerLink ?? url;
+    const key = `row:${row.seller}:${row.edition ?? ''}:${row.priceText}:${row.condition ?? ''}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    const inStockFlag = /在庫あり|入荷|販売中|入荷待ち|予約|InStock|PreOrder/i.test(rowHtml);
+    const soldOutFlag = /品切|完売|販売終了|入手不可|sold\s*out/i.test(rowHtml);
     let availability: VnStockAvailability;
     if (soldOutFlag) availability = 'out_of_stock';
     else if (inStockFlag) availability = 'in_stock';
-    else availability = availabilityFromText(condition || fifth || seller);
+    else availability = availabilityFromText(row.condition ?? row.seller);
     offers.push(offerInput(vnId, 'eroge_price', 'search', now, {
       provider_offer_id: key,
       title,
       url: offerUrl,
-      price: parsePriceYen(priceText),
+      price: parsePriceYen(row.priceText),
       availability,
-      availability_label: seller,
-      condition: condition || null,
-      edition_label: edition || null,
-      location_label: seller,
+      availability_label: row.seller,
+      condition: row.condition,
+      edition_label: row.edition,
+      location_label: row.seller,
       source_release_id: null,
       jan: pageJan,
     }));

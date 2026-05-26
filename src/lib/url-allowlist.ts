@@ -54,6 +54,7 @@ export const ALLOWED_HTTP_HOSTS: ReadonlySet<string> = new Set([
   'shopping.yahoo.co.jp',
   'www.amazon.co.jp',
   'www.amiami.jp',
+  'slist.amiami.jp',
   'www.ec.otakarasouko.com',
   'ec.geo-online.co.jp',
   'joshinweb.jp',

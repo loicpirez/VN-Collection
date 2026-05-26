@@ -2,7 +2,13 @@ import 'server-only';
 import { getAppSetting, setAppSetting } from './db';
 
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h';
-export type ProviderId = 'vndb' | 'vndbmirror' | 'egs' | 'alicesoft_kobe';
+/**
+ * `stock` is a catch-all for every shop provider in `src/lib/stock.ts`
+ * (Sofmap, Suruga-ya, AmiAmi, …). When configured, the proxy is applied to
+ * every outbound `fetchShopText` call. Individual shops do not get separate
+ * proxy slots — most operators run one proxy for all shop fetches.
+ */
+export type ProviderId = 'vndb' | 'vndbmirror' | 'egs' | 'alicesoft_kobe' | 'stock';
 
 export interface ProxyConfig {
   protocol: ProxyProtocol;
@@ -29,6 +35,7 @@ const ENV_PREFIX: Record<ProviderId, string> = {
   vndbmirror: 'VNDBMIRROR',
   egs: 'EGS',
   alicesoft_kobe: 'ALICE_KOBE',
+  stock: 'STOCK',
 };
 
 export const PROXY_DB_KEY: Record<ProviderId, string> = {
@@ -36,6 +43,7 @@ export const PROXY_DB_KEY: Record<ProviderId, string> = {
   vndbmirror: 'vndbmirror_proxy_config',
   egs: 'egs_proxy_config',
   alicesoft_kobe: 'alicesoft_kobe_proxy_config',
+  stock: 'stock_proxy_config',
 };
 
 interface StoredProxyConfig {

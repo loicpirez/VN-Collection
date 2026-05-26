@@ -397,7 +397,10 @@ export function StockPanel({
   const lastRefresh = snapshot?.summary.last_refresh ?? null;
   const checkedStatuses = snapshot?.statuses ?? [];
   const displayDiagnostics = diagnostics.filter(
-    (diag) => diag.kind !== 'ok' && (diag.kind !== 'not_checked' || statusByProvider.has(diag.provider)),
+    (diag) =>
+      diag.kind !== 'ok' &&
+      diag.kind !== 'partial' && // Suruga-ya "Search OK" is a success state — the tile badge already says so.
+      (diag.kind !== 'not_checked' || statusByProvider.has(diag.provider)),
   );
 
   const confirmedPhysicalIds = useMemo(
@@ -502,14 +505,14 @@ export function StockPanel({
       : t.stock.check;
 
   return (
-    <section className={`rounded-xl border border-border bg-bg-card ${dense ? 'p-4' : 'p-4 sm:p-5'}`}>
+    <section className={`overflow-hidden rounded-xl border border-border bg-bg-card ${dense ? 'p-4' : 'p-4 sm:p-5'}`}>
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 max-w-full flex-1">
           <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <ShoppingBag className="h-4 w-4 text-accent" aria-hidden />
             {t.stock.title}
           </h2>
-          {title && <p className="mt-1 truncate text-sm font-semibold text-white">{title}</p>}
+          {title && <p className="mt-1 break-words text-sm font-semibold text-white">{title}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
             <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1">
               <PackageSearch className="h-3 w-3" aria-hidden />
@@ -1229,15 +1232,15 @@ function OfferCard({
       className={`rounded-lg border p-3 ${isBest ? 'border-accent/60 bg-accent/10' : 'border-border bg-bg-elev/40'}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className="min-w-0 max-w-full flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-md border border-border bg-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
+            <span className="max-w-full truncate rounded-md border border-border bg-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
               {offer.provider_label}
             </span>
             <AvailabilityChip availability={offer.availability} label={availabilityLabel(t, offer)} />
             <ConfidenceChip mc={offer.match_confidence} t={t} />
           </div>
-          <h3 className="mt-2 line-clamp-2 text-sm font-bold text-white">{offer.title}</h3>
+          <h3 className="mt-2 line-clamp-2 break-words text-sm font-bold text-white">{offer.title}</h3>
         </div>
         <div className="text-right">
           <div className="text-base font-black text-accent">

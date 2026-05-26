@@ -52,6 +52,7 @@ const SENSITIVE_LOG_KEYS = new Set([
   'vndbmirror_proxy_config',
   'egs_proxy_config',
   'alicesoft_kobe_proxy_config',
+  'stock_proxy_config',
 ]);
 
 function maskPayloadValues(obj: Record<string, unknown>): Record<string, unknown> {
@@ -91,6 +92,7 @@ const SAFE_KEYS = new Set([
   'vndbmirror_proxy_config',
   'egs_proxy_config',
   'alicesoft_kobe_proxy_config',
+  'stock_proxy_config',
 ]);
 
 const DEFAULT_VNDB_BACKUP_URL = 'https://api.yorhel.org/kana';
@@ -198,6 +200,7 @@ export async function GET(req: Request) {
       vndbmirror_proxy_config: getProxyConfigForDisplay('vndbmirror'),
       egs_proxy_config: getProxyConfigForDisplay('egs'),
       alicesoft_kobe_proxy_config: getProxyConfigForDisplay('alicesoft_kobe'),
+      stock_proxy_config: getProxyConfigForDisplay('stock'),
     });
   } catch (err) {
     console.error('[settings GET] DB error:', (err as Error).message);
@@ -512,6 +515,7 @@ export async function PATCH(req: NextRequest) {
     ['vndbmirror_proxy_config', 'vndbmirror'],
     ['egs_proxy_config', 'egs'],
     ['alicesoft_kobe_proxy_config', 'alicesoft_kobe'],
+    ['stock_proxy_config', 'stock'],
   ] as [string, ProviderId][]) {
     if (!(key in body)) continue;
     const v = body[key];

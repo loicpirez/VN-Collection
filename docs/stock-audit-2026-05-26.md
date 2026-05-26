@@ -1111,3 +1111,137 @@ Future-work backlog (parked, not regressions):
 - Mandarake search endpoint health (external).
 - TTL column on `vn_stock_provider_status`.
 - Intra-provider progress for Trader / Mandarake.
+
+---
+
+# Round 7 — provider URL fixes + batch UX + proxy support (2026-05-27)
+
+User QA on production surfaced concrete failures:
+- Suruga-ya still flagged "Protected" despite `/search` returning useful data.
+- AmiAmi 403 because the `www.amiami.jp/top/search/list` SPA endpoint
+  no longer accepts bot traffic.
+- GEO redirects to home page because the keyword param needs Shift_JIS
+  encoding + the legacy `submit1` form-button payload.
+- Hgame1 had only direct-JAN URLs; title search was unwired.
+- Eroge Price extraction missed offers on real pages (e.g.
+  https://eroge-price.com/games/25329).
+- StockPanel overflowed on mobile (long titles / long shop names).
+- Batch refresh UI required typing VN IDs by hand — no autocomplete.
+- Proxy support only covered VNDB / EGS / Alice Kobe — shop fetches
+  bypassed it entirely.
+
+## R7-01 — Real browser User-Agent for shop fetches
+
+The previous `"Mozilla/5.0 VN-Collection local stock checker"` UA tripped
+bot heuristics on Suruga-ya, WonderGOO, AmiAmi, and several others.
+Replaced with a current desktop Safari UA + `accept-language: ja-JP`.
+This single change unblocked Suruga-ya and several other shops on
+fresh fetches.
+
+## R7-02 — AmiAmi → `slist.amiami.jp` search
+
+`www.amiami.jp/top/search/list` is now SPA-only and returns 403 for
+non-JS clients. The legacy server-rendered endpoint lives at
+`slist.amiami.jp/top/search/list` with these required params:
+`s_st_list_preorder_available=1&s_st_list_backorder_available=1
+&s_st_list_newitem_available=1&s_st_condition_flg=1&pagemax=60`.
+Added `slist.amiami.jp` to URL allowlist + extended `PROVIDER_HOSTS`
+regex.
+
+## R7-03 — GEO Shift-JIS + submit1
+
+GEO's `search.aspx` rejects UTF-8 percent-encoded keywords; it expects
+Shift_JIS bytes. Added `encodeShiftJisQuery` (preserves printable
+ASCII trail bytes literally — matches GEO's own URL style) and
+threaded the encoder through the GEO search URL builder. Also
+added the legacy `submit1=送信` form-button payload that the page
+requires to actually fire the search.
+
+Test: `tests/stock-search-urls.test.ts` — verifies アイキス2 →
+`%83A%83C%83L%83X2` and 送信 → `%91%97%90M`.
+
+## R7-04 — Hgame1 search via `msearch.cgi`
+
+Added `https://www.hgame1.com/msearch/msearch.cgi?query=<q>&index=default`
+as the title-search URL. Wired `extractHgame1SearchLinks` to follow
+result anchors that match `/item/<jan>.html` and dedupe per detail URL.
+Age-verification cookie chain now includes both `age_verified=1` and
+`hgame1_age_check=1` so the search and detail fetches share the same
+cookie session.
+
+## R7-05 — Eroge Price parser — content-based cell roles
+
+Old parser assumed fixed cell positions (seller=0, edition=1,
+price=2, condition=3). Real Eroge Price pages use multiple layouts
+across PC vs console games and across new vs used vs DL-only games.
+
+New `classifyErogePriceRow` parses each `<tr>` row by content
+pattern instead of position:
+- Price detected by `[¥￥]\s*[\d,]+` / `[\d,]+\s*円` / `JPY ...`.
+- Condition detected by `新品|中古|未開封|未使用|ランクA-D`.
+- Edition detected by `通常版|初回限定|限定版|デラックス|DL版|…`.
+- Seller link detected by walking each cell for the first
+  outbound shop link.
+- Seller fallback to first non-price, non-numeric text cell.
+- In/out-of-stock flags detected anywhere in the row.
+
+Test: `tests/stock-eroge-price.test.ts` — existing 10 cases still
+pass; the parser now handles 3/4/5-cell row variants gracefully.
+
+## R7-06 — StockPanel mobile overflow
+
+- Outer `<section>` gets `overflow-hidden` so long auto-fit content
+  is clipped to the card.
+- Title row uses `break-words` instead of `truncate` so long Japanese
+  titles wrap.
+- Offer card provider badge gets `max-w-full truncate`.
+- Group filter chips already use `flex-wrap`.
+- Verified all touch targets remain ≥ 44 × 44 px.
+
+## R7-07 — StockBatchClient: autocomplete + queue UI
+
+Replaced the freeform textarea with a proper queue manager:
+- Debounced search hits **both** `/api/collection/find` (local
+  library, fast) and `/api/search` (full VNDB) in parallel and
+  merges/dedupes the results.
+- Tap any hit to add it to the queue with its title attached.
+- Queue rows show provider per-row status: pending / current
+  (spinner) / OK (count) / error.
+- Pending rows have an X button to remove before the batch runs.
+
+## R7-08 — Refresh-all scopes via `/api/stock/queue`
+
+New endpoint `GET /api/stock/queue?scope=…` returns a flat list of
+VN IDs for the chosen scope:
+- `collection` — every VN in the local `collection` table.
+- `reading_queue` — VNs currently in the reading queue.
+- `recent_stock` — VNs whose stock data is oldest first, useful
+  for "refresh the staler half of the library."
+
+StockBatchClient surfaces these as three quick-add buttons; the
+operator picks a scope, the queue fills, and the existing run
+loop walks it sequentially with abort + per-VN error tolerance.
+
+## R7-09 — Per-shop proxy support
+
+Extended `ProviderId` with a new `'stock'` member. `fetchShopText`
+now routes through `providerFetch(url, init, 'stock')`, so a
+configured SOCKS5/HTTP proxy applies to **every** shop request
+automatically.
+
+Wired:
+- `proxy-config.ts`: ENV_PREFIX `STOCK`, DB key `stock_proxy_config`.
+- `/api/settings`: GET returns `stock_proxy_config`; PATCH validates
+  the same shape used by other providers.
+- `/api/proxy/test`: accepts `provider: 'stock'`, tests against
+  Suruga-ya's `/search` endpoint.
+- `SettingsButton.tsx`: a `<ProxySettingsSection>` for "Stock shops
+  (all)" sits alongside VNDB / mirror / EGS / Alice Kobe entries.
+- i18n key `proxyProviderStock` (FR/EN/JA).
+
+## Verification
+
+- `yarn typecheck` ✅ clean
+- `yarn test` ✅ 2107 / 206 files
+- `yarn build` ✅
+- `git diff --check` ✅

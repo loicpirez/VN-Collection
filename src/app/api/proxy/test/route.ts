@@ -12,9 +12,12 @@ const PROVIDER_TEST_URLS: Record<ProviderId, string> = {
   vndbmirror: 'https://api.yorhel.org/kana/schema',
   egs: 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/sql_for_erogamer_form.php',
   alicesoft_kobe: 'https://www.alice-kobe.com/html/page4.html',
+  // Suruga-ya search page — a typical shop fetch that should succeed when
+  // the stock proxy is healthy.
+  stock: 'https://www.suruga-ya.jp/search?category=&search_word=test',
 };
 
-const VALID_PROVIDERS = new Set<string>(['vndb', 'vndbmirror', 'egs', 'alicesoft_kobe']);
+const VALID_PROVIDERS = new Set<string>(['vndb', 'vndbmirror', 'egs', 'alicesoft_kobe', 'stock']);
 
 export async function POST(req: NextRequest) {
   const denied = requireLocalhostOrToken(req);
