@@ -71,6 +71,7 @@ import { RecordRecentView } from '@/components/RecordRecentView';
 import { NotInCollectionBanner } from '@/components/NotInCollectionBanner';
 import { TitleLine } from '@/components/TitleLine';
 import { StockPanel } from '@/components/StockPanel';
+import { getStockForVn } from '@/lib/stock';
 import { EgsPanel } from '@/components/EgsPanel';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
 import { MatchBadges } from '@/components/MatchBadges';
@@ -899,7 +900,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         if (!vn.id.startsWith('egs_')) {
           sectionNodes['vndb-status'] = <VndbStatusPanel vnId={vn.id} />;
         }
-        sectionNodes['stock'] = <StockPanel vnId={vn.id} title={displayTitle} />;
+        sectionNodes['stock'] = <StockPanel vnId={vn.id} title={displayTitle} initialSnapshot={getStockForVn(vn.id)} />;
         sectionNodes['egs-panel'] = (
           <EgsPanel
             vnId={vn.id}

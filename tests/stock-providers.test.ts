@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import {
   STOCK_PROVIDER_IDS,
+  PHYSICAL_PROVIDER_IDS,
   parseGenericProviderPage,
   parseErogePrice,
   parseHgame1Detail,
@@ -98,8 +99,13 @@ describe('stock provider parsers', () => {
       availability: 'in_stock',
       condition: 'Used',
       location_label: 'AKIBA アミューズメント館',
+      location_branch: 'AKIBA アミューズメント館',
     });
-    expect(offers[1]).toMatchObject({ provider_offer_id: '414731757', location_label: '大宮店' });
+    expect(offers[1]).toMatchObject({
+      provider_offer_id: '414731757',
+      location_label: '大宮店',
+      location_branch: '大宮店',
+    });
   });
 
   it('parseSofmapList returns empty array when no change_style_list present', () => {
@@ -300,5 +306,24 @@ describe('stock provider parsers', () => {
       { ...target, releaseId: null, query: 'Sample VN' },
     );
     expect(offers).toEqual([]);
+  });
+});
+
+describe('PHYSICAL_PROVIDER_IDS', () => {
+  it('contains all expected physical store providers', () => {
+    expect(PHYSICAL_PROVIDER_IDS).toEqual(
+      expect.arrayContaining(['sofmap', 'hgame1', 'mandarake', 'wondergoo', 'trader', 'otakarasouko', 'geo']),
+    );
+  });
+
+  it('contains only IDs that are present in STOCK_PROVIDER_IDS', () => {
+    const all = new Set(STOCK_PROVIDER_IDS);
+    for (const id of PHYSICAL_PROVIDER_IDS) {
+      expect(all.has(id), `${id} in PHYSICAL_PROVIDER_IDS but not in STOCK_PROVIDER_IDS`).toBe(true);
+    }
+  });
+
+  it('does not contain alicesoft_kobe (cached provider)', () => {
+    expect(PHYSICAL_PROVIDER_IDS).not.toContain('alicesoft_kobe');
   });
 });

@@ -732,6 +732,13 @@ function open(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_vn_stock_provider_status_vn
       ON vn_stock_provider_status(vn_id, fetched_at);
+
+    CREATE TABLE IF NOT EXISTS vn_stock_alias (
+      vn_id       TEXT NOT NULL,
+      alias_term  TEXT NOT NULL,
+      created_at  INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (vn_id, alias_term)
+    );
   `);
 
   // The aspect-ratio filter used to require an `owned_release` row to
@@ -1061,6 +1068,7 @@ function open(): Database.Database {
   ensureColumn(db, 'alicesoft_kobe_stock', 'egs_release_date', 'TEXT');
   ensureColumn(db, 'alicesoft_kobe_stock', 'egs_image_url', 'TEXT');
   ensureColumn(db, 'alicesoft_kobe_stock', 'egs_vndb_raw', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'location_branch', 'TEXT');
 
   // Migration: rewrite EGS cover URLs to point at the resolver endpoint
   // (/api/egs-cover/{egs_id}) instead of hardcoded DMM / Suruga-ya / image.php
@@ -8943,6 +8951,7 @@ export interface VnStockOfferRow {
   condition: string | null;
   edition_label: string | null;
   location_label: string | null;
+  location_branch: string | null;
   source_release_id: string | null;
   jan: string | null;
   fetched_at: number;
@@ -8971,12 +8980,12 @@ export function replaceVnStockProviderSnapshot(
     const insertVnStockOfferStmt = db.prepare(`
       INSERT INTO vn_stock_offer (
         vn_id, provider, provider_offer_id, source, title, url, price, currency,
-        availability, availability_label, condition, edition_label, location_label,
+        availability, availability_label, condition, edition_label, location_label, location_branch,
         source_release_id, jan, fetched_at, updated_at, error
       )
       VALUES (
         @vn_id, @provider, @provider_offer_id, @source, @title, @url, @price, @currency,
-        @availability, @availability_label, @condition, @edition_label, @location_label,
+        @availability, @availability_label, @condition, @edition_label, @location_label, @location_branch,
         @source_release_id, @jan, @fetched_at, @updated_at, @error
       )
       ON CONFLICT(vn_id, provider, provider_offer_id) DO UPDATE SET
@@ -8990,6 +8999,7 @@ export function replaceVnStockProviderSnapshot(
         condition = excluded.condition,
         edition_label = excluded.edition_label,
         location_label = excluded.location_label,
+        location_branch = excluded.location_branch,
         source_release_id = excluded.source_release_id,
         jan = excluded.jan,
         fetched_at = excluded.fetched_at,
@@ -9072,6 +9082,31 @@ export function listRecentVnStockOffers(limit: number): (VnStockOfferRow & {
     vn_local_image: string | null;
     vn_image_sexual: number | null;
   })[];
+}
+
+export interface VnStockAliasRow {
+  vn_id: string;
+  alias_term: string;
+  created_at: number;
+}
+
+export function listStockAliases(vnId: string): VnStockAliasRow[] {
+  return db
+    .prepare(`SELECT * FROM vn_stock_alias WHERE vn_id = ? ORDER BY created_at ASC`)
+    .all(vnId) as VnStockAliasRow[];
+}
+
+export function upsertStockAlias(vnId: string, aliasTerm: string): void {
+  db.prepare(
+    `INSERT OR REPLACE INTO vn_stock_alias (vn_id, alias_term, created_at) VALUES (?, ?, ?)`,
+  ).run(vnId, aliasTerm, Date.now());
+}
+
+export function deleteStockAlias(vnId: string, aliasTerm: string): void {
+  db.prepare(`DELETE FROM vn_stock_alias WHERE vn_id = ? AND alias_term = ?`).run(
+    vnId,
+    aliasTerm,
+  );
 }
 
 export function listKobeStockForVn(vnId: string): KobeStockRow[] {

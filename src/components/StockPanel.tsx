@@ -6,10 +6,15 @@ import {
   CircleDollarSign,
   ExternalLink,
   Loader2,
+  Lock,
+  MapPin,
   PackageSearch,
+  Plus,
   RefreshCw,
   ShoppingBag,
   Square,
+  Tag,
+  X,
 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { readApiError } from '@/lib/api-error-read';
@@ -30,6 +35,7 @@ interface StockOffer {
   condition: string | null;
   edition_label: string | null;
   location_label: string | null;
+  location_branch: string | null;
   source_release_id: string | null;
   jan: string | null;
   fetched_at: number;
@@ -48,6 +54,8 @@ interface StockProvider {
   id: string;
   label: string;
   kind: 'direct' | 'aggregate' | 'cached';
+  physical: boolean;
+  cloudflare: boolean;
 }
 
 interface StockSnapshot {
@@ -62,44 +70,78 @@ interface StockSnapshot {
   };
 }
 
-export function StockPanel({ vnId, title, dense = false }: { vnId: string; title?: string; dense?: boolean }) {
+export function StockPanel({
+  vnId,
+  title,
+  dense = false,
+  initialSnapshot,
+}: {
+  vnId: string;
+  title?: string;
+  dense?: boolean;
+  initialSnapshot?: StockSnapshot;
+}) {
   const t = useT();
   const locale = useLocale();
-  const [snapshot, setSnapshot] = useState<StockSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [snapshot, setSnapshot] = useState<StockSnapshot | null>(initialSnapshot ?? null);
+  const [loading, setLoading] = useState(!initialSnapshot);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedProviders, setSelectedProviders] = useState<string[] | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
+  const [aliases, setAliases] = useState<string[]>([]);
+  const [aliasInput, setAliasInput] = useState('');
+  const [aliasLoading, setAliasLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const physicalDefaultRef = useRef(false);
 
   const currency = useMemo(
     () => new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }),
     [locale],
   );
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, { cache: 'no-store', signal });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const data = (await r.json()) as StockSnapshot;
-      if (!signal?.aborted) setSnapshot(data);
-    } catch (e) {
-      if ((e as Error).name === 'AbortError' || signal?.aborted) return;
-      setError((e as Error).message);
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, [vnId, t.common.error]);
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, { cache: 'no-store', signal });
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        const data = (await r.json()) as StockSnapshot;
+        if (!signal?.aborted) setSnapshot(data);
+      } catch (e) {
+        if ((e as Error).name === 'AbortError' || signal?.aborted) return;
+        setError((e as Error).message);
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [vnId, t.common.error],
+  );
 
   useEffect(() => {
+    if (initialSnapshot) return;
     const ctrl = new AbortController();
     load(ctrl.signal);
     return () => ctrl.abort();
-  }, [load]);
+  }, [load, initialSnapshot]);
+
+  useEffect(() => {
+    fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { aliases: [] }))
+      .then((data: { aliases: string[] }) => setAliases(data.aliases ?? []))
+      .catch(() => {});
+  }, [vnId]);
+
+  const providers = snapshot?.providers ?? [];
+
+  useEffect(() => {
+    if (physicalDefaultRef.current || providers.length === 0) return;
+    physicalDefaultRef.current = true;
+    const physicalIds = providers.filter((p) => p.physical && p.kind !== 'cached').map((p) => p.id);
+    if (physicalIds.length > 0) setSelectedProviders(physicalIds);
+  }, [providers.length]);
 
   async function refresh() {
     abortRef.current?.abort();
@@ -142,13 +184,52 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
     setRefreshing(false);
   }
 
+  async function handleAddAlias(e: React.FormEvent) {
+    e.preventDefault();
+    const term = aliasInput.trim();
+    if (!term || aliasLoading) return;
+    setAliasLoading(true);
+    try {
+      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ term, action: 'add' }),
+      });
+      if (r.ok) {
+        const data = (await r.json()) as { aliases: string[] };
+        setAliases(data.aliases ?? []);
+        setAliasInput('');
+      }
+    } catch {
+    } finally {
+      setAliasLoading(false);
+    }
+  }
+
+  async function removeAlias(term: string) {
+    setAliasLoading(true);
+    try {
+      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ term, action: 'delete' }),
+      });
+      if (r.ok) {
+        const data = (await r.json()) as { aliases: string[] };
+        setAliases(data.aliases ?? []);
+      }
+    } catch {
+    } finally {
+      setAliasLoading(false);
+    }
+  }
+
   const offers = snapshot?.offers ?? [];
-  const providers = snapshot?.providers ?? [];
-  const refreshableProviders = providers.filter((provider) => provider.kind !== 'cached');
-  const selectedProviderIds = selectedProviders ?? refreshableProviders.map((provider) => provider.id);
+  const refreshableProviders = providers.filter((p) => p.kind !== 'cached');
+  const selectedProviderIds = selectedProviders ?? refreshableProviders.map((p) => p.id);
   const selectedProviderSet = useMemo(() => new Set(selectedProviderIds), [selectedProviderIds]);
   const statusByProvider = useMemo(
-    () => new Map((snapshot?.statuses ?? []).map((status) => [status.provider, status])),
+    () => new Map((snapshot?.statuses ?? []).map((s) => [s.provider, s])),
     [snapshot?.statuses],
   );
   const offerCountByProvider = useMemo(() => {
@@ -156,30 +237,59 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
     for (const offer of offers) out.set(offer.provider, (out.get(offer.provider) ?? 0) + 1);
     return out;
   }, [offers]);
+
+  const physicalProviderIds = useMemo(
+    () => new Set(providers.filter((p) => p.physical && p.kind !== 'cached').map((p) => p.id)),
+    [providers],
+  );
+  const isPhysicalSelection = useMemo(
+    () =>
+      selectedProviders !== null &&
+      selectedProviders.length === physicalProviderIds.size &&
+      selectedProviders.every((id) => physicalProviderIds.has(id)),
+    [selectedProviders, physicalProviderIds],
+  );
+
   const best = snapshot?.summary.best_price ?? null;
   const lastRefresh = snapshot?.summary.last_refresh ?? null;
-  const failed = (snapshot?.statuses ?? []).filter((status) => status.status === 'error');
-  const skipped = (snapshot?.statuses ?? []).filter((status) => status.status === 'skipped');
+  const failed = (snapshot?.statuses ?? []).filter((s) => s.status === 'error');
+  const skipped = (snapshot?.statuses ?? []).filter((s) => s.status === 'skipped');
   const checkedStatuses = snapshot?.statuses ?? [];
 
-  function setProviderGroup(kind: 'all' | 'direct' | 'aggregate') {
+  const providerById = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers]);
+
+  function setProviderGroup(kind: 'all' | 'physical' | 'aggregate') {
     if (kind === 'all') {
       setSelectedProviders(null);
       return;
     }
-    const ids = refreshableProviders.filter((provider) => provider.kind === kind).map((provider) => provider.id);
+    if (kind === 'physical') {
+      const ids = providers.filter((p) => p.physical && p.kind !== 'cached').map((p) => p.id);
+      if (ids.length > 0) setSelectedProviders(ids);
+      return;
+    }
+    const ids = refreshableProviders.filter((p) => p.kind === kind).map((p) => p.id);
     if (ids.length > 0) setSelectedProviders(ids);
   }
 
   function toggleProvider(id: string) {
-    const next = new Set(selectedProviders ?? refreshableProviders.map((provider) => provider.id));
+    const next = new Set(selectedProviders ?? refreshableProviders.map((p) => p.id));
     if (next.has(id)) next.delete(id);
     else next.add(id);
     if (next.size === 0) return;
-    const allIds = refreshableProviders.map((provider) => provider.id);
-    const values = allIds.filter((providerId) => next.has(providerId));
+    const allIds = refreshableProviders.map((p) => p.id);
+    const values = allIds.filter((pid) => next.has(pid));
     setSelectedProviders(values.length === allIds.length ? null : values);
   }
+
+  const checkButtonLabel = refreshing
+    ? t.stock.checkingProviders.replace(
+        '{count}',
+        progress ? `${progress.done}/${progress.total}` : String(selectedProviderIds.length || refreshableProviders.length),
+      )
+    : isPhysicalSelection
+      ? t.stock.checkPhysical
+      : t.stock.check;
 
   return (
     <section className={`rounded-xl border border-border bg-bg-card ${dense ? 'p-4' : 'p-4 sm:p-5'}`}>
@@ -225,12 +335,7 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
             className="btn btn-primary min-h-[44px]"
           >
             {refreshing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
-            {refreshing
-              ? t.stock.checkingProviders.replace(
-                  '{count}',
-                  progress ? `${progress.done}/${progress.total}` : String(selectedProviderIds.length || refreshableProviders.length),
-                )
-              : t.stock.check}
+            {checkButtonLabel}
           </button>
         </div>
       </header>
@@ -246,43 +351,27 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
             </span>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={`min-h-[36px] rounded-md border px-3 py-1.5 text-xs font-semibold ${
-                selectedProviders == null ? 'border-accent bg-accent/15 text-accent' : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
-              }`}
-              aria-pressed={selectedProviders == null}
+            <GroupBtn
+              label={t.stock.groupPhysical}
+              active={isPhysicalSelection}
+              onClick={() => setProviderGroup('physical')}
+              disabled={refreshing}
+            />
+            <GroupBtn
+              label={t.stock.providersAll}
+              active={selectedProviders === null}
               onClick={() => setProviderGroup('all')}
               disabled={refreshing}
-            >
-              {t.stock.providersAll}
-            </button>
-            <button
-              type="button"
-              className={`min-h-[36px] rounded-md border px-3 py-1.5 text-xs font-semibold ${
-                selectedProviders != null && selectedProviders.every((id) => providers.find((provider) => provider.id === id)?.kind === 'direct')
-                  ? 'border-accent bg-accent/15 text-accent'
-                  : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
-              }`}
-              aria-pressed={selectedProviders != null && selectedProviders.every((id) => providers.find((provider) => provider.id === id)?.kind === 'direct')}
-              onClick={() => setProviderGroup('direct')}
-              disabled={refreshing}
-            >
-              {t.stock.providersDirect}
-            </button>
-            <button
-              type="button"
-              className={`min-h-[36px] rounded-md border px-3 py-1.5 text-xs font-semibold ${
-                selectedProviders != null && selectedProviders.every((id) => providers.find((provider) => provider.id === id)?.kind === 'aggregate')
-                  ? 'border-accent bg-accent/15 text-accent'
-                  : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
-              }`}
-              aria-pressed={selectedProviders != null && selectedProviders.every((id) => providers.find((provider) => provider.id === id)?.kind === 'aggregate')}
+            />
+            <GroupBtn
+              label={t.stock.providersAggregate}
+              active={
+                selectedProviders !== null &&
+                selectedProviders.every((id) => providerById.get(id)?.kind === 'aggregate')
+              }
               onClick={() => setProviderGroup('aggregate')}
               disabled={refreshing}
-            >
-              {t.stock.providersAggregate}
-            </button>
+            />
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {providers.map((provider) => {
@@ -309,10 +398,23 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
                     <span className="min-w-0">
                       <span className="block truncate text-xs font-bold">{provider.label}</span>
                       <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-muted">
-                        {provider.kind === 'cached' ? t.stock.providerCached : provider.kind === 'aggregate' ? t.stock.providersAggregate : t.stock.providersDirect}
+                        {provider.kind === 'cached'
+                          ? t.stock.providerCached
+                          : provider.kind === 'aggregate'
+                            ? t.stock.providersAggregate
+                            : provider.physical
+                              ? t.stock.groupPhysical
+                              : t.stock.providersDirect}
                       </span>
                     </span>
-                    <ProviderStatusBadge t={t} status={status} count={count} cached={provider.kind === 'cached'} loading={refreshing && currentProvider === provider.id} />
+                    <ProviderStatusBadge
+                      t={t}
+                      status={status}
+                      count={count}
+                      cached={provider.kind === 'cached'}
+                      cloudflare={provider.cloudflare}
+                      loading={refreshing && currentProvider === provider.id}
+                    />
                   </span>
                 </button>
               );
@@ -321,13 +423,63 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
         </div>
       )}
 
+      <div className="mt-4 rounded-lg border border-border bg-bg-elev/25 p-3">
+        <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-muted">
+          <Tag className="h-3 w-3" aria-hidden />
+          {t.stock.aliases}
+        </h3>
+        <p className="mt-1 text-[11px] text-muted">{t.stock.aliasHint}</p>
+        {aliases.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {aliases.map((alias) => (
+              <span
+                key={alias}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-white"
+              >
+                {alias}
+                <button
+                  type="button"
+                  onClick={() => removeAlias(alias)}
+                  disabled={aliasLoading}
+                  aria-label={t.stock.aliasRemoveTerm}
+                  className="rounded p-0.5 text-muted hover:text-status-dropped disabled:opacity-50"
+                >
+                  <X className="h-3 w-3" aria-hidden />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <form onSubmit={handleAddAlias} className="mt-2 flex gap-2">
+          <input
+            type="text"
+            value={aliasInput}
+            onChange={(e) => setAliasInput(e.target.value)}
+            placeholder={t.stock.aliasPlaceholder}
+            className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={!aliasInput.trim() || aliasLoading}
+            className="btn btn-primary text-xs"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            {t.stock.aliasAdd}
+          </button>
+        </form>
+      </div>
+
       {error && (
         <div className="mt-3 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-3 text-sm text-status-dropped">
           {error}
         </div>
       )}
 
-      {loading && <div className="mt-4"><SkeletonRows count={3} withThumb={false} /></div>}
+      {loading && (
+        <div className="mt-4">
+          <SkeletonRows count={3} withThumb={false} />
+        </div>
+      )}
 
       {!loading && offers.length === 0 && (
         <div className="mt-4 rounded-lg border border-dashed border-border bg-bg-elev/30 p-4 text-sm text-muted">
@@ -371,7 +523,15 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
                   </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted">
-                  {offer.location_label && <span className="rounded bg-bg px-1.5 py-0.5">{offer.location_label}</span>}
+                  {offer.location_branch && (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 font-semibold text-accent">
+                      <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+                      {offer.location_branch}
+                    </span>
+                  )}
+                  {offer.location_label && offer.location_label !== offer.location_branch && (
+                    <span className="rounded bg-bg px-1.5 py-0.5">{offer.location_label}</span>
+                  )}
                   {offer.condition && <span className="rounded bg-bg px-1.5 py-0.5">{offer.condition}</span>}
                   {offer.edition_label && <span className="rounded bg-bg px-1.5 py-0.5">{offer.edition_label}</span>}
                   {offer.jan && <span className="rounded bg-bg px-1.5 py-0.5">{t.stock.jan.replace('{jan}', offer.jan)}</span>}
@@ -400,22 +560,67 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
         <div className="mt-4 rounded-lg border border-border bg-bg-elev/25 p-3 text-[11px] text-muted">
           <h3 className="mb-2 font-bold uppercase tracking-widest text-muted">{t.stock.providerStatus}</h3>
           <div className="flex flex-wrap gap-2">
-          {failed.map((status) => (
-            <span key={`failed-${status.provider}`} className="inline-flex items-center gap-1 rounded-md border border-status-dropped/40 bg-status-dropped/10 px-2 py-1 text-status-dropped">
-              <AlertTriangle className="h-3 w-3" aria-hidden />
-              {providerDisplayName(providers, status.provider)}: {status.message ?? t.common.error}
-            </span>
-          ))}
-          {skipped.map((status) => (
-            <span key={`skipped-${status.provider}`} className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1">
-              <CheckCircle2 className="h-3 w-3" aria-hidden />
-              {providerDisplayName(providers, status.provider)}: {t.stock.skipped}
-            </span>
-          ))}
+            {failed.map((s) => {
+              const isProtected = providerById.get(s.provider)?.cloudflare === true;
+              return isProtected ? (
+                <span
+                  key={`failed-${s.provider}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-400"
+                >
+                  <Lock className="h-3 w-3" aria-hidden />
+                  {providerDisplayName(providers, s.provider)}: {t.stock.providerStatusProtected}
+                </span>
+              ) : (
+                <span
+                  key={`failed-${s.provider}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-status-dropped/40 bg-status-dropped/10 px-2 py-1 text-status-dropped"
+                >
+                  <AlertTriangle className="h-3 w-3" aria-hidden />
+                  {providerDisplayName(providers, s.provider)}: {s.message ?? t.common.error}
+                </span>
+              );
+            })}
+            {skipped.map((s) => (
+              <span
+                key={`skipped-${s.provider}`}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1"
+              >
+                <CheckCircle2 className="h-3 w-3" aria-hidden />
+                {providerDisplayName(providers, s.provider)}: {t.stock.skipped}
+              </span>
+            ))}
           </div>
         </div>
       )}
     </section>
+  );
+}
+
+function GroupBtn({
+  label,
+  active,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={`min-h-[36px] rounded-md border px-3 py-1.5 text-xs font-semibold ${
+        active
+          ? 'border-accent bg-accent/15 text-accent'
+          : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
+      }`}
+      aria-pressed={active}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -432,7 +637,7 @@ function stockSourceLabel(t: ReturnType<typeof useT>, source: string): string {
 }
 
 function providerDisplayName(providers: StockProvider[], providerId: string): string {
-  return providers.find((provider) => provider.id === providerId)?.label ?? providerId;
+  return providers.find((p) => p.id === providerId)?.label ?? providerId;
 }
 
 function ProviderStatusBadge({
@@ -440,12 +645,14 @@ function ProviderStatusBadge({
   status,
   count,
   cached,
+  cloudflare = false,
   loading = false,
 }: {
   t: ReturnType<typeof useT>;
   status: StockStatus | undefined;
   count: number;
   cached: boolean;
+  cloudflare?: boolean;
   loading?: boolean;
 }) {
   if (loading) {
@@ -455,7 +662,27 @@ function ProviderStatusBadge({
     return <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">{count}</span>;
   }
   if (!status) {
-    return <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">{t.stock.providerNotChecked}</span>;
+    if (cloudflare) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">
+          <Lock className="h-3 w-3" aria-hidden />
+          {t.stock.providerStatusProtected}
+        </span>
+      );
+    }
+    return (
+      <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">
+        {t.stock.providerNotChecked}
+      </span>
+    );
+  }
+  if (status.status === 'error' && cloudflare) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">
+        <Lock className="h-3 w-3" aria-hidden />
+        {t.stock.providerStatusProtected}
+      </span>
+    );
   }
   const cls =
     status.status === 'error'
@@ -489,5 +716,9 @@ function AvailabilityChip({
         : availability === 'out_of_stock'
           ? 'border-status-dropped/50 bg-status-dropped/10 text-status-dropped'
           : 'border-border bg-bg text-muted';
-  return <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cls}`}>{label}</span>;
+  return (
+    <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cls}`}>
+      {label}
+    </span>
+  );
 }

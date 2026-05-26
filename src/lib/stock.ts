@@ -1,5 +1,5 @@
 import 'server-only';
-import { getCollectionItem, getEgsForVn, listKobeStockForVn, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow } from './db';
+import { getCollectionItem, getEgsForVn, listKobeStockForVn, listStockAliases, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow } from './db';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
@@ -35,6 +35,10 @@ export interface StockProviderMeta {
   id: StockProviderId | 'alicesoft_kobe';
   label: string;
   kind: 'direct' | 'aggregate' | 'cached';
+  /** Provider can return physical store/branch location data. */
+  physical: boolean;
+  /** Provider is known to be Cloudflare-protected for automated access. */
+  cloudflare: boolean;
 }
 
 export interface StockOffer extends VnStockOfferRow {
@@ -70,35 +74,40 @@ interface ParsedOffer {
   condition: string | null;
   edition_label: string | null;
   location_label: string | null;
+  location_branch?: string | null;
   source_release_id: string | null;
   jan: string | null;
   error?: string | null;
 }
 
+export const PHYSICAL_PROVIDER_IDS: ReadonlyArray<StockProviderId> = [
+  'sofmap', 'hgame1', 'mandarake', 'wondergoo', 'trader', 'otakarasouko', 'geo',
+] as const;
+
 const PROVIDERS: StockProviderMeta[] = [
-  { id: 'eroge_price', label: 'Eroge Price', kind: 'aggregate' },
-  { id: 'sofmap', label: 'Sofmap', kind: 'direct' },
-  { id: 'surugaya', label: 'Suruga-ya', kind: 'direct' },
-  { id: 'hgame1', label: 'PC Shop Unoya', kind: 'direct' },
-  { id: 'melonbooks', label: 'Melonbooks', kind: 'direct' },
-  { id: 'mandarake', label: 'Mandarake', kind: 'direct' },
-  { id: 'wondergoo', label: 'WonderGOO', kind: 'direct' },
-  { id: 'trader', label: 'Trader', kind: 'direct' },
-  { id: 'animate', label: 'Animate', kind: 'direct' },
-  { id: 'ebten', label: 'ebten', kind: 'direct' },
-  { id: 'getchu', label: 'Getchu', kind: 'direct' },
-  { id: 'gamers', label: 'Gamers', kind: 'direct' },
-  { id: 'gamecity', label: 'GAMECITY', kind: 'direct' },
-  { id: 'asakusa_mach', label: 'Asakusa Mach', kind: 'direct' },
-  { id: 'amazon_jp', label: 'Amazon JP', kind: 'direct' },
-  { id: 'amiami', label: 'AmiAmi', kind: 'direct' },
-  { id: 'otakarasouko', label: 'Otakarasouko', kind: 'direct' },
-  { id: 'geo', label: 'GEO', kind: 'direct' },
-  { id: 'joshin', label: 'Joshin', kind: 'direct' },
-  { id: 'neowing', label: 'Neowing', kind: 'direct' },
-  { id: 'yodobashi', label: 'Yodobashi', kind: 'direct' },
-  { id: 'bikkuri_takarajima', label: 'Bikkuri Takarajima', kind: 'direct' },
-  { id: 'alicesoft_kobe', label: 'AliceSoft Kobe', kind: 'cached' },
+  { id: 'eroge_price',       label: 'Eroge Price',        kind: 'aggregate', physical: false, cloudflare: false },
+  { id: 'sofmap',            label: 'Sofmap',             kind: 'direct',    physical: true,  cloudflare: false },
+  { id: 'surugaya',          label: 'Suruga-ya',          kind: 'direct',    physical: true,  cloudflare: true  },
+  { id: 'hgame1',            label: 'PC Shop Unoya',      kind: 'direct',    physical: true,  cloudflare: false },
+  { id: 'melonbooks',        label: 'Melonbooks',         kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'mandarake',         label: 'Mandarake',          kind: 'direct',    physical: true,  cloudflare: false },
+  { id: 'wondergoo',         label: 'WonderGOO',          kind: 'direct',    physical: true,  cloudflare: false },
+  { id: 'trader',            label: 'Trader',             kind: 'direct',    physical: true,  cloudflare: false },
+  { id: 'animate',           label: 'Animate',            kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'ebten',             label: 'ebten',              kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'getchu',            label: 'Getchu',             kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'gamers',            label: 'Gamers',             kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'gamecity',          label: 'GAMECITY',           kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'asakusa_mach',      label: 'Yahoo Shopping',     kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'amazon_jp',         label: 'Amazon JP',          kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'amiami',            label: 'AmiAmi',             kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'otakarasouko',      label: 'Otakarasouko',       kind: 'direct',    physical: true,  cloudflare: false },
+  { id: 'geo',               label: 'GEO',                kind: 'direct',    physical: true,  cloudflare: false },
+  { id: 'joshin',            label: 'Joshin',             kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'neowing',           label: 'Neowing',            kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'yodobashi',         label: 'Yodobashi',          kind: 'direct',    physical: false, cloudflare: false },
+  { id: 'bikkuri_takarajima',label: 'Bikkuri Takarajima', kind: 'direct',    physical: true,  cloudflare: false },
+  { id: 'alicesoft_kobe',    label: 'AliceSoft Kobe',     kind: 'cached',    physical: true,  cloudflare: false },
 ];
 
 const PROVIDER_LABELS = new Map(PROVIDERS.map((p) => [p.id, p.label]));
@@ -218,12 +227,18 @@ async function fetchShopText(url: string, init: RequestInit & { encoding?: strin
   const buf = Buffer.from(await res.arrayBuffer());
   const charset = /charset=([^;]+)/i.exec(res.headers.get('content-type') ?? '')?.[1]?.trim();
   const encodings = [init.encoding, charset, 'utf-8', 'shift_jis', 'euc-jp'].filter(Boolean) as string[];
+  let decoded = '';
   for (const enc of encodings) {
     try {
-      return new TextDecoder(enc).decode(buf);
+      decoded = new TextDecoder(enc).decode(buf);
+      break;
     } catch {}
   }
-  return buf.toString('utf8');
+  if (!decoded) decoded = buf.toString('utf8');
+  if (/cloudflare.*challenge|<title>\s*Just a moment/i.test(decoded.slice(0, 3000))) {
+    throw new Error('cloudflare_challenge');
+  }
+  return decoded;
 }
 
 function janFromRelease(release: VndbRelease): string | null {
@@ -243,10 +258,11 @@ function uniqTargets(targets: StockTarget[]): StockTarget[] {
   return out;
 }
 
-function titleQueries(vn: CollectionItem): string[] {
+function titleQueries(vn: CollectionItem, extraTerms: string[] = []): string[] {
   const values = [
     vn.title,
     vn.alttitle,
+    ...extraTerms,
     ...((vn.titles ?? []).flatMap((title) => [title.title, title.latin]) ?? []),
   ];
   const seen = new Set<string>();
@@ -258,12 +274,12 @@ function titleQueries(vn: CollectionItem): string[] {
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(q);
-    if (out.length >= 3) break;
+    if (out.length >= 5) break;
   }
   return out;
 }
 
-function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProviderId, vn?: CollectionItem | null): StockTarget[] {
+function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProviderId, vn?: CollectionItem | null, extraTerms: string[] = []): StockTarget[] {
   const targets: StockTarget[] = [];
   for (const release of releases) {
     const jan = janFromRelease(release);
@@ -293,7 +309,7 @@ function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProvi
     }
   }
   if (vn) {
-    for (const query of titleQueries(vn)) {
+    for (const query of titleQueries(vn, extraTerms)) {
       const buildSearchUrl = TITLE_SEARCH_URLS[provider];
       if (buildSearchUrl) targets.push({ url: buildSearchUrl(query), releaseId: null, jan: null, query });
     }
@@ -306,9 +322,10 @@ function allTargetsForProvider(
   provider: StockProviderId,
   vn: CollectionItem | null,
   discovered: Map<StockProviderId, StockTarget[]> = new Map(),
+  extraTerms: string[] = [],
 ): StockTarget[] {
   return uniqTargets([
-    ...releaseTargetsForProvider(releases, provider, vn),
+    ...releaseTargetsForProvider(releases, provider, vn, extraTerms),
     ...(discovered.get(provider) ?? []),
   ]);
 }
@@ -371,6 +388,7 @@ function offerInput(vnId: string, provider: StockProviderId, source: string, now
     condition: offer.condition,
     edition_label: offer.edition_label,
     location_label: offer.location_label,
+    location_branch: offer.location_branch ?? null,
     source_release_id: offer.source_release_id,
     jan: offer.jan,
     fetched_at: now,
@@ -420,6 +438,7 @@ export function parseSofmapList(html: string, target: StockTarget): ParsedOffer[
       condition: /中古/.test(block) ? 'Used' : null,
       edition_label: null,
       location_label: location ?? 'Sofmap',
+      location_branch: location ?? null,
       source_release_id: target.releaseId,
       jan: target.jan,
     });
@@ -455,9 +474,9 @@ function withSofmapAdultBypass(url: string): string {
   return u.toString();
 }
 
-async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal): Promise<VnStockOfferInput[]> {
+async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
-  const targets = allTargetsForProvider(releases, 'sofmap', vn, discovered);
+  const targets = allTargetsForProvider(releases, 'sofmap', vn, discovered, aliases);
   for (const target of targets.slice(0, 12)) {
     const url = withSofmapAdultBypass(target.url);
     const html = await fetchShopText(url, { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
@@ -522,9 +541,9 @@ export function parseHgame1Detail(html: string, url: string, target: StockTarget
   };
 }
 
-async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal): Promise<VnStockOfferInput[]> {
+async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
-  for (const target of allTargetsForProvider(releases, 'hgame1', vn, discovered).slice(0, 20)) {
+  for (const target of allTargetsForProvider(releases, 'hgame1', vn, discovered, aliases).slice(0, 20)) {
     const html = await fetchShopText(target.url, { headers: { cookie: 'age_verified=1' }, signal });
     const parsed = parseHgame1Detail(html, target.url, target);
     if (parsed) offers.push(offerInput(vnId, 'hgame1', 'direct', now, parsed));
@@ -552,9 +571,9 @@ export function parseMelonbooksDetail(html: string, url: string, target: StockTa
   };
 }
 
-async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal): Promise<VnStockOfferInput[]> {
+async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
-  for (const target of allTargetsForProvider(releases, 'melonbooks', vn, discovered).slice(0, 12)) {
+  for (const target of allTargetsForProvider(releases, 'melonbooks', vn, discovered, aliases).slice(0, 12)) {
     const html = await fetchShopText(target.url, { signal });
     const parsed = parseMelonbooksDetail(html, target.url, target);
     if (parsed) offers.push(offerInput(vnId, 'melonbooks', 'direct', now, parsed));
@@ -587,9 +606,9 @@ export function parseMandarakeDetail(html: string, url: string, target: StockTar
   };
 }
 
-async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal): Promise<VnStockOfferInput[]> {
+async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
-  for (const target of allTargetsForProvider(releases, 'mandarake', vn, discovered).slice(0, 8)) {
+  for (const target of allTargetsForProvider(releases, 'mandarake', vn, discovered, aliases).slice(0, 8)) {
     const html = await fetchShopText(target.url, { signal });
     const links = [...html.matchAll(/href=["']([^"']*detailPage\/item\?[^"']*itemCode=[^"']+)["']/gi)]
       .map((m) => absUrl(target.url, m[1] ?? ''))
@@ -630,9 +649,9 @@ export function parseWondergooDetail(html: string, url: string, target: StockTar
   };
 }
 
-async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal): Promise<VnStockOfferInput[]> {
+async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
-  for (const target of allTargetsForProvider(releases, 'wondergoo', vn, discovered).slice(0, 12)) {
+  for (const target of allTargetsForProvider(releases, 'wondergoo', vn, discovered, aliases).slice(0, 12)) {
     const html = await fetchShopText(target.url, { signal });
     const parsed = parseWondergooDetail(html, target.url, target);
     if (parsed) offers.push(offerInput(vnId, 'wondergoo', 'direct', now, parsed));
@@ -666,9 +685,9 @@ export function parseTraderList(html: string, url: string, target: StockTarget):
   return offers;
 }
 
-async function refreshTrader(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal): Promise<VnStockOfferInput[]> {
+async function refreshTrader(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
-  for (const target of allTargetsForProvider(releases, 'trader', vn, discovered).slice(0, 8)) {
+  for (const target of allTargetsForProvider(releases, 'trader', vn, discovered, aliases).slice(0, 8)) {
     const html = await fetchShopText(target.url, { encoding: 'euc-jp', signal });
     const parsed = parseTraderList(html, target.url, target);
     for (const offer of parsed.slice(0, 10)) offers.push(offerInput(vnId, 'trader', 'search', now, offer));
@@ -988,9 +1007,9 @@ function providerEncoding(provider: StockProviderId): string | undefined {
   return undefined;
 }
 
-async function refreshGenericProvider(provider: StockProviderId, vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal): Promise<VnStockOfferInput[]> {
+async function refreshGenericProvider(provider: StockProviderId, vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
-  for (const target of allTargetsForProvider(releases, provider, vn, discovered).slice(0, 8)) {
+  for (const target of allTargetsForProvider(releases, provider, vn, discovered, aliases).slice(0, 8)) {
     const html = await fetchShopText(target.url, { encoding: providerEncoding(provider), signal });
     for (const parsed of parseGenericProviderPage(provider, html, target.url, target).slice(0, 10)) {
       offers.push(offerInput(vnId, provider, target.releaseId ? 'direct' : 'search', now, parsed));
@@ -1116,9 +1135,9 @@ export function parseSurugayaDetail(html: string, url: string, target: StockTarg
   };
 }
 
-async function refreshSurugaya(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal): Promise<VnStockOfferInput[]> {
+async function refreshSurugaya(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
-  for (const target of allTargetsForProvider(releases, 'surugaya', vn, discovered).slice(0, 12)) {
+  for (const target of allTargetsForProvider(releases, 'surugaya', vn, discovered, aliases).slice(0, 12)) {
     const html = await fetchShopText(target.url, { signal });
     const parsed = parseSurugayaDetail(html, target.url, target);
     if (parsed) offers.push(offerInput(vnId, 'surugaya', 'direct', now, parsed));
@@ -1144,32 +1163,34 @@ async function refreshProvider(
   egsId: number | null | undefined,
   now: number,
   signal?: AbortSignal,
+  aliases: string[] = [],
 ): Promise<VnStockOfferInput[]> {
   if (provider === 'eroge_price') return refreshErogePrice(vnId, egsId, now, signal);
-  if (provider === 'sofmap') return refreshSofmap(vnId, releases, vn, discovered, now, signal);
-  if (provider === 'hgame1') return refreshHgame1(vnId, releases, vn, discovered, now, signal);
-  if (provider === 'melonbooks') return refreshMelonbooks(vnId, releases, vn, discovered, now, signal);
-  if (provider === 'surugaya') return refreshSurugaya(vnId, releases, vn, discovered, now, signal);
-  if (provider === 'mandarake') return refreshMandarake(vnId, releases, vn, discovered, now, signal);
-  if (provider === 'wondergoo') return refreshWondergoo(vnId, releases, vn, discovered, now, signal);
-  if (provider === 'trader') return refreshTrader(vnId, releases, vn, discovered, now, signal);
-  return refreshGenericProvider(provider, vnId, releases, vn, discovered, now, signal);
+  if (provider === 'sofmap') return refreshSofmap(vnId, releases, vn, discovered, now, signal, aliases);
+  if (provider === 'hgame1') return refreshHgame1(vnId, releases, vn, discovered, now, signal, aliases);
+  if (provider === 'melonbooks') return refreshMelonbooks(vnId, releases, vn, discovered, now, signal, aliases);
+  if (provider === 'surugaya') return refreshSurugaya(vnId, releases, vn, discovered, now, signal, aliases);
+  if (provider === 'mandarake') return refreshMandarake(vnId, releases, vn, discovered, now, signal, aliases);
+  if (provider === 'wondergoo') return refreshWondergoo(vnId, releases, vn, discovered, now, signal, aliases);
+  if (provider === 'trader') return refreshTrader(vnId, releases, vn, discovered, now, signal, aliases);
+  return refreshGenericProvider(provider, vnId, releases, vn, discovered, now, signal, aliases);
 }
 
 export async function refreshStockForVn(vnId: string, providers: StockProviderId[] = [...STOCK_PROVIDER_IDS], signal?: AbortSignal): Promise<StockSnapshot> {
   const vn = await loadVnForStock(vnId);
   if (!vn) throw new Error(`VN not found: ${vnId}`);
+  const aliases = listStockAliases(vnId).map((a) => a.alias_term);
   const releases = isVndbVnId(vnId) ? await getReleasesForVn(vnId, 100) : [];
   const egsId = getEgsForVn(vnId)?.egs_id ?? null;
   const discovered = await discoverRetailerTargetsFromOfficialPages(vn, releases, signal);
   for (const provider of providers) {
     const now = Date.now();
     try {
-      const offers = await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal);
+      const offers = await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases);
       const hasInputs =
         provider === 'eroge_price'
           ? !!egsId
-          : allTargetsForProvider(releases, provider, vn, discovered).length > 0;
+          : allTargetsForProvider(releases, provider, vn, discovered, aliases).length > 0;
       replaceVnStockProviderSnapshot(vnId, provider, offers, {
         status: hasInputs ? 'ok' : 'skipped',
         message: hasInputs ? null : 'No release link, JAN, or EGS id available for this provider.',
@@ -1177,9 +1198,13 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
         offer_count: offers.length,
       });
     } catch (e) {
+      const msg = (e as Error).message;
+      const isCloudflare = msg === 'cloudflare_challenge';
       replaceVnStockProviderSnapshot(vnId, provider, [], {
         status: 'error',
-        message: (e as Error).message,
+        message: isCloudflare
+          ? 'Cloudflare protected — automated access blocked.'
+          : msg,
         fetched_at: now,
         offer_count: 0,
       });
@@ -1207,6 +1232,7 @@ export function getStockForVn(vnId: string): StockSnapshot {
     condition: 'Used',
     edition_label: null,
     location_label: 'AliceSoft Kobe',
+    location_branch: null,
     source_release_id: null,
     jan: row.jan,
     fetched_at: row.fetched_at,
