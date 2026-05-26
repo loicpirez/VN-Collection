@@ -22,6 +22,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useDialogA11y } from './Dialog';
+import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { SafeImage } from './SafeImage';
 import { useT, useLocale } from '@/lib/i18n/client';
@@ -364,6 +365,7 @@ interface RunTotals { processed: number; matched: number }
 export function AliceNetKobeClient() {
   const t = useT();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const [items, setItems] = useState<KobeItem[]>([]);
   const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, vndb_matched: 0, egs_only: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
   const [pending, setPending] = useState<PendingCounts>({ vndb_pending: 0, egs_pending: 0 });
@@ -533,7 +535,8 @@ export function AliceNetKobeClient() {
   }
 
   async function resetAutoMatches() {
-    if (!window.confirm(t.kobe.kobeResetConfirm)) return;
+    const ok = await confirm({ message: t.kobe.kobeResetConfirm, tone: 'danger' });
+    if (!ok) return;
     try {
       const r = await fetch('/api/alicesoft-kobe/reset-matches', { method: 'POST' });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));

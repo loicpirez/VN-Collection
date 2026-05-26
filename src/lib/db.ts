@@ -3372,6 +3372,11 @@ export function isInCollection(vnId: string): boolean {
  * parameter cap is 999 in older builds and 32766 in modern ones;
  * we chunk to 500 to stay well below either limit.
  */
+/**
+ * Bulk variant of `isInCollection` that returns the subset of `vnIds`
+ * the operator owns. Chunked to 500 ids per query to stay below the
+ * SQLite parameter cap (999 in older builds, 32766 in modern).
+ */
 export function isInCollectionMany(vnIds: readonly string[]): Set<string> {
   if (vnIds.length === 0) return new Set();
   const out = new Set<string>();
@@ -3392,6 +3397,11 @@ export function isInCollectionMany(vnIds: readonly string[]): Set<string> {
  * Index 0 gets order 1, index 1 gets order 2, etc. — 0 is reserved for "unset".
  * Ids not in the array are left alone (so reordering visible page A doesn't
  * wipe page B). Runs in a single transaction so a partial failure rolls back.
+ */
+/**
+ * Persist the operator's custom drag-order for the library. Only rows in
+ * `ids` are touched — IDs not in the array keep their previous slot so
+ * reordering page A doesn't blow away page B's order.
  */
 export function setCollectionCustomOrder(ids: string[]): void {
   if (ids.length === 0) return;
@@ -8962,6 +8972,7 @@ export function batchGetStaffNames(ids: string[]): Map<string, string> {
   return map;
 }
 
+/** Bulk-load character names keyed by id. Missing ids are simply absent. */
 export function batchGetCharNames(ids: string[]): Map<string, string> {
   if (ids.length === 0) return new Map();
   const placeholders = ids.map(() => '?').join(',');
@@ -9002,6 +9013,11 @@ export interface KobeStockRow {
   vn_image_sexual: number | null;
 }
 
+/**
+ * Full-sync the AliceNet Kobe stock table: upsert every incoming row,
+ * delete rows whose code is absent from the snapshot (sold items).
+ * Returns added/updated/removed counts for the UI.
+ */
 export function upsertKobeStock(
   rows: Pick<KobeStockRow, 'code' | 'title' | 'jan' | 'release_date' | 'list_price' | 'sale_price'>[],
 ): { added: number; updated: number; removed: number } {
@@ -9050,6 +9066,10 @@ export function upsertKobeStock(
   return { added, updated, removed };
 }
 
+/**
+ * Every AliceNet Kobe stock row joined with the operator's collection
+ * (so the UI can flag "already owned") and VN cover data (for `SafeImage`).
+ */
 export function listKobeStock(): (KobeStockRow & { in_collection: number; vn_developers: string | null })[] {
   return db.prepare(`
     SELECT k.*,
@@ -9065,6 +9085,7 @@ export function listKobeStock(): (KobeStockRow & { in_collection: number; vn_dev
   `).all() as (KobeStockRow & { in_collection: number; vn_developers: string | null })[];
 }
 
+/** Read one AliceNet Kobe stock row by code, or `null` when unknown. */
 export function getKobeStockItem(code: string): KobeStockRow | null {
   return (db.prepare(`SELECT * FROM alicesoft_kobe_stock WHERE code = ?`).get(code) as KobeStockRow | undefined) ?? null;
 }
@@ -9077,6 +9098,10 @@ function retryWindowClause(retryBefore?: number): { sql: string; params: number[
   };
 }
 
+/**
+ * Kobe rows still missing a VN match. With `retryNone=true`, also surfaces
+ * rows previously marked `'none'` so the retry button can take another pass.
+ */
 export function listKobeUnmatched(limit: number, retryNone = false, retryBefore?: number): KobeStockRow[] {
   const retryWindow = retryNone ? retryWindowClause(retryBefore) : { sql: '', params: [] as number[] };
   const condition = retryNone
@@ -9094,6 +9119,7 @@ export function listKobeUnmatched(limit: number, retryNone = false, retryBefore?
     .all(...retryWindow.params, limit) as KobeStockRow[];
 }
 
+/** Count of rows `listKobeUnmatched` would return — drives the queue badge. */
 export function countKobeUnmatchedQueue(retryNone = false, retryBefore?: number): number {
   const retryWindow = retryNone ? retryWindowClause(retryBefore) : { sql: '', params: [] as number[] };
   const condition = retryNone
@@ -9109,6 +9135,10 @@ export function countKobeUnmatchedQueue(retryNone = false, retryBefore?: number)
  * returned nothing. The EGS-fallback resolver walks these and tries to
  * recover a VN id via the EGS gamelist `vndb` column.
  */
+/**
+ * Kobe rows where the VNDB search returned nothing. Surfaced to the
+ * EGS-fallback resolver so it can try the EGS `vndb` column.
+ */
 export function listKobeNoVndbResult(limit: number, retryBefore?: number): KobeStockRow[] {
   const retryWindow = retryWindowClause(retryBefore);
   return db
@@ -9121,6 +9151,7 @@ export function listKobeNoVndbResult(limit: number, retryBefore?: number): KobeS
     .all(...retryWindow.params, limit) as KobeStockRow[];
 }
 
+/** Count of `listKobeNoVndbResult` rows. */
 export function countKobeNoVndbResult(retryBefore?: number): number {
   const retryWindow = retryWindowClause(retryBefore);
   const row = db
@@ -9133,6 +9164,7 @@ export function countKobeNoVndbResult(retryBefore?: number): number {
   return row.n ?? 0;
 }
 
+/** Kobe rows with an EGS match but still no VNDB match — second-pass retry queue. */
 export function listKobeNoVndbWithEgs(limit: number, retryBefore?: number): KobeStockRow[] {
   const retryWindow = retryWindowClause(retryBefore);
   return db
@@ -9145,6 +9177,7 @@ export function listKobeNoVndbWithEgs(limit: number, retryBefore?: number): Kobe
     .all(...retryWindow.params, limit) as KobeStockRow[];
 }
 
+/** Count of `listKobeNoVndbWithEgs` rows. */
 export function countKobeNoVndbWithEgs(retryBefore?: number): number {
   const retryWindow = retryWindowClause(retryBefore);
   const row = db
@@ -9162,6 +9195,7 @@ export function countKobeNoVndbWithEgs(retryBefore?: number): number {
  * dedicated EGS-search retry button — there's no point re-searching EGS for
  * a row that already has an `egs_id`.
  */
+/** Kobe rows with neither a VNDB match nor an EGS match — surfaced by the EGS-search retry button. */
 export function listKobeNoVndbNoEgs(limit: number, retryBefore?: number): KobeStockRow[] {
   const retryWindow = retryWindowClause(retryBefore);
   return db
@@ -9174,6 +9208,7 @@ export function listKobeNoVndbNoEgs(limit: number, retryBefore?: number): KobeSt
     .all(...retryWindow.params, limit) as KobeStockRow[];
 }
 
+/** Count of `listKobeNoVndbNoEgs` rows. */
 export function countKobeNoVndbNoEgs(retryBefore?: number): number {
   const retryWindow = retryWindowClause(retryBefore);
   const row = db
@@ -9186,6 +9221,11 @@ export function countKobeNoVndbNoEgs(retryBefore?: number): number {
   return row.n ?? 0;
 }
 
+/**
+ * Persist a Kobe → VN match. `source` distinguishes auto-matches (overwritten
+ * by reset-matches) from manual pins (sticky). `candidates` is the JSON list
+ * of alternative VNDB hits for the remap chips.
+ */
 export function setKobeVnLink(
   code: string,
   vnId: string | null,
@@ -9202,6 +9242,7 @@ export function setKobeVnLink(
   ).run(vnId, source, candidates ?? null, searchTitle ?? null, now, now, code);
 }
 
+/** Mark a Kobe row's VN match as `'none'` (search ran, no hit) without dropping any data. */
 export function clearKobeVnLink(code: string): void {
   const now = Date.now();
   db.prepare(
@@ -9212,6 +9253,11 @@ export function clearKobeVnLink(code: string): void {
   ).run(now, code);
 }
 
+/**
+ * Clear every auto-derived Kobe → VN match so the next matching pass starts
+ * fresh. Manual pins (`vn_match_source = 'manual'`) are kept. Returns the
+ * number of rows reset.
+ */
 export function resetKobeAutoMatches(): number {
   return db
     .prepare(
@@ -9223,6 +9269,11 @@ export function resetKobeAutoMatches(): number {
     .run(Date.now()).changes;
 }
 
+/**
+ * Persist a Kobe → EGS match. Mirrors `setKobeVnLink` but also stores the
+ * EGS metadata cache (title / brand / image) so re-rendering doesn't need
+ * a fresh EGS fetch.
+ */
 export function setKobeEgsLink(
   code: string,
   egsId: number | null,
@@ -9287,6 +9338,10 @@ export function setKobeEgsLink(
   );
 }
 
+/**
+ * Aggregate match-status counts for the AliceNet Kobe page header tiles
+ * (total / matched / unmatched / none-found / in-wishlist / pending).
+ */
 export function countKobeStock(): {
   total: number;
   matched: number;
@@ -9339,6 +9394,7 @@ export function countKobeStock(): {
  * but whose VN row does not yet exist in the local `vn` table.
  * Used by the "Download VNDB data" step.
  */
+/** VN ids matched to Kobe rows but missing from the local `vn` table — input for the bulk-download step. */
 export function listKobeVnidsToDownload(limit: number): string[] {
   return (
     db
@@ -9357,6 +9413,7 @@ export function listKobeVnidsToDownload(limit: number): string[] {
  * Returns kobe items that have a vn_id but no egs_id yet.
  * Used by the "Resolve EGS via VNDB" step.
  */
+/** Kobe rows with a VN match but no EGS match — input for the EGS-resolve fan-out. */
 export function listKobeItemsForEgsResolve(
   limit: number,
 ): { code: string; vn_id: string }[] {
@@ -9377,6 +9434,7 @@ export function listKobeItemsForEgsResolve(
  * vndb_pending: items with vn_id not yet in local vn table.
  * egs_pending:  items with local VNDB metadata ready and no EGS resolve attempt yet.
  */
+/** Two counters used by the AliceNet Kobe pending-download status pill. */
 export function countKobeDownloadPending(): { vndb_pending: number; egs_pending: number } {
   const row = db
     .prepare(
@@ -9454,6 +9512,11 @@ type VnStockProviderStatusInput = Omit<
   'vn_id' | 'provider' | 'blocked_kind' | 'fresh_offers_found' | 'cached_offers_available'
 > & Partial<Pick<VnStockProviderStatusRow, 'blocked_kind' | 'fresh_offers_found' | 'cached_offers_available'>>;
 
+/**
+ * Atomically replace one provider's stock snapshot for one VN: delete the
+ * old offers + status, insert fresh ones. Runs inside a transaction so the
+ * UI never sees a half-written set of offers.
+ */
 export function replaceVnStockProviderSnapshot(
   vnId: string,
   provider: string,
@@ -9547,6 +9610,7 @@ export function replaceVnStockProviderSnapshot(
   txn();
 }
 
+/** Cached stock offers for one VN across every provider. */
 export function listVnStockOffers(vnId: string): VnStockOfferRow[] {
   return db.prepare(`
     SELECT *
@@ -9567,6 +9631,7 @@ export function listVnStockOffers(vnId: string): VnStockOfferRow[] {
   `).all(vnId) as VnStockOfferRow[];
 }
 
+/** Per-provider status rows for one VN (last-run state, error messages, counters). */
 export function listVnStockProviderStatuses(vnId: string): VnStockProviderStatusRow[] {
   return db.prepare(`
     SELECT *
@@ -9580,6 +9645,10 @@ export function listVnStockProviderStatuses(vnId: string): VnStockProviderStatus
  * Batch aggregate for stock chip on VnCard. Returns a map of vnId to
  * available-offer count and best price across in_stock / limited offers.
  * A single query regardless of how many IDs are passed.
+ */
+/**
+ * Bulk-load `{ vnId → { available_count, best_price } }` summaries in
+ * one query. Lets card grids show the stock chip without N+1.
  */
 export function batchVnStockSummaries(
   vnIds: string[],
@@ -9625,6 +9694,7 @@ export function batchVnStockSummaries(
   return out;
 }
 
+/** Most recent stock offers across every VN, joined with VN title for the global stock feed. */
 export function listRecentVnStockOffers(limit: number): (VnStockOfferRow & {
   vn_title: string | null;
   vn_image_url: string | null;
@@ -9655,18 +9725,21 @@ export interface VnStockAliasRow {
   created_at: number;
 }
 
+/** Search aliases the operator added for one VN — used by the stock providers to widen queries. */
 export function listStockAliases(vnId: string): VnStockAliasRow[] {
   return db
     .prepare(`SELECT * FROM vn_stock_alias WHERE vn_id = ? ORDER BY created_at ASC`)
     .all(vnId) as VnStockAliasRow[];
 }
 
+/** Add or refresh a stock search alias. Idempotent on `(vn_id, alias_term)`. */
 export function upsertStockAlias(vnId: string, aliasTerm: string): void {
   db.prepare(
     `INSERT OR REPLACE INTO vn_stock_alias (vn_id, alias_term, created_at) VALUES (?, ?, ?)`,
   ).run(vnId, aliasTerm, Date.now());
 }
 
+/** Drop one stock search alias. */
 export function deleteStockAlias(vnId: string, aliasTerm: string): void {
   db.prepare(`DELETE FROM vn_stock_alias WHERE vn_id = ? AND alias_term = ?`).run(
     vnId,
@@ -9685,12 +9758,14 @@ export interface VnStockSourceRow {
   updated_at: number;
 }
 
+/** User-pinned stock source URLs for one VN (manual overrides for the auto-discovered URLs). */
 export function listStockSources(vnId: string): VnStockSourceRow[] {
   return db
     .prepare(`SELECT * FROM vn_stock_source WHERE vn_id = ? ORDER BY created_at ASC, id ASC`)
     .all(vnId) as VnStockSourceRow[];
 }
 
+/** Pin one stock source URL for a VN (manual override that beats auto-discovery). */
 export function upsertStockSource(input: {
   vn_id: string;
   provider: string;
@@ -9723,6 +9798,7 @@ export function upsertStockSource(input: {
   return row;
 }
 
+/** Drop one user-pinned stock source. Returns `false` when nothing matched. */
 export function deleteStockSource(vnId: string, sourceId: number): boolean {
   const result = db.prepare(`DELETE FROM vn_stock_source WHERE vn_id = ? AND id = ?`).run(vnId, sourceId);
   return result.changes > 0;
@@ -9735,6 +9811,7 @@ export function clearVnStockCache(vnId: string): { offers: number; statuses: num
   return { offers: offerResult.changes, statuses: statusResult.changes };
 }
 
+/** Kobe stock rows currently matched to one VN id (usually 0 or 1, occasionally 2+). */
 export function listKobeStockForVn(vnId: string): KobeStockRow[] {
   return db.prepare(`
     SELECT k.*
