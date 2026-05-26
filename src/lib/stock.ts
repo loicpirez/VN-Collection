@@ -1,9 +1,11 @@
 import 'server-only';
+import iconv from 'iconv-lite';
 import { getCollectionItem, getEgsForVn, listKobeStockForVn, listStockAliases, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow } from './db';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
 import type { CollectionItem } from './types';
+import { classifyOffer, classificationToFields, type ClassifyTarget } from './stock-classify';
 
 export const STOCK_PROVIDER_IDS = [
   'eroge_price',
@@ -31,14 +33,32 @@ export const STOCK_PROVIDER_IDS = [
 ] as const;
 export type StockProviderId = (typeof STOCK_PROVIDER_IDS)[number];
 
+export type PhysicalStockMode =
+  | 'none'
+  | 'online_only'
+  | 'single_shop'
+  | 'store_locator_only'
+  | 'phone_only'
+  | 'store_name_online'
+  | 'exact_online'
+  | 'exact_online_possible_not_implemented'
+  | 'exact_online_browser_required'
+  | 'exact_cached';
+
 export interface StockProviderMeta {
   id: StockProviderId | 'alicesoft_kobe';
   label: string;
   kind: 'direct' | 'aggregate' | 'cached';
-  /** Provider can return physical store/branch location data. */
+  /** True when this provider can help with physical buying. Not necessarily confirmed exact stock. */
   physical: boolean;
-  /** Provider is known to be Cloudflare-protected for automated access. */
+  /** Describes what kind of physical stock evidence the provider can produce. */
+  physicalStockMode: PhysicalStockMode;
+  /** True when normal server-side fetch is likely blocked or unreliable. */
   cloudflare: boolean;
+  /** Whether the current parser actually extracts branch/store-level stock. */
+  branchParserImplemented: boolean;
+  /** Whether this provider should appear in confirmed-physical-location results right now. */
+  confirmedPhysicalUsable: boolean;
 }
 
 export interface StockOffer extends VnStockOfferRow {
@@ -78,43 +98,124 @@ interface ParsedOffer {
   source_release_id: string | null;
   jan: string | null;
   error?: string | null;
+  category?: string | null;
+  content_kind?: string | null;
+  platform?: string | null;
+  edition_kind?: string | null;
+  series_relation?: string | null;
+  match_confidence?: string | null;
+  match_score?: number | null;
+  match_warnings_json?: string | null;
+  marketplace_price?: number | null;
+  marketplace_count?: number | null;
+  list_price?: number | null;
+  store_code?: string | null;
+  product_id?: string | null;
+  page_kind?: string | null;
 }
 
-export const PHYSICAL_PROVIDER_IDS: ReadonlyArray<StockProviderId> = [
-  'sofmap', 'hgame1', 'mandarake', 'wondergoo', 'trader', 'otakarasouko', 'geo',
+/** All providers with physical presence (capable). Not all produce confirmed stock data yet. */
+export const PHYSICAL_CAPABLE_PROVIDER_IDS: ReadonlyArray<StockProviderId> = [
+  'sofmap', 'surugaya', 'hgame1', 'mandarake', 'wondergoo', 'trader',
+  'animate', 'otakarasouko', 'geo', 'joshin', 'yodobashi', 'bikkuri_takarajima',
+] as const;
+
+/** Providers whose parsers currently return confirmed per-branch stock. */
+export const CONFIRMED_PHYSICAL_PROVIDER_IDS: ReadonlyArray<StockProviderId> = [
+  'sofmap', 'hgame1',
+] as const;
+
+/** Providers that cannot produce confirmed physical stock information right now. */
+export const USELESS_FOR_CONFIRMED_PHYSICAL_STOCK: ReadonlyArray<StockProviderId> = [
+  'wondergoo', 'trader', 'otakarasouko', 'bikkuri_takarajima', 'joshin',
+  'melonbooks', 'ebten', 'getchu', 'gamers', 'gamecity',
+  'asakusa_mach', 'amazon_jp', 'amiami', 'neowing',
 ] as const;
 
 const PROVIDERS: StockProviderMeta[] = [
-  { id: 'eroge_price',       label: 'Eroge Price',        kind: 'aggregate', physical: false, cloudflare: false },
-  { id: 'sofmap',            label: 'Sofmap',             kind: 'direct',    physical: true,  cloudflare: false },
-  { id: 'surugaya',          label: 'Suruga-ya',          kind: 'direct',    physical: true,  cloudflare: true  },
-  { id: 'hgame1',            label: 'PC Shop Unoya',      kind: 'direct',    physical: true,  cloudflare: false },
-  { id: 'melonbooks',        label: 'Melonbooks',         kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'mandarake',         label: 'Mandarake',          kind: 'direct',    physical: true,  cloudflare: false },
-  { id: 'wondergoo',         label: 'WonderGOO',          kind: 'direct',    physical: true,  cloudflare: false },
-  { id: 'trader',            label: 'Trader',             kind: 'direct',    physical: true,  cloudflare: false },
-  { id: 'animate',           label: 'Animate',            kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'ebten',             label: 'ebten',              kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'getchu',            label: 'Getchu',             kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'gamers',            label: 'Gamers',             kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'gamecity',          label: 'GAMECITY',           kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'asakusa_mach',      label: 'Yahoo Shopping',     kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'amazon_jp',         label: 'Amazon JP',          kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'amiami',            label: 'AmiAmi',             kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'otakarasouko',      label: 'Otakarasouko',       kind: 'direct',    physical: true,  cloudflare: false },
-  { id: 'geo',               label: 'GEO',                kind: 'direct',    physical: true,  cloudflare: false },
-  { id: 'joshin',            label: 'Joshin',             kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'neowing',           label: 'Neowing',            kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'yodobashi',         label: 'Yodobashi',          kind: 'direct',    physical: false, cloudflare: false },
-  { id: 'bikkuri_takarajima',label: 'Bikkuri Takarajima', kind: 'direct',    physical: true,  cloudflare: false },
-  { id: 'alicesoft_kobe',    label: 'AliceSoft Kobe',     kind: 'cached',    physical: true,  cloudflare: false },
+  { id: 'eroge_price',        label: 'Eroge Price',        kind: 'aggregate', physical: false, physicalStockMode: 'none',                                   cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'sofmap',             label: 'Sofmap / Recole',    kind: 'direct',    physical: true,  physicalStockMode: 'exact_online',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
+  { id: 'surugaya',           label: 'Suruga-ya',          kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_browser_required',          cloudflare: true,  branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'hgame1',             label: 'PC Shop Unoya',      kind: 'direct',    physical: true,  physicalStockMode: 'single_shop',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: true  },
+  { id: 'melonbooks',         label: 'Melonbooks',         kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'mandarake',          label: 'Mandarake',          kind: 'direct',    physical: true,  physicalStockMode: 'store_name_online',                      cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'wondergoo',          label: 'WonderGOO',          kind: 'direct',    physical: true,  physicalStockMode: 'store_locator_only',                     cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'trader',             label: 'Trader / 秋葉原トレーダー通販', kind: 'direct', physical: true, physicalStockMode: 'phone_only', cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'animate',            label: 'Animate',            kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'ebten',              label: 'ebten',              kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'getchu',             label: 'Getchu',             kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'gamers',             label: 'Gamers',             kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'gamecity',           label: 'GAMECITY',           kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'asakusa_mach',       label: 'Yahoo Shopping',     kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'amazon_jp',          label: 'Amazon JP',          kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'amiami',             label: 'AmiAmi',             kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'otakarasouko',       label: 'Otakarasouko',       kind: 'direct',    physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'geo',                label: 'GEO',                kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'joshin',             label: 'Joshin',             kind: 'direct',    physical: true,  physicalStockMode: 'phone_only',                             cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'neowing',            label: 'Neowing',            kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'yodobashi',          label: 'Yodobashi',          kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'bikkuri_takarajima', label: 'Bikkuri Takarajima', kind: 'direct',    physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'alicesoft_kobe',     label: 'AliceSoft Kobe',     kind: 'cached',    physical: true,  physicalStockMode: 'exact_cached',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
 ];
 
 const PROVIDER_LABELS = new Map(PROVIDERS.map((p) => [p.id, p.label]));
+
+export function getProviderMeta(id: StockProviderId | 'alicesoft_kobe'): StockProviderMeta | undefined {
+  return PROVIDERS.find((p) => p.id === id);
+}
+
+export function canProduceConfirmedPhysicalStock(id: StockProviderId | 'alicesoft_kobe'): boolean {
+  return !!getProviderMeta(id)?.confirmedPhysicalUsable;
+}
+
+export function canProducePotentialPhysicalLead(id: StockProviderId | 'alicesoft_kobe'): boolean {
+  const meta = getProviderMeta(id);
+  if (!meta?.physical) return false;
+  const potentialModes: ReadonlyArray<PhysicalStockMode> = [
+    'single_shop', 'store_locator_only', 'phone_only', 'store_name_online',
+    'exact_online', 'exact_online_possible_not_implemented',
+    'exact_online_browser_required', 'exact_cached',
+  ];
+  return potentialModes.includes(meta.physicalStockMode);
+}
+
+export function shouldShowInConfirmedPhysicalResults(
+  offer: Pick<VnStockOfferRow, 'provider' | 'availability' | 'location_label'>,
+): boolean {
+  if (!canProduceConfirmedPhysicalStock(offer.provider as StockProviderId | 'alicesoft_kobe')) return false;
+  if (offer.availability !== 'in_stock' && offer.availability !== 'limited') return false;
+  return !!offer.location_label && offer.location_label !== 'Online stock';
+}
+
+export function shouldShowAsPhysicalLead(
+  offer: Pick<VnStockOfferRow, 'provider' | 'availability'>,
+): boolean {
+  const meta = getProviderMeta(offer.provider as StockProviderId | 'alicesoft_kobe');
+  if (!meta?.physical) return false;
+  return offer.availability !== 'out_of_stock';
+}
+
 const SHOP_HEADERS = {
   'user-agent': 'Mozilla/5.0 VN-Collection local stock checker',
   accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 };
+
+const TRADER_MOBILE_HEADERS = {
+  'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+  'accept-language': 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7',
+  referer: 'https://www.chuko-tsuhan.com/smartphone/',
+};
+
+/**
+ * Encodes a string as EUC-JP percent-encoded bytes for use in chuko-tsuhan query strings.
+ * The site expects EUC-JP encoded queries, not UTF-8 (encodeURIComponent).
+ */
+export function encodeEucJpQuery(value: string): string {
+  const bytes = iconv.encode(value, 'EUC-JP');
+  return Array.from(bytes as Uint8Array)
+    .map((byte) => `%${byte.toString(16).toUpperCase().padStart(2, '0')}`)
+    .join('');
+}
 
 const PROVIDER_HOSTS: Record<StockProviderId, RegExp> = {
   eroge_price: /^eroge-price\.com$/,
@@ -124,7 +225,7 @@ const PROVIDER_HOSTS: Record<StockProviderId, RegExp> = {
   melonbooks: /^www\.melonbooks\.co\.jp$/,
   mandarake: /(^|\.)mandarake\.co\.jp$/,
   wondergoo: /^www\.wonder\.co\.jp$/,
-  trader: /(^|\.)trader\.co\.jp$/,
+  trader: /(^|\.)(?:trader\.co\.jp|chuko-tsuhan\.com)$/,
   animate: /^www\.animate-onlineshop\.jp$/,
   ebten: /^store\.kadokawa\.co\.jp$/,
   getchu: /^www\.getchu\.com$/,
@@ -143,7 +244,6 @@ const PROVIDER_HOSTS: Record<StockProviderId, RegExp> = {
 
 const TITLE_SEARCH_URLS: Partial<Record<StockProviderId, (query: string) => string>> = {
   mandarake: (query) => `https://order.mandarake.co.jp/order/listPage/list?keyword=${encodeURIComponent(query)}`,
-  trader: (query) => `https://trader.co.jp/shop/shopbrand.html?search=&sort=order&prize1=${encodeURIComponent(query)}`,
   animate: (query) => `https://www.animate-onlineshop.jp/products/list.php?sci=0&smt=${encodeURIComponent(query)}&ss=5&sl=40&nf=1`,
   ebten: (query) => `https://store.kadokawa.co.jp/shop/goods/search.aspx?search=x&keyword=${encodeURIComponent(query)}`,
   getchu: (query) => `https://www.getchu.com/php/nsearch.phtml?search_keyword=${encodeURIComponent(query)}&list_count=30&sort=sales&sort2=down`,
@@ -235,7 +335,7 @@ async function fetchShopText(url: string, init: RequestInit & { encoding?: strin
     } catch {}
   }
   if (!decoded) decoded = buf.toString('utf8');
-  if (/cloudflare.*challenge|<title>\s*Just a moment/i.test(decoded.slice(0, 3000))) {
+  if (/<title[^>]*>\s*Just a moment\b/i.test(decoded) || /window\._cf_chl_opt\b/.test(decoded)) {
     throw new Error('cloudflare_challenge');
   }
   return decoded;
@@ -393,6 +493,20 @@ function offerInput(vnId: string, provider: StockProviderId, source: string, now
     jan: offer.jan,
     fetched_at: now,
     error: offer.error ?? null,
+    content_kind: offer.content_kind ?? null,
+    platform: offer.platform ?? null,
+    edition_kind: offer.edition_kind ?? null,
+    series_relation: offer.series_relation ?? null,
+    match_confidence: offer.match_confidence ?? null,
+    match_score: offer.match_score ?? null,
+    match_warnings_json: offer.match_warnings_json ?? null,
+    marketplace_price: offer.marketplace_price ?? null,
+    marketplace_count: offer.marketplace_count ?? null,
+    list_price: offer.list_price ?? null,
+    category: offer.category ?? null,
+    store_code: offer.store_code ?? null,
+    product_id: offer.product_id ?? null,
+    page_kind: offer.page_kind ?? null,
   };
 }
 
@@ -659,6 +773,7 @@ async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: Colle
   return offers;
 }
 
+/** @deprecated Legacy parser for old trader.co.jp HTML structure. Kept for backward compatibility. */
 export function parseTraderList(html: string, url: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<li>\s*<div class=["']innerBox["'][\s\S]*?<p class=["']name["']>\s*<a href=([^>\s]+)[^>]*>([\s\S]*?)<\/a><\/p>[\s\S]*?<p class=["']price["']>\s*([\s\S]*?)<\/p>/gi)) {
@@ -685,17 +800,264 @@ export function parseTraderList(html: string, url: string, target: StockTarget):
   return offers;
 }
 
-async function refreshTrader(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
-  const offers: VnStockOfferInput[] = [];
-  for (const target of allTargetsForProvider(releases, 'trader', vn, discovered, aliases).slice(0, 8)) {
-    const html = await fetchShopText(target.url, { encoding: 'euc-jp', signal });
-    const parsed = parseTraderList(html, target.url, target);
-    for (const offer of parsed.slice(0, 10)) offers.push(offerInput(vnId, 'trader', 'search', now, offer));
-    if (parsed.length === 0) {
-      const detail = parseWondergooDetail(html, target.url, target);
-      if (detail) offers.push(offerInput(vnId, 'trader', 'direct', now, { ...detail, location_label: 'Trader' }));
+function traderEditionLabel(title: string): string | null {
+  if (/グッズ|タペストリー|抱き枕|特典|単品/.test(title)) return 'Bonus item';
+  if (/初回限定版|初回版/.test(title)) return 'First press';
+  if (/完全生産限定版|完全限定版/.test(title)) return 'Complete limited';
+  if (/限定版/.test(title)) return 'Limited edition';
+  if (/豪華版|デラックス/.test(title)) return 'Deluxe edition';
+  if (/パック|セット/.test(title)) return 'Bundle';
+  return null;
+}
+
+/** Returns all chuko-tsuhan search query variants for a base query. */
+export function traderSearchVariants(baseQuery: string): string[] {
+  return [
+    baseQuery,
+    `${baseQuery} 店頭併売`,
+    `【店頭併売】${baseQuery}`,
+    `${baseQuery} 【店頭併売】`,
+    `${baseQuery} 実店舗`,
+    `${baseQuery} 店頭`,
+    `${baseQuery} 店舗`,
+    `${baseQuery} 在庫`,
+    `${baseQuery} 店舗在庫`,
+    `${baseQuery} 秋葉原`,
+    `${baseQuery} 秋葉原トレーダー`,
+    `${baseQuery} トレーダー`,
+    `${baseQuery} 本店`,
+    `${baseQuery} 1号店`,
+    `${baseQuery} 2号店`,
+    `${baseQuery} 3号店`,
+  ];
+}
+
+/**
+ * Parses a chuko-tsuhan smartphone list page.
+ * Detects sold-out via actual `.soldout` elements only — never via raw body text.
+ * Sets location_label to the online shop name; location_branch is always null
+ * because per-branch stock is not available on list pages.
+ */
+export function parseTraderChukoSmartphoneList(
+  html: string,
+  baseUrl: string,
+  target: StockTarget,
+): ParsedOffer[] {
+  const offers: ParsedOffer[] = [];
+  const blocks = html.split(/<\/li\s*>/i);
+
+  for (const rawBlock of blocks) {
+    const liStart = rawBlock.lastIndexOf('<li');
+    if (liStart === -1) continue;
+    const block = rawBlock.slice(liStart);
+
+    const linkMatch = /href=["']([^"']*detail\.html\?[^"']*)["']/i.exec(block);
+    if (!linkMatch) continue;
+
+    const detailUrl = absUrl(baseUrl, decodeEntities(linkMatch[1]));
+    let productId: string | null = null;
+    try { productId = new URL(detailUrl).searchParams.get('id'); } catch {}
+    if (!productId) continue;
+
+    const imgAlt = /<img\b[^>]+\balt=["']([^"']+)["'][^>]*>/i.exec(block)?.[1];
+    const pText = /<p[^>]*>([^<]+)<\/p>/i.exec(block)?.[1];
+    const title = decodeEntities((imgAlt || pText || '').trim());
+    if (!title) continue;
+    if (!targetMatchesTitle(target, title)) continue;
+
+    const isSoldOut = /<p[^>]+class=["'][^"']*\bsoldout\b[^"']*["'][^>]*>/i.test(block);
+
+    const priceEmMatch = /<p[^>]*class=["'][^"']*\bprice\b[^"']*["'][^>]*><em>([\d,]+)<\/em>/i.exec(block);
+    const price = priceEmMatch ? parseInt(priceEmMatch[1].replace(/,/g, ''), 10) || null : null;
+
+    const availability: VnStockAvailability = isSoldOut
+      ? 'out_of_stock'
+      : price !== null
+        ? 'in_stock'
+        : 'unknown';
+
+    offers.push({
+      provider_offer_id: productId,
+      title,
+      url: detailUrl,
+      price: isSoldOut ? null : price,
+      availability,
+      availability_label: isSoldOut ? '売り切れ' : price !== null ? '販売中' : null,
+      condition: 'Used',
+      edition_label: traderEditionLabel(title),
+      location_label: 'Trader Online / 秋葉原トレーダー通販',
+      location_branch: null,
+      source_release_id: target.releaseId,
+      jan: target.jan,
+      product_id: productId,
+      page_kind: 'detail',
+    });
+  }
+
+  return offers;
+}
+
+/**
+ * Parses a chuko-tsuhan smartphone detail page.
+ * Strips script/style/noscript before sold-out detection to avoid false positives
+ * from template text. physical_stock_confirmed is always false — location_branch
+ * remains null unless a future parser can extract per-branch evidence.
+ */
+export function parseTraderChukoDetail(
+  html: string,
+  url: string,
+  fallback: ParsedOffer | null = null,
+): ParsedOffer | null {
+  const visible = html
+    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+    .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, '');
+
+  const isSoldOut =
+    /<(?:p|div|span)[^>]*(?:class=["'][^"']*\bsoldout\b[^"']*["']|id=["']soldout["'])[^>]*>[^<]*売り切れ[^<]*<\/(?:p|div|span)>/i.test(visible);
+
+  const ogTitle =
+    /<meta\b[^>]+\bproperty=["']og:title["'][^>]+\bcontent=["']([^"']+)["'][^>]*>/i.exec(html)?.[1] ??
+    /<meta\b[^>]+\bcontent=["']([^"']+)["'][^>]+\bproperty=["']og:title["'][^>]*>/i.exec(html)?.[1];
+  const h1Text = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(visible)?.[1];
+  const pageTitleText = /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1];
+  const title = stripTags(ogTitle || h1Text || pageTitleText || '').trim() || fallback?.title || '';
+  if (!title) return null;
+
+  let price: number | null = null;
+
+  const metaAmount =
+    /<meta\b[^>]+\bproperty=["']product:price:amount["'][^>]+\bcontent=["']([\d.]+)["'][^>]*>/i.exec(html)?.[1] ??
+    /<meta\b[^>]+\bcontent=["']([\d.]+)["'][^>]+\bproperty=["']product:price:amount["'][^>]*>/i.exec(html)?.[1];
+  if (metaAmount) price = Math.round(parseFloat(metaAmount)) || null;
+
+  if (!price) {
+    const taxPriceHtml = /id=["']taxPrice["'][^>]*>([\s\S]*?)<\//i.exec(visible)?.[1];
+    if (taxPriceHtml) price = parsePriceYen(taxPriceHtml);
+  }
+
+  if (!price) {
+    const inputPrice =
+      /<input\b[^>]+\bname=["']price1["'][^>]+\bvalue=["']([\d]+)["'][^>]*>/i.exec(html)?.[1] ??
+      /<input\b[^>]+\bvalue=["']([\d]+)["'][^>]+\bname=["']price1["'][^>]*>/i.exec(html)?.[1] ??
+      /<input\b[^>]+\bname=["']price2["'][^>]+\bvalue=["']([\d]+)["'][^>]*>/i.exec(html)?.[1] ??
+      /<input\b[^>]+\bvalue=["']([\d]+)["'][^>]+\bname=["']price2["'][^>]*>/i.exec(html)?.[1];
+    if (inputPrice) price = parseInt(inputPrice, 10) || null;
+  }
+
+  if (!price) {
+    const priceEm = /<p\b[^>]*\bclass=["'][^"']*\bprice\b[^"']*["'][^>]*>[\s\S]*?<em>([\d,]+)<\/em>/i.exec(visible)?.[1];
+    if (priceEm) price = parseInt(priceEm.replace(/,/g, ''), 10) || null;
+  }
+
+  const availability: VnStockAvailability = isSoldOut
+    ? 'out_of_stock'
+    : price !== null && price > 0
+      ? 'in_stock'
+      : fallback?.availability ?? 'unknown';
+
+  const hasSharedStoreHint = /【店頭併売】/.test(title);
+
+  const availability_label = isSoldOut
+    ? '売り切れ'
+    : price !== null
+      ? hasSharedStoreHint
+        ? '販売中（店頭在庫共有の可能性あり）'
+        : '販売中'
+      : null;
+
+  let productId: string | null = null;
+  try { productId = new URL(url).searchParams.get('id'); } catch {}
+
+  return {
+    provider_offer_id: productId ?? fallback?.provider_offer_id ?? url,
+    title,
+    url,
+    price: isSoldOut ? null : price,
+    availability,
+    availability_label,
+    condition: fallback?.condition ?? 'Used',
+    edition_label: fallback?.edition_label ?? traderEditionLabel(title),
+    location_label: 'Trader Online / 秋葉原トレーダー通販',
+    location_branch: null,
+    source_release_id: fallback?.source_release_id ?? null,
+    jan: fallback?.jan ?? null,
+    product_id: productId,
+    page_kind: 'detail',
+  };
+}
+
+async function refreshTrader(
+  vnId: string,
+  _releases: VndbRelease[],
+  vn: CollectionItem,
+  _discovered: Map<StockProviderId, StockTarget[]>,
+  now: number,
+  signal?: AbortSignal,
+  aliases: string[] = [],
+): Promise<VnStockOfferInput[]> {
+  const queries = titleQueries(vn, aliases).slice(0, 3);
+  const classifyTarget: ClassifyTarget = {
+    title: vn.title ?? '',
+    altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
+    aliases,
+  };
+
+  const seenProductIds = new Set<string>();
+  const allListOffers: ParsedOffer[] = [];
+
+  for (const query of queries) {
+    if (signal?.aborted) break;
+    for (const variant of traderSearchVariants(query).slice(0, 16)) {
+      if (signal?.aborted) break;
+      const searchUrl = `https://www.chuko-tsuhan.com/smartphone/list.html?search_key=${encodeEucJpQuery(variant)}`;
+      try {
+        const html = await fetchShopText(searchUrl, {
+          encoding: 'euc-jp',
+          signal,
+          headers: TRADER_MOBILE_HEADERS,
+        });
+        const searchTarget: StockTarget = { url: searchUrl, releaseId: null, jan: null, query };
+        for (const offer of parseTraderChukoSmartphoneList(html, searchUrl, searchTarget)) {
+          if (seenProductIds.has(offer.provider_offer_id)) continue;
+          seenProductIds.add(offer.provider_offer_id);
+          allListOffers.push(offer);
+        }
+      } catch {}
     }
   }
+
+  const sorted = [...allListOffers].sort((a, b) => {
+    if (a.availability === 'in_stock' && b.availability !== 'in_stock') return -1;
+    if (b.availability === 'in_stock' && a.availability !== 'in_stock') return 1;
+    return 0;
+  });
+
+  const MAX_DETAIL_PAGES = 10;
+  const offers: VnStockOfferInput[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (signal?.aborted) break;
+    const listOffer = sorted[i];
+    let finalOffer = listOffer;
+    let source = 'search';
+
+    if (i < MAX_DETAIL_PAGES) {
+      try {
+        const html = await fetchShopText(listOffer.url, {
+          encoding: 'euc-jp',
+          signal,
+          headers: TRADER_MOBILE_HEADERS,
+        });
+        const detailed = parseTraderChukoDetail(html, listOffer.url, listOffer);
+        if (detailed) { finalOffer = detailed; source = 'direct'; }
+      } catch {}
+    }
+
+    const cl = classifyOffer(finalOffer.title, finalOffer.category ?? null, classifyTarget);
+    offers.push(offerInput(vnId, 'trader', source, now, { ...finalOffer, ...classificationToFields(cl) }));
+  }
+
   return offers;
 }
 
@@ -1112,37 +1474,272 @@ async function refreshErogePrice(vnId: string, egsId: number | null | undefined,
   return parseErogePrice(html, url, vnId, now);
 }
 
-export function parseSurugayaDetail(html: string, url: string, target: StockTarget): ParsedOffer | null {
-  const title = firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
-  if (!title || /Just a moment/i.test(title)) return null;
-  const jsonOffer = parseJsonLd(html).flatMap(collectOffers)[0];
-  const productId = /\/(?:detail|other)\/([^/?#]+)/.exec(new URL(url).pathname)?.[1] ?? target.jan ?? url;
-  const price = jsonOffer
-    ? Number((jsonOffer.price as string | number | undefined) ?? NaN)
-    : NaN;
+/** Build a Suruga-ya search URL using URLSearchParams. Never uses raw & concatenation. */
+export function buildSurugayaSearchUrl(query: string, page?: number): string {
+  const url = new URL('https://www.suruga-ya.jp/search');
+  url.searchParams.set('category', '');
+  url.searchParams.set('search_word', query);
+  url.searchParams.set('rankBy', 'relavancy(int)');
+  if (page && page > 1) url.searchParams.set('page', String(page));
+  return url.toString();
+}
+
+export interface SurugayaSearchCard {
+  productId: string;
+  pageKind: 'detail' | 'other';
+  title: string;
+  url: string;
+  category: string | null;
+  condition: string | null;
+  listPrice: number | null;
+  primaryPrice: number | null;
+  officialAvailability: 'in_stock' | 'out_of_stock' | 'unknown';
+  marketplacePrice: number | null;
+  marketplaceCount: number | null;
+  storeCode: string | null;
+  branchNumber: string | null;
+  imageUrl: string | null;
+  badges: string[];
+}
+
+export interface SurugayaSearchResult {
+  cards: SurugayaSearchCard[];
+  pagination: { start: number; end: number; total: number } | null;
+}
+
+/**
+ * Parse a Suruga-ya /search result page into structured cards.
+ * Pure HTML parsing — no I/O.
+ *
+ * Cloudflare classification rule: only throw if actual challenge page.
+ * Normal Cloudflare-served search pages with real content are parseable.
+ */
+export function parseSurugayaSearch(html: string): SurugayaSearchResult {
+  const pagination = (() => {
+    const m = /([\d,]+)\s*[-–]\s*([\d,]+)\s*件?\s*[/／]\s*([\d,]+)\s*件/.exec(html);
+    return m
+      ? {
+          start: parseInt(m[1].replace(/,/g, ''), 10),
+          end: parseInt(m[2].replace(/,/g, ''), 10),
+          total: parseInt(m[3].replace(/,/g, ''), 10),
+        }
+      : null;
+  })();
+
+  const shippingStripped = html
+    .replace(/送料[^<]{0,80}(?:未満|以上)[^<]{0,60}/g, '')
+    .replace(/配送[^<]{0,60}(?:無料|有料)[^<]{0,60}/g, '');
+
+  // Pass 1: collect each unique product's first link position and metadata
+  interface _ProductLink { pos: number; pageKind: 'detail' | 'other'; productId: string; queryStr: string }
+  const productUrlRe = /href=["'](\/product\/(detail|other)\/(\d+)([^"'#]*))["']/gi;
+  const uniqueLinks: _ProductLink[] = [];
+  const seenIds = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = productUrlRe.exec(shippingStripped)) !== null) {
+    const pid = m[3];
+    if (!seenIds.has(pid)) {
+      seenIds.add(pid);
+      uniqueLinks.push({ pos: m.index, pageKind: m[2] as 'detail' | 'other', productId: pid, queryStr: m[4] ?? '' });
+    }
+  }
+
+  const cards: SurugayaSearchCard[] = [];
+
+  for (let li = 0; li < uniqueLinks.length; li++) {
+    const { pos, pageKind, productId, queryStr } = uniqueLinks[li];
+
+    const productUrl = `https://www.suruga-ya.jp/product/${pageKind}/${productId}`;
+
+    let storeCode: string | null = null;
+    let branchNumber: string | null = null;
+    try {
+      const qs = new URLSearchParams(queryStr.replace(/^[?&]/, ''));
+      storeCode = qs.get('tenpo_cd');
+      branchNumber = qs.get('branch_number');
+    } catch {}
+
+    // Bound context: start at the link position (content comes after it), forward to next card's start.
+    // Do NOT look backward past a previous card — that causes availability/price bleeding.
+    const ctxStart = pos;
+    const ctxEnd = li + 1 < uniqueLinks.length
+      ? uniqueLinks[li + 1].pos
+      : Math.min(shippingStripped.length, pos + 2500);
+    const ctx = shippingStripped.slice(ctxStart, ctxEnd);
+    const linkIdx = pos;
+
+    const titleRe = new RegExp(
+      `href=["'][^"']*\\/product\\/(?:detail|other)\\/${productId}[^"']*["'][^>]*>\\s*([^<]{3,}?)\\s*<`,
+      'i',
+    );
+    const titleMatch = titleRe.exec(ctx);
+    let title = titleMatch ? normalizeText(decodeEntities(titleMatch[1])) : '';
+    if (!title) {
+      const anyAnchor = /<a\b[^>]*>\s*([^<]{3,}?)\s*<\/a>/i.exec(ctx);
+      if (anyAnchor) title = normalizeText(decodeEntities(anyAnchor[1]));
+    }
+    if (!title) continue;
+
+    const catPatterns: RegExp[] = [
+      /class=["'][^"']*item_kind[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|span|div|li)/i,
+      /class=["'][^"']*product_kind[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|span|div|li)/i,
+      /class=["'][^"']*kind_type[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|span|div|li)/i,
+      /class=["'][^"']*category[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|span|div|li)/i,
+    ];
+    let category: string | null = null;
+    for (const re of catPatterns) {
+      const cm = re.exec(ctx);
+      if (cm) { category = stripTags(cm[1]).trim() || null; break; }
+    }
+
+    const listPriceMatch = /定価[：:]\s*[￥¥]?([\d,]+)/.exec(ctx);
+    const listPrice = listPriceMatch ? parseInt(listPriceMatch[1].replace(/,/g, ''), 10) : null;
+
+    const usedMatch = /中古[：:]\s*[￥¥]([\d,]+)/.exec(ctx);
+    const newMatch = /新品[：:]\s*[￥¥]([\d,]+)/.exec(ctx);
+    const rawPrimaryPrice = usedMatch
+      ? parseInt(usedMatch[1].replace(/,/g, ''), 10)
+      : newMatch
+        ? parseInt(newMatch[1].replace(/,/g, ''), 10)
+        : null;
+
+    const mktMatch = /マケプレ\s*[￥¥]([\d,]+)/.exec(ctx);
+    const rawMktPrice = mktMatch ? parseInt(mktMatch[1].replace(/,/g, ''), 10) : null;
+
+    const mktCountMatch = /(\d+)\s*点の中古品/.exec(ctx);
+    const marketplaceCount = mktCountMatch ? parseInt(mktCountMatch[1], 10) : null;
+
+    let officialAvailability: 'in_stock' | 'out_of_stock' | 'unknown' = 'unknown';
+    if (/品切れ/.test(ctx)) officialAvailability = 'out_of_stock';
+    else if (rawPrimaryPrice !== null && rawPrimaryPrice > 0) officialAvailability = 'in_stock';
+    else if (/在庫あり|入荷中/.test(ctx)) officialAvailability = 'in_stock';
+
+    let condition: string | null = null;
+    if (/ランクB/.test(ctx)) condition = 'Used (Rank B)';
+    else if (/中古/.test(ctx)) condition = 'Used';
+    else if (/新品/.test(ctx)) condition = 'New';
+
+    const imgMatch = /https?:\/\/shinaban[^\s"'<>]+\.(?:jpg|jpeg|png|webp)/i.exec(ctx);
+    const imageUrl = imgMatch ? imgMatch[0] : null;
+
+    const badges: string[] = [];
+    if (/新入荷/.test(ctx)) badges.push('新入荷');
+    if (/値下げ/.test(ctx)) badges.push('値下げ');
+    if (/予約/.test(ctx)) badges.push('予約');
+
+    const primaryPrice = rawPrimaryPrice !== null && rawPrimaryPrice > 0 ? rawPrimaryPrice : null;
+    const marketplacePrice = rawMktPrice !== null && rawMktPrice > 0 ? rawMktPrice : null;
+
+    cards.push({
+      productId,
+      pageKind,
+      title,
+      url: productUrl,
+      category,
+      condition,
+      listPrice: listPrice !== null && listPrice > 0 ? listPrice : null,
+      primaryPrice,
+      officialAvailability,
+      marketplacePrice,
+      marketplaceCount: marketplaceCount ?? null,
+      storeCode,
+      branchNumber,
+      imageUrl,
+      badges,
+    });
+  }
+
+  return { cards, pagination };
+}
+
+function surugayaCardToOffer(card: SurugayaSearchCard, classifyTarget: ClassifyTarget): ParsedOffer {
+  const availability: VnStockAvailability =
+    card.officialAvailability === 'in_stock' ? 'in_stock' :
+    card.officialAvailability === 'out_of_stock' ? 'out_of_stock' :
+    'unknown';
+
+  const price = card.primaryPrice ?? card.marketplacePrice;
+
+  let availLabel: string | null = null;
+  if (card.officialAvailability === 'out_of_stock' && card.marketplacePrice !== null) {
+    availLabel = `Marketplace: ¥${card.marketplacePrice.toLocaleString('ja-JP')}`;
+  }
+
+  const cl = classifyOffer(card.title, card.category, classifyTarget);
+  const clFields = classificationToFields(cl);
+
+  const storeLabel = card.storeCode ? `Store ${card.storeCode}` : null;
+
   return {
-    provider_offer_id: productId,
-    title,
-    url,
-    price: Number.isInteger(price) && price > 0 ? price : parsePriceYen(html),
-    availability: jsonOffer ? availabilityFromSchema(jsonOffer.availability) : availabilityFromText(html),
-    availability_label: null,
-    condition: /中古/.test(html) ? 'Used' : null,
+    provider_offer_id: card.productId,
+    product_id: card.productId,
+    page_kind: card.pageKind,
+    title: card.title,
+    url: card.url,
+    price: price ?? null,
+    availability,
+    availability_label: availLabel,
+    condition: card.condition,
     edition_label: null,
-    location_label: 'Suruga-ya',
-    source_release_id: target.releaseId,
-    jan: target.jan,
+    location_label: storeLabel ?? 'Suruga-ya',
+    location_branch: storeLabel,
+    source_release_id: null,
+    jan: null,
+    store_code: card.storeCode,
+    list_price: card.listPrice,
+    marketplace_price: card.marketplacePrice,
+    marketplace_count: card.marketplaceCount,
+    category: card.category,
+    ...clFields,
   };
 }
 
-async function refreshSurugaya(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
-  const offers: VnStockOfferInput[] = [];
-  for (const target of allTargetsForProvider(releases, 'surugaya', vn, discovered, aliases).slice(0, 12)) {
-    const html = await fetchShopText(target.url, { signal });
-    const parsed = parseSurugayaDetail(html, target.url, target);
-    if (parsed) offers.push(offerInput(vnId, 'surugaya', 'direct', now, parsed));
+async function refreshSurugaya(
+  vnId: string,
+  _releases: VndbRelease[],
+  vn: CollectionItem,
+  _discovered: Map<StockProviderId, StockTarget[]>,
+  now: number,
+  signal?: AbortSignal,
+  aliases: string[] = [],
+): Promise<VnStockOfferInput[]> {
+  const queries = titleQueries(vn, aliases).slice(0, 3);
+  const classifyTarget: ClassifyTarget = {
+    title: vn.title ?? '',
+    altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
+    aliases,
+  };
+
+  const allCards: SurugayaSearchCard[] = [];
+  const seen = new Set<string>();
+  const MAX_PAGES = 3;
+
+  for (const query of queries) {
+    if (signal?.aborted) break;
+    const url1 = buildSurugayaSearchUrl(query);
+    const html1 = await fetchShopText(url1, { signal });
+    const { cards: cards1, pagination } = parseSurugayaSearch(html1);
+    for (const c of cards1) {
+      if (!seen.has(c.productId)) { seen.add(c.productId); allCards.push(c); }
+    }
+
+    let page = 2;
+    const total = pagination?.total ?? 0;
+    while (!signal?.aborted && page <= MAX_PAGES && (page - 1) * 24 < total) {
+      try {
+        const htmlN = await fetchShopText(buildSurugayaSearchUrl(query, page), { signal });
+        const { cards: cardsN } = parseSurugayaSearch(htmlN);
+        for (const c of cardsN) {
+          if (!seen.has(c.productId)) { seen.add(c.productId); allCards.push(c); }
+        }
+      } catch {}
+      page++;
+    }
   }
-  return offers;
+
+  return allCards.map((card) =>
+    offerInput(vnId, 'surugaya', 'search', now, surugayaCardToOffer(card, classifyTarget)),
+  );
 }
 
 async function loadVnForStock(vnId: string): Promise<CollectionItem | null> {
@@ -1190,7 +1787,9 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
       const hasInputs =
         provider === 'eroge_price'
           ? !!egsId
-          : allTargetsForProvider(releases, provider, vn, discovered, aliases).length > 0;
+          : provider === 'surugaya' || provider === 'trader'
+            ? titleQueries(vn, aliases).length > 0
+            : allTargetsForProvider(releases, provider, vn, discovered, aliases).length > 0;
       replaceVnStockProviderSnapshot(vnId, provider, offers, {
         status: hasInputs ? 'ok' : 'skipped',
         message: hasInputs ? null : 'No release link, JAN, or EGS id available for this provider.',
@@ -1227,7 +1826,7 @@ export function getStockForVn(vnId: string): StockSnapshot {
     url: 'https://www.alice-kobe.com/html/page4.html',
     price: parsePriceYen(row.sale_price ?? row.list_price ?? ''),
     currency: 'JPY',
-    availability: 'in_stock',
+    availability: 'in_stock' as VnStockAvailability,
     availability_label: 'AliceSoft Kobe stock',
     condition: 'Used',
     edition_label: null,
@@ -1239,6 +1838,20 @@ export function getStockForVn(vnId: string): StockSnapshot {
     updated_at: row.updated_at,
     error: null,
     provider_label: providerLabel('alicesoft_kobe'),
+    content_kind: 'game_package',
+    platform: null,
+    edition_kind: null,
+    series_relation: null,
+    match_confidence: null,
+    match_score: null,
+    match_warnings_json: null,
+    marketplace_price: null,
+    marketplace_count: null,
+    list_price: null,
+    category: null,
+    store_code: null,
+    product_id: null,
+    page_kind: null,
   }));
   const offers = [...directOffers, ...kobeOffers].sort((a, b) => {
     const rank = (v: VnStockAvailability) => (v === 'in_stock' ? 0 : v === 'limited' ? 1 : v === 'unknown' ? 2 : v === 'out_of_stock' ? 3 : 4);

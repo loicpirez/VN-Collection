@@ -43,6 +43,8 @@ export const ALLOWED_HTTP_HOSTS: ReadonlySet<string> = new Set([
   'www.mandarake.co.jp',
   'www.wonder.co.jp',
   'trader.co.jp',
+  'www.chuko-tsuhan.com',
+  'chuko-tsuhan.com',
   'www.trader.co.jp',
   'www.animate-onlineshop.jp',
   'store.kadokawa.co.jp',
