@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
     setAppSetting('alicesoft_kobe_last_fetch', String(result.fetched_at));
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    console.error('[alicesoft-kobe/fetch] failed', (e as Error).message);
+    return NextResponse.json({ error: 'kobe stock refresh failed' }, { status: 500 });
   }
 }

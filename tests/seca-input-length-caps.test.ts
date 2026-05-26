@@ -22,7 +22,7 @@ function localReq(path: string, method: string, body: unknown): NextRequest {
   });
 }
 
-describe('NEW-SECA-022 / NEW-TCO-003 — game-log note length cap', () => {
+describe('seca-input-length-caps — game-log note length cap', () => {
   it('POST rejects note longer than 10000 chars with 400', async () => {
     const { POST } = await import('@/app/api/collection/[id]/game-log/route');
     const note = 'x'.repeat(MAX_NOTE + 1);
@@ -46,7 +46,7 @@ describe('NEW-SECA-022 / NEW-TCO-003 — game-log note length cap', () => {
   });
 });
 
-describe('NEW-SECA-021 / NEW-TCO-004 — lists field length caps (source-pin)', () => {
+describe('seca-input-length-caps — lists field length caps (source-pin)', () => {
   it('lists/route.ts slices name, description, color, icon', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
@@ -68,7 +68,7 @@ describe('NEW-SECA-021 / NEW-TCO-004 — lists field length caps (source-pin)', 
   });
 });
 
-describe('NEW-SECA-023 / NEW-TCO-007 — security headers in next.config.mjs', () => {
+describe('seca-input-length-caps — security headers in next.config.mjs', () => {
   it('next.config.mjs exports headers() with X-Content-Type-Options, X-Frame-Options, Referrer-Policy', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');

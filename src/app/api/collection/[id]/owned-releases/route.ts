@@ -112,6 +112,8 @@ function validateReleaseId(raw: string, vnId: string): { ok: boolean; normalized
   return { ok: false, normalized: trimmed };
 }
 
+// intentionally public — single-user self-hosted app; owned-release
+// metadata references the operator's own VNs only.
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);

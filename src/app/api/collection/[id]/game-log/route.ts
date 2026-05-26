@@ -45,6 +45,8 @@ export const runtime = 'nodejs';
  * PATCH  { id, note?, logged_at?, session_minutes? } → { entry }
  * DELETE ?entry=<id> → { ok: true }
  */
+// intentionally public — single-user self-hosted app; game log entries
+// reference the operator's own VNs only. Mutating handlers below gated.
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);

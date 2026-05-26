@@ -6,6 +6,8 @@ import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
+// intentionally public — single-user self-hosted app; series metadata
+// carries no PII. Mutating handlers below remain gated.
 export async function GET() {
   return NextResponse.json({ series: listSeries() });
 }

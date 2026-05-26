@@ -36,6 +36,9 @@ const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [
   'custom',
 ];
 
+// intentionally public — single-user self-hosted app; the library view
+// carries the user's own collection metadata only. Mutating handlers
+// (POST/PATCH/DELETE per VN) remain gated via requireLocalhostOrToken.
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const status = sp.get('status') ?? '';

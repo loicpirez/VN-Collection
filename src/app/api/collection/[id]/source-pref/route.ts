@@ -16,6 +16,9 @@ export const dynamic = 'force-dynamic';
 const VALID_FIELDS: SourceField[] = ['title', 'description', 'image', 'brand', 'rating', 'playtime'];
 const VALID_CHOICES: SourceChoice[] = ['auto', 'vndb', 'egs', 'custom'];
 
+// intentionally public — single-user self-hosted app; per-VN source pref
+// indicates whether VNDB or EGS data is preferred for that VN. Mutating
+// handler below remains gated.
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);

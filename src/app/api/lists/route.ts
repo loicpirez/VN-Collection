@@ -7,6 +7,8 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// intentionally public — single-user self-hosted app; read-only list metadata
+// carries no PII. Mutating handlers below remain gated via requireLocalhostOrToken.
 export async function GET() {
   return NextResponse.json({ lists: listUserLists() });
 }

@@ -1801,6 +1801,59 @@ New DB tables introduced by recent batches:
 
 ---
 
+## Shared hooks
+
+### `useDebouncedCallback(fn, delayMs)` — `src/lib/hooks.ts`
+
+Replaces the inline `setTimeout(...)` + `debounceRef` boilerplate that
+previously lived in 7 picker components (CompareVnPicker, LinkToVndbButton,
+MapEgsToVndbButton, MapVnToEgsButton, TagPicker, SimilarSeedPicker,
+VnSeedPicker). The hook:
+
+- Returns a stable callback identity across renders (safe to drop in JSX).
+- Keeps the latest `fn` reference via `useRef` so the timer never fires
+  a stale closure.
+- Clears the pending timer on unmount.
+
+Usage:
+
+```tsx
+const debounced = useDebouncedCallback((q: string) => fetchHits(q), 250);
+<input onChange={(e) => debounced(e.target.value)} />
+```
+
+When migrating an existing picker, drop the `debounceRef` + the cleanup
+`useEffect` + the inline `setTimeout`, and let the hook own the lifecycle.
+
+---
+
+## Test fixture convention — no real IDs
+
+Real VN / staff / tag / character / producer IDs from VNDB must NOT
+appear in test files, fixture strings, or comments. The reasons:
+
+- Avoids accidental copyright / licensing entanglement.
+- Avoids tests breaking when VNDB renumbers or removes entries.
+- Keeps grep-able placeholders consistent across the suite.
+
+Use the synthetic placeholders below in tests, fixtures, and docs:
+
+| Entity | Placeholder | Example |
+|---|---|---|
+| VN | `v90000`–`v99999` | `v90017`, `v95001` |
+| Staff | `s90000`–`s99999` | `s95001` |
+| Tag | `g90000`–`g99999` | `g95001` |
+| Character | `c90000`–`c99999` | `c95001` |
+| Producer | `p90000`–`p99999` | `p95001` |
+| Release | `r90000`–`r99999` | `r95001` |
+| EGS synthetic | `egs_<7-digit>` | `egs_9500001` |
+
+Pick the lowest digit slot that doesn't clash with another test in the
+same file. The high range (90000+) deliberately stays outside the live
+VNDB id space so a typo can't accidentally hit a real record.
+
+---
+
 ## When in doubt
 - Run `yarn build`.
 - Read the relevant i18n key — if it's missing in EN/JA, add it.

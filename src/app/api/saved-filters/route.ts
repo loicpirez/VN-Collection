@@ -5,6 +5,8 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 
+// intentionally public — single-user self-hosted app; saved-filter URL
+// fragments carry no PII. Mutating handlers below remain gated.
 export async function GET() {
   return NextResponse.json({ filters: listSavedFilters() });
 }

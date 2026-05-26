@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Loader2, Plus, RefreshCw, Search, Square, X, XCircle } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { CheckCircle2, Loader2, RefreshCw, Square, X, XCircle } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { VnSourcePicker, type VnPickerHit } from './VnSourcePicker';
 
 interface BatchResult {
   vnId: string;
@@ -9,12 +10,6 @@ interface BatchResult {
   offerCount?: number;
   error?: string;
   title?: string;
-}
-
-interface SearchHit {
-  id: string;
-  title: string;
-  released?: string | null;
 }
 
 interface QueueEntry {
@@ -27,56 +22,19 @@ const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
 export function StockBatchClient() {
   const t = useT();
   const [queue, setQueue] = useState<QueueEntry[]>([]);
-  const [query, setQuery] = useState('');
-  const [hits, setHits] = useState<SearchHit[]>([]);
-  const [searching, setSearching] = useState(false);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; current: string | null }>({ done: 0, total: 0, current: null });
   const [results, setResults] = useState<BatchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Debounced library + VNDB search.
-  useEffect(() => {
-    const q = query.trim();
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q) { setHits([]); setSearching(false); return; }
-    setSearching(true);
-    const ctrl = new AbortController();
-    debounceRef.current = setTimeout(async () => {
-      try {
-        // Prefer local collection matches first (fast), then VNDB search.
-        const [libRes, vndbRes] = await Promise.all([
-          fetch(`/api/collection/find?q=${encodeURIComponent(q)}`, { cache: 'no-store', signal: ctrl.signal }).then((r) => r.ok ? r.json() : { matches: [] }),
-          fetch(`/api/search?q=${encodeURIComponent(q)}`, { cache: 'no-store', signal: ctrl.signal }).then((r) => r.ok ? r.json() : { results: [] }),
-        ]);
-        if (ctrl.signal.aborted) return;
-        const libHits = (libRes.matches ?? []) as SearchHit[];
-        const vndbHits = (vndbRes.results ?? []) as SearchHit[];
-        const seen = new Set<string>();
-        const merged: SearchHit[] = [];
-        for (const h of [...libHits, ...vndbHits]) {
-          if (!h?.id || seen.has(h.id)) continue;
-          seen.add(h.id);
-          merged.push(h);
-          if (merged.length >= 20) break;
-        }
-        setHits(merged);
-      } catch (e) {
-        if ((e as Error).name !== 'AbortError') setError((e as Error).message);
-      } finally {
-        if (!ctrl.signal.aborted) setSearching(false);
-      }
-    }, 250);
-    return () => { ctrl.abort(); if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query]);
 
   function addToQueue(entry: QueueEntry) {
     if (!VN_ID_RE.test(entry.vnId)) return;
     setQueue((prev) => (prev.some((q) => q.vnId === entry.vnId) ? prev : [...prev, entry]));
-    setQuery('');
-    setHits([]);
+  }
+
+  function handlePick(hit: VnPickerHit) {
+    addToQueue({ vnId: hit.id, title: hit.title });
   }
 
   function removeFromQueue(vnId: string) {
@@ -190,44 +148,12 @@ export function StockBatchClient() {
           </button>
         </div>
 
-        {/* Autocomplete search */}
+        {/* Autocomplete search across Library + VNDB + EGS */}
         <div>
           <label htmlFor="stock-batch-search" className="mb-1 block text-[11px] uppercase tracking-widest text-muted">
             {t.stock.batchSearchLabel as string}
           </label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
-            <input
-              id="stock-batch-search"
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t.stock.batchSearchPlaceholder as string}
-              aria-label={t.stock.batchSearchLabel as string}
-              disabled={running}
-              className="min-h-[40px] w-full rounded-lg border border-border bg-bg-elev py-2 pl-9 pr-3 text-sm text-white placeholder-muted focus:border-accent focus:outline-none disabled:opacity-50"
-            />
-          </div>
-          {searching && <p className="mt-1 text-[11px] text-muted">{t.common.loading}</p>}
-          {hits.length > 0 && (
-            <ul className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-border bg-bg-elev/40">
-              {hits.map((hit) => (
-                <li key={hit.id}>
-                  <button
-                    type="button"
-                    onClick={() => addToQueue({ vnId: hit.id, title: hit.title })}
-                    className="flex w-full items-center justify-between gap-2 border-b border-border/50 px-3 py-2 text-left text-sm text-white last:border-b-0 hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-semibold">{hit.title}</span>
-                      <span className="block text-[10px] text-muted">{hit.id}{hit.released ? ` · ${hit.released}` : ''}</span>
-                    </span>
-                    <Plus className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <VnSourcePicker onPick={handlePick} disabled={running} showAddIcon />
         </div>
 
         {/* Queue display */}

@@ -12,6 +12,8 @@ import { readJsonObject } from '@/lib/api-body';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// intentionally public — single-user self-hosted app; shelf layout
+// carries no PII. Mutating handlers below remain gated.
 export async function GET(req: NextRequest) {
   const includePool = req.nextUrl.searchParams.get('pool') === '1';
   return NextResponse.json({
