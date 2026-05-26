@@ -182,6 +182,10 @@ export type CollectionItem = VnRow &
     list_count?: number;
     /** Whether this VN is currently in the reading queue. */
     in_reading_queue?: boolean;
+    /** Count of in_stock/limited offers from the last stock refresh. */
+    stock_available?: number | null;
+    /** Lowest price across in_stock/limited offers, or null when unknown. */
+    stock_best_price?: number | null;
   };
 
 export interface VndbSearchHit {

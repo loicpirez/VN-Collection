@@ -48,6 +48,8 @@ export function toCardData(it: CollectionItem): CardData {
     // badge count without a popover open.
     listCount: it.list_count ?? 0,
     inCollectionBadge: !!it.status,
+    stockAvailable: it.stock_available ?? null,
+    stockBestPrice: it.stock_best_price ?? null,
   };
   cardDataCache.set(it, data);
   return data;

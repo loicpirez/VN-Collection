@@ -2,7 +2,7 @@
 import { memo, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, BookMarked, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, MoreVertical, Package, Plus, Sparkles, X } from 'lucide-react';
+import { Star, BookMarked, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, MoreVertical, Package, Plus, ShoppingCart, Sparkles, X } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
@@ -57,6 +57,10 @@ export interface CardData {
   isFanDisc?: boolean;
   /** Pre-computed count of user-lists this VN belongs to, for the chip. */
   listCount?: number | null;
+  /** Count of in_stock/limited offers from last refresh; null when no refresh. */
+  stockAvailable?: number | null;
+  /** Best price across in_stock/limited offers; null when no price data. */
+  stockBestPrice?: number | null;
 }
 
 interface VnCardProps {
@@ -175,6 +179,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   const ratingNum = data.user_rating ?? data.rating;
   const rating = ratingNum != null ? fmtNum(ratingNum / 10, locale, 1) : null;
   const year = data.released?.slice(0, 4);
+  const hasStock = (data.stockAvailable ?? 0) > 0;
   const myPlaytimeMin = data.playtime_minutes ?? null;
   const vndbLengthMin = data.length_minutes ?? null;
   const egsPlaytimeMin = data.egs_playtime_minutes ?? null;
@@ -428,6 +433,26 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
             </div>
           );
         })()}
+        {hasStock && (
+          <div
+            className="inline-flex items-center gap-1 text-[11px] text-status-completed"
+            title={t.stock.stockChipHint
+              .replace('{count}', String(data.stockAvailable ?? 0))
+              .replace(
+                '{price}',
+                data.stockBestPrice != null
+                  ? new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(data.stockBestPrice)
+                  : '',
+              )}
+          >
+            <ShoppingCart className="h-3 w-3 shrink-0" aria-hidden />
+            <span>
+              {data.stockBestPrice != null
+                ? new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(data.stockBestPrice)
+                : t.stock.stockChipAvailable.replace('{count}', String(data.stockAvailable ?? 0))}
+            </span>
+          </div>
+        )}
       </div>
     </>
   );

@@ -1182,6 +1182,8 @@ export const dictionaries = {
         low: 'Faible correspondance',
         reject: 'Non pertinent',
       },
+      stockChipAvailable: '{count} dispo',
+      stockChipHint: '{count} offre(s) disponible(s){price}',
     },
     kobe: {
       kobeTitle: 'Stock AliceNET Kobe',
@@ -4048,6 +4050,8 @@ export const dictionaries = {
         low: 'Weak match',
         reject: 'No match',
       },
+      stockChipAvailable: '{count} available',
+      stockChipHint: '{count} offer(s) available{price}',
     },
     kobe: {
       kobeTitle: 'Stock AliceNET Kobe',
@@ -6911,6 +6915,8 @@ export const dictionaries = {
         low: '低い一致',
         reject: '不一致',
       },
+      stockChipAvailable: '{count}件在庫あり',
+      stockChipHint: '{count}件の在庫あり{price}',
     },
     kobe: {
       kobeTitle: 'Stock AliceNET Kobe',

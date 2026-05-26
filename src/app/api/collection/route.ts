@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  batchVnStockSummaries,
   countListMembershipsByVn,
   db,
   getReadingQueueVnIds,
@@ -160,10 +161,13 @@ export async function GET(req: NextRequest) {
     // paint without needing a popover open per card.
     const listCounts = countListMembershipsByVn();
     const queueIds = getReadingQueueVnIds();
+    const stockSummaries = batchVnStockSummaries(raw.map((it) => it.id));
     const items = raw.map((it) => ({
       ...it,
       list_count: listCounts.get(it.id) ?? 0,
       in_reading_queue: queueIds.has(it.id),
+      stock_available: stockSummaries.get(it.id)?.available ?? null,
+      stock_best_price: stockSummaries.get(it.id)?.best_price ?? null,
     }));
     return NextResponse.json({ items, stats: getStats() });
   } catch (err) {

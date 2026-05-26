@@ -9123,6 +9123,32 @@ export function listVnStockProviderStatuses(vnId: string): VnStockProviderStatus
   `).all(vnId) as VnStockProviderStatusRow[];
 }
 
+/**
+ * Batch aggregate for stock chip on VnCard. Returns a map of vnId to
+ * available-offer count and best price across in_stock / limited offers.
+ * A single query regardless of how many IDs are passed.
+ */
+export function batchVnStockSummaries(
+  vnIds: string[],
+): Map<string, { available: number; best_price: number | null }> {
+  if (vnIds.length === 0) return new Map();
+  const ph = vnIds.map(() => '?').join(',');
+  type Row = { vn_id: string; available: number; best_price: number | null };
+  const rows = db
+    .prepare(
+      `SELECT vn_id,
+              COUNT(CASE WHEN availability IN ('in_stock','limited') THEN 1 END) AS available,
+              MIN(CASE WHEN availability IN ('in_stock','limited') AND price IS NOT NULL THEN price END) AS best_price
+       FROM vn_stock_offer
+       WHERE vn_id IN (${ph})
+       GROUP BY vn_id`,
+    )
+    .all(...vnIds) as Row[];
+  const out = new Map<string, { available: number; best_price: number | null }>();
+  for (const r of rows) out.set(r.vn_id, { available: r.available, best_price: r.best_price });
+  return out;
+}
+
 export function listRecentVnStockOffers(limit: number): (VnStockOfferRow & {
   vn_title: string | null;
   vn_image_url: string | null;
