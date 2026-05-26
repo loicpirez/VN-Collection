@@ -54,8 +54,8 @@ describe('classifyOfferGroup', () => {
     expect(classifyOfferGroup('game_package', 'exact_game', 'high')).toBe('game');
   });
 
-  it('game_package + medium → game', () => {
-    expect(classifyOfferGroup('game_package', 'exact_game', 'medium')).toBe('game');
+  it('game_package + medium → needs_review', () => {
+    expect(classifyOfferGroup('game_package', 'exact_game', 'medium')).toBe('needs_review');
   });
 
   it('null contentKind (legacy pre-classification) → game', () => {

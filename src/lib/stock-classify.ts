@@ -341,7 +341,7 @@ export function classifyOffer(
   };
 }
 
-export type OfferGroup = 'game' | 'series' | 'related' | 'rejected';
+export type OfferGroup = 'game' | 'needs_review' | 'series' | 'related' | 'rejected';
 
 /**
  * Map stored classification strings to a display group.
@@ -364,6 +364,7 @@ export function classifyOfferGroup(
   ) return 'related';
   if (matchConfidence === 'reject' || matchConfidence === 'low') return 'rejected';
   if (seriesRelation === 'same_series_previous_game' || seriesRelation === 'sequel_or_pack') return 'series';
+  if (matchConfidence === 'medium') return 'needs_review';
   if (contentKind === 'game_package' || contentKind == null) return 'game';
   return 'game';
 }

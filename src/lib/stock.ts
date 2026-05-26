@@ -1100,6 +1100,14 @@ function genericTitle(html: string): string | null {
   );
 }
 
+function isSearchPagePseudoTitle(title: string): boolean {
+  return (
+    /検索結果|件の結果|並べ替え|ベストセラー|カスタマーレビュー/.test(title) ||
+    /の検索結果$/.test(title) ||
+    /^ヨドバシ\.com\s*-/.test(title)
+  );
+}
+
 function normalizeComparable(value: string): string {
   return stripTags(value)
     .toLocaleLowerCase()
@@ -1130,7 +1138,7 @@ function offerFromListBlock(
   options: { condition?: string | null; location?: string | null; edition?: string | null } = {},
 ): ParsedOffer | null {
   const title = stripTags(rawTitle);
-  if (!title || !targetMatchesTitle(target, title)) return null;
+  if (!title || isSearchPagePseudoTitle(title) || !targetMatchesTitle(target, title)) return null;
   const offerUrl = absUrl(url, rawHref);
   const stockText = stripTags(stockBlock);
   return {
@@ -1228,7 +1236,7 @@ function parseYodobashiList(provider: 'yodobashi', html: string, url: string, ta
     const href = /<a[^>]+href=["']([^"']+)["'][\s\S]*?<div class=["']pName[^"']*["'][^>]*>([\s\S]*?)<\/div><\/a>/i.exec(block);
     const price = /<span class=["']productPrice["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
     const stock = /<span class=["'](?:green|red)["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? /<div class=["'](?:soldout|yoyaku)["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ?? '';
-    if (!href?.[1] || !href[2]) continue;
+    if (!href?.[1] || !href[2] || !href[1].includes('/product/')) continue;
     const offer = offerFromListBlock(provider, url, target, href[1], href[2], price, stock, { location: providerLabel(provider) });
     if (offer) offers.push(offer);
   }
@@ -1266,7 +1274,7 @@ function parseAmazonList(html: string, url: string, target: StockTarget): Parsed
     const href = /<a[^>]+href=["']([^"']*\/dp\/[A-Z0-9]{10}[^"']*)["']/i.exec(block)?.[1] ?? `/dp/${asin}`;
     const price = /<span class=["']a-offscreen["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
     const stock = /発売予定|予約|無料配送/.test(block) ? '予約受付中' : block;
-    if (!title) continue;
+    if (!title || isSearchPagePseudoTitle(stripTags(title))) continue;
     const offer = offerFromListBlock('amazon_jp', url, target, href, title, price, stock, { location: 'Amazon JP' });
     if (offer) offers.push({ ...offer, provider_offer_id: asin });
   }
@@ -1319,12 +1327,6 @@ function providerListPatterns(provider: StockProviderId): RegExp[] {
   if (provider === 'gamers') {
     return [/<li[^>]*class=["'][^"']*item[^"']*["'][\s\S]*?<a[^>]+href=["']([^"']+)["'][\s\S]*?<[^>]*(?:class=["'][^"']*name|title)[^>]*>([\s\S]*?)<\/[^>]+>[\s\S]*?([\d,]+\s*円)/gi];
   }
-  if (provider === 'amazon_jp') {
-    return [/<div[^>]+data-asin=["']([^"']+)["'][\s\S]*?<h2[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>[\s\S]*?(?:¥|￥)\s*([\d,]+)/gi];
-  }
-  if (provider === 'yodobashi') {
-    return [/<div[^>]*class=["'][^"']*productListTile[^"']*["'][\s\S]*?<a[^>]+href=["']([^"']+)["'][\s\S]*?>([\s\S]*?)<\/a>[\s\S]*?([\d,]+\s*円)/gi];
-  }
   return [];
 }
 
@@ -1337,10 +1339,8 @@ export function parseGenericProviderPage(provider: StockProviderId, html: string
       const rawHref = m[1] ?? '';
       const title = stripTags(m[2] ?? '');
       const priceText = stripTags(m[3] ?? '');
-      if (!title || !targetMatchesTitle(target, title)) continue;
-      const offerUrl = provider === 'amazon_jp' && /^[A-Z0-9]{10}$/.test(rawHref)
-        ? `https://www.amazon.co.jp/dp/${rawHref}`
-        : absUrl(url, rawHref);
+      if (!title || isSearchPagePseudoTitle(title) || !targetMatchesTitle(target, title)) continue;
+      const offerUrl = absUrl(url, rawHref);
       offers.push({
         provider_offer_id: targetIdFromUrl(offerUrl),
         title,
@@ -1356,26 +1356,6 @@ export function parseGenericProviderPage(provider: StockProviderId, html: string
       });
     }
   }
-  if (offers.length > 0) return offers;
-  const title = genericTitle(html);
-  if (!title || /captcha|access denied|just a moment/i.test(title)) return [];
-  const price = parsePriceYen(html);
-  if (price == null && target.releaseId == null) return [];
-  if (!targetMatchesTitle(target, title)) return [];
-  const rawAvailability = availabilityFromText(html);
-  offers.push({
-    provider_offer_id: targetIdFromUrl(url),
-    title,
-    url,
-    price,
-    availability: price == null && rawAvailability === 'out_of_stock' ? 'unknown' : rawAvailability,
-    availability_label: null,
-    condition: /中古|used/i.test(html) ? 'Used' : null,
-    edition_label: /特典|限定|初回|DX|BOX/i.test(title + html.slice(0, 2000)) ? 'Edition / bonus' : null,
-    location_label: providerLabel(provider),
-    source_release_id: target.releaseId,
-    jan: target.jan,
-  });
   return offers;
 }
 
@@ -1890,7 +1870,10 @@ export function getStockForVn(vnId: string): StockSnapshot {
   });
   const statuses = listVnStockProviderStatuses(vnId);
   const available = offers.filter((offer) => offer.availability === 'in_stock' || offer.availability === 'limited').length;
-  const priced = offers.map((offer) => offer.price).filter((price): price is number => price != null && price > 0);
+  const priced = offers
+    .filter((o) => o.availability === 'in_stock' || o.availability === 'limited')
+    .map((o) => o.price)
+    .filter((price): price is number => price != null && price > 0);
   const lastRefresh = Math.max(0, ...offers.map((offer) => offer.fetched_at), ...statuses.map((status) => status.fetched_at));
   return {
     offers,

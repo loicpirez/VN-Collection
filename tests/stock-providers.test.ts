@@ -340,6 +340,107 @@ describe('stock provider parsers', () => {
     );
     expect(offers).toEqual([]);
   });
+
+  it('Amazon: search-page title "1件の結果" is rejected — returns []', () => {
+    const offers = parseGenericProviderPage(
+      'amazon_jp',
+      `<title>1件の結果 "架空ゲーム" - Amazon.co.jp</title>
+       <h1>1件の結果</h1>
+       <span class="a-offscreen">¥121</span>`,
+      'https://www.amazon.co.jp/s?k=%E6%9E%B6%E7%A9%BA%E3%82%B2%E3%83%BC%E3%83%A0',
+      { ...target, query: '架空ゲーム', releaseId: null },
+    );
+    expect(offers).toEqual([]);
+  });
+
+  it('Amazon: result card with valid data-asin and /dp/ URL returns one offer', () => {
+    const offers = parseGenericProviderPage(
+      'amazon_jp',
+      `<div role="listitem" data-asin="B0FAKEASIN" data-component-type="s-search-result">
+       <a href="/Fake-Game/dp/B0FAKEASIN/ref=sr_1_1">
+         <h2 aria-label="架空ゲーム 通常版"><span>架空ゲーム 通常版</span></h2>
+       </a>
+       <span class="a-offscreen">￥5,280</span>
+       <span>在庫あり</span>
+       </div>`,
+      'https://www.amazon.co.jp/s?k=%E6%9E%B6%E7%A9%BA%E3%82%B2%E3%83%BC%E3%83%A0',
+      { ...target, query: '架空ゲーム' },
+    );
+    expect(offers).toHaveLength(1);
+    expect(offers[0]).toMatchObject({ provider_offer_id: 'B0FAKEASIN', price: 5280, availability: 'in_stock' });
+  });
+
+  it('Amazon: price from search-page noise (shipping) is not extracted when no valid ASIN card', () => {
+    const offers = parseGenericProviderPage(
+      'amazon_jp',
+      `<title>架空ゲーム の検索結果 - Amazon.co.jp</title>
+       <span>配送料 ¥350</span><span>ポイント ¥12</span>`,
+      'https://www.amazon.co.jp/s?k=%E6%9E%B6%E7%A9%BA%E3%82%B2%E3%83%BC%E3%83%A0',
+      { ...target, query: '架空ゲーム', releaseId: null },
+    );
+    expect(offers).toEqual([]);
+  });
+
+  it('Yahoo Shopping: search-page title "の検索結果" alone returns []', () => {
+    const offers = parseGenericProviderPage(
+      'asakusa_mach',
+      `<title>架空ゲーム の検索結果 - Yahoo!ショッピング</title>
+       <h1>架空ゲーム の検索結果</h1>
+       <span>1,140円</span>`,
+      'https://shopping.yahoo.co.jp/search/%E6%9E%B6%E7%A9%BA%E3%82%B2%E3%83%BC%E3%83%A0/0/',
+      { ...target, query: '架空ゲーム', releaseId: null },
+    );
+    expect(offers).toEqual([]);
+  });
+
+  it('Yahoo Shopping: valid product tile with data-beacon returns one offer', () => {
+    const offers = parseGenericProviderPage(
+      'asakusa_mach',
+      `<a href="https://store.shopping.yahoo.co.jp/fakestore/kgg-001.html"
+         data-beacon="tname:架空ゲーム 通常版;prc:5280;text:在庫あり">
+       <span class="ItemTitle_SearchResultItemTitle__abc123">架空ゲーム 通常版</span></a>
+       <span class="ItemPrice_ItemPrice__def456">5,280<span>円</span></span>`,
+      'https://shopping.yahoo.co.jp/search/%E6%9E%B6%E7%A9%BA%E3%82%B2%E3%83%BC%E3%83%A0/0/',
+      { ...target, query: '架空ゲーム' },
+    );
+    expect(offers).toHaveLength(1);
+    expect(offers[0]).toMatchObject({ price: 5280, location_label: 'Yahoo Shopping' });
+  });
+
+  it('Yodobashi: site-title page "ヨドバシ.com - ..." alone returns []', () => {
+    const offers = parseGenericProviderPage(
+      'yodobashi',
+      `<title>ヨドバシ.com - 架空ゲーム 通販【全品無料配達】</title>
+       <h1>架空ゲーム 通販【全品無料配達】</h1>
+       <span class="productPrice">￥5,390</span>`,
+      'https://www.yodobashi.com/?word=%E6%9E%B6%E7%A9%BA%E3%82%B2%E3%83%BC%E3%83%A0',
+      { ...target, query: '架空ゲーム', releaseId: null },
+    );
+    expect(offers).toEqual([]);
+  });
+
+  it('Yodobashi: product tile without /product/ in URL returns []', () => {
+    const offers = parseGenericProviderPage(
+      'yodobashi',
+      `<div class="srcResultItem_block pListBlock productListTile">
+       <a href="/category/pc-games/fake-id/"><div class="pName fs14"><p>Brand</p><p>架空ゲーム 通常版</p></div></a>
+       <span class="productPrice">￥5,390</span><span class="green">在庫あり</span></div><!-- /pListBlock -->`,
+      'https://www.yodobashi.com/?word=%E6%9E%B6%E7%A9%BA%E3%82%B2%E3%83%BC%E3%83%A0',
+      { ...target, query: '架空ゲーム' },
+    );
+    expect(offers).toEqual([]);
+  });
+
+  it('generic provider: body-wide title+price fallback (removed) returns []', () => {
+    const offers = parseGenericProviderPage(
+      'gamecity',
+      `<title>架空ゲーム - GAMECITY</title>
+       <body><h1>架空ゲーム</h1><p>価格：5,280円</p></body>`,
+      'https://shop.gamecity.ne.jp/goods-search/?k=%E6%9E%B6%E7%A9%BA%E3%82%B2%E3%83%BC%E3%83%A0',
+      { ...target, query: '架空ゲーム', releaseId: null },
+    );
+    expect(offers).toEqual([]);
+  });
 });
 
 describe('PHYSICAL_CAPABLE_PROVIDER_IDS', () => {

@@ -943,6 +943,7 @@ function OffersGrouped({
   locale: string;
 }) {
   const game = offers.filter((o) => classifyGroup(o) === 'game');
+  const needsReview = offers.filter((o) => classifyGroup(o) === 'needs_review');
   const series = offers.filter((o) => classifyGroup(o) === 'series');
   const related = offers.filter((o) => classifyGroup(o) === 'related');
   const rejected = offers.filter((o) => classifyGroup(o) === 'rejected');
@@ -956,6 +957,7 @@ function OffersGrouped({
         {best != null && <span className="text-xs font-semibold text-accent">{currency.format(best)}</span>}
       </div>
       <OfferGroup label={t.stock.groupGame as string} offers={game} best={best} currency={currency} t={t} locale={locale} />
+      <OfferGroup label={t.stock.groupNeedsReview as string} offers={needsReview} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
       <OfferGroup label={t.stock.groupSameSeries as string} offers={series} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
       <OfferGroup label={t.stock.groupRelated as string} offers={related} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
       <OfferGroup label={t.stock.groupRejected as string} offers={rejected} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
