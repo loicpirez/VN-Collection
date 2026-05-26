@@ -13,6 +13,7 @@ import {
   parseGenericProviderPage,
   parseErogePrice,
   parseHgame1Detail,
+  parseMandarakeDetail,
   parseMelonbooksDetail,
   parseSofmapDetail,
   parseSofmapList,
@@ -171,6 +172,42 @@ describe('stock provider parsers', () => {
       target,
     );
     expect(offer).toMatchObject({ availability: 'unknown', edition_label: 'Store bonus' });
+  });
+
+  it('parseMandarakeDetail returns offer from a typical product page', () => {
+    const html = `<html><head><title>Sample VN - まんだらけ</title></head><body>
+      <h1>Sample Visual Novel Deluxe Box</h1>
+      <p class="price">価格: <strong>4,800</strong>円（税込）</p>
+      <p>状態：中古 開封済み</p>
+      <p class="availability">在庫あり</p>
+    </body></html>`;
+    const url = 'https://order.mandarake.co.jp/order/detailPage/item?itemCode=1099012345&ref=list';
+    const offer = parseMandarakeDetail(html, url, target);
+    expect(offer).not.toBeNull();
+    expect(offer).toMatchObject({
+      provider_offer_id: '1099012345',
+      price: 4800,
+      availability: 'in_stock',
+      condition: 'Used',
+      location_label: 'Mandarake',
+    });
+  });
+
+  it('parseMandarakeDetail returns null for Cloudflare-blocked page', () => {
+    const html = `<html><head><title>MANDARAKE</title></head><body><p>Access denied</p></body></html>`;
+    const url = 'https://order.mandarake.co.jp/order/detailPage/item?itemCode=1099000000';
+    expect(parseMandarakeDetail(html, url, target)).toBeNull();
+  });
+
+  it('parseMandarakeDetail uses JAN from target when no itemCode in URL', () => {
+    const html = `<html><head><title>Sample VN - Mandarake</title></head><body>
+      <h1>Sample Visual Novel</h1><p>価格: 3,200円</p>
+    </body></html>`;
+    const url = 'https://order.mandarake.co.jp/order/listPage/list?keyword=sample';
+    const janTarget = { ...target, jan: '4912345678901' };
+    const offer = parseMandarakeDetail(html, url, janTarget);
+    expect(offer).not.toBeNull();
+    expect(offer?.provider_offer_id).toBe('4912345678901');
   });
 
   it('parses Animate search cards with status text', () => {
