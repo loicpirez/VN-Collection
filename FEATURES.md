@@ -714,6 +714,36 @@ reading-log is unaffected.
 
 ## AliceSoft Kobe stock browser
 
+## Generic VN stock and price lookup
+
+`/stock` and the Stock section on `/vn/[id]` share the same local stock cache.
+The UI never auto-fetches shop pages; the operator presses **Check stock** for
+one VN, and `POST /api/vn/[id]/stock` refreshes provider snapshots.
+
+Data model:
+- `vn_stock_offer` stores one row per `(vn_id, provider, provider_offer_id)`:
+  title, shop URL, price, currency, availability, condition, edition label,
+  location label, source release id, JAN, timestamps, and parser error.
+- `vn_stock_provider_status` stores the last provider result for the VN:
+  `ok`, `skipped`, or `error`, with message, timestamp, and offer count.
+
+Provider discovery combines:
+- VNDB release extlinks when they point directly at a supported shop.
+- Release GTIN/JAN codes for shops that support JAN or title lookup.
+- EGS ids for Eroge Price aggregate pages.
+- Known official-product pages, currently used to extract retailer links from
+  shop sections such as Animate, ebten, Getchu, Gamers, GAMECITY, Sofmap,
+  Trader, Melonbooks, WonderGOO, Asakusa Mach, Amazon JP, AmiAmi,
+  Otakarasouko, GEO, Joshin, Neowing, Yodobashi, and Bikkuri Takarajima.
+
+Parsers are provider-specific where the page shape is stable:
+Sofmap, PC Shop Unoya, Melonbooks, Eroge Price, Suruga-ya, Mandarake,
+WonderGOO, Trader, Animate, ebten, Getchu, Gamers, GEO, Joshin,
+Yodobashi, Amazon JP, Yahoo Shopping / Asakusa Mach, Otakarasouko, and
+Bikkuri Takarajima. Dynamic or protected shops such as AmiAmi, Neowing,
+GAMECITY, and blocked Suruga-ya responses remain visible as provider
+diagnostics instead of creating fake offers from generic page titles.
+
 ### Stock download ✅
 `/alicesoft_kobe` — gated behind the `ALICESOFT_KOBE_ENABLED=true` env var. The page
 lists all items currently in stock at AliceSoft Kobe (a specialist second-hand

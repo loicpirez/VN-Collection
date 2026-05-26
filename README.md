@@ -27,6 +27,7 @@ No cloud account. No telemetry. No bundled games. No bundled copyrighted media.
 - Customize layouts, density, filters, spoiler visibility, and content display.
 - Export, import, and back up the local SQLite database.
 - Print QR label sheets for physical editions via `/labels`.
+- Check per-VN shop stock and prices across Eroge Price, Sofmap, Suruga-ya, Mandarake, Melonbooks, Unoya, Trader, WonderGOO, and other linked retailers.
 - Browse and match second-hand stock from AliceSoft Kobe against VNDB/EGS (optional, env-gated).
 
 ---
@@ -110,6 +111,15 @@ Set `ALICESOFT_KOBE_ENABLED=true` in `.env.local` to enable the `/alicesoft_kobe
 - Four-step "Download all": stock → VNDB match → VNDB data download → EGS resolution.
 - Filter tabs: All · Matched · Unmatched · No result · Wishlist.
 - Outbound fetch can route through a per-provider SOCKS5/HTTP proxy.
+
+### Per-VN stock and price lookup
+
+`/stock` and the Stock section on each VN page query supported shops only after an explicit button press.
+
+- Uses cached VNDB release links, JAN/GTIN codes, EGS links, and known official-shop pages to find offers.
+- Stores per-provider snapshots locally, including price, availability, condition, edition label, shop location, and fetch errors.
+- Supported provider families include Eroge Price, Sofmap, Suruga-ya, PC Shop Unoya, Melonbooks, Mandarake, WonderGOO, Trader, Animate, ebten, Getchu, Gamers, GAMECITY, Asakusa Mach, Amazon JP, AmiAmi, Otakarasouko, GEO, Joshin, Neowing, Yodobashi, and Bikkuri Takarajima.
+- The VN page shows available count, best price, last check time, selectable provider groups, per-provider diagnostics, and direct shop links.
 
 ### Stats and maintenance
 

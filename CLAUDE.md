@@ -130,6 +130,7 @@ vndb-collection/
 │   │   ├── stats/page.tsx              # Charts + cache panel + import/export
 │   │   ├── character/[id]/page.tsx     # Character detail with "appears in" gallery
 │   │   ├── vn/[id]/page.tsx            # The big VN detail page
+│   │   ├── stock/page.tsx              # Generic per-VN stock / price lookup
 │   │   ├── alicesoft_kobe/page.tsx      # AliceSoft Kobe stock browser (KobeClient, gated)
 │   │   ├── not-found.tsx
 │   │   └── api/                        # see "API surface" below
@@ -161,6 +162,7 @@ vndb-collection/
 │       ├── vndb-cache.ts               # cachedFetch with TTL + ETag + dedupe
 │       ├── vndb-types.ts               # types shared with client (no 'server-only')
 │       ├── erogamescape.ts             # EGS SQL form client (server-only) + resolveEgsForVn
+│       ├── stock.ts                    # Generic shop stock parsers + per-VN stock refresh
 │       ├── alicesoft-kobe.ts           # AliceSoft Kobe fetch/parse/match/refresh (server-only)
 │       ├── proxy-config.ts             # Per-provider proxy configuration + credential masking
 │       ├── proxy-fetch.ts              # providerFetch() — routes through SOCKS5/HTTP agent
@@ -220,6 +222,7 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET | `/api/vn/[id]` | VN detail (cache 24 h via DB) |
 | GET | `/api/vn/[id]/characters` | Characters of a VN |
 | GET | `/api/vn/[id]/releases` | Releases of a VN |
+| GET/POST | `/api/vn/[id]/stock` | Read cached shop stock offers or explicitly refresh provider snapshots for one VN. |
 | GET | `/api/vn/[id]/quotes` | Quotes of a VN |
 | GET | `/api/character/[id]` | Character detail |
 | GET | `/api/release/[id]` | Single release |
@@ -1770,6 +1773,7 @@ New DB tables introduced by recent batches:
 | `steam_link` | Steam playtime sync | VN ↔ Steam appid mapping with `source` ('auto' / 'manual') and last-synced minutes. Manual links are sticky. |
 | `shelf_unit` / `shelf_slot` / `shelf_display_slot` | Drag-and-drop shelf layout | `shelf_unit` is the grid metadata; `shelf_slot` is regular cells; `shelf_display_slot` is face-out rows between shelves. Both placement tables enforce UNIQUE `(vn_id, release_id)` through helpers so one edition is placed once. |
 | `release_resolution_cache` / `owned_release_aspect_override` | Aspect-ratio filtering | VNDB release resolutions are normalized to buckets; manual per-edition overrides take precedence for library filters/groups. |
+| `vn_stock_offer` / `vn_stock_provider_status` | Generic stock lookup | Per-VN shop snapshots from VNDB release extlinks, JAN/GTIN title search, EGS price pages, and known official retailer links. Providers include Sofmap, Suruga-ya, Eroge Price, Unoya, Melonbooks, Mandarake, WonderGOO, Trader, Animate, ebten, Getchu, Gamers, GAMECITY, Asakusa Mach, Amazon JP, AmiAmi, Otakarasouko, GEO, Joshin, Neowing, Yodobashi, and Bikkuri Takarajima. |
 | `alicesoft_kobe_stock` | AliceSoft Kobe stock browser | Second-hand shop inventory with full-sync delete, VNDB/EGS match columns, candidate remap JSON, search_title. Gated behind `ALICESOFT_KOBE_ENABLED=true`. |
 
 ## Backlog cleared (2026-05-15 batch H)

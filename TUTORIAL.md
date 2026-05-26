@@ -315,7 +315,23 @@ highlighted (languages, platforms, developers, tags, staff).
 
 ---
 
-## 9. Data hub `/data` (`g d`)
+## 9. Stock lookup `/stock`
+
+Open `/stock` to search for a VN, or use the **Stock and prices**
+section directly on a VN detail page.
+
+- Press **Check stock** to query supported shops. Nothing is fetched
+  automatically on page load.
+- Use the provider chips to run every shop, direct shops only, aggregators
+  only, or a hand-picked subset.
+- The panel shows available offers, best price, last check time, shop
+  condition/edition hints, and direct links to the source shop.
+- Provider errors stay visible per shop so a blocked retailer does not
+  hide offers from the others.
+
+---
+
+## 10. Data hub `/data` (`g d`)
 
 Tabbed-style sections:
 
@@ -388,7 +404,7 @@ Tabbed-style sections:
 
 ---
 
-## 10. Producer / staff / character pages
+## 11. Producer / staff / character pages
 
 - `/producer/[id]` — every VN in your collection from this producer,
   plus a **completion %** card showing missing entries you can add in
@@ -409,7 +425,7 @@ Tabbed-style sections:
 
 ---
 
-## 11. Keyboard shortcuts
+## 12. Keyboard shortcuts
 
 | Key | Action |
 | --- | --- |
@@ -430,7 +446,7 @@ Tabbed-style sections:
 
 ---
 
-## 12. Series pages
+## 13. Series pages
 
 - `/series` lists every series you've created.
 - `/series/[id]` — every VN in the series + an inline editor for name,
@@ -444,7 +460,7 @@ Tabbed-style sections:
 
 ---
 
-## 13. Navbar layout
+## 14. Navbar layout
 
 The top nav has four always-visible primary links plus three category
 dropdowns:
@@ -461,7 +477,7 @@ edge and never collapse — they're reachable at every screen width.
 
 ---
 
-## 14. Settings — two entry points
+## 15. Settings — two entry points
 
 ### Closed-eye icon (content-controls hub)
 
@@ -512,7 +528,7 @@ SSR — they apply before first paint, no flash on hydration.
 
 ---
 
-## 15. Download status, refresh & rate limiting
+## 16. Download status, refresh & rate limiting
 
 The right-side pill at top-1/3 of the viewport is the **download
 status indicator**. It's hidden when idle and lights up when the app
@@ -565,7 +581,7 @@ Clicking Refresh runs `/api/refresh/global`:
 
 ---
 
-## 16. Pop quiz — try these
+## 17. Pop quiz — try these
 
 - Find a random Japanese-only VN you marked "Planning": chip filter
   Planning + Lang JP, then 🎲.

@@ -178,8 +178,8 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
       </header>
 
       <div role="tablist" aria-label={t.tags.modeSwitcherLabel} className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
-        <button
-          type="button"
+        <Link
+          href={tagsPageHref('local')}
           role="tab"
           aria-selected={mode === 'local'}
           aria-controls="tags-results-panel"
@@ -188,9 +188,9 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           className={`rounded px-2.5 py-1 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabLocal}
-        </button>
-        <button
-          type="button"
+        </Link>
+        <Link
+          href={tagsPageHref('vndb')}
           role="tab"
           aria-selected={mode === 'vndb'}
           aria-controls="tags-results-panel"
@@ -199,7 +199,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           className={`rounded px-2.5 py-1 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabVndb}
-        </button>
+        </Link>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-2">

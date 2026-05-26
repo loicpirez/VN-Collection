@@ -694,6 +694,44 @@ function open(): Database.Database {
       updated_at       INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_vn ON alicesoft_kobe_stock(vn_id);
+
+    CREATE TABLE IF NOT EXISTS vn_stock_offer (
+      vn_id             TEXT NOT NULL,
+      provider          TEXT NOT NULL,
+      provider_offer_id TEXT NOT NULL,
+      source            TEXT NOT NULL,
+      title             TEXT NOT NULL,
+      url               TEXT NOT NULL,
+      price             INTEGER,
+      currency          TEXT NOT NULL DEFAULT 'JPY',
+      availability      TEXT NOT NULL,
+      availability_label TEXT,
+      condition         TEXT,
+      edition_label     TEXT,
+      location_label    TEXT,
+      source_release_id TEXT,
+      jan               TEXT,
+      fetched_at        INTEGER NOT NULL,
+      updated_at        INTEGER NOT NULL,
+      error             TEXT,
+      PRIMARY KEY (vn_id, provider, provider_offer_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_stock_offer_vn
+      ON vn_stock_offer(vn_id, availability, price);
+    CREATE INDEX IF NOT EXISTS idx_vn_stock_offer_provider
+      ON vn_stock_offer(provider, fetched_at);
+
+    CREATE TABLE IF NOT EXISTS vn_stock_provider_status (
+      vn_id      TEXT NOT NULL,
+      provider   TEXT NOT NULL,
+      status     TEXT NOT NULL,
+      message    TEXT,
+      fetched_at INTEGER NOT NULL,
+      offer_count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (vn_id, provider)
+    );
+    CREATE INDEX IF NOT EXISTS idx_vn_stock_provider_status_vn
+      ON vn_stock_provider_status(vn_id, fetched_at);
   `);
 
   // The aspect-ratio filter used to require an `owned_release` row to
@@ -8886,4 +8924,164 @@ export function countKobeDownloadPending(): { vndb_pending: number; egs_pending:
     )
     .get() as { vndb_pending: number; egs_pending: number };
   return { vndb_pending: row.vndb_pending ?? 0, egs_pending: row.egs_pending ?? 0 };
+}
+
+export type VnStockAvailability = 'in_stock' | 'limited' | 'out_of_stock' | 'unknown' | 'error';
+export type VnStockProviderStatus = 'ok' | 'skipped' | 'error';
+
+export interface VnStockOfferRow {
+  vn_id: string;
+  provider: string;
+  provider_offer_id: string;
+  source: string;
+  title: string;
+  url: string;
+  price: number | null;
+  currency: string;
+  availability: VnStockAvailability;
+  availability_label: string | null;
+  condition: string | null;
+  edition_label: string | null;
+  location_label: string | null;
+  source_release_id: string | null;
+  jan: string | null;
+  fetched_at: number;
+  updated_at: number;
+  error: string | null;
+}
+
+export interface VnStockProviderStatusRow {
+  vn_id: string;
+  provider: string;
+  status: VnStockProviderStatus;
+  message: string | null;
+  fetched_at: number;
+  offer_count: number;
+}
+
+export type VnStockOfferInput = Omit<VnStockOfferRow, 'updated_at'>;
+
+export function replaceVnStockProviderSnapshot(
+  vnId: string,
+  provider: string,
+  offers: VnStockOfferInput[],
+  status: Omit<VnStockProviderStatusRow, 'vn_id' | 'provider'>,
+): void {
+  const txn = db.transaction(() => {
+    const insertVnStockOfferStmt = db.prepare(`
+      INSERT INTO vn_stock_offer (
+        vn_id, provider, provider_offer_id, source, title, url, price, currency,
+        availability, availability_label, condition, edition_label, location_label,
+        source_release_id, jan, fetched_at, updated_at, error
+      )
+      VALUES (
+        @vn_id, @provider, @provider_offer_id, @source, @title, @url, @price, @currency,
+        @availability, @availability_label, @condition, @edition_label, @location_label,
+        @source_release_id, @jan, @fetched_at, @updated_at, @error
+      )
+      ON CONFLICT(vn_id, provider, provider_offer_id) DO UPDATE SET
+        source = excluded.source,
+        title = excluded.title,
+        url = excluded.url,
+        price = excluded.price,
+        currency = excluded.currency,
+        availability = excluded.availability,
+        availability_label = excluded.availability_label,
+        condition = excluded.condition,
+        edition_label = excluded.edition_label,
+        location_label = excluded.location_label,
+        source_release_id = excluded.source_release_id,
+        jan = excluded.jan,
+        fetched_at = excluded.fetched_at,
+        updated_at = excluded.updated_at,
+        error = excluded.error
+    `);
+    const upsertVnStockProviderStatusStmt = db.prepare(`
+      INSERT INTO vn_stock_provider_status (vn_id, provider, status, message, fetched_at, offer_count)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(vn_id, provider) DO UPDATE SET
+        status = excluded.status,
+        message = excluded.message,
+        fetched_at = excluded.fetched_at,
+        offer_count = excluded.offer_count
+    `);
+    db.prepare(`DELETE FROM vn_stock_offer WHERE vn_id = ? AND provider = ?`).run(vnId, provider);
+    for (const offer of offers) {
+      insertVnStockOfferStmt.run({ ...offer, updated_at: Date.now() });
+    }
+    upsertVnStockProviderStatusStmt.run(
+      vnId,
+      provider,
+      status.status,
+      status.message,
+      status.fetched_at,
+      status.offer_count,
+    );
+  });
+  txn();
+}
+
+export function listVnStockOffers(vnId: string): VnStockOfferRow[] {
+  return db.prepare(`
+    SELECT *
+    FROM vn_stock_offer
+    WHERE vn_id = ?
+    ORDER BY
+      CASE availability
+        WHEN 'in_stock' THEN 0
+        WHEN 'limited' THEN 1
+        WHEN 'unknown' THEN 2
+        WHEN 'out_of_stock' THEN 3
+        ELSE 4
+      END,
+      CASE WHEN price IS NULL THEN 1 ELSE 0 END,
+      price ASC,
+      provider ASC,
+      title ASC
+  `).all(vnId) as VnStockOfferRow[];
+}
+
+export function listVnStockProviderStatuses(vnId: string): VnStockProviderStatusRow[] {
+  return db.prepare(`
+    SELECT *
+    FROM vn_stock_provider_status
+    WHERE vn_id = ?
+    ORDER BY provider
+  `).all(vnId) as VnStockProviderStatusRow[];
+}
+
+export function listRecentVnStockOffers(limit: number): (VnStockOfferRow & {
+  vn_title: string | null;
+  vn_image_url: string | null;
+  vn_local_image: string | null;
+  vn_image_sexual: number | null;
+})[] {
+  return db.prepare(`
+    SELECT o.*,
+           v.title AS vn_title,
+           v.image_url AS vn_image_url,
+           v.local_image AS vn_local_image,
+           v.image_sexual AS vn_image_sexual
+    FROM vn_stock_offer o
+    LEFT JOIN vn v ON v.id = o.vn_id
+    ORDER BY o.fetched_at DESC, o.provider ASC, o.title ASC
+    LIMIT ?
+  `).all(limit) as (VnStockOfferRow & {
+    vn_title: string | null;
+    vn_image_url: string | null;
+    vn_local_image: string | null;
+    vn_image_sexual: number | null;
+  })[];
+}
+
+export function listKobeStockForVn(vnId: string): KobeStockRow[] {
+  return db.prepare(`
+    SELECT k.*
+    FROM alicesoft_kobe_stock k
+    WHERE k.vn_id = ?
+    ORDER BY
+      CASE WHEN k.sale_price IS NULL OR k.sale_price = '' THEN 1 ELSE 0 END,
+      k.sale_price ASC,
+      k.title ASC
+  `).all(vnId) as KobeStockRow[];
 }
