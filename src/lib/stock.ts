@@ -1761,17 +1761,39 @@ function availabilityFromSchema(value: unknown): VnStockAvailability {
  * Extracts the first absolute outbound link from an HTML fragment that points
  * to a known shop host (excluding eroge-price itself). Used to upgrade the
  * eroge-price row offer URL from the aggregator page to the actual seller.
+ *
+ * Returns the first outbound link whose host is in `PROVIDER_HOSTS`. If none
+ * matches, falls back to ANY outbound link (Eroge Price links to DLsite,
+ * FANZA, DiGiket, Getchu DL, etc. — many of which are not in our shop
+ * provider map but still useful to surface as the click-through URL).
  */
 function extractFirstShopLink(html: string, baseUrl: string): string | null {
+  let fallback: string | null = null;
   for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
     const raw = m[1];
     if (!raw) continue;
     const abs = absUrl(baseUrl, raw);
     const host = sourceHost(abs).toLowerCase();
     if (!host || host === 'eroge-price.com' || host.endsWith('.eroge-price.com')) continue;
+    // Skip same-base navigation links (e.g. anchor links inside the page).
+    if (abs.startsWith(baseUrl + '#') || abs === baseUrl) continue;
     if (providerForHost(host)) return abs;
+    if (!fallback) fallback = abs;
   }
-  return null;
+  return fallback;
+}
+
+/**
+ * Detect a seller / shop name from a cell's HTML. Tries the text content
+ * first, then falls back to `alt=` of any embedded `<img>` tag (Eroge
+ * Price renders many shop names as logo images with the shop name in alt).
+ */
+function extractErogePriceSellerLabel(cellHtml: string): string {
+  const text = stripTags(cellHtml).replace(/最安$/, '').trim();
+  if (text && text !== '-' && text.length >= 2) return text;
+  const alt = /<img\b[^>]*\balt=["']([^"']{2,})["']/i.exec(cellHtml)?.[1];
+  if (alt) return decodeEntities(alt).trim();
+  return '';
 }
 
 /**
@@ -1830,7 +1852,6 @@ function classifyErogePriceRow(rowHtml: string, baseUrl: string): ErogePriceCell
 
   for (const cellHtml of cellMatches) {
     const text = stripTags(cellHtml).trim();
-    if (!text) continue;
 
     // Detect outbound shop link in this cell — preserves the FIRST hit so we
     // don't pick a "go to shop" button at the end of the row.
@@ -1838,9 +1859,15 @@ function classifyErogePriceRow(rowHtml: string, baseUrl: string): ErogePriceCell
       const link = extractFirstShopLink(cellHtml, baseUrl);
       if (link) {
         sellerLink = link;
-        if (!seller) seller = text.replace(/最安$/, '').trim();
+        if (!seller) {
+          // Pull seller label from text first, then `<img alt>` if logo-only.
+          const label = extractErogePriceSellerLabel(cellHtml);
+          if (label) seller = label;
+        }
       }
     }
+
+    if (!text) continue;
 
     // Collect price-shaped cells in order (price > sale > list typical).
     if (/[¥￥]\s*[\d,]+|[\d,]+\s*円|JPY\s*[\d,]+/i.test(text)) {
@@ -1895,9 +1922,16 @@ function classifyErogePriceRow(rowHtml: string, baseUrl: string): ErogePriceCell
  * Parse an Eroge-Price aggregator page into one offer row per seller. Returns
  * `VnStockOfferInput[]` directly (not `ParsedOffer`) because each row needs
  * the seller link as a separate URL.
+ *
+ * The optional `vnTitle` parameter overrides the page `<h1>` so each offer
+ * carries the operator's canonical VN title (avoids confusing "館熟女〜"
+ * rows when the EGS id maps to a wrong game).
  */
-export function parseErogePrice(html: string, url: string, vnId: string, now: number): VnStockOfferInput[] {
-  const title = firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i) ?? 'Eroge Price';
+export function parseErogePrice(html: string, url: string, vnId: string, now: number, vnTitle?: string | null): VnStockOfferInput[] {
+  const pageTitle = firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i) ?? 'Eroge Price';
+  // Prefer the operator-known VN title; fall back to the page H1 when the
+  // caller didn't pass one (legacy callers / tests).
+  const title = vnTitle && vnTitle.trim().length > 0 ? vnTitle.trim() : pageTitle;
   const pageJan = extractJan(html);
   const offers: VnStockOfferInput[] = [];
   const seenKeys = new Set<string>();
@@ -1986,7 +2020,10 @@ async function refreshErogePrice(vnId: string, egsId: number | null | undefined,
   if (!egsId) return [];
   const url = `https://eroge-price.com/games/${egsId}`;
   const html = await fetchShopText(url, { signal });
-  const raw = parseErogePrice(html, url, vnId, now);
+  // Pass the operator's canonical VN title so each row carries the
+  // expected title, not whatever Eroge Price chose to display in its <h1>
+  // (which might be a different game when egs_id mapping is bad).
+  const raw = parseErogePrice(html, url, vnId, now, vn.title ?? null);
   const classifyTarget: ClassifyTarget = {
     title: vn.title ?? '',
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
@@ -1994,7 +2031,11 @@ async function refreshErogePrice(vnId: string, egsId: number | null | undefined,
   };
   return raw.map((offer) => {
     const cl = classifyOffer(offer.title, null, classifyTarget, {
-      source: 'direct',  // Eroge Price page is keyed by EGS id — the result IS the canonical product
+      // Eroge Price page is keyed by EGS id — the result IS the canonical
+      // product. Trust the seller name + price even when the rendered title
+      // is the page's <h1>. Source 'direct' boost matches the classifier
+      // rule for "this URL is the product" not "this is a search hit".
+      source: 'direct',
       provider: 'eroge_price',
     });
     return { ...offer, ...classificationToFields(cl) };
@@ -2281,6 +2322,48 @@ async function loadVnForStock(vnId: string): Promise<CollectionItem | null> {
   return getCollectionItem(vnId);
 }
 
+/**
+ * Collapse duplicate offer rows that arrived from different sources
+ * (direct release-link AND title search returning the same product).
+ *
+ * Dedupe key in priority order:
+ *   1. (provider, jan) when both rows carry the same JAN/EAN.
+ *   2. (provider, product_id) — Amazon ASIN, Suruga-ya product id, etc.
+ *   3. (provider, normalised_url) — same shop URL.
+ *
+ * The winning row is the one with the better source-priority rank
+ * (`direct` / `manual` > `search`), then better match confidence.
+ */
+function dedupeProviderOffers(rows: VnStockOfferInput[]): VnStockOfferInput[] {
+  if (rows.length <= 1) return rows;
+  const byKey = new Map<string, VnStockOfferInput>();
+  const sourceRank = (src: string): number =>
+    src === 'direct' || src === 'manual' || src === 'alicesoft_kobe' ? 0 : 1;
+  const confRank = (c: string | null | undefined): number => {
+    if (c === 'exact') return 0;
+    if (c === 'high') return 1;
+    if (c === 'medium') return 2;
+    if (c === 'low') return 3;
+    return 4;
+  };
+  function betterThan(a: VnStockOfferInput, b: VnStockOfferInput): boolean {
+    const sa = sourceRank(a.source);
+    const sb = sourceRank(b.source);
+    if (sa !== sb) return sa < sb;
+    return confRank(a.match_confidence) < confRank(b.match_confidence);
+  }
+  for (const row of rows) {
+    const candidates: string[] = [];
+    if (row.jan) candidates.push(`jan:${row.jan}`);
+    if (row.product_id) candidates.push(`pid:${row.product_id}`);
+    try { candidates.push(`url:${new URL(row.url).toString()}`); } catch { candidates.push(`url:${row.url}`); }
+    const key = `${row.provider}|${candidates.join('|')}`;
+    const existing = byKey.get(key);
+    if (!existing || betterThan(row, existing)) byKey.set(key, row);
+  }
+  return Array.from(byKey.values());
+}
+
 async function refreshProvider(
   provider: StockProviderId,
   vnId: string,
@@ -2333,7 +2416,8 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
   for (const provider of providers) {
     const now = Date.now();
     try {
-      const offers = await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases);
+      const rawOffers = await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases);
+      const offers = dedupeProviderOffers(rawOffers);
       const hasInputs =
         provider === 'eroge_price'
           ? !!egsId

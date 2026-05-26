@@ -111,6 +111,12 @@ const SOUNDTRACK_TITLE_PATTERNS: ReadonlyArray<RegExp> = [
 const RELATED_GOODS_TITLE_PATTERNS: ReadonlyArray<RegExp> = [
   /フィギュア|figure|ホビー|hobby/i,
   /アクリル|タペストリー|抱き枕|キーホルダー|バッジ|クリアファイル|色紙|グッズ/,
+  // Strategy guides / fan books — same title as the VN but a separate
+  // companion publication. Classify as related goods so they don't count
+  // as game offers.
+  /攻略ガイド|攻略本|ガイドブック|コンプリート(?:ガイド|ブック|集)|公式ガイド|ファンブック|資料集/,
+  // Bundled compilations (e.g. ヌキコレ vol.NN ふぃぎゅ＠メイト完全攻略ガイド付＋謝肉祭).
+  /ヌキコレ\s*vol\.|完全攻略ガイド\s*付/i,
 ];
 
 const SOFTWARE_CATEGORIES: ReadonlySet<string> = new Set([
