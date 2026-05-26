@@ -2,14 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import {
   STOCK_PROVIDER_IDS,
-  PHYSICAL_PROVIDER_IDS,
+  PHYSICAL_CAPABLE_PROVIDER_IDS,
+  CONFIRMED_PHYSICAL_PROVIDER_IDS,
+  USELESS_FOR_CONFIRMED_PHYSICAL_STOCK,
+  getProviderMeta,
+  canProduceConfirmedPhysicalStock,
+  canProducePotentialPhysicalLead,
+  shouldShowInConfirmedPhysicalResults,
+  shouldShowAsPhysicalLead,
   parseGenericProviderPage,
   parseErogePrice,
   parseHgame1Detail,
   parseMelonbooksDetail,
   parseSofmapDetail,
   parseSofmapList,
-  parseTraderList,
   parseWondergooDetail,
 } from '@/lib/stock';
 
@@ -167,16 +173,6 @@ describe('stock provider parsers', () => {
     expect(offer).toMatchObject({ availability: 'unknown', edition_label: 'Store bonus' });
   });
 
-  it('parses Trader list rows into individual offers', () => {
-    const offers = parseTraderList(
-      `<li><div class="innerBox"><p class="name"><a href=/shop/shopdetail.html?brandcode=000000090001>Sample Limited Box</a></p>
-       <div class="btnWrap"><p class="price"> 19,800円(税込)</p></div></div></li>`,
-      'https://trader.co.jp/shop/shopbrand.html?search=sample',
-      target,
-    );
-    expect(offers[0]).toMatchObject({ price: 19800, availability: 'in_stock', edition_label: 'Store bonus' });
-  });
-
   it('parses Animate search cards with status text', () => {
     const offers = parseGenericProviderPage(
       'animate',
@@ -309,21 +305,194 @@ describe('stock provider parsers', () => {
   });
 });
 
-describe('PHYSICAL_PROVIDER_IDS', () => {
-  it('contains all expected physical store providers', () => {
-    expect(PHYSICAL_PROVIDER_IDS).toEqual(
-      expect.arrayContaining(['sofmap', 'hgame1', 'mandarake', 'wondergoo', 'trader', 'otakarasouko', 'geo']),
+describe('PHYSICAL_CAPABLE_PROVIDER_IDS', () => {
+  it('contains all expected physical-capable providers', () => {
+    expect(PHYSICAL_CAPABLE_PROVIDER_IDS).toEqual(
+      expect.arrayContaining(['sofmap', 'surugaya', 'hgame1', 'mandarake', 'wondergoo', 'trader', 'animate', 'otakarasouko', 'geo', 'joshin', 'yodobashi', 'bikkuri_takarajima']),
     );
   });
 
   it('contains only IDs that are present in STOCK_PROVIDER_IDS', () => {
     const all = new Set(STOCK_PROVIDER_IDS);
-    for (const id of PHYSICAL_PROVIDER_IDS) {
-      expect(all.has(id), `${id} in PHYSICAL_PROVIDER_IDS but not in STOCK_PROVIDER_IDS`).toBe(true);
+    for (const id of PHYSICAL_CAPABLE_PROVIDER_IDS) {
+      expect(all.has(id), `${id} in PHYSICAL_CAPABLE_PROVIDER_IDS but not in STOCK_PROVIDER_IDS`).toBe(true);
     }
   });
 
   it('does not contain alicesoft_kobe (cached provider)', () => {
-    expect(PHYSICAL_PROVIDER_IDS).not.toContain('alicesoft_kobe');
+    expect(PHYSICAL_CAPABLE_PROVIDER_IDS).not.toContain('alicesoft_kobe');
+  });
+});
+
+describe('CONFIRMED_PHYSICAL_PROVIDER_IDS', () => {
+  it('is a strict subset of PHYSICAL_CAPABLE_PROVIDER_IDS', () => {
+    const capable = new Set(PHYSICAL_CAPABLE_PROVIDER_IDS);
+    for (const id of CONFIRMED_PHYSICAL_PROVIDER_IDS) {
+      expect(capable.has(id), `${id} in CONFIRMED but not in CAPABLE`).toBe(true);
+    }
+  });
+
+  it('contains sofmap and hgame1 (parsers implemented)', () => {
+    expect(CONFIRMED_PHYSICAL_PROVIDER_IDS).toEqual(expect.arrayContaining(['sofmap', 'hgame1']));
+  });
+
+  it('does not contain unconfirmed providers (wondergoo, trader, mandarake)', () => {
+    expect(CONFIRMED_PHYSICAL_PROVIDER_IDS).not.toContain('wondergoo');
+    expect(CONFIRMED_PHYSICAL_PROVIDER_IDS).not.toContain('trader');
+    expect(CONFIRMED_PHYSICAL_PROVIDER_IDS).not.toContain('mandarake');
+  });
+
+  it('does not contain alicesoft_kobe (cached provider, not StockProviderId)', () => {
+    expect(CONFIRMED_PHYSICAL_PROVIDER_IDS).not.toContain('alicesoft_kobe');
+  });
+});
+
+describe('USELESS_FOR_CONFIRMED_PHYSICAL_STOCK', () => {
+  it('contains wondergoo and trader (store-locator / phone-only)', () => {
+    expect(USELESS_FOR_CONFIRMED_PHYSICAL_STOCK).toEqual(
+      expect.arrayContaining(['wondergoo', 'trader', 'otakarasouko', 'bikkuri_takarajima', 'joshin']),
+    );
+  });
+
+  it('contains online-only providers', () => {
+    expect(USELESS_FOR_CONFIRMED_PHYSICAL_STOCK).toEqual(
+      expect.arrayContaining(['melonbooks', 'ebten', 'getchu', 'gamers', 'gamecity', 'asakusa_mach', 'amazon_jp', 'amiami', 'neowing']),
+    );
+  });
+
+  it('does NOT contain sofmap or hgame1 (confirmed physical)', () => {
+    expect(USELESS_FOR_CONFIRMED_PHYSICAL_STOCK).not.toContain('sofmap');
+    expect(USELESS_FOR_CONFIRMED_PHYSICAL_STOCK).not.toContain('hgame1');
+  });
+
+  it('contains only IDs present in STOCK_PROVIDER_IDS', () => {
+    const all = new Set(STOCK_PROVIDER_IDS);
+    for (const id of USELESS_FOR_CONFIRMED_PHYSICAL_STOCK) {
+      expect(all.has(id), `${id} in USELESS list but not in STOCK_PROVIDER_IDS`).toBe(true);
+    }
+  });
+});
+
+describe('getProviderMeta', () => {
+  it('returns metadata for sofmap', () => {
+    const m = getProviderMeta('sofmap');
+    expect(m?.physicalStockMode).toBe('exact_online');
+    expect(m?.branchParserImplemented).toBe(true);
+    expect(m?.confirmedPhysicalUsable).toBe(true);
+  });
+
+  it('returns metadata for alicesoft_kobe (cached)', () => {
+    const m = getProviderMeta('alicesoft_kobe');
+    expect(m?.physicalStockMode).toBe('exact_cached');
+    expect(m?.confirmedPhysicalUsable).toBe(true);
+  });
+
+  it('returns metadata for surugaya — browser_required + cloudflare true', () => {
+    const m = getProviderMeta('surugaya');
+    expect(m?.physicalStockMode).toBe('exact_online_browser_required');
+    expect(m?.cloudflare).toBe(true);
+    expect(m?.confirmedPhysicalUsable).toBe(false);
+  });
+
+  it('returns metadata for wondergoo — store_locator_only, not confirmed', () => {
+    const m = getProviderMeta('wondergoo');
+    expect(m?.physicalStockMode).toBe('store_locator_only');
+    expect(m?.confirmedPhysicalUsable).toBe(false);
+  });
+
+  it('returns metadata for trader — phone_only', () => {
+    expect(getProviderMeta('trader')?.physicalStockMode).toBe('phone_only');
+  });
+
+  it('returns undefined for unknown id', () => {
+    expect(getProviderMeta('unknown_provider' as never)).toBeUndefined();
+  });
+});
+
+describe('canProduceConfirmedPhysicalStock', () => {
+  it('true for sofmap and hgame1', () => {
+    expect(canProduceConfirmedPhysicalStock('sofmap')).toBe(true);
+    expect(canProduceConfirmedPhysicalStock('hgame1')).toBe(true);
+  });
+
+  it('true for alicesoft_kobe', () => {
+    expect(canProduceConfirmedPhysicalStock('alicesoft_kobe')).toBe(true);
+  });
+
+  it('false for wondergoo, trader, surugaya, mandarake', () => {
+    expect(canProduceConfirmedPhysicalStock('wondergoo')).toBe(false);
+    expect(canProduceConfirmedPhysicalStock('trader')).toBe(false);
+    expect(canProduceConfirmedPhysicalStock('surugaya')).toBe(false);
+    expect(canProduceConfirmedPhysicalStock('mandarake')).toBe(false);
+  });
+
+  it('false for online-only providers', () => {
+    expect(canProduceConfirmedPhysicalStock('amazon_jp')).toBe(false);
+    expect(canProduceConfirmedPhysicalStock('melonbooks')).toBe(false);
+  });
+});
+
+describe('canProducePotentialPhysicalLead', () => {
+  it('true for physical-capable providers with non-none modes', () => {
+    expect(canProducePotentialPhysicalLead('sofmap')).toBe(true);
+    expect(canProducePotentialPhysicalLead('surugaya')).toBe(true);
+    expect(canProducePotentialPhysicalLead('hgame1')).toBe(true);
+    expect(canProducePotentialPhysicalLead('wondergoo')).toBe(true);
+    expect(canProducePotentialPhysicalLead('trader')).toBe(true);
+    expect(canProducePotentialPhysicalLead('mandarake')).toBe(true);
+  });
+
+  it('false for online-only providers even if physical:false', () => {
+    expect(canProducePotentialPhysicalLead('amazon_jp')).toBe(false);
+    expect(canProducePotentialPhysicalLead('melonbooks')).toBe(false);
+    expect(canProducePotentialPhysicalLead('eroge_price')).toBe(false);
+  });
+});
+
+describe('shouldShowInConfirmedPhysicalResults', () => {
+  it('true for sofmap in_stock with location_label', () => {
+    expect(shouldShowInConfirmedPhysicalResults({
+      provider: 'sofmap', availability: 'in_stock', location_label: 'Recole Akihabara',
+    })).toBe(true);
+  });
+
+  it('false when availability is out_of_stock', () => {
+    expect(shouldShowInConfirmedPhysicalResults({
+      provider: 'sofmap', availability: 'out_of_stock', location_label: 'Recole Akihabara',
+    })).toBe(false);
+  });
+
+  it('false when location_label is null', () => {
+    expect(shouldShowInConfirmedPhysicalResults({
+      provider: 'sofmap', availability: 'in_stock', location_label: null,
+    })).toBe(false);
+  });
+
+  it('false when location_label is "Online stock" (generic)', () => {
+    expect(shouldShowInConfirmedPhysicalResults({
+      provider: 'sofmap', availability: 'in_stock', location_label: 'Online stock',
+    })).toBe(false);
+  });
+
+  it('false for wondergoo even with in_stock + location (not confirmedPhysicalUsable)', () => {
+    expect(shouldShowInConfirmedPhysicalResults({
+      provider: 'wondergoo', availability: 'in_stock', location_label: 'WonderGOO Akiba',
+    })).toBe(false);
+  });
+});
+
+describe('shouldShowAsPhysicalLead', () => {
+  it('true for physical provider that is in_stock', () => {
+    expect(shouldShowAsPhysicalLead({ provider: 'wondergoo', availability: 'in_stock' })).toBe(true);
+    expect(shouldShowAsPhysicalLead({ provider: 'trader', availability: 'unknown' })).toBe(true);
+  });
+
+  it('false for physical provider that is out_of_stock', () => {
+    expect(shouldShowAsPhysicalLead({ provider: 'sofmap', availability: 'out_of_stock' })).toBe(false);
+  });
+
+  it('false for online-only provider', () => {
+    expect(shouldShowAsPhysicalLead({ provider: 'amazon_jp', availability: 'in_stock' })).toBe(false);
+    expect(shouldShowAsPhysicalLead({ provider: 'melonbooks', availability: 'in_stock' })).toBe(false);
   });
 });

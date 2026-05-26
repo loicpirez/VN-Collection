@@ -709,11 +709,26 @@ function open(): Database.Database {
       condition         TEXT,
       edition_label     TEXT,
       location_label    TEXT,
+      location_branch   TEXT,
       source_release_id TEXT,
       jan               TEXT,
       fetched_at        INTEGER NOT NULL,
       updated_at        INTEGER NOT NULL,
       error             TEXT,
+      content_kind      TEXT,
+      platform          TEXT,
+      edition_kind      TEXT,
+      series_relation   TEXT,
+      match_confidence  TEXT,
+      match_score       INTEGER,
+      match_warnings_json TEXT,
+      marketplace_price INTEGER,
+      marketplace_count INTEGER,
+      list_price        INTEGER,
+      category          TEXT,
+      store_code        TEXT,
+      product_id        TEXT,
+      page_kind         TEXT,
       PRIMARY KEY (vn_id, provider, provider_offer_id)
     );
     CREATE INDEX IF NOT EXISTS idx_vn_stock_offer_vn
@@ -1069,6 +1084,20 @@ function open(): Database.Database {
   ensureColumn(db, 'alicesoft_kobe_stock', 'egs_image_url', 'TEXT');
   ensureColumn(db, 'alicesoft_kobe_stock', 'egs_vndb_raw', 'TEXT');
   ensureColumn(db, 'vn_stock_offer', 'location_branch', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'content_kind', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'platform', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'edition_kind', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'series_relation', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'match_confidence', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'match_score', 'INTEGER');
+  ensureColumn(db, 'vn_stock_offer', 'match_warnings_json', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'marketplace_price', 'INTEGER');
+  ensureColumn(db, 'vn_stock_offer', 'marketplace_count', 'INTEGER');
+  ensureColumn(db, 'vn_stock_offer', 'list_price', 'INTEGER');
+  ensureColumn(db, 'vn_stock_offer', 'category', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'store_code', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'product_id', 'TEXT');
+  ensureColumn(db, 'vn_stock_offer', 'page_kind', 'TEXT');
 
   // Migration: rewrite EGS cover URLs to point at the resolver endpoint
   // (/api/egs-cover/{egs_id}) instead of hardcoded DMM / Suruga-ya / image.php
@@ -8957,6 +8986,20 @@ export interface VnStockOfferRow {
   fetched_at: number;
   updated_at: number;
   error: string | null;
+  content_kind: string | null;
+  platform: string | null;
+  edition_kind: string | null;
+  series_relation: string | null;
+  match_confidence: string | null;
+  match_score: number | null;
+  match_warnings_json: string | null;
+  marketplace_price: number | null;
+  marketplace_count: number | null;
+  list_price: number | null;
+  category: string | null;
+  store_code: string | null;
+  product_id: string | null;
+  page_kind: string | null;
 }
 
 export interface VnStockProviderStatusRow {
@@ -8981,12 +9024,18 @@ export function replaceVnStockProviderSnapshot(
       INSERT INTO vn_stock_offer (
         vn_id, provider, provider_offer_id, source, title, url, price, currency,
         availability, availability_label, condition, edition_label, location_label, location_branch,
-        source_release_id, jan, fetched_at, updated_at, error
+        source_release_id, jan, fetched_at, updated_at, error,
+        content_kind, platform, edition_kind, series_relation, match_confidence, match_score,
+        match_warnings_json, marketplace_price, marketplace_count, list_price,
+        category, store_code, product_id, page_kind
       )
       VALUES (
         @vn_id, @provider, @provider_offer_id, @source, @title, @url, @price, @currency,
         @availability, @availability_label, @condition, @edition_label, @location_label, @location_branch,
-        @source_release_id, @jan, @fetched_at, @updated_at, @error
+        @source_release_id, @jan, @fetched_at, @updated_at, @error,
+        @content_kind, @platform, @edition_kind, @series_relation, @match_confidence, @match_score,
+        @match_warnings_json, @marketplace_price, @marketplace_count, @list_price,
+        @category, @store_code, @product_id, @page_kind
       )
       ON CONFLICT(vn_id, provider, provider_offer_id) DO UPDATE SET
         source = excluded.source,
@@ -9004,7 +9053,21 @@ export function replaceVnStockProviderSnapshot(
         jan = excluded.jan,
         fetched_at = excluded.fetched_at,
         updated_at = excluded.updated_at,
-        error = excluded.error
+        error = excluded.error,
+        content_kind = excluded.content_kind,
+        platform = excluded.platform,
+        edition_kind = excluded.edition_kind,
+        series_relation = excluded.series_relation,
+        match_confidence = excluded.match_confidence,
+        match_score = excluded.match_score,
+        match_warnings_json = excluded.match_warnings_json,
+        marketplace_price = excluded.marketplace_price,
+        marketplace_count = excluded.marketplace_count,
+        list_price = excluded.list_price,
+        category = excluded.category,
+        store_code = excluded.store_code,
+        product_id = excluded.product_id,
+        page_kind = excluded.page_kind
     `);
     const upsertVnStockProviderStatusStmt = db.prepare(`
       INSERT INTO vn_stock_provider_status (vn_id, provider, status, message, fetched_at, offer_count)

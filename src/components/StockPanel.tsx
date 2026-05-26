@@ -40,6 +40,21 @@ interface StockOffer {
   jan: string | null;
   fetched_at: number;
   error: string | null;
+  // Classification fields (null for legacy offers pre-schema-migration)
+  content_kind: string | null;
+  platform: string | null;
+  edition_kind: string | null;
+  series_relation: string | null;
+  match_confidence: string | null;
+  match_score: number | null;
+  match_warnings_json: string | null;
+  marketplace_price: number | null;
+  marketplace_count: number | null;
+  list_price: number | null;
+  category: string | null;
+  store_code: string | null;
+  product_id: string | null;
+  page_kind: string | null;
 }
 
 interface StockStatus {
@@ -55,7 +70,10 @@ interface StockProvider {
   label: string;
   kind: 'direct' | 'aggregate' | 'cached';
   physical: boolean;
+  physicalStockMode: string;
   cloudflare: boolean;
+  branchParserImplemented: boolean;
+  confirmedPhysicalUsable: boolean;
 }
 
 interface StockSnapshot {
@@ -402,9 +420,11 @@ export function StockPanel({
                           ? t.stock.providerCached
                           : provider.kind === 'aggregate'
                             ? t.stock.providersAggregate
-                            : provider.physical
+                            : provider.confirmedPhysicalUsable
                               ? t.stock.groupPhysical
-                              : t.stock.providersDirect}
+                              : provider.physical
+                                ? t.stock.physicalCapable
+                                : t.stock.providersDirect}
                       </span>
                     </span>
                     <ProviderStatusBadge
@@ -488,72 +508,7 @@ export function StockPanel({
       )}
 
       {!loading && offers.length > 0 && (
-        <div className="mt-4">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted">
-              {t.stock.offersTitle.replace('{count}', String(offers.length))}
-            </h3>
-            {best != null && <span className="text-xs font-semibold text-accent">{currency.format(best)}</span>}
-          </div>
-          <ul className="grid gap-3 lg:grid-cols-2">
-            {offers.map((offer, index) => (
-              <li
-                key={`${offer.provider}:${offer.provider_offer_id}`}
-                className={`rounded-lg border p-3 ${
-                  index === 0 && offer.price === best && best != null
-                    ? 'border-accent/60 bg-accent/10'
-                    : 'border-border bg-bg-elev/40'
-                }`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-md border border-border bg-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
-                        {offer.provider_label}
-                      </span>
-                      <AvailabilityChip availability={offer.availability} label={availabilityLabel(t, offer)} />
-                    </div>
-                    <h3 className="mt-2 line-clamp-2 text-sm font-bold text-white">{offer.title}</h3>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-base font-black text-accent">
-                      {offer.price != null ? currency.format(offer.price) : t.stock.noPriceShort}
-                    </div>
-                    {offer.currency && <div className="text-[10px] uppercase tracking-wide text-muted">{offer.currency}</div>}
-                  </div>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted">
-                  {offer.location_branch && (
-                    <span className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 font-semibold text-accent">
-                      <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-                      {offer.location_branch}
-                    </span>
-                  )}
-                  {offer.location_label && offer.location_label !== offer.location_branch && (
-                    <span className="rounded bg-bg px-1.5 py-0.5">{offer.location_label}</span>
-                  )}
-                  {offer.condition && <span className="rounded bg-bg px-1.5 py-0.5">{offer.condition}</span>}
-                  {offer.edition_label && <span className="rounded bg-bg px-1.5 py-0.5">{offer.edition_label}</span>}
-                  {offer.jan && <span className="rounded bg-bg px-1.5 py-0.5">{t.stock.jan.replace('{jan}', offer.jan)}</span>}
-                </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[10px] text-muted">
-                    {t.stock.source.replace('{source}', stockSourceLabel(t, offer.source))}
-                  </span>
-                  <a
-                    href={offer.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-accent"
-                  >
-                    {t.stock.openShop}
-                    <ExternalLink className="h-3 w-3" aria-hidden />
-                  </a>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <OffersGrouped offers={offers} best={best} currency={currency} t={t} locale={locale} />
       )}
 
       {!loading && (failed.length > 0 || skipped.length > 0) && (
@@ -720,5 +675,210 @@ function AvailabilityChip({
     <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cls}`}>
       {label}
     </span>
+  );
+}
+
+type TDict = ReturnType<typeof useT>;
+
+function classifyGroup(offer: StockOffer): 'game' | 'series' | 'related' | 'rejected' {
+  const ck = offer.content_kind;
+  const sr = offer.series_relation;
+  const mc = offer.match_confidence;
+  if (ck === 'bonus_only' || ck === 'related_goods' || ck === 'figure' || ck === 'soundtrack' || ck === 'artbook' || ck === 'store_bonus_bundle' || sr === 'related_goods') return 'related';
+  if (mc === 'reject') return 'rejected';
+  if (sr === 'same_series_previous_game' || sr === 'sequel_or_pack') return 'series';
+  if (ck === 'game_package' || ck === null) return 'game';
+  return 'game';
+}
+
+function ConfidenceChip({ mc, t }: { mc: string | null; t: TDict }) {
+  if (!mc || mc === 'exact' || mc === 'high') return null;
+  const labels = t.stock.matchConfidence as Record<string, string>;
+  const label = labels[mc] ?? mc;
+  const cls =
+    mc === 'medium'
+      ? 'border-status-on_hold/40 bg-status-on_hold/10 text-status-on_hold'
+      : mc === 'low'
+        ? 'border-status-dropped/40 bg-status-dropped/10 text-status-dropped'
+        : 'border-border bg-bg text-muted';
+  return <span className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{label}</span>;
+}
+
+function OfferCard({
+  offer,
+  best,
+  currency,
+  t,
+  locale,
+}: {
+  offer: StockOffer;
+  best: number | null;
+  currency: Intl.NumberFormat;
+  t: TDict;
+  locale: string;
+}) {
+  const isBest = offer.price != null && offer.price === best && best != null;
+  const warnings: string[] = (() => {
+    try { return offer.match_warnings_json ? (JSON.parse(offer.match_warnings_json) as string[]) : []; }
+    catch { return []; }
+  })();
+  const mktPrice = offer.marketplace_price;
+  const mktCount = offer.marketplace_count;
+  const listPrice = offer.list_price;
+
+  return (
+    <li
+      className={`rounded-lg border p-3 ${isBest ? 'border-accent/60 bg-accent/10' : 'border-border bg-bg-elev/40'}`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-md border border-border bg-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
+              {offer.provider_label}
+            </span>
+            <AvailabilityChip availability={offer.availability} label={availabilityLabel(t, offer)} />
+            <ConfidenceChip mc={offer.match_confidence} t={t} />
+          </div>
+          <h3 className="mt-2 line-clamp-2 text-sm font-bold text-white">{offer.title}</h3>
+        </div>
+        <div className="text-right">
+          <div className="text-base font-black text-accent">
+            {offer.price != null ? currency.format(offer.price) : t.stock.noPriceShort}
+          </div>
+          {listPrice != null && listPrice > 0 && (
+            <div className="text-[10px] text-muted line-through">
+              {(t.stock.offerListPrice as string).replace('{price}', currency.format(listPrice))}
+            </div>
+          )}
+          {offer.currency && <div className="text-[10px] uppercase tracking-wide text-muted">{offer.currency}</div>}
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted">
+        {offer.location_branch && (
+          <span className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 font-semibold text-accent">
+            <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+            {offer.location_branch}
+          </span>
+        )}
+        {offer.location_label && offer.location_label !== offer.location_branch && (
+          <span className="rounded bg-bg px-1.5 py-0.5">{offer.location_label}</span>
+        )}
+        {offer.condition && <span className="rounded bg-bg px-1.5 py-0.5">{offer.condition}</span>}
+        {offer.edition_label && <span className="rounded bg-bg px-1.5 py-0.5">{offer.edition_label}</span>}
+        {offer.jan && <span className="rounded bg-bg px-1.5 py-0.5">{t.stock.jan.replace('{jan}', offer.jan)}</span>}
+        {mktPrice != null && mktPrice > 0 && (
+          <span className="rounded-md border border-border bg-bg px-1.5 py-0.5">
+            {(t.stock.offerMarketplace as string).replace('{price}', mktPrice.toLocaleString(locale))}
+            {mktCount != null && mktCount > 0 && (
+              <> {(t.stock.offerMarketplaceCount as string).replace('{count}', String(mktCount))}</>
+            )}
+          </span>
+        )}
+      </div>
+      {warnings.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {warnings.map((w) => (
+            <span key={w} className="rounded bg-status-dropped/10 px-1.5 py-0.5 text-[10px] text-status-dropped/70">
+              {w}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[10px] text-muted">
+          {t.stock.source.replace('{source}', stockSourceLabel(t, offer.source))}
+        </span>
+        <a
+          href={offer.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-accent"
+        >
+          {t.stock.openShop}
+          <ExternalLink className="h-3 w-3" aria-hidden />
+        </a>
+      </div>
+    </li>
+  );
+}
+
+function OfferGroup({
+  label,
+  offers,
+  best,
+  currency,
+  t,
+  locale,
+  defaultCollapsed = false,
+}: {
+  label: string;
+  offers: StockOffer[];
+  best: number | null;
+  currency: Intl.NumberFormat;
+  t: TDict;
+  locale: string;
+  defaultCollapsed?: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  if (offers.length === 0) return null;
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted">{label}</h3>
+        <span className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">{offers.length}</span>
+        {defaultCollapsed && (
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            className="rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent"
+          >
+            {collapsed
+              ? (t.stock.groupExpand as string).replace('{count}', String(offers.length))
+              : (t.stock.groupCollapse as string)}
+          </button>
+        )}
+      </div>
+      {!collapsed && (
+        <ul className="grid gap-3 lg:grid-cols-2">
+          {offers.map((offer) => (
+            <OfferCard key={`${offer.provider}:${offer.provider_offer_id}`} offer={offer} best={best} currency={currency} t={t} locale={locale} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function OffersGrouped({
+  offers,
+  best,
+  currency,
+  t,
+  locale,
+}: {
+  offers: StockOffer[];
+  best: number | null;
+  currency: Intl.NumberFormat;
+  t: TDict;
+  locale: string;
+}) {
+  const game = offers.filter((o) => classifyGroup(o) === 'game');
+  const series = offers.filter((o) => classifyGroup(o) === 'series');
+  const related = offers.filter((o) => classifyGroup(o) === 'related');
+  const rejected = offers.filter((o) => classifyGroup(o) === 'rejected');
+
+  return (
+    <div>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted">
+          {t.stock.offersTitle.replace('{count}', String(offers.length))}
+        </h3>
+        {best != null && <span className="text-xs font-semibold text-accent">{currency.format(best)}</span>}
+      </div>
+      <OfferGroup label={t.stock.groupGame as string} offers={game} best={best} currency={currency} t={t} locale={locale} />
+      <OfferGroup label={t.stock.groupSameSeries as string} offers={series} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
+      <OfferGroup label={t.stock.groupRelated as string} offers={related} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
+      <OfferGroup label={t.stock.groupRejected as string} offers={rejected} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
+    </div>
   );
 }

@@ -386,12 +386,6 @@ function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProvi
     for (const link of release.extlinks ?? []) {
       const host = sourceHost(link.url);
       if (PROVIDER_HOSTS[provider]?.test(host)) targets.push({ url: link.url, releaseId: release.id, jan });
-      if (provider === 'sofmap' && /sofmap\.com$/.test(host)) targets.push({ url: link.url, releaseId: release.id, jan });
-      if (provider === 'surugaya' && /suruga-ya\.(jp|com)$/.test(host)) targets.push({ url: link.url, releaseId: release.id, jan });
-      if (provider === 'melonbooks' && host === 'www.melonbooks.co.jp') targets.push({ url: link.url, releaseId: release.id, jan });
-      if (provider === 'mandarake' && /mandarake\.co\.jp$/.test(host)) targets.push({ url: link.url, releaseId: release.id, jan });
-      if (provider === 'wondergoo' && host === 'www.wonder.co.jp') targets.push({ url: link.url, releaseId: release.id, jan });
-      if (provider === 'trader' && /trader\.co\.jp$/.test(host)) targets.push({ url: link.url, releaseId: release.id, jan });
     }
     if (jan && provider === 'sofmap') {
       targets.push({
@@ -590,6 +584,11 @@ function withSofmapAdultBypass(url: string): string {
 
 async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
+  const classifyTarget: ClassifyTarget = {
+    title: vn.title ?? '',
+    altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
+    aliases,
+  };
   const targets = allTargetsForProvider(releases, 'sofmap', vn, discovered, aliases);
   for (const target of targets.slice(0, 12)) {
     const url = withSofmapAdultBypass(target.url);
@@ -597,13 +596,17 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
     const pathname = new URL(url).pathname.toLowerCase();
     if (/product_list_parts/i.test(pathname)) {
       for (const offer of parseSofmapList(html, target)) {
-        offers.push(offerInput(vnId, 'sofmap', target.releaseId ? 'direct' : 'search', now, offer));
+        const cl = classifyOffer(offer.title, offer.category ?? null, classifyTarget);
+        offers.push(offerInput(vnId, 'sofmap', target.releaseId ? 'direct' : 'search', now, { ...offer, ...classificationToFields(cl) }));
       }
       continue;
     }
     if (/product_detail/i.test(pathname)) {
       const parsed = parseSofmapDetail(html, url, target);
-      if (parsed) offers.push(offerInput(vnId, 'sofmap', 'direct', now, parsed));
+      if (parsed) {
+        const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+        offers.push(offerInput(vnId, 'sofmap', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
+      }
       continue;
     }
     const partsHref = /href=["']([^"']*product_list_parts\.aspx[^"']*)["']/i.exec(html)?.[1];
@@ -612,7 +615,8 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
         const partsUrl = withSofmapAdultBypass(absUrl(url, partsHref));
         const partsHtml = await fetchShopText(partsUrl, { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
         for (const offer of parseSofmapList(partsHtml, target)) {
-          offers.push(offerInput(vnId, 'sofmap', target.releaseId ? 'direct' : 'search', now, offer));
+          const cl = classifyOffer(offer.title, offer.category ?? null, classifyTarget);
+          offers.push(offerInput(vnId, 'sofmap', target.releaseId ? 'direct' : 'search', now, { ...offer, ...classificationToFields(cl) }));
         }
       } catch {}
       continue;
@@ -624,7 +628,10 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
       try {
         const detailHtml = await fetchShopText(withSofmapAdultBypass(detailUrl), { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
         const parsed = parseSofmapDetail(detailHtml, withSofmapAdultBypass(detailUrl), target);
-        if (parsed) offers.push(offerInput(vnId, 'sofmap', 'direct', now, parsed));
+        if (parsed) {
+          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+          offers.push(offerInput(vnId, 'sofmap', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
+        }
       } catch {}
     }
   }
@@ -657,10 +664,18 @@ export function parseHgame1Detail(html: string, url: string, target: StockTarget
 
 async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
+  const classifyTarget: ClassifyTarget = {
+    title: vn.title ?? '',
+    altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
+    aliases,
+  };
   for (const target of allTargetsForProvider(releases, 'hgame1', vn, discovered, aliases).slice(0, 20)) {
     const html = await fetchShopText(target.url, { headers: { cookie: 'age_verified=1' }, signal });
     const parsed = parseHgame1Detail(html, target.url, target);
-    if (parsed) offers.push(offerInput(vnId, 'hgame1', 'direct', now, parsed));
+    if (parsed) {
+      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+      offers.push(offerInput(vnId, 'hgame1', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
+    }
   }
   return offers;
 }
@@ -687,10 +702,18 @@ export function parseMelonbooksDetail(html: string, url: string, target: StockTa
 
 async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
+  const classifyTarget: ClassifyTarget = {
+    title: vn.title ?? '',
+    altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
+    aliases,
+  };
   for (const target of allTargetsForProvider(releases, 'melonbooks', vn, discovered, aliases).slice(0, 12)) {
     const html = await fetchShopText(target.url, { signal });
     const parsed = parseMelonbooksDetail(html, target.url, target);
-    if (parsed) offers.push(offerInput(vnId, 'melonbooks', 'direct', now, parsed));
+    if (parsed) {
+      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+      offers.push(offerInput(vnId, 'melonbooks', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
+    }
   }
   return offers;
 }
@@ -722,6 +745,11 @@ export function parseMandarakeDetail(html: string, url: string, target: StockTar
 
 async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
+  const classifyTarget: ClassifyTarget = {
+    title: vn.title ?? '',
+    altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
+    aliases,
+  };
   for (const target of allTargetsForProvider(releases, 'mandarake', vn, discovered, aliases).slice(0, 8)) {
     const html = await fetchShopText(target.url, { signal });
     const links = [...html.matchAll(/href=["']([^"']*detailPage\/item\?[^"']*itemCode=[^"']+)["']/gi)]
@@ -731,12 +759,18 @@ async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: Colle
       for (const detailUrl of [...new Set(links)].slice(0, 5)) {
         const detailHtml = await fetchShopText(detailUrl, { signal });
         const parsed = parseMandarakeDetail(detailHtml, detailUrl, target);
-        if (parsed) offers.push(offerInput(vnId, 'mandarake', 'search', now, parsed));
+        if (parsed) {
+          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+          offers.push(offerInput(vnId, 'mandarake', 'search', now, { ...parsed, ...classificationToFields(cl) }));
+        }
       }
       continue;
     }
     const parsed = parseMandarakeDetail(html, target.url, target);
-    if (parsed) offers.push(offerInput(vnId, 'mandarake', 'direct', now, parsed));
+    if (parsed) {
+      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+      offers.push(offerInput(vnId, 'mandarake', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
+    }
   }
   return offers;
 }
@@ -765,40 +799,22 @@ export function parseWondergooDetail(html: string, url: string, target: StockTar
 
 async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
+  const classifyTarget: ClassifyTarget = {
+    title: vn.title ?? '',
+    altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
+    aliases,
+  };
   for (const target of allTargetsForProvider(releases, 'wondergoo', vn, discovered, aliases).slice(0, 12)) {
     const html = await fetchShopText(target.url, { signal });
     const parsed = parseWondergooDetail(html, target.url, target);
-    if (parsed) offers.push(offerInput(vnId, 'wondergoo', 'direct', now, parsed));
+    if (parsed) {
+      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+      offers.push(offerInput(vnId, 'wondergoo', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
+    }
   }
   return offers;
 }
 
-/** @deprecated Legacy parser for old trader.co.jp HTML structure. Kept for backward compatibility. */
-export function parseTraderList(html: string, url: string, target: StockTarget): ParsedOffer[] {
-  const offers: ParsedOffer[] = [];
-  for (const m of html.matchAll(/<li>\s*<div class=["']innerBox["'][\s\S]*?<p class=["']name["']>\s*<a href=([^>\s]+)[^>]*>([\s\S]*?)<\/a><\/p>[\s\S]*?<p class=["']price["']>\s*([\s\S]*?)<\/p>/gi)) {
-    const href = (m[1] ?? '').replace(/^["']|["']$/g, '');
-    const title = stripTags(m[2] ?? '');
-    const priceText = stripTags(m[3] ?? '');
-    if (!title || !targetMatchesTitle(target, title)) continue;
-    const detailUrl = absUrl(url, href);
-    const brandcode = new URL(detailUrl).searchParams.get('brandcode') ?? detailUrl;
-    offers.push({
-      provider_offer_id: brandcode,
-      title,
-      url: detailUrl,
-      price: parsePriceYen(priceText),
-      availability: availabilityFromText(m[0] ?? '') === 'out_of_stock' ? 'out_of_stock' : 'in_stock',
-      availability_label: null,
-      condition: null,
-      edition_label: /特典|限定|limited|set|box/i.test(title) ? 'Store bonus' : null,
-      location_label: 'Trader',
-      source_release_id: target.releaseId,
-      jan: target.jan,
-    });
-  }
-  return offers;
-}
 
 function traderEditionLabel(title: string): string | null {
   if (/グッズ|タペストリー|抱き枕|特典|単品/.test(title)) return 'Bonus item';
@@ -1371,10 +1387,16 @@ function providerEncoding(provider: StockProviderId): string | undefined {
 
 async function refreshGenericProvider(provider: StockProviderId, vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
+  const classifyTarget: ClassifyTarget = {
+    title: vn.title ?? '',
+    altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
+    aliases,
+  };
   for (const target of allTargetsForProvider(releases, provider, vn, discovered, aliases).slice(0, 8)) {
     const html = await fetchShopText(target.url, { encoding: providerEncoding(provider), signal });
     for (const parsed of parseGenericProviderPage(provider, html, target.url, target).slice(0, 10)) {
-      offers.push(offerInput(vnId, provider, target.releaseId ? 'direct' : 'search', now, parsed));
+      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+      offers.push(offerInput(vnId, provider, target.releaseId ? 'direct' : 'search', now, { ...parsed, ...classificationToFields(cl) }));
     }
   }
   return offers;
@@ -1427,7 +1449,7 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
       const price = typeof rawPrice === 'number' ? rawPrice : typeof rawPrice === 'string' ? Number(rawPrice.replace(/[^\d]/g, '')) : NaN;
       const seller = sellerName(offer);
       const offerUrl = typeof offer.url === 'string' ? offer.url : url;
-      offers.push(offerInput(vnId, 'eroge_price', seller ?? 'Eroge Price', now, {
+      offers.push(offerInput(vnId, 'eroge_price', 'search', now, {
         provider_offer_id: `${seller ?? 'offer'}:${offerUrl}`,
         title,
         url: offerUrl,
@@ -1450,7 +1472,7 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
     if (!seller || !priceText) continue;
     const key = `${seller}:${edition}:${priceText}:${condition}`;
     if (offers.some((offer) => offer.provider_offer_id === key)) continue;
-    offers.push(offerInput(vnId, 'eroge_price', seller, now, {
+    offers.push(offerInput(vnId, 'eroge_price', 'search', now, {
       provider_offer_id: key,
       title,
       url,
@@ -1467,11 +1489,20 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
   return offers;
 }
 
-async function refreshErogePrice(vnId: string, egsId: number | null | undefined, now: number, signal?: AbortSignal): Promise<VnStockOfferInput[]> {
+async function refreshErogePrice(vnId: string, egsId: number | null | undefined, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   if (!egsId) return [];
   const url = `https://eroge-price.com/games/${egsId}`;
   const html = await fetchShopText(url, { signal });
-  return parseErogePrice(html, url, vnId, now);
+  const raw = parseErogePrice(html, url, vnId, now);
+  const classifyTarget: ClassifyTarget = {
+    title: vn.title ?? '',
+    altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
+    aliases,
+  };
+  return raw.map((offer) => {
+    const cl = classifyOffer(offer.title, null, classifyTarget);
+    return { ...offer, ...classificationToFields(cl) };
+  });
 }
 
 /** Build a Suruga-ya search URL using URLSearchParams. Never uses raw & concatenation. */
@@ -1762,7 +1793,7 @@ async function refreshProvider(
   signal?: AbortSignal,
   aliases: string[] = [],
 ): Promise<VnStockOfferInput[]> {
-  if (provider === 'eroge_price') return refreshErogePrice(vnId, egsId, now, signal);
+  if (provider === 'eroge_price') return refreshErogePrice(vnId, egsId, vn, now, signal, aliases);
   if (provider === 'sofmap') return refreshSofmap(vnId, releases, vn, discovered, now, signal, aliases);
   if (provider === 'hgame1') return refreshHgame1(vnId, releases, vn, discovered, now, signal, aliases);
   if (provider === 'melonbooks') return refreshMelonbooks(vnId, releases, vn, discovered, now, signal, aliases);

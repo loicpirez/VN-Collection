@@ -1,0 +1,136 @@
+import { describe, expect, it } from 'vitest';
+import {
+  classifyOffer,
+  editionFromTitle,
+  normalizeTitle,
+  platformFromCategory,
+  platformFromTitle,
+  seriesNumberMismatch,
+} from '@/lib/stock-classify';
+
+const TARGET_AIKISS3 = { title: 'アイキス3', aliases: ['アイキス3Cute', 'Ai Kiss 3'] };
+
+describe('platformFromCategory', () => {
+  it('Switch', () => expect(platformFromCategory('ニンテンドースイッチソフト')).toBe('Switch'));
+  it('PS4', () => expect(platformFromCategory('PS4ソフト')).toBe('PS4'));
+  it('PS5', () => expect(platformFromCategory('PS5ソフト')).toBe('PS5'));
+  it('PSVita', () => expect(platformFromCategory('PSVITAソフト')).toBe('PSVita'));
+  it('PC', () => expect(platformFromCategory('PCソフト')).toBe('PC'));
+  it('unknown category', () => expect(platformFromCategory('タペストリー')).toBe('unknown'));
+  it('empty string', () => expect(platformFromCategory('')).toBe('unknown'));
+});
+
+describe('platformFromTitle', () => {
+  it('detects Switch in title', () => expect(platformFromTitle('PS4/Switchソフト アイキス3Cute')).toBe('Switch'));
+  it('detects PS4 in title', () => expect(platformFromTitle('PS4版 タイトル')).toBe('PS4'));
+  it('returns unknown for unrelated title', () => expect(platformFromTitle('アクリルスタンド')).toBe('unknown'));
+});
+
+describe('editionFromTitle', () => {
+  it('通常版 → standard', () => expect(editionFromTitle('アイキス3Cute [通常版]')).toBe('standard'));
+  it('初回限定版 → first_press', () => expect(editionFromTitle('タイトル [初回限定版]')).toBe('first_press'));
+  it('完全生産限定版 → limited', () => expect(editionFromTitle('タイトル [完全生産限定版]')).toBe('limited'));
+  it('限定版 → limited', () => expect(editionFromTitle('タイトル 限定版')).toBe('limited'));
+  it('ランクB → used_rank_b', () => expect(editionFromTitle('タイトル ランクB')).toBe('used_rank_b'));
+  it('no edition → unknown', () => expect(editionFromTitle('タイトル')).toBe('unknown'));
+});
+
+describe('normalizeTitle', () => {
+  it('lowercases and removes brackets', () => {
+    expect(normalizeTitle('アイキス3Cute [通常版]')).toBe('アイキス3cute 通常版');
+  });
+  it('full-width to half-width', () => {
+    expect(normalizeTitle('Ａｉ　Ｋｉｓｓ')).toBe('ai kiss');
+  });
+});
+
+describe('seriesNumberMismatch', () => {
+  it('アイキス2 vs アイキス3 → mismatch', () =>
+    expect(seriesNumberMismatch('アイキス2 [完全生産限定版]', 'アイキス3')).toBe(true));
+
+  it('アイキス3Cute vs アイキス3 → no mismatch', () =>
+    expect(seriesNumberMismatch('アイキス3Cute [通常版]', 'アイキス3')).toBe(false));
+
+  it('アイキス (no number) vs アイキス3 → no mismatch from this fn', () =>
+    expect(seriesNumberMismatch('アイキス [通常版]', 'アイキス3')).toBe(false));
+
+  it('target has no number → no mismatch', () =>
+    expect(seriesNumberMismatch('タイトルB', 'タイトル')).toBe(false));
+});
+
+describe('classifyOffer — アイキス3Cute [通常版] + Switch', () => {
+  const cl = classifyOffer('アイキス3Cute [通常版]', 'ニンテンドースイッチソフト', TARGET_AIKISS3);
+
+  it('contentKind = game_package', () => expect(cl.contentKind).toBe('game_package'));
+  it('platform = Switch', () => expect(cl.platform).toBe('Switch'));
+  it('editionKind = standard', () => expect(cl.editionKind).toBe('standard'));
+  it('seriesRelation = exact_game', () => expect(cl.seriesRelation).toBe('exact_game'));
+  it('matchConfidence = exact or high (score >= 70)', () =>
+    expect(['exact', 'high']).toContain(cl.matchConfidence));
+  it('no match warnings about bonus-only', () =>
+    expect(cl.matchWarnings).not.toContain('bonus-only item'));
+  it('matchScore >= 70', () => expect(cl.matchScore).toBeGreaterThanOrEqual(70));
+});
+
+describe('classifyOffer — [単品] アクリルスタンド inside bonus bundle', () => {
+  const cl = classifyOffer(
+    '[単品] 真庭花梨 アクリルスタンド 「PS4/Switchソフト アイキス3Cute WonderGOO限定セット」 同梱特典',
+    'アクリルスタンド・アクリルパネル',
+    TARGET_AIKISS3,
+  );
+
+  it('contentKind = bonus_only', () => expect(cl.contentKind).toBe('bonus_only'));
+  it('matchConfidence = reject (not a game package)', () => expect(cl.matchConfidence).toBe('reject'));
+  it('matchWarnings contains bonus-only item', () =>
+    expect(cl.matchWarnings).toContain('bonus-only item'));
+  it('seriesRelation = related_goods', () => expect(cl.seriesRelation).toBe('related_goods'));
+  it('matchScore < 10', () => expect(cl.matchScore).toBeLessThan(10));
+});
+
+describe('classifyOffer — タペストリー category', () => {
+  const cl = classifyOffer('アイキス3 タペストリー', 'タペストリー', TARGET_AIKISS3);
+
+  it('contentKind = related_goods', () => expect(cl.contentKind).toBe('related_goods'));
+  it('matchConfidence = reject', () => expect(cl.matchConfidence).toBe('reject'));
+  it('matchWarnings contains related goods', () =>
+    expect(cl.matchWarnings.join(' ')).toMatch(/related goods/i));
+  it('seriesRelation = related_goods', () => expect(cl.seriesRelation).toBe('related_goods'));
+});
+
+describe('classifyOffer — アイキス2 when target is アイキス3', () => {
+  const cl = classifyOffer('アイキス2 [完全生産限定版]', 'ニンテンドースイッチソフト', TARGET_AIKISS3);
+
+  it('seriesRelation = same_series_previous_game', () =>
+    expect(cl.seriesRelation).toBe('same_series_previous_game'));
+  it('matchConfidence = low (score 10-39) or reject', () =>
+    expect(['low', 'reject']).toContain(cl.matchConfidence));
+  it('matchWarnings mentions same series but different game', () =>
+    expect(cl.matchWarnings).toContain('same series but different game'));
+});
+
+describe('classifyOffer — アイキス (unnumbered) when target is アイキス3', () => {
+  const cl = classifyOffer('アイキス [通常版]', 'ニンテンドースイッチソフト', TARGET_AIKISS3);
+
+  it('seriesRelation = same_series_previous_game (base match without number)', () =>
+    expect(cl.seriesRelation).toBe('same_series_previous_game'));
+  it('matchConfidence not high', () => expect(['low', 'reject', 'medium']).toContain(cl.matchConfidence));
+});
+
+describe('classifyOffer — figure category', () => {
+  const cl = classifyOffer('アイキス3 フィギュア', 'フィギュア', TARGET_AIKISS3);
+  it('contentKind = figure', () => expect(cl.contentKind).toBe('figure'));
+  it('matchConfidence = reject', () => expect(cl.matchConfidence).toBe('reject'));
+});
+
+describe('classifyOffer — unrelated title', () => {
+  const cl = classifyOffer('全く別のゲーム [通常版]', 'ニンテンドースイッチソフト', TARGET_AIKISS3);
+  it('seriesRelation = unrelated', () => expect(cl.seriesRelation).toBe('unrelated'));
+  it('matchConfidence = low or reject (game+40 platform+10 edition+10 unrelated-40 = 20)', () =>
+    expect(['low', 'reject']).toContain(cl.matchConfidence));
+});
+
+describe('classifyOffer — alias match', () => {
+  const cl = classifyOffer('アイキス3Cute [限定版]', 'ニンテンドースイッチソフト', TARGET_AIKISS3);
+  it('alias アイキス3Cute triggers exact_game', () => expect(cl.seriesRelation).toBe('exact_game'));
+  it('matchConfidence = exact or high', () => expect(['exact', 'high']).toContain(cl.matchConfidence));
+});
