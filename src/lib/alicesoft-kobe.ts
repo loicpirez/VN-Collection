@@ -533,7 +533,7 @@ function isSafeAutoCandidate(
   const coverage = primary ? q.length / primary.length : 1;
   if (coverage < 0.5 && !closeRelease) return false;
 
-  return closeRelease || exactTitle || score >= 60;
+  return closeRelease || exactTitle || score >= 55;
 }
 
 function egsMeta(game: EgsGame | null | undefined): Parameters<typeof setKobeEgsLink>[3] | undefined {
