@@ -85,8 +85,6 @@ interface WishlistItem {
   };
   in_collection: boolean;
   egs: { median: number | null; playtime_median_minutes: number | null } | null;
-  stock_available: number | null;
-  stock_best_price: number | null;
 }
 
 // Same WeakMap-cached projection trick as `LibraryClient`'s `toCardData`
@@ -153,8 +151,6 @@ function wishlistCardData(it: WishlistItem): CardData {
     inCollectionBadge: it.in_collection,
     egs_median: it.egs?.median ?? null,
     egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
-    stockAvailable: it.stock_available,
-    stockBestPrice: it.stock_best_price,
   };
   wishlistCache.set(it, data);
   return data;

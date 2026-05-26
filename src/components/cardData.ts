@@ -43,13 +43,8 @@ export function toCardData(it: CollectionItem): CardData {
     developers: it.developers,
     publishers: it.publishers,
     isFanDisc: (it.relations ?? []).some((r) => r.relation === 'orig'),
-    // Annotated by the `/api/collection` route via
-    // `countListMembershipsByVn` — gives the ListsPicker its initial
-    // badge count without a popover open.
     listCount: it.list_count ?? 0,
     inCollectionBadge: !!it.status,
-    stockAvailable: it.stock_available ?? null,
-    stockBestPrice: it.stock_best_price ?? null,
   };
   cardDataCache.set(it, data);
   return data;
