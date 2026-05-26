@@ -260,6 +260,15 @@ function knownTitleDialectVariants(value: string): string[] {
 
   if (/A\.G\.2\.D\.C\./i.test(t)) out.push(tidySpaces(t.replace(/A\.G\.2\.D\.C\./gi, 'A.G.II.D.C.')));
   if (/LOWな妹/i.test(t)) out.push(tidySpaces(t.replace(/LOWな妹に.*$/i, 'LOWな妹')));
+  if (/すりーえす/i.test(t) || /ＳＳＳ|SSS/.test(t)) out.push('SSS Three S');
+  if (/黒山羊\s*くろやぎ/u.test(t)) out.push('黒山羊');
+  if (/催淫キーワード/u.test(t)) out.push('Saiin Haramase Keyword');
+  if (/ドSお姉さんは好きですか/u.test(t)) out.push(tidySpaces(t.replace(/ドSお姉さんは好きですか/gu, 'ドSなお姉さんは好きですか')));
+  if (/ガンマディメンジョン/u.test(t)) out.push(tidySpaces(t.replace(/ガンマディメンジョン/gu, 'GAMMA DIMENSION')));
+  if (/戦国恋姫ブレイブ壱/u.test(t)) {
+    out.push(tidySpaces(t.replace(/戦国恋姫ブレイブ壱/gu, '戦国†恋姫BRAVE壱')));
+    out.push(tidySpaces(t.replace(/戦国恋姫ブレイブ壱/gu, '戦国恋姫 BRAVE 壱')));
+  }
 
   return out.filter((v) => v && v !== t);
 }
@@ -423,6 +432,14 @@ function normalizeReleaseDate(value: string | null): string | null {
   return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
 }
 
+function releaseDayDistance(a: string | null | undefined, b: string | null | undefined): number | null {
+  if (!a || !b) return null;
+  const at = Date.parse(`${a}T00:00:00Z`);
+  const bt = Date.parse(`${b}T00:00:00Z`);
+  if (!Number.isFinite(at) || !Number.isFinite(bt)) return null;
+  return Math.abs(at - bt) / 86_400_000;
+}
+
 function comparableTitle(value: string | null | undefined): string {
   if (!value) return '';
   return normalizePunctuation(value)
@@ -490,21 +507,33 @@ function isSafeAutoCandidate(
   score: number,
   query: string,
   releaseDate: string | null,
+  primaryQuery: string,
 ): candidate is KobeCandidate {
   if (!candidate) return false;
   const q = comparableTitle(query);
+  const primary = comparableTitle(primaryQuery);
   const exactRelease = Boolean(releaseDate && candidate.released === releaseDate);
+  const closeRelease = releaseDayDistance(releaseDate, candidate.released) != null
+    && releaseDayDistance(releaseDate, candidate.released)! <= 370;
   const textMatch = hasCandidateTextMatch(candidate, query);
+  const exactTitle = candidateTextValues(candidate).map(comparableTitle).some((text) => text === q);
   if (!textMatch) return false;
+  if (exactRelease) return true;
 
   // Short fallback queries are useful for titles like ぎゃるふろ, but unsafe for
   // accidental stems like すくぅ from すくぅ～るメイト２. Require date support.
-  if (q.length < 4) {
-    const exactTitle = candidateTextValues(candidate).map(comparableTitle).some((text) => text === q);
-    return exactRelease || exactTitle;
+  if (q.length < 6) {
+    return closeRelease && (exactTitle || score >= 40);
   }
 
-  return exactRelease || score >= 45;
+  // Progressive trim queries are intentionally late fallbacks, but they can be
+  // too broad: "ティンクル" should not auto-link a 2023 item to Twinkle Crusaders.
+  // If the query covers less than half of the cleaned shop title, require
+  // release-date support before accepting it.
+  const coverage = primary ? q.length / primary.length : 1;
+  if (coverage < 0.5 && !closeRelease) return false;
+
+  return closeRelease || exactTitle || score >= 60;
 }
 
 function egsMeta(game: EgsGame | null | undefined): Parameters<typeof setKobeEgsLink>[3] | undefined {
@@ -613,7 +642,7 @@ async function searchKobeVndbCandidates(item: KobeStockRow): Promise<{
     }));
     if (candidates.length === 0) continue;
     const picked = pickBestCandidate(candidates, query, releaseDate);
-    const top = isSafeAutoCandidate(picked?.candidate ?? null, picked?.score ?? 0, query, releaseDate)
+    const top = isSafeAutoCandidate(picked?.candidate ?? null, picked?.score ?? 0, query, releaseDate, queries[0] ?? query)
       ? picked!.candidate
       : null;
     if (!top) continue;

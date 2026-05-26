@@ -70,6 +70,14 @@ describe('Alice Kobe title cleanup', () => {
       .toContain('D.C.II ~ダ・カーポII~ Fall in Love');
     expect(buildKobeTitleSearchQueries('(中古品) Ａ．Ｇ．２．Ｄ．Ｃ．　～あるぴじ学園２～　初回版'))
       .toContain('A.G.II.D.C. ~あるぴじ学園2~');
+    expect(buildKobeTitleSearchQueries('(中古品) すりーえすＳＳＳ　初回版'))
+      .toContain('SSS Three S');
+    expect(buildKobeTitleSearchQueries('(中古品) ドＳお姉さんは好きですか？　廉価版'))
+      .toContain('ドSなお姉さんは好きですか?');
+    expect(buildKobeTitleSearchQueries('(中古品) ガンマディメンジョン～アルファナイトフォークＦＤ～'))
+      .toContain('GAMMA DIMENSION~アルファナイトフォークFD~');
+    expect(buildKobeTitleSearchQueries('(中古品) 戦国恋姫ブレイブ壱'))
+      .toContain('戦国†恋姫BRAVE壱');
   });
 
   it('extracts subtitle and tail probes when the shop title has a typo or package prefix', () => {
