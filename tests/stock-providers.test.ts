@@ -7,6 +7,7 @@ import {
   parseHgame1Detail,
   parseMelonbooksDetail,
   parseSofmapDetail,
+  parseSofmapList,
   parseTraderList,
   parseWondergooDetail,
 } from '@/lib/stock';
@@ -70,6 +71,42 @@ describe('stock provider coverage', () => {
 });
 
 describe('stock provider parsers', () => {
+  it('parses Sofmap product_list_parts.aspx per-store items', () => {
+    const html = `<ul id="change_style_list" class="product_list">
+      <li><div class="mainbox">
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=414997619" class="itemimg"><img alt="Sample VN"></a>
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=414997619" class="product_name">〔中古品〕 Sample VN【PCゲームソフト】</a>
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=414997619" class="product_name product_name_type_list" style="display:none;">〔中古品〕 Sample VN【PCゲームソフト】</a>
+        <span class="price"><strong>&yen;2,980<i>(税込)</i></strong></span>
+        <!-- stock_disp_id : TENPO_IN_STOCK --><span class="ic stock inshop">店舗併売品</span>
+        <dl class="used_link shop"><dd><a href="https://www.sofmap.com/tenpo/contents/?id=shops&sid=akiba_ams">AKIBA アミューズメント館</a></dd></dl>
+      </div></li>
+      <li><div class="mainbox">
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=414731757" class="itemimg"><img alt="Sample VN"></a>
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=414731757" class="product_name">〔中古品〕 Sample VN【PCゲームソフト】</a>
+        <span class="price"><strong>&yen;2,980<i>(税込)</i></strong></span>
+        <!-- stock_disp_id : TENPO_IN_STOCK --><span class="ic stock inshop">店舗併売品</span>
+        <dl class="used_link shop"><dd><a href="https://www.sofmap.com/tenpo/contents/?id=shops&sid=oomiya">大宮店</a></dd></dl>
+      </div></li>
+    </ul>`;
+    const offers = parseSofmapList(html, { ...target, query: 'Sample VN', jan: '4989061101573' });
+    expect(offers).toHaveLength(2);
+    expect(offers[0]).toMatchObject({
+      provider_offer_id: '414997619',
+      title: '〔中古品〕 Sample VN【PCゲームソフト】',
+      price: 2980,
+      availability: 'in_stock',
+      condition: 'Used',
+      location_label: 'AKIBA アミューズメント館',
+    });
+    expect(offers[1]).toMatchObject({ provider_offer_id: '414731757', location_label: '大宮店' });
+  });
+
+  it('parseSofmapList returns empty array when no change_style_list present', () => {
+    const offers = parseSofmapList('<title>PCゲーム</title><h1>PCゲーム</h1>', target);
+    expect(offers).toEqual([]);
+  });
+
   it('parses Sofmap detail price and limited stock', () => {
     const offer = parseSofmapDetail(
       `<h1>Sample Title</h1>

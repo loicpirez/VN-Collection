@@ -279,7 +279,7 @@ function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProvi
     }
     if (jan && provider === 'sofmap') {
       targets.push({
-        url: `https://a.sofmap.com/search_result.aspx?product_type=USED&gid=002210010010&new_jan=${encodeURIComponent(jan)}`,
+        url: `https://a.sofmap.com/product_list_parts.aspx?product_type=USED&gid=002210010010&new_jan=${encodeURIComponent(jan)}`,
         releaseId: release.id,
         jan,
       });
@@ -383,6 +383,50 @@ function firstMatchText(html: string, re: RegExp): string | null {
   return m?.[1] ? stripTags(m[1]) : null;
 }
 
+export function parseSofmapList(html: string, target: StockTarget): ParsedOffer[] {
+  const offers: ParsedOffer[] = [];
+  const listStart = html.indexOf('id="change_style_list"');
+  const searchFrom = listStart === -1 ? 0 : listStart;
+  const listEnd = html.indexOf('</ul>', searchFrom);
+  const listHtml = listEnd === -1 ? html.slice(searchFrom) : html.slice(searchFrom, listEnd + 5);
+  for (const m of listHtml.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)) {
+    const block = m[1] ?? '';
+    if (!block.includes('product_detail')) continue;
+    const detailHref = /<a\s+href=["'](https?:\/\/[^"']*product_detail[^"']*sku=(\d+)[^"']*)["'][^>]*class=["']itemimg["']/i.exec(block);
+    if (!detailHref?.[1] || !detailHref[2]) continue;
+    const detailUrl = detailHref[1];
+    const sku = detailHref[2];
+    const titleHtml = /<a\s[^>]*class=["']product_name["'][^>]*>([\s\S]*?)<\/a>/i.exec(block)?.[1] ?? '';
+    const title = stripTags(titleHtml);
+    if (!title || !targetMatchesTitle(target, title)) continue;
+    const priceBlock = /<span\s+class=["']price["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
+    const stockCommentId = /<!--\s*stock_disp_id\s*:\s*(\w+)\s*-->/.exec(block)?.[1] ?? '';
+    const stockSpan = /<span[^>]*\bstock\b[^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
+    const stockText = stripTags(stockSpan);
+    const availability: VnStockAvailability =
+      /(OUT|SOLD)/i.test(stockCommentId) ? 'out_of_stock' :
+      /IN_STOCK/i.test(stockCommentId) ? 'in_stock' :
+      availabilityFromText(stockText);
+    const storeBlock = /<dl\b[^>]*used_link[^>]*>([\s\S]*?)<\/dl>/i.exec(block)?.[1] ?? '';
+    const storeAnchor = /<a\s+href=["'][^"']*tenpo[^"']*["'][^>]*>([\s\S]*?)<\/a>/i.exec(storeBlock)?.[1];
+    const location = storeAnchor ? stripTags(storeAnchor).trim() : null;
+    offers.push({
+      provider_offer_id: sku,
+      title,
+      url: detailUrl,
+      price: parsePriceYen(priceBlock),
+      availability,
+      availability_label: stockText || null,
+      condition: /中古/.test(block) ? 'Used' : null,
+      edition_label: null,
+      location_label: location ?? 'Sofmap',
+      source_release_id: target.releaseId,
+      jan: target.jan,
+    });
+  }
+  return offers;
+}
+
 export function parseSofmapDetail(html: string, url: string, target: StockTarget): ParsedOffer | null {
   const title = firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
   if (!title || /18歳以上ですか/.test(title)) return null;
@@ -417,19 +461,39 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
   for (const target of targets.slice(0, 12)) {
     const url = withSofmapAdultBypass(target.url);
     const html = await fetchShopText(url, { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
-    const detailLinks = [...html.matchAll(/href=["']([^"']*product_detail(?:_sp)?\.aspx\?sku=[^"']+)["']/gi)]
-      .map((m) => absUrl(url, m[1] ?? ''))
-      .filter((href) => sourceHost(href).endsWith('sofmap.com'));
-    if (detailLinks.length > 0 && !/product_detail/i.test(new URL(url).pathname)) {
-      for (const detailUrl of [...new Set(detailLinks)].slice(0, 5)) {
-        const detailHtml = await fetchShopText(withSofmapAdultBypass(detailUrl), { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
-        const parsed = parseSofmapDetail(detailHtml, withSofmapAdultBypass(detailUrl), target);
-        if (parsed) offers.push(offerInput(vnId, 'sofmap', 'direct', now, parsed));
+    const pathname = new URL(url).pathname.toLowerCase();
+    if (/product_list_parts/i.test(pathname)) {
+      for (const offer of parseSofmapList(html, target)) {
+        offers.push(offerInput(vnId, 'sofmap', target.releaseId ? 'direct' : 'search', now, offer));
       }
       continue;
     }
-    const parsed = parseSofmapDetail(html, url, target);
-    if (parsed) offers.push(offerInput(vnId, 'sofmap', 'direct', now, parsed));
+    if (/product_detail/i.test(pathname)) {
+      const parsed = parseSofmapDetail(html, url, target);
+      if (parsed) offers.push(offerInput(vnId, 'sofmap', 'direct', now, parsed));
+      continue;
+    }
+    const partsHref = /href=["']([^"']*product_list_parts\.aspx[^"']*)["']/i.exec(html)?.[1];
+    if (partsHref) {
+      try {
+        const partsUrl = withSofmapAdultBypass(absUrl(url, partsHref));
+        const partsHtml = await fetchShopText(partsUrl, { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
+        for (const offer of parseSofmapList(partsHtml, target)) {
+          offers.push(offerInput(vnId, 'sofmap', target.releaseId ? 'direct' : 'search', now, offer));
+        }
+      } catch {}
+      continue;
+    }
+    const detailLinks = [...html.matchAll(/href=["']([^"']*product_detail[^"']*sku=[^"']+)["']/gi)]
+      .map((m) => absUrl(url, m[1] ?? ''))
+      .filter((href) => sourceHost(href).endsWith('sofmap.com'));
+    for (const detailUrl of [...new Set(detailLinks)].slice(0, 5)) {
+      try {
+        const detailHtml = await fetchShopText(withSofmapAdultBypass(detailUrl), { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
+        const parsed = parseSofmapDetail(detailHtml, withSofmapAdultBypass(detailUrl), target);
+        if (parsed) offers.push(offerInput(vnId, 'sofmap', 'direct', now, parsed));
+      } catch {}
+    }
   }
   return offers;
 }

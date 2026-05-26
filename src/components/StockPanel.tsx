@@ -70,6 +70,8 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedProviders, setSelectedProviders] = useState<string[] | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [currentProvider, setCurrentProvider] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const currency = useMemo(
@@ -105,22 +107,33 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
     abortRef.current = ctrl;
     setRefreshing(true);
     setError(null);
-    try {
-      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(selectedProviders ? { providers: selectedProviders } : {}),
-        signal: ctrl.signal,
-      });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      setSnapshot((await r.json()) as StockSnapshot);
-    } catch (e) {
-      if ((e as Error).name !== 'AbortError') setError((e as Error).message);
-    } finally {
-      if (abortRef.current === ctrl) abortRef.current = null;
-      setRefreshing(false);
-      setLoading(false);
+
+    const toCheck = selectedProviders ?? refreshableProviders.map((p) => p.id);
+    setProgress({ done: 0, total: toCheck.length });
+    setCurrentProvider(null);
+
+    for (let i = 0; i < toCheck.length; i++) {
+      if (ctrl.signal.aborted) break;
+      const provider = toCheck[i];
+      setCurrentProvider(provider);
+      try {
+        const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providers: [provider] }),
+          signal: ctrl.signal,
+        });
+        if (r.ok) setSnapshot((await r.json()) as StockSnapshot);
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') break;
+      }
+      setProgress({ done: i + 1, total: toCheck.length });
     }
+
+    setCurrentProvider(null);
+    if (abortRef.current === ctrl) abortRef.current = null;
+    setRefreshing(false);
+    setLoading(false);
   }
 
   function stop() {
@@ -213,7 +226,10 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
           >
             {refreshing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
             {refreshing
-              ? t.stock.checkingProviders.replace('{count}', String(selectedProviderIds.length || refreshableProviders.length))
+              ? t.stock.checkingProviders.replace(
+                  '{count}',
+                  progress ? `${progress.done}/${progress.total}` : String(selectedProviderIds.length || refreshableProviders.length),
+                )
               : t.stock.check}
           </button>
         </div>
@@ -296,7 +312,7 @@ export function StockPanel({ vnId, title, dense = false }: { vnId: string; title
                         {provider.kind === 'cached' ? t.stock.providerCached : provider.kind === 'aggregate' ? t.stock.providersAggregate : t.stock.providersDirect}
                       </span>
                     </span>
-                    <ProviderStatusBadge t={t} status={status} count={count} cached={provider.kind === 'cached'} />
+                    <ProviderStatusBadge t={t} status={status} count={count} cached={provider.kind === 'cached'} loading={refreshing && currentProvider === provider.id} />
                   </span>
                 </button>
               );
@@ -424,12 +440,17 @@ function ProviderStatusBadge({
   status,
   count,
   cached,
+  loading = false,
 }: {
   t: ReturnType<typeof useT>;
   status: StockStatus | undefined;
   count: number;
   cached: boolean;
+  loading?: boolean;
 }) {
+  if (loading) {
+    return <Loader2 className="h-3 w-3 animate-spin text-accent" aria-hidden />;
+  }
   if (cached) {
     return <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">{count}</span>;
   }
