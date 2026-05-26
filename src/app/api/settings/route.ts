@@ -154,7 +154,7 @@ function maskBackupUrl(value: string | null): {
   return { hasUrl: !!value, host, isDefault };
 }
 
-export async function GET(req: Request) {
+export async function GET(req: Request): Promise<NextResponse> {
   // Settings hold the VNDB token, Steam API key, EGS username, and
   // backup URL. The GET path returns masked previews but still
   // confirms the existence of credentials — gated.
@@ -208,7 +208,7 @@ export async function GET(req: Request) {
   }
 }
 
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: NextRequest): Promise<NextResponse> {
   // PATCH can replace the token, backup URL, etc. — a remote
   // attacker who hits this can silently re-route every cached
   // /vn or /producer call through their server.

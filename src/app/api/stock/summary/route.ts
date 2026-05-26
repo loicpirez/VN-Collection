@@ -24,7 +24,7 @@ function parseIds(raw: string | string[] | null | undefined): string[] {
     .slice(0, MAX_IDS);
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const ids = parseIds(req.nextUrl.searchParams.get('ids'));
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ summary });
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   let body: unknown = null;

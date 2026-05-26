@@ -4,7 +4,7 @@ import { searchTags } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const sp = req.nextUrl.searchParams;
   const q = sp.get('q') ?? '';
   const cat = sp.get('category') ?? undefined;

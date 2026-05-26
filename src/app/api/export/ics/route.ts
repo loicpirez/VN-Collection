@@ -78,7 +78,7 @@ function dtstamp(): string {
  *   - All events are all-day. No way to capture "started at 21:00" in the
  *     current schema and a fake time would be worse than no time.
  */
-export async function GET(req: Request) {
+export async function GET(req: Request): Promise<NextResponse> {
   // ICS reveals reading dates per VN — PII. Gate.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;

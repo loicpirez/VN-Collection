@@ -59,14 +59,22 @@ function writeParsed<T>(cacheKey: string, sourceUrl: string, data: T): VndbTagWe
   return { data, fetched_at: fetchedAt, stale: false, source_url: sourceUrl, warning: null };
 }
 
+/** Read the cached `/g` home-tree payload without issuing a network fetch. */
 export function readVndbTagHomeTreeCache(): VndbTagWebCacheResult<VndbTagHomeTree> | null {
   return readParsed<VndbTagHomeTree>(HOME_KEY);
 }
 
+/** Read the cached `/g<id>` detail payload without issuing a network fetch. */
 export function readVndbTagWebDetailCache(tagId: string): VndbTagWebCacheResult<VndbTagWebDetail> | null {
   return readParsed<VndbTagWebDetail>(`${DETAIL_KEY_PREFIX}${tagId.toLowerCase()}`);
 }
 
+/**
+ * Resolve the tag home tree from cache, refetching when stale or `force`.
+ * On network failure with a usable cache, returns the cached payload with
+ * a `stale: true` flag so the page can surface a "stale" badge instead of
+ * showing nothing.
+ */
 export async function getVndbTagHomeTree(opts: { force?: boolean } = {}): Promise<VndbTagWebCacheResult<VndbTagHomeTree>> {
   const cached = readVndbTagHomeTreeCache();
   if (cached && !cached.stale && !opts.force) return cached;
@@ -79,6 +87,10 @@ export async function getVndbTagHomeTree(opts: { force?: boolean } = {}): Promis
   return writeParsed(HOME_KEY, 'https://vndb.org/g', parseVndbTagHomeTree(html));
 }
 
+/**
+ * Resolve one tag's detail payload from cache, refetching when stale or
+ * `force`. Stale-while-error behaviour mirrors `getVndbTagHomeTree`.
+ */
 export async function getVndbTagWebDetail(
   tagId: string,
   opts: { force?: boolean } = {},
@@ -96,6 +108,7 @@ export async function getVndbTagWebDetail(
   return writeParsed(key, `https://vndb.org/${id}`, parseVndbTagWebDetail(html, id));
 }
 
+/** Force-refresh the cached tag home tree; detail pages refresh on demand. */
 export async function refreshVndbTagWebCache(): Promise<void> {
   await getVndbTagHomeTree({ force: true });
 }

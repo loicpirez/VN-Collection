@@ -13,6 +13,12 @@
 import type { Locale } from './i18n/dictionaries';
 import { getDict } from './i18n/server'; // Note: Server-only helper, but we pass dictionaries.
 
+/**
+ * Format minutes into a short "Xh Ym" / "Xh" / "Ym" string. Pass `t` for
+ * localised unit suffixes; pass `opts.fallback` for the empty-state string
+ * and `emptyValue: 'allow_zero'` when `0` is a meaningful value (e.g. a
+ * playtime of "started but not yet played").
+ */
 export function formatMinutes(
   m: number | null | undefined,
   locale?: Locale,
@@ -32,6 +38,10 @@ export function formatMinutes(
   return `${mn}${mu}`;
 }
 
+/**
+ * Variant of `formatMinutes` that returns `null` for empty/non-positive
+ * inputs so callers can conditionally render the cell entirely.
+ */
 export function formatMinutesOrNull(
   m: number | null | undefined,
   locale?: Locale,

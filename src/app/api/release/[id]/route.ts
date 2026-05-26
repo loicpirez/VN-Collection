@@ -4,7 +4,7 @@ import { getRelease } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   if (!/^r\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {

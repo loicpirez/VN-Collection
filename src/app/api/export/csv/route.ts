@@ -59,7 +59,7 @@ function csvEscape(v: unknown): string {
  * tripping but matches what humans actually want to see in Excel. For
  * structured re-import use the JSON backup endpoint instead.
  */
-export async function GET(req: Request) {
+export async function GET(req: Request): Promise<NextResponse> {
   // CSV / ICS / JSON exports all carry PII (notes, ratings,
   // play history). Gate behind localhost / admin token.
   const denied = requireLocalhostOrToken(req);

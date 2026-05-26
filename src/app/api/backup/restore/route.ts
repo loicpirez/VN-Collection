@@ -15,7 +15,7 @@ const SQLITE_MAGIC = Buffer.from('SQLite format 3\0', 'utf-8');
 // assets, since images live on disk not in the SQLite file.
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   // Restoring overwrites every row — must be loopback / token only.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;

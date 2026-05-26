@@ -19,7 +19,7 @@ const VALID_CHOICES: SourceChoice[] = ['auto', 'vndb', 'egs', 'custom'];
 // intentionally public — single-user self-hosted app; per-VN source pref
 // indicates whether VNDB or EGS data is preferred for that VN. Mutating
 // handler below remains gated.
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ pref: getSourcePref(id) });
 }
 
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

@@ -19,7 +19,7 @@ const PROVIDER_TEST_URLS: Record<ProviderId, string> = {
 
 const VALID_PROVIDERS = new Set<string>(['vndb', 'vndbmirror', 'egs', 'alicesoft_kobe', 'stock']);
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
 

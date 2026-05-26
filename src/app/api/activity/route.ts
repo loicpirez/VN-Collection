@@ -11,7 +11,7 @@ function num(v: string | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
   const sp = req.nextUrl.searchParams;

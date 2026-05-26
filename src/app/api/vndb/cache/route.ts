@@ -19,7 +19,7 @@ function logCacheInvalidate(payload: Record<string, unknown>) {
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
+export async function GET(req: Request): Promise<NextResponse> {
   // Cache stats include the list of cached path tags — minor info
   // disclosure (reveals which endpoints the user hits). Gate too.
   const denied = requireLocalhostOrToken(req);
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ stats: cacheStats() });
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
   // Cache wipe forces slow re-fetches against the rate-limited
   // VNDB endpoint — DoS amplifier from anywhere on the LAN.
   const denied = requireLocalhostOrToken(req);

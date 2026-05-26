@@ -5,7 +5,7 @@ import { getGlobalStats } from '@/lib/vndb';
 export const dynamic = 'force-dynamic';
 export const revalidate = 3600;
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   try {
     const stats = await getGlobalStats();
     return NextResponse.json({ stats });

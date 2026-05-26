@@ -60,6 +60,11 @@ async function brandInfo(id: string, vnCount: number): Promise<BrandOverlapBrand
   }
 }
 
+/**
+ * Resolve every VN credited to both `brandA` and `brandB`, then build the
+ * staff intersection by walking each VN's credit list. Used by the producer
+ * compare page to surface shared writers/artists across studios.
+ */
 export async function findBrandStaffOverlap(brandA: string, brandB: string): Promise<BrandOverlapResult> {
   const [compA, compB] = await Promise.all([
     fetchProducerCompletion(brandA),

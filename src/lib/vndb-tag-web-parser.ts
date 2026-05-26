@@ -57,6 +57,11 @@ const TAG_TREE_RE = /<ul[^>]*class="[^"]*\btagtree\b[^"]*"[^>]*>/i;
 const TAG_LINK_RE = /<a\s+[^>]*href="\/(g\d+)"[^>]*>([\s\S]*?)<\/a>/i;
 const ALL_TAG_LINK_RE = /<a\s+[^>]*href="\/(g\d+)"[^>]*>([\s\S]*?)<\/a>(?:\s*<small>\s*\(([\d,]+)\)\s*<\/small>)?/gi;
 
+/**
+ * Strip HTML tags and decode common entities (`&amp;`, `&lt;`, …) to text.
+ * Used by the VNDB tag scraper — full HTML parsing isn't worth pulling in
+ * a DOM library for the handful of patterns the scrapers care about.
+ */
 export function decodeHtml(input: string): string {
   return input
     .replace(/<br\s*\/?>/gi, '\n')
@@ -181,6 +186,11 @@ function parseTreeNodes(ulInner: string): VndbTagTreeNode[] {
     .filter((node): node is VndbTagTreeNode => !!node);
 }
 
+/**
+ * Parse the `/g` (tag home) HTML into a structured tree of groups +
+ * recently-added + popular lists. Tolerant of layout drift: missing
+ * sections yield empty arrays rather than throwing.
+ */
 export function parseVndbTagHomeTree(html: string): VndbTagHomeTree {
   const tree = extractFirstTagTree(html) ?? '';
   const groups = extractTopLevelListItems(tree)
@@ -234,6 +244,11 @@ function dedupeById<T extends { id: string }>(items: T[]): T[] {
   });
 }
 
+/**
+ * Parse a `/g<id>` tag detail page into a structured `VndbTagWebDetail`.
+ * `fallbackId` is the id we expected — used when the page's H1 is missing
+ * (rare layout drift) so the result is still uniquely keyed.
+ */
 export function parseVndbTagWebDetail(html: string, fallbackId: string): VndbTagWebDetail {
   const id = fallbackId.toLowerCase();
   const h1 = /<h1[^>]*>\s*Tag:\s*([\s\S]*?)<\/h1>/i.exec(html);

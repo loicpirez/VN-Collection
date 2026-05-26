@@ -38,6 +38,11 @@ export interface RecordActivityInput {
 const SENSITIVE_KEY_RE =
   /(?:^|_)(?:token|secret|password|credential|cookie|authorization|bearer|backup_url|api_key|api_token|access_token|refresh_token)$/i;
 
+/**
+ * Recursively walk a JSON-shaped value, masking entries whose key matches
+ * `SENSITIVE_KEY_RE`. Used before writing payloads to the audit log so
+ * credentials never reach disk in plaintext.
+ */
 export function maskActivityPayload(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(maskActivityPayload);
   if (!value || typeof value !== 'object') return value;
@@ -69,6 +74,12 @@ function safePayloadJson(payload: unknown): string | null {
   return JSON.stringify({ truncated: true, size: raw.length });
 }
 
+/**
+ * Insert one row into `user_activity`. Fire-and-forget: swallows DB errors so
+ * audit failures never bubble into surrounding write transactions. Honours the
+ * `VNCOLL_DISABLE_ACTIVITY=1` kill switch and caps every field at the table's
+ * column length.
+ */
 export function recordActivity(input: RecordActivityInput): void {
   if (process.env.VNCOLL_DISABLE_ACTIVITY === '1') return;
   const kind = input.kind.trim();
@@ -93,6 +104,11 @@ export function recordActivity(input: RecordActivityInput): void {
   }
 }
 
+/**
+ * Query the global activity feed with optional filters. `q` runs a LIKE
+ * across label / entity_id / payload (so JSON substrings are searchable).
+ * `limit` is clamped to `[1, 500]` server-side to bound result size.
+ */
 export function listUserActivity({
   limit = 100,
   kind,
@@ -137,6 +153,10 @@ export function listUserActivity({
   return db.prepare(sql).all(...args) as UserActivity[];
 }
 
+/**
+ * Distinct `kind` values present in `user_activity`, used to populate the
+ * filter dropdown on the global activity feed.
+ */
 export function listActivityKinds(): string[] {
   const rows = db
     .prepare('SELECT DISTINCT kind FROM user_activity ORDER BY kind COLLATE NOCASE')

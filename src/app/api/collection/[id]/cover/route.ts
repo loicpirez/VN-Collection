@@ -26,7 +26,7 @@ const MAX_COVER_BYTES = 10 * 1024 * 1024;
  * known to the VN (screenshot, release art, full VNDB cover, EGS cover)
  * as the cover without leaving the page.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ item: getCollectionItem(id), cover: next });
 }
 
-export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;
@@ -123,7 +123,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
  * normalised to 0 by the storage helper rather than rejected, so
  * the route never 400s on an honest typo from the UI sliders.
  */
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

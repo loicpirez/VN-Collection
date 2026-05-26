@@ -47,6 +47,11 @@ function isInsideStorage(absPath: string): boolean {
   return norm.startsWith(STORAGE_ROOT + '/') || norm === STORAGE_ROOT;
 }
 
+/**
+ * Test whether a file exists under the storage root. `relPath` is resolved
+ * via path normalization first; anything that escapes the storage root
+ * (e.g. `../etc/passwd`) returns `false` without touching the filesystem.
+ */
 export async function fileExists(relPath: string): Promise<boolean> {
   if (!relPath) return false;
   const abs = normalize(`${STORAGE_ROOT}/${relPath}`);
@@ -59,6 +64,11 @@ export async function fileExists(relPath: string): Promise<boolean> {
   }
 }
 
+/**
+ * Read a stored file plus its sniffed `content-type`. Returns `null` on any
+ * missing file or path-escape attempt so the `/api/files/[...path]` route
+ * can answer 404 without leaking filesystem error details.
+ */
 export async function readStored(relPath: string): Promise<{ buffer: Buffer; contentType: string } | null> {
   const abs = normalize(`${STORAGE_ROOT}/${relPath}`);
   if (!isInsideStorage(abs)) return null;
@@ -93,6 +103,12 @@ function guessContentType(absPath: string): string {
 
 const FETCH_TIMEOUT_MS = 15000;
 
+/**
+ * Download a remote image into the given `bucket` and return the
+ * `STORAGE_DIRS[bucket]/safeName` relative path. SSRF-guarded via
+ * `isAllowedHttpTarget`, aborted after `FETCH_TIMEOUT_MS`, and capped at
+ * 20 MiB so a malicious upstream can't OOM the process.
+ */
 export async function downloadToBucket(
   url: string,
   bucket: StorageBucket,
@@ -167,6 +183,11 @@ function detectImageMime(buf: Buffer): string | null {
   return null;
 }
 
+/**
+ * Thrown by `saveUpload` when the uploaded buffer fails magic-byte detection.
+ * The route handler maps this to a 415 with a stable error code so the UI
+ * can show a "Please upload an image file" toast.
+ */
 export class UnsupportedFileType extends Error {
   constructor(public providedType: string | null) {
     super(`unsupported file type${providedType ? ` (declared as ${providedType})` : ''}`);
@@ -206,6 +227,11 @@ function sanitizeFilename(s: string): string {
   return basename(s).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) || 'file';
 }
 
+/**
+ * Build the public `/api/files/<relPath>` URL for a stored asset path, or
+ * `null` when the input is empty. Use this rather than concatenating
+ * manually so the route prefix stays in one place.
+ */
 export function publicUrlFor(relPath: string | null | undefined): string | null {
   if (!relPath) return null;
   return `/api/files/${relPath}`;

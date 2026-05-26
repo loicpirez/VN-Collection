@@ -28,7 +28,7 @@ function parseId(raw: string): number | null {
  * the fresh slot list so the client can re-render without a second
  * round trip, plus `swapped` if a swap happened.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
  * Body: { vn_id, release_id }. The shelf id is in the path so the
  * route shape mirrors POST even though the helper is shelf-agnostic.
  */
-export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

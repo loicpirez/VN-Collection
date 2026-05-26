@@ -29,6 +29,11 @@ function key(cid: string): string {
   return `${KEY_PREFIX}${cid.toLowerCase()}`;
 }
 
+/**
+ * Read a previously-cached full-character payload from `vndb_cache`. Returns
+ * `null` on missing / unparseable rows so callers can decide between a cache
+ * miss and an upstream re-fetch.
+ */
 export function readCharacterFullCache(cid: string): CharacterFullPayload | null {
   const row = db
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
@@ -103,11 +108,27 @@ export async function downloadFullCharForVn(vnId: string, opts: { force?: boolea
   if (stale.length === 0) return { scanned: cids.length, downloaded: 0 };
   const job = startJob('characters', `Characters for ${vnId}`, stale.length, vnId);
 
+  // Pre-load character names from local cache so the progress bar shows
+  // "Character - サンプル (c95001)" instead of just "c95001".
+  const nameMap = new Map<string, string>();
+  if (stale.length > 0) {
+    const placeholders = stale.map(() => '?').join(',');
+    const nameRows = db
+      .prepare(`SELECT DISTINCT c_id, c_name FROM vn_va_credit WHERE c_id IN (${placeholders}) AND c_name IS NOT NULL`)
+      .all(...stale) as { c_id: string; c_name: string }[];
+    for (const r of nameRows) {
+      if (!nameMap.has(r.c_id) && r.c_name && r.c_name.length >= 2) nameMap.set(r.c_id, r.c_name);
+    }
+  }
+
   let downloaded = 0;
   for (const cid of stale) {
     // Show which character is in flight so the user can correlate
-    // progress with the per-character VNDB calls.
-    setJobCurrent(job.id, cid);
+    // progress with the per-character VNDB calls. Label with name when
+    // available so the operator sees "Character - <name>" instead of
+    // a bare id.
+    const name = nameMap.get(cid);
+    setJobCurrent(job.id, name ? `Character — ${name} (${cid})` : `Character — ${cid}`);
     try {
       await downloadFullCharacterInfo(cid);
       downloaded += 1;

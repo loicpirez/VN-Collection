@@ -31,6 +31,7 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+/** Parse /tags URL state. `mode` defaults to `'local'` on missing / unknown input. */
 export function parseTagsPageParams(
   raw: Record<string, string | string[] | undefined>,
 ): TagsPageState {
@@ -38,6 +39,10 @@ export function parseTagsPageParams(
   return { mode };
 }
 
+/**
+ * Parse /tag/[id] URL state. `tab` defaults to `'local'`; `page` clamps to
+ * `[1, +∞)` and falls back to `1` on garbage input.
+ */
 export function parseTagPageParams(
   raw: Record<string, string | string[] | undefined>,
 ): TagPageState {

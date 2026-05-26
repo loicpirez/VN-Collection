@@ -7,11 +7,11 @@ export const dynamic = 'force-dynamic';
 
 // intentionally public — single-user self-hosted app; saved-filter URL
 // fragments carry no PII. Mutating handlers below remain gated.
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   return NextResponse.json({ filters: listSavedFilters() });
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { name?: unknown; params?: unknown };
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ filter: created });
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const id = Number(req.nextUrl.searchParams.get('id'));
@@ -50,7 +50,7 @@ export async function DELETE(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { ids?: unknown };

@@ -8,11 +8,11 @@ export const dynamic = 'force-dynamic';
 
 // intentionally public — single-user self-hosted app; series metadata
 // carries no PII. Mutating handlers below remain gated.
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   return NextResponse.json({ series: listSeries() });
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { name?: string; description?: string };

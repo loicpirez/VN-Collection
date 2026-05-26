@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GitCompare, Loader2, Plus, Search, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useDebouncedCallback } from '@/lib/hooks';
 import { SafeImage } from '@/components/SafeImage';
 
 interface VnHit {
@@ -49,7 +50,6 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [showAdd, setShowAdd] = useState(initialVns.length < 4);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastQueryRef = useRef('');
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -138,13 +138,11 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
     [selected],
   );
 
+  const debouncedSearch = useDebouncedCallback((q: string) => void search(q), 300);
+
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => void search(query), 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [query, search]);
+    debouncedSearch(query);
+  }, [query, debouncedSearch]);
 
   useEffect(() => {
     setHighlight(0);

@@ -27,7 +27,7 @@ interface EgsWarning {
   status: number | null;
 }
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
   const { id } = await ctx.params;

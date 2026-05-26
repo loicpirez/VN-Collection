@@ -11,7 +11,7 @@ function safeAttachmentFilename(raw: string | undefined): string {
   return cleaned || 'asset.svg';
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ path: string[] }> }) {
+export async function GET(_req: Request, ctx: { params: Promise<{ path: string[] }> }): Promise<NextResponse> {
   const { path } = await ctx.params;
   const rel = path.join('/');
   if (rel.includes('..')) {

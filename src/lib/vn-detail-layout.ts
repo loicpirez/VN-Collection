@@ -59,6 +59,7 @@ function defaultState(): VnSectionState {
   return { visible: true, collapsedByDefault: false };
 }
 
+/** Fresh layout containing every known VN-detail section, visible, in canonical order. */
 export function defaultVnDetailLayoutV1(): VnDetailLayoutV1 {
   const sections = {} as Record<VnSectionId, VnSectionState>;
   for (const id of VN_SECTION_IDS) sections[id] = defaultState();

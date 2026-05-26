@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
  * packaging suffixes (e.g. 普及版, 完全限定生産版, アニバーサリーボックス). One-shot
  * batch — returns `remaining: 0` to make the UI loop exit after a single pass.
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as Record<string, unknown>;

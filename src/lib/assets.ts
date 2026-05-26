@@ -37,6 +37,12 @@ interface EnsureResult {
  */
 const inflightEnsure = new Map<string, Promise<EnsureResult>>();
 
+/**
+ * Public entrypoint that downloads (or refreshes) every local image asset for
+ * a VN: cover, thumbnail, screenshots, release artwork, character portraits,
+ * and the EGS cover when linked. De-duped through `inflightEnsure` so two
+ * concurrent calls share one fan-out instead of racing to write the same files.
+ */
 export function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult> {
   const existing = inflightEnsure.get(vnId);
   if (existing) return existing;

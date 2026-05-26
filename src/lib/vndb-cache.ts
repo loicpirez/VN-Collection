@@ -285,10 +285,19 @@ function safeParse(body: BodyInit): unknown {
   }
 }
 
+/**
+ * Drop every cache row whose key matches the supplied path prefix. Used by
+ * the refresh-scope route to bust grouped caches in one call. Returns the
+ * deleted-row count.
+ */
 export function invalidateByPath(pathPrefix: string): number {
   return deleteCacheByPathPrefix(pathPrefix);
 }
 
+/**
+ * Drop the single cache row matching `method + path + body` so the next
+ * request goes upstream. Mirrors the exact key shape used by `cachedFetch`.
+ */
 export function invalidateKey(method: string, path: string, body?: unknown): void {
   deleteCacheKey(buildKey(method.toUpperCase(), path, body));
 }

@@ -34,7 +34,7 @@ export const runtime = 'nodejs';
  *     `resolveScopePatterns` so a caller can't pass `%` to widen
  *     the bust.
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
 

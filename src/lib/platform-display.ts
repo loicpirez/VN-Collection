@@ -42,6 +42,11 @@ export type PlatformDisplayState =
   /** Synthetic edition with no platform info and no remote to refresh. */
   | { kind: 'unknown' };
 
+/**
+ * Apply the platform-display priority chain documented above. Pure — every
+ * surface that renders a per-edition platform calls this so VN-aggregate
+ * platform lists never leak into a single-SKU edition.
+ */
 export function derivePlatformDisplay(
   input: PlatformDisplayInput,
 ): PlatformDisplayState {

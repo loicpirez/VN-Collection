@@ -20,6 +20,11 @@ export const RECOMMEND_MODES: readonly RecommendMode[] = [
 
 export const DEFAULT_RECOMMEND_MODE: RecommendMode = 'because-you-liked';
 
+/**
+ * Coerce a raw URL/query string into a `RecommendMode`. Unknown / empty
+ * inputs fall back to `DEFAULT_RECOMMEND_MODE` so the page renders cleanly
+ * for hand-edited URLs.
+ */
 export function parseRecommendMode(raw: string | null | undefined): RecommendMode {
   const v = (raw ?? '').toLowerCase();
   return (RECOMMEND_MODES as readonly string[]).includes(v)

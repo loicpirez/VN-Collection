@@ -20,6 +20,11 @@
 
 const SEED_PATTERN = /^(v\d+|egs_\d+)$/i;
 
+/**
+ * Predicate: does `value` match the accepted seed-id shape (`v\d+` or
+ * `egs_\d+`)? Used to reject tampered autocomplete values before they
+ * touch the URL.
+ */
 export function isValidSeedVnId(value: string | null | undefined): boolean {
   if (!value) return false;
   return SEED_PATTERN.test(value);

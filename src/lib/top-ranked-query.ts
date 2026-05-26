@@ -15,10 +15,12 @@ export type TopRankedTab = 'vndb' | 'egs';
 export const MIN_VOTES_PRESETS: readonly number[] = [50, 100, 250, 500, 1000];
 export const MAX_PAGE = 20;
 
+/** Coerce a raw `tab` param to a `TopRankedTab`. Defaults to `'vndb'`. */
 export function parseTab(value: string | undefined): TopRankedTab {
   return value === 'egs' ? 'egs' : 'vndb';
 }
 
+/** Coerce a raw `page` param to an integer in `[1, MAX_PAGE]`. */
 export function parsePage(value: string | undefined): number {
   if (!value) return 1;
   const n = Math.floor(Number(value));
@@ -26,6 +28,11 @@ export function parsePage(value: string | undefined): number {
   return Math.min(MAX_PAGE, n);
 }
 
+/**
+ * Coerce a raw `min` param to the closest value in `MIN_VOTES_PRESETS`.
+ * Snapping converges cache keys: any user-typed integer falls onto one of
+ * five preset thresholds rather than fragmenting the cache per-value.
+ */
 export function parseMinVotes(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const n = Math.floor(Number(value));

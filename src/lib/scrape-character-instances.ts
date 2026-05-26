@@ -46,6 +46,11 @@ export interface ScrapedCharacterInfo {
 
 const CACHE_KEY = (cid: string) => `scrape_character:${cid.toLowerCase()}`;
 
+/**
+ * Read the cached scraped "Instances" + "Voiced by" payload for a character,
+ * or `null` on miss / parse error. Lets the character page render the cast
+ * blocks without a synchronous web scrape.
+ */
 export function readScrapedCharacterInfo(cid: string): ScrapedCharacterInfo | null {
   const row = db
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
@@ -78,6 +83,11 @@ const C_LINK_RE = /<a href="\/(c\d+)"[^>]*>([\s\S]*?)<\/a>/i;
 const S_LINK_RE = /<a href="\/(s\d+)"[^>]*>([\s\S]*?)<\/a>/i;
 const V_LINK_RE = /<a href="\/(v\d+)"[^>]*>([\s\S]*?)<\/a>/i;
 
+/**
+ * Scrape the VNDB `/c<id>` page for the "Instances" and "Voiced by" tables
+ * and persist the result. Returns `null` for malformed ids or unreachable
+ * pages so callers degrade gracefully.
+ */
 export async function scrapeCharacterInfo(
   cid: string,
   opts: { force?: boolean } = {},
@@ -131,6 +141,10 @@ export async function scrapeCharacterInfo(
   return info;
 }
 
+/**
+ * Fan-out: for every character credited on `vnId`, ensure its `c<id>` page
+ * has been scraped. Skips entries whose cache is still fresh unless `force`.
+ */
 export async function scrapeCharactersForVn(
   vnId: string,
   opts: { force?: boolean } = {},

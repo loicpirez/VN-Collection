@@ -5,7 +5,7 @@ import { EgsUnreachable, searchEgsCandidates } from '@/lib/erogamescape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const q = (req.nextUrl.searchParams.get('q') ?? '').trim();
   const limitRaw = req.nextUrl.searchParams.get('limit');
   const limit = limitRaw ? Math.min(50, Math.max(1, Number(limitRaw) || 20)) : 20;

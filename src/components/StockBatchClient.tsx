@@ -52,10 +52,19 @@ export function StockBatchClient() {
     try {
       const r = await fetch(`/api/stock/queue?scope=${scope}`, { cache: 'no-store' });
       if (!r.ok) throw new Error(String(r.status));
-      const data = (await r.json()) as { ids: string[] };
-      const ids = (data.ids ?? []).filter((id) => VN_ID_RE.test(id));
+      const data = (await r.json()) as {
+        ids?: string[];
+        entries?: Array<{ vn_id: string; title: string | null }>;
+      };
+      const entries = (data.entries ?? data.ids?.map((vn_id) => ({ vn_id, title: null })) ?? [])
+        .filter((e) => VN_ID_RE.test(e.vn_id));
       const existing = new Set(queue.map((q) => q.vnId));
-      const merged = [...queue, ...ids.filter((id) => !existing.has(id)).map((vnId) => ({ vnId }))];
+      const merged = [
+        ...queue,
+        ...entries
+          .filter((e) => !existing.has(e.vn_id))
+          .map((e) => ({ vnId: e.vn_id, title: e.title ?? undefined })),
+      ];
       setQueue(merged);
     } catch (e) {
       setError((e as Error).message);

@@ -3,7 +3,7 @@ import { type Agent } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { request as httpRequest } from 'node:http';
 import type { ProviderId } from './proxy-config';
-import { buildProxyUrl, resolveProxyConfig } from './proxy-config';
+import { buildProxyUrl, resolveProxyConfig, resolveStockProviderProxy } from './proxy-config';
 
 /**
  * Execute an HTTP/HTTPS request through a Node.js HTTP agent (proxy agent),
@@ -115,5 +115,30 @@ export async function providerFetch(
     agent = new HttpsProxyAgent(proxyUrl) as unknown as Agent;
   }
 
+  return nodeAgentFetch(url, init, agent);
+}
+
+/**
+ * Two-tier shop fetch: tries the per-shop proxy first, falls back to the
+ * generic `stock` proxy, then to direct connection. Use this from
+ * `fetchShopText` so each shop provider can be routed independently.
+ */
+export async function stockProviderFetch(
+  url: string,
+  init: RequestInit,
+  providerId: string,
+): Promise<Response> {
+  const config = resolveStockProviderProxy(providerId);
+  if (!config) return fetch(url, init);
+
+  const proxyUrl = buildProxyUrl(config);
+  let agent: Agent;
+  if (config.protocol === 'socks5' || config.protocol === 'socks5h') {
+    const { SocksProxyAgent } = await import('socks-proxy-agent');
+    agent = new SocksProxyAgent(proxyUrl) as unknown as Agent;
+  } else {
+    const { HttpsProxyAgent } = await import('https-proxy-agent');
+    agent = new HttpsProxyAgent(proxyUrl) as unknown as Agent;
+  }
   return nodeAgentFetch(url, init, agent);
 }

@@ -6,7 +6,7 @@ import { getProducer as fetchProducer } from '@/lib/vndb';
 export const dynamic = 'force-dynamic';
 const CACHE_MS = 24 * 3600 * 1000;
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   if (!/^p\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const cached = getProducerLocal(id);

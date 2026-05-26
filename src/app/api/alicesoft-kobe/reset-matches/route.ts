@@ -5,7 +5,7 @@ import { resetKobeAutoMatches } from '@/lib/alicesoft-kobe';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const cleared = resetKobeAutoMatches();

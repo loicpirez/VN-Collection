@@ -213,6 +213,11 @@ interface VndbResponse<T> {
 }
 
 // VN
+/**
+ * Quick-search VNs via VNDB's `/vn` endpoint. Detects bare ids (`vNNN`) and
+ * routes them through the higher-TTL detail cache so id pasting doesn't
+ * waste the short search-cache TTL.
+ */
 export async function searchVn(
   query: string,
   { results = 30, page = 1 }: { results?: number; page?: number } = {},
@@ -253,6 +258,11 @@ function multi(field: string, values: string[]): unknown {
   return ['or', ...values.map((v) => [field, '=', v])];
 }
 
+/**
+ * Multi-filter VN search. Composes VNDB's `/vn` filter array while working
+ * around quirks documented in CLAUDE.md (e.g. expanding length ranges into
+ * `or` clauses because VNDB rejects `length` orderable operators).
+ */
 export async function advancedSearchVn(
   opts: AdvancedSearchOptions,
 ): Promise<VndbResponse<Omit<VndbSearchHit, 'in_collection'>>> {
@@ -450,6 +460,10 @@ export interface VndbRelationEntry {
   relation_official: boolean;
 }
 
+/**
+ * Fetch one VN by id with the full `VN_FIELDS` payload. Returns `null` when
+ * VNDB doesn't recognise the id (a missing-row response, not an error).
+ */
 export async function getVn(id: string): Promise<VndbVn | null> {
   const r = await vndbPost<VndbResponse<VndbVn>>('/vn', {
     filters: ['id', '=', id],
@@ -459,6 +473,10 @@ export async function getVn(id: string): Promise<VndbVn | null> {
   return r.results[0] ?? null;
 }
 
+/**
+ * Drop the cached `/vn` detail response for one id so the next `getVn`
+ * call reaches upstream. Used right before a forced refresh.
+ */
 export function invalidateVnCache(id: string): void {
   invalidateKey('POST', '/vn', {
     filters: ['id', '=', id],
@@ -467,6 +485,7 @@ export function invalidateVnCache(id: string): void {
   });
 }
 
+/** Force-refresh a VN: bust its cache row then re-fetch. */
 export async function refreshVn(id: string): Promise<VndbVn | null> {
   invalidateVnCache(id);
   return getVn(id);
@@ -484,6 +503,10 @@ export interface VndbProducer {
   extlinks: VndbExtLink[];
 }
 
+/**
+ * Fetch one producer by id with the full `PRODUCER_FIELDS` payload, then
+ * augment with VN credits (dev + pub). Returns `null` on unknown id.
+ */
 export async function getProducer(id: string): Promise<VndbProducer | null> {
   const r = await vndbPost<VndbResponse<VndbProducer>>('/producer', {
     filters: ['id', '=', id],
@@ -561,6 +584,10 @@ export interface VndbCharacterVn {
   } | null;
 }
 
+/**
+ * Fetch up to `max` characters credited to one VN. Returns an empty array
+ * for synthetic `egs_*` ids since VNDB doesn't know them.
+ */
 export async function getCharactersForVn(vnId: string, max = 30): Promise<VndbCharacter[]> {
   if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
@@ -571,6 +598,10 @@ export async function getCharactersForVn(vnId: string, max = 30): Promise<VndbCh
   return r.results;
 }
 
+/**
+ * Fetch one character by id with the full `CHARACTER_FIELDS` payload.
+ * Returns `null` when VNDB doesn't recognise the id.
+ */
 export async function getCharacter(id: string): Promise<VndbCharacter | null> {
   const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
     filters: ['id', '=', id],
@@ -595,6 +626,10 @@ export function readCachedCharactersForVn(vnId: string, max = 30): VndbCharacter
   return cached?.results ?? [];
 }
 
+/**
+ * Search VNDB-wide for characters by name. Uses the search-cache TTL so
+ * typed queries don't pin the long detail-cache slot.
+ */
 export async function searchCharacters(
   query: string,
   {
@@ -684,6 +719,7 @@ export interface VndbStaff {
   extlinks: VndbExtLink[];
 }
 
+/** Search VNDB-wide for staff (writers, artists, VAs) by name. */
 export async function searchStaff(
   query: string,
   {
@@ -717,6 +753,10 @@ export async function searchStaff(
   return r.results;
 }
 
+/**
+ * Fetch one staff profile by id with the full `STAFF_FIELDS` payload.
+ * Returns `null` when VNDB doesn't recognise the id.
+ */
 export async function getStaff(id: string): Promise<VndbStaff | null> {
   const r = await vndbPost<VndbResponse<VndbStaff>>('/staff', {
     filters: ['and', ['id', '=', id], ['ismain', '=', 1]],
@@ -873,6 +913,7 @@ export interface VndbTag {
   vn_count: number;
 }
 
+/** Search VNDB-wide for tags by name. `category` filters to `cont`/`ero`/`tech` when set. */
 export async function searchTags(query: string, { results = 50, category }: { results?: number; category?: string } = {}): Promise<VndbTag[]> {
   const trimmed = query.trim();
   const isId = /^g\d+$/i.test(trimmed);
@@ -892,6 +933,10 @@ export async function searchTags(query: string, { results = 50, category }: { re
   return r.results;
 }
 
+/**
+ * Fetch one tag by id with the full `TAG_FIELDS` payload. Returns `null`
+ * when VNDB doesn't recognise the id.
+ */
 export async function getTag(id: string): Promise<VndbTag | null> {
   const r = await vndbPost<VndbResponse<VndbTag>>('/tag', {
     filters: ['id', '=', id],
@@ -945,6 +990,10 @@ export interface VndbTrait {
   char_count: number;
 }
 
+/**
+ * Fetch one trait by id with the full `TRAIT_FIELDS` payload. Returns
+ * `null` when VNDB doesn't recognise the id.
+ */
 export async function getTrait(id: string): Promise<VndbTrait | null> {
   const r = await vndbPost<VndbResponse<VndbTrait>>('/trait', {
     filters: ['id', '=', id],
@@ -954,6 +1003,10 @@ export async function getTrait(id: string): Promise<VndbTrait | null> {
   return r.results[0] ?? null;
 }
 
+/**
+ * Fetch characters tagged with the given trait. Used for the trait detail
+ * page's "Characters with this trait" gallery.
+ */
 export async function getCharactersForTrait(
   traitId: string,
   { results = 60, includeSpoiler = false }: { results?: number; includeSpoiler?: boolean } = {},
@@ -978,6 +1031,7 @@ export async function getCharactersForTrait(
   return r.results;
 }
 
+/** Search VNDB-wide for traits by name. */
 export async function searchTraits(query: string, { results = 50 } = {}): Promise<VndbTrait[]> {
   const trimmed = query.trim();
   const isId = /^i\d+$/i.test(trimmed);
@@ -1064,6 +1118,10 @@ export interface VndbReleaseImage {
   vn?: string | null;
 }
 
+/**
+ * Fetch up to `max` releases of one VN, ordered by release date. Returns
+ * an empty array for synthetic `egs_*` ids — VNDB doesn't know them.
+ */
 export async function getReleasesForVn(vnId: string, max = 50): Promise<VndbRelease[]> {
   if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbResponse<VndbRelease>>('/release', {
@@ -1075,6 +1133,10 @@ export async function getReleasesForVn(vnId: string, max = 50): Promise<VndbRele
   return r.results;
 }
 
+/**
+ * Fetch one release by id with the full `RELEASE_FIELDS` payload. Returns
+ * `null` when VNDB doesn't recognise the id.
+ */
 export async function getRelease(id: string): Promise<VndbRelease | null> {
   const r = await vndbPost<VndbResponse<VndbRelease>>('/release', {
     filters: ['id', '=', id],
@@ -1105,6 +1167,10 @@ export interface VndbQuote {
   } | null;
 }
 
+/**
+ * Fetch one VNDB-wide random quote. The endpoint must never be cached
+ * (TTL is 0 in `vndb-cache.ts`); each call hits VNDB.
+ */
 export async function getRandomQuote(): Promise<VndbQuote | null> {
   // Bypass cache — random must vary on every call.
   const r = await vndbPost<VndbResponse<VndbQuote>>('/quote', {
@@ -1131,6 +1197,10 @@ export async function getRandomQuoteForVns(vnIds: string[]): Promise<VndbQuote |
   return r.results[0] ?? null;
 }
 
+/**
+ * Fetch up to `results` quotes attached to one VN. Returns an empty array
+ * for synthetic `egs_*` ids since VNDB doesn't know them.
+ */
 export async function getQuotesForVn(vnId: string, { results = 20 } = {}): Promise<VndbQuote[]> {
   if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbResponse<VndbQuote>>('/quote', {
@@ -1154,6 +1224,7 @@ export interface VndbStatsGlobal {
   vn: number;
 }
 
+/** Fetch VNDB's global counters (vn / release / producer / character / staff totals). */
 export async function getGlobalStats(): Promise<VndbStatsGlobal> {
   return vndbGet<VndbStatsGlobal>('/stats', TTL.stats);
 }
@@ -1173,6 +1244,10 @@ export interface VndbCoverInfo {
   thumbnail: string | null;
   sexual: number | null;
 }
+/**
+ * Bulk-fetch cover URLs + sexual flags for a list of VN ids. Returns a
+ * map for O(1) lookup; ids VNDB doesn't recognise are simply absent.
+ */
 export async function fetchVnCovers(ids: string[]): Promise<Map<string, VndbCoverInfo>> {
   const out = new Map<string, VndbCoverInfo>();
   const cleaned = Array.from(new Set(ids.filter((id) => isVndbVnId(id))));
@@ -1207,6 +1282,10 @@ export interface VndbAuthInfo {
   permissions: string[];
 }
 
+/**
+ * Look up the authenticated user's token info (username, permissions).
+ * Returns `null` when no token is configured.
+ */
 export async function getAuthInfo(): Promise<VndbAuthInfo | null> {
   const token = readVndbToken();
   if (!token) return null;
@@ -1217,6 +1296,7 @@ export async function getAuthInfo(): Promise<VndbAuthInfo | null> {
   }
 }
 
+/** Fetch VNDB's `/schema` documentation payload for the schema browser. */
 export async function getSchema(): Promise<unknown> {
   return vndbGet<unknown>('/schema', TTL.schema);
 }
@@ -1228,6 +1308,11 @@ export interface VndbUserInfo {
   lengthvotes_sum?: number;
 }
 
+/**
+ * Bulk-lookup VNDB users by username or id. Returns a map with `null`
+ * entries for unknown queries so callers can detect misses without
+ * a second roundtrip.
+ */
 export async function lookupUsers(qs: string[]): Promise<Record<string, VndbUserInfo | null>> {
   const params = new URLSearchParams();
   for (const q of qs) params.append('q', q);
@@ -1287,6 +1372,10 @@ const ULIST_FIELDS = [
   'vn.developers{id,name}',
 ].join(', ');
 
+/**
+ * Fetch the authenticated user's ulist entries filtered by VNDB label id
+ * (5 = wishlist, 6 = blacklisted, etc.). Returns `[]` when no token set.
+ */
 export async function fetchUlistByLabel(
   userId: string,
   labelId: number,
@@ -1307,6 +1396,11 @@ export async function fetchUlistByLabel(
   );
 }
 
+/**
+ * Fetch the authenticated user's wishlist (ulist label 5). Returns
+ * `{ needsAuth: true }` when no VNDB token is set so the UI can surface
+ * the right call-to-action.
+ */
 export async function fetchAuthenticatedWishlist(): Promise<VndbUlistEntry[] | { needsAuth: true }> {
   const auth = await getAuthInfo();
   if (!auth) return { needsAuth: true };
@@ -1467,6 +1561,11 @@ export async function patchUlistEntry(vnId: string, patch: UlistPatch): Promise<
   return { ok: true };
 }
 
+/**
+ * Delete the authenticated user's ulist entry for one VN (removes status,
+ * vote, notes, every label). Distinct from `removeFromVndbWishlist` which
+ * only removes the wishlist label.
+ */
 export async function deleteUlistEntry(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
   const token = readVndbToken();
   if (!token) return { needsAuth: true };

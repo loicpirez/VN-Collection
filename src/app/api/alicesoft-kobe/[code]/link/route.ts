@@ -8,7 +8,7 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ code: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ code: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { code } = await ctx.params;
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ code: stri
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(req: NextRequest, ctx: { params: Promise<{ code: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ code: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { code } = await ctx.params;

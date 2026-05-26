@@ -28,7 +28,7 @@ function buildSnapshot(): string {
  * countdown between events to keep the UI smooth without forcing a
  * re-emit on the server every second.
  */
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<Response> {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
   const encoder = new TextEncoder();

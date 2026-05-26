@@ -15,7 +15,7 @@ function clampYear(raw: unknown): number {
   return n;
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
   const rawYear = Number(req.nextUrl.searchParams.get('year'));
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
   const body = (await readJsonObject(req)) as { year?: unknown; target?: unknown };

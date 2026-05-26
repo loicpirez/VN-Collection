@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
  *      quotes, routes, series, activity, credits, egs_game) to the new
  *      id and drops the synthetic row.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

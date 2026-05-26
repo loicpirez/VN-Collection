@@ -33,9 +33,9 @@ export async function downloadFullProducerForVn(vnId: string, opts: { force?: bo
     .get(vnId) as { developers: string | null } | undefined;
   if (!row?.developers) return { scanned: 0, downloaded: 0 };
 
-  let devs: Array<{ id?: string }> = [];
+  let devs: Array<{ id?: string; name?: string }> = [];
   try {
-    devs = JSON.parse(row.developers) as Array<{ id?: string }>;
+    devs = JSON.parse(row.developers) as Array<{ id?: string; name?: string }>;
   } catch {
     return { scanned: 0, downloaded: 0 };
   }
@@ -52,10 +52,19 @@ export async function downloadFullProducerForVn(vnId: string, opts: { force?: bo
 
   const job = startJob('producers', `Developers for ${vnId}`, stale.length, vnId);
 
+  // Pre-load producer names from the developer list we already have on
+  // the VN row so the progress bar shows the human name.
+  const nameMap = new Map<string, string>();
+  for (const d of devs) {
+    if (d?.id && d?.name && !nameMap.has(d.id)) nameMap.set(d.id, d.name);
+  }
+
   let downloaded = 0;
   for (const pid of stale) {
-    // Surface the specific producer id currently in flight.
-    setJobCurrent(job.id, pid);
+    // Surface the specific producer id currently in flight, with the
+    // dev's human name when we have it cached.
+    const name = nameMap.get(pid);
+    setJobCurrent(job.id, name ? `Producer — ${name} (${pid})` : `Producer — ${pid}`);
     try {
       await fetchProducerCompletion(pid);
       downloaded += 1;

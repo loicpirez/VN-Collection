@@ -20,7 +20,7 @@ function parseProviders(value: unknown): StockProviderId[] {
   return providers.length > 0 ? providers : [...STOCK_PROVIDER_IDS];
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = await readJsonObject(req);

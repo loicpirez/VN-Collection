@@ -1801,6 +1801,28 @@ New DB tables introduced by recent batches:
 
 ---
 
+## Single-user threat model
+
+The app is single-user / self-hosted on `localhost:3000`. Mutating
+routes (`POST` / `PATCH` / `DELETE`) gate via `requireLocalhostOrToken`,
+which accepts loopback connections or a session token. **Read-only
+collection GET routes deliberately stay un-gated** — they return
+metadata the operator already owns, and the loopback gate would just
+add ceremony.
+
+Consequences:
+- `GET /api/collection/[id]/*` returns `404` for a VN not in the
+  collection and `200` for one that is. The HTTP status difference is
+  intentional — collection presence is not a secret from the operator.
+- Every such handler carries an explicit
+  `// intentionally public — single-user self-hosted app …` comment so
+  the next reader doesn't add `requireLocalhostOrToken` and break the
+  library page.
+- If you publish the app multi-user, every "intentionally public" GET
+  needs review.
+
+---
+
 ## Shared hooks
 
 ### `useDebouncedCallback(fn, delayMs)` — `src/lib/hooks.ts`

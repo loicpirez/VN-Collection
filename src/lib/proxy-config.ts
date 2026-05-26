@@ -5,10 +5,19 @@ export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h';
 /**
  * `stock` is a catch-all for every shop provider in `src/lib/stock.ts`
  * (Sofmap, Suruga-ya, AmiAmi, …). When configured, the proxy is applied to
- * every outbound `fetchShopText` call. Individual shops do not get separate
- * proxy slots — most operators run one proxy for all shop fetches.
+ * every outbound `fetchShopText` call that does NOT already have a more
+ * specific per-shop override.
+ *
+ * Per-shop overrides live under arbitrary provider ids (any string matching
+ * `[a-z][a-z0-9_]+`) — `resolveStockProviderProxy(<id>)` looks up
+ * `<id>_proxy_config` and falls back to `stock_proxy_config` if absent. The
+ * fixed `ProviderId` enum below stays minimal so the type system can model
+ * the four core providers; the per-shop layer is by-string lookup.
  */
 export type ProviderId = 'vndb' | 'vndbmirror' | 'egs' | 'alicesoft_kobe' | 'stock';
+
+/** Per-shop provider id (free-form, matches `StockProviderId` in stock.ts). */
+export type StockProxyProviderId = string;
 
 export interface ProxyConfig {
   protocol: ProxyProtocol;
@@ -67,36 +76,32 @@ function readDbConfig(provider: ProviderId): StoredProxyConfig {
   }
 }
 
-/**
- * Resolves the active proxy configuration for a provider.
- * Env vars take priority over DB settings. Returns null when disabled or incomplete.
- * Never logs the returned config — it contains credentials.
- */
-export function resolveProxyConfig(provider: ProviderId): ProxyConfig | null {
-  const ep = ENV_PREFIX[provider];
-  const db = readDbConfig(provider);
+function readDbConfigByKey(key: string): StoredProxyConfig {
+  const raw = getAppSetting(key);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as StoredProxyConfig;
+  } catch {
+    return {};
+  }
+}
 
-  const enabledEnv = process.env[`${ep}_PROXY_ENABLED`];
+function resolveFromStored(envPrefix: string | null, db: StoredProxyConfig): ProxyConfig | null {
+  const enabledEnv = envPrefix ? process.env[`${envPrefix}_PROXY_ENABLED`] : undefined;
   const enabled =
     enabledEnv != null
       ? enabledEnv === 'true' || enabledEnv === '1'
       : db.enabled === true;
   if (!enabled) return null;
-
-  const host = process.env[`${ep}_PROXY_HOST`] ?? db.host ?? '';
+  const host = (envPrefix ? process.env[`${envPrefix}_PROXY_HOST`] : undefined) ?? db.host ?? '';
   if (!host) return null;
-
-  const portStr = process.env[`${ep}_PROXY_PORT`] ?? String(db.port ?? '');
+  const portStr = (envPrefix ? process.env[`${envPrefix}_PROXY_PORT`] : undefined) ?? String(db.port ?? '');
   const port = parseInt(portStr, 10);
   if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
-
-  const rawProtocol =
-    process.env[`${ep}_PROXY_PROTOCOL`] ?? db.protocol ?? 'socks5h';
+  const rawProtocol = (envPrefix ? process.env[`${envPrefix}_PROXY_PROTOCOL`] : undefined) ?? db.protocol ?? 'socks5h';
   if (!VALID_PROTOCOLS.has(rawProtocol)) return null;
-
-  const username = process.env[`${ep}_PROXY_USERNAME`] ?? db.username ?? null;
-  const password = process.env[`${ep}_PROXY_PASSWORD`] ?? db.password ?? null;
-
+  const username = (envPrefix ? process.env[`${envPrefix}_PROXY_USERNAME`] : undefined) ?? db.username ?? null;
+  const password = (envPrefix ? process.env[`${envPrefix}_PROXY_PASSWORD`] : undefined) ?? db.password ?? null;
   return {
     protocol: rawProtocol as ProxyProtocol,
     host,
@@ -104,6 +109,36 @@ export function resolveProxyConfig(provider: ProviderId): ProxyConfig | null {
     username: username || null,
     password: password || null,
   };
+}
+
+/**
+ * Resolves the active proxy configuration for a provider.
+ * Env vars take priority over DB settings. Returns null when disabled or incomplete.
+ * Never logs the returned config — it contains credentials.
+ */
+export function resolveProxyConfig(provider: ProviderId): ProxyConfig | null {
+  return resolveFromStored(ENV_PREFIX[provider], readDbConfig(provider));
+}
+
+/**
+ * Two-tier proxy resolution for stock providers:
+ *   1. Per-shop override at `<providerId>_proxy_config` (env prefix
+ *      `<PROVIDERID>_PROXY_*`), if enabled.
+ *   2. Generic `stock_proxy_config` (env prefix `STOCK_PROXY_*`), if enabled.
+ *   3. null — direct connection.
+ *
+ * The two-tier system lets the operator route ONE bot-blocked shop
+ * (AmiAmi, Suruga-ya, GEO) through a separate proxy without having to
+ * funnel every other shop through it.
+ */
+export function resolveStockProviderProxy(providerId: StockProxyProviderId): ProxyConfig | null {
+  // Sanity-check the provider id so we never look up arbitrary keys.
+  if (!/^[a-z][a-z0-9_]*$/.test(providerId)) return resolveProxyConfig('stock');
+  const envPrefix = providerId.toUpperCase();
+  const dbKey = `${providerId}_proxy_config`;
+  const perShop = resolveFromStored(envPrefix, readDbConfigByKey(dbKey));
+  if (perShop) return perShop;
+  return resolveProxyConfig('stock');
 }
 
 /**

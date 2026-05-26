@@ -115,6 +115,11 @@ function parseBool(raw: string | undefined): boolean | null {
   return null;
 }
 
+/**
+ * Coerce raw URL search params into a typed `CharacterBrowseParams`. Each
+ * filter is whitelisted against its enum so a hand-crafted URL cannot drive
+ * the browse view into an invalid state.
+ */
 export function parseCharacterBrowseParams(
   raw: Record<string, string | string[] | undefined>,
 ): CharacterBrowseParams {

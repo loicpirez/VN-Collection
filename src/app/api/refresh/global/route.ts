@@ -38,7 +38,7 @@ async function authInfoSafe(): Promise<unknown> {
  * Each task is a separate job entry in the global download panel so
  * progress is visible alongside the per-VN fan-outs.
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   // Destructive cache-bust + heavy fan-out — gate at the loopback /
   // admin-token boundary so a LAN attacker can't denial-of-cache us.
   const denied = requireLocalhostOrToken(req);

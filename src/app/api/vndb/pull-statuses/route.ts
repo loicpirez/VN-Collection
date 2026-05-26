@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  * list and align local statuses to match. One-way (VNDB → local). Only VNs
  * already present in the local collection are touched.
  */
-export async function POST(req: Request) {
+export async function POST(req: Request): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const result = await pullStatusesFromVndb();

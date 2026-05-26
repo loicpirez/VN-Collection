@@ -7,7 +7,7 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   return NextResponse.json({ links: listSteamLinks() });
 }
 
@@ -18,7 +18,7 @@ export async function GET() {
  * subsequent auto-scan won't overwrite them. Use DELETE to unlink so the
  * auto-scan can re-link it later.
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as {
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ link });
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const vnId = req.nextUrl.searchParams.get('vn_id');

@@ -13,6 +13,7 @@ import {
 import { useToast } from './ToastProvider';
 import { useDialogA11y } from './Dialog';
 import { useLocale, useT } from '@/lib/i18n/client';
+import { useDebouncedCallback } from '@/lib/hooks';
 import { formatVndbDateString } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -67,7 +68,6 @@ export function MapEgsToVndbButton({
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState<string | 'reset' | 'none' | null>(null);
   const [link, setLink] = useState<ManualLink | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
@@ -107,14 +107,12 @@ export function MapEgsToVndbButton({
     }
   }, []);
 
+  const debouncedSearch = useDebouncedCallback((q: string) => search(q), 300);
+
   useEffect(() => {
     if (!open) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(query), 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [open, query, search]);
+    debouncedSearch(query);
+  }, [open, query, debouncedSearch]);
 
   async function pin(vndbIdToSet: string | null, label: string | 'reset' | 'none') {
     setBusy(label);

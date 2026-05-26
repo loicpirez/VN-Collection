@@ -38,6 +38,7 @@ export interface SectionLayoutV1<Id extends string> {
   sections: Record<Id, SectionState>;
 }
 
+/** Initial `SectionState` for a freshly-added section (visible, not collapsed). */
 export function defaultSectionState(): SectionState {
   return { visible: true, collapsedByDefault: false };
 }

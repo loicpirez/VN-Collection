@@ -24,6 +24,8 @@ export type EditionKind =
   | 'store_exclusive'
   | 'used_rank_b'
   | 'bonus_only'
+  | 'budget'
+  | 'download'
   | 'unknown';
 
 export type SeriesRelation =
@@ -166,6 +168,7 @@ function isRelatedGoodsTitle(title: string): boolean {
   return RELATED_GOODS_TITLE_PATTERNS.some((re) => re.test(title));
 }
 
+/** Detect a `Platform` from a shop's category label. Falls back to `'unknown'`. */
 export function platformFromCategory(category: string): Platform {
   if (!category) return 'unknown';
   if (/ニンテンドースイッチ|Switch/i.test(category)) return 'Switch';
@@ -176,6 +179,7 @@ export function platformFromCategory(category: string): Platform {
   return 'unknown';
 }
 
+/** Fallback `Platform` detection when no category is available, scanning the title. */
 export function platformFromTitle(title: string): Platform {
   if (/Switch|スイッチ|ニンテンドースイッチ/i.test(title)) return 'Switch';
   if (/PS5|PlayStation\s*5/i.test(title)) return 'PS5';
@@ -185,7 +189,10 @@ export function platformFromTitle(title: string): Platform {
   return 'unknown';
 }
 
+/** Detect the edition kind (初回限定版, 通常版, …) from a shop-listing title. */
 export function editionFromTitle(title: string): EditionKind {
+  if (/廉価版|廉価セット|廉価DVD|プライスダウン|プライス・?ダウン|お買得版|お買い得版|ベスト版|ベストプライス|プリティ?プライス|EZシリーズ|Best Hit/i.test(title)) return 'budget';
+  if (/ダウンロード版|DL版|DLsite|FANZA|DiGiket|ダウンロードカード/i.test(title)) return 'download';
   if (/通常版/.test(title)) return 'standard';
   if (/初回限定版|初回版/.test(title)) return 'first_press';
   if (/完全生産限定版|完全限定版/.test(title)) return 'limited';
@@ -197,6 +204,11 @@ export function editionFromTitle(title: string): EditionKind {
   return 'unknown';
 }
 
+/**
+ * Lowercase, fold full-width punctuation to half-width, strip brackets and
+ * collapse whitespace. Used by classifier matching so visual differences
+ * (e.g. 【 vs [ ) don't break similarity scoring.
+ */
 export function normalizeTitle(title: string): string {
   return title
     .replace(/\s+/g, ' ')
@@ -227,6 +239,19 @@ export function seriesNumberMismatch(resultTitle: string, targetTitle: string): 
   return resultNumMatch[1] !== targetNum;
 }
 
+export interface ClassifyOfferOptions {
+  /** Provenance of this offer: a result reached via a direct VNDB-release
+   * extlink, a user-pasted manual source, or a JAN-direct URL is trusted
+   * much more than a broad title-search hit. Pass 'direct' or 'manual'
+   * to apply the trust boost; default 'search' keeps the old scoring. */
+  source?: 'direct' | 'manual' | 'search' | 'cached';
+  /** Hint provider for cases where the category cannot be detected from
+   * the page (e.g. PC Shop Unoya is PC-only by definition). Lets the
+   * classifier resolve content_kind / platform without relying on the
+   * scraped category string. */
+  provider?: string | null;
+}
+
 /**
  * Classify a single offer result against a target VN.
  * Pure function: deterministic, no I/O.
@@ -235,10 +260,22 @@ export function classifyOffer(
   title: string,
   category: string | null | undefined,
   target: ClassifyTarget,
+  options: ClassifyOfferOptions = {},
 ): OfferClassification {
   const warnings: string[] = [];
   let score = 0;
   const cat = (category ?? '').trim();
+  const source = options.source ?? 'search';
+  const provider = options.provider ?? null;
+  // Providers that exclusively sell PC visual-novel software — the
+  // listing is implicitly a game package even when the scraped row
+  // carries no category string. Without this, every Hgame1 / PC Shop
+  // Unoya result was scored as content_kind=unknown and never reached
+  // the +50 exact-match bucket.
+  const PC_SOFTWARE_PROVIDERS = new Set([
+    'hgame1', 'sofmap', 'getchu', 'gamers', 'ebten', 'animate',
+    'melonbooks', 'gamecity',
+  ]);
 
   // ── Step 1: content kind ───────────────────────────────────────────────────
   const isBonusPrefix = /^\s*\[単品\]/.test(title);
@@ -279,6 +316,13 @@ export function classifyOffer(
   } else if (softwareCat) {
     contentKind = 'game_package';
     score += 40;
+  } else if (provider && PC_SOFTWARE_PROVIDERS.has(provider)) {
+    // Hgame1 / Sofmap / Getchu / Gamers / ebten / Animate / Melonbooks /
+    // GAMECITY sell PC visual-novel software exclusively (the few
+    // related-goods rows are already filtered by goods/soundtrack title
+    // patterns above). Treat the listing as a game package.
+    contentKind = 'game_package';
+    score += 30;
   } else {
     contentKind = 'unknown';
   }
@@ -356,7 +400,18 @@ export function classifyOffer(
     }
   }
 
-  // ── Step 5: confidence ────────────────────────────────────────────────────
+  // ── Step 5: source-trust boost ───────────────────────────────────────────
+  // A direct or manual source means the URL itself is the canonical record:
+  // a VNDB release.extlinks entry, a manually-pasted DP URL, a JAN-based
+  // direct path. These are NOT broad title-search hits — they identify the
+  // exact product by ID. When the title also contains the target, give a
+  // strong boost so the result lands in 'high' or 'exact' confidence and
+  // never gets surfaced as "low correspondance / weak match".
+  if ((source === 'direct' || source === 'manual') && containsTarget && seriesRelation !== 'related_goods' && seriesRelation !== 'unrelated') {
+    score += 30;
+  }
+
+  // ── Step 6: confidence ────────────────────────────────────────────────────
   let matchConfidence: MatchConfidence;
   if (score >= 100) matchConfidence = 'exact';
   else if (score >= 70) matchConfidence = 'high';

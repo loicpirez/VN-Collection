@@ -14,7 +14,7 @@ export const runtime = 'nodejs';
 
 // intentionally public — single-user self-hosted app; shelf layout
 // carries no PII. Mutating handlers below remain gated.
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const includePool = req.nextUrl.searchParams.get('pool') === '1';
   return NextResponse.json({
     shelves: listShelves(),
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as {
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { order?: unknown };

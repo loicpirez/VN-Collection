@@ -34,7 +34,7 @@ function parseEgsId(raw: string): number | null {
   return n;
 }
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   const egsId = parseEgsId(id);
   if (egsId == null) {
@@ -53,7 +53,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
  * — the UI uses this to dim the map button instead of inviting the user to
  * try yet again. Pass `mode: 'clear'` to remove the override entirely.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ ok: true, link: getEgsVnLink(egsId) });
 }
 
-export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

@@ -44,12 +44,18 @@ export function recordRecentlyViewed(entry: Omit<RecentEntry, 'viewedAt'>): void
   window.dispatchEvent(new CustomEvent('vn:recently-viewed-updated'));
 }
 
+/** Empty the recently-viewed list and notify subscribed components. */
 export function clearRecentlyViewed(): void {
   if (typeof window === 'undefined') return;
   writeStorage([]);
   window.dispatchEvent(new CustomEvent('vn:recently-viewed-updated'));
 }
 
+/**
+ * React hook for the recently-viewed strip. Re-renders on the
+ * `vn:recently-viewed-updated` CustomEvent (same-tab) and the native
+ * `storage` event (cross-tab) so the list stays in sync everywhere.
+ */
 export function useRecentlyViewed(): { items: RecentEntry[]; clear: () => void } {
   const [items, setItems] = useState<RecentEntry[]>([]);
 

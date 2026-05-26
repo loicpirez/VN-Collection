@@ -34,6 +34,11 @@ export interface ScrapedTagDag {
 
 const CACHE_KEY = (gid: string) => `scrape_tag:${gid.toLowerCase()}`;
 
+/**
+ * Read the cached parent/child DAG for a tag id, or `null` when absent or
+ * unparseable. Used as a fast pre-render path so tag pages don't block on
+ * a VNDB scrape.
+ */
 export function readScrapedTagDag(gid: string): ScrapedTagDag | null {
   const row = db
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
@@ -76,6 +81,11 @@ function parseList(block: string | undefined, selfId: string): ScrapedTagDagNode
   return out;
 }
 
+/**
+ * Scrape the VNDB `/g<id>` page for one tag's Parents / Children block and
+ * persist the result. Returns `null` for malformed ids or when the page is
+ * unreachable so callers can degrade gracefully.
+ */
 export async function scrapeTagDag(
   gid: string,
   opts: { force?: boolean } = {},
@@ -95,6 +105,11 @@ export async function scrapeTagDag(
   return dag;
 }
 
+/**
+ * Fan-out: scrape every tag attached to a VN so the tag detail tree on the
+ * VN page can render without blocking. Skips fresh cache entries unless
+ * `force: true`.
+ */
 export async function scrapeTagDagForVn(
   vnId: string,
   opts: { force?: boolean } = {},

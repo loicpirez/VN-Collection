@@ -11,6 +11,11 @@ export interface TagPageEmptyState {
   fallbackLibrary: string;
 }
 
+/**
+ * Build the empty-state CTA shape for a tag page. Returns the same
+ * external + library hrefs regardless of `collectionCount`; the boolean
+ * flag is the only thing the renderer toggles on.
+ */
 export function tagPageEmptyState({
   tagId,
   collectionCount,

@@ -19,7 +19,7 @@ const MAX_SERIES_IMAGE_BYTES = 15 * 1024 * 1024;
  * path written into series.{cover_path|banner_path}. The response includes
  * the publicly-accessible URL ready to drop into <img src>.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

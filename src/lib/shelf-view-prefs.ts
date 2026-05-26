@@ -75,6 +75,7 @@ export const SHELF_VIEW_PREFS_BOUNDS = {
 
 export const SHELF_TEXT_DENSITIES: readonly ShelfTextDensity[] = ['sm', 'md', 'lg'];
 
+/** Baseline shelf rendering knobs used before any persisted prefs land. */
 export function defaultShelfViewPrefsV1(): ShelfViewPrefsV1 {
   return {
     cellSizePx: 140,
@@ -298,6 +299,7 @@ export interface ShelfDisplayOverridesV1 {
   shelves: Record<string, Partial<ShelfViewPrefsV1>>;
 }
 
+/** Empty overrides bundle: global defaults, no per-shelf overrides. */
 export function defaultShelfDisplayOverridesV1(): ShelfDisplayOverridesV1 {
   return { global: defaultShelfViewPrefsV1(), shelves: {} };
 }

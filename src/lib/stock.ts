@@ -4,7 +4,7 @@ import { getCollectionItem, getEgsForVn, listKobeStockForVn, listStockAliases, l
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
-import { providerFetch } from './proxy-fetch';
+import { stockProviderFetch } from './proxy-fetch';
 import type { CollectionItem } from './types';
 import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
 
@@ -167,14 +167,21 @@ const PROVIDERS: StockProviderMeta[] = [
 
 const PROVIDER_LABELS = new Map(PROVIDERS.map((p) => [p.id, p.label]));
 
+/** Look up a stock provider's metadata row. Returns `undefined` for unknown ids. */
 export function getProviderMeta(id: StockProviderId | 'alicesoft_kobe'): StockProviderMeta | undefined {
   return PROVIDERS.find((p) => p.id === id);
 }
 
+/** Does the provider's data carry enough signal to show a confirmed physical SKU? */
 export function canProduceConfirmedPhysicalStock(id: StockProviderId | 'alicesoft_kobe'): boolean {
   return !!getProviderMeta(id)?.confirmedPhysicalUsable;
 }
 
+/**
+ * Does the provider count as a "potential physical lead" — i.e. its
+ * listings hint at a physical SKU even when not stock-confirmed (single-
+ * shop sites, exact-online retailers, phone-only check, cached snapshots).
+ */
 export function canProducePotentialPhysicalLead(id: StockProviderId | 'alicesoft_kobe'): boolean {
   const meta = getProviderMeta(id);
   if (!meta?.physical) return false;
@@ -186,6 +193,11 @@ export function canProducePotentialPhysicalLead(id: StockProviderId | 'alicesoft
   return potentialModes.includes(meta.physicalStockMode);
 }
 
+/**
+ * Apply the confirmed-physical filter to one offer: provider must be on
+ * the confirmed list, availability must be in-stock-ish, and the offer
+ * must carry a real branch label (not the synthetic "Online stock").
+ */
 export function shouldShowInConfirmedPhysicalResults(
   offer: Pick<VnStockOfferRow, 'provider' | 'availability' | 'location_label'>,
 ): boolean {
@@ -194,6 +206,10 @@ export function shouldShowInConfirmedPhysicalResults(
   return !!offer.location_label && offer.location_label !== 'Online stock';
 }
 
+/**
+ * Apply the "potential physical lead" filter to one offer: the provider
+ * must carry physical inventory and the offer must not be out-of-stock.
+ */
 export function shouldShowAsPhysicalLead(
   offer: Pick<VnStockOfferRow, 'provider' | 'availability'>,
 ): boolean {
@@ -381,6 +397,10 @@ const STOCK_FETCH_TIMEOUT_MS = 15_000;
 
 async function fetchShopText(url: string, init: RequestInit & { encoding?: string; timeoutMs?: number } = {}): Promise<string> {
   if (!isAllowedHttpTarget(url)) throw new Error(`Blocked stock URL: ${sourceHost(url) || 'invalid host'}`);
+  // Auto-detect provider from host so each fetch can apply a per-shop proxy
+  // override (e.g. AmiAmi via SOCKS5 #1, Suruga-ya direct, GEO via SOCKS5
+  // #2). Falls back to the catch-all `stock` proxy then no proxy.
+  const detectedProvider = providerForHost(sourceHost(url)) ?? 'stock';
   const timeoutMs = init.timeoutMs ?? STOCK_FETCH_TIMEOUT_MS;
   const timeoutCtrl = new AbortController();
   const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
@@ -395,12 +415,12 @@ async function fetchShopText(url: string, init: RequestInit & { encoding?: strin
       : null;
   let res: Response;
   try {
-    res = await providerFetch(url, {
+    res = await stockProviderFetch(url, {
       redirect: 'follow',
       cache: 'no-store',
       headers: { ...SHOP_HEADERS, ...(init.headers ?? {}) },
       signal: timeoutCtrl.signal,
-    }, 'stock');
+    }, detectedProvider);
   } catch (err) {
     if (timeoutCtrl.signal.aborted && !(init.signal && init.signal.aborted)) {
       throw new Error(`fetch timeout after ${timeoutMs}ms from ${sourceHost(url)}`);
@@ -567,6 +587,7 @@ function allTargetsForProvider(
   return targets;
 }
 
+/** Match a hostname against the per-provider host patterns. Returns `null` on no match. */
 export function providerForHost(host: string): StockProviderId | null {
   for (const provider of STOCK_PROVIDER_IDS) {
     if (PROVIDER_HOSTS[provider].test(host)) return provider;
@@ -574,10 +595,16 @@ export function providerForHost(host: string): StockProviderId | null {
   return null;
 }
 
+/** Convenience wrapper: extract the host from `url` and route via `providerForHost`. */
 export function detectStockProviderFromUrl(url: string): StockProviderId | null {
   return providerForHost(sourceHost(url));
 }
 
+/**
+ * Extract the 10-character ASIN from an Amazon Japan URL, or `null` when
+ * the URL isn't amazon.co.jp or doesn't carry a `/dp/` / `/gp/product/`
+ * segment. Used to canonicalise Amazon links across providers.
+ */
 export function extractAmazonAsin(url: string): string | null {
   try {
     const u = new URL(url);
@@ -687,6 +714,11 @@ function firstMatchText(html: string, re: RegExp): string | null {
   return m?.[1] ? stripTags(m[1]) : null;
 }
 
+/**
+ * Parse a Sofmap search-results page into `ParsedOffer` rows. Each result
+ * carries provider, raw title, listed price, availability hint, and a deep
+ * link back to the product page.
+ */
 export function parseSofmapList(html: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
   const listStart = html.indexOf('id="change_style_list"');
@@ -732,6 +764,7 @@ export function parseSofmapList(html: string, target: StockTarget): ParsedOffer[
   return offers;
 }
 
+/** Parse one Sofmap product-detail page into a single `ParsedOffer` or `null` when the page isn't a match. */
 export function parseSofmapDetail(html: string, url: string, target: StockTarget): ParsedOffer | null {
   const title = firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
   if (!title || /18歳以上ですか/.test(title)) return null;
@@ -774,7 +807,7 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
     const pathname = new URL(url).pathname.toLowerCase();
     if (/product_list_parts/i.test(pathname)) {
       for (const offer of parseSofmapList(html, target)) {
-        const cl = classifyOffer(offer.title, offer.category ?? null, classifyTarget);
+        const cl = classifyOffer(offer.title, offer.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'sofmap' });
         offers.push(offerInput(vnId, 'sofmap', target.releaseId ? 'direct' : 'search', now, { ...offer, ...classificationToFields(cl) }));
       }
       continue;
@@ -782,7 +815,7 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
     if (/product_detail/i.test(pathname)) {
       const parsed = parseSofmapDetail(html, url, target);
       if (parsed) {
-        const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+        const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'sofmap' });
         offers.push(offerInput(vnId, 'sofmap', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
       }
       continue;
@@ -793,7 +826,7 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
         const partsUrl = withSofmapAdultBypass(absUrl(url, partsHref));
         const partsHtml = await fetchShopText(partsUrl, { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
         for (const offer of parseSofmapList(partsHtml, target)) {
-          const cl = classifyOffer(offer.title, offer.category ?? null, classifyTarget);
+          const cl = classifyOffer(offer.title, offer.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'sofmap' });
           offers.push(offerInput(vnId, 'sofmap', target.releaseId ? 'direct' : 'search', now, { ...offer, ...classificationToFields(cl) }));
         }
       } catch {}
@@ -807,7 +840,7 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
         const detailHtml = await fetchShopText(withSofmapAdultBypass(detailUrl), { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
         const parsed = parseSofmapDetail(detailHtml, withSofmapAdultBypass(detailUrl), target);
         if (parsed) {
-          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'sofmap' });
           offers.push(offerInput(vnId, 'sofmap', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
         }
       } catch {}
@@ -816,6 +849,7 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
   return offers;
 }
 
+/** Parse one hgame1 (Unoya) product page into a `ParsedOffer`. */
 export function parseHgame1Detail(html: string, url: string, target: StockTarget): ParsedOffer | null {
   const title = firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
   if (!title || /年齢確認/.test(title)) return null;
@@ -880,7 +914,7 @@ async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: Collecti
           const parsed = parseHgame1Detail(html, detailUrl, target);
           if (!parsed) continue;
           if (!targetMatchesTitle(target, parsed.title)) continue;
-          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'hgame1' });
           offers.push(offerInput(vnId, 'hgame1', 'search', now, { ...parsed, ...classificationToFields(cl) }));
         } catch {}
       }
@@ -889,13 +923,14 @@ async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: Collecti
     const html = await fetchShopText(target.url, { headers: ageHeaders, signal });
     const parsed = parseHgame1Detail(html, target.url, target);
     if (parsed) {
-      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'hgame1' });
       offers.push(offerInput(vnId, 'hgame1', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
     }
   }
   return offers;
 }
 
+/** Parse one Melonbooks product page into a `ParsedOffer`. */
 export function parseMelonbooksDetail(html: string, url: string, target: StockTarget): ParsedOffer | null {
   const title = firstMatchText(html, /<h1[^>]*class=["'][^"']*page-header[^"']*["'][^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
   if (!title) return null;
@@ -957,7 +992,7 @@ async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: Coll
           const parsed = parseMelonbooksDetail(detailHtml, detailUrl, target);
           if (!parsed) continue;
           if (!targetMatchesTitle(target, parsed.title)) continue;
-          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'melonbooks' });
           offers.push(offerInput(vnId, 'melonbooks', 'search', now, { ...parsed, ...classificationToFields(cl) }));
         } catch {}
       }
@@ -965,13 +1000,14 @@ async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: Coll
     }
     const parsed = parseMelonbooksDetail(html, target.url, target);
     if (parsed) {
-      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'melonbooks' });
       offers.push(offerInput(vnId, 'melonbooks', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
     }
   }
   return offers;
 }
 
+/** Parse one Mandarake product page into a `ParsedOffer`. Mandarake is per-branch (location_branch is populated). */
 export function parseMandarakeDetail(html: string, url: string, target: StockTarget): ParsedOffer | null {
   const blockedTitle = firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
   if (blockedTitle === 'MANDARAKE' && !/itemCode|価格|円|在庫|cart|price/i.test(html)) return null;
@@ -1014,7 +1050,7 @@ async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: Colle
         const detailHtml = await fetchShopText(detailUrl, { signal });
         const parsed = parseMandarakeDetail(detailHtml, detailUrl, target);
         if (parsed) {
-          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+          const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'mandarake' });
           offers.push(offerInput(vnId, 'mandarake', 'search', now, { ...parsed, ...classificationToFields(cl) }));
         }
       }
@@ -1022,13 +1058,14 @@ async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: Colle
     }
     const parsed = parseMandarakeDetail(html, target.url, target);
     if (parsed) {
-      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'mandarake' });
       offers.push(offerInput(vnId, 'mandarake', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
     }
   }
   return offers;
 }
 
+/** Parse one WonderGOO product page into a `ParsedOffer`. */
 export function parseWondergooDetail(html: string, url: string, target: StockTarget): ParsedOffer | null {
   const title =
     firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ??
@@ -1062,7 +1099,7 @@ async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: Colle
     const html = await fetchShopText(target.url, { signal });
     const parsed = parseWondergooDetail(html, target.url, target);
     if (parsed) {
-      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'wondergoo' });
       offers.push(offerInput(vnId, 'wondergoo', 'direct', now, { ...parsed, ...classificationToFields(cl) }));
     }
   }
@@ -1324,7 +1361,10 @@ async function refreshTrader(
       } catch {}
     }
 
-    const cl = classifyOffer(finalOffer.title, finalOffer.category ?? null, classifyTarget);
+    const cl = classifyOffer(finalOffer.title, finalOffer.category ?? null, classifyTarget, {
+      source: source === 'direct' ? 'direct' : 'search',
+      provider: 'trader',
+    });
     offers.push(offerInput(vnId, 'trader', source, now, { ...finalOffer, ...classificationToFields(cl) }));
   }
 
@@ -1535,6 +1575,7 @@ function parseAmazonList(html: string, url: string, target: StockTarget): Parsed
   return offers;
 }
 
+/** Parse one Amazon Japan product page into a `ParsedOffer`. Carries the ASIN as `product_id`. */
 export function parseAmazonDetail(html: string, url: string, target: StockTarget): ParsedOffer | null {
   const asin = extractAmazonAsin(url) ?? target.productId ?? null;
   if (!asin) return null;
@@ -1617,6 +1658,11 @@ function providerListPatterns(provider: StockProviderId): RegExp[] {
   return [];
 }
 
+/**
+ * Dispatch one HTML page to the provider-specific parser and return the
+ * resulting offers. Used by the per-provider refresh loop so callers don't
+ * have to switch on `provider` themselves.
+ */
 export function parseGenericProviderPage(provider: StockProviderId, html: string, url: string, target: StockTarget): ParsedOffer[] {
   if (provider === 'amazon_jp' && extractAmazonAsin(url)) {
     const direct = parseAmazonDetail(html, url, target);
@@ -1666,7 +1712,7 @@ async function refreshGenericProvider(provider: StockProviderId, vnId: string, r
   for (const target of allTargetsForProvider(releases, provider, vn, discovered, aliases).slice(0, 8)) {
     const html = await fetchShopText(target.url, { encoding: providerEncoding(provider), signal });
     for (const parsed of parseGenericProviderPage(provider, html, target.url, target).slice(0, 10)) {
-      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget);
+      const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: provider });
       offers.push(offerInput(vnId, provider, stockTargetSource(target), now, { ...parsed, ...classificationToFields(cl) }));
     }
   }
@@ -1743,6 +1789,9 @@ interface ErogePriceCellRoles {
   edition: string | null;
   condition: string | null;
   priceText: string;
+  salePriceText: string | null;
+  saleLabel: string | null;
+  listPriceText: string | null;
   rowHtml: string;
 }
 
@@ -1751,16 +1800,33 @@ interface ErogePriceCellRoles {
  * column orders across game types (PC vs console), so positional parsing
  * misses rows. Pattern-based parsing also handles the "shipping" / "total"
  * / "points" cells gracefully.
+ *
+ * Eroge Price's canonical layout is:
+ *   ショップ | 価格 | セール価格 | セール | 商品状態 | 定価 | (button)
+ *
+ * with cells containing `-` for "not applicable" (e.g. no sale, no condition).
+ * The first cell embeds an outbound shop link. The last cell is a 購入
+ * button that may say `購入` (purchasable) or `確認` (out of stock / unavail).
+ * Some rows are 取扱なし (not handled) — the seller still appears, but the
+ * price column shows `-`. We must NOT push those as in-stock offers.
  */
 function classifyErogePriceRow(rowHtml: string, baseUrl: string): ErogePriceCellRoles | null {
   const cellMatches = [...rowHtml.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => m[1] ?? '');
   if (cellMatches.length < 2) return null;
 
+  // The Eroge Price page renders one row per shop in the canonical column
+  // order: shop / price / sale_price / sale_label / condition / list_price
+  // / button. Identify each by content pattern rather than column index so
+  // PC vs console layouts (which add a "platform" column) still parse.
   let seller = '';
   let sellerLink: string | null = null;
   let edition: string | null = null;
   let condition: string | null = null;
   let priceText = '';
+  let salePriceText: string | null = null;
+  let saleLabel: string | null = null;
+  let listPriceText: string | null = null;
+  const priceCells: string[] = [];
 
   for (const cellHtml of cellMatches) {
     const text = stripTags(cellHtml).trim();
@@ -1772,43 +1838,64 @@ function classifyErogePriceRow(rowHtml: string, baseUrl: string): ErogePriceCell
       const link = extractFirstShopLink(cellHtml, baseUrl);
       if (link) {
         sellerLink = link;
-        if (!seller) seller = text;
+        if (!seller) seller = text.replace(/最安$/, '').trim();
       }
     }
 
-    // Price patterns: "¥3,300" / "3,300円" / "JPY 3300"
-    if (!priceText && (/[¥￥]\s*[\d,]+|[\d,]+\s*円|JPY\s*[\d,]+/i.test(text))) {
-      priceText = text;
+    // Collect price-shaped cells in order (price > sale > list typical).
+    if (/[¥￥]\s*[\d,]+|[\d,]+\s*円|JPY\s*[\d,]+/i.test(text)) {
+      priceCells.push(text);
       continue;
     }
 
-    // Condition patterns
-    if (!condition && /^(新品|中古|未開封|未使用|ランク[A-Za-z])/.test(text)) {
+    // Sale-label patterns: "通常価格" / "-30% セール" / "取扱なし" / "セール中"
+    if (!saleLabel && /(通常価格|セール|取扱なし|半額|％\s*OFF|%\s*OFF)/.test(text)) {
+      saleLabel = text;
+      continue;
+    }
+
+    // Condition: ranks (A/B/C/D) or 新品/中古/未開封/未使用
+    if (!condition && /^(新品|中古|未開封|未使用|ランク?[A-DＡ-Ｄ]|[A-DＡ-Ｄ])$/.test(text)) {
       condition = text;
       continue;
     }
 
-    // Edition patterns
-    if (!edition && /(通常版|初回限定|限定版|完全版|豪華|デラックス|complete|deluxe|限定|初回|パッケージ|DL版|dl版|ダウンロード)/i.test(text)) {
+    // Edition / version: ダウンロード版 / パッケージ版 / 通常版 / 限定版 ...
+    if (!edition && /(通常版|初回限定|限定版|完全版|豪華|デラックス|complete|deluxe|初回|パッケージ版|DL版|dl版|ダウンロード版|ダウンロード)/i.test(text)) {
       edition = text;
       continue;
     }
 
-    // Seller fallback: first non-price, non-numeric text cell
-    if (!seller && !/^[\d,¥￥\s]+$/.test(text) && text.length >= 2) {
-      seller = text;
+    // Seller fallback: first non-price, non-numeric text cell.
+    if (!seller && !/^[\d,¥￥\s\-]+$/.test(text) && text.length >= 2) {
+      seller = text.replace(/最安$/, '').trim();
     }
   }
+
+  if (priceCells.length > 0) priceText = priceCells[0];
+  if (priceCells.length > 1) salePriceText = priceCells[1];
+  if (priceCells.length > 2) listPriceText = priceCells[priceCells.length - 1];
 
   if (!seller && sellerLink) {
     // If no descriptive seller text was found, use the host as a fallback.
     try { seller = new URL(sellerLink).hostname.replace(/^www\./, ''); } catch {}
   }
 
-  if (!seller || !priceText) return null;
-  return { seller, sellerLink, edition, condition, priceText, rowHtml };
+  if (!seller) return null;
+  // A 取扱なし row means "this seller doesn't carry this product" — we still
+  // surface it so the operator can see all candidates, but as out_of_stock.
+  if (!priceText && saleLabel === '取扱なし') {
+    return { seller, sellerLink, edition, condition, priceText: '0', salePriceText, saleLabel, listPriceText, rowHtml };
+  }
+  if (!priceText) return null;
+  return { seller, sellerLink, edition, condition, priceText, salePriceText, saleLabel, listPriceText, rowHtml };
 }
 
+/**
+ * Parse an Eroge-Price aggregator page into one offer row per seller. Returns
+ * `VnStockOfferInput[]` directly (not `ParsedOffer`) because each row needs
+ * the seller link as a separate URL.
+ */
 export function parseErogePrice(html: string, url: string, vnId: string, now: number): VnStockOfferInput[] {
   const title = firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i) ?? 'Eroge Price';
   const pageJan = extractJan(html);
@@ -1840,32 +1927,56 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
     }
   }
 
-  for (const m of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
-    const rowHtml = m[1] ?? '';
+  // Walk every <tr> row exactly once. Detect the version-table heading
+  // (ダウンロード版 / パッケージ版 / etc.) that precedes each table so each
+  // row gets the right edition label even when the row itself just says
+  // "-" in the version column.
+  let currentVersion: string | null = null;
+  for (const m of html.matchAll(/(<h2[^>]*>[\s\S]*?<\/h2>|<h3[^>]*>[\s\S]*?<\/h3>|<tr[^>]*>[\s\S]*?<\/tr>)/gi)) {
+    const chunk = m[0] ?? '';
+    if (/^<h[23]/i.test(chunk)) {
+      const heading = stripTags(chunk).trim();
+      if (/ダウンロード版|DL版|パッケージ版|通常版|限定版|セット/.test(heading)) {
+        currentVersion = heading;
+      }
+      continue;
+    }
+    const rowHtml = chunk.replace(/^<tr[^>]*>/i, '').replace(/<\/tr>$/i, '');
     const row = classifyErogePriceRow(rowHtml, url);
     if (!row) continue;
     const offerUrl = row.sellerLink ?? url;
-    const key = `row:${row.seller}:${row.edition ?? ''}:${row.priceText}:${row.condition ?? ''}`;
+    const editionLabel = row.edition ?? currentVersion;
+    const key = `row:${row.seller}:${editionLabel ?? ''}:${row.priceText}:${row.condition ?? ''}`;
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
-    const inStockFlag = /在庫あり|入荷|販売中|入荷待ち|予約|InStock|PreOrder/i.test(rowHtml);
-    const soldOutFlag = /品切|完売|販売終了|入手不可|sold\s*out/i.test(rowHtml);
+
+    const isUnavailable = row.saleLabel === '取扱なし' || row.priceText === '0';
+    const inStockFlag = !isUnavailable && /在庫あり|入荷|販売中|InStock|PreOrder|購入/i.test(rowHtml);
+    const soldOutFlag = isUnavailable || /品切|完売|販売終了|入手不可|sold\s*out/i.test(rowHtml);
     let availability: VnStockAvailability;
     if (soldOutFlag) availability = 'out_of_stock';
     else if (inStockFlag) availability = 'in_stock';
     else availability = availabilityFromText(row.condition ?? row.seller);
+
+    // Use sale price when present, otherwise the regular price.
+    const salePrice = row.salePriceText ? parsePriceYen(row.salePriceText) : null;
+    const regularPrice = parsePriceYen(row.priceText);
+    const effectivePrice = isUnavailable ? null : (salePrice ?? regularPrice);
+    const listPrice = row.listPriceText ? parsePriceYen(row.listPriceText.replace(/\*/g, '')) : null;
+
     offers.push(offerInput(vnId, 'eroge_price', 'search', now, {
       provider_offer_id: key,
       title,
       url: offerUrl,
-      price: parsePriceYen(row.priceText),
+      price: effectivePrice,
       availability,
-      availability_label: row.seller,
+      availability_label: row.saleLabel ?? row.seller,
       condition: row.condition,
-      edition_label: row.edition,
+      edition_label: editionLabel,
       location_label: row.seller,
       source_release_id: null,
       jan: pageJan,
+      list_price: listPrice && listPrice !== effectivePrice ? listPrice : null,
     }));
   }
   return offers;
@@ -1882,7 +1993,10 @@ async function refreshErogePrice(vnId: string, egsId: number | null | undefined,
     aliases,
   };
   return raw.map((offer) => {
-    const cl = classifyOffer(offer.title, null, classifyTarget);
+    const cl = classifyOffer(offer.title, null, classifyTarget, {
+      source: 'direct',  // Eroge Price page is keyed by EGS id — the result IS the canonical product
+      provider: 'eroge_price',
+    });
     return { ...offer, ...classificationToFields(cl) };
   });
 }
@@ -2078,7 +2192,10 @@ function surugayaCardToOffer(card: SurugayaSearchCard, classifyTarget: ClassifyT
     availLabel = `Marketplace: ¥${card.marketplacePrice.toLocaleString('ja-JP')}`;
   }
 
-  const cl = classifyOffer(card.title, card.category, classifyTarget);
+  const cl = classifyOffer(card.title, card.category, classifyTarget, {
+    source: 'search',
+    provider: 'surugaya',
+  });
   const clFields = classificationToFields(cl);
 
   const storeLabel = card.storeCode ? `Store ${card.storeCode}` : null;
@@ -2186,6 +2303,12 @@ async function refreshProvider(
   return refreshGenericProvider(provider, vnId, releases, vn, discovered, now, signal, aliases);
 }
 
+/**
+ * Run every requested provider against one VN and persist the snapshot.
+ * Honours per-VN `vn_stock_source` overrides, dedupes targets, and writes
+ * a `vn_stock_provider_status` row per provider so the UI can show the
+ * skipped / no-results / partial / ok state without re-running the parse.
+ */
 export async function refreshStockForVn(vnId: string, providers: StockProviderId[] = [...STOCK_PROVIDER_IDS], signal?: AbortSignal): Promise<StockSnapshot> {
   const vn = await loadVnForStock(vnId);
   if (!vn) throw new Error(`VN not found: ${vnId}`);
@@ -2261,6 +2384,11 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
   return getStockForVn(vnId);
 }
 
+/**
+ * Read the cached `StockSnapshot` for one VN. Returns whatever
+ * `vn_stock_offer` + `vn_stock_provider_status` currently hold; never
+ * triggers a fresh fetch on its own.
+ */
 export function getStockForVn(vnId: string): StockSnapshot {
   const directOffers: StockOffer[] = listVnStockOffers(vnId).map((offer) => ({
     ...offer,

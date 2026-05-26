@@ -13,7 +13,7 @@ function parseSeriesId(s: string): number | null {
   return Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : null;
 }
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string; vnId: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string; vnId: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id, vnId } = await ctx.params;
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ series: getSeries(sid), added });
 }
 
-export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string; vnId: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string; vnId: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id, vnId } = await ctx.params;

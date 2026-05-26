@@ -28,6 +28,11 @@ function isEmpty(v: unknown): boolean {
   return false;
 }
 
+/**
+ * Apply the VNDB/EGS preference + fallback chain documented above to one
+ * field. Returns the chosen value plus provenance flags so callers can show
+ * a "(via EGS fallback)" badge when `fellBack` is true.
+ */
 export function resolveField<T>(
   vndb: T | null | undefined,
   egs: T | null | undefined,

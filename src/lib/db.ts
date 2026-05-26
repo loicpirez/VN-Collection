@@ -1719,6 +1719,11 @@ function rebuildVnPlatformIndex(vnId: string, platforms: unknown[]): void {
   }
 }
 
+/**
+ * Insert or replace one VN row with the canonical VNDB payload, derived JSON
+ * columns, the platform index, and the materialised staff/VA credit tables.
+ * Wraps `upsertVnTx` so every write happens in a single transaction.
+ */
 export function upsertVn(vn: RawVnPayload): void {
   upsertVnTx(vn);
 }
@@ -1801,6 +1806,11 @@ export interface StaffVaCredit {
   }[];
 }
 
+/**
+ * Reconstruct a staff profile from the materialised credit tables. Used to
+ * render `/staff/[id]` when the operator has no VNDB token but the staffer
+ * appears in at least one owned VN.
+ */
 export function getStaffProfileFromCredits(sid: string): StaffProfile | null {
   const staff = db
     .prepare(`SELECT name, original, lang FROM vn_staff_credit WHERE sid = ? LIMIT 1`)
@@ -1813,6 +1823,10 @@ export function getStaffProfileFromCredits(sid: string): StaffProfile | null {
   return null;
 }
 
+/**
+ * Production credits for a staff id from the local `vn_staff_credit` index.
+ * Set `inCollectionOnly` to scope to owned VNs only.
+ */
 export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly?: boolean } = {}): StaffWorkCredit[] {
   const where = opts.inCollectionOnly ? `AND c.vn_id IS NOT NULL` : '';
   const rows = db.prepare(`
@@ -1855,6 +1869,10 @@ export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly
   return Array.from(map.values());
 }
 
+/**
+ * VA credits for a staff id (one row per character voiced). Set
+ * `inCollectionOnly` to scope to owned VNs only.
+ */
 export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boolean } = {}): StaffVaCredit[] {
   const where = opts.inCollectionOnly ? `AND c.vn_id IS NOT NULL` : '';
   const rows = db.prepare(`
@@ -2134,6 +2152,10 @@ export function findStaffSiblings(sid: string): StaffSibling[] {
   return Array.from(bySid.values());
 }
 
+/**
+ * List every VA who voiced this character (across all VNs in the
+ * materialised credit table). Deduped by `(sid, vn_id)`.
+ */
 export function getVasForCharacter(charId: string): CharacterVoiceCredit[] {
   const rows = db.prepare(`
     SELECT va.sid, va.va_name, va.va_original, va.va_lang,
@@ -2161,18 +2183,22 @@ export function getVasForCharacter(charId: string): CharacterVoiceCredit[] {
   return Array.from(map.values());
 }
 
+/** Persist the relative storage paths for a VN's mirrored cover + thumbnail. */
 export function setLocalImagePaths(vnId: string, full: string | null, thumb: string | null): void {
   db.prepare('UPDATE vn SET local_image = ?, local_image_thumb = ? WHERE id = ?').run(full, thumb, vnId);
 }
 
+/** Set or clear the user-uploaded custom cover path for a VN. */
 export function setCustomCover(vnId: string, path: string | null): void {
   db.prepare('UPDATE vn SET custom_cover = ? WHERE id = ?').run(path, vnId);
 }
 
+/** Set or clear the user-chosen banner value (relative path OR remote URL). */
 export function setBanner(vnId: string, value: string | null): void {
   db.prepare('UPDATE vn SET banner_image = ? WHERE id = ?').run(value, vnId);
 }
 
+/** Persist the banner focal point as a `"X% Y%"` background-position string. */
 export function setBannerPosition(vnId: string, value: string | null): void {
   db.prepare('UPDATE vn SET banner_position = ? WHERE id = ?').run(value, vnId);
 }
@@ -2189,18 +2215,22 @@ export function normalizeRotation(raw: number | null | undefined): 0 | 90 | 180 
   return 0;
 }
 
+/** Persist the cover rotation in degrees. Out-of-spec values are coerced to 0. */
 export function setCoverRotation(vnId: string, value: number): void {
   db.prepare('UPDATE vn SET cover_rotation = ? WHERE id = ?').run(normalizeRotation(value), vnId);
 }
 
+/** Persist the banner rotation in degrees. Out-of-spec values are coerced to 0. */
 export function setBannerRotation(vnId: string, value: number): void {
   db.prepare('UPDATE vn SET banner_rotation = ? WHERE id = ?').run(normalizeRotation(value), vnId);
 }
 
+/** Overwrite the cached screenshots JSON for a VN. */
 export function setLocalScreenshots(vnId: string, shots: Screenshot[]): void {
   db.prepare('UPDATE vn SET screenshots = ? WHERE id = ?').run(JSON.stringify(shots), vnId);
 }
 
+/** Overwrite the cached release artwork JSON for a VN. */
 export function setReleaseImages(vnId: string, images: ReleaseImage[]): void {
   db.prepare('UPDATE vn SET release_images = ? WHERE id = ?').run(JSON.stringify(images), vnId);
 }
@@ -2243,6 +2273,7 @@ export interface CharacterImageRecord {
   fetched_at: number;
 }
 
+/** Read one character's mirrored portrait record, or `null` when never downloaded. */
 export function getCharacterImage(charId: string): CharacterImageRecord | null {
   const row = db
     .prepare('SELECT url, local_path, fetched_at FROM character_image WHERE char_id = ?')
@@ -2250,6 +2281,7 @@ export function getCharacterImage(charId: string): CharacterImageRecord | null {
   return row ?? null;
 }
 
+/** Bulk-load character portrait records keyed by id. Missing ids are simply absent. */
 export function getCharacterImages(charIds: string[]): Map<string, CharacterImageRecord> {
   const out = new Map<string, CharacterImageRecord>();
   if (charIds.length === 0) return out;
@@ -2272,6 +2304,10 @@ export interface VnCoverRow {
   local_image: string | null;
   local_image_thumb: string | null;
 }
+/**
+ * Read only the cover-related columns for one VN (cheap lookup that skips
+ * the heavy JSON columns on `vn`). Returns `null` for unknown ids.
+ */
 export function getVnCover(vnId: string): VnCoverRow | null {
   const row = db
     .prepare('SELECT image_url, local_image, local_image_thumb FROM vn WHERE id = ?')
@@ -2303,6 +2339,7 @@ export interface EgsRow {
   fetched_at: number;
 }
 
+/** Read the linked EGS row for one VN, or `null` when no EGS link exists. */
 export function getEgsForVn(vnId: string): EgsRow | null {
   const row = db
     .prepare('SELECT vn_id, egs_id, gamename, gamename_furigana, brand_id, brand_name, model, description, image_url, local_image, okazu, erogame, raw_json, median, average, dispersion, count, sellday, playtime_median_minutes, source, fetched_at FROM egs_game WHERE vn_id = ?')
@@ -2310,6 +2347,7 @@ export function getEgsForVn(vnId: string): EgsRow | null {
   return row ?? null;
 }
 
+/** Bulk-fetch EGS rows for many VN ids; missing rows simply absent from the map. */
 export function getEgsForVns(vnIds: string[]): Map<string, EgsRow> {
   const out = new Map<string, EgsRow>();
   if (vnIds.length === 0) return out;
@@ -2325,6 +2363,10 @@ export function getEgsForVns(vnIds: string[]): Map<string, EgsRow> {
   return out;
 }
 
+/**
+ * Insert or replace the `egs_game` row for one VN. `fetched_at` is stamped
+ * here so callers don't need to thread the timestamp through.
+ */
 export function upsertEgsForVn(row: Omit<EgsRow, 'fetched_at' | 'local_image'> & { local_image?: string | null }): void {
   db.prepare(`
     INSERT INTO egs_game (
@@ -2380,10 +2422,15 @@ export function upsertEgsForVn(row: Omit<EgsRow, 'fetched_at' | 'local_image'> &
   );
 }
 
+/** Persist the relative path of the locally-mirrored EGS cover image. */
 export function setEgsLocalImage(vnId: string, localPath: string | null): void {
   db.prepare('UPDATE egs_game SET local_image = ? WHERE vn_id = ?').run(localPath, vnId);
 }
 
+/**
+ * Drop a VN's EGS link (resets the resolver so the next read re-fetches).
+ * Manual `vn_egs_link` overrides are kept; only the cached resolution clears.
+ */
 export function clearEgsForVn(vnId: string): void {
   db.prepare('DELETE FROM egs_game WHERE vn_id = ?').run(vnId);
 }
@@ -2411,6 +2458,11 @@ export interface EgsVnLink {
   updated_at: number;
 }
 
+/**
+ * Pin a VN → EGS mapping in `vn_egs_link`. Pass `egsId = null` to record
+ * "this VN has no EGS counterpart"; the resolver will treat that as a
+ * settled state rather than re-running auto-search.
+ */
 export function setVnEgsLink(vnId: string, egsId: number | null, note?: string | null): void {
   if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   if (egsId !== null && (!Number.isInteger(egsId) || egsId <= 0)) {
@@ -2426,6 +2478,7 @@ export function setVnEgsLink(vnId: string, egsId: number | null, note?: string |
   ).run(vnId, egsId, note ?? null, Date.now());
 }
 
+/** Read the manual VN → EGS pinning row, or `null` when unset. */
 export function getVnEgsLink(vnId: string): VnEgsLink | null {
   const row = db
     .prepare('SELECT vn_id, egs_id, note, updated_at FROM vn_egs_link WHERE vn_id = ?')
@@ -2433,10 +2486,16 @@ export function getVnEgsLink(vnId: string): VnEgsLink | null {
   return row ?? null;
 }
 
+/** Drop the manual VN → EGS pinning row so the auto-resolver gets another shot. */
 export function clearVnEgsLink(vnId: string): void {
   db.prepare('DELETE FROM vn_egs_link WHERE vn_id = ?').run(vnId);
 }
 
+/**
+ * Pin an EGS → VN mapping in `egs_vn_link`. Pass `vnId = null` to record
+ * "this EGS game has no VNDB counterpart". Used by EGS-side feeds
+ * (anticipated, top-ranked) to overlay the user's choice on cache hits.
+ */
 export function setEgsVnLink(egsId: number, vnId: string | null, note?: string | null): void {
   if (!Number.isInteger(egsId) || egsId <= 0) throw new Error('invalid egs id');
   if (vnId !== null && !isVndbVnId(vnId)) throw new Error('invalid vn id');
@@ -2450,6 +2509,7 @@ export function setEgsVnLink(egsId: number, vnId: string | null, note?: string |
   ).run(egsId, vnId, note ?? null, Date.now());
 }
 
+/** Read the manual EGS → VN pinning row for one EGS id, or `null` when unset. */
 export function getEgsVnLink(egsId: number): EgsVnLink | null {
   const row = db
     .prepare('SELECT egs_id, vn_id, note, updated_at FROM egs_vn_link WHERE egs_id = ?')
@@ -2457,6 +2517,7 @@ export function getEgsVnLink(egsId: number): EgsVnLink | null {
   return row ?? null;
 }
 
+/** Drop the manual EGS → VN pinning row. */
 export function clearEgsVnLink(egsId: number): void {
   db.prepare('DELETE FROM egs_vn_link WHERE egs_id = ?').run(egsId);
 }
@@ -2487,6 +2548,7 @@ export type SourceField = 'title' | 'description' | 'image' | 'brand' | 'rating'
 
 export type SourcePrefMap = Partial<Record<SourceField, SourceChoice>>;
 
+/** Read the per-field VNDB/EGS source preference JSON for one VN. Returns `{}` when unset. */
 export function getSourcePref(vnId: string): SourcePrefMap {
   const row = db
     .prepare('SELECT source_pref FROM collection WHERE vn_id = ?')
@@ -2601,6 +2663,10 @@ function settingAuditPreview(key: string, value: string | null): string | null {
   return tail4(value);
 }
 
+/**
+ * Upsert one row in `app_setting`. Audited keys leave a tail-masked entry
+ * in `app_setting_audit`; raw credentials never appear in the audit row.
+ */
 export function setAppSetting(key: string, value: string | null): void {
   db.transaction(() => {
     const wasAudited = AUDITED_SETTING_KEYS.has(key);
@@ -2630,6 +2696,7 @@ export interface SettingAuditEntry {
   changed_at: number;
 }
 
+/** Recent rows from `app_setting_audit`, newest first. */
 export function listSettingAudit(limit = 50): SettingAuditEntry[] {
   return db
     .prepare('SELECT id, key, prior_preview, next_preview, changed_at FROM app_setting_audit ORDER BY changed_at DESC LIMIT ?')
@@ -2688,6 +2755,7 @@ export function markVnEgsOnly(vnId: string, egsOnly: boolean): void {
   db.prepare('UPDATE vn SET egs_only = ? WHERE id = ?').run(egsOnly ? 1 : 0, vnId);
 }
 
+/** Predicate: does this VN row carry the `egs_only` flag (synthetic EGS-only entry)? */
 export function isEgsOnly(vnId: string): boolean {
   const row = db.prepare('SELECT egs_only FROM vn WHERE id = ?').get(vnId) as { egs_only: number } | undefined;
   return !!row?.egs_only;
@@ -2698,6 +2766,11 @@ export function isEgsOnly(vnId: string): boolean {
  * Used by the "search from EGS" flow when a game isn't on VNDB.
  * The synthetic id format is `egs_<numeric-id>` (underscore, not colon —
  * a literal colon breaks Next.js dynamic-route matching).
+ */
+/**
+ * Create or refresh a synthetic `vn` row sourced entirely from EGS (no VNDB
+ * counterpart). The id format is `egs_<numeric>` so the dynamic route
+ * matcher accepts it.
  */
 export function upsertEgsOnlyVn(args: {
   vnId: string;
@@ -2734,12 +2807,17 @@ export function upsertEgsOnlyVn(args: {
   );
 }
 
+/** Set or clear the per-VN user-authored synopsis override. */
 export function setCustomDescription(vnId: string, text: string | null): void {
   const cleaned = text == null ? null : text.trim();
   const payload = cleaned ? cleaned.slice(0, 8000) : null;
   db.prepare('UPDATE collection SET custom_description = ? WHERE vn_id = ?').run(payload, vnId);
 }
 
+/**
+ * Persist a per-VN source-preference map (`{ description: 'egs', image: 'auto', … }`).
+ * Empty/auto entries are pruned so the stored JSON stays minimal.
+ */
 export function setSourcePref(vnId: string, prefs: SourcePrefMap): void {
   // Drop "auto" keys to keep the JSON tidy — "auto" is the implicit default.
   const cleaned: SourcePrefMap = {};
@@ -2868,6 +2946,7 @@ export function listAllQuotes(q?: string, limit = 200, offset = 0): QuoteWithVn[
     .all(like, like, limit, offset) as QuoteWithVn[];
 }
 
+/** Random quote from the local mirror (used when `random_quote_source = 'mine'`). */
 export function getRandomLocalQuote(): LocalQuote | null {
   const row = db
     .prepare(`
@@ -2895,6 +2974,10 @@ export function getRandomLocalQuote(): LocalQuote | null {
   return row ?? null;
 }
 
+/**
+ * Insert or replace the mirrored portrait row for one character. `localPath`
+ * is the storage-relative path returned by `downloadToBucket`.
+ */
 export function upsertCharacterImage(charId: string, url: string | null, localPath: string | null): void {
   db.prepare(`
     INSERT INTO character_image (char_id, url, local_path, fetched_at)
@@ -2908,6 +2991,11 @@ export function upsertCharacterImage(charId: string, url: string | null, localPa
 
 export type CollectionPatch = Partial<Omit<CollectionFields, 'added_at' | 'updated_at'>>;
 
+/**
+ * Add one VN to the local collection. Triggers the asset fan-out on first
+ * insert and writes an audit row in `vn_activity`. Invalidates the
+ * aggregate-stats cache so the home page stats refresh on the next read.
+ */
 export function addToCollection(vnId: string, fields: CollectionPatch = {}): void {
   db.transaction(() => {
     const now = Date.now();
@@ -3055,6 +3143,11 @@ export async function maybePushStatusToVndb(vnId: string, status: Status | null 
   }
 }
 
+/**
+ * Patch one collection row. Writes per-field audit entries to
+ * `vn_activity` and busts the aggregate-stats cache. Safe to call with a
+ * partial patch — only the supplied keys are touched.
+ */
 export function updateCollection(vnId: string, fields: CollectionPatch): void {
   updateCollectionTx(vnId, fields);
   invalidateAggregateStats();
@@ -3068,6 +3161,7 @@ export interface ActivityEntry {
   occurred_at: number;
 }
 
+/** Audit trail for one VN: status changes, playtime updates, manual notes. */
 export function listActivityForVn(vnId: string, limit = 50): ActivityEntry[] {
   const rows = db
     .prepare(`
@@ -3117,6 +3211,11 @@ export function listRecentActivity(limit = 10): RecentActivityEntry[] {
   }));
 }
 
+/**
+ * Append a user-authored entry to the per-VN audit trail. `occurredAt`
+ * defaults to `Date.now()` so the same helper handles both "just now"
+ * notes and historical backfills.
+ */
 export function addManualActivity(vnId: string, text: string, occurredAt?: number): ActivityEntry {
   const ts = occurredAt ?? Date.now();
   const trimmed = text.trim().slice(0, 2000);
@@ -3132,6 +3231,7 @@ export function addManualActivity(vnId: string, text: string, occurredAt?: numbe
   };
 }
 
+/** Delete one row from `vn_activity` by its auto-incrementing id. */
 export function deleteActivity(id: number): void {
   db.prepare('DELETE FROM vn_activity WHERE id = ?').run(id);
 }
@@ -3157,6 +3257,7 @@ export interface GameLogEntry {
 
 const GAME_LOG_NOTE_MAX = 8000;
 
+/** Free-form session-log entries for one VN, newest first. */
 export function listGameLogForVn(vnId: string, limit = 200): GameLogEntry[] {
   return db
     .prepare(`
@@ -3168,6 +3269,10 @@ export function listGameLogForVn(vnId: string, limit = 200): GameLogEntry[] {
     .all(vnId, limit) as GameLogEntry[];
 }
 
+/**
+ * Append a session-log entry for one VN. The note is capped at
+ * `GAME_LOG_NOTE_MAX` so a long paste can't blow out the row.
+ */
 export function addGameLogEntry(
   vnId: string,
   note: string,
@@ -3196,6 +3301,7 @@ export function addGameLogEntry(
   };
 }
 
+/** Edit one game-log entry. Re-validates the note length on every update. */
 export function updateGameLogEntry(
   id: number,
   patch: { note?: string; logged_at?: number; session_minutes?: number | null },
@@ -3225,6 +3331,7 @@ export function updateGameLogEntry(
   })();
 }
 
+/** Remove one game-log entry by id. Returns `false` when the id wasn't found. */
 export function deleteGameLogEntry(id: number): boolean {
   const info = db.prepare('DELETE FROM vn_game_log WHERE id = ?').run(id);
   return info.changes > 0;
@@ -3239,6 +3346,10 @@ function safeParseJson(s: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * Remove one VN from the collection. Owned editions / routes / activity
+ * cascade via FK ON DELETE. Invalidates the aggregate-stats cache.
+ */
 export function removeFromCollection(vnId: string): void {
   db.transaction(() => {
     db.prepare('DELETE FROM collection_place_index WHERE vn_id = ?').run(vnId);
@@ -3248,6 +3359,7 @@ export function removeFromCollection(vnId: string): void {
   invalidateAggregateStats();
 }
 
+/** Predicate: does the operator own this VN? */
 export function isInCollection(vnId: string): boolean {
   return !!db.prepare('SELECT 1 FROM collection WHERE vn_id = ?').get(vnId);
 }
@@ -3295,6 +3407,7 @@ export function resetCollectionCustomOrder(): void {
   db.prepare('UPDATE collection SET custom_order = 0').run();
 }
 
+/** Every VN id the operator owns. Used by the wishlist + recommendations as a "to-exclude" set. */
 export function listInCollectionVnIds(): string[] {
   const rows = db.prepare('SELECT vn_id FROM collection').all() as { vn_id: string }[];
   return rows.map((r) => r.vn_id);
@@ -3537,6 +3650,11 @@ const CARDS_VN_COLUMNS =
   'v.banner_position, v.cover_rotation, v.banner_rotation, ' +
   'v.fetched_at';
 
+/**
+ * Canonical collection listing — applies filters (status, producer,
+ * publisher, series, tag, q, aspect, dumped, year), sort, and grouping.
+ * Returns rich `CollectionItem` rows ready for cards. Server-only.
+ */
 export function listCollection({
   status,
   q,
@@ -3844,6 +3962,11 @@ export function listCollection({
  * `/series/[id]`, `/api/export`, recommend) keep calling
  * `listCollection` directly.
  */
+/**
+ * Lightweight variant of `listCollection` used by card grids: returns the
+ * same `CollectionItem` shape but only projects the columns the cards need.
+ * Heavier surfaces (`/series/[id]`, exports, recommend) call `listCollection`.
+ */
 export function listCollectionForCards(opts: ListOptions = {}): CollectionItem[] {
   return listCollection({ ...opts, _projection: 'cards' });
 }
@@ -3960,6 +4083,11 @@ function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {
  * The lazy ReleasesSection will populate the cache on first fetch
  * and a subsequent page render will pick it up.
  */
+/**
+ * Walk every cached release for one VN and write its aspect bucket into
+ * `release_resolution_cache`. Lets the library aspect filter match a VN
+ * without an owned-release row.
+ */
 export function materializeReleaseAspectsForVn(vnId: string): void {
   if (!isVndbVnId(vnId)) return;
   // Short-circuit when this VN already has any non-unknown signal
@@ -4024,6 +4152,11 @@ export function materializeReleaseAspectsForVn(vnId: string): void {
  *   1. Finds which VN ids already have a non-unknown signal (one IN query).
  *   2. Reads the vndb_cache bodies exactly once.
  *   3. Dispatches each release to every VN id that still needs data.
+ */
+/**
+ * Bulk variant: process aspect-bucket materialisation for many VNs in one
+ * pass. Reads `vndb_cache` bodies exactly once and dispatches each release
+ * to every needing VN, so adding 100 VNs at once stays linear in releases.
  */
 export function materializeReleaseAspectsForCollectionVns(vnIds: string[]): void {
   if (vnIds.length === 0) return;
@@ -4122,6 +4255,7 @@ function parseJsonField<T>(raw: string | null | undefined, fallback: T): T {
   }
 }
 
+/** Read the materialised release-meta cache row for one release id, or `null`. */
 export function getReleaseMeta(releaseId: string): ReleaseMetaRow | null {
   const row = db
     .prepare(
@@ -4163,6 +4297,11 @@ export function getReleaseMeta(releaseId: string): ReleaseMetaRow | null {
  * in release_resolution_cache and richer per-release metadata in
  * release_meta_cache. They MAY duplicate `resolution` because the
  * derived aspect-key requires structured parsing.
+ */
+/**
+ * Materialise the `release_meta_cache` rows for one VN from its cached
+ * release payload. Each row carries platforms / resolution / aspect so
+ * the shelf editor renders edition details without a re-parse.
  */
 export function materializeReleaseMetaForVn(vnId: string): void {
   if (!isVndbVnId(vnId)) return;
@@ -4321,6 +4460,10 @@ export function materializeReleaseMetaForVn(vnId: string): void {
  * Returns the number of releases upserted across all collection
  * VNs (mostly for telemetry).
  */
+/**
+ * Bulk variant of `materializeReleaseMetaForVn`. Returns the upsert count
+ * for telemetry / progress reporting.
+ */
 export function materializeReleaseMetaForCollectionVns(vnIds: string[]): number {
   if (vnIds.length === 0) return 0;
   const ownedSet = new Set(vnIds);
@@ -4459,6 +4602,11 @@ export function materializeReleaseMetaForCollectionVns(vnIds: string[]): number 
   return upserts;
 }
 
+/**
+ * Materialise the per-VN aspect bucket on `vn.aspect_key_cache` for every
+ * supplied id. Runs the full `deriveVnAspectKey` chain so the value
+ * matches what the library filter and the AspectOverrideControl see.
+ */
 export function materializeAspectForCollectionVns(vnIds: string[]): void {
   if (vnIds.length === 0) return;
   // Only materialize VNs that don't already have an aspect signal —
@@ -4541,6 +4689,7 @@ export function materializeAspectForCollectionVns(vnIds: string[]): void {
   tx();
 }
 
+/** Read one collection row + joined VN data as a `CollectionItem`, or `null`. */
 export function getCollectionItem(vnId: string): CollectionItem | null {
   const row = db
     .prepare(`
@@ -4572,6 +4721,7 @@ export function getCollectionItem(vnId: string): CollectionItem | null {
   return item;
 }
 
+/** Live counters for the home page (per-status, per-length, etc.). Always fresh. */
 export function getStats(): Stats {
   const total = (db.prepare('SELECT COUNT(*) AS n FROM collection').get() as { n: number }).n;
   const byStatus = db
@@ -4604,6 +4754,11 @@ export interface AggregateStats {
 let aggregateStatsCache: { at: number; data: AggregateStats } | null = null;
 const AGGREGATE_STATS_TTL_MS = 30_000;
 
+/**
+ * Heavier aggregate stats for the `/stats` page (averages, distributions,
+ * percentiles). Cached in-process for `AGGREGATE_STATS_TTL_MS` so frequent
+ * page reloads don't repeatedly scan the whole collection.
+ */
 export function getAggregateStats(): AggregateStats {
   if (aggregateStatsCache && Date.now() - aggregateStatsCache.at < AGGREGATE_STATS_TTL_MS) {
     return aggregateStatsCache.data;
@@ -4613,6 +4768,7 @@ export function getAggregateStats(): AggregateStats {
   return data;
 }
 
+/** Drop the in-process aggregate-stats cache. Called by collection writers. */
 export function invalidateAggregateStats(): void {
   aggregateStatsCache = null;
 }
@@ -4716,18 +4872,22 @@ function computeAggregateStats(): AggregateStats {
   };
 }
 
+/** Type-guard: is `v` a valid `Status` enum value? */
 export function isValidStatus(v: unknown): v is Status {
   return typeof v === 'string' && (STATUSES as readonly string[]).includes(v);
 }
 
+/** Type-guard: is `v` a valid `Location` enum value? */
 export function isValidLocation(v: unknown): v is Location {
   return typeof v === 'string' && (LOCATIONS as readonly string[]).includes(v);
 }
 
+/** Type-guard: is `v` a valid `EditionType` enum value? */
 export function isValidEditionType(v: unknown): v is EditionType {
   return typeof v === 'string' && (EDITION_TYPES as readonly string[]).includes(v);
 }
 
+/** Type-guard: is `v` a valid `BoxType` enum value? */
 export function isValidBoxType(v: unknown): v is BoxType {
   return typeof v === 'string' && (BOX_TYPES as readonly string[]).includes(v);
 }
@@ -4739,6 +4899,10 @@ export interface CollectionTagAggregate {
   count: number;
 }
 
+/**
+ * Aggregate every tag across owned VNs into `{ id, name, count }`. Used by
+ * the library tag filter dropdown and the /stats tag chart.
+ */
 export function listCollectionTags(): CollectionTagAggregate[] {
   return (db
     .prepare(`
@@ -4776,6 +4940,10 @@ export interface LocalCharacterSearchOptions {
   limit?: number;
 }
 
+/**
+ * Search the local mirror of characters (joined with collection VNs). Used
+ * by `/characters` when the operator wants to browse without hitting VNDB.
+ */
 export function searchLocalCharacters({
   q,
   limit = 200,
@@ -4895,6 +5063,10 @@ export interface LocalStaffRow {
   vn_count: number;
 }
 
+/**
+ * Search the local mirror of staff (joined with collection VNs). Used by
+ * `/staff` when the operator wants to browse without hitting VNDB.
+ */
 export function searchLocalStaff({
   q,
   role,
@@ -5033,6 +5205,7 @@ function rowToRoute(r: RouteDbRow): RouteRow {
   };
 }
 
+/** Read every `vn_route` row for one VN, ordered by `order_index`. */
 export function listRoutesForVn(vnId: string): RouteRow[] {
   const rows = db
     .prepare('SELECT id, vn_id, name, completed, completed_date, order_index, notes, created_at, updated_at FROM vn_route WHERE vn_id = ? ORDER BY order_index ASC, created_at ASC')
@@ -5040,11 +5213,16 @@ export function listRoutesForVn(vnId: string): RouteRow[] {
   return rows.map(rowToRoute);
 }
 
+/** Read one route by id, or `null` when unknown. */
 export function getRoute(routeId: number): RouteRow | null {
   const row = db.prepare('SELECT id, vn_id, name, completed, completed_date, order_index, notes, created_at, updated_at FROM vn_route WHERE id = ?').get(routeId) as RouteDbRow | undefined;
   return row ? rowToRoute(row) : null;
 }
 
+/**
+ * Create one route for a VN. `orderIndex` defaults to the highest
+ * existing index + 1 so new routes append to the bottom.
+ */
 export function createRoute(vnId: string, name: string, orderIndex?: number): RouteRow {
   return db.transaction(() => {
     const now = Date.now();
@@ -5069,6 +5247,11 @@ export interface RoutePatch {
   notes?: string | null;
 }
 
+/**
+ * Patch one route. Stamps `completed_date` automatically when the
+ * `completed` flag flips on. Returns the updated row, or `null` for
+ * unknown ids.
+ */
 export function updateRoute(routeId: number, fields: RoutePatch): RouteRow | null {
   const sets: string[] = [];
   const params: unknown[] = [];
@@ -5108,10 +5291,16 @@ export function updateRoute(routeId: number, fields: RoutePatch): RouteRow | nul
   return getRoute(routeId);
 }
 
+/** Delete one route by id. Returns `false` when nothing matched. */
 export function deleteRoute(routeId: number): boolean {
   return db.prepare('DELETE FROM vn_route WHERE id = ?').run(routeId).changes > 0;
 }
 
+/**
+ * Persist the user's drag-reorder of routes for one VN. Rows whose ids
+ * aren't in `orderedIds` keep their previous index so a partial reorder
+ * never touches unrelated rows.
+ */
 export function reorderRoutes(vnId: string, orderedIds: number[]): void {
   const now = Date.now();
   const stmt = db.prepare('UPDATE vn_route SET order_index = ?, updated_at = ? WHERE id = ? AND vn_id = ?');
@@ -5357,6 +5546,11 @@ function unpackReleaseMetaJoin(r: ReleaseMetaJoinRow): {
  */
 const LIST_ALL_OWNED_RELEASES_LIMIT = 50000;
 
+/**
+ * Every owned edition across the collection, joined with VN cover + title
+ * for the shelf views. Capped at `LIST_ALL_OWNED_RELEASES_LIMIT` to bound
+ * worst-case row counts.
+ */
 export function listAllOwnedReleases(): ShelfEntry[] {
   const rows = db
     .prepare(`
@@ -5447,6 +5641,11 @@ export function listVnIdsOnShelf(): Set<string> {
  * Sorted: in-progress VNs first (have at least one dumped edition
  * but not all), then untouched (zero dumped), then fully done.
  * Within each group, alphabetical.
+ */
+/**
+ * Aggregate dump progress per VN. Sorted partial-first (mixed dumped /
+ * not-dumped editions), then untouched, then fully done — matches the
+ * `/dumped` page's "what's left to back up" reading order.
  */
 export function listDumpStatus(): DumpStatusEntry[] {
   const rows = db
@@ -5539,6 +5738,7 @@ export interface DumpSummary {
   editionPct: number;
 }
 
+/** Counts + percentages for the `/dumped` page header tiles. */
 export function getDumpSummary(): DumpSummary {
   const totals = db
     .prepare(`
@@ -5614,6 +5814,7 @@ function clampShelfDim(n: number, fallback: number): number {
   return Math.max(SHELF_MIN, Math.min(SHELF_MAX, Math.floor(n)));
 }
 
+/** Every named shelf with its placed-item count, ordered by `order_index`. */
 export function listShelves(): ShelfUnitWithCount[] {
   // R5-143: count regular grid slots + face-out display slots in a
   // single CTE/GROUP BY pass instead of two correlated subqueries
@@ -5646,11 +5847,16 @@ export function listShelves(): ShelfUnitWithCount[] {
     .all() as ShelfUnitWithCount[];
 }
 
+/** Read one shelf by id, or `null` when unknown. */
 export function getShelf(id: number): ShelfUnit | null {
   const row = db.prepare('SELECT id, name, cols, rows, order_index, created_at, updated_at FROM shelf_unit WHERE id = ?').get(id) as ShelfUnit | undefined;
   return row ?? null;
 }
 
+/**
+ * Create a named shelf. `cols` / `rows` are clamped to `[SHELF_MIN, SHELF_MAX]`
+ * so a malformed PATCH can't store unreasonable dimensions.
+ */
 export function createShelf(input: {
   name: string;
   cols?: number;
@@ -5673,6 +5879,7 @@ export function createShelf(input: {
   })();
 }
 
+/** Rename one shelf. Returns the updated row, or `null` for unknown ids. */
 export function renameShelf(id: number, name: string): ShelfUnit | null {
   const trimmed = name.trim();
   if (!trimmed) throw new Error('shelf name required');
@@ -5692,6 +5899,11 @@ export interface ShelfResizeResult {
  * Resize a shelf. Slots that fall outside the new (cols × rows) bounds
  * are evicted back to the unplaced pool — we surface them in the
  * response so the UI can tell the user what moved. No silent data loss.
+ */
+/**
+ * Resize a shelf, returning the evicted slots so the UI can warn about
+ * editions that fell outside the new bounds. Both regular cells AND
+ * front-display rows are evicted; nothing is silently lost.
  */
 export function resizeShelf(id: number, cols: number, rows: number): ShelfResizeResult | null {
   const shelf = getShelf(id);
@@ -5723,11 +5935,13 @@ export function resizeShelf(id: number, cols: number, rows: number): ShelfResize
   return { shelf: getShelf(id)!, evicted: [...evicted, ...displayEvicted] };
 }
 
+/** Delete a shelf. Slots cascade to the unplaced pool via FK; returns `false` on no-op. */
 export function deleteShelf(id: number): boolean {
   const info = db.prepare('DELETE FROM shelf_unit WHERE id = ?').run(id);
   return info.changes > 0;
 }
 
+/** Persist the user's drag-reorder of shelf tabs. */
 export function reorderShelves(orderedIds: number[]): void {
   const upd = db.prepare('UPDATE shelf_unit SET order_index = ?, updated_at = ? WHERE id = ?');
   const now = Date.now();
@@ -5781,6 +5995,7 @@ export interface ShelfSlotEntry {
   dumped: boolean;
 }
 
+/** Every placed cell on one shelf, joined with VN + owned-release display data. */
 export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
   const rows = db
     .prepare(`
@@ -5881,6 +6096,11 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
  * Joined with VN display data so the layout editor can render rich
  * cards without a second round-trip.
  */
+/**
+ * The unplaced pool: every owned edition NOT already on a shelf or a
+ * front-display row. Joined with VN data so the editor renders rich
+ * tiles without a second round-trip.
+ */
 export function listUnplacedOwnedReleases(): ShelfEntry[] {
   const rows = db
     .prepare(`
@@ -5959,6 +6179,12 @@ export interface PlaceShelfItemResult {
  *
  * Every branch runs in one transaction so the UI never sees a torn
  * state. Throws if the slot is out of bounds for the shelf.
+ */
+/**
+ * Canonical entry point for shelf placements. Handles every branch
+ * (place onto empty, swap with occupant, move from pool, move from
+ * another slot, move from display) inside a single transaction so the
+ * UI never sees a torn UNIQUE-constraint state.
  */
 export function placeShelfItem(input: PlaceShelfItemInput): PlaceShelfItemResult {
   // Defence against NaN / Infinity / floats. The route already
@@ -6090,6 +6316,10 @@ export type ShelfPlacementForEdition =
   | { kind: 'display'; shelf_id: number; shelf_name: string; after_row: number; position: number }
   | null;
 
+/**
+ * Find an edition's current placement (cell, display row, or pool). Used
+ * by the "where is this edition?" lookup on `/vn/[id]` editions panel.
+ */
 export function getShelfPlacementForEdition(
   vnId: string,
   releaseId: string,
@@ -6280,6 +6510,11 @@ export interface PlaceShelfDisplayItemInput {
  *     must be in [0, shelf.cols] so a display row never overflows
  *     past the regular grid's visual width.
  */
+/**
+ * Place one edition on a front-display row. Validates that `after_row`
+ * falls in `[0, shelf.rows]` and `position` in `[0, shelf.cols)` so a
+ * display row never overflows the shelf's visual width.
+ */
 export function placeShelfDisplayItem(input: PlaceShelfDisplayItemInput): void {
   if (!Number.isInteger(input.shelfId)) throw new Error('shelf id must be integer');
   if (!Number.isInteger(input.afterRow) || !Number.isInteger(input.position)) {
@@ -6333,6 +6568,11 @@ export interface ReleaseAspectInfo {
   note: string | null;
 }
 
+/**
+ * Insert or replace one `release_resolution_cache` row. `vn_id` is
+ * optional but lazily populated by the materialiser so the aspect filter
+ * can match a VN even without an owned-release link.
+ */
 export function upsertReleaseResolutionCache(input: {
   releaseId: string;
   resolution: unknown;
@@ -6380,6 +6620,11 @@ export function upsertReleaseResolutionCache(input: {
  * value when filtering and grouping the library. Pass `aspectKey:
  * null` (or omit it) to clear the override.
  */
+/**
+ * Pin a VN-level aspect override. Highest priority in the derivation chain
+ * so the library filter and the AspectOverrideControl read it before
+ * falling back to release / screenshot dimensions.
+ */
 export function setVnAspectOverride(input: {
   vnId: string;
   aspectKey?: AspectKey | null;
@@ -6409,6 +6654,7 @@ export interface VnAspectOverride {
   updated_at: number;
 }
 
+/** Read the VN-level aspect override row, or `null` when unset. */
 export function getVnAspectOverride(vnId: string): VnAspectOverride | null {
   const row = db
     .prepare('SELECT aspect_key, note, updated_at FROM vn_aspect_override WHERE vn_id = ?')
@@ -6423,6 +6669,11 @@ export function getVnAspectOverride(vnId: string): VnAspectOverride | null {
  * cache (own or globally cached for this VN) → vn.screenshots
  * dimensions (best-effort when VNDB has no release resolution).
  * Returns `'unknown'` when nothing matches.
+ */
+/**
+ * Resolve a VN's effective aspect bucket through the priority chain:
+ * VN-level override > per-edition override > release cache > screenshot
+ * dimensions > `'unknown'`. Used by every aspect-filtered library query.
  */
 export function deriveVnAspectKey(vnId: string): AspectKey {
   const manual = getVnAspectOverride(vnId);
@@ -6522,6 +6773,11 @@ export interface VnAspectDisplay {
  * Same priority chain as `deriveVnAspectKey` — same source of truth
  * as the Library filter and the AspectOverrideControl.
  */
+/**
+ * Same derivation as `deriveVnAspectKey` but returns the rich display
+ * shape (aspect bucket, raw width/height, list of contributing aspects,
+ * `source` tag) so the UI can show "(via override)" / "(via release)".
+ */
 export function deriveVnAspectDisplay(vnId: string): VnAspectDisplay {
   // 1. Manual VN-level override (always exclusive).
   const manual = getVnAspectOverride(vnId);
@@ -6618,6 +6874,11 @@ export function deriveVnAspectDisplay(vnId: string): VnAspectDisplay {
   return { aspect: 'unknown', aspects: [], width: null, height: null, source: 'unknown' };
 }
 
+/**
+ * Pin a per-edition aspect override. Takes priority over the
+ * release-resolution cache but is itself overridden by the VN-level
+ * pin in `vn_aspect_override`.
+ */
 export function setOwnedReleaseAspectOverride(input: {
   vnId: string;
   releaseId: string;
@@ -6669,6 +6930,10 @@ export function setOwnedReleaseAspectOverride(input: {
   })();
 }
 
+/**
+ * Read the per-edition aspect-info bundle (override + cached release
+ * resolution + computed aspect bucket) used by the AspectOverrideControl.
+ */
 export function getOwnedReleaseAspectInfo(vnId: string, releaseId: string): ReleaseAspectInfo {
   const row = db
     .prepare(`
@@ -6724,6 +6989,7 @@ export function getOwnedReleaseAspectInfo(vnId: string, releaseId: string): Rele
   return { width: null, height: null, raw_resolution: row.cache_raw, aspect_key: 'unknown', source: 'unknown', note: null };
 }
 
+/** Every owned-edition row for one VN, ordered by acquisition date. */
 export function listOwnedReleasesForVn(vnId: string): OwnedReleaseRow[] {
   const rows = db
     .prepare('SELECT vn_id, release_id, notes, location, physical_location, box_type, edition_label, condition, price_paid, currency, acquired_date, owned_platform, dumped, added_at FROM owned_release WHERE vn_id = ? ORDER BY added_at DESC')
@@ -6754,6 +7020,10 @@ export interface OwnedReleaseWithShelf extends OwnedReleaseRow {
  * placement so the VN detail page can render a chip like
  * "Living room — left bookcase · R2 · C5" or "Front display · 2"
  * next to each owned edition. One query, no N+1.
+ */
+/**
+ * Owned editions for one VN, each annotated with current shelf placement
+ * (cell, display row, or pool). Used by the VN-detail "My editions" panel.
  */
 export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithShelf[] {
   const rows = db
@@ -6860,6 +7130,7 @@ export function listOwnedReleasesWithShelfForVn(vnId: string): OwnedReleaseWithS
   }));
 }
 
+/** Read one owned-edition row, or `null` when the operator doesn't own it. */
 export function getOwnedRelease(vnId: string, releaseId: string): OwnedReleaseRow | null {
   const row = db
     .prepare('SELECT vn_id, release_id, notes, location, physical_location, box_type, edition_label, condition, price_paid, currency, acquired_date, owned_platform, dumped, added_at FROM owned_release WHERE vn_id = ? AND release_id = ?')
@@ -6888,6 +7159,11 @@ export interface OwnedReleasePatch {
   dumped?: boolean;
 }
 
+/**
+ * Add or refresh one owned edition. Validates the release id shape
+ * (`r\d+` or `synthetic:<vnId>`) before any write so a malformed PATCH
+ * can never insert junk rows.
+ */
 export function markReleaseOwned(
   vnId: string,
   releaseId: string,
@@ -6954,6 +7230,7 @@ export function markReleaseOwned(
   })();
 }
 
+/** Patch one owned edition. Only supplied keys are touched; others stay. */
 export function updateOwnedRelease(
   vnId: string,
   releaseId: string,
@@ -6989,11 +7266,13 @@ export function updateOwnedRelease(
   }
 }
 
+/** Remove one owned edition. Shelf placements cascade via FK. */
 export function unmarkReleaseOwned(vnId: string, releaseId: string): void {
   db.prepare('DELETE FROM owned_release WHERE vn_id = ? AND release_id = ?').run(vnId, releaseId);
   rebuildVnPlaceIndex(vnId);
 }
 
+/** Distinct values currently seen in `owned_release.physical_location` for the autocomplete. */
 export function listKnownPlaces(): string[] {
   const rows = db
     .prepare(`
@@ -7047,6 +7326,7 @@ function producerToRow(row: ProducerDbRow | undefined): ProducerRow | null {
   };
 }
 
+/** Insert or replace one producer row with the canonical VNDB payload. */
 export function upsertProducer(p: ProducerPayload): void {
   db.prepare(`
     INSERT INTO producer (id, name, original, lang, type, description, aliases, extlinks, fetched_at)
@@ -7069,15 +7349,21 @@ export function upsertProducer(p: ProducerPayload): void {
   });
 }
 
+/** Read one producer by id, or `null` when not yet mirrored locally. */
 export function getProducer(id: string): ProducerRow | null {
   const row = db.prepare('SELECT id, name, original, lang, type, description, aliases, extlinks, logo_path, fetched_at FROM producer WHERE id = ?').get(id) as ProducerDbRow | undefined;
   return producerToRow(row);
 }
 
+/** Set or clear the user-uploaded logo path for one producer. */
 export function setProducerLogo(id: string, logoPath: string | null): void {
   db.prepare('UPDATE producer SET logo_path = ? WHERE id = ?').run(logoPath, id);
 }
 
+/**
+ * Aggregate per-developer rankings across the collection (count of credited
+ * VNs, average rating, …). Used by the `/producers` Developers tab.
+ */
 export function listProducerStats(): ProducerStat[] {
   const rows = db
     .prepare(`
@@ -7118,6 +7404,11 @@ export function listProducerStats(): ProducerStat[] {
  * VN are surfaced here even when they're absent from `vn.developers`,
  * so a publisher-only studio (Studio X, Studio Y, …) is rankable.
  */
+/**
+ * Aggregate per-publisher rankings across the collection. Reads from the
+ * release-derived `vn.publishers` column, so publishers absent from
+ * `vn.developers` (localisation houses, etc.) still rank.
+ */
 export function listPublisherStats(): ProducerStat[] {
   const rows = db
     .prepare(`
@@ -7153,10 +7444,12 @@ export function listPublisherStats(): ProducerStat[] {
 
 // Series
 
+/** Every user-defined series row, alphabetically ordered. Capped at 2000 rows. */
 export function listSeries(): SeriesRow[] {
   return db.prepare('SELECT id, name, description, cover_path, banner_path, created_at, updated_at FROM series ORDER BY name ASC LIMIT 2000').all() as SeriesRow[];
 }
 
+/** Series this VN belongs to (joined via `series_vn`). */
 export function listSeriesForVn(vnId: string): SeriesLite[] {
   return db
     .prepare(`
@@ -7180,6 +7473,11 @@ export function listSeriesForVn(vnId: string): SeriesLite[] {
  * (in either role) plus the very first row's developers/publishers
  * arrays — enough to render the "X VN" badge and the fallback name
  * when VNDB is unreachable.
+ */
+/**
+ * Summarise the operator's relationship to one producer: list of owned
+ * VN ids + a small sample of (id, title) tuples. Cheaper than full
+ * `vn` rows when only the "X VN" badge + fallback name need to render.
  */
 export function producerOwnershipSummary(producerId: string): {
   ownedIds: Set<string>;
@@ -7207,6 +7505,7 @@ export function producerOwnershipSummary(producerId: string): {
   return { ownedIds, sample };
 }
 
+/** Bulk-load series memberships keyed by VN id for card grids. */
 export function listSeriesForVnsMany(vnIds: string[]): Map<string, SeriesLite[]> {
   const out = new Map<string, SeriesLite[]>();
   if (vnIds.length === 0) return out;
@@ -7232,6 +7531,7 @@ export function listSeriesForVnsMany(vnIds: string[]): Map<string, SeriesLite[]>
   return out;
 }
 
+/** Read one series + its ordered VN members, or `null` for unknown ids. */
 export function getSeries(id: number): SeriesWithVns | null {
   const s = db.prepare('SELECT id, name, description, cover_path, banner_path, created_at, updated_at FROM series WHERE id = ?').get(id) as SeriesRow | undefined;
   if (!s) return null;
@@ -7248,6 +7548,7 @@ export function getSeries(id: number): SeriesWithVns | null {
   return { ...s, vns };
 }
 
+/** Create one series. `name` must be unique (UNIQUE constraint). */
 export function createSeries(name: string, description: string | null = null): SeriesRow {
   const now = Date.now();
   const info = db
@@ -7256,6 +7557,7 @@ export function createSeries(name: string, description: string | null = null): S
   return db.prepare('SELECT id, name, description, cover_path, banner_path, created_at, updated_at FROM series WHERE id = ?').get(info.lastInsertRowid) as SeriesRow;
 }
 
+/** Patch one series (name / description). Returns the updated row, or `null`. */
 export function updateSeries(
   id: number,
   fields: { name?: string; description?: string | null; cover_path?: string | null; banner_path?: string | null },
@@ -7274,10 +7576,12 @@ export function updateSeries(
   return db.prepare('SELECT id, name, description, cover_path, banner_path, created_at, updated_at FROM series WHERE id = ?').get(id) as SeriesRow | null;
 }
 
+/** Delete one series. Member rows in `series_vn` cascade via FK. */
 export function deleteSeries(id: number): void {
   db.prepare('DELETE FROM series WHERE id = ?').run(id);
 }
 
+/** Link one VN into a series at the given position. Insert is idempotent. */
 export function addVnToSeries(seriesId: number, vnId: string, orderIndex = 0): void {
   db.prepare(`
     INSERT INTO series_vn (series_id, vn_id, order_index)
@@ -7286,6 +7590,7 @@ export function addVnToSeries(seriesId: number, vnId: string, orderIndex = 0): v
   `).run(seriesId, vnId, orderIndex);
 }
 
+/** Unlink one VN from a series. The series itself is left intact. */
 export function removeVnFromSeries(seriesId: number, vnId: string): void {
   db.prepare('DELETE FROM series_vn WHERE series_id = ? AND vn_id = ?').run(seriesId, vnId);
 }
@@ -7300,12 +7605,14 @@ export interface SavedFilter {
   created_at: number;
 }
 
+/** Pinned saved-filter rows, ordered by user-chosen position. */
 export function listSavedFilters(): SavedFilter[] {
   return db
     .prepare('SELECT id, name, params, position, created_at FROM saved_filter ORDER BY position ASC, id ASC LIMIT 500')
     .all() as SavedFilter[];
 }
 
+/** Persist one saved filter (URL-encoded `params` string + display name). */
 export function createSavedFilter(name: string, params: string): SavedFilter {
   return db.transaction(() => {
     const now = Date.now();
@@ -7317,10 +7624,12 @@ export function createSavedFilter(name: string, params: string): SavedFilter {
   })();
 }
 
+/** Delete one saved filter by id. Returns `false` when nothing matched. */
 export function deleteSavedFilter(id: number): boolean {
   return db.prepare('DELETE FROM saved_filter WHERE id = ?').run(id).changes > 0;
 }
 
+/** Persist drag-reorder for the saved-filter chip strip. */
 export function reorderSavedFilters(ids: number[]): void {
   const upd = db.prepare('UPDATE saved_filter SET position = ? WHERE id = ?');
   db.transaction(() => {
@@ -7336,6 +7645,7 @@ export interface ReadingQueueEntry {
   added_at: number;
 }
 
+/** The reading queue in operator-chosen order. */
 export function listReadingQueue(): ReadingQueueEntry[] {
   return db
     .prepare('SELECT vn_id, position, added_at FROM reading_queue ORDER BY position ASC, added_at ASC LIMIT 1000')
@@ -7351,6 +7661,10 @@ export function getReadingQueueVnIds(): Set<string> {
   return new Set(rows.map((r) => r.vn_id));
 }
 
+/**
+ * Append one VN to the reading queue. `position` is set to the current
+ * max + 1 so duplicates are idempotent (existing entries keep their slot).
+ */
 export function addToReadingQueue(vnId: string): ReadingQueueEntry {
   return db.transaction(() => {
     const next = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM reading_queue').get() as { p: number }).p;
@@ -7363,10 +7677,12 @@ export function addToReadingQueue(vnId: string): ReadingQueueEntry {
   })();
 }
 
+/** Remove one VN from the reading queue. Returns `false` when not queued. */
 export function removeFromReadingQueue(vnId: string): boolean {
   return db.prepare('DELETE FROM reading_queue WHERE vn_id = ?').run(vnId).changes > 0;
 }
 
+/** Persist drag-reorder of the reading queue. */
 export function reorderReadingQueue(ids: string[]): void {
   const upd = db.prepare('UPDATE reading_queue SET position = ? WHERE vn_id = ?');
   db.transaction(() => {
@@ -7382,10 +7698,12 @@ export interface ReadingGoal {
   updated_at: number;
 }
 
+/** Read the operator's reading goal for one year, or `null` when unset. */
 export function getReadingGoal(year: number): ReadingGoal | null {
   return (db.prepare('SELECT year, target, updated_at FROM reading_goal WHERE year = ?').get(year) as ReadingGoal | undefined) ?? null;
 }
 
+/** Upsert the operator's reading goal for one year and return the row. */
 export function setReadingGoal(year: number, target: number): ReadingGoal {
   const safeTarget = Math.max(0, Math.min(1000, Math.floor(target)));
   const now = Date.now();
@@ -7410,24 +7728,31 @@ export interface SteamLink {
   updated_at: number;
 }
 
+/** Every VN ↔ Steam appid mapping known locally, sorted by VN id. */
 export function listSteamLinks(): SteamLink[] {
   return db
     .prepare(`SELECT vn_id, appid, steam_name, source, last_synced_minutes, created_at, updated_at FROM steam_link ORDER BY updated_at DESC LIMIT 10000`)
     .all() as SteamLink[];
 }
 
+/** Steam link row for one VN, or `null` when no mapping exists. */
 export function getSteamLinkForVn(vnId: string): SteamLink | null {
   return (db
     .prepare(`SELECT vn_id, appid, steam_name, source, last_synced_minutes, created_at, updated_at FROM steam_link WHERE vn_id = ?`)
     .get(vnId) as SteamLink | undefined) ?? null;
 }
 
+/** Steam link row for one appid, or `null` when no mapping exists. */
 export function getSteamLinkByAppid(appid: number): SteamLink | null {
   return (db
     .prepare(`SELECT vn_id, appid, steam_name, source, last_synced_minutes, created_at, updated_at FROM steam_link WHERE appid = ?`)
     .get(appid) as SteamLink | undefined) ?? null;
 }
 
+/**
+ * Upsert a Steam link. Manual links (`source: 'manual'`) are sticky — the
+ * automatic sync path never overwrites them with an auto-derived mapping.
+ */
 export function setSteamLink(args: {
   vnId: string;
   appid: number;
@@ -7455,15 +7780,18 @@ export function setSteamLink(args: {
   })();
 }
 
+/** Drop a Steam link by VN id. Returns `false` when no row matched. */
 export function deleteSteamLink(vnId: string): boolean {
   return db.prepare(`DELETE FROM steam_link WHERE vn_id = ?`).run(vnId).changes > 0;
 }
 
+/** Stamp the last-sync state on a Steam link without touching the mapping itself. */
 export function markSteamSynced(vnId: string, minutes: number): void {
   db.prepare(`UPDATE steam_link SET last_synced_minutes = ?, updated_at = ? WHERE vn_id = ?`)
     .run(minutes, Date.now(), vnId);
 }
 
+/** Count of VNs with a `finished_date` in the given calendar year. */
 export function countFinishedInYear(year: number): number {
   return (db
     .prepare(`SELECT COUNT(*) AS n FROM collection WHERE substr(finished_date, 1, 4) = ?`)
@@ -7478,6 +7806,10 @@ export interface DailyCount {
   count: number;
 }
 
+/**
+ * Daily activity counts for one year, used by the GitHub-style heatmap
+ * on `/stats`. Counts include status changes, playtime updates, and notes.
+ */
 export function activityHeatmap(year: number): DailyCount[] {
   const start = new Date(`${year}-01-01T00:00:00Z`).getTime();
   const end = new Date(`${year + 1}-01-01T00:00:00Z`).getTime();
@@ -7504,6 +7836,10 @@ export interface YearReview {
   best: { id: string; title: string; rating: number }[];
 }
 
+/**
+ * Year-in-review summary: finished/started counts, total minutes, top
+ * tags, best-rated VNs. Used by the `/stats` annual recap card.
+ */
 export function yearReview(year: number): YearReview {
   const ys = String(year);
   const completed = countFinishedInYear(year);
@@ -7556,6 +7892,7 @@ export interface YearTag {
   count: number;
 }
 
+/** Top `limit` tags credited to VNs finished each year. Drives the per-year tag chart. */
 export function tagsCompletedPerYear(limit = 6): YearTag[] {
   const rows = db
     .prepare(`
@@ -7596,6 +7933,10 @@ export interface RoiRow {
   roi: number;
 }
 
+/**
+ * "Best ROI" ranking: rating divided by playtime, top `limit` rows. Surfaced
+ * on `/stats` as the "Most enjoyment per hour" leaderboard.
+ */
 export function bestRoi(limit = 20): RoiRow[] {
   return db
     .prepare(`
@@ -7620,6 +7961,10 @@ export interface HistBucket {
   vndb: number; // rounded community Bayesian
 }
 
+/**
+ * Rating histogram across the collection — buckets pair the operator's
+ * own rating with the VNDB community Bayesian. Drives the rating chart.
+ */
 export function ratingHistogram(): HistBucket[] {
   const mineRows = db
     .prepare(`
@@ -7676,6 +8021,11 @@ function normalizeTitle(s: string): string {
  */
 const FIND_DUPLICATES_LIMIT = 20000;
 
+/**
+ * Detect near-duplicate VN rows by title normalisation. Capped at
+ * `FIND_DUPLICATES_LIMIT` so the diagnostic panel stays snappy. Surfaced
+ * by the data-maintenance UI.
+ */
 export function findDuplicates(): DuplicateGroup[] {
   const rows = db
     .prepare(`SELECT id, title FROM vn ORDER BY id LIMIT ?`)
@@ -7718,6 +8068,10 @@ export interface AnniversaryVn {
   years: number;
 }
 
+/**
+ * VNs released on the same calendar day as `today`, with the elapsed
+ * years. Drives the home page "Anniversaries today" strip.
+ */
 export function todaysAnniversaries(today: Date = new Date()): AnniversaryVn[] {
   const mm = String(today.getMonth() + 1).padStart(2, '0');
   const dd = String(today.getDate()).padStart(2, '0');
@@ -7748,6 +8102,7 @@ export function todaysAnniversaries(today: Date = new Date()): AnniversaryVn[] {
     .filter((r) => r.years > 0);
 }
 
+/** VNs whose `fetched_at` exceeds `thresholdMs` ago, sorted oldest-first. */
 export function findStaleVns(thresholdMs = 30 * 86400 * 1000): StaleVn[] {
   const cutoff = Date.now() - thresholdMs;
   return db
@@ -7783,6 +8138,10 @@ export interface SearchHit {
   snippet: string;
 }
 
+/**
+ * Server-side substring search across titles + custom descriptions +
+ * notes. Returns FTS-style snippets so the UI can highlight the match.
+ */
 export function searchTextual(query: string, limit = 50): SearchHit[] {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
@@ -7847,10 +8206,12 @@ export interface CacheRow {
   expires_at: number;
 }
 
+/** Read one cache row by key, or `null` when the key has never been written. */
 export function getCacheRow(key: string): CacheRow | null {
   return (db.prepare('SELECT cache_key, body, etag, last_modified, fetched_at, expires_at FROM vndb_cache WHERE cache_key = ?').get(key) as CacheRow | undefined) ?? null;
 }
 
+/** Insert or replace one cache row. */
 export function putCacheRow(row: CacheRow): void {
   db.prepare(`
     INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
@@ -7861,25 +8222,34 @@ export function putCacheRow(row: CacheRow): void {
   `).run(row);
 }
 
+/** Refresh just the timestamps on a cache row (after a 304 Not Modified). */
 export function touchCacheRow(key: string, fetchedAt: number, expiresAt: number): void {
   db.prepare('UPDATE vndb_cache SET fetched_at = ?, expires_at = ? WHERE cache_key = ?')
     .run(fetchedAt, expiresAt, key);
 }
 
+/** Delete one cache row by key. */
 export function deleteCacheKey(key: string): void {
   db.prepare('DELETE FROM vndb_cache WHERE cache_key = ?').run(key);
 }
 
+/** Delete every cache row past its `expires_at`. Returns the deleted count. */
 export function pruneExpiredCache(): number {
   const info = db.prepare('DELETE FROM vndb_cache WHERE expires_at < ?').run(Date.now());
   return info.changes;
 }
 
+/** Drop every row from `vndb_cache`. Returns the deleted count. */
 export function clearCache(): number {
   const info = db.prepare('DELETE FROM vndb_cache').run();
   return info.changes;
 }
 
+/**
+ * Delete cache rows whose key matches the supplied path prefix. Matches
+ * the `% /<path>|%` shape the cache uses; never `<path>|%` (which would
+ * miss every row because of the method prefix).
+ */
 export function deleteCacheByPathPrefix(pathPrefix: string): number {
   const info = db.prepare('DELETE FROM vndb_cache WHERE cache_key LIKE ?').run(`${pathPrefix}|%`);
   return info.changes;
@@ -7934,6 +8304,10 @@ export interface CollectionExportPayload {
   series_vn: Array<{ series_id: number; vn_id: string; order_index: number }>;
 }
 
+/**
+ * Build the full JSON backup payload (collection + owned editions + series
+ * + lists + saved filters + settings). Streamed to `/api/collection/export`.
+ */
 export function exportData(): CollectionExportPayload {
   const vnRows = db
     .prepare(`SELECT id, title, raw, fetched_at FROM vn WHERE id IN (SELECT vn_id FROM collection)`)
@@ -7971,6 +8345,11 @@ export interface ImportSummary {
   errors: string[];
 }
 
+/**
+ * Restore a JSON backup. Idempotent — re-running the same payload is a
+ * no-op aside from the audit log. Returns per-table counts plus a list
+ * of soft errors so the UI can show "Imported N rows, K skipped".
+ */
 export function importData(payload: CollectionExportPayload): ImportSummary {
   const summary: ImportSummary = {
     vns_upserted: 0,
@@ -8215,6 +8594,10 @@ export interface CacheStat {
   by_path: { path: string; n: number }[];
 }
 
+/**
+ * Snapshot the `vndb_cache` table: total rows, expired rows, by-path
+ * breakdown. Drives the cache panel on `/stats`.
+ */
 export function cacheStats(): CacheStat {
   const now = Date.now();
   const row = db
@@ -8292,6 +8675,7 @@ function uniqueSlug(base: string): string {
   return candidate;
 }
 
+/** Every user list with its member-count, ordered by `pinned` then name. */
 export function listUserLists(): UserListWithCount[] {
   // LEFT JOIN + GROUP BY avoids the scalar subquery per row that
   // SQLite would otherwise evaluate during the sort.
@@ -8308,18 +8692,21 @@ export function listUserLists(): UserListWithCount[] {
     .all() as UserListWithCount[];
 }
 
+/** Read one user list by id, or `null` when unknown. */
 export function getUserList(id: number): UserList | null {
   return (db
     .prepare('SELECT id, name, slug, description, color, icon, pinned, created_at, updated_at FROM user_list WHERE id = ?')
     .get(id) as UserList | undefined) ?? null;
 }
 
+/** Read one user list by its URL-safe slug, or `null` when unknown. */
 export function getUserListBySlug(slug: string): UserList | null {
   return (db
     .prepare('SELECT id, name, slug, description, color, icon, pinned, created_at, updated_at FROM user_list WHERE slug = ?')
     .get(slug) as UserList | undefined) ?? null;
 }
 
+/** Create one user list. Auto-derives a unique slug from `name`. */
 export function createUserList(input: {
   name: string;
   description?: string | null;
@@ -8351,6 +8738,7 @@ export function createUserList(input: {
   })();
 }
 
+/** Patch one user list (name / description / color / icon / pinned). */
 export function updateUserList(
   id: number,
   patch: {
@@ -8388,11 +8776,13 @@ export function updateUserList(
   })();
 }
 
+/** Delete one user list; member rows cascade via FK. Returns `false` on no-op. */
 export function deleteUserList(id: number): boolean {
   const info = db.prepare('DELETE FROM user_list WHERE id = ?').run(id);
   return info.changes > 0;
 }
 
+/** Members of one user list, in `order_index` order. */
 export function listUserListItems(listId: number): UserListItem[] {
   return db
     .prepare(`
@@ -8404,6 +8794,7 @@ export function listUserListItems(listId: number): UserListItem[] {
     .all(listId) as UserListItem[];
 }
 
+/** Lists this VN belongs to. Used by the VN-detail "In lists:" line. */
 export function listListsForVn(vnId: string): UserList[] {
   return db
     .prepare(`
@@ -8416,6 +8807,10 @@ export function listListsForVn(vnId: string): UserList[] {
     .all(vnId) as UserList[];
 }
 
+/**
+ * Bulk-lookup map of VN id → lists it belongs to. Card grids should call
+ * this once per render rather than `listListsForVn` per row.
+ */
 export function listAllListMemberships(): Record<string, UserList[]> {
   const rows = db
     .prepare(`
@@ -8439,6 +8834,7 @@ export function listAllListMemberships(): Record<string, UserList[]> {
  * `listAllListMemberships` returns the list metadata too; this one is
  * for surfaces that only need to render a numeric badge per card.
  */
+/** Map of VN id → number of lists it belongs to. Used for the cheap "in N lists" badge. */
 export function countListMembershipsByVn(): Map<string, number> {
   const rows = db
     .prepare('SELECT vn_id, COUNT(*) AS n FROM user_list_vn GROUP BY vn_id')
@@ -8448,6 +8844,10 @@ export function countListMembershipsByVn(): Map<string, number> {
   return out;
 }
 
+/**
+ * Append one VN to a list. Returns `null` when the list doesn't exist;
+ * returns the existing membership row if the VN was already on the list.
+ */
 export function addVnToList(listId: number, vnId: string, note?: string | null): UserListItem | null {
   const list = getUserList(listId);
   if (!list) return null;
@@ -8472,6 +8872,7 @@ export function addVnToList(listId: number, vnId: string, note?: string | null):
   })();
 }
 
+/** Remove one VN from a list. Returns `false` when nothing matched. */
 export function removeVnFromList(listId: number, vnId: string): boolean {
   return db.transaction(() => {
     const info = db.prepare('DELETE FROM user_list_vn WHERE list_id = ? AND vn_id = ?').run(listId, vnId);
@@ -8482,6 +8883,7 @@ export function removeVnFromList(listId: number, vnId: string): boolean {
   })();
 }
 
+/** Persist drag-reorder for one list's items. */
 export function reorderListItems(listId: number, vnIds: string[]): void {
   const stmt = db.prepare('UPDATE user_list_vn SET order_index = ? WHERE list_id = ? AND vn_id = ?');
   const now = Date.now();
@@ -8496,6 +8898,7 @@ export function reorderListItems(listId: number, vnIds: string[]): void {
  * Each function returns a Map<id, name> for the supplied id list.
  * Unknown ids are absent from the map (callers treat absence as null).
  */
+/** Bulk-load VN titles keyed by id. Missing ids are simply absent from the map. */
 export function batchGetVnTitles(ids: string[]): Map<string, string> {
   if (ids.length === 0) return new Map();
   const placeholders = ids.map(() => '?').join(',');
@@ -8505,6 +8908,7 @@ export function batchGetVnTitles(ids: string[]): Map<string, string> {
   return new Map(rows.map((r) => [r.id, r.title]));
 }
 
+/** Bulk-load producer names keyed by id. Missing ids are simply absent. */
 export function batchGetProducerNames(ids: string[]): Map<string, string> {
   if (ids.length === 0) return new Map();
   const placeholders = ids.map(() => '?').join(',');
@@ -8533,6 +8937,7 @@ export function batchGetProducerNames(ids: string[]): Map<string, string> {
   return map;
 }
 
+/** Bulk-load staff names keyed by id. Missing ids are simply absent. */
 export function batchGetStaffNames(ids: string[]): Map<string, string> {
   if (ids.length === 0) return new Map();
   const placeholders = ids.map(() => '?').join(',');

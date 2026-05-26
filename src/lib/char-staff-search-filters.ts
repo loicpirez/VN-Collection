@@ -57,6 +57,11 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+/**
+ * Coerce raw URL search params into a typed `StaffSearchParams`. Pure: every
+ * field is whitelisted / format-checked so malformed query strings cleanly
+ * fall back to defaults rather than propagating bad input downstream.
+ */
 export function parseStaffSearchParams(
   raw: Record<string, string | string[] | undefined>,
 ): StaffSearchParams {

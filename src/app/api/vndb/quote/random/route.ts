@@ -5,7 +5,7 @@ import { getRandomQuote } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   try {
     const source = getAppSetting('random_quote_source') ?? 'all';
     if (source === 'mine') {

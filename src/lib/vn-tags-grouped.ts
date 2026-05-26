@@ -50,6 +50,11 @@ export function spoilerModeToLevel(mode: TagSpoilerMode): 0 | 1 | 2 {
   return 0;
 }
 
+/**
+ * Sort tags by rating, optionally slice to the summary top-N, then group
+ * by category. Never drops spoiler-tagged entries — gating is delegated to
+ * the per-chip `<SpoilerChip>` so the operator can still hover to peek.
+ */
 export function filterAndGroupTags(
   tags: readonly RawVnTag[],
   opts: { view: TagViewMode },
@@ -82,6 +87,11 @@ export interface TagLinks {
   vndbExternal: string;
 }
 
+/**
+ * Build the three canonical URLs for a tag id (library filter, local tag
+ * page, external VNDB page). Used by every tag-chip surface so the link
+ * shape stays uniform.
+ */
 export function tagLinks(tagId: string): TagLinks {
   const id = tagId.toLowerCase();
   return {

@@ -20,6 +20,11 @@ export interface TraitFullPayload {
   fetched_at: number;
 }
 
+/**
+ * Read the cached full-trait payload, or `null` on miss / parse error.
+ * Lets trait tooltips and the /trait page render from cache before any
+ * live VNDB fetch.
+ */
 export function readTraitFullCache(iid: string): TraitFullPayload | null {
   const row = db
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
@@ -45,6 +50,10 @@ function writeTraitFullCache(iid: string, payload: TraitFullPayload): void {
   `).run(key(iid), JSON.stringify(payload), now, now + TTL_MS);
 }
 
+/**
+ * Fetch one trait with the full `VndbTrait` payload and persist it in
+ * the cache. Returns `null` when VNDB doesn't recognise the id.
+ */
 export async function downloadFullTraitInfo(iid: string): Promise<TraitFullPayload | null> {
   const trait = await getTrait(iid);
   if (!trait) return null;

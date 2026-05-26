@@ -46,12 +46,13 @@ export interface VnBannerChangedDetail {
   rotation?: 0 | 90 | 180 | 270;
 }
 
-/** Type-safe dispatch helpers — avoids leaking `as unknown` everywhere. */
+/** Type-safe dispatch helper for `VN_COVER_CHANGED_EVENT`. SSR-safe (no-op on the server). */
 export function dispatchCoverChanged(detail: VnCoverChangedDetail): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent<VnCoverChangedDetail>(VN_COVER_CHANGED_EVENT, { detail }));
 }
 
+/** Type-safe dispatch helper for `VN_BANNER_CHANGED_EVENT`. SSR-safe (no-op on the server). */
 export function dispatchBannerChanged(detail: VnBannerChangedDetail): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent<VnBannerChangedDetail>(VN_BANNER_CHANGED_EVENT, { detail }));

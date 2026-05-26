@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, Pencil, Search, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useDebouncedCallback } from '@/lib/hooks';
 import { clearSeed, setSeed } from '@/lib/seed-picker-url';
 import { SafeImage } from '@/components/SafeImage';
 
@@ -77,7 +78,6 @@ export function VnSeedPicker({
   const [highlight, setHighlight] = useState(0);
   const [editing, setEditing] = useState(!initialSeed);
   const [isPending, startTransition] = useTransition();
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastQueryRef = useRef<string>('');
 
@@ -185,15 +185,11 @@ export function VnSeedPicker({
     setHits([...localHits, ...vndbHits]);
   }, []);
 
+  const debouncedSearch = useDebouncedCallback((q: string) => void search(q), 300);
+
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      void search(query);
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [query, search]);
+    debouncedSearch(query);
+  }, [query, debouncedSearch]);
 
   useEffect(() => {
     if (autoFocusInput && editing) inputRef.current?.focus();

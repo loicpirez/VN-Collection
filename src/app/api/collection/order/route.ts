@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
  * `custom_order` so the supplied ids show up in that order under the
  * "Custom" sort. DELETE clears every row's custom_order at once.
  */
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { ids?: unknown };
@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {

@@ -20,6 +20,10 @@ export interface ReleaseFullPayload {
   fetched_at: number;
 }
 
+/**
+ * Read a previously-cached full-release payload from `vndb_cache`. Returns
+ * `null` on missing / unparseable rows so callers fall back to a fresh fetch.
+ */
 export function readReleaseFullCache(rid: string): ReleaseFullPayload | null {
   const row = db
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')

@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
  * requires `/characters?sex=f` to render results) works without a
  * second code path.
  */
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const sp = req.nextUrl.searchParams;

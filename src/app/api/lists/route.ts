@@ -9,11 +9,11 @@ export const runtime = 'nodejs';
 
 // intentionally public — single-user self-hosted app; read-only list metadata
 // carries no PII. Mutating handlers below remain gated via requireLocalhostOrToken.
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   return NextResponse.json({ lists: listUserLists() });
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as {

@@ -30,6 +30,11 @@ export interface ScrapedProducerInfo {
 
 const CACHE_KEY = (pid: string) => `scrape_producer:${pid.toLowerCase()}`;
 
+/**
+ * Read the cached scraped relations payload for a producer, or `null` when
+ * absent / unparseable. Cache is keyed by lowercased pid and stored in
+ * `vndb_cache` so it shares the same invalidation surface as the API cache.
+ */
 export function readScrapedProducerInfo(pid: string): ScrapedProducerInfo | null {
   const row = db
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
@@ -97,6 +102,11 @@ export async function scrapeProducerRelations(
   return info;
 }
 
+/**
+ * Fan-out: for every developer credited on `vnId`, scrape its VNDB
+ * producer page so the Relations panel can render without N round-trips.
+ * Skips entries whose cache is still fresh unless `force` is set.
+ */
 export async function scrapeProducersForVn(
   vnId: string,
   opts: { force?: boolean } = {},

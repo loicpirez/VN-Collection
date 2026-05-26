@@ -13,11 +13,11 @@ export const dynamic = 'force-dynamic';
 
 // intentionally public — single-user self-hosted app; read-only queue
 // data carries no PII. Mutating handlers below remain gated.
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   return NextResponse.json({ entries: listReadingQueue() });
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { vn_id?: unknown };
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ entry });
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const vnId = req.nextUrl.searchParams.get('vn_id');
@@ -45,7 +45,7 @@ export async function DELETE(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { ids?: unknown };

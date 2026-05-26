@@ -13,6 +13,7 @@ import {
 import { useToast } from './ToastProvider';
 import { useDialogA11y } from './Dialog';
 import { useT } from '@/lib/i18n/client';
+import { useDebouncedCallback } from '@/lib/hooks';
 
 import { readApiError } from '@/lib/api-error-read';
 interface EgsCandidate {
@@ -61,7 +62,6 @@ export function MapVnToEgsButton({
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState<number | 'reset' | 'none' | null>(null);
   const [state, setState] = useState<MappingState | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
@@ -108,14 +108,12 @@ export function MapVnToEgsButton({
     }
   }, []);
 
+  const debouncedSearch = useDebouncedCallback((q: string) => search(q), 300);
+
   useEffect(() => {
     if (!open) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(query), 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [open, query, search]);
+    debouncedSearch(query);
+  }, [open, query, debouncedSearch]);
 
   async function pin(action: { egsId: number } | 'none' | 'reset', label: number | 'reset' | 'none') {
     setBusy(label);

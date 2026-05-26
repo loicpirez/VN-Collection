@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Plus, Search, Tag as TagIcon, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
+import { useDebouncedCallback } from '@/lib/hooks';
 import { fmtNum } from '@/lib/locale-number';
 
 interface TagSummary {
@@ -44,7 +45,6 @@ export function TagPicker({
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<TagSummary[]>([]);
   const [searching, setSearching] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const search = useCallback(
@@ -75,14 +75,14 @@ export function TagPicker({
     [category],
   );
 
+  const debouncedSearch = useDebouncedCallback((q: string) => search(q), 250);
+
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(query), 250);
+    debouncedSearch(query);
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
       abortRef.current?.abort();
     };
-  }, [query, search]);
+  }, [query, debouncedSearch]);
 
   const pickedIds = new Set(tags.map((t) => t.id));
 

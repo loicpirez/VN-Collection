@@ -21,7 +21,7 @@ async function loadVndbWishlistIds(): Promise<Set<string> | null> {
   }
 }
 
-export async function GET(req: Request) {
+export async function GET(req: Request): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
 

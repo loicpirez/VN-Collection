@@ -15,7 +15,7 @@ export const maxDuration = 60;
  * associations because the cache key is per-page (paginated) and
  * different from the cache keys covered by `/api/refresh/global`.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

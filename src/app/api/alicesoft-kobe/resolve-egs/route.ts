@@ -17,7 +17,7 @@ export const maxDuration = 120;
  * Body: { batch?: number }
  * Returns: { processed, remaining }
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
 

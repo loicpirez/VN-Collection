@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Star, Tag as TagIcon } from 'lucide-react';
-import { db } from '@/lib/db';
+import { countListMembershipsByVn, getReadingQueueVnIds, listCollection } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
@@ -15,6 +15,8 @@ import type { VndbTagTreeNode } from '@/lib/vndb-tag-web-parser';
 import { SafeImage } from '@/components/SafeImage';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { VnCard } from '@/components/VnCard';
+import { toCardData } from '@/components/cardData';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { SkeletonBlock } from '@/components/Skeleton';
 
@@ -58,26 +60,18 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   const { tab, page } = parseTagPageParams(sp);
 
   const LOCAL_LIMIT = 500;
-  const localRows = db
-    .prepare(
-      `SELECT v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.local_image_thumb,
-              v.image_sexual, v.rating, v.released
-       FROM collection c JOIN vn v ON v.id = c.vn_id, json_each(v.tags) je
-       WHERE json_extract(je.value, '$.id') = ?
-       LIMIT ${LOCAL_LIMIT}`,
-    )
-    .all(tagId) as Array<{
-      id: string;
-      title: string;
-      alttitle: string | null;
-      image_url: string | null;
-      image_thumb: string | null;
-      local_image_thumb: string | null;
-      image_sexual: number | null;
-      rating: number | null;
-      released: string | null;
-    }>;
-  const count = localRows.length;
+  // Use the shared `listCollection` pipeline so every VnCard surface
+  // (badge, density, list-count chip, reading-queue chip, aspect badge,
+  // EGS score, etc.) renders consistently with the rest of the app.
+  const rawLocalItems = listCollection({ tag: tagId }).slice(0, LOCAL_LIMIT);
+  const listCounts = countListMembershipsByVn();
+  const queueIds = getReadingQueueVnIds();
+  const localItems = rawLocalItems.map((it) => ({
+    ...it,
+    list_count: listCounts.get(it.id) ?? 0,
+    in_reading_queue: queueIds.has(it.id),
+  }));
+  const count = localItems.length;
   const state = tagPageEmptyState({ tagId, collectionCount: count });
 
   return (
@@ -177,43 +171,20 @@ export default async function TagPage({ params, searchParams }: PageProps) {
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {t.tagPage.localMatches}
           </h2>
-          {localRows.length === 0 ? (
+          {localItems.length === 0 ? (
             <p className="text-sm text-muted">{t.tagPage.localEmpty}</p>
           ) : (
-            <ul
+            <div
               className="grid gap-3"
-              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
+              style={{
+                gridTemplateColumns:
+                  'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))',
+              }}
             >
-              {localRows.map((v) => (
-                <li key={v.id}>
-                  <Link
-                    href={`/vn/${v.id}`}
-                    className="group flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
-                  >
-                    <div className="aspect-[2/3] w-full overflow-hidden rounded">
-                      <SafeImage
-                        src={v.image_thumb || v.image_url}
-                        localSrc={v.local_image_thumb}
-                        sexual={v.image_sexual}
-                        alt={v.title}
-                        className="h-full w-full"
-                      />
-                    </div>
-                    <p title={v.title} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
-                      {v.title}
-                    </p>
-                    <div className="flex items-center gap-2 text-[11px] text-muted">
-                      {v.rating != null && (
-                        <span className="inline-flex items-center gap-0.5 text-accent">
-                          <Star className="h-3 w-3 fill-accent" aria-hidden /> {fmtNum(v.rating / 10, locale, 1)}
-                        </span>
-                      )}
-                      {v.released?.slice(0, 4) && <span>{v.released.slice(0, 4)}</span>}
-                    </div>
-                  </Link>
-                </li>
+              {localItems.map((it) => (
+                <VnCard key={it.id} data={toCardData(it)} />
               ))}
-            </ul>
+            </div>
           )}
         </section>
       )}

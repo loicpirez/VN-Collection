@@ -34,7 +34,7 @@ const EGS_BASE = 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki';
  * Empty / malformed sources are filtered out, so a 4-source response
  * means 4 usable image URLs.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   const egsId = Number(id);
   if (!Number.isInteger(egsId) || egsId <= 0) {

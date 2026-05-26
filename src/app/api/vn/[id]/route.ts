@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const CACHE_MS = 24 * 3600 * 1000;
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

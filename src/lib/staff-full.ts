@@ -37,6 +37,11 @@ function key(sid: string): string {
   return `${KEY_PREFIX}${sid.toLowerCase()}`;
 }
 
+/**
+ * Read a previously-cached full-staff payload from `vndb_cache`. Returns
+ * `null` on miss or parse error so callers can decide between cache miss
+ * and live re-fetch.
+ */
 export function readStaffFullCache(sid: string): StaffFullPayload | null {
   const row = db
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
@@ -125,6 +130,19 @@ export async function downloadFullStaffForVn(vnId: string, opts: { force?: boole
   if (stale.length === 0) return { scanned: sids.length, downloaded: 0 };
   const job = startJob('staff', `Staff for ${vnId}`, stale.length, vnId);
 
+  // Pre-load staff names from local credit table so the progress bar can
+  // show "Staff — <name> (s95001)" instead of a bare id.
+  const nameMap = new Map<string, string>();
+  if (stale.length > 0) {
+    const placeholders = stale.map(() => '?').join(',');
+    const nameRows = db
+      .prepare(`SELECT DISTINCT sid, name FROM vn_staff_credit WHERE sid IN (${placeholders}) AND name IS NOT NULL`)
+      .all(...stale) as { sid: string; name: string }[];
+    for (const r of nameRows) {
+      if (!nameMap.has(r.sid) && r.name && r.name.length >= 2) nameMap.set(r.sid, r.name);
+    }
+  }
+
   let downloaded = 0;
   // Strictly sequential — the global vndb-throttle already caps everything
   // at 1 req/sec, so internal concurrency just bloats the in-flight queue
@@ -132,8 +150,10 @@ export async function downloadFullStaffForVn(vnId: string, opts: { force?: boole
   for (const sid of stale) {
     // Surface the specific staff id in the DownloadStatusBar so the
     // user sees what's actually downloading right now rather than only
-    // "Staff for v123 (3/12)".
-    setJobCurrent(job.id, sid);
+    // "Staff for v123 (3/12)". Label with name when available so the
+    // operator sees "Staff — <name>" instead of a bare id.
+    const name = nameMap.get(sid);
+    setJobCurrent(job.id, name ? `Staff — ${name} (${sid})` : `Staff — ${sid}`);
     try {
       await downloadFullStaffInfo(sid);
       downloaded += 1;

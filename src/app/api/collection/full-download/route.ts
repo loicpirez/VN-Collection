@@ -23,7 +23,7 @@ const VN_IDS_MAX = 200;
  * existing throttle (1 req/s, per-request Retry-After, soft circuit on
  * 3+ 429s) keeps the rate sane no matter how many VNs were picked.
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
   const body = (await readJsonObject(req)) as { vn_ids?: unknown };

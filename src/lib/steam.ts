@@ -28,6 +28,11 @@ export interface SteamConfig {
   steamId: string | null;
 }
 
+/**
+ * Read the Steam credentials from `app_setting`. Both fields can be `null`
+ * when the operator hasn't configured Steam sync yet; callers must handle
+ * that before issuing a fetch.
+ */
 export function readSteamConfig(): SteamConfig {
   return {
     apiKey: getAppSetting('steam_api_key'),
@@ -35,6 +40,12 @@ export function readSteamConfig(): SteamConfig {
   };
 }
 
+/**
+ * Hit Steam's `IPlayerService/GetOwnedGames` and return the user's full
+ * playtime list. Throws on missing credentials / network errors / non-JSON
+ * responses; the API key is scrubbed from every error message so it never
+ * lands in a log or stack trace.
+ */
 export async function fetchOwnedGames(): Promise<SteamPlaytime[]> {
   const cfg = readSteamConfig();
   if (!cfg.apiKey || !cfg.steamId) {
@@ -211,17 +222,17 @@ export async function computeSteamSuggestions(steamGames: SteamPlaytime[]): Prom
   return out.sort((a, b) => b.delta - a.delta);
 }
 
-/**
- * Return every Steam game NOT already linked to a VN. The /steam UI uses
- * this to surface a search/assign affordance per game so the user can map
- * Steam-only titles (no VNDB Steam release) to their local VN.
- */
 export interface UnlinkedSteamGame {
   appid: number;
   name: string;
   minutes: number;
 }
 
+/**
+ * Return every Steam game NOT already linked to a VN. The /steam UI uses
+ * this to surface a search/assign affordance per game so the user can map
+ * Steam-only titles (no VNDB Steam release) to their local VN.
+ */
 export function listUnlinkedSteamGames(steamGames: SteamPlaytime[]): UnlinkedSteamGame[] {
   const linked = new Set(listSteamLinks().map((l) => l.appid));
   return steamGames

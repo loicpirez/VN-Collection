@@ -19,7 +19,7 @@ export const runtime = 'nodejs';
  *
  * Output remains valid JSON (parseable by any standard JSON reader).
  */
-export async function GET(req: Request) {
+export async function GET(req: Request): Promise<Response> {
   // The raw cache contains every authenticated /authinfo and /ulist
   // response — including the user's full VNDB list contents and
   // permissions. PII. Gate.

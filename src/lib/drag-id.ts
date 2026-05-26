@@ -35,6 +35,11 @@ export type DragSource =
       position: number;
     };
 
+/**
+ * Decode a draggable id into its typed `DragSource`. Returns `null` on any
+ * shape mismatch (unknown prefix, wrong segment count, non-integer indices)
+ * so callers can no-op silently rather than throw inside `onDragEnd`.
+ */
 export function parseDragId(id: string): DragSource | null {
   if (id.startsWith('pool|')) {
     const [, vnId, releaseId] = id.split('|');
@@ -87,6 +92,10 @@ export interface CellTarget {
   col: number;
 }
 
+/**
+ * Decode a `cell|<shelf>|<row>|<col>` drop-target id. Returns `null` on any
+ * malformed input so a stray drop on a non-cell never crashes the editor.
+ */
 export function parseCellId(id: string): CellTarget | null {
   if (!id.startsWith('cell|')) return null;
   const parts = id.split('|');
@@ -106,6 +115,10 @@ export interface DisplayTarget {
   position: number;
 }
 
+/**
+ * Decode a `display-cell|<shelf>|<afterRow>|<position>` drop-target id used
+ * by the front-display rows. Mirrors `parseCellId` semantics.
+ */
 export function parseDisplayCellId(id: string): DisplayTarget | null {
   if (!id.startsWith('display-cell|')) return null;
   const parts = id.split('|');

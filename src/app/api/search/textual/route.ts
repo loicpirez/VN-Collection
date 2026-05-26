@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 const Q_MAX = 300;
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const q = (req.nextUrl.searchParams.get('q') ?? '').slice(0, Q_MAX);

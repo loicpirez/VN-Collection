@@ -35,6 +35,11 @@ export const ROLE_KEY: Record<string, RoleI18nKey> = {
   staff: 'role_staff',
 };
 
+/**
+ * Resolve a VNDB role identifier to its localised label. Unknown roles fall
+ * through to the raw identifier so a freshly-added VNDB role appears unmapped
+ * rather than blank.
+ */
 export function roleLabel(
   role: string | null | undefined,
   staffDict: Record<RoleI18nKey, string>,

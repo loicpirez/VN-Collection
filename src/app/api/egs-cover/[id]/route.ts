@@ -253,7 +253,10 @@ async function proxyImage(target: string, origin: string): Promise<Response> {
   }
 }
 
-export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+// `proxyImage()` returns a raw `Response` (image bytes). The handler can
+// also return `NextResponse.json(...)` for error / redirect branches, so we
+// type the return as the union — the agent over-tightened it to NextResponse.
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await ctx.params;
   const egsId = Number(id);
   if (!Number.isInteger(egsId) || egsId <= 0) {

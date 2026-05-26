@@ -17,6 +17,11 @@
  */
 export type SimilarToVnView = 'empty' | 'invalid' | 'results';
 
+/**
+ * Decide whether the similar-to-VN page should render the empty picker,
+ * the invalid-seed error, or the results panel. Pure — see the file-level
+ * JSDoc above for the branch semantics.
+ */
 export function pickSimilarToVnView(opts: {
   seedVnId: string | undefined;
   seedRowExists: boolean;

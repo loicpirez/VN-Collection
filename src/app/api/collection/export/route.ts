@@ -5,7 +5,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET(req: Request) {
+export async function GET(req: Request): Promise<NextResponse> {
   // Export contains every collection row (PII: notes, ratings,
   // timestamps). Gate behind localhost / admin token.
   const denied = requireLocalhostOrToken(req);

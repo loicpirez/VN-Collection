@@ -20,6 +20,10 @@ export interface TagFullPayload {
   fetched_at: number;
 }
 
+/**
+ * Read the cached full-tag payload, or `null` on miss / parse error.
+ * Lets the tag tooltip render instantly from cache before any live fetch.
+ */
 export function readTagFullCache(gid: string): TagFullPayload | null {
   const row = db
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
@@ -45,6 +49,10 @@ function writeTagFullCache(gid: string, payload: TagFullPayload): void {
   `).run(key(gid), JSON.stringify(payload), now, now + TTL_MS);
 }
 
+/**
+ * Fetch one tag with the full `VndbTag` payload and persist it in the
+ * cache. Returns `null` when VNDB doesn't recognise the id.
+ */
 export async function downloadFullTagInfo(gid: string): Promise<TagFullPayload | null> {
   const tag = await getTag(gid);
   if (!tag) return null;

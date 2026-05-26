@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
  * match. Pass `aggressive: true` to apply the same edition-suffix stripping
  * used by the aggressive VNDB retry, plus a whitespace-collapsed fallback.
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as Record<string, unknown>;

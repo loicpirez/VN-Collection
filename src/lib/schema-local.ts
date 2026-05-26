@@ -13,6 +13,11 @@ export interface LocalTableInfo {
   columns: LocalColumnInfo[];
 }
 
+/**
+ * Enumerate every user-defined SQLite table plus its column metadata.
+ * Drives the local-DB side of the `/schema` browser. Skips `sqlite_*`
+ * internal tables.
+ */
 export function listLocalSqliteSchema(): LocalTableInfo[] {
   const tables = db
     .prepare(

@@ -6,6 +6,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useDialogA11y } from './Dialog';
 import { useLocale, useT } from '@/lib/i18n/client';
+import { useDebouncedCallback } from '@/lib/hooks';
 import { formatVndbDateString } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -37,7 +38,6 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [linkingId, setLinkingId] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
@@ -58,14 +58,12 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
     }
   }, []);
 
+  const debouncedSearch = useDebouncedCallback((q: string) => search(q), 300);
+
   useEffect(() => {
     if (!open) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(query), 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [open, query, search]);
+    debouncedSearch(query);
+  }, [open, query, debouncedSearch]);
 
   useEffect(() => {
     if (open && hits.length === 0) {

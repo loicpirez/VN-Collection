@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
  * gamelist `vndb` column to recover a VN id when EGS curators have filled
  * it in. Stateless per-batch — call repeatedly until `remaining` is 0.
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as Record<string, unknown>;

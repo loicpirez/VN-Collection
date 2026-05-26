@@ -13,7 +13,7 @@ export const maxDuration = 120;
 // 10× headroom over realistic real-world dumps.
 const MAX_IMPORT_BYTES = 100 * 1024 * 1024;
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   // Import overwrites the entire collection — gate.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;

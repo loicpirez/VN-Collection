@@ -38,6 +38,7 @@ function defaultState(): SeriesSectionState {
   return { visible: true, collapsedByDefault: false };
 }
 
+/** Fresh layout containing every known section, visible, in canonical order. */
 export function defaultSeriesDetailLayoutV1(): SeriesDetailLayoutV1 {
   const sections = {} as Record<SeriesSectionId, SeriesSectionState>;
   for (const id of SERIES_DETAIL_SECTION_IDS) sections[id] = defaultState();

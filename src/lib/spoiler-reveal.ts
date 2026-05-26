@@ -37,6 +37,10 @@ export interface SpoilerVisibilityInput {
   perSectionOverride?: 0 | 1 | 2 | null;
 }
 
+/**
+ * Apply the spoiler-reveal truth table documented above to one node. The
+ * per-section override can only raise the effective level, never lower it.
+ */
 export function spoilerVisibility(input: SpoilerVisibilityInput): SpoilerVisibility {
   const { globalSetting, nodeLevel, isHovered, isFocused, isTapped, perSectionOverride } = input;
   // Per-section override raises (never lowers) the effective level —

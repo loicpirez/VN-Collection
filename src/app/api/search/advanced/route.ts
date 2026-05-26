@@ -66,7 +66,7 @@ function parseAdvancedBody(raw: unknown): { ok: true; opts: AdvancedSearchOption
   return { ok: true, opts: out };
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   let raw: unknown;
