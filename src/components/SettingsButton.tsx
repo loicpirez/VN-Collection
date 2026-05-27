@@ -198,6 +198,19 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
   // `pwDraft` so the value survives the type swap, and persist on blur
   // exactly like before.
   const [pwDraft, setPwDraft] = useState('');
+  // Round 5 user feedback ("STILL NOT WORKING The unhide on integration"):
+  // the prior toggle worked at the DOM level but the UX was a lie — the
+  // `••••••••` were a *decorative placeholder*, not the stored value.
+  // Clicking the eye on an empty input revealed an empty input and the
+  // user (correctly) reported that nothing changed. The stored password
+  // is never echoed back from the server by design (`/api/settings`
+  // returns `{ hasPassword: true }` only). The right fix is to be
+  // explicit: when focused, hide the decorative dots so the user clearly
+  // sees the editable empty field; clicking the eye + typing shows the
+  // characters as expected. The replacement workflow is also surfaced
+  // via an inline hint below the input.
+  const [pwFocused, setPwFocused] = useState(false);
+  const pwInputRef = useRef<HTMLInputElement | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; ms?: number; error?: string } | null>(null);
   const [testing, startTesting] = useTransition();
   // Stable per-instance ids so the labels above each input can wire up
@@ -300,15 +313,29 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
           <div className="flex items-center gap-1">
             <input
               id={passwordId}
+              ref={pwInputRef}
               type={showPw ? 'text' : 'password'}
               autoComplete="current-password"
-              placeholder={config?.hasPassword ? t.settings.proxyPasswordStored : t.settings.proxyPasswordPlaceholder}
+              // Hide the "•••••••• already saved" hint when the field is
+              // focused — the dots are a *placeholder*, not the stored
+              // value, and prior user feedback ("STILL NOT WORKING the
+              // unhide") was driven by that confusion. The hint copy
+              // moves below the row, where it stays visible regardless
+              // of focus state.
+              placeholder={
+                !pwFocused && !pwDraft && config?.hasPassword
+                  ? t.settings.proxyPasswordStored
+                  : t.settings.proxyPasswordPlaceholder
+              }
               value={pwDraft}
               onChange={(e) => setPwDraft(e.target.value)}
+              onFocus={() => setPwFocused(true)}
               onBlur={(e) => {
+                setPwFocused(false);
                 if (e.target.value) onSave({ password: e.target.value });
               }}
               className="input flex-1 text-[11px]"
+              aria-describedby={config?.hasPassword ? `${passwordId}-hint` : undefined}
             />
             <button
               type="button"
@@ -319,14 +346,30 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
               // selection; preventing the default blur keeps the
               // caret in place.
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setShowPw((v) => !v)}
+              onClick={() => {
+                setShowPw((v) => !v);
+                // Pull focus back into the input so the user can
+                // immediately keep typing after toggling visibility.
+                pwInputRef.current?.focus();
+              }}
               className="rounded p-1 text-muted hover:text-fg"
               aria-label={showPw ? t.settings.proxyPasswordHide : t.settings.proxyPasswordShow}
               aria-pressed={showPw}
+              title={showPw ? t.settings.proxyPasswordHide : t.settings.proxyPasswordShow}
             >
               {showPw ? <EyeOff className="h-3.5 w-3.5" aria-hidden /> : <Eye className="h-3.5 w-3.5" aria-hidden />}
             </button>
           </div>
+          {config?.hasPassword && (
+            // The stored password is never echoed by the server
+            // (`/api/settings` returns `{ hasPassword: true }` only).
+            // Explain the replacement workflow inline so the user
+            // doesn't expect the eye button to surface the stored
+            // value.
+            <p id={`${passwordId}-hint`} className="col-span-2 text-[10px] text-muted/80">
+              {t.settings.proxyPasswordStoredHint}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
