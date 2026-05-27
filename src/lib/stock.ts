@@ -12,11 +12,12 @@ import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGa
 // module so client components (Settings UI, etc.) can use the same list
 // without bundling the server-only fetch/parse code that lives below.
 import {
+  ONLINE_STOCK_SENTINEL,
   STOCK_PROVIDER_IDS,
   STOCK_PROVIDER_LABELS,
   type StockProviderId,
 } from './stock-provider-constants';
-export { STOCK_PROVIDER_IDS, STOCK_PROVIDER_LABELS };
+export { ONLINE_STOCK_SENTINEL, STOCK_PROVIDER_IDS, STOCK_PROVIDER_LABELS };
 export type { StockProviderId };
 
 export type PhysicalStockMode =
@@ -181,14 +182,15 @@ export function canProducePotentialPhysicalLead(id: StockProviderId | 'alicesoft
 /**
  * Apply the confirmed-physical filter to one offer: provider must be on
  * the confirmed list, availability must be in-stock-ish, and the offer
- * must carry a real branch label (not the synthetic "Online stock").
+ * must carry a real branch label (not the synthetic ONLINE_STOCK_SENTINEL
+ * marker — see I-027).
  */
 export function shouldShowInConfirmedPhysicalResults(
   offer: Pick<VnStockOfferRow, 'provider' | 'availability' | 'location_label'>,
 ): boolean {
   if (!canProduceConfirmedPhysicalStock(offer.provider as StockProviderId | 'alicesoft_kobe')) return false;
   if (offer.availability !== 'in_stock' && offer.availability !== 'limited') return false;
-  return !!offer.location_label && offer.location_label !== 'Online stock';
+  return !!offer.location_label && offer.location_label !== ONLINE_STOCK_SENTINEL;
 }
 
 /**
@@ -932,7 +934,7 @@ export function parseMelonbooksDetail(html: string, url: string, target: StockTa
     availability_label: statusText,
     condition: null,
     edition_label: null,
-    location_label: 'Online stock',
+    location_label: ONLINE_STOCK_SENTINEL,
     source_release_id: target.releaseId,
     jan: target.jan,
   };

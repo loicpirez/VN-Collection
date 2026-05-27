@@ -1127,6 +1127,7 @@ export const dictionaries = {
     },
     stock: {
       title: 'Stock & prix',
+      onlineStockLabel: 'Boutique en ligne',
       pageTitle: 'Stock & prix',
       pageSubtitle: 'Recherche ponctuelle des offres par VN, avec prix et disponibilité.',
       searchLabel: 'VN',
@@ -4128,6 +4129,7 @@ export const dictionaries = {
     },
     stock: {
       title: 'Stock and prices',
+      onlineStockLabel: 'Online stock',
       pageTitle: 'Stock and prices',
       pageSubtitle: 'One-off VN stock lookup with prices and availability.',
       searchLabel: 'VN',
@@ -7126,6 +7128,7 @@ export const dictionaries = {
     },
     stock: {
       title: '在庫と価格',
+      onlineStockLabel: 'オンライン在庫',
       pageTitle: '在庫と価格',
       pageSubtitle: 'VN ごとにショップ在庫、価格、入手可否を確認します。',
       searchLabel: 'VN',

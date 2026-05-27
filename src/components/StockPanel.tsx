@@ -23,6 +23,7 @@ import { readApiError } from '@/lib/api-error-read';
 import { timeAgo } from '@/lib/time-ago';
 import { normalizeProviderDiagnostic, type NormalizedProviderDiagnostic, type ProviderDiagnosticGroup } from '@/lib/stock-diagnostics';
 import { classifyOfferGroup, isEligibleGameStockOffer, type OfferGroup } from '@/lib/stock-classify';
+import { ONLINE_STOCK_SENTINEL } from '@/lib/stock-provider-constants';
 import { StockPhysicalLocations, type PhysicalOffer } from './StockPhysicalLocations';
 import { SkeletonRows } from './Skeleton';
 import { useDialogA11y } from './Dialog';
@@ -460,7 +461,9 @@ export function StockPanel({
         confirmedPhysicalIds.has(o.provider) &&
         (o.availability === 'in_stock' || o.availability === 'limited') &&
         !!o.location_label &&
-        o.location_label !== 'Online stock',
+        // Audit I-027: compare against the machine-readable sentinel,
+        // not the English label that used to be persisted directly.
+        o.location_label !== ONLINE_STOCK_SENTINEL,
     ).map((o) => ({
       provider: o.provider,
       provider_label: o.provider_label,
@@ -1307,7 +1310,12 @@ function OfferCard({
           </span>
         )}
         {offer.location_label && offer.location_label !== offer.location_branch && (
-          <span className="rounded bg-bg px-1.5 py-0.5">{offer.location_label}</span>
+          <span className="rounded bg-bg px-1.5 py-0.5">
+            {/* I-027: translate the sentinel at render time. */}
+            {offer.location_label === ONLINE_STOCK_SENTINEL
+              ? t.stock.onlineStockLabel
+              : offer.location_label}
+          </span>
         )}
         {offer.condition && <span className="rounded bg-bg px-1.5 py-0.5">{offer.condition}</span>}
         {offer.edition_label && <span className="rounded bg-bg px-1.5 py-0.5">{offer.edition_label}</span>}

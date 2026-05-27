@@ -682,9 +682,11 @@ describe('shouldShowInConfirmedPhysicalResults', () => {
     })).toBe(false);
   });
 
-  it('false when location_label is "Online stock" (generic)', () => {
+  it('false when location_label is the ONLINE_STOCK_SENTINEL (audit I-027)', () => {
+    // Sentinel is the persisted machine-readable value, never the
+    // human-facing "Online stock" label (the UI translates at render).
     expect(shouldShowInConfirmedPhysicalResults({
-      provider: 'sofmap', availability: 'in_stock', location_label: 'Online stock',
+      provider: 'sofmap', availability: 'in_stock', location_label: '__online_stock__',
     })).toBe(false);
   });
 
