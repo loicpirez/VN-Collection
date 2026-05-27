@@ -3,9 +3,10 @@ import { buildSurugayaSearchUrl, parseSurugayaSearch } from '@/lib/stock';
 
 describe('buildSurugayaSearchUrl', () => {
   it('uses URLSearchParams, never raw & concatenation', () => {
-    const url = buildSurugayaSearchUrl('アイキス3');
+    const url = buildSurugayaSearchUrl('サンプル3');
     expect(url).not.toContain('&amp;');
-    expect(url).toContain('search_word=%E3%82%A2%E3%82%A4%E3%82%AD%E3%82%B93');
+    // サンプル3 = %E3%82%B5%E3%83%B3%E3%83%97%E3%83%AB3 (UTF-8 percent-encoded)
+    expect(url).toContain('search_word=%E3%82%B5%E3%83%B3%E3%83%97%E3%83%AB3');
     expect(url).toContain('category=');
     expect(url).toContain('rankBy=relavancy');
   });
@@ -28,7 +29,7 @@ describe('parseSurugayaSearch — CF detection', () => {
     const html = `<!DOCTYPE html><html><head><title>サーチ結果 | 駿河屋</title>
     <script>/* cloudflare browser check */</script></head>
     <body><p class="search_count">1-2件 / 2件</p>
-    <a href="/product/detail/12345">アイキス3Cute [通常版]</a>
+    <a href="/product/detail/12345">サンプル3Cute [通常版]</a>
     <span class="item_kind">ニンテンドースイッチソフト</span>
     </body></html>`;
     const result = parseSurugayaSearch(html);
@@ -48,7 +49,7 @@ const FIXTURE_HTML = `<!DOCTYPE html>
     <a href="/product/detail/592867?category=&search_word=%E3%82%A2%E3%82%A4%E3%82%AD%E3%82%B93">
       <img src="https://shinaban.suruga-ya.jp/img/goods/592867/main.jpg" alt="メイン画像">
     </a>
-    <p class="item_name"><a href="/product/detail/592867">アイキス3Cute [通常版]</a></p>
+    <p class="item_name"><a href="/product/detail/592867">サンプル3Cute [通常版]</a></p>
     <p class="item_kind_type">ニンテンドースイッチソフト</p>
     <div class="price_block">
       <p>品切れ</p>
@@ -59,7 +60,7 @@ const FIXTURE_HTML = `<!DOCTYPE html>
 
   <!-- Card 2: bonus item [単品] prefix -->
   <div class="item_box">
-    <p class="item_name"><a href="/product/other/12345">[単品] 真庭花梨 アクリルスタンド 「PS4/Switchソフト アイキス3Cute WonderGOO限定セット」 同梱特典</a></p>
+    <p class="item_name"><a href="/product/other/12345">[単品] サンプル花子 アクリルスタンド 「PS4/Switchソフト サンプル3Cute WonderGOO限定セット」 同梱特典</a></p>
     <p class="item_kind_type">アクリルスタンド・アクリルパネル</p>
     <div class="price_block">
       <p>中古：￥500</p>
@@ -68,7 +69,7 @@ const FIXTURE_HTML = `<!DOCTYPE html>
 
   <!-- Card 3: store-linked result with tenpo_cd -->
   <div class="item_box">
-    <p class="item_name"><a href="/product/detail/99999?tenpo_cd=AKIBA01">アイキス3Cute [限定版]</a></p>
+    <p class="item_name"><a href="/product/detail/99999?tenpo_cd=AKIBA01">サンプル3Cute [限定版]</a></p>
     <p class="item_kind_type">ニンテンドースイッチソフト</p>
     <div class="price_block">
       <p>中古：￥8,500</p>
@@ -97,7 +98,7 @@ describe('parseSurugayaSearch — card parsing', () => {
   });
 
   it('card 1: title', () => {
-    expect(result.cards[0].title).toBe('アイキス3Cute [通常版]');
+    expect(result.cards[0].title).toBe('サンプル3Cute [通常版]');
   });
 
   it('card 1: category', () => {

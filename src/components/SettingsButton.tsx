@@ -108,6 +108,10 @@ import {
 import { startTour } from './TutorialTour';
 
 import { readApiError } from '@/lib/api-error-read';
+import {
+  STOCK_PROVIDER_IDS,
+  STOCK_PROVIDER_LABELS,
+} from '@/lib/stock-provider-constants';
 type SortKey =
   | 'updated_at'
   | 'added_at'
@@ -198,22 +202,29 @@ type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 interface ProxySettingsSectionProps {
   t: ReturnType<typeof useT>;
+  /** DB key — `<id>_proxy_config`. Used by the parent to wire onSave. */
   providerKey: string;
+  /**
+   * Provider id passed to `POST /api/proxy/test`. For fixed providers
+   * (egs, vndb, vndbmirror, alicesoft_kobe, stock) this is the
+   * canonical id from `ProviderId`. For per-shop overrides this is the
+   * shop's `StockProviderId` (sofmap, surugaya, amiami, …).
+   */
+  providerId: string;
   label: string;
   config: ProxyDisplayConfig | undefined;
   onSave: (patch: Record<string, unknown>) => void;
+  /**
+   * Compact mode renders without the section border + heading hierarchy,
+   * suitable for nesting many shops inside a `<details>` accordion.
+   */
+  compact?: boolean;
 }
 
-function ProxySettingsSection({ t, label, config, onSave }: ProxySettingsSectionProps) {
+function ProxySettingsSection({ t, providerId, label, config, onSave, compact = false }: ProxySettingsSectionProps) {
   const [showPw, setShowPw] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; ms?: number; error?: string } | null>(null);
   const [testing, startTesting] = useTransition();
-  const providerIdMap: Record<string, string> = {
-    [t.settings.proxyProviderEgs]: 'egs',
-    [t.settings.proxyProviderVndb]: 'vndb',
-    [t.settings.proxyProviderVndbmirror]: 'vndbmirror',
-  };
-  const providerId = providerIdMap[label] ?? 'egs';
 
   function handleTest() {
     startTesting(async () => {
@@ -235,11 +246,17 @@ function ProxySettingsSection({ t, label, config, onSave }: ProxySettingsSection
   }
 
   return (
-    <section className="border-t border-border pt-5">
-      <h3 className="mb-1 text-sm font-bold">
-        {t.settings.proxyTitle} · {label}
-      </h3>
-      <p className="mb-3 text-[11px] text-muted">{t.settings.proxyDesc}</p>
+    <section className={compact ? 'rounded border border-border bg-bg-elev/30 p-3' : 'border-t border-border pt-5'}>
+      {compact ? (
+        <h4 className="mb-2 text-[12px] font-bold">{label}</h4>
+      ) : (
+        <>
+          <h3 className="mb-1 text-sm font-bold">
+            {t.settings.proxyTitle} · {label}
+          </h3>
+          <p className="mb-3 text-[11px] text-muted">{t.settings.proxyDesc}</p>
+        </>
+      )}
       <div className="flex flex-col gap-3">
         <label className="flex items-center gap-2 text-[12px]">
           <input
@@ -1126,6 +1143,7 @@ export function SettingsButton() {
                   <ProxySettingsSection
                     t={t}
                     providerKey="egs_proxy_config"
+                    providerId="egs"
                     label={t.settings.proxyProviderEgs}
                     config={server?.egs_proxy_config}
                     onSave={(patch) => saveServer({ egs_proxy_config: patch })}
@@ -1133,6 +1151,7 @@ export function SettingsButton() {
                   <ProxySettingsSection
                     t={t}
                     providerKey="vndb_proxy_config"
+                    providerId="vndb"
                     label={t.settings.proxyProviderVndb}
                     config={server?.vndb_proxy_config}
                     onSave={(patch) => saveServer({ vndb_proxy_config: patch })}
@@ -1140,6 +1159,7 @@ export function SettingsButton() {
                   <ProxySettingsSection
                     t={t}
                     providerKey="vndbmirror_proxy_config"
+                    providerId="vndbmirror"
                     label={t.settings.proxyProviderVndbmirror}
                     config={server?.vndbmirror_proxy_config}
                     onSave={(patch) => saveServer({ vndbmirror_proxy_config: patch })}
@@ -1147,6 +1167,7 @@ export function SettingsButton() {
                   <ProxySettingsSection
                     t={t}
                     providerKey="alicesoft_kobe_proxy_config"
+                    providerId="alicesoft_kobe"
                     label={t.settings.proxyProviderAliceKobe}
                     config={server?.alicesoft_kobe_proxy_config}
                     onSave={(patch) => saveServer({ alicesoft_kobe_proxy_config: patch })}
@@ -1154,10 +1175,41 @@ export function SettingsButton() {
                   <ProxySettingsSection
                     t={t}
                     providerKey="stock_proxy_config"
+                    providerId="stock"
                     label={t.settings.proxyProviderStock}
                     config={server?.stock_proxy_config}
                     onSave={(patch) => saveServer({ stock_proxy_config: patch })}
                   />
+
+                  <section className="border-t border-border pt-5">
+                    <details className="group">
+                      <summary className="cursor-pointer text-sm font-bold hover:text-accent">
+                        {t.settings.proxyShopOverridesTitle}
+                        <ChevronDown className="inline-block h-3.5 w-3.5 align-baseline transition-transform group-open:rotate-180" aria-hidden />
+                      </summary>
+                      <p className="mb-3 mt-2 text-[11px] text-muted">{t.settings.proxyShopOverridesDesc}</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {STOCK_PROVIDER_IDS.map((id) => {
+                          const dbKey = `${id}_proxy_config`;
+                          const cfg = (server as Record<string, unknown> | null)?.[dbKey] as
+                            | ProxyDisplayConfig
+                            | undefined;
+                          return (
+                            <ProxySettingsSection
+                              key={id}
+                              t={t}
+                              providerKey={dbKey}
+                              providerId={id}
+                              label={STOCK_PROVIDER_LABELS[id]}
+                              config={cfg}
+                              onSave={(patch) => saveServer({ [dbKey]: patch })}
+                              compact
+                            />
+                          );
+                        })}
+                      </div>
+                    </details>
+                  </section>
 
                   <section className="border-t border-border pt-5">
                     <h3 className="mb-1 text-sm font-bold">{t.settings.randomQuoteTitle}</h3>

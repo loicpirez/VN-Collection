@@ -8,10 +8,11 @@ describe('encodeShiftJisQuery', () => {
   });
 
   it('encodes Japanese in Shift_JIS bytes — half-width 2 stays as 2', () => {
-    // アイキス = 0x83 0x41, 0x83 0x43, 0x83 0x4C, 0x83 0x58
-    // Lead byte 0x83 is non-ASCII → %83; trail bytes 0x41/0x43/0x4C/0x58 are
-    // ASCII A/C/L/X → kept literal. Half-width "2" (0x32) is digit → literal.
-    expect(encodeShiftJisQuery('アイキス2')).toBe('%83A%83C%83L%83X2');
+    // サンプル = 0x83 0x54, 0x83 0x93, 0x83 0x76, 0x83 0x8B
+    // Lead byte 0x83 is non-ASCII → %83; trail byte 0x54 is ASCII T → literal,
+    // 0x93 / 0x76 / 0x8B are non-printable / control / non-ASCII → %93 / v / %8B.
+    // Half-width "2" (0x32) is digit → literal.
+    expect(encodeShiftJisQuery('サンプル2')).toBe('%83T%83%93%83v%83%8B2');
   });
 
   it('encodes 送信 as %91%97%90M (lead bytes non-ASCII, trail 0x97 / 0x4D)', () => {
@@ -23,9 +24,9 @@ describe('encodeShiftJisQuery', () => {
 
 describe('encodeEucJpQuery', () => {
   it('encodes Japanese in EUC-JP bytes', () => {
-    // アイキス → A4A2 A4A4 ... actually katakana is in JIS X 0208 EUC-JP space.
+    // サンプル → A4A2 A4A4 ... actually katakana is in JIS X 0208 EUC-JP space.
     // Just verify it's non-empty hex-escaped output.
-    const result = encodeEucJpQuery('アイキス');
+    const result = encodeEucJpQuery('サンプル');
     expect(result).toMatch(/^(%[0-9A-F]{2})+$/);
   });
 });

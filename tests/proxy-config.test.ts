@@ -24,9 +24,12 @@ vi.mock('@/lib/db', () => {
 import {
   buildProxyUrl,
   getProxyConfigForDisplay,
+  getStockProviderProxyDisplay,
   PROXY_PASSWORD_MASK,
   resolveProxyConfig,
+  resolveStockProviderProxy,
   saveProxyConfig,
+  saveStockProviderProxyConfig,
 } from '@/lib/proxy-config';
 
 const dbMock = await import('@/lib/db') as typeof import('@/lib/db') & { __reset: () => void };
@@ -182,5 +185,83 @@ describe('getProxyConfigForDisplay', () => {
     saveProxyConfig('vndb', { password: 'hunter2' });
     const d = getProxyConfigForDisplay('vndb');
     expect(JSON.stringify(d)).not.toContain('hunter2');
+  });
+});
+
+describe('saveStockProviderProxyConfig', () => {
+  it('rejects an invalid provider id', () => {
+    expect(saveStockProviderProxyConfig('bad-id!', { enabled: true })).toMatch(/invalid/);
+    expect(saveStockProviderProxyConfig('', { enabled: true })).toMatch(/invalid/);
+  });
+
+  it('persists per-shop config under <id>_proxy_config', () => {
+    const err = saveStockProviderProxyConfig('surugaya', {
+      enabled: true,
+      protocol: 'socks5h',
+      host: 'jp.proxy.example.com',
+      port: 1080,
+    });
+    expect(err).toBeNull();
+    const display = getStockProviderProxyDisplay('surugaya');
+    expect(display).toMatchObject({ enabled: true, host: 'jp.proxy.example.com', port: 1080 });
+  });
+
+  it('preserves password when sentinel resubmitted', () => {
+    saveStockProviderProxyConfig('amiami', { password: 'shop-pass-32' });
+    saveStockProviderProxyConfig('amiami', { password: PROXY_PASSWORD_MASK });
+    expect(getStockProviderProxyDisplay('amiami').hasPassword).toBe(true);
+  });
+
+  it('rejects private/loopback host (SSRF/lateral)', () => {
+    expect(saveStockProviderProxyConfig('joshin', { host: '127.0.0.1' })).toMatch(/private/);
+    expect(saveStockProviderProxyConfig('joshin', { host: '10.0.0.5' })).toMatch(/private/);
+  });
+});
+
+describe('resolveStockProviderProxy (two-tier)', () => {
+  it('per-shop override beats the generic stock proxy', () => {
+    saveProxyConfig('stock', { enabled: true, host: 'generic.example.com', port: 1080 });
+    saveStockProviderProxyConfig('surugaya', { enabled: true, host: 'sur.example.com', port: 1081 });
+    const resolved = resolveStockProviderProxy('surugaya');
+    expect(resolved?.host).toBe('sur.example.com');
+    expect(resolved?.port).toBe(1081);
+  });
+
+  it('falls back to the generic stock proxy when per-shop is disabled', () => {
+    saveProxyConfig('stock', { enabled: true, host: 'generic.example.com', port: 1080 });
+    saveStockProviderProxyConfig('amazon_jp', { enabled: false, host: 'amazon.example.com', port: 1082 });
+    const resolved = resolveStockProviderProxy('amazon_jp');
+    expect(resolved?.host).toBe('generic.example.com');
+  });
+
+  it('returns null when both per-shop AND generic are disabled', () => {
+    expect(resolveStockProviderProxy('amiami')).toBeNull();
+  });
+
+  it('treats malformed shop ids as a fallback to the generic stock proxy', () => {
+    saveProxyConfig('stock', { enabled: true, host: 'fallback.example.com', port: 1080 });
+    const resolved = resolveStockProviderProxy('bad-id!');
+    // The fallback path resolves to the generic stock proxy — never to an
+    // arbitrary `bad-id!_proxy_config` key.
+    expect(resolved?.host).toBe('fallback.example.com');
+  });
+});
+
+describe('getStockProviderProxyDisplay', () => {
+  it('returns safe defaults for an unconfigured shop', () => {
+    const d = getStockProviderProxyDisplay('mandarake');
+    expect(d).toMatchObject({ enabled: false, host: '', port: null, hasPassword: false });
+  });
+
+  it('returns safe defaults for a malformed shop id (no DB lookup)', () => {
+    const d = getStockProviderProxyDisplay('bad-id!');
+    expect(d).toMatchObject({ enabled: false, host: '', port: null, hasPassword: false });
+  });
+
+  it('never echoes the raw password', () => {
+    saveStockProviderProxyConfig('sofmap', { password: 'sof-secret-32' });
+    const d = getStockProviderProxyDisplay('sofmap');
+    expect(JSON.stringify(d)).not.toContain('sof-secret-32');
+    expect(d.hasPassword).toBe(true);
   });
 });

@@ -167,6 +167,36 @@ export function getProxyConfigForDisplay(provider: ProviderId): ProxyDisplayConf
   };
 }
 
+/**
+ * Per-shop display variant — looks up `<providerId>_proxy_config` by string.
+ * Used by the per-shop sections in Settings → Integrations so the user can
+ * override the generic `stock_proxy_config` for one shop without affecting
+ * the others.
+ */
+export function getStockProviderProxyDisplay(providerId: StockProxyProviderId): ProxyDisplayConfig {
+  if (!/^[a-z][a-z0-9_]*$/.test(providerId)) {
+    return {
+      enabled: false,
+      protocol: 'socks5h',
+      host: '',
+      port: null,
+      username: '',
+      hasPassword: false,
+    };
+  }
+  const db = readDbConfigByKey(`${providerId}_proxy_config`);
+  return {
+    enabled: db.enabled === true,
+    protocol: VALID_PROTOCOLS.has(db.protocol ?? '')
+      ? (db.protocol as ProxyProtocol)
+      : 'socks5h',
+    host: db.host ?? '',
+    port: db.port ?? null,
+    username: db.username ?? '',
+    hasPassword: !!db.password,
+  };
+}
+
 /** Private RFC-1918 / loopback pattern. */
 const PRIVATE_HOST_RE =
   /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|localhost$)/i;
@@ -229,5 +259,67 @@ export function saveProxyConfig(
   }
 
   setAppSetting(PROXY_DB_KEY[provider], JSON.stringify(next));
+  return null;
+}
+
+/**
+ * Per-shop write variant — persists to `<providerId>_proxy_config`.
+ * Mirrors `saveProxyConfig` validation but keys off the free-form shop id.
+ */
+export function saveStockProviderProxyConfig(
+  providerId: StockProxyProviderId,
+  patch: Record<string, unknown>,
+): string | null {
+  if (!/^[a-z][a-z0-9_]*$/.test(providerId)) return 'invalid provider id';
+  const dbKey = `${providerId}_proxy_config`;
+  const existing = readDbConfigByKey(dbKey);
+  const next: StoredProxyConfig = { ...existing };
+
+  if ('enabled' in patch) {
+    if (typeof patch.enabled !== 'boolean') return 'enabled must be boolean';
+    next.enabled = patch.enabled;
+  }
+
+  if ('protocol' in patch) {
+    if (!VALID_PROTOCOLS.has(patch.protocol as string))
+      return `protocol must be one of: ${[...VALID_PROTOCOLS].join(', ')}`;
+    next.protocol = patch.protocol as string;
+  }
+
+  if ('host' in patch) {
+    const h = ((patch.host as string) ?? '').trim();
+    if (h) {
+      if (!/^[a-zA-Z0-9]([a-zA-Z0-9.\-]*[a-zA-Z0-9])?$/.test(h))
+        return 'host must be a valid hostname';
+      if (PRIVATE_HOST_RE.test(h))
+        return 'host must not be a private or loopback address';
+    }
+    next.host = h || undefined;
+  }
+
+  if ('port' in patch) {
+    const raw = patch.port;
+    if (raw == null || raw === '') {
+      next.port = undefined;
+    } else {
+      const p = Number(raw);
+      if (!Number.isInteger(p) || p < 1 || p > 65535)
+        return 'port must be an integer between 1 and 65535';
+      next.port = p;
+    }
+  }
+
+  if ('username' in patch) {
+    next.username = ((patch.username as string) ?? '').trim() || undefined;
+  }
+
+  if ('password' in patch) {
+    const pw = (patch.password as string) ?? '';
+    if (pw !== '' && pw !== PROXY_PASSWORD_MASK) {
+      next.password = pw;
+    }
+  }
+
+  setAppSetting(dbKey, JSON.stringify(next));
   return null;
 }

@@ -33,14 +33,37 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const snapshot = await refreshStockForVn(id, parseProviders(body.providers), req.signal);
     return NextResponse.json(snapshot);
   } catch (e) {
-    const msg = (e as Error).message ?? 'stock refresh failed';
+    const rawMsg = (e as Error).message ?? 'stock refresh failed';
     // VN-not-found is the realistic 404 branch; everything else stays opaque.
-    if (/VN not found/i.test(msg)) {
+    if (/VN not found/i.test(rawMsg)) {
       return NextResponse.json({ error: 'vn not found' }, { status: 404 });
     }
-    console.error('[stock] refresh failed', { id, msg });
-    return NextResponse.json({ error: 'stock refresh failed' }, { status: 500 });
+    console.error('[stock] refresh failed', { id, msg: rawMsg });
+    // Single-user self-hosted app — surfacing the underlying error message
+    // is fine for diagnostics. Strip anything that looks like an embedded
+    // proxy URL with credentials before echoing it so a misconfigured proxy
+    // never leaks user:pass@host into the UI.
+    const safeMsg = sanitizeErrorMessage(rawMsg);
+    return NextResponse.json(
+      { error: 'stock refresh failed', detail: safeMsg },
+      { status: 500 },
+    );
   }
+}
+
+/**
+ * Strip URLs containing userinfo (`user:pass@host`) and anything that looks
+ * like a long credential token. Keep the rest of the message so the
+ * batch-refresh UI can show "ETIMEDOUT" / "Cloudflare challenge detected"
+ * etc. inline without burying the actual cause.
+ */
+function sanitizeErrorMessage(msg: string): string {
+  return msg
+    // URL with userinfo (proxy URL with credentials)
+    .replace(/[a-z][a-z0-9+.-]*:\/\/[^/\s]*@[^\s]+/gi, '[REDACTED_URL]')
+    // Long opaque token-shaped strings
+    .replace(/\b[A-Za-z0-9]{32,}\b/g, '[REDACTED_TOKEN]')
+    .slice(0, 500);
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {

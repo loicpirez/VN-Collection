@@ -115,7 +115,9 @@ const RELATED_GOODS_TITLE_PATTERNS: ReadonlyArray<RegExp> = [
   // companion publication. Classify as related goods so they don't count
   // as game offers.
   /攻略ガイド|攻略本|ガイドブック|コンプリート(?:ガイド|ブック|集)|公式ガイド|ファンブック|資料集/,
-  // Bundled compilations (e.g. ヌキコレ vol.NN ふぃぎゅ＠メイト完全攻略ガイド付＋謝肉祭).
+  // Bundled compilation series + bundled-strategy-guide titles (any title
+  // that says "ヌキコレ vol.NN" or "<game name> 完全攻略ガイド付" is a
+  // compilation that includes a guide, not the standalone game).
   /ヌキコレ\s*vol\.|完全攻略ガイド\s*付/i,
 ];
 
@@ -228,8 +230,8 @@ export function normalizeTitle(title: string): string {
 
 /**
  * Returns true if result title has the same base name as target but a different series number.
- * e.g. target = "アイキス3", result = "アイキス2" → true
- * e.g. target = "アイキス3", result = "アイキス3Cute" → false
+ * e.g. target = "サンプル3", result = "サンプル2" → true
+ * e.g. target = "サンプル3", result = "サンプル3Cute" → false
  */
 export function seriesNumberMismatch(resultTitle: string, targetTitle: string): boolean {
   const targetNumMatch = /([^\d])(\d+)/.exec(targetTitle);

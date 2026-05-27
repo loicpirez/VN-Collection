@@ -93,8 +93,14 @@ export function StockBatchClient() {
           signal: ctrl.signal,
         });
         if (!r.ok) {
-          const data = (await r.json().catch(() => ({}))) as { error?: string };
-          out.push({ vnId, title, ok: false, error: data.error ?? String(r.status) });
+          const data = (await r.json().catch(() => ({}))) as { error?: string; detail?: string };
+          // Prefer the `detail` field — it carries the actual upstream cause
+          // (e.g. "ETIMEDOUT", "Cloudflare challenge detected") — and fall
+          // back to the canned error label or HTTP status as last resort.
+          const msg = data.detail
+            ? `${data.error ?? 'error'} — ${data.detail}`
+            : (data.error ?? `HTTP ${r.status}`);
+          out.push({ vnId, title, ok: false, error: msg });
         } else {
           const data = (await r.json()) as { summary?: { total?: number } };
           out.push({ vnId, title, ok: true, offerCount: data.summary?.total ?? 0 });
@@ -187,7 +193,7 @@ export function StockBatchClient() {
                 return (
                   <li
                     key={entry.vnId}
-                    className={`flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs ${
+                    className={`flex flex-col gap-1 rounded border px-2 py-1 text-xs ${
                       isCurrent
                         ? 'border-accent/60 bg-accent/10'
                         : result?.ok
@@ -197,34 +203,43 @@ export function StockBatchClient() {
                             : 'border-border bg-bg'
                     }`}
                   >
-                    <span className="flex min-w-0 flex-1 items-center gap-2">
-                      {isCurrent && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" aria-hidden />}
-                      {result?.ok && <CheckCircle2 className="h-3 w-3 shrink-0 text-status-completed" aria-hidden />}
-                      {result?.ok === false && <XCircle className="h-3 w-3 shrink-0 text-status-dropped" aria-hidden />}
-                      <span className="min-w-0 truncate text-white">
-                        {entry.title ?? entry.vnId}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 flex-1 items-center gap-2">
+                        {isCurrent && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" aria-hidden />}
+                        {result?.ok && <CheckCircle2 className="h-3 w-3 shrink-0 text-status-completed" aria-hidden />}
+                        {result?.ok === false && <XCircle className="h-3 w-3 shrink-0 text-status-dropped" aria-hidden />}
+                        <span className="min-w-0 truncate text-white">
+                          {entry.title ?? entry.vnId}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] text-muted">{entry.vnId}</span>
                       </span>
-                      <span className="shrink-0 font-mono text-[10px] text-muted">{entry.vnId}</span>
-                    </span>
-                    {result?.ok && (
-                      <span className="shrink-0 rounded bg-status-completed/15 px-1.5 py-0.5 text-[10px] font-bold text-status-completed">
-                        {(t.stock.batchOk as string).replace('{count}', String(result.offerCount ?? 0))}
-                      </span>
-                    )}
-                    {result?.ok === false && (
-                      <span className="shrink-0 truncate rounded bg-status-dropped/15 px-1.5 py-0.5 text-[10px] font-bold text-status-dropped" title={result.error ?? ''}>
-                        {t.stock.batchError as string}
-                      </span>
-                    )}
-                    {!result && isPending && !isCurrent && (
-                      <button
-                        type="button"
-                        onClick={() => removeFromQueue(entry.vnId)}
-                        aria-label={t.common.delete as string}
-                        className="rounded p-0.5 text-muted hover:text-status-dropped focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped"
-                      >
-                        <X className="h-3 w-3" aria-hidden />
-                      </button>
+                      {result?.ok && (
+                        <span className="shrink-0 rounded bg-status-completed/15 px-1.5 py-0.5 text-[10px] font-bold text-status-completed">
+                          {(t.stock.batchOk as string).replace('{count}', String(result.offerCount ?? 0))}
+                        </span>
+                      )}
+                      {result?.ok === false && (
+                        <span className="shrink-0 rounded bg-status-dropped/15 px-1.5 py-0.5 text-[10px] font-bold text-status-dropped">
+                          {t.stock.batchError as string}
+                        </span>
+                      )}
+                      {!result && isPending && !isCurrent && (
+                        <button
+                          type="button"
+                          onClick={() => removeFromQueue(entry.vnId)}
+                          aria-label={t.common.delete as string}
+                          className="rounded p-0.5 text-muted hover:text-status-dropped focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped"
+                        >
+                          <X className="h-3 w-3" aria-hidden />
+                        </button>
+                      )}
+                    </div>
+                    {/* Inline error detail — hover tooltip is invisible on touch.
+                        Surface the message directly so the user can act on it. */}
+                    {result?.ok === false && result.error && (
+                      <p className="ml-5 break-words text-[10px] leading-snug text-status-dropped">
+                        {result.error}
+                      </p>
                     )}
                   </li>
                 );

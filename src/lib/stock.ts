@@ -8,31 +8,16 @@ import { stockProviderFetch } from './proxy-fetch';
 import type { CollectionItem } from './types';
 import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
 
-export const STOCK_PROVIDER_IDS = [
-  'eroge_price',
-  'sofmap',
-  'surugaya',
-  'hgame1',
-  'melonbooks',
-  'mandarake',
-  'wondergoo',
-  'trader',
-  'animate',
-  'ebten',
-  'getchu',
-  'gamers',
-  'gamecity',
-  'asakusa_mach',
-  'amazon_jp',
-  'amiami',
-  'otakarasouko',
-  'geo',
-  'joshin',
-  'neowing',
-  'yodobashi',
-  'bikkuri_takarajima',
-] as const;
-export type StockProviderId = (typeof STOCK_PROVIDER_IDS)[number];
+// Re-export the canonical provider id list from the client-safe constants
+// module so client components (Settings UI, etc.) can use the same list
+// without bundling the server-only fetch/parse code that lives below.
+import {
+  STOCK_PROVIDER_IDS,
+  STOCK_PROVIDER_LABELS,
+  type StockProviderId,
+} from './stock-provider-constants';
+export { STOCK_PROVIDER_IDS, STOCK_PROVIDER_LABELS };
+export type { StockProviderId };
 
 export type PhysicalStockMode =
   | 'none'
@@ -256,7 +241,9 @@ export function encodeEucJpQuery(value: string): string {
  *
  * Printable ASCII unreserved bytes (A–Z, a–z, 0–9, plus `-`, `_`, `.`, `~`)
  * are left as literal characters — this matches how GEO's own form encodes
- * Shift_JIS multi-byte trail bytes (e.g. `%83A%83C%83L%83X` for アイキス).
+ * Shift_JIS multi-byte trail bytes (where the trail byte is itself an ASCII
+ * letter or digit, e.g. `%83T%83v` for a katakana pair whose trail bytes
+ * happen to be `T` and `v`).
  */
 export function encodeShiftJisQuery(value: string): string {
   const bytes = iconv.encode(value, 'Shift_JIS') as Uint8Array;

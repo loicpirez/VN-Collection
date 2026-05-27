@@ -35,16 +35,23 @@ import { recordActivity } from '@/lib/activity';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import {
   getProxyConfigForDisplay,
+  getStockProviderProxyDisplay,
   saveProxyConfig,
+  saveStockProviderProxyConfig,
   type ProviderId,
 } from '@/lib/proxy-config';
+import { STOCK_PROVIDER_IDS } from '@/lib/stock-provider-constants';
 
 import { readJsonObject } from '@/lib/api-body';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const SENSITIVE_LOG_KEYS = new Set([
+/** Per-shop override keys derived from `STOCK_PROVIDER_IDS`. */
+const STOCK_PROVIDER_PROXY_KEYS = STOCK_PROVIDER_IDS.map((id) => `${id}_proxy_config`);
+const STOCK_PROVIDER_PROXY_KEY_SET = new Set(STOCK_PROVIDER_PROXY_KEYS);
+
+const SENSITIVE_LOG_KEYS = new Set<string>([
   'vndb_token',
   'steam_api_key',
   'vndb_backup_url',
@@ -53,6 +60,7 @@ const SENSITIVE_LOG_KEYS = new Set([
   'egs_proxy_config',
   'alicesoft_kobe_proxy_config',
   'stock_proxy_config',
+  ...STOCK_PROVIDER_PROXY_KEYS,
 ]);
 
 function maskPayloadValues(obj: Record<string, unknown>): Record<string, unknown> {
@@ -61,7 +69,7 @@ function maskPayloadValues(obj: Record<string, unknown>): Record<string, unknown
   );
 }
 
-const SAFE_KEYS = new Set([
+const SAFE_KEYS = new Set<string>([
   'vndb_token',
   'random_quote_source',
   'default_sort',
@@ -93,6 +101,11 @@ const SAFE_KEYS = new Set([
   'egs_proxy_config',
   'alicesoft_kobe_proxy_config',
   'stock_proxy_config',
+  // Per-shop overrides — accepts `<provider>_proxy_config` for every
+  // id in STOCK_PROVIDER_IDS. The PATCH handler validates the payload
+  // through `saveStockProviderProxyConfig` so the shop id is checked
+  // a second time before any DB write.
+  ...STOCK_PROVIDER_PROXY_KEYS,
 ]);
 
 const DEFAULT_VNDB_BACKUP_URL = 'https://api.yorhel.org/kana';
@@ -201,6 +214,15 @@ export async function GET(req: Request): Promise<NextResponse> {
       egs_proxy_config: getProxyConfigForDisplay('egs'),
       alicesoft_kobe_proxy_config: getProxyConfigForDisplay('alicesoft_kobe'),
       stock_proxy_config: getProxyConfigForDisplay('stock'),
+      // Per-shop overrides — one display row per stock provider id.
+      // Spreading the object keeps the GET response shape flat so
+      // existing clients don't need to change.
+      ...Object.fromEntries(
+        STOCK_PROVIDER_IDS.map((id) => [
+          `${id}_proxy_config`,
+          getStockProviderProxyDisplay(id),
+        ]),
+      ),
     });
   } catch (err) {
     console.error('[settings GET] DB error:', (err as Error).message);
@@ -527,6 +549,22 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     }
     const err = saveProxyConfig(providerId, v as Record<string, unknown>);
     if (err) return NextResponse.json({ error: err }, { status: 400 });
+  }
+  // Per-shop overrides. The membership in STOCK_PROVIDER_PROXY_KEY_SET is
+  // the gate — saveStockProviderProxyConfig validates again before any
+  // DB write so the shop id can never escape the allow-list.
+  for (const key of Object.keys(body)) {
+    if (!STOCK_PROVIDER_PROXY_KEY_SET.has(key)) continue;
+    const v = body[key];
+    if (typeof v !== 'object' || v == null || Array.isArray(v)) {
+      return NextResponse.json(
+        { error: `${key} must be an object` },
+        { status: 400 },
+      );
+    }
+    const providerId = key.replace(/_proxy_config$/, '');
+    const err = saveStockProviderProxyConfig(providerId, v as Record<string, unknown>);
+    if (err) return NextResponse.json({ error: `${key}: ${err}` }, { status: 400 });
   }
     if (changedKeys.length > 0) {
       recordActivity({
