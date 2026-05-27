@@ -5,6 +5,11 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
+// Mirrors the cap applied to /api/search and /api/search/advanced. VNDB
+// staff search has the same 1 req/s throttle and the same vulnerability
+// to oversized filter strings.
+const Q_MAX = 200;
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   // Audit S-020: gate against LAN amplification — each hit issues a
   // VNDB POST /staff via the 1 req/s throttle. A LAN caller could
@@ -12,7 +17,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const sp = req.nextUrl.searchParams;
-  const q = sp.get('q') ?? '';
+  const q = (sp.get('q') ?? '').slice(0, Q_MAX);
   if (!q.trim()) return NextResponse.json({ staff: [] });
   try {
     const staff = await searchStaff(q);

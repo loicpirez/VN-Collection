@@ -49,8 +49,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as { ids?: number[] };
-  if (!Array.isArray(body.ids) || body.ids.some((n) => !Number.isInteger(n))) {
-    return NextResponse.json({ error: 'ids must be integer array' }, { status: 400 });
+  // Audit S-052: cap the array length and require positive integers so
+  // a malicious PATCH can't drive an unbounded UPDATE loop or stash
+  // non-integer ids into the audit payload.
+  if (
+    !Array.isArray(body.ids) ||
+    body.ids.length > 1000 ||
+    body.ids.some((n) => !Number.isInteger(n) || n <= 0)
+  ) {
+    return NextResponse.json({ error: 'ids must be array of positive integers (max 1000)' }, { status: 400 });
   }
   reorderRoutes(id, body.ids);
   try {

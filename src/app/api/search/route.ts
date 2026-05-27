@@ -6,10 +6,16 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
+// Cap user-supplied query strings before forwarding to VNDB. The
+// `searchVn` filter cannot accept a 1 MB string and the rate-limited
+// VNDB queue should never have to chew on one. Mirrors the same cap
+// `/api/search/advanced` already enforces (S-046).
+const Q_MAX = 200;
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const q = (req.nextUrl.searchParams.get('q') ?? '').trim();
+  const q = (req.nextUrl.searchParams.get('q') ?? '').slice(0, Q_MAX).trim();
   if (!q) return NextResponse.json({ results: [], more: false });
   try {
     const data = await searchVn(q, { results: 30 });

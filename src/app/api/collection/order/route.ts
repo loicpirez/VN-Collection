@@ -15,10 +15,15 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { ids?: unknown };
-  const ids = Array.isArray(body.ids)
-    ? body.ids.filter((id): id is string => typeof id === 'string' && /^(v\d+|egs_\d+)$/i.test(id))
-    : null;
-  if (!ids || ids.length === 0) {
+  // Audit S-049: cap the array length before validating. A library that
+  // contains > 50 000 entries is already an outlier; the cap shields the
+  // transaction loop from a pathological PATCH that would otherwise
+  // hammer the prepared statement tens of thousands of times.
+  if (!Array.isArray(body.ids) || body.ids.length > 50000) {
+    return NextResponse.json({ error: 'ids must be an array of at most 50000 VN ids' }, { status: 400 });
+  }
+  const ids = body.ids.filter((id): id is string => typeof id === 'string' && /^(v\d+|egs_\d+)$/i.test(id));
+  if (ids.length === 0) {
     return NextResponse.json({ error: 'ids must be a non-empty array of VN ids' }, { status: 400 });
   }
   try {

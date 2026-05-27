@@ -118,10 +118,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   const patch: { note?: string; logged_at?: number; session_minutes?: number | null } = {};
   if (typeof body.note === 'string') patch.note = body.note.slice(0, 10000);
-  if (typeof body.logged_at === 'number' && body.logged_at > 0) patch.logged_at = body.logged_at;
+  // Audit S-053: apply the same clamps used by POST — without them the
+  // PATCH path could write Number.MAX_SAFE_INTEGER into logged_at /
+  // session_minutes and break the reading-speed math.
+  const LOGGED_AT_MAX_PATCH = Date.now() + 365 * 86_400_000;
+  if (typeof body.logged_at === 'number' && body.logged_at > 0 && body.logged_at <= LOGGED_AT_MAX_PATCH) {
+    patch.logged_at = Math.floor(body.logged_at);
+  }
   if (body.session_minutes === null) patch.session_minutes = null;
   else if (typeof body.session_minutes === 'number' && body.session_minutes >= 0) {
-    patch.session_minutes = body.session_minutes > 0 ? body.session_minutes : null;
+    patch.session_minutes = body.session_minutes > 0 ? Math.min(Math.floor(body.session_minutes), 100_000) : null;
   }
   try {
     const entry = updateGameLogEntry(eid, patch);

@@ -56,8 +56,15 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { order?: unknown };
-  if (!Array.isArray(body.order) || body.order.some((v) => typeof v !== 'number')) {
-    return NextResponse.json({ error: 'order must be number[]' }, { status: 400 });
+  // Audit S-048: cap the array length and validate every element is a
+  // positive integer so a malicious PATCH can't enqueue thousands of
+  // UPDATEs or send a `NaN` into the prepared statement.
+  if (
+    !Array.isArray(body.order) ||
+    body.order.length > 500 ||
+    body.order.some((v) => !Number.isInteger(v) || (v as number) <= 0)
+  ) {
+    return NextResponse.json({ error: 'order must be array of positive integers (max 500)' }, { status: 400 });
   }
   reorderShelves(body.order as number[]);
   recordActivity({ kind: 'shelf.reorder', entity: 'shelf', label: 'Reordered shelves', payload: { order: body.order } });

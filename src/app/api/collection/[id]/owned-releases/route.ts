@@ -90,15 +90,24 @@ function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; e
   if ('dumped' in body) patch.dumped = !!body.dumped;
   if ('physical_location' in body) {
     const v = body.physical_location;
+    // Audit S-054: bound BOTH the array length AND each item length so
+    // a hostile PATCH can't stuff multi-megabyte JSON into the
+    // owned_release.physical_location TEXT column. The `.slice(0, 32)`
+    // already capped the array; the per-item `.slice(0, 100)` is new.
+    const TAG_MAX = 100;
     if (v == null) patch.physical_location = [];
     else if (Array.isArray(v)) {
       if (!v.every((x) => typeof x === 'string')) return { patch, error: 'physical_location entries must be strings' };
       patch.physical_location = v
-        .map((s) => (s as string).trim())
+        .map((s) => (s as string).trim().slice(0, TAG_MAX))
         .filter((s): s is string => s.length > 0)
         .slice(0, 32);
     } else if (typeof v === 'string') {
-      patch.physical_location = v.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 32);
+      patch.physical_location = v
+        .split(',')
+        .map((s) => s.trim().slice(0, TAG_MAX))
+        .filter(Boolean)
+        .slice(0, 32);
     } else {
       return { patch, error: 'physical_location must be array or string' };
     }
