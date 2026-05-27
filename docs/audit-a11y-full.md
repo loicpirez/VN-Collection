@@ -6,13 +6,20 @@
 
 ## Closure status (2026-05-27)
 
-**CLOSED — every Critical + every Serious + the actionable Moderate
-findings.** See commit `79d2ace` (a11y agent's bulk batch). Deferred:
-A-115..A-119 (tooltip primitive build-out — requires a shared
-`<Tooltip>` primitive adopted across hundreds of cards, scheduled
-separately) and A-035 / A-040 / A-072 / A-107 / A-156 (verification
-items requiring axe-core / NVDA runtime tooling, out of scope for a
-static-fix pass).
+**CLOSED — every Critical + every Serious + every Moderate static-fix
+finding.** Bulk batch in `79d2ace` (a11y agent). A-115..A-119
+(`<Tooltip>` primitive) in `8c0c4cd`.
+
+**Runtime-tool-gated (need axe-core / NVDA / VoiceOver tooling we
+don't have in CI)**: A-035 (contrast verification across themes),
+A-040 (full SR sweep of dynamic content), A-072 (focus order on
+modals), A-107 (keyboard nav of complex grids), A-156 (live-region
+announcements). These items are documented in the audit row's "fix"
+column as runtime checks — the static surfaces they audit have all
+been improved as part of the bulk batch (focus order via Dialog
+useDialogA11y, aria-live on Skeleton primitives, etc.); the
+remaining gap is verification that those static changes produced
+the desired runtime behaviour.
 **Severity scale:**
 - `Critical` — blocks task completion for assistive technology users (WCAG Level A failures)
 - `Serious` — significantly degrades experience but workaround exists (Level AA failures)

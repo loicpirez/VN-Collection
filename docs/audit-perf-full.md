@@ -4,16 +4,22 @@ Walked `src/app/**`, `src/components/**`, `src/lib/**` for every instance of the
 
 ## Closure status (2026-05-27)
 
-**CLOSED — every HIGH/MEDIUM + most LOW findings.** See commit `79d2ace`
-(perf agent's batch). Verified-clean / no-action items: P-045..P-048
-(every column flagged for removal is actually consumed by the UI),
-P-051 (`raw` column needed by importData), P-052 (replaceVnStockOffers
-already transactional), P-082 (already memoised), P-184/P-185 (distinct
-cache rows, not the same blob), P-203 (sibling effects intentionally
-separate). Deferred: P-070 bulk codemod (237 fetch calls — needs a
-project-wide migration), P-093 / P-205 (modal lazy-loading — needs
-page restructure), P-209 (CharactersSection+RoutesSection shared
-context — larger refactor).
+**CLOSED — every HIGH/MEDIUM + every targeted LOW.** See commit `79d2ace`
+(perf agent's batch).
+
+**Verified-clean / no-action items**: P-045..P-048 (every column
+flagged for removal is actually consumed by the UI), P-051 (`raw`
+column needed by `importData` round-trip + DB export), P-052
+(`replaceVnStockOffers` already transactional), P-082 (already
+memoised at the consumer), P-184/P-185 (distinct cache rows or
+distinct invocations — not the same blob parsed twice), P-203
+(sibling effects intentionally separate for different prop syncs).
+
+**Genuinely deferred (need separate epics)**: P-070 (237-fetch
+codemod — needs a project-wide audit + migration), P-093/P-205
+(modal-level code-split — needs page-router restructure across
+8 Settings tabs), P-209 (CharactersSection+RoutesSection shared-
+context refactor).
 
 Severities used:
 - **critical**: confirmed bug, data corruption, memory leak, or near-certain race that fires on common usage.

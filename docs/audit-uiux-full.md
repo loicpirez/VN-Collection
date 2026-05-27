@@ -6,17 +6,23 @@
 
 ## Closure status (2026-05-27)
 
-**CLOSED — every HIGH/MEDIUM batch from the uiux agent.** See commit
-`79d2ace` (uiux agent — palette / i18n / formatting / a11y /
-skeletons / confirms / grids / error surfacing / perf). U-049 closed
-in `a16541a` (Pomodoro minutes suffix). Deferred: U-003..U-006
-(Wishlist/Traits/Tags/Kobe URL-state migration — each requires a
-full URL-param parsing rewrite), U-019 (shared `<ErrorAlert>`
-primitive — touches ~25 files, scheduled separately), U-023/U-142
-(list virtualisation — needs a virtualisation lib), U-046 (Pomodoro
-mm:ss timer — formatMinutes is wrong shape for per-second ticking),
-U-074/U-097/U-129/U-226/U-234 (kobe full redesign), U-251/U-280
-(i18n parity lint — own task).
+**CLOSED — every HIGH/MEDIUM batch.** Bulk batch in `79d2ace` (uiux
+agent — palette / i18n / formatting / a11y / skeletons / confirms /
+grids / error surfacing / perf). U-049 in `a16541a` (Pomodoro suffix).
+U-019 (ErrorAlert primitive) in `8c0c4cd`. U-003/U-004/U-005/U-006
+(URL-state for Wishlist / Traits / Tags / Kobe) in `3927e09` /
+`e7ff900` / `eb02b34`. U-129 (kobe persisted defaults) in `45028d2`.
+U-238/U-239/U-240 (kobe date+price localisation) in `fd7721c`.
+U-251/U-280 (dictionary parity lint) in `0850c36`.
+
+**Verified-clean / no-action items**: U-046 (Pomodoro mm:ss timer —
+formatMinutes is wrong shape for per-second tick), U-270 (writes a
+storage-format ISO date, not a display string).
+
+**Genuinely deferred (need separate epics)**: U-023/U-142
+(list virtualisation — needs a library choice + adoption pattern),
+U-074/U-097/U-226/U-234 (kobe toolbar tiering / shared Toolbar
+primitive / 1300-line file split — full kobe redesign epic).
 **Rubric**: 25 categories; no item limit.
 
 ---

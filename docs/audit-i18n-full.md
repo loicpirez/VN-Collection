@@ -4,16 +4,19 @@ Scope: every `.tsx` file under `src/app/` and `src/components/` (275 files). i18
 
 ## Closure status (2026-05-27)
 
-**CLOSED — all HIGH/MEDIUM findings, plus the actionable LOW items
-I-027 (Online stock sentinel) and U-049 (Pomodoro minutes suffix).**
-See commits `905d685` (I-001..I-012), `7a34ac1` (I-013..I-022),
-`7321078` (I-027), `a16541a` (U-049). Verified-clean / acceptable
-items: I-023 (JPY currency — single-market app), I-024 (BCP47_MAP —
-consolidated into `lib/locale-number.ts` by the uiux agent),
-I-026 (kobe AbortError — handled), I-028 (global-error.tsx —
-intentionally inlines locale strings because the I18nProvider can't
-be assumed to be mounted in the global error path), I-029 (dict
-inventory — no action needed).
+**CLOSED — every HIGH / MEDIUM / actionable LOW finding.** See
+commits `905d685` (I-001..I-012), `7a34ac1` (I-013..I-022),
+`7321078` (I-027), `a16541a` (U-049), `0850c36` (dictionary parity
+lint covering U-251/U-280 contract). `fd7721c` covers U-238/U-239/
+U-240 (kobe date+price locale formatting).
+
+**Verified-clean / acceptable items**: I-018 (ReadingSpeedBadge —
+already migrated by uiux agent), I-023 (JPY currency — single-market
+app, audit notes acceptable), I-024 (BCP47_MAP — consolidated into
+`lib/locale-number.ts`), I-026 (kobe AbortError — handled),
+I-028 (global-error.tsx — intentionally inlines locale strings
+because the I18nProvider can't be assumed mounted in the global
+error path), I-029 (dictionary inventory — no action needed).
 
 ## Methodology
 

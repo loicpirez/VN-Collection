@@ -5,14 +5,22 @@ Scope: every API route under `src/app/api/**/route.ts` and every server lib unde
 
 ## Closure status (2026-05-27)
 
-**CLOSED — every MEDIUM finding + all actionable LOW findings.** See
-commits `aa05f80` (MEDIUM batch S-001..S-019, S-051/S-052), `f7bd129`
-(LOW batch S-020..S-068), `a5d239a` (S-049 streaming cap), `94b090f`
-(S-034/S-035/S-041/S-044/S-050/S-069). Verified-clean (no-action-needed)
-items: S-024, S-025, S-026, S-027, S-028, S-029, S-033, S-053, S-055,
-S-057, S-058 (TOCTOU SSRF — DNS-pinning fix requires architectural
-work outside this audit's scope; gap documented in the
-`assertNoPrivateIpRebind` source comment), S-066, S-070.
+**CLOSED — every MEDIUM finding + every actionable LOW finding.** See
+commits `aa05f80` (MEDIUM S-001..S-019, S-051/S-052), `f7bd129`
+(LOW S-020..S-068), `a5d239a` (S-049 streaming cap), `94b090f`
+(S-034/S-035/S-041/S-044/S-050/S-069), `dea7892` (S-058 resolve-once
+helper `resolveAndCheckHostname` for callers that can pin DNS).
+
+**Verified-clean (no-action-needed)**: S-024, S-025, S-026, S-027,
+S-028, S-029, S-033, S-053, S-055, S-057, S-066, S-070.
+
+**S-058 partial close**: `resolveAndCheckHostname` returns the
+validated IPs so future callers with a custom HTTP agent can pin
+DNS via the agent's `lookup` callback. The bulk of the codebase uses
+global `fetch` (no custom agent), so the existing pre-flight
+`assertNoPrivateIpRebind` stays in place; closing the race
+*everywhere* needs a separate "switch to undici Dispatcher with
+pinned DNS" epic.
 
 Context: this is a single-user, self-hosted application with a strong baseline. `requireLocalhostOrToken` is applied to virtually every mutating route, `csrfGuard` (Next middleware in `src/proxy.ts`) covers all `/api/*` for state-changing methods, the SSRF allowlist (`isAllowedHttpTarget`) is enforced everywhere user-influenced URLs leave the box, SQL is parameterised everywhere, and JSON bodies go through `readJsonObject` then narrow each field with `typeof`. The findings below are deviations from those patterns or defence-in-depth gaps. Severity is calibrated against the loopback-only threat model — most issues are LOW or MEDIUM because the gate already reduces blast radius.
 
