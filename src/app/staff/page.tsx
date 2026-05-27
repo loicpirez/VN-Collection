@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { ArrowLeft, Mic, Users, X } from 'lucide-react';
 import { searchStaff, type VndbStaff } from '@/lib/vndb';
 import { searchLocalStaff } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { BCP47 } from '@/lib/locale-number';
 import { languageDisplayName } from '@/lib/language-names';
 import { parseStaffSearchParams } from '@/lib/char-staff-search-filters';
 import { roleLabel } from '@/lib/staff-roles';
@@ -40,7 +41,8 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
  *    result list" behaviour.
  */
 export default async function StaffSearchPage({ searchParams }: PageProps) {
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
+  const bcp47 = BCP47[locale];
   const sp = await searchParams;
   const parsed = parseStaffSearchParams(sp);
   const mainOnly = sp.aliases !== '1';
@@ -105,9 +107,9 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     let cmp = 0;
     if (sort === 'vn_count') {
       cmp = (b.vn_count ?? 0) - (a.vn_count ?? 0);
-      if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      if (cmp === 0) cmp = a.name.localeCompare(b.name, bcp47, { sensitivity: 'base' });
     } else {
-      cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      cmp = a.name.localeCompare(b.name, bcp47, { sensitivity: 'base' });
     }
     return reverse ? -cmp : cmp;
   });

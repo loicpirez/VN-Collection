@@ -280,6 +280,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
           value={sortKey}
           onChange={(e) => setSort(e.target.value as SortKey)}
           className="input w-auto py-1 text-xs"
+          aria-label={t.selectiveFullDownload.sortBy}
           title={t.selectiveFullDownload.sortBy}
         >
           {SORT_KEYS.map((k) => (

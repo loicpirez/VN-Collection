@@ -40,7 +40,11 @@ export function QuoteFooter() {
   }, [hovered, load]);
 
   return (
-    <footer
+    <div
+      // Render as a plain <div>: the outer layout already wraps this
+      // component in a `<footer role="contentinfo">` landmark. A
+      // second `<footer>` here would create nested landmarks that
+      // SR users can't easily distinguish.
       className={`group fixed bottom-0 left-0 right-0 z-20 ${hovered ? 'is-open' : ''}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -131,6 +135,6 @@ export function QuoteFooter() {
           </div>
         </div>
       </div>
-    </footer>
+    </div>
   );
 }

@@ -98,8 +98,8 @@ export function ProducerLogoUpload({ producerId, hasLogo }: Props) {
       <button type="button" className="btn" onClick={handleRefetch} disabled={busy || pending}>
         <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} /> {t.producers.fetchInfo}
       </button>
-      {error && <span className="text-sm text-status-dropped">{error}</span>}
-      {info && <span className="text-sm text-status-completed">{info}</span>}
+      {error && <span role="alert" className="text-sm text-status-dropped">{error}</span>}
+      {info && <span role="status" className="text-sm text-status-completed">{info}</span>}
     </div>
   );
 }

@@ -35,6 +35,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (typeof body.steam_name !== 'string' || body.steam_name.trim().length === 0) {
     return NextResponse.json({ error: 'steam_name required' }, { status: 400 });
   }
+  // Cap the display string. Steam game names are typically < 100 chars
+  // (longest legitimate ones cap around 250 with subtitle); 500 is a
+  // generous ceiling that prevents a hostile caller from stuffing
+  // megabytes into `steam_link.steam_name`.
+  if (body.steam_name.length > 500) {
+    return NextResponse.json({ error: 'steam_name too long (max 500)' }, { status: 400 });
+  }
   if (!isInCollection(body.vn_id)) {
     return NextResponse.json({ error: 'add VN to collection first' }, { status: 400 });
   }

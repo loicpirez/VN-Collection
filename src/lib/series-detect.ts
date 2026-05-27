@@ -30,12 +30,23 @@ const SERIES_RELATIONS = new Set(['seq', 'preq', 'set', 'fan', 'alt', 'orig']);
  *
  * Excludes the seed itself from the returned list.
  */
+/**
+ * Defensive cap on the BFS frontier so a pathological VN with
+ * thousands of series-strength relations (or a corrupted JSON column
+ * containing a cycle the visited-set somehow misses) doesn't run
+ * away with memory. 500 is well above the largest legitimate
+ * series chain (~30-50 entries for long-running franchises) but
+ * still keeps `addVnToSeries(... expand=true)` from issuing 999+
+ * UPDATEs in a single transaction.
+ */
+const MAX_SERIES_WALK = 500;
+
 export function walkSeriesRelations(seedVnId: string): { id: string; title: string; relation: string }[] {
   const visited = new Set<string>([seedVnId]);
   const out: { id: string; title: string; relation: string }[] = [];
   const queue: string[] = [seedVnId];
   const stmt = db.prepare('SELECT relations FROM vn WHERE id = ?');
-  while (queue.length > 0) {
+  while (queue.length > 0 && out.length < MAX_SERIES_WALK) {
     const current = queue.shift() as string;
     const row = stmt.get(current) as { relations: string | null } | undefined;
     if (!row?.relations) continue;
@@ -49,6 +60,7 @@ export function walkSeriesRelations(seedVnId: string): { id: string; title: stri
       if (!rel?.id || visited.has(rel.id) || !SERIES_RELATIONS.has(rel.relation)) continue;
       visited.add(rel.id);
       out.push({ id: rel.id, title: rel.title, relation: rel.relation });
+      if (out.length >= MAX_SERIES_WALK) break;
       queue.push(rel.id);
     }
   }

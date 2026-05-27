@@ -17,6 +17,33 @@ const DEFAULT_BACKUP = 'https://api.yorhel.org/kana';
 const PRIMARY = 'https://api.vndb.org/kana';
 
 /**
+ * Stream a `Response` body into a UTF-8 string with a hard byte cap. Returns
+ * `null` when the cap is exceeded so callers can surface a typed error
+ * instead of letting `res.text()` buffer an unbounded payload (a hostile
+ * user-configured mirror could otherwise OOM the Node process).
+ */
+async function readResponseTextWithCap(res: Response, maxBytes: number): Promise<string | null> {
+  const cl = res.headers.get('content-length');
+  if (cl && parseInt(cl, 10) > maxBytes) return null;
+  const reader = res.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel('cap exceeded').catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder('utf-8').decode(Buffer.concat(chunks.map((c) => Buffer.from(c))));
+}
+
+/**
  * Returns the configured backup base URL when fallback is enabled, else null.
  * Only consulted from doFetch() — write helpers (PATCH/DELETE /ulist) never
  * fall back because the mirror is read-only and would 404 / refuse writes.
@@ -255,12 +282,22 @@ async function fetchOnce<T>(
     };
   }
 
+  // Cap upstream response so a malicious user-configured mirror can't
+  // OOM the Node process. 32 MiB is generous for any single VNDB
+  // response (the largest legitimate payloads — `/vn` with 100 results
+  // and every JSON column — land around 2-3 MB). The primary
+  // `api.vndb.org` is trusted, but the cap also applies to it as
+  // defence-in-depth.
+  const MAX_VNDB_BYTES = 32 * 1024 * 1024;
+  const text = await readResponseTextWithCap(res, MAX_VNDB_BYTES);
+  if (text == null) {
+    throw new Error(`VNDB ${url} ${res.status}: response exceeded ${MAX_VNDB_BYTES} bytes`);
+  }
+
   if (!res.ok) {
-    const text = await res.text();
     throw new Error(`VNDB ${url} ${res.status}: ${text.slice(0, 300)}`);
   }
 
-  const text = await res.text();
   let data: T;
   try {
     data = text ? (JSON.parse(text) as T) : ({} as T);

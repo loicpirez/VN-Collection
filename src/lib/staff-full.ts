@@ -132,14 +132,19 @@ export async function downloadFullStaffForVn(vnId: string, opts: { force?: boole
 
   // Pre-load staff names from local credit table so the progress bar can
   // show "Staff — <name> (s95001)" instead of a bare id.
+  // Chunked at 500 placeholders to stay under SQLITE_MAX_VARIABLE_NUMBER.
   const nameMap = new Map<string, string>();
   if (stale.length > 0) {
-    const placeholders = stale.map(() => '?').join(',');
-    const nameRows = db
-      .prepare(`SELECT DISTINCT sid, name FROM vn_staff_credit WHERE sid IN (${placeholders}) AND name IS NOT NULL`)
-      .all(...stale) as { sid: string; name: string }[];
-    for (const r of nameRows) {
-      if (!nameMap.has(r.sid) && r.name && r.name.length >= 2) nameMap.set(r.sid, r.name);
+    const CHUNK = 500;
+    for (let i = 0; i < stale.length; i += CHUNK) {
+      const chunk = stale.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      const nameRows = db
+        .prepare(`SELECT DISTINCT sid, name FROM vn_staff_credit WHERE sid IN (${placeholders}) AND name IS NOT NULL`)
+        .all(...chunk) as { sid: string; name: string }[];
+      for (const r of nameRows) {
+        if (!nameMap.has(r.sid) && r.name && r.name.length >= 2) nameMap.set(r.sid, r.name);
+      }
     }
   }
 

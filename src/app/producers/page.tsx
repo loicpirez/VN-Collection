@@ -51,7 +51,7 @@ export default async function ProducersPage({
         </div>
       </header>
 
-      <div className="mb-4 inline-flex items-center gap-1 rounded-xl border border-border bg-bg-card p-1 text-sm">
+      <div className="mb-4 flex max-w-full flex-wrap items-center gap-1 rounded-xl border border-border bg-bg-card p-1 text-sm sm:inline-flex sm:flex-nowrap">
         <TabLink active={role === 'developer'} href="/producers" icon={<Wrench className="h-3.5 w-3.5" />}>
           {t.producers.tabDevelopers} · <span className="font-bold tabular-nums">{devStats.length}</span>
         </TabLink>

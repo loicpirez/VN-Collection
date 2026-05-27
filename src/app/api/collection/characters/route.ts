@@ -19,11 +19,21 @@ export const dynamic = 'force-dynamic';
  * requires `/characters?sex=f` to render results) works without a
  * second code path.
  */
+/**
+ * Length cap for the `q` substring before it flows into the in-memory
+ * scan inside `searchLocalCharacters`. The scan parses every cached
+ * `char_full:*` body and does `haystack.includes(needle)` — a multi-MB
+ * needle would waste tens of MB of string-conversion work per row even
+ * though zero matches are possible. 200 chars covers every realistic
+ * search input.
+ */
+const Q_MAX = 200;
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const sp = req.nextUrl.searchParams;
-  const q = (sp.get('q') ?? '').trim();
+  const q = (sp.get('q') ?? '').slice(0, Q_MAX).trim();
   const limit = Number.parseInt(sp.get('limit') ?? '', 10);
   const cap = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 500) : 200;
   const rows = searchLocalCharacters({ q: q || undefined, limit: cap });

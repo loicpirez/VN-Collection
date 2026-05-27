@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { stat, unlink, mkdtemp } from 'node:fs/promises';
+import { stat, unlink, mkdtemp, rm } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,10 +18,20 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const dir = await mkdtemp(join(tmpdir(), 'vndb-backup-'));
   const tmpPath = join(dir, 'snapshot.db');
+  // Helper: blow away the whole tmp directory. Use this on every exit
+  // path so a backup() failure or a Readable.toWeb() throw doesn't
+  // leave the directory behind (the file alone would be unlinked by
+  // the `close` listener, but the *directory* never was — a long-
+  // running process would accumulate empty dirs in /tmp under
+  // repeated backup pulls).
+  const cleanupDir = (): void => {
+    rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  };
   try {
     await db.backup(tmpPath);
   } catch (e) {
     console.error('[backup] SQLite backup failed:', (e as Error).message);
+    cleanupDir();
     return NextResponse.json({ error: 'backup failed' }, { status: 500 });
   }
 
@@ -29,6 +39,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   try {
     size = (await stat(tmpPath)).size;
   } catch {
+    cleanupDir();
     return NextResponse.json({ error: 'backup file not found after write' }, { status: 500 });
   }
 
@@ -42,16 +53,29 @@ export async function GET(req: Request): Promise<NextResponse> {
   });
 
   const nodeStream = createReadStream(tmpPath);
-  nodeStream.on('close', () => { unlink(tmpPath).catch(() => undefined); });
+  // Unlink the file then the directory once the read stream closes.
+  // Also handle stream error so a failed pipe doesn't leak.
+  const cleanup = (): void => {
+    unlink(tmpPath).catch(() => undefined).finally(() => cleanupDir());
+  };
+  nodeStream.on('close', cleanup);
+  nodeStream.on('error', cleanup);
 
-  const stream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
-  return new NextResponse(stream, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="vndb-collection-${date}.db"`,
-      'Content-Length': String(size),
-      'Cache-Control': 'no-store',
-    },
-  });
+  try {
+    const stream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+    return new NextResponse(stream, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="vndb-collection-${date}.db"`,
+        'Content-Length': String(size),
+        'Cache-Control': 'no-store',
+      },
+    });
+  } catch (e) {
+    nodeStream.destroy();
+    cleanupDir();
+    console.error('[backup] stream conversion failed:', (e as Error).message);
+    return NextResponse.json({ error: 'backup failed' }, { status: 500 });
+  }
 }

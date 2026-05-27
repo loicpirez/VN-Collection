@@ -247,6 +247,7 @@ export function SimilarSeedPicker({
               aria-expanded={open && hits.length > 0}
               aria-autocomplete="list"
               aria-controls={`${inputId}-list`}
+              aria-label={t.similar.searchPlaceholder}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);

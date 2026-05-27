@@ -231,9 +231,16 @@ export function MediaGallery({
           <h2 id={lightboxTitleId} className="sr-only">
             {visible[active].alt}
           </h2>
+          {/*
+            Nav buttons stack ABOVE the image via z-20. Without an
+            explicit z-index, the image — which is a later sibling and
+            sits at 92vw on mobile — paints on top of the buttons,
+            making prev/next/close unclickable once the image loads
+            (operator-reported regression).
+          */}
           <button
             type="button"
-            className="absolute right-4 top-4 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card text-white"
+            className="absolute right-4 top-4 z-20 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card/90 text-white shadow-lg ring-1 ring-white/10 backdrop-blur-sm hover:bg-bg-card focus-visible:ring-2 focus-visible:ring-accent"
             onClick={(e) => { e.stopPropagation(); close(); }}
             aria-label={t.common.close}
           >
@@ -243,7 +250,7 @@ export function MediaGallery({
             <>
               <button
                 type="button"
-                className="absolute left-4 top-1/2 -translate-y-1/2 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card text-white"
+                className="absolute left-2 top-1/2 z-20 -translate-y-1/2 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card/90 text-white shadow-lg ring-1 ring-white/10 backdrop-blur-sm hover:bg-bg-card focus-visible:ring-2 focus-visible:ring-accent sm:left-4"
                 onClick={(e) => { e.stopPropagation(); prev(); }}
                 aria-label={t.common.prev}
               >
@@ -251,7 +258,7 @@ export function MediaGallery({
               </button>
               <button
                 type="button"
-                className="absolute right-4 top-1/2 -translate-y-1/2 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card text-white"
+                className="absolute right-2 top-1/2 z-20 -translate-y-1/2 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card/90 text-white shadow-lg ring-1 ring-white/10 backdrop-blur-sm hover:bg-bg-card focus-visible:ring-2 focus-visible:ring-accent sm:right-4"
                 onClick={(e) => { e.stopPropagation(); next(); }}
                 aria-label={t.common.next}
               >
@@ -259,7 +266,7 @@ export function MediaGallery({
               </button>
             </>
           )}
-          <div className="relative max-h-[90vh] max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
+          <div className="relative z-10 max-h-[90vh] max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
             <SafeImage
               src={visible[active].url}
               localSrc={visible[active].local}

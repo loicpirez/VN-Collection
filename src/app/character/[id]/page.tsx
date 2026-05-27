@@ -163,10 +163,10 @@ export default async function CharacterPage({
           alt={char.name}
           className="aspect-[2/3] w-full rounded-xl"
         />
-        <div>
-          <h1 className="text-2xl font-bold">{char.name}</h1>
+        <div className="min-w-0">
+          <h1 className="break-words text-2xl font-bold">{char.name}</h1>
           {char.original && char.original !== char.name && (
-            <div className="mt-1 text-muted">{char.original}</div>
+            <div className="mt-1 break-words text-muted">{char.original}</div>
           )}
           {char.aliases.length > 0 && (
             <div className="mt-1 text-xs text-muted">{char.aliases.slice(0, 6).join(' · ')}</div>

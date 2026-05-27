@@ -322,7 +322,10 @@ export function ShelfReadOnlyControls({
           ref={popRef}
           role="region"
           aria-label={dict.title}
-          className="absolute right-0 top-full z-30 mt-2 w-72 rounded-xl border border-border bg-bg-card p-3 shadow-card"
+          // `max-w-[calc(100vw-2rem)]` caps the panel on tiny viewports so
+          // it cannot overflow off-screen even when its trigger sits flush
+          // against the right edge of a 360 px phone.
+          className="absolute right-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-bg-card p-3 shadow-card"
         >
           <header className="mb-2 flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-widest text-muted">{dict.title}</h3>
@@ -358,7 +361,7 @@ export function ShelfReadOnlyControls({
                   type="button"
                   onClick={() => setScope('global')}
                   aria-pressed={scope === 'global'}
-                  className={`flex-1 px-2 py-1 text-xs ${
+                  className={`flex-1 min-h-[36px] px-2 py-1 text-xs ${
                     scope === 'global'
                       ? 'bg-accent text-bg font-semibold'
                       : 'bg-bg-elev/40 text-muted hover:text-white'
@@ -370,7 +373,7 @@ export function ShelfReadOnlyControls({
                   type="button"
                   onClick={() => setScope('shelf')}
                   aria-pressed={scope === 'shelf'}
-                  className={`flex-1 px-2 py-1 text-xs ${
+                  className={`flex-1 min-h-[36px] px-2 py-1 text-xs ${
                     scope === 'shelf'
                       ? 'bg-accent text-bg font-semibold'
                       : 'bg-bg-elev/40 text-muted hover:text-white'
@@ -469,7 +472,7 @@ export function ShelfReadOnlyControls({
                   type="button"
                   onClick={() => void persist({ ...prefs, textDensity: density as ShelfTextDensity })}
                   aria-pressed={prefs.textDensity === density}
-                  className={`px-3 py-1 text-xs ${
+                  className={`min-h-[36px] px-3 py-1 text-xs ${
                     prefs.textDensity === density
                       ? 'bg-accent text-bg'
                       : 'bg-bg-elev/40 text-muted hover:text-white'
@@ -490,7 +493,7 @@ export function ShelfReadOnlyControls({
                 type="button"
                 onClick={() => void persist({ ...prefs, fitMode: 'contain' })}
                 aria-pressed={prefs.fitMode === 'contain'}
-                className={`px-3 py-1 text-xs ${
+                className={`min-h-[36px] px-3 py-1 text-xs ${
                   prefs.fitMode === 'contain'
                     ? 'bg-accent text-bg'
                     : 'bg-bg-elev/40 text-muted hover:text-white'
@@ -502,7 +505,7 @@ export function ShelfReadOnlyControls({
                 type="button"
                 onClick={() => void persist({ ...prefs, fitMode: 'cover' })}
                 aria-pressed={prefs.fitMode === 'cover'}
-                className={`px-3 py-1 text-xs ${
+                className={`min-h-[36px] px-3 py-1 text-xs ${
                   prefs.fitMode === 'cover'
                     ? 'bg-accent text-bg'
                     : 'bg-bg-elev/40 text-muted hover:text-white'
@@ -526,7 +529,7 @@ export function ShelfReadOnlyControls({
                       type="button"
                       onClick={() => void persist({ ...prefs, displayOrientation: o })}
                       aria-pressed={prefs.displayOrientation === o}
-                      className={`px-3 py-1 text-xs ${
+                      className={`min-h-[36px] px-3 py-1 text-xs ${
                         prefs.displayOrientation === o
                           ? 'bg-accent text-bg'
                           : 'bg-bg-elev/40 text-muted hover:text-white'
@@ -563,7 +566,7 @@ export function ShelfReadOnlyControls({
                                 })
                               }
                               aria-pressed={current === o}
-                              className={`px-2 py-0.5 ${
+                              className={`min-h-[28px] px-2 py-0.5 ${
                                 current === o
                                   ? 'bg-accent text-bg font-semibold'
                                   : 'bg-bg-elev/40 text-muted hover:text-white'

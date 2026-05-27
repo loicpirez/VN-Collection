@@ -704,7 +704,32 @@ export async function fetchAliceKobeHtml(): Promise<string> {
     'alicesoft_kobe',
   );
   if (!res.ok) throw new Error(`Alice Kobe fetch failed: HTTP ${res.status}`);
-  const buffer = await res.arrayBuffer();
+  // Cap buffered response. The Alice Kobe stock page is ~500 KB; even a
+  // catastrophic-growth scenario shouldn't approach 8 MiB. A lying or
+  // missing Content-Length would otherwise let a hostile mirror OOM the
+  // process via `res.arrayBuffer()` (it buffers everything before any
+  // check fires).
+  const MAX_KOBE_BYTES = 8 * 1024 * 1024;
+  const cl = res.headers.get('content-length');
+  if (cl && parseInt(cl, 10) > MAX_KOBE_BYTES) {
+    throw new Error(`Alice Kobe response too large (${cl} bytes)`);
+  }
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('Alice Kobe empty body');
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > MAX_KOBE_BYTES) {
+      await reader.cancel('cap exceeded').catch(() => undefined);
+      throw new Error(`Alice Kobe response exceeded ${MAX_KOBE_BYTES} bytes`);
+    }
+    chunks.push(value);
+  }
+  const buffer = Buffer.concat(chunks.map((c) => Buffer.from(c)));
   const decoder = new TextDecoder('euc-jp');
   return decoder.decode(buffer);
 }

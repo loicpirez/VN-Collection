@@ -264,7 +264,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
+        <div role="alert" className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
           {error}
         </div>
       )}

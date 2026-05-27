@@ -110,14 +110,19 @@ export async function downloadFullCharForVn(vnId: string, opts: { force?: boolea
 
   // Pre-load character names from local cache so the progress bar shows
   // "Character - サンプル (c95001)" instead of just "c95001".
+  // Chunked at 500 placeholders to stay under SQLITE_MAX_VARIABLE_NUMBER.
   const nameMap = new Map<string, string>();
   if (stale.length > 0) {
-    const placeholders = stale.map(() => '?').join(',');
-    const nameRows = db
-      .prepare(`SELECT DISTINCT c_id, c_name FROM vn_va_credit WHERE c_id IN (${placeholders}) AND c_name IS NOT NULL`)
-      .all(...stale) as { c_id: string; c_name: string }[];
-    for (const r of nameRows) {
-      if (!nameMap.has(r.c_id) && r.c_name && r.c_name.length >= 2) nameMap.set(r.c_id, r.c_name);
+    const CHUNK = 500;
+    for (let i = 0; i < stale.length; i += CHUNK) {
+      const chunk = stale.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      const nameRows = db
+        .prepare(`SELECT DISTINCT c_id, c_name FROM vn_va_credit WHERE c_id IN (${placeholders}) AND c_name IS NOT NULL`)
+        .all(...chunk) as { c_id: string; c_name: string }[];
+      for (const r of nameRows) {
+        if (!nameMap.has(r.c_id) && r.c_name && r.c_name.length >= 2) nameMap.set(r.c_id, r.c_name);
+      }
     }
   }
 

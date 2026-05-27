@@ -39,23 +39,32 @@ export function DataMaintenance() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState<string | null>(null);
 
-  async function load() {
+  async function load(signal?: AbortSignal) {
     setLoading(true);
     try {
       const [d, s] = await Promise.all([
-        fetch('/api/maintenance/duplicates').then((r) => r.json()),
-        fetch('/api/maintenance/stale').then((r) => r.json()),
+        fetch('/api/maintenance/duplicates', { cache: 'no-store', signal }).then((r) => r.json()),
+        fetch('/api/maintenance/stale', { cache: 'no-store', signal }).then((r) => r.json()),
       ]);
+      if (signal?.aborted) return;
       setDups((d as { groups: DupGroup[] }).groups);
       setStale((s as { rows: StaleVn[] }).rows);
     } catch (e) {
+      if ((e as DOMException)?.name === 'AbortError') return;
       console.error('[DataMaintenance] load error:', (e as Error).message);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }
 
-  useEffect(() => { load().catch(() => {}); }, []);
+  useEffect(() => {
+    // Abort the in-flight pair on unmount so the resolved fetches don't
+    // call setX on an unmounted component (and the network legs stop
+    // tying up the upstream queue).
+    const ctrl = new AbortController();
+    load(ctrl.signal).catch(() => {});
+    return () => ctrl.abort();
+  }, []);
 
   async function refreshOne(id: string) {
     setRefreshing(id);

@@ -7,7 +7,7 @@ import { useConfirm } from './ConfirmDialog';
 import { useDialogA11y } from './Dialog';
 import { SkeletonBlock } from './Skeleton';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
 import { brandHref, yearHref } from '@/lib/egs-links';
 
@@ -306,7 +306,7 @@ export function EgsPanel({
                   {game.sellday.slice(0, 4)}
                 </Link>
               ) : (
-                <span className="tabular-nums text-muted">{game.sellday}</span>
+                <span className="tabular-nums text-muted">{formatIsoDateString(game.sellday, locale)}</span>
               );
             })()}
           </div>
@@ -553,7 +553,7 @@ function EgsPicker({
                   <div className="line-clamp-1 text-sm font-semibold" title={c.gamename}>{c.gamename}</div>
                   <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted">
                     <span>EGS #{c.id}</span>
-                    {c.sellday && <span>{c.sellday}</span>}
+                    {c.sellday && <span>{formatIsoDateString(c.sellday, locale)}</span>}
                     {c.median != null && (
                       <span className="inline-flex items-center gap-0.5 text-accent">
                         <Star className="h-2.5 w-2.5 fill-accent" /> {c.median}

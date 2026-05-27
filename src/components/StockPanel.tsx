@@ -890,7 +890,7 @@ export function StockPanel({
       </div>
 
       {error && (
-        <div className="mt-3 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-3 text-sm text-status-dropped">
+        <div role="alert" className="mt-3 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-3 text-sm text-status-dropped">
           {error}
         </div>
       )}
@@ -1026,8 +1026,8 @@ function GroupBtn({
   );
 }
 
-function availabilityLabel(t: ReturnType<typeof useT>, offer: StockOffer): string {
-  if (offer.availability_label) return offer.availability_label;
+function availabilityLabel(t: ReturnType<typeof useT>, offer: StockOffer, locale: string): string {
+  if (offer.availability_label) return stockAvailabilityLabel(t, offer.availability_label, locale);
   return t.stock.availability[offer.availability];
 }
 
@@ -1057,6 +1057,63 @@ const LEGACY_WARNING_MAP: Record<string, string> = {
 function stockWarningLabel(t: ReturnType<typeof useT>, raw: string): string {
   const slug = LEGACY_WARNING_MAP[raw] ?? raw;
   const dict = t.stock.matchWarnings as Record<string, string | undefined>;
+  return dict[slug] ?? raw;
+}
+
+/**
+ * Legacy server-side edition labels (English) → slug. New stock rows
+ * may already carry the slug; both shapes resolve via the dict.
+ */
+const LEGACY_EDITION_LABEL_MAP: Record<string, string> = {
+  'Bonus item': 'bonus_item',
+  'First press': 'first_press',
+  'Complete limited': 'complete_limited',
+  'Limited edition': 'limited_edition',
+  'Deluxe edition': 'deluxe_edition',
+  'Bundle': 'bundle',
+  'Store bonus': 'store_bonus',
+};
+
+const LEGACY_CONDITION_MAP: Record<string, string> = {
+  'New': 'new',
+  'Used': 'used',
+  'Sealed': 'sealed',
+};
+
+const LEGACY_AVAILABILITY_LABEL_MAP: Record<string, string> = {
+  'Sold out': 'sold_out',
+  'Several': 'several',
+  'AliceNet Kobe stock': 'alicesoft_kobe_stock',
+};
+
+function stockEditionLabel(t: ReturnType<typeof useT>, raw: string): string {
+  const slug = LEGACY_EDITION_LABEL_MAP[raw] ?? raw;
+  const dict = t.stock.editionLabels as Record<string, string | undefined>;
+  return dict[slug] ?? raw;
+}
+
+function stockConditionLabel(t: ReturnType<typeof useT>, raw: string): string {
+  const slug = LEGACY_CONDITION_MAP[raw] ?? raw;
+  const dict = t.stock.conditionLabels as Record<string, string | undefined>;
+  return dict[slug] ?? raw;
+}
+
+function stockAvailabilityLabel(
+  t: ReturnType<typeof useT>,
+  raw: string,
+  locale: string,
+): string {
+  const marketplaceMatch = /^Marketplace:\s*¥(\d[\d,]*)$/.exec(raw);
+  if (marketplaceMatch) {
+    const price = Number(marketplaceMatch[1].replace(/,/g, ''));
+    const dict = t.stock.availabilityLabels as Record<string, string | undefined>;
+    const tpl = dict.marketplace;
+    if (tpl) {
+      return tpl.replace('{price}', `¥${price.toLocaleString(locale)}`);
+    }
+  }
+  const slug = LEGACY_AVAILABILITY_LABEL_MAP[raw] ?? raw;
+  const dict = t.stock.availabilityLabels as Record<string, string | undefined>;
   return dict[slug] ?? raw;
 }
 
@@ -1306,7 +1363,7 @@ function OfferCard({
             <span className="max-w-full truncate rounded-md border border-border bg-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
               {offer.provider_label}
             </span>
-            <AvailabilityChip availability={offer.availability} label={availabilityLabel(t, offer)} />
+            <AvailabilityChip availability={offer.availability} label={availabilityLabel(t, offer, locale)} />
             <ConfidenceChip mc={offer.match_confidence} t={t} />
           </div>
           <h3 className="mt-2 line-clamp-2 break-words text-sm font-bold text-white">{offer.title}</h3>
@@ -1338,8 +1395,12 @@ function OfferCard({
               : offer.location_label}
           </span>
         )}
-        {offer.condition && <span className="rounded bg-bg px-1.5 py-0.5">{offer.condition}</span>}
-        {offer.edition_label && <span className="rounded bg-bg px-1.5 py-0.5">{offer.edition_label}</span>}
+        {offer.condition && (
+          <span className="rounded bg-bg px-1.5 py-0.5">{stockConditionLabel(t, offer.condition)}</span>
+        )}
+        {offer.edition_label && (
+          <span className="rounded bg-bg px-1.5 py-0.5">{stockEditionLabel(t, offer.edition_label)}</span>
+        )}
         {offer.jan && <span className="rounded bg-bg px-1.5 py-0.5">{t.stock.jan.replace('{jan}', offer.jan)}</span>}
         {mktPrice != null && mktPrice > 0 && (
           <span className="rounded-md border border-border bg-bg px-1.5 py-0.5">

@@ -81,7 +81,7 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
         {t.detail.notInLibraryBanner.cta}
       </button>
       <span className="text-muted/70">{t.detail.notInLibraryBanner.hint}</span>
-      {error && <span className="text-status-dropped">{error}</span>}
+      {error && <span role="alert" className="text-status-dropped">{error}</span>}
     </div>
   );
 }

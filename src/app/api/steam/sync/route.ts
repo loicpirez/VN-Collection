@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { computeSteamSuggestions, fetchOwnedGames, recordSync } from '@/lib/steam';
-import { updateCollection, isInCollection } from '@/lib/db';
+import { db, updateCollection, isInCollection } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
@@ -8,6 +8,12 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
+
+/**
+ * Defensive ceiling on `applies` array size. Realistic batches are at
+ * most a few hundred entries; anything larger is a hostile caller.
+ */
+const APPLIES_MAX = 2000;
 
 /**
  * GET — preview suggestions.
@@ -53,15 +59,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { applies?: { vn_id?: unknown; playtime_minutes?: unknown }[] };
   if (!Array.isArray(body.applies)) return NextResponse.json({ error: 'applies array required' }, { status: 400 });
-  let applied = 0;
-  for (const a of body.applies) {
-    if (typeof a.vn_id !== 'string' || typeof a.playtime_minutes !== 'number') continue;
-    if (!isInCollection(a.vn_id)) continue;
-    const minutes = Math.max(0, Math.floor(a.playtime_minutes));
-    updateCollection(a.vn_id, { playtime_minutes: minutes });
-    recordSync(a.vn_id, minutes);
-    applied += 1;
+  if (body.applies.length > APPLIES_MAX) {
+    return NextResponse.json(
+      { error: `applies exceeds limit of ${APPLIES_MAX}` },
+      { status: 400 },
+    );
   }
+  let applied = 0;
+  // Wrap the per-row writes in a transaction so a mid-loop crash leaves
+  // either every confirmed row applied or none. Without this guard a
+  // 1000-row apply that fails halfway would leave half the collection
+  // updated with no rollback.
+  db.transaction(() => {
+    for (const a of body.applies!) {
+      if (typeof a.vn_id !== 'string' || typeof a.playtime_minutes !== 'number') continue;
+      if (!isInCollection(a.vn_id)) continue;
+      const minutes = Math.max(0, Math.floor(a.playtime_minutes));
+      updateCollection(a.vn_id, { playtime_minutes: minutes });
+      recordSync(a.vn_id, minutes);
+      applied += 1;
+    }
+  })();
   try {
     recordActivity({
       kind: 'steam.sync-apply',

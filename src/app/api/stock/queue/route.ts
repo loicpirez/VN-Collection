@@ -21,13 +21,21 @@ interface QueueEntry {
 }
 
 function titlesFor(ids: string[]): Map<string, string | null> {
-  if (ids.length === 0) return new Map();
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = db
-    .prepare(`SELECT id, title FROM vn WHERE id IN (${placeholders})`)
-    .all(...ids) as { id: string; title: string }[];
   const map = new Map<string, string | null>();
-  for (const r of rows) map.set(r.id, r.title);
+  if (ids.length === 0) return map;
+  // SQLite's SQLITE_MAX_VARIABLE_NUMBER cap is 999 by default; chunk at
+  // 500 to stay safe and match the convention used elsewhere in db.ts
+  // (`isInCollectionMany`, `getEgsForVns`, etc.). Without this guard a
+  // collection of > 999 entries would crash this route at runtime.
+  const CHUNK = 500;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT id, title FROM vn WHERE id IN (${placeholders})`)
+      .all(...chunk) as { id: string; title: string }[];
+    for (const r of rows) map.set(r.id, r.title);
+  }
   for (const id of ids) if (!map.has(id)) map.set(id, null);
   return map;
 }

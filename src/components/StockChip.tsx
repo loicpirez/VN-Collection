@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 import { subscribeStockSummary, type StockSummaryEntry } from '@/lib/stock-summary-client';
 
 /**
@@ -69,11 +70,12 @@ export function StockChip({ vnId, hidePrice = false }: { vnId: string; hidePrice
   // hidePrice (library card grid) — show the availability count
   // instead of the yen amount. The full price stays in the title
   // attribute so a desktop hover still surfaces it.
+  const availableLocalized = fmtNum(entry.available, locale);
   const label = !hidePrice && price != null
     ? currencyFmt.format(price)
-    : (t.stock.stockChipAvailable as string).replace('{count}', String(entry.available));
+    : (t.stock.stockChipAvailable as string).replace('{count}', availableLocalized);
   const title = (t.stock.stockChipHint as string)
-    .replace('{count}', String(entry.available))
+    .replace('{count}', availableLocalized)
     .replace('{price}', price != null ? ` · ${currencyFmt.format(price)}` : '');
 
   return (

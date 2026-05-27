@@ -235,7 +235,9 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
             id={menuId}
             role="menu"
             aria-label={t.bulk.cta}
-            className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card"
+            // Safety cap so a trigger near the right edge of a tight
+            // mobile viewport can't push the panel off-screen.
+            className="absolute right-0 top-full z-30 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-bg-card p-2 text-xs shadow-card"
           >
             <button
               type="button"

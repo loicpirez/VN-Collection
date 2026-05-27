@@ -15,7 +15,7 @@ import { SAVED_FILTERS_OPEN_EVENT, SavedFilters } from './SavedFilters';
 import { HOME_LAYOUT_OPEN_EVENT } from './HomeLayoutEditorTrigger';
 import { readApiError } from '@/lib/api-error-read';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { fmtNum } from '@/lib/locale-number';
+import { BCP47, fmtNum } from '@/lib/locale-number';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { CardDensitySlider } from './CardDensitySlider';
@@ -174,6 +174,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const showGrid = mode !== 'controls-only';
   const t = useT();
   const locale = useLocale();
+  const collator = useMemo(() => new Intl.Collator(BCP47[locale], { sensitivity: 'base', numeric: true }), [locale]);
   const toast = useToast();
   const { confirm } = useConfirm();
   const router = useRouter();
@@ -662,7 +663,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     ],
   );
   const hiddenBySexualCount = items.length - visibleItems.length;
-  const groups = useMemo(() => groupItems(visibleItems, group, t, sort, order, groupSort), [visibleItems, group, t, sort, order, groupSort]);
+  const groups = useMemo(() => groupItems(visibleItems, group, t, sort, order, groupSort, collator), [visibleItems, group, t, sort, order, groupSort, collator]);
   // P-083: memoize the candidates projection so RandomPickButton's
   // props ref is stable when nothing changed. Previously a fresh array
   // of fresh objects was created on every parent render.
@@ -682,8 +683,13 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         run off the right edge under "Ma bibliothèque" and required
         the user to scroll the row, which they reported as overflow.
       */}
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+      <div
+        role="group"
+        aria-label={t.library.filterByStatus}
+        className="mb-4 flex flex-wrap items-center gap-1.5"
+      >
         <button
+          type="button"
           className={`chip whitespace-nowrap ${!status ? 'chip-active' : ''}`}
           onClick={() => setParam('status', null)}
           aria-pressed={!status}
@@ -693,6 +699,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         {STATUSES.map((s) => (
           <button
             key={s}
+            type="button"
             className={`chip inline-flex items-center gap-1 whitespace-nowrap ${status === s ? 'chip-active' : ''}`}
             onClick={() => setParam('status', status === s ? null : s)}
             aria-pressed={status === s}
@@ -1290,7 +1297,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       )}
 
       {showGrid && error && (
-        <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
+        <div role="alert" className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
           {error}
         </div>
       )}
@@ -1719,6 +1726,7 @@ function groupItems(
   sort: SortKey,
   order: 'asc' | 'desc',
   groupSort: GroupSortKey,
+  collator: Intl.Collator,
 ): Group[] {
   if (group === 'none') return [{ key: 'all', label: '', items }];
   const map = new Map<string, Group>();
@@ -1822,19 +1830,19 @@ function groupItems(
   const groups = Array.from(map.values());
   const direction = order === 'asc' ? 1 : -1;
   if (groupSort === 'name') {
-    groups.sort((a, b) => a.label.localeCompare(b.label) * direction);
+    groups.sort((a, b) => collator.compare(a.label, b.label) * direction);
   } else if (groupSort === 'released') {
     groups.sort((a, b) => {
       const av = latestReleased(a.items);
       const bv = latestReleased(b.items);
-      if (!av && !bv) return a.label.localeCompare(b.label);
+      if (!av && !bv) return collator.compare(a.label, b.label);
       if (!av) return 1;
       if (!bv) return -1;
       const cmp = av.localeCompare(bv);
-      return cmp === 0 ? a.label.localeCompare(b.label) : cmp * direction;
+      return cmp === 0 ? collator.compare(a.label, b.label) : cmp * direction;
     });
   } else if (group === 'year') {
-    groups.sort((a, b) => b.key.localeCompare(a.key));
+    groups.sort((a, b) => collator.compare(b.key, a.key));
     if (order === 'asc') groups.reverse();
   } else if (
     (group === 'producer' && sort === 'producer') ||
@@ -1845,7 +1853,7 @@ function groupItems(
     group === 'place' ||
     group === 'edition'
   ) {
-    groups.sort((a, b) => a.label.localeCompare(b.label));
+    groups.sort((a, b) => collator.compare(a.label, b.label));
     if (order === 'desc') groups.reverse();
   } else {
     groups.sort((a, b) => {

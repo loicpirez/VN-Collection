@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useDialogA11y } from './Dialog';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import { useDebouncedCallback } from '@/lib/hooks';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -54,6 +55,7 @@ export function MapVnToEgsButton({
   keepMenuOpen?: boolean;
 }) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -307,9 +309,9 @@ export function MapVnToEgsButton({
                     <div className="truncate font-bold" title={c.gamename}>{c.gamename}</div>
                     <div className="flex flex-wrap gap-x-2 text-[10px] text-muted">
                       <span className="font-mono">EGS #{c.id}</span>
-                      {c.sellday && <span>{c.sellday}</span>}
+                      {c.sellday && <span>{formatIsoDateString(c.sellday, locale)}</span>}
                       {c.median != null && <span>{c.median}/100</span>}
-                      {c.count != null && <span>{c.count} {t.egs.votes}</span>}
+                      {c.count != null && <span>{fmtNum(c.count, locale)} {t.egs.votes}</span>}
                     </div>
                   </div>
                   <a

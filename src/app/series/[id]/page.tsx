@@ -77,7 +77,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
           <Bookmark className="h-7 w-7 text-accent" aria-hidden />
         )}
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold">{series.name}</h1>
+          <h1 className="break-words text-2xl font-bold">{series.name}</h1>
           {series.description && (
             <p className="mt-1 whitespace-pre-line text-sm text-muted">{series.description}</p>
           )}

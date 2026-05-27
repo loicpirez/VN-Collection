@@ -127,10 +127,10 @@ export default async function StaffPage({
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">{profile?.name ?? id}</h1>
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-bold">{profile?.name ?? id}</h1>
             {profile?.original && profile.original !== profile.name && (
-              <div className="mt-1 text-sm text-muted">{profile.original}</div>
+              <div className="mt-1 break-words text-sm text-muted">{profile.original}</div>
             )}
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
               {profile?.lang && (

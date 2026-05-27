@@ -1,7 +1,8 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Loader2, RefreshCw, Square, X, XCircle } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { fmtNum } from '@/lib/locale-number';
 import { VnSourcePicker, type VnPickerHit } from './VnSourcePicker';
 
 interface BatchResult {
@@ -21,6 +22,7 @@ const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
 
 export function StockBatchClient() {
   const t = useT();
+  const locale = useLocale();
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; current: string | null }>({ done: 0, total: 0, current: null });
@@ -270,8 +272,8 @@ export function StockBatchClient() {
             {running ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
             {running
               ? (t.stock.batchProgress as string)
-                .replace('{done}', String(progress.done))
-                .replace('{total}', String(progress.total))
+                .replace('{done}', fmtNum(progress.done, locale))
+                .replace('{total}', fmtNum(progress.total, locale))
               : (t.stock.batchRun as string)}
           </button>
         </div>

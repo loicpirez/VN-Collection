@@ -420,7 +420,33 @@ async function fetchShopText(url: string, init: RequestInit & { encoding?: strin
     cleanupExternalListener?.();
   }
   if (!res.ok) throw new Error(`HTTP ${res.status} from ${sourceHost(url)}`);
-  const buf = Buffer.from(await res.arrayBuffer());
+  // Cap the buffered response so a malicious or misbehaving shop can't
+  // OOM the process by streaming many MB of HTML. 16 MiB is generous —
+  // the largest legitimate shop pages are search/result listings under
+  // ~2 MB. Stream into a chunked buffer so a lying / missing Content-
+  // Length still hits the cap (arrayBuffer() would buffer everything
+  // before our check fires).
+  const MAX_SHOP_BYTES = 16 * 1024 * 1024;
+  const cl = res.headers.get('content-length');
+  if (cl && parseInt(cl, 10) > MAX_SHOP_BYTES) {
+    throw new Error(`response too large (${cl} bytes) from ${sourceHost(url)}`);
+  }
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error(`empty body from ${sourceHost(url)}`);
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > MAX_SHOP_BYTES) {
+      await reader.cancel('cap exceeded').catch(() => undefined);
+      throw new Error(`response exceeded ${MAX_SHOP_BYTES} bytes from ${sourceHost(url)}`);
+    }
+    chunks.push(value);
+  }
+  const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
   const charset = /charset=([^;]+)/i.exec(res.headers.get('content-type') ?? '')?.[1]?.trim();
   const encodings = [init.encoding, charset, 'utf-8', 'shift_jis', 'euc-jp'].filter(Boolean) as string[];
   let decoded = '';

@@ -295,6 +295,7 @@ function SortableSection({
         <button
           type="button"
           className="inline-flex min-h-[44px] min-w-[44px] cursor-grab items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent active:cursor-grabbing"
+          aria-label={t.layout.drag}
           title={t.layout.drag}
           {...attributes}
           {...listeners}

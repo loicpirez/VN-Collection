@@ -115,7 +115,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
         </button>
       </div>
 
-      {error && <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">{error}</div>}
+      {error && <div role="alert" className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">{error}</div>}
 
       {loading ? (
         <SkeletonRows count={8} withThumb={false} />

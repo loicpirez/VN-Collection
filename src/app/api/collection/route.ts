@@ -42,12 +42,19 @@ const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const sp = req.nextUrl.searchParams;
   const status = sp.get('status') ?? '';
-  const q = sp.get('q') ?? '';
-  const producer = sp.get('producer') ?? '';
-  const publisher = sp.get('publisher') ?? '';
-  const tag = sp.get('tag') ?? '';
-  const place = sp.get('place') ?? '';
-  const edition = sp.get('edition') ?? '';
+  // Cap user-supplied string filters. The route is unauthed (single-
+  // user self-host posture) but a LAN caller could still send a
+  // megabyte string per filter to waste planner work on `LIKE`
+  // patterns. 300 chars matches the cap on `/api/search/textual`
+  // and the longest reasonable advanced-search payloads.
+  const FILTER_MAX = 300;
+  const clip = (v: string): string => v.slice(0, FILTER_MAX);
+  const q = clip(sp.get('q') ?? '');
+  const producer = clip(sp.get('producer') ?? '');
+  const publisher = clip(sp.get('publisher') ?? '');
+  const tag = clip(sp.get('tag') ?? '');
+  const place = clip(sp.get('place') ?? '');
+  const edition = clip(sp.get('edition') ?? '');
   const seriesRaw = sp.get('series');
   const yearMinRaw = sp.get('yearMin');
   const yearMaxRaw = sp.get('yearMax');

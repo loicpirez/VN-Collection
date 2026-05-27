@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Library, Loader2, Plus, Search, Sparkles, Star } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { SafeImage } from '@/components/SafeImage';
 
 export type VnPickerSource = 'library' | 'vndb' | 'egs';
 
@@ -152,8 +153,7 @@ export function VnSourcePicker({
         >
           {hit.thumbnail && (
             <span className="h-10 w-7 shrink-0 overflow-hidden rounded border border-border bg-bg">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={hit.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
+              <SafeImage src={hit.thumbnail} alt="" className="h-full w-full" fit="cover" />
             </span>
           )}
           <span className="min-w-0 flex-1">

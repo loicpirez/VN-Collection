@@ -15,12 +15,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({ ok: true, needsConfig, suggestions });
 }
 
+/**
+ * Defensive ceiling. The UI sends rows the operator just confirmed, so
+ * realistic batches are ≤ a few hundred entries. Anything larger is a
+ * pathological caller; reject early so we don't `.filter` over a 10M
+ * array before the validator decides only 3 rows were valid anyway.
+ */
+const VN_IDS_MAX = 1000;
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
   const body = (await readJsonObject(req)) as { vn_ids?: unknown };
   if (!Array.isArray(body.vn_ids)) {
     return NextResponse.json({ error: 'vn_ids must be an array' }, { status: 400 });
+  }
+  if (body.vn_ids.length > VN_IDS_MAX) {
+    return NextResponse.json(
+      { error: `vn_ids exceeds limit of ${VN_IDS_MAX}` },
+      { status: 400 },
+    );
   }
   const picks = body.vn_ids.filter((s): s is string => typeof s === 'string' && isVndbVnId(s));
   if (picks.length === 0) return NextResponse.json({ applied: 0 });

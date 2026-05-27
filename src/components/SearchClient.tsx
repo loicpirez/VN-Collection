@@ -343,6 +343,7 @@ export function SearchClient() {
 
   return (
     <DensityScopeProvider scope="search">
+      <h1 className="sr-only">{t.nav.search}</h1>
       <div
         className="mb-2 inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]"
         role="tablist"
@@ -483,6 +484,7 @@ export function SearchClient() {
                   <button
                     key={l}
                     type="button"
+                    aria-pressed={adv.langs.includes(l)}
                     className={`chip ${adv.langs.includes(l) ? 'chip-active' : ''}`}
                     onClick={() => setAdv((s) => ({ ...s, langs: toggle(s.langs, l) }))}
                   >
@@ -498,6 +500,7 @@ export function SearchClient() {
                   <button
                     key={p}
                     type="button"
+                    aria-pressed={adv.platforms.includes(p)}
                     className={`chip ${adv.platforms.includes(p) ? 'chip-active' : ''}`}
                     onClick={() => setAdv((s) => ({ ...s, platforms: toggle(s.platforms, p) }))}
                   >
@@ -515,6 +518,7 @@ export function SearchClient() {
                     <button
                       key={n}
                       type="button"
+                      aria-pressed={active}
                       className={`chip ${active ? 'chip-active' : ''}`}
                       onClick={() => {
                         // Click selects single value (min == max)
@@ -610,7 +614,7 @@ export function SearchClient() {
       )}
 
       {error && (
-        <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
+        <div role="alert" className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
           {error}
         </div>
       )}

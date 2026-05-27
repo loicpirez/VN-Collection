@@ -126,8 +126,8 @@ export function DownloadAssetsButton({ vnId, dataState = 'complete', variant = '
           {mode === 'full' ? t.assets.downloading : t.assets.downloadFull}
         </button>
       )}
-      {error && <span className="text-xs text-status-dropped">{error}</span>}
-      {info && <span className="text-xs text-status-completed">{info}</span>}
+      {error && <span role="alert" className="text-xs text-status-dropped">{error}</span>}
+      {info && <span role="status" className="text-xs text-status-completed">{info}</span>}
       {egsWarning && (
         <span className="inline-flex items-center gap-1 rounded-md border border-status-on_hold/40 bg-status-on_hold/10 px-2 py-1 text-[11px] text-status-on_hold">
           <AlertTriangle className="h-3 w-3" aria-hidden />

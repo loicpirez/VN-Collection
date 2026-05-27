@@ -241,7 +241,7 @@ export function HomeSectionControls({
           role="menu"
           aria-label={t.homeSections.menuLabel}
           onKeyDown={handleMenuKeyDown}
-          className="absolute right-0 top-full z-30 mt-1 w-44 rounded-lg border border-border bg-bg-card p-1 text-xs shadow-card"
+          className="absolute right-0 top-full z-30 mt-1 w-44 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-bg-card p-1 text-xs shadow-card"
         >
           <button
             type="button"

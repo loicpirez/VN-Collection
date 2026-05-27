@@ -536,7 +536,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
             </>
           )}
           {error && (
-            <span className="rounded-md bg-status-dropped/90 px-2 py-1 text-[10px] text-white">{error}</span>
+            <span role="alert" className="rounded-md bg-status-dropped/90 px-2 py-1 text-[10px] text-white">{error}</span>
           )}
         </div>
       )}

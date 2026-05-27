@@ -63,6 +63,7 @@ export function SourceSwitcher({ vnId, field, current, vndbAvailable, egsAvailab
             type="button"
             onClick={() => set(c)}
             disabled={disabled}
+            aria-pressed={active}
             className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider transition-colors ${
               active
                 ? 'bg-accent text-bg font-bold'

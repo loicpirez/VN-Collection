@@ -11,17 +11,37 @@ function num(v: string | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Length cap for string filters before they flow into the LIKE clauses
+ * inside `listUserActivity`. The helper already escapes `%`/`_` (audit
+ * S-040), so a hostile pattern can't widen the match — but a multi-MB
+ * value would still waste planner / scanner work. 200 chars is plenty
+ * for any realistic kind / entity / search query.
+ */
+const TEXT_FILTER_MAX = 200;
+
+function clampText(v: string | null): string | null {
+  if (v == null) return null;
+  return v.slice(0, TEXT_FILTER_MAX);
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
   const sp = req.nextUrl.searchParams;
   try {
+    // `limit` is clamped to [1, 500] inside `listUserActivity`; defaulting
+    // here keeps the explicit-default-when-omitted behaviour while still
+    // forcing every overlarge / negative caller-supplied value through the
+    // helper's clamp. Without this, `?limit=999999999` would propagate to
+    // the helper and rely on the inner Math.min — the explicit local cap
+    // documents the contract at the entry point too.
     return NextResponse.json({
       activity: listUserActivity({
         limit: num(sp.get('limit')) ?? 100,
-        kind: sp.get('kind'),
-        entity: sp.get('entity'),
-        q: sp.get('q'),
+        kind: clampText(sp.get('kind')),
+        entity: clampText(sp.get('entity')),
+        q: clampText(sp.get('q')),
         from: num(sp.get('from')),
         to: num(sp.get('to')),
       }),

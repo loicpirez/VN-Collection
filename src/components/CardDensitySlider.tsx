@@ -73,13 +73,17 @@ export function CardDensitySlider({
   const followsDefaultTitle = t.cardDensity.followsDefault;
   const customTitle = t.cardDensity.customOverride;
   return (
+    // `max-w-full` keeps the slider inside its parent on small viewports.
+    // Previously the row's total natural width (~400px) overflowed the
+    // viewport on 360px phones and pushed the page horizontally —
+    // operator-reported regression on /producer/[id] + /staff/[id].
     <div
-      className={`inline-flex items-center gap-2 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] ${className}`}
+      className={`flex max-w-full items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:gap-2 ${className}`}
       title={canReset ? customTitle : followsDefaultTitle}
     >
-      <label htmlFor={id} className="inline-flex items-center gap-1 text-muted">
+      <label htmlFor={id} className="inline-flex shrink-0 items-center gap-1 text-muted">
         <LayoutGrid className="h-3 w-3" aria-hidden />
-        <span>{t.cardDensity.label}</span>
+        <span className="hidden sm:inline">{t.cardDensity.label}</span>
         {canReset && (
           <span
             className="ml-1 inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-1 py-0 text-[10px] font-semibold text-accent"
@@ -94,10 +98,15 @@ export function CardDensitySlider({
         onClick={() => writeScoped(value - 20)}
         aria-label={t.cardDensity.denser}
         title={t.cardDensity.denser}
-        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent"
+        className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded p-1 text-muted hover:text-accent"
       >
         <Minimize2 className="h-3 w-3" aria-hidden />
       </button>
+      {/*
+        `min-w-0` lets the range input shrink below its content-based
+        preferred width when the row is squeezed on a narrow viewport.
+        Width grows from 5rem on phone up to 7rem on desktop.
+      */}
       <input
         id={id}
         type="range"
@@ -110,18 +119,18 @@ export function CardDensitySlider({
         aria-valuemax={CARD_DENSITY_MAX}
         aria-valuenow={value}
         aria-label={t.cardDensity.label}
-        className="h-1.5 w-28 cursor-pointer accent-accent"
+        className="h-1.5 w-20 min-w-0 flex-1 cursor-pointer accent-accent sm:w-28 sm:flex-none"
       />
       <button
         type="button"
         onClick={() => writeScoped(value + 20)}
         aria-label={t.cardDensity.larger}
         title={t.cardDensity.larger}
-        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent"
+        className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded p-1 text-muted hover:text-accent"
       >
         <Maximize2 className="h-3 w-3" aria-hidden />
       </button>
-      <span className="ml-0.5 w-9 text-right text-[10px] tabular-nums text-muted">
+      <span className="ml-0.5 hidden w-9 shrink-0 text-right text-[10px] tabular-nums text-muted sm:inline">
         {value}px
       </span>
       {/*
@@ -138,7 +147,7 @@ export function CardDensitySlider({
         disabled={!canReset && value === CARD_DENSITY_DEFAULT}
         aria-label={t.cardDensity.reset}
         title={t.cardDensity.reset}
-        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
+        className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
       >
         <RotateCcw className="h-3 w-3" aria-hidden />
       </button>
@@ -166,19 +175,22 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
   const id = useId();
   const value = clampCardDensity(settings.cardDensityPx);
   return (
+    // Same `max-w-full` + shrinkable internals pattern as the scoped
+    // slider above — keeps the row inside the Settings panel column on
+    // narrow viewports.
     <div
-      className={`inline-flex items-center gap-2 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] ${className}`}
+      className={`flex max-w-full items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:gap-2 ${className}`}
     >
-      <label htmlFor={id} className="inline-flex items-center gap-1 text-muted">
+      <label htmlFor={id} className="inline-flex shrink-0 items-center gap-1 text-muted">
         <LayoutGrid className="h-3 w-3" aria-hidden />
-        <span>{t.cardDensity.label}</span>
+        <span className="hidden sm:inline">{t.cardDensity.label}</span>
       </label>
       <button
         type="button"
         onClick={() => set('cardDensityPx', clampCardDensity(value - 20))}
         aria-label={t.cardDensity.denser}
         title={t.cardDensity.denser}
-        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent"
+        className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded p-1 text-muted hover:text-accent"
       >
         <Minimize2 className="h-3 w-3" aria-hidden />
       </button>
@@ -194,18 +206,18 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
         aria-valuemax={CARD_DENSITY_MAX}
         aria-valuenow={value}
         aria-label={t.cardDensity.label}
-        className="h-1.5 w-28 cursor-pointer accent-accent"
+        className="h-1.5 w-20 min-w-0 flex-1 cursor-pointer accent-accent sm:w-28 sm:flex-none"
       />
       <button
         type="button"
         onClick={() => set('cardDensityPx', clampCardDensity(value + 20))}
         aria-label={t.cardDensity.larger}
         title={t.cardDensity.larger}
-        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent"
+        className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded p-1 text-muted hover:text-accent"
       >
         <Maximize2 className="h-3 w-3" aria-hidden />
       </button>
-      <span className="ml-0.5 w-9 text-right text-[10px] tabular-nums text-muted">
+      <span className="ml-0.5 hidden w-9 shrink-0 text-right text-[10px] tabular-nums text-muted sm:inline">
         {value}px
       </span>
       <button
@@ -214,7 +226,7 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
         disabled={value === CARD_DENSITY_DEFAULT}
         aria-label={t.cardDensity.reset}
         title={t.cardDensity.reset}
-        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
+        className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
       >
         <RotateCcw className="h-3 w-3" aria-hidden />
       </button>

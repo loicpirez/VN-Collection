@@ -96,7 +96,7 @@ export function ListCardActions({ list }: { list: List }) {
       {open && (
         <div
           id={menuId}
-          className="absolute right-0 top-full z-20 mt-1 w-44 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
+          className="absolute right-0 top-full z-20 mt-1 w-44 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
           role="menu"
           aria-labelledby={triggerId}
           onKeyDown={(e) => {

@@ -56,6 +56,7 @@ import {
   routeShortcutRows,
 } from '@/lib/shortcut-registry';
 import { useToast } from './ToastProvider';
+import { useConfirm } from './ConfirmDialog';
 import { fmtNum } from '@/lib/locale-number';
 import {
   DEFAULT_HOME_LAYOUT,
@@ -401,6 +402,7 @@ export function SettingsButton() {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const { settings, set, reset } = useDisplaySettings();
+  const { confirm } = useConfirm();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -1550,7 +1552,13 @@ export function SettingsButton() {
                   <button
                     type="button"
                     className="btn"
-                    onClick={reset}
+                    onClick={async () => {
+                      const ok = await confirm({
+                        message: t.settings.resetDisplayConfirm,
+                        tone: 'danger',
+                      });
+                      if (ok) reset();
+                    }}
                     title={t.settings.resetDisplayHint}
                   >
                     {t.settings.resetDisplay}
@@ -2055,6 +2063,7 @@ const PAGE_LAYOUT_DENSITY_SCOPES: Partial<Record<PageSpaceScope, readonly Densit
 function PerPageLayoutPanel() {
   const t = useT();
   const { settings, set } = useDisplaySettings();
+  const { confirm } = useConfirm();
   const [hydrated, setHydrated] = useState(false);
   const pageSpace = settings.pageSpace ?? {};
   const density = settings.density ?? {};
@@ -2256,7 +2265,13 @@ function PerPageLayoutPanel() {
         </button>
         <button
           type="button"
-          onClick={resetEverything}
+          onClick={async () => {
+            const ok = await confirm({
+              message: t.settings.resetEverythingConfirm,
+              tone: 'danger',
+            });
+            if (ok) resetEverything();
+          }}
           className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-3 py-1 text-xs text-muted hover:border-status-dropped hover:text-status-dropped"
         >
           {t.settings.resetEverything}

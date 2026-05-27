@@ -69,10 +69,10 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          className="rounded text-muted hover:text-white"
+          className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white"
           aria-label={t.common.close}
         >
-          <X className="h-3 w-3" />
+          <X className="h-3 w-3" aria-hidden />
         </button>
       </span>
     </aside>

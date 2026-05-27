@@ -381,7 +381,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
         ) : (
           <div
             className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
           >
             {release.images.map((img) => {
               const aspect = img.type === 'pkgmed' ? 'aspect-square' : img.type === 'dig' ? 'aspect-video' : 'aspect-[2/3]';

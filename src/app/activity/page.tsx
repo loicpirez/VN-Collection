@@ -87,7 +87,7 @@ async function VnActivitySummary({
     case 'favorite': {
       const on = !!(p?.to);
       return (
-        <span className={`inline-flex items-center gap-1 ${on ? 'text-yellow-400' : 'text-muted'}`}>
+        <span className={`inline-flex items-center gap-1 ${on ? 'text-accent' : 'text-muted'}`}>
           <Heart className="h-3 w-3" aria-hidden />
           {on ? ta.favOn : ta.favOff}
         </span>
@@ -139,13 +139,13 @@ function systemKindLabel(raw: string): string {
 }
 
 const KIND_COLOR: Record<string, string> = {
-  status:   'bg-blue-500/20 text-blue-300',
-  rating:   'bg-yellow-500/20 text-yellow-300',
-  playtime: 'bg-green-500/20 text-green-300',
-  favorite: 'bg-pink-500/20 text-pink-300',
-  started:  'bg-teal-500/20 text-teal-300',
-  finished: 'bg-purple-500/20 text-purple-300',
-  note:     'bg-slate-500/20 text-slate-300',
+  status:   'bg-status-playing/20 text-status-playing',
+  rating:   'bg-accent/20 text-accent',
+  playtime: 'bg-status-completed/20 text-status-completed',
+  favorite: 'bg-accent/20 text-accent',
+  started:  'bg-accent-blue/20 text-accent-blue',
+  finished: 'bg-status-completed/20 text-status-completed',
+  note:     'bg-muted/20 text-muted',
   manual:   'bg-accent/20 text-accent',
 };
 

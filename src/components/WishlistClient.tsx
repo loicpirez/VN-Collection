@@ -10,13 +10,17 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { platformLabel } from '@/lib/platform-label';
 import { BulkDownloadButton } from './BulkDownloadButton';
 
 import { readApiError } from '@/lib/api-error-read';
 import { languageDisplayName } from '@/lib/language-names';
-import { yearOnly } from '@/lib/locale-number';
+// I-N01: locale-aware Collator for FR/JA title sort. Without this, the
+// runtime default locale was used which produced confusing order on
+// JA systems sorting an EN-titled wishlist.
+import { BCP47, yearOnly } from '@/lib/locale-number';
+
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc' | 'egs_rating_desc';
 type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'platform' | 'status';
 
@@ -174,6 +178,8 @@ function wishlistCardData(it: WishlistItem): CardData {
 
 export function WishlistClient() {
   const t = useT();
+  const locale = useLocale();
+  const collator = useMemo(() => new Intl.Collator(BCP47[locale], { sensitivity: 'base', numeric: true }), [locale]);
   const toast = useToast();
   const { confirm } = useConfirm();
   const { settings } = useDisplaySettings();
@@ -444,7 +450,7 @@ export function WishlistClient() {
       switch (sort) {
         case 'added_desc': return (b.added ?? 0) - (a.added ?? 0);
         case 'added_asc': return (a.added ?? 0) - (b.added ?? 0);
-        case 'title': return a.vn.title.localeCompare(b.vn.title);
+        case 'title': return collator.compare(a.vn.title, b.vn.title);
         case 'rating_desc': return (b.vn.rating ?? 0) - (a.vn.rating ?? 0);
         case 'released_desc': return (b.vn.released ?? '').localeCompare(a.vn.released ?? '');
         case 'released_asc': return (a.vn.released ?? '').localeCompare(b.vn.released ?? '');
@@ -457,7 +463,7 @@ export function WishlistClient() {
       }
     });
     return arr;
-  }, [filtered, sort]);
+  }, [filtered, sort, collator]);
 
   const grouped = useMemo<{ key: string; items: WishlistItem[] }[]>(() => {
     if (group === 'none') return [{ key: '', items: sorted }];
@@ -478,11 +484,11 @@ export function WishlistClient() {
     }
     return Array.from(buckets.entries())
       .sort(([a], [b]) => {
-        if (group === 'year') return b.localeCompare(a);
-        return a.localeCompare(b);
+        if (group === 'year') return collator.compare(b, a);
+        return collator.compare(a, b);
       })
       .map(([key, items]) => ({ key, items }));
-  }, [sorted, group, t.wishlist.groupUnknown, t.wishlist.groupOwned, t.wishlist.groupTodo]);
+  }, [sorted, group, t.wishlist.groupUnknown, t.wishlist.groupOwned, t.wishlist.groupTodo, collator]);
 
   // R5-137: `removeOne` is a stable `useCallback` so the
   // `onRemoveFromWishlist` arrow rendered per card can read it
@@ -540,7 +546,7 @@ export function WishlistClient() {
       ) : loading || !loaded ? (
         <SkeletonCardGrid count={18} />
       ) : error ? (
-        <div className="rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
+        <div role="alert" className="rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
           {error}
         </div>
       ) : items.length === 0 ? (

@@ -40,6 +40,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
   const sp = useSearchParams();
   const toast = useToast();
   const [filters, setFilters] = useState<Filter[]>([]);
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
@@ -119,6 +120,8 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
       const message = (e as Error).message;
       setLoadError(message);
       toast.error(message);
+    } finally {
+      if (!signal?.aborted) setFiltersLoaded(true);
     }
   }
 
@@ -202,6 +205,10 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
           {loadError ? (
             <p role="alert" className="mb-2 rounded-md border border-status-dropped/40 bg-status-dropped/10 px-2 py-1.5 text-status-dropped">
               {loadError}
+            </p>
+          ) : !filtersLoaded ? (
+            <p className="inline-flex items-center gap-1.5 px-2 py-1.5 text-muted">
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
             </p>
           ) : filters.length === 0 ? (
             <div className="space-y-2 px-1 py-1">

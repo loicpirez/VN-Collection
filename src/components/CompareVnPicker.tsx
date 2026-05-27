@@ -274,6 +274,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
               aria-expanded={open && hits.length > 0}
               aria-autocomplete="list"
               aria-controls={`${inputId}-list`}
+              aria-label={t.compareWith.searchPlaceholder}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);

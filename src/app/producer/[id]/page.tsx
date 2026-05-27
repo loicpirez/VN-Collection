@@ -104,7 +104,7 @@ export default async function ProducerPage({
       <header className="mb-6 flex flex-col gap-4 rounded-2xl border border-border bg-bg-card p-4 sm:flex-row sm:items-start sm:p-6">
         <ProducerLogo producer={producer} size={96} />
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold">{producer.name}</h1>
+          <h1 className="break-words text-2xl font-bold">{producer.name}</h1>
           {producer.original && producer.original !== producer.name && (
             <div className="text-sm text-muted">{producer.original}</div>
           )}

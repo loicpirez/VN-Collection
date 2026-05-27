@@ -442,7 +442,7 @@ export default async function ShelfPage({
                   </h2>
                   <ul
                     className="grid gap-3"
-                    style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}
+                    style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 240px)), 1fr))' }}
                   >
                     {list.map((e) => {
                       const artwork = shelfArtwork(e);
@@ -639,7 +639,7 @@ export default async function ShelfPage({
               </h2>
               <ul
                 className="grid gap-3"
-                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}
+                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 260px)), 1fr))' }}
               >
                 {Array.from(itemBuckets.values())
                   .sort((a, b) => a.vn_title.localeCompare(b.vn_title))

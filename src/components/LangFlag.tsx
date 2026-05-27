@@ -24,7 +24,7 @@ export function LangFlag({ lang, withCode = false, className = '' }: Props) {
   const displayName = languageDisplayName(lang);
   const tooltip = displayName || lang.toUpperCase();
   return (
-    <span className={className} title={tooltip}>
+    <span className={className} title={tooltip} aria-label={tooltip}>
       <Globe className="h-3 w-3" aria-hidden />
       {withCode && <span className="ml-1">{lang.toUpperCase()}</span>}
     </span>
@@ -69,6 +69,7 @@ export function LangList({
             key={l}
             href={`/search?langs=${encodeURIComponent(l)}`}
             title={displayName}
+            aria-label={displayName}
             className="inline-flex items-center gap-0.5 rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
           >
             <Globe className="h-3 w-3" aria-hidden />

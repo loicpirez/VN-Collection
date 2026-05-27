@@ -122,6 +122,8 @@ export function ListMetaEditor({ list }: { list: List }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
         maxLength={120}
+        aria-label={t.series.nameField}
+        placeholder={t.series.nameField}
         className="input w-full text-sm"
       />
       <textarea
@@ -129,6 +131,8 @@ export function ListMetaEditor({ list }: { list: List }) {
         onChange={(e) => setDescription(e.target.value)}
         maxLength={400}
         rows={2}
+        aria-label={t.series.descriptionField}
+        placeholder={t.series.descriptionField}
         className="input w-full resize-y text-sm"
       />
       <div className="flex flex-wrap items-center gap-1">

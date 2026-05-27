@@ -194,6 +194,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
             <button
               type="button"
               onClick={() => setAttachSession((v) => !v)}
+              aria-pressed={attachSession}
               className={`chip min-h-[44px] px-3 py-1 text-xs uppercase tracking-wider ${attachSession ? 'chip-active' : ''}`}
               title={attachSession ? t.gameLog.attachedSessionNo : t.gameLog.attachedSession.replace('{n}', String(liveSessionMinutes))}
             >

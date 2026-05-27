@@ -76,18 +76,26 @@ export async function downloadFullTraitsForVn(vnId: string, opts: { force?: bool
   const ids = new Set<string>();
   if (cidRows.length > 0) {
     const keys = cidRows.map((r) => `char_full:${r.character_id.toLowerCase()}`);
-    const placeholders = keys.map(() => '?').join(',');
-    const rows = db
-      .prepare(`SELECT body FROM vndb_cache WHERE cache_key IN (${placeholders})`)
-      .all(...keys) as { body: string }[];
-    for (const r of rows) {
-      try {
-        const parsed = JSON.parse(r.body) as { profile?: { traits?: { id: string }[] } | null };
-        for (const t of parsed.profile?.traits ?? []) {
-          if (/^i\d+$/i.test(t.id)) ids.add(t.id);
+    // Chunk to stay under SQLite's SQLITE_MAX_VARIABLE_NUMBER (default
+    // 999) — a VN that credits hundreds of characters would otherwise
+    // crash the prepared statement at runtime. Matches the convention
+    // in lib/db.ts (`isInCollectionMany`, `getEgsForVns`).
+    const CHUNK = 500;
+    for (let i = 0; i < keys.length; i += CHUNK) {
+      const chunk = keys.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      const rows = db
+        .prepare(`SELECT body FROM vndb_cache WHERE cache_key IN (${placeholders})`)
+        .all(...chunk) as { body: string }[];
+      for (const r of rows) {
+        try {
+          const parsed = JSON.parse(r.body) as { profile?: { traits?: { id: string }[] } | null };
+          for (const t of parsed.profile?.traits ?? []) {
+            if (/^i\d+$/i.test(t.id)) ids.add(t.id);
+          }
+        } catch {
+          continue;
         }
-      } catch {
-        continue;
       }
     }
   }

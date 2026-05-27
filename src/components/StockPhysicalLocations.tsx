@@ -4,6 +4,27 @@ import { ExternalLink, MapPin } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { VnStockAvailability } from '@/lib/db';
 
+/**
+ * Mirror of LEGACY_CONDITION_MAP in StockPanel.tsx so legacy server-emitted
+ * English condition strings ('Used', 'New', 'Sealed') resolve to the
+ * localised label at render time. Kept inline (small) rather than exporting
+ * from StockPanel.tsx to avoid creating a circular client-only dependency.
+ */
+const LEGACY_CONDITION_MAP: Record<string, string> = {
+  'New': 'new',
+  'Used': 'used',
+  'Sealed': 'sealed',
+};
+
+function conditionLabel(
+  t: ReturnType<typeof useT>,
+  raw: string,
+): string {
+  const slug = LEGACY_CONDITION_MAP[raw] ?? raw;
+  const dict = t.stock.conditionLabels as Record<string, string | undefined>;
+  return dict[slug] ?? raw;
+}
+
 export interface PhysicalOffer {
   provider: string;
   provider_label: string;
@@ -95,7 +116,7 @@ export function StockPhysicalLocations({ offers }: { offers: PhysicalOffer[] }) 
                       <span className="mt-0.5 inline-flex flex-wrap items-center gap-1 text-[10px] text-muted">
                         <span className="rounded bg-bg-elev px-1 py-0.5">{offer.provider_label}</span>
                         {offer.condition && (
-                          <span className="rounded bg-bg-elev px-1 py-0.5">{offer.condition}</span>
+                          <span className="rounded bg-bg-elev px-1 py-0.5">{conditionLabel(t, offer.condition)}</span>
                         )}
                       </span>
                     </div>

@@ -15,6 +15,59 @@ U-019 (ErrorAlert primitive) in `8c0c4cd`. U-003/U-004/U-005/U-006
 U-238/U-239/U-240 (kobe date+price localisation) in `fd7721c`.
 U-251/U-280 (dictionary parity lint) in `0850c36`.
 
+## Round 2 findings (2026-05-28)
+
+Fresh scan after the initial closure batch. Implemented inline:
+
+- **U-306 (High)** `src/app/activity/page.tsx:90,142-148` — `text-yellow-400`
+  on the favourite icon and `KIND_COLOR` map (`bg-blue-500/20`,
+  `bg-yellow-500/20`, `bg-green-500/20`, `bg-pink-500/20`, `bg-teal-500/20`,
+  `bg-purple-500/20`, `bg-slate-500/20`) were the only remaining raw
+  Tailwind palette uses in the repo. Remapped to `status-*` / `accent` /
+  `accent-blue` / `muted` so the activity feed honours the project
+  palette like the rest of the app.
+- **U-307 (High)** `src/components/VnSourcePicker.tsx:156` — raw
+  `<img>` inside the unified VN picker bypassed `<SafeImage>`. The
+  picker is opened from /stock/batch and other surfaces, so user
+  hide-images / blur-R18 settings were silently ignored on the
+  thumbnail. Migrated to `<SafeImage>` with `fit="cover"`.
+- **U-308 (Med)** `src/app/release/[id]/page.tsx:384` — release-image
+  grid hard-coded `minmax(180px, 1fr)`. Now uses
+  `minmax(min(100%, var(--card-density-px, 180px)), 1fr)`.
+- **U-309 (Med)** `src/app/shelf/page.tsx:445,642` — release-view
+  and item-view grids hard-coded `minmax(240px, 1fr)` /
+  `minmax(260px, 1fr)`. Both now consume `--card-density-px`.
+- **U-310 (Med)** `src/components/SavedFilters.tsx:42-47,234-242` —
+  popover rendered `t.savedFilters.popoverEmpty` immediately on
+  first open while the `/api/saved-filters` fetch was in flight.
+  Added `filtersLoaded` flag plus a `<Loader2>` placeholder so the
+  empty-state copy only shows after the fetch resolves.
+- **U-311 (Med)** `src/components/SettingsButton.tsx:1553-1559` —
+  "Reset display" button wiped every display preference with a
+  single click. Wrapped in a styled `confirm({ tone: 'danger' })`
+  call. Added i18n key `t.settings.resetDisplayConfirm` (FR/EN/JA).
+- **U-312 (Med)** `src/components/SettingsButton.tsx:2267-2271` —
+  "Reset everything (default + per-page)" had no confirm. Same fix
+  pattern. Added i18n key `t.settings.resetEverythingConfirm`
+  (FR/EN/JA).
+
+**Verified-clean / no-action items**:
+- `<ErrorAlert>` and `<Tooltip>` primitives are defined but unused
+  by any call site. Prior audits closed both with the rationale
+  that the primitive exists for future opt-in adoption; the raw
+  `<p role="alert">` patterns currently in the codebase are not
+  regressions, just unmigrated. Leaving as-is.
+- `src/components/CoverSourcePicker.tsx:691` uses a fixed
+  `minmax(120px, 1fr)` grid for the cover-candidate picker. This
+  is intentionally compact (4-5 thumbnails per modal row); the
+  density slider wouldn't help on a 120-thumb-wide modal.
+- `src/components/CharactersSection.tsx:105` /
+  `src/components/CastSection.tsx:36` /
+  `src/app/labels/page.tsx:143` retain hard-coded grid-cols. The
+  first two carry rich per-card content (traits / VA / age) and
+  blow out at very large densities; the third is print-layout
+  bound to four cells.
+
 **Verified-clean / no-action items**: U-046 (Pomodoro mm:ss timer —
 formatMinutes is wrong shape for per-second tick), U-270 (writes a
 storage-format ISO date, not a display string).

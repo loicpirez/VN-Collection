@@ -54,7 +54,11 @@ export async function ActivityHeatmap({ year }: { year: number }) {
           {total} {t.year.heatmap.entries} · {active} {t.year.heatmap.activeDays}
         </span>
       </div>
-      <ScrollFadeRight className="flex gap-[3px]">
+      <ScrollFadeRight
+        className="flex gap-[3px]"
+        role="img"
+        aria-label={t.year.heatmap.title.replace('{year}', String(year))}
+      >
         {weeks.map((wk, i) => {
           const wkKey = wk.find(Boolean)?.day ?? `pad-w${i}`;
           return (

@@ -347,6 +347,7 @@ function Selector<T extends string>({ icon, label, options, onSelect, disabled }
       <select
         className="input w-auto pl-8 pr-3"
         defaultValue=""
+        aria-label={label}
         onChange={(e) => {
           const v = e.target.value as T;
           if (v) {
