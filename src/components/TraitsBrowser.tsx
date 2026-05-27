@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Library, Loader2, Search, SearchX, Sparkles } from 'lucide-react';
 import { RefreshScopeButton } from './RefreshScopeButton';
 import { SkeletonRows } from './Skeleton';
@@ -13,8 +14,12 @@ import { readApiError } from '@/lib/api-error-read';
 export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null } = {}) {
   const t = useT();
   const locale = useLocale();
-  const [q, setQ] = useState('');
-  const [onlyMine, setOnlyMine] = useState(false);
+  // U-004: q + onlyMine in URL state so the user can copy/paste a
+  // /traits view (e.g. /traits?q=glasses&mine=1).
+  const search = useSearchParams();
+  const router = useRouter();
+  const [q, setQ] = useState(() => search?.get('q') ?? '');
+  const [onlyMine, setOnlyMine] = useState(() => search?.get('mine') === '1');
   const [results, setResults] = useState<VndbTrait[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +60,27 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
       clearTimeout(handle);
     };
   }, [q, onlyMine, t.common.error]);
+
+  // U-004: sync state → URL so the view is sharable. Only writes non-
+  // default values so /traits stays clean.
+  useEffect(() => {
+    const params = new URLSearchParams(search?.toString() ?? '');
+    let dirty = false;
+    if (q.trim()) {
+      if (params.get('q') !== q) { params.set('q', q); dirty = true; }
+    } else if (params.get('q') != null) {
+      params.delete('q'); dirty = true;
+    }
+    if (onlyMine) {
+      if (params.get('mine') !== '1') { params.set('mine', '1'); dirty = true; }
+    } else if (params.get('mine') != null) {
+      params.delete('mine'); dirty = true;
+    }
+    if (dirty) {
+      const next = params.toString();
+      router.replace(`/traits${next ? `?${next}` : ''}`, { scroll: false });
+    }
+  }, [q, onlyMine, search, router]);
 
   return (
     <div>

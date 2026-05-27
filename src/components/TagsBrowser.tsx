@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, SearchX, Tags } from 'lucide-react';
 import { RefreshScopeButton } from './RefreshScopeButton';
 import { SkeletonRows } from './Skeleton';
@@ -37,9 +38,20 @@ interface TagsBrowserProps {
 export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initialTree = null }: TagsBrowserProps = {}) {
   const t = useT();
   const locale = useLocale();
-  const [q, setQ] = useState('');
-  const [category, setCategory] = useState<'' | 'cont' | 'ero' | 'tech'>('');
-  const [mode, setMode] = useState<TagsPageMode>(initialMode);
+  // U-005: q + category + mode in URL state so the user can copy/paste a
+  // /tags view.
+  const search = useSearchParams();
+  const router = useRouter();
+  const [q, setQ] = useState(() => search?.get('q') ?? '');
+  const [category, setCategory] = useState<'' | 'cont' | 'ero' | 'tech'>(() => {
+    const v = search?.get('category') ?? '';
+    return v === 'cont' || v === 'ero' || v === 'tech' ? v : '';
+  });
+  const [mode, setMode] = useState<TagsPageMode>(() => {
+    const v = search?.get('mode');
+    if (v === 'vndb' || v === 'local') return v;
+    return initialMode;
+  });
   const [results, setResults] = useState<VndbTag[]>([]);
   const [homeTree, setHomeTree] = useState<VndbTagHomeTree | null>(initialTree);
   const [localCounts, setLocalCounts] = useState<Map<string, number>>(new Map());
@@ -151,6 +163,31 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
     return () => { alive = false; ctrl.abort(); clearTimeout(handle); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, category, mode, refreshNonce, t.common.error]);
+
+  // U-005: sync state → URL so the view is sharable. The `mode`
+  // change handler also updates the URL via `switchMode` below;
+  // this effect handles q + category which don't go through it.
+  useEffect(() => {
+    const params = new URLSearchParams(search?.toString() ?? '');
+    let dirty = false;
+    if (q.trim()) {
+      if (params.get('q') !== q) { params.set('q', q); dirty = true; }
+    } else if (params.get('q') != null) {
+      params.delete('q'); dirty = true;
+    }
+    if (category) {
+      if (params.get('category') !== category) { params.set('category', category); dirty = true; }
+    } else if (params.get('category') != null) {
+      params.delete('category'); dirty = true;
+    }
+    if (dirty) {
+      const next = params.toString();
+      // Preserve the mode in the path (`tagsPageHref`) but append
+      // q/category as query string. The mode page-href is the
+      // canonical handler for mode switches.
+      router.replace(`${tagsPageHref(mode)}${next ? `?${next}` : ''}`, { scroll: false });
+    }
+  }, [q, category, mode, search, router]);
 
   const switchMode = (next: TagsPageMode) => {
     setMode(next);
