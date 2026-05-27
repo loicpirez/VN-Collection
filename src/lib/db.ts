@@ -1178,7 +1178,7 @@ function open(): Database.Database {
     const delStaff = db.prepare('DELETE FROM vn_staff_credit WHERE vn_id = ?');
     const delVa = db.prepare('DELETE FROM vn_va_credit WHERE vn_id = ?');
     const insStaff = db.prepare(`
-      INSERT INTO vn_staff_credit (vn_id, sid, aid, eid, role, note, name, original, lang)
+      INSERT OR IGNORE INTO vn_staff_credit (vn_id, sid, aid, eid, role, note, name, original, lang)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insVa = db.prepare(`
@@ -1755,8 +1755,14 @@ export function upsertVn(vn: RawVnPayload): void {
 function rebuildStaffVaCredits(vnId: string, staff: StaffEntry[], va: VaEntry[]): void {
   db.prepare('DELETE FROM vn_staff_credit WHERE vn_id = ?').run(vnId);
   db.prepare('DELETE FROM vn_va_credit WHERE vn_id = ?').run(vnId);
+  // INSERT OR IGNORE: VNDB occasionally returns a staff entry credited
+  // multiple times for the same role (different `aid`/`eid` slots — e.g.
+  // the same scenario writer billed under two contract roles that map
+  // to the same `role` enum). The UNIQUE index on (vn_id, sid, role)
+  // would otherwise abort the whole `upsertVn` transaction, leaving
+  // /vn/[id] showing "UNIQUE constraint failed" instead of the VN.
   const insStaff = db.prepare(`
-    INSERT INTO vn_staff_credit (vn_id, sid, aid, eid, role, note, name, original, lang)
+    INSERT OR IGNORE INTO vn_staff_credit (vn_id, sid, aid, eid, role, note, name, original, lang)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const s of staff) {
