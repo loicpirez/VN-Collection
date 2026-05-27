@@ -238,7 +238,7 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
         const data = (await res.json()) as { ok: boolean; latencyMs?: number; error?: string };
         setTestResult(data.ok
           ? { ok: true, ms: data.latencyMs }
-          : { ok: false, error: data.error ?? 'unknown error' });
+          : { ok: false, error: data.error ?? t.common.unknownError });
       } catch (e) {
         setTestResult({ ok: false, error: e instanceof Error ? e.message : String(e) });
       }
@@ -323,7 +323,7 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
               type="button"
               onClick={() => setShowPw((v) => !v)}
               className="rounded p-1 text-muted hover:text-fg"
-              aria-label={showPw ? 'Hide password' : 'Show password'}
+              aria-label={showPw ? t.settings.proxyPasswordHide : t.settings.proxyPasswordShow}
             >
               {showPw ? <EyeOff className="h-3.5 w-3.5" aria-hidden /> : <Eye className="h-3.5 w-3.5" aria-hidden />}
             </button>

@@ -22,7 +22,21 @@ type BulkField =
   | { kind: 'box_type'; value: BoxType }
   | { kind: 'favorite'; value: boolean };
 
-async function patchOne(vnId: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<void> {
+/**
+ * Build a localized HTTP-status error message from a status code. Caller
+ * is responsible for prefixing with the VN id when surfaced into the
+ * per-row error list.
+ */
+function httpStatusError(httpStatus: string, status: number): string {
+  return httpStatus.replace('{status}', String(status));
+}
+
+async function patchOne(
+  vnId: string,
+  body: Record<string, unknown>,
+  signal: AbortSignal | undefined,
+  httpStatus: string,
+): Promise<void> {
   const res = await fetch(`/api/collection/${vnId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -31,13 +45,17 @@ async function patchOne(vnId: string, body: Record<string, unknown>, signal?: Ab
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `${vnId}: HTTP ${res.status}`);
+    throw new Error(err.error || `${vnId}: ${httpStatusError(httpStatus, res.status)}`);
   }
 }
 
-async function deleteOne(vnId: string, signal?: AbortSignal): Promise<void> {
+async function deleteOne(
+  vnId: string,
+  signal: AbortSignal | undefined,
+  httpStatus: string,
+): Promise<void> {
   const res = await fetch(`/api/collection/${vnId}`, { method: 'DELETE', signal });
-  if (!res.ok) throw new Error(`${vnId}: HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`${vnId}: ${httpStatusError(httpStatus, res.status)}`);
 }
 
 export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
@@ -90,7 +108,7 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
       controllerRef.current = controller;
       setOperation((prev) => ({ ...prev, currentId: id }));
       try {
-        await patchOne(id, { [field.kind]: field.value }, controller.signal);
+        await patchOne(id, { [field.kind]: field.value }, controller.signal, t.common.httpStatus);
       } catch (e) {
         if (!cancelRef.current) localErrors.push((e as Error).message);
       }
@@ -143,7 +161,7 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
       controllerRef.current = controller;
       setOperation((prev) => ({ ...prev, currentId: id }));
       try {
-        await deleteOne(id, controller.signal);
+        await deleteOne(id, controller.signal, t.common.httpStatus);
       } catch (e) {
         if (!cancelRef.current) localErrors.push((e as Error).message);
       }

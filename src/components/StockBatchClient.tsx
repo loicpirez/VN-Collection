@@ -97,9 +97,10 @@ export function StockBatchClient() {
           // Prefer the `detail` field — it carries the actual upstream cause
           // (e.g. "ETIMEDOUT", "Cloudflare challenge detected") — and fall
           // back to the canned error label or HTTP status as last resort.
+          const httpFallback = t.common.httpStatus.replace('{status}', String(r.status));
           const msg = data.detail
-            ? `${data.error ?? 'error'} — ${data.detail}`
-            : (data.error ?? `HTTP ${r.status}`);
+            ? `${data.error ?? t.common.error} — ${data.detail}`
+            : (data.error ?? httpFallback);
           out.push({ vnId, title, ok: false, error: msg });
         } else {
           const data = (await r.json()) as { summary?: { total?: number } };

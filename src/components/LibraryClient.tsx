@@ -265,7 +265,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   useEffect(() => {
     fetch('/api/producers')
       .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
         return r.json();
       })
       .then((d) => {
@@ -279,28 +279,28 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       });
     fetch('/api/series')
       .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
         return r.json();
       })
       .then((d) => setSeries(d.series ?? []))
       .catch((e: Error) => toast.error(`${t.common.error}: ${e.message}`));
     fetch('/api/places')
       .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
         return r.json();
       })
       .then((d: { places: string[] }) => setKnownPlaces(d.places ?? []))
       .catch((e: Error) => toast.error(`${t.common.error}: ${e.message}`));
     fetch('/api/collection/tags')
       .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
         return r.json();
       })
       .then((d: { tags: { id: string; name: string; vn_count: number }[] }) =>
         setCollectionTags((d.tags ?? []).slice(0, 200)),
       )
       .catch((e: Error) => toast.error(`${t.common.error}: ${e.message}`));
-  }, [toast, t.common.error]);
+  }, [toast, t.common.error, t.common.httpStatus]);
 
   // Resolve tag name when filtered by tag
   useEffect(() => {

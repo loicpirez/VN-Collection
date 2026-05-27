@@ -364,6 +364,7 @@ interface RunTotals { processed: number; matched: number }
  */
 export function AliceNetKobeClient() {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const { confirm } = useConfirm();
   const [items, setItems] = useState<KobeItem[]>([]);
@@ -925,7 +926,7 @@ export function AliceNetKobeClient() {
         <h1 className="text-xl font-bold">{t.kobe.kobeTitle}</h1>
         {lastFetch && (
           <span className="text-xs text-muted">
-            {t.kobe.kobeLastFetch.replace('{date}', new Date(lastFetch).toLocaleString())}
+            {t.kobe.kobeLastFetch.replace('{date}', new Date(lastFetch).toLocaleString(locale))}
           </span>
         )}
       </div>
