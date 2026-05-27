@@ -177,7 +177,8 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
         {(elapsedSec >= 60 || done) && (
           <button type="button" onClick={logElapsed} disabled={saving} className="btn btn-primary text-xs">
             {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : '+'}
-            {t.pomodoro.logTo} ({Math.round(elapsedSec / 60)}m)
+            {/* U-049: localize the "(N min)" suffix via t.year.minutesUnit */}
+            {t.pomodoro.logTo} ({Math.round(elapsedSec / 60)}{t.year.minutesUnit})
           </button>
         )}
       </div>
