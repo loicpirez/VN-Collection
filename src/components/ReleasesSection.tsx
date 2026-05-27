@@ -162,6 +162,7 @@ export function ReleasesSection({
       className="group rounded-xl border border-border bg-bg-card"
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      aria-busy={loading || undefined}
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-6 py-4 hover:bg-bg-elev/50">
         <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
@@ -172,7 +173,7 @@ export function ReleasesSection({
       </summary>
       <div className="border-t border-border px-6 py-5">
         {loading && <SkeletonRows count={4} withThumb={false} />}
-        {error && <p className="text-sm text-status-dropped">{error}</p>}
+        {error && <p role="alert" className="text-sm text-status-dropped">{error}</p>}
         {!loading && releases && releases.length === 0 && <p className="text-sm text-muted">{t.releases.empty}</p>}
         {releases && releases.length > 0 && (
           <ul className="space-y-3">

@@ -108,6 +108,67 @@ function filterPlaytimeHours(it: CollectionItem): number | null {
  */
 export type LibraryClientMode = 'full' | 'controls-only' | 'grid-only';
 
+/**
+ * P-153: extracted search input so only the input re-renders on each
+ * keystroke. The parent `LibraryClient` is a 2000-line tree with the
+ * card grid + filter chips + sort/group selects — re-rendering all of
+ * that per keystroke was the dominant frame-budget cost while typing.
+ *
+ * The component owns its own `value` state locally; on debounced
+ * change it calls `onCommit` to push the trimmed value into URL state.
+ * Parent supplies the current URL value via `urlValue` so an external
+ * clear (e.g. Reset filters) propagates back into this input.
+ */
+const SearchInput = memo(function SearchInput({
+  urlValue,
+  placeholder,
+  clearLabel,
+  onCommit,
+  debounceMs,
+}: {
+  urlValue: string;
+  placeholder: string;
+  clearLabel: string;
+  onCommit: (next: string) => void;
+  debounceMs: number;
+}) {
+  const [draft, setDraft] = useState(urlValue);
+  // Sync from URL when an external reset / nav happens. Local typing
+  // drives the input but the URL is the source of truth on mount.
+  useEffect(() => {
+    setDraft(urlValue);
+  }, [urlValue]);
+  // Debounced commit — keep the timer outside React state to avoid
+  // re-rendering on every tick.
+  useEffect(() => {
+    if (draft === urlValue) return;
+    const handle = setTimeout(() => onCommit(draft.trim()), debounceMs);
+    return () => clearTimeout(handle);
+  }, [draft, urlValue, onCommit, debounceMs]);
+  return (
+    <div className="relative min-w-[180px] flex-1">
+      <input
+        data-vn-search
+        className="input w-full pr-8"
+        placeholder={placeholder}
+        aria-label={placeholder}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+      {draft && (
+        <button
+          type="button"
+          aria-label={clearLabel}
+          onClick={() => setDraft('')}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-white"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      )}
+    </div>
+  );
+});
+
 export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = {}) {
   const showControls = mode !== 'grid-only';
   const showGrid = mode !== 'controls-only';
@@ -188,11 +249,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       ? (urlGroupSort as GroupSortKey)
       : 'count';
 
-  // Local input state for the search box, debounced to URL.
-  const [qInput, setQInput] = useState(urlQ);
-  useEffect(() => {
-    setQInput(urlQ);
-  }, [urlQ]);
+  // P-153: search-input draft state moved into the extracted
+  // `<SearchInput>` sub-component so a keystroke only re-renders the
+  // input itself, not the entire 2000-line library tree.
 
   const replaceParams = useCallback(
     (mutator: (sp: URLSearchParams) => void) => {
@@ -214,12 +273,13 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     [replaceParams],
   );
 
-  // Debounce the search input to URL
-  useEffect(() => {
-    if (qInput === urlQ) return;
-    const handle = setTimeout(() => setParam('q', qInput.trim() || null), Q_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [qInput, urlQ, setParam]);
+  // P-153: search debounce is now owned by `<SearchInput>` so the
+  // parent component doesn't re-render on every keystroke.
+  // Stable commit callback for the extracted input.
+  const commitSearch = useCallback(
+    (next: string) => setParam('q', next || null),
+    [setParam],
+  );
 
   const { settings, set } = useDisplaySettings();
   const [items, setItems] = useState<CollectionItem[]>([]);
@@ -238,6 +298,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const [error, setError] = useState<string | null>(null);
   const [tagName, setTagName] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // P-213: stable callback so `<BulkDownloadButton>`'s React.memo
+  // doesn't see a fresh function identity on every parent render.
+  const onBulkItemDone = useCallback(() => setRefreshKey((k) => k + 1), []);
   const [resettingOrder, setResettingOrder] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -263,43 +326,71 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   }
 
   useEffect(() => {
-    fetch('/api/producers')
+    // P-001 / P-070 / P-132: every sibling fetch shares one
+    // AbortController so rapid unmount-during-load (tab switch on the
+    // home page) cancels the network rather than leaking setX onto an
+    // unmounted component. `cache: 'no-store'` skips the browser
+    // HTTP-cache — the /api routes are `force-dynamic` server-side, but
+    // a stale browser cache can resurrect a deleted place / producer /
+    // series filter for hours after a mutation.
+    const ctrl = new AbortController();
+    const opts: RequestInit = { signal: ctrl.signal, cache: 'no-store' };
+    fetch('/api/producers', opts)
       .then(async (r) => {
         if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
         return r.json();
       })
       .then((d) => {
+        if (ctrl.signal.aborted) return;
         setProducers(d.producers ?? []);
         setPublishers(d.publishers ?? []);
       })
       .catch((e: Error) => {
+        if (ctrl.signal.aborted || e.name === 'AbortError') return;
         // Surface a toast so a silent dropdown failure doesn't
         // masquerade as an empty filter set.
         toast.error(`${t.common.error}: ${e.message}`);
       });
-    fetch('/api/series')
+    fetch('/api/series', opts)
       .then(async (r) => {
         if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
         return r.json();
       })
-      .then((d) => setSeries(d.series ?? []))
-      .catch((e: Error) => toast.error(`${t.common.error}: ${e.message}`));
-    fetch('/api/places')
+      .then((d) => {
+        if (ctrl.signal.aborted) return;
+        setSeries(d.series ?? []);
+      })
+      .catch((e: Error) => {
+        if (ctrl.signal.aborted || e.name === 'AbortError') return;
+        toast.error(`${t.common.error}: ${e.message}`);
+      });
+    fetch('/api/places', opts)
       .then(async (r) => {
         if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
         return r.json();
       })
-      .then((d: { places: string[] }) => setKnownPlaces(d.places ?? []))
-      .catch((e: Error) => toast.error(`${t.common.error}: ${e.message}`));
-    fetch('/api/collection/tags')
+      .then((d: { places: string[] }) => {
+        if (ctrl.signal.aborted) return;
+        setKnownPlaces(d.places ?? []);
+      })
+      .catch((e: Error) => {
+        if (ctrl.signal.aborted || e.name === 'AbortError') return;
+        toast.error(`${t.common.error}: ${e.message}`);
+      });
+    fetch('/api/collection/tags', opts)
       .then(async (r) => {
         if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
         return r.json();
       })
-      .then((d: { tags: { id: string; name: string; vn_count: number }[] }) =>
-        setCollectionTags((d.tags ?? []).slice(0, 200)),
-      )
-      .catch((e: Error) => toast.error(`${t.common.error}: ${e.message}`));
+      .then((d: { tags: { id: string; name: string; vn_count: number }[] }) => {
+        if (ctrl.signal.aborted) return;
+        setCollectionTags((d.tags ?? []).slice(0, 200));
+      })
+      .catch((e: Error) => {
+        if (ctrl.signal.aborted || e.name === 'AbortError') return;
+        toast.error(`${t.common.error}: ${e.message}`);
+      });
+    return () => ctrl.abort();
   }, [toast, t.common.error, t.common.httpStatus]);
 
   // Resolve tag name when filtered by tag
@@ -309,13 +400,24 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       return;
     }
     setTagName(urlTag);
-    fetch(`/api/tags?q=${encodeURIComponent(urlTag)}&results=1`)
+    // P-002: AbortController gates rapid tag changes — stale responses
+    // can no longer overwrite the latest set.
+    const ctrl = new AbortController();
+    fetch(`/api/tags?q=${encodeURIComponent(urlTag)}&results=1`, {
+      signal: ctrl.signal,
+      cache: 'no-store',
+    })
       .then((r) => r.json())
       .then((d: { tags?: { id: string; name: string }[] }) => {
+        if (ctrl.signal.aborted) return;
         const found = d.tags?.find((tag) => tag.id === urlTag);
         if (found) setTagName(found.name);
       })
-      .catch((e: unknown) => toast.error(`${t.common.error}: ${(e as Error).message ?? String(e)}`));
+      .catch((e: unknown) => {
+        if (ctrl.signal.aborted || (e as Error).name === 'AbortError') return;
+        toast.error(`${t.common.error}: ${(e as Error).message ?? String(e)}`);
+      });
+    return () => ctrl.abort();
   }, [urlTag, toast, t.common.error]);
 
   useEffect(() => {
@@ -341,7 +443,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     if (urlQ) params.set('q', urlQ);
     params.set('sort', sort);
     params.set('order', order);
-    fetch(`/api/collection?${params}`, { signal: ctrl.signal })
+    // P-071: cache: 'no-store' bypasses the browser HTTP-cache so a
+    // mutation (status change, edition add) reliably shows in the
+    // library on the next URL update.
+    fetch(`/api/collection?${params}`, { signal: ctrl.signal, cache: 'no-store' })
       .then(async (r) => {
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         return r.json();
@@ -366,8 +471,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlEdition, urlYearMin, urlYearMax, urlDumped, urlAspectSet.join(','), urlQ, sort, order, refreshKey, t.common.error]);
 
   function clearAll() {
+    // SearchInput re-syncs draft from urlQ on URL change, so clearing
+    // the URL is enough.
     router.replace('/', { scroll: false });
-    setQInput('');
   }
 
   const counts = useMemo(
@@ -557,6 +663,13 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   );
   const hiddenBySexualCount = items.length - visibleItems.length;
   const groups = useMemo(() => groupItems(visibleItems, group, t, sort, order, groupSort), [visibleItems, group, t, sort, order, groupSort]);
+  // P-083: memoize the candidates projection so RandomPickButton's
+  // props ref is stable when nothing changed. Previously a fresh array
+  // of fresh objects was created on every parent render.
+  const randomPickCandidates = useMemo(
+    () => visibleItems.map((it) => ({ id: it.id, title: it.title })),
+    [visibleItems],
+  );
 
   return (
     <DensityScopeProvider scope="library">
@@ -598,26 +711,13 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         doesn't waste vertical space when no filters are active.
       */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[180px] flex-1">
-          <input
-            data-vn-search
-            className="input w-full pr-8"
-            placeholder={t.library.filterPlaceholder}
-            aria-label={t.library.filterPlaceholder}
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
-          />
-          {qInput && (
-            <button
-              type="button"
-              aria-label={t.library.clearSearch}
-              onClick={() => setQInput('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-white"
-            >
-              <X className="h-3.5 w-3.5" aria-hidden />
-            </button>
-          )}
-        </div>
+        <SearchInput
+          urlValue={urlQ}
+          placeholder={t.library.filterPlaceholder}
+          clearLabel={t.library.clearSearch}
+          onCommit={commitSearch}
+          debounceMs={Q_DEBOUNCE_MS}
+        />
         <AdvancedFiltersDrawer
           activeCount={advancedFilterCount}
           t={t}
@@ -1080,6 +1180,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           </label>
         )}
         <button
+          type="button"
           className="btn"
           onClick={() => setParam('order', order === 'asc' ? 'desc' : 'asc')}
           aria-label={order === 'asc' ? t.library.sortAsc : t.library.sortDesc}
@@ -1180,9 +1281,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             </button>
           )}
           {visibleItems.length > 0 && (
-            <RandomPickButton candidates={visibleItems.map((it) => ({ id: it.id, title: it.title }))} />
+            <RandomPickButton candidates={randomPickCandidates} />
           )}
-          {stats.total > 0 && <BulkDownloadButton onItemDone={() => setRefreshKey((k) => k + 1)} />}
+          {stats.total > 0 && <BulkDownloadButton onItemDone={onBulkItemDone} />}
         </div>
       </div>
         </>
@@ -1470,9 +1571,16 @@ function Grid({
   const cls = dense ? 'grid gap-4' : 'grid gap-3';
   const densityMul = dense ? 0.72 : 1;
   const gapPx = dense ? 16 : 12;
-  const gridStyle: React.CSSProperties = {
-    gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${densityMul})), 1fr))`,
-  };
+  // P-081: memoize the inline style so a fresh ref isn't created on
+  // every parent render; otherwise the outer `<div>`'s style prop
+  // identity changes on every keystroke in the search box and React's
+  // reconciliation re-applies an identical style.
+  const gridStyle: React.CSSProperties = useMemo(
+    () => ({
+      gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${densityMul})), 1fr))`,
+    }),
+    [densityMul],
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const measureFrameRef = useRef<number | null>(null);
   const [measurements, setMeasurements] = useState<GridMeasurements>(DEFAULT_GRID_MEASUREMENTS);

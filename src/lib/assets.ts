@@ -171,10 +171,16 @@ async function downloadCharacterImages(characters: VndbCharacter[]): Promise<voi
   if (characters.length === 0) return;
   const ids = characters.map((c) => c.id);
   const existing = getCharacterImages(ids);
-  for (const c of characters) {
-    if (!c.image?.url) continue;
+  // P-053: bounded worker pool. Previously sequential — a VN with 60
+  // characters meant 60 round-trips waiting on each other, since each
+  // downloadToBucket awaits a single network request. 4 concurrent
+  // workers mirror the screenshot loop above.
+  const CONCURRENCY = 4;
+  let cursor = 0;
+  async function workOne(c: VndbCharacter): Promise<void> {
+    if (!c.image?.url) return;
     const prev = existing.get(c.id);
-    if (prev?.local_path && prev.url === c.image.url && (await fileExists(prev.local_path))) continue;
+    if (prev?.local_path && prev.url === c.image.url && (await fileExists(prev.local_path))) return;
     try {
       const local = await downloadToBucket(c.image.url, 'character', c.id);
       upsertCharacterImage(c.id, c.image.url, local);
@@ -182,6 +188,19 @@ async function downloadCharacterImages(characters: VndbCharacter[]): Promise<voi
       // ignore — image may be unavailable
     }
   }
+  const workers: Promise<void>[] = [];
+  for (let w = 0; w < Math.min(CONCURRENCY, characters.length); w++) {
+    workers.push(
+      (async () => {
+        while (true) {
+          const idx = cursor++;
+          if (idx >= characters.length) return;
+          await workOne(characters[idx]);
+        }
+      })(),
+    );
+  }
+  await Promise.all(workers);
 }
 
 async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage[]> {

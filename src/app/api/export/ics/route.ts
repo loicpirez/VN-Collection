@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listCollection } from '@/lib/db';
+import { listCollectionForCards } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
@@ -82,7 +82,9 @@ export async function GET(req: Request): Promise<NextResponse> {
   // ICS reveals reading dates per VN — PII. Gate.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const items = listCollection({ sort: 'title' });
+  // P-050: card-only projection — ICS only reads id/title/status/user_rating
+  // and the started/finished dates from `collection.*`.
+  const items = listCollectionForCards({ sort: 'title' });
   const stamp = dtstamp();
   const lines: string[] = [
     'BEGIN:VCALENDAR',

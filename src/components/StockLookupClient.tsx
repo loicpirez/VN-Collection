@@ -22,7 +22,13 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
       .then((data: { vn?: { title?: string } } | null) => {
         if (data?.vn?.title) setResolvedTitle(data.vn.title);
       })
-      .catch(() => {});
+      .catch((e: unknown) => {
+        // P-119: previously silently swallowed every error. Log so
+        // failures surface in the dev console instead of leaving the
+        // header VN-name empty with no clue why.
+        if ((e as Error).name === 'AbortError') return;
+        console.error('[StockLookupClient] resolve title failed:', e);
+      });
     return () => ctrl.abort();
   }, [initialVnId]);
 

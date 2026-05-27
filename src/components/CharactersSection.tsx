@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { SafeImage } from './SafeImage';
@@ -52,7 +52,7 @@ export function CharactersSection({
     const ac = new AbortController();
     setLoading(true);
     setError(null);
-    fetch(`/api/vn/${vnId}/characters`, { signal: ac.signal })
+    fetch(`/api/vn/${vnId}/characters`, { signal: ac.signal, cache: 'no-store' })
       .then(async (r) => {
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         return r.json();
@@ -70,17 +70,24 @@ export function CharactersSection({
     return () => ac.abort();
   }, [open, vnId, chars, t.common.error]);
 
-  const sorted = chars
-    ? [...chars]
-        .map((c) => ({ ...c, _vn: c.vns.find((v) => v.id === vnId) }))
-        .sort((a, b) => (ROLE_ORDER[a._vn?.role ?? 'appears'] ?? 9) - (ROLE_ORDER[b._vn?.role ?? 'appears'] ?? 9))
-    : [];
+  // P-086: memoize the sort. For 50+ characters this used to run on
+  // every render (parent state ticks, spoiler toggle, lightbox open).
+  const sorted = useMemo(
+    () =>
+      chars
+        ? [...chars]
+            .map((c) => ({ ...c, _vn: c.vns.find((v) => v.id === vnId) }))
+            .sort((a, b) => (ROLE_ORDER[a._vn?.role ?? 'appears'] ?? 9) - (ROLE_ORDER[b._vn?.role ?? 'appears'] ?? 9))
+        : [],
+    [chars, vnId],
+  );
 
   return (
     <details
       className="group rounded-xl border border-border bg-bg-card"
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      aria-busy={loading || undefined}
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-6 py-4 hover:bg-bg-elev/50">
         <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
@@ -94,7 +101,7 @@ export function CharactersSection({
         {error && <p role="alert" className="text-sm text-status-dropped">{error}</p>}
         {!loading && chars && chars.length === 0 && <p className="text-sm text-muted">{t.characters.empty}</p>}
         {sorted.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div role="list" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sorted.map((c) => {
               const role = c._vn?.role ?? 'appears';
               const roleLabel = t.characters.roles[role as keyof typeof t.characters.roles] ?? role;
@@ -108,6 +115,7 @@ export function CharactersSection({
                 // character link.
                 <div
                   key={c.id}
+                  role="listitem"
                   className="flex gap-3 rounded-lg border border-border bg-bg-elev/50 p-3 transition-colors hover:border-accent"
                 >
                   <Link

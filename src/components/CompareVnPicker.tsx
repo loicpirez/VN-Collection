@@ -52,6 +52,12 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
   const [showAdd, setShowAdd] = useState(initialVns.length < 4);
   const lastQueryRef = useRef('');
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // P-101: focus-timer cleanup. Without this, rapid open/close cycles
+  // stack focus calls and the timer can fire on an unmounted ref.
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+  }, []);
 
   const selectedIds = new Set(selected.map((s) => s.id));
 
@@ -215,7 +221,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
                   {vn.title}
                 </p>
                 {vn.alttitle && vn.alttitle !== vn.title && (
-                  <p title={vn.alttitle} className="line-clamp-1 max-w-[140px] text-[10px] text-muted">{vn.alttitle}</p>
+                  <p title={vn.alttitle} className="line-clamp-1 max-w-[140px] text-[11px] text-muted">{vn.alttitle}</p>
                 )}
                 <p className="mt-0.5 font-mono text-[10px] text-muted/60">{vn.id}</p>
               </div>
@@ -235,9 +241,10 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
               type="button"
               onClick={() => {
                 setShowAdd(true);
-                setTimeout(() => inputRef.current?.focus(), 0);
+                if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+                focusTimerRef.current = setTimeout(() => inputRef.current?.focus(), 0);
               }}
-              className="flex h-[88px] min-w-[120px] items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-4 text-xs text-muted transition-colors hover:border-accent hover:text-accent"
+              className="flex h-[88px] min-w-[120px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-4 text-xs text-muted transition-colors hover:border-accent hover:text-accent"
             >
               <Plus className="h-4 w-4" aria-hidden />
               {t.compareView.addVn}

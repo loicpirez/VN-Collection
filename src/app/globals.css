@@ -13,7 +13,7 @@
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-colors border border-border bg-bg-elev text-white hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-lg font-semibold text-sm transition-colors border border-border bg-bg-elev text-white hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
     @apply bg-accent border-accent text-bg hover:bg-accent/90;
@@ -150,6 +150,31 @@
 /* Hide scrollbar in chip rows */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/*
+ * Reduced-motion support (WCAG 2.3.3 — Animation from Interactions).
+ *
+ * When the operating system reports `prefers-reduced-motion: reduce`,
+ * collapse every animation / transition / scroll-behavior to an
+ * effectively-instant duration. This covers the 166+ usages of
+ * `animate-pulse`, `animate-spin`, `animate-bounce`, `transition-*`,
+ * and the SortableGrid drag overlay across the codebase without
+ * needing per-component overrides.
+ *
+ * `0.01ms` (rather than `0`) keeps `onAnimationEnd` / `onTransitionEnd`
+ * listeners firing so any component that relies on a completion event
+ * to advance state still works.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /*
  * Right-edge fade hint for horizontally-scrollable rows. Indicates

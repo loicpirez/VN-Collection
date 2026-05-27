@@ -123,7 +123,15 @@ export function SearchClient() {
   const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialAdv = useMemo(() => readAdvFromUrl(new URLSearchParams(searchParams.toString())), [searchParams]);
+  // P-026: useRef-on-first-render — the `useMemo` here was useless
+  // since `searchParams` identity changes on every URL change, so the
+  // memo never hit. We only need the value once for the initial
+  // useState seed below.
+  const initialAdvRef = useRef<AdvParams | null>(null);
+  if (initialAdvRef.current === null) {
+    initialAdvRef.current = readAdvFromUrl(new URLSearchParams(searchParams.toString()));
+  }
+  const initialAdv = initialAdvRef.current;
   const initialQ = searchParams.get('q') ?? '';
   // URL parameter takes either `?source=` (new, canonical) or `?src=`
   // (legacy short form). Accepts vndb / egs / local; anything else
@@ -356,7 +364,7 @@ export function SearchClient() {
           aria-controls={panelId}
           onClick={() => setSource('vndb')}
           tabIndex={source === 'vndb' ? 0 : -1}
-          className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
+          className={`inline-flex min-h-[44px] items-center gap-1 rounded px-2 py-1 transition-colors ${
             source === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
           }`}
         >
@@ -371,7 +379,7 @@ export function SearchClient() {
           aria-controls={panelId}
           onClick={() => setSource('egs')}
           tabIndex={source === 'egs' ? 0 : -1}
-          className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
+          className={`inline-flex min-h-[44px] items-center gap-1 rounded px-2 py-1 transition-colors ${
             source === 'egs' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
           }`}
           title={t.search.egsSourceHint}
@@ -387,7 +395,7 @@ export function SearchClient() {
           aria-controls={panelId}
           onClick={() => setSource('local')}
           tabIndex={source === 'local' ? 0 : -1}
-          className={`inline-flex items-center gap-1 rounded px-2 py-1 transition-colors ${
+          className={`inline-flex min-h-[44px] items-center gap-1 rounded px-2 py-1 transition-colors ${
             source === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
           }`}
           title={t.search.localSourceHint}
@@ -710,9 +718,14 @@ function SearchResultsGrid({ results }: { results: VndbSearchHit[] }) {
   const { settings } = useDisplaySettings();
   const search = useSearchParams();
   const density = resolveScopedDensity(settings, 'search', search?.get('density') ?? null);
-  const gridStyle: React.CSSProperties = {
-    gridTemplateColumns: cardGridColumns(density),
-  };
+  // P-080: memoize the inline style so the outer wrapper's style ref
+  // stays stable across renders. Without this every keystroke in the
+  // search input re-creates the style object, defeating React's
+  // reconciliation short-circuit on identical CSS.
+  const gridStyle: React.CSSProperties = useMemo(
+    () => ({ gridTemplateColumns: cardGridColumns(density) }),
+    [density],
+  );
   return (
     <div className="grid gap-3" style={gridStyle}>
       {results.map((r) => (

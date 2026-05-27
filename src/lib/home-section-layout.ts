@@ -155,18 +155,33 @@ export function validateHomeSectionLayoutV1(input: unknown): HomeSectionLayoutV1
   return out;
 }
 
+// P-191: cache the most-recent parse so repeat calls with the same
+// raw string (multiple consumers in a single request) skip the
+// JSON.parse + validate cost. Single-slot cache is enough because
+// the raw value rarely changes during a request.
+let lastParseRaw: string | null = null;
+let lastParseResult: HomeSectionLayoutV1 | null = null;
+
 /**
  * Parse the raw `app_setting.home_section_layout_v1` string into a
  * validated layout. Server-side helper; the route handler and `page.tsx`
  * both call this so failures fall back to defaults uniformly.
  */
 export function parseHomeSectionLayoutV1(raw: string | null): HomeSectionLayoutV1 {
-  if (!raw) return validateHomeSectionLayoutV1(null);
-  try {
-    return validateHomeSectionLayoutV1(JSON.parse(raw));
-  } catch {
-    return validateHomeSectionLayoutV1(null);
+  if (raw === lastParseRaw && lastParseResult !== null) return lastParseResult;
+  let parsed: HomeSectionLayoutV1;
+  if (!raw) {
+    parsed = validateHomeSectionLayoutV1(null);
+  } else {
+    try {
+      parsed = validateHomeSectionLayoutV1(JSON.parse(raw));
+    } catch {
+      parsed = validateHomeSectionLayoutV1(null);
+    }
   }
+  lastParseRaw = raw;
+  lastParseResult = parsed;
+  return parsed;
 }
 
 /** Custom event name dispatched after `PATCH /api/settings` returns OK. */

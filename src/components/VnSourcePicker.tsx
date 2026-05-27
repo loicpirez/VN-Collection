@@ -87,12 +87,18 @@ export function VnSourcePicker({
       setError(null);
       setLoading({ library: enabled('library'), vndb: enabled('vndb'), egs: enabled('egs') });
       const promises: Promise<void>[] = [];
+      // P-120: log per-source failures instead of swallowing — if all
+      // three sources fail the user sees an empty picker; logging lets
+      // dev tools surface the actual reason.
       if (enabled('library')) {
         promises.push(
           fetch(`/api/collection/find?q=${encodeURIComponent(q)}`, { cache: 'no-store', signal: ctrl.signal })
             .then((r) => r.ok ? r.json() : { matches: [] })
             .then((d: { matches?: LibHit[] }) => { if (!ctrl.signal.aborted) setLibrary((d.matches ?? []).slice(0, perSourceLimit)); })
-            .catch(() => {})
+            .catch((e: unknown) => {
+              if ((e as Error).name === 'AbortError') return;
+              console.error('[VnSourcePicker] library search failed:', e);
+            })
             .finally(() => { if (!ctrl.signal.aborted) setLoading((p) => ({ ...p, library: false })); }),
         );
       }
@@ -101,7 +107,10 @@ export function VnSourcePicker({
           fetch(`/api/search?q=${encodeURIComponent(q)}`, { cache: 'no-store', signal: ctrl.signal })
             .then((r) => r.ok ? r.json() : { results: [] })
             .then((d: { results?: VndbHit[] }) => { if (!ctrl.signal.aborted) setVndb((d.results ?? []).slice(0, perSourceLimit)); })
-            .catch(() => {})
+            .catch((e: unknown) => {
+              if ((e as Error).name === 'AbortError') return;
+              console.error('[VnSourcePicker] VNDB search failed:', e);
+            })
             .finally(() => { if (!ctrl.signal.aborted) setLoading((p) => ({ ...p, vndb: false })); }),
         );
       }
@@ -110,7 +119,10 @@ export function VnSourcePicker({
           fetch(`/api/egs/search?q=${encodeURIComponent(q)}&limit=${perSourceLimit}`, { cache: 'no-store', signal: ctrl.signal })
             .then((r) => r.ok ? r.json() : { candidates: [] })
             .then((d: { candidates?: EgsHit[] }) => { if (!ctrl.signal.aborted) setEgs((d.candidates ?? []).slice(0, perSourceLimit)); })
-            .catch(() => {})
+            .catch((e: unknown) => {
+              if ((e as Error).name === 'AbortError') return;
+              console.error('[VnSourcePicker] EGS search failed:', e);
+            })
             .finally(() => { if (!ctrl.signal.aborted) setLoading((p) => ({ ...p, egs: false })); }),
         );
       }

@@ -251,6 +251,7 @@ export function SafeImage({
       {shouldBlur && (
         <button
           type="button"
+          aria-label={t.settings.r18Blurred}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();

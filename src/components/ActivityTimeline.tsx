@@ -18,6 +18,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
+import { BCP47 } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
 type Kind = 'status' | 'rating' | 'playtime' | 'favorite' | 'started' | 'finished' | 'note' | 'manual';
@@ -41,10 +42,8 @@ const ICONS: Record<Kind, typeof History> = {
   manual: FileText,
 };
 
-const LOCALE_BCP47: Record<string, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
-
 function fmtDate(ts: number, locale: string): string {
-  return new Date(ts).toLocaleString(LOCALE_BCP47[locale] ?? 'en-US', {
+  return new Date(ts).toLocaleString(BCP47[locale as Locale] ?? 'en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
@@ -95,11 +94,9 @@ function summary(entry: Entry, t: ReturnType<typeof useT>, locale: Locale): Reac
   }
 }
 
-const LOCALE_FMT: Record<Locale, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
-
 function formatRating(v: unknown, locale: Locale): string {
   if (typeof v !== 'number') return '—';
-  return (v / 10).toLocaleString(LOCALE_FMT[locale] ?? 'en-US', {
+  return (v / 10).toLocaleString(BCP47[locale] ?? 'en-US', {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
@@ -183,7 +180,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
           onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
           placeholder={t.activity.placeholder}
           aria-label={t.activity.placeholder}
-          className="input min-w-[220px] flex-1"
+          className="input min-w-[160px] sm:min-w-[220px] flex-1"
         />
         <button
           type="button"

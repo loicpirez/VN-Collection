@@ -1,6 +1,11 @@
 import type { Locale } from './i18n/dictionaries';
 
-const BCP47: Record<Locale, string> = {
+/**
+ * Canonical BCP-47 mapping for the locales supported by the i18n layer.
+ * Exported so call sites stop duplicating the constant — see U-034 in
+ * docs/audit-uiux-full.md.
+ */
+export const BCP47: Record<Locale, string> = {
   fr: 'fr-FR',
   en: 'en-US',
   ja: 'ja-JP',

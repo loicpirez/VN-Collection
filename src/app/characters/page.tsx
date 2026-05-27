@@ -189,7 +189,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
             defaultValue={query}
             placeholder={t.charactersSearch.searchPlaceholder}
             aria-label={t.charactersSearch.searchPlaceholder}
-            className="input flex-1 min-w-[200px]"
+            className="input flex-1 min-w-[160px] sm:min-w-[200px]"
           />
           {tab !== 'local' && <input type="hidden" name="tab" value={tab} />}
           {forwardChip('role', params.role)}
@@ -489,7 +489,10 @@ export default async function CharactersPage({ searchParams }: PageProps) {
               )}
               <ul
                 className="grid gap-3"
-                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(var(--card-density-px, 180px), 100%), 1fr))' }}
+                style={{
+                  gridTemplateColumns:
+                    'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+                }}
               >
                 {bucket.items.map((c) => {
                   const primarySex = c.sex?.[0];

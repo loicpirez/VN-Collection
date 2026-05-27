@@ -1,8 +1,10 @@
-import { SkeletonBlock } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function StatsLoading() {
+export default async function StatsLoading() {
+  const t = await getDict();
   return (
-    <div className="w-full space-y-4">
+    <SkeletonBoundary label={t.app.loading} className="w-full space-y-4">
       <SkeletonBlock className="h-7 w-40" />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (
@@ -11,6 +13,6 @@ export default function StatsLoading() {
       </div>
       <SkeletonBlock className="h-72 w-full rounded-2xl" />
       <SkeletonBlock className="h-72 w-full rounded-2xl" />
-    </div>
+    </SkeletonBoundary>
   );
 }

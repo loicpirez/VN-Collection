@@ -1,12 +1,14 @@
-import { SkeletonBlock } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function DataLoading() {
+export default async function DataLoading() {
+  const t = await getDict();
   return (
-    <div className="w-full space-y-6">
+    <SkeletonBoundary label={t.app.loading} className="w-full space-y-6">
       <SkeletonBlock className="h-9 w-48" />
       {Array.from({ length: 6 }).map((_, i) => (
         <SkeletonBlock key={i} className="h-32 w-full rounded-2xl" />
       ))}
-    </div>
+    </SkeletonBoundary>
   );
 }

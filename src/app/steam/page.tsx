@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowLeftRight, ArrowRight, Check, Gamepad2, Link2, Loader2, Search, Settings2, X } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { useToast } from '@/components/ToastProvider';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { SkeletonRows } from '@/components/Skeleton';
+import { formatMinutes } from '@/lib/format';
 
 import { readApiError } from '@/lib/api-error-read';
 interface Suggestion {
@@ -41,17 +42,14 @@ interface CollectionMatch {
   alttitle: string | null;
 }
 
-function fmt(m: number): string {
-  if (m <= 0) return '0';
-  const h = Math.floor(m / 60);
-  const mn = m % 60;
-  if (h && mn) return `${h}h ${mn}m`;
-  if (h) return `${h}h`;
-  return `${mn}m`;
-}
-
 export default function SteamSyncPage() {
   const t = useT();
+  const locale = useLocale();
+  const fmt = useCallback(
+    (m: number): string =>
+      formatMinutes(m, locale, t.year, { fallback: '0', emptyValue: 'allow_zero' }),
+    [locale, t.year],
+  );
   const toast = useToast();
   const { confirm } = useConfirm();
   const router = useRouter();
@@ -318,7 +316,7 @@ export default function SteamSyncPage() {
                   </span>
                 </span>
                 <span
-                  className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wider ${
+                  className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${
                     l.source === 'manual' ? 'bg-accent/15 text-accent' : 'bg-bg-elev text-muted'
                   }`}
                 >
@@ -328,7 +326,8 @@ export default function SteamSyncPage() {
                   type="button"
                   onClick={() => unlink(l.vn_id)}
                   className="rounded text-muted hover:text-status-dropped"
-                  title={t.steam.unlinkConfirm}
+                  aria-label={t.steam.unlink}
+                  title={t.steam.unlink}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -386,7 +385,7 @@ export default function SteamSyncPage() {
                         >
                           <span className="font-bold">{m.title}</span>
                           {m.alttitle && <span className="ml-1 text-[10px] text-muted">{m.alttitle}</span>}
-                          <span className="ml-1 font-mono text-[9px] text-muted">{m.id}</span>
+                          <span className="ml-1 font-mono text-[10px] text-muted">{m.id}</span>
                         </button>
                       </li>
                     ))}

@@ -94,8 +94,8 @@ export default async function TraitPage({
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <h1 className="flex items-baseline gap-2 text-2xl font-bold">
               <Sparkles className="h-6 w-6 text-accent" aria-hidden />
               {trait.group_name && <span className="text-muted">{trait.group_name} /</span>}

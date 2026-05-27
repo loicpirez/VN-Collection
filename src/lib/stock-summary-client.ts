@@ -16,13 +16,33 @@ export interface StockSummaryEntry {
 type Listener = (entry: StockSummaryEntry | null) => void;
 
 const COALESCE_MS = 60;
+// P-195: cap the module-level cache so a user who scrolls past 5000+
+// unique VNs doesn't accumulate unbounded entries. Insertion-order Map
+// gives us free LRU semantics: re-insert on touch promotes a key to
+// the most-recently-used slot, and eviction always targets the front.
+const CACHE_MAX = 500;
 const cache = new Map<string, StockSummaryEntry | null>();
 const listeners = new Map<string, Set<Listener>>();
 let queue = new Set<string>();
 let queueTimer: ReturnType<typeof setTimeout> | null = null;
 
-function notify(vnId: string, entry: StockSummaryEntry | null) {
+function cachePut(vnId: string, entry: StockSummaryEntry | null) {
+  if (cache.has(vnId)) cache.delete(vnId);
   cache.set(vnId, entry);
+  while (cache.size > CACHE_MAX) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+}
+
+function cacheTouch(vnId: string, entry: StockSummaryEntry | null) {
+  cache.delete(vnId);
+  cache.set(vnId, entry);
+}
+
+function notify(vnId: string, entry: StockSummaryEntry | null) {
+  cachePut(vnId, entry);
   const set = listeners.get(vnId);
   if (!set) return;
   for (const cb of set) {
@@ -58,6 +78,9 @@ export function subscribeStockSummary(vnId: string, listener: Listener): () => v
   listeners.set(vnId, set);
   const cached = cache.get(vnId);
   if (cached !== undefined) {
+    // Promote to MRU so an active subscriber's entry doesn't get
+    // evicted by unrelated cache churn.
+    cacheTouch(vnId, cached);
     listener(cached);
   } else {
     queue.add(vnId);

@@ -168,16 +168,17 @@ export function MapEgsToVndbButton({
       {trigger}
       {open && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-bg/80 backdrop-blur"
+          className="fixed inset-0 z-[60] flex items-center justify-center"
           onClick={() => setOpen(false)}
         >
+          <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
           <div
             ref={panelRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
             onClick={(e) => e.stopPropagation()}
-            className="w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
+            className="relative w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
           >
             <header className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">

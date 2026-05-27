@@ -176,16 +176,17 @@ export function MapVnToEgsButton({
       {trigger}
       {open && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-bg/80 backdrop-blur"
+          className="fixed inset-0 z-[60] flex items-center justify-center"
           onClick={() => setOpen(false)}
         >
+          <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
           <div
             ref={panelRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
             onClick={(e) => e.stopPropagation()}
-            className="w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
+            className="relative w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
           >
             <header className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
@@ -263,7 +264,7 @@ export function MapVnToEgsButton({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t.mapVn.searchPlaceholder}
                 aria-label={t.mapVn.searchPlaceholder}
-                className="input w-full pl-7 text-xs"
+                className="input w-full pl-7 text-sm"
               />
               {searching && (
                 <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" />

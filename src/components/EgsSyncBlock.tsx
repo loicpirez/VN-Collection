@@ -182,56 +182,57 @@ export function EgsSyncBlock() {
           {suggestions.map((s) => {
             const picked = picks.has(s.vn_id);
             return (
-              <li
-                key={s.vn_id}
-                role="button"
-                tabIndex={0}
-                aria-pressed={picked}
-                onClick={() => togglePick(s.vn_id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    togglePick(s.vn_id);
-                  }
-                }}
-                className={`flex cursor-pointer items-center gap-3 rounded-lg border bg-bg-elev/30 p-2 text-xs transition-colors ${
-                  picked ? 'border-accent ring-1 ring-accent/30' : 'border-border hover:border-accent/50'
-                }`}
-              >
-                <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-md border ${
-                    picked ? 'border-accent bg-accent text-bg' : 'border-border'
+              <li key={s.vn_id}>
+                {/*
+                  U-032/U-159/U-161: row used to be a <li role="button"> with
+                  a nested <Link>, which made the link interactive content
+                  inside another interactive ancestor. Match the steam page
+                  pattern: the pick toggle is a real <button>, the title /
+                  detail link sits outside the button.
+                */}
+                <div
+                  className={`flex items-center gap-3 rounded-lg border bg-bg-elev/30 p-2 text-xs transition-colors ${
+                    picked ? 'border-accent ring-1 ring-accent/30' : 'border-border hover:border-accent/50'
                   }`}
                 >
-                  {picked && <Check className="h-3 w-3" />}
-                </span>
-                <Sparkles className="h-3 w-3 shrink-0 text-accent" aria-hidden />
-                <Link
-                  href={`/vn/${s.vn_id}`}
-                  onClick={(e) => e.stopPropagation()}
-                  title={s.vn_title}
-                  className="min-w-0 flex-1 truncate font-bold hover:text-accent"
-                >
-                  {s.vn_title}
-                </Link>
-                <span className="text-[10px] text-muted">
-                  {s.egs_minutes != null && s.egs_minutes > s.local_minutes && (
-                    <span className="mr-2 inline-flex items-center gap-1">
-                      <Clock className="h-3 w-3" aria-hidden /> {fmtMin(s.local_minutes)}
-                      <ArrowRight className="h-3 w-3" aria-hidden /> {fmtMin(s.egs_minutes)}
-                    </span>
-                  )}
-                  {s.egs_score != null && s.egs_score > 0 && s.local_rating == null && (
-                    <span className="mr-2 inline-flex items-center gap-1">
-                      <Star className="h-3 w-3 fill-accent" aria-hidden /> {s.egs_score}
-                    </span>
-                  )}
-                  {s.egs_finish_date && (
-                    <span className="mr-2 inline-flex items-center gap-1">
-                      <Check className="h-3 w-3" aria-hidden /> {formatIsoDateString(s.egs_finish_date, locale)}
-                    </span>
-                  )}
-                </span>
+                  <button
+                    type="button"
+                    onClick={() => togglePick(s.vn_id)}
+                    aria-pressed={picked}
+                    aria-label={s.vn_title}
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+                      picked ? 'border-accent bg-accent text-bg' : 'border-border hover:border-accent'
+                    }`}
+                  >
+                    {picked && <Check className="h-3 w-3" aria-hidden />}
+                  </button>
+                  <Sparkles className="h-3 w-3 shrink-0 text-accent" aria-hidden />
+                  <Link
+                    href={`/vn/${s.vn_id}`}
+                    title={s.vn_title}
+                    className="min-w-0 flex-1 truncate font-bold hover:text-accent"
+                  >
+                    {s.vn_title}
+                  </Link>
+                  <span className="text-[10px] text-muted">
+                    {s.egs_minutes != null && s.egs_minutes > s.local_minutes && (
+                      <span className="mr-2 inline-flex items-center gap-1">
+                        <Clock className="h-3 w-3" aria-hidden /> {fmtMin(s.local_minutes)}
+                        <ArrowRight className="h-3 w-3" aria-hidden /> {fmtMin(s.egs_minutes)}
+                      </span>
+                    )}
+                    {s.egs_score != null && s.egs_score > 0 && s.local_rating == null && (
+                      <span className="mr-2 inline-flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-accent" aria-hidden /> {s.egs_score}
+                      </span>
+                    )}
+                    {s.egs_finish_date && (
+                      <span className="mr-2 inline-flex items-center gap-1">
+                        <Check className="h-3 w-3" aria-hidden /> {formatIsoDateString(s.egs_finish_date, locale)}
+                      </span>
+                    )}
+                  </span>
+                </div>
               </li>
             );
           })}

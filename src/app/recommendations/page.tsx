@@ -782,7 +782,7 @@ function ResultsGrid({
                   collection and on the wishlist gets both pills.
                 */}
                 {(r.inCollection || r.inWishlist) && (
-                  <div className="mt-1 flex flex-wrap gap-1 text-[9px]">
+                  <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
                     {r.inCollection && (
                       <span className="inline-flex items-center gap-0.5 rounded bg-status-completed/20 px-1 py-0.5 font-bold uppercase tracking-wider text-status-completed">
                         <Check className="h-2.5 w-2.5" aria-hidden /> {t.recommend.badgeInCollection}
@@ -807,7 +807,7 @@ function ResultsGrid({
                 {year && <p className="mt-0.5 text-[10px] text-muted">{year}</p>}
                 {uniqueMatched.length > 0 && (
                   <div className="mt-1.5">
-                    <p className="text-[9px] uppercase tracking-wider text-muted/80">
+                    <p className="text-[10px] uppercase tracking-wider text-muted/80">
                       {t.recommend.whyCardLabel}
                     </p>
                     <div className="mt-0.5 flex flex-wrap gap-0.5">
@@ -818,13 +818,13 @@ function ResultsGrid({
                         <span
                           key={mt.id}
                           title={mt.id}
-                          className="rounded bg-bg-elev/60 px-1 py-0.5 text-[9px] text-muted"
+                          className="rounded bg-bg-elev/60 px-1 py-0.5 text-[10px] text-muted"
                         >
                           {mt.name}
                         </span>
                       ))}
                       {uniqueMatched.length > 4 && (
-                        <span className="text-[9px] text-muted opacity-60">
+                        <span className="text-[10px] text-muted opacity-60">
                           +{uniqueMatched.length - 4}
                         </span>
                       )}

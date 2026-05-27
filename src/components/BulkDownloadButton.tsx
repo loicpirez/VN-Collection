@@ -338,7 +338,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
                 <button
                   type="button"
                   onClick={dismiss}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
+                  className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
                   aria-label={t.common.close}
                 >
                   <X className="h-3.5 w-3.5" />

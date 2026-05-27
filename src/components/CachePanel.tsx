@@ -96,7 +96,7 @@ export function CachePanel() {
       <div id={panelId}>
       {open && <p className="mb-4 mt-3 text-xs text-muted">{t.cache.subtitle}</p>}
 
-      {open && error && <p className="mb-3 text-sm text-status-dropped">{error}</p>}
+      {open && error && <p role="alert" className="mb-3 text-sm text-status-dropped">{error}</p>}
 
       {open && !stats ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mt-4">
@@ -132,10 +132,11 @@ export function CachePanel() {
           )}
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <button className="btn" onClick={() => clearAll('expired')} disabled={clearing}>
+            <button type="button" className="btn" onClick={() => clearAll('expired')} disabled={clearing}>
               <RefreshCw className="h-4 w-4" /> {t.cache.pruneExpired}
             </button>
             <button
+              type="button"
               className="btn btn-danger"
               onClick={async () => {
                 const ok = await confirm({ message: t.cache.clearConfirm, tone: 'danger' });

@@ -91,7 +91,7 @@ export async function SchemaEgsSection() {
             <div className="font-mono text-[11px] text-muted">{dict.settingsEgsUsername}</div>
             <div className="mt-1 text-muted">
               {summary.egsUsernameSet ? (
-                <><Check className="inline h-3.5 w-3.5 text-green-400" aria-hidden /><span className="sr-only">{dict.set}</span></>
+                <><Check className="inline h-3.5 w-3.5 text-status-completed" aria-hidden /><span className="sr-only">{dict.set}</span></>
               ) : (
                 <span className="text-muted" aria-label={dict.notSet}>—</span>
               )}

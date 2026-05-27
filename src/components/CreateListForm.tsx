@@ -66,7 +66,7 @@ export function CreateListForm() {
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
         }}
-        className="input min-w-[180px] flex-1"
+        className="input min-w-[140px] sm:min-w-[180px] flex-1"
       />
       <input
         type="text"
@@ -75,7 +75,7 @@ export function CreateListForm() {
         placeholder={t.lists.createHint}
         aria-label={t.lists.createHint}
         maxLength={400}
-        className="input min-w-[180px] flex-[2]"
+        className="input min-w-[140px] sm:min-w-[180px] flex-[2]"
       />
       <div className="flex items-center gap-1 rounded-md border border-border bg-bg-elev/30 p-1">
         <button

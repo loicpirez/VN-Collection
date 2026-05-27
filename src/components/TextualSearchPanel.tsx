@@ -80,20 +80,36 @@ export function TextualSearchPanel({
     }
     let alive = true;
     setLoading(true);
+    // P-128: AbortController + log on real failures. Previously
+    // `.catch(() => undefined)` swallowed every error.
+    const ctrl = new AbortController();
     const timer = setTimeout(() => {
       Promise.all([
-        fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`).then((r) => r.json()),
-        fetch(`/api/search/textual?q=${encodeURIComponent(trimmed)}`).then((r) => r.json()),
+        fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, {
+          signal: ctrl.signal,
+          cache: 'no-store',
+        }).then((r) => r.json()),
+        fetch(`/api/search/textual?q=${encodeURIComponent(trimmed)}`, {
+          signal: ctrl.signal,
+          cache: 'no-store',
+        }).then((r) => r.json()),
       ])
         .then(([library, textual]: [{ matches?: LibraryHit[] }, { hits?: Hit[] }]) => {
-          if (!alive) return;
+          if (!alive || ctrl.signal.aborted) return;
           setLibraryHits(library.matches ?? []);
           setHits(textual.hits ?? []);
         })
-        .catch(() => undefined)
+        .catch((e: unknown) => {
+          if ((e as Error).name === 'AbortError' || ctrl.signal.aborted) return;
+          console.error('[TextualSearchPanel] search failed:', e);
+        })
         .finally(() => { if (alive) setLoading(false); });
     }, 280);
-    return () => { alive = false; clearTimeout(timer); };
+    return () => {
+      alive = false;
+      ctrl.abort();
+      clearTimeout(timer);
+    };
   }, [query]);
 
   if (mode === 'accordion') {

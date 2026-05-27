@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, PackagePlus } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -27,6 +27,13 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
+  // P-114: clean up the 250ms refresh timer on unmount so a navigate-
+  // away during the window doesn't fire router.refresh() on a stale
+  // tree.
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+  }, []);
 
   async function add(): Promise<void> {
     setBusy(true);
@@ -44,7 +51,8 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
       setAdded(true);
       window.dispatchEvent(new CustomEvent('vn:collection-changed', { detail: { vnId } }));
       startTransition(() => router.refresh());
-      window.setTimeout(() => router.refresh(), 250);
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => router.refresh(), 250);
     } catch (e) {
       setError((e as Error).message);
     } finally {

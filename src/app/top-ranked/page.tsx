@@ -72,7 +72,7 @@ export default async function TopRankedPage({
             </h1>
             <p className="mt-1 text-sm text-muted">{t.topRanked.subtitle}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <CardDensitySlider scope="topRanked" />
             <RefreshScopeButton scope="top-ranked" lastUpdatedAt={lastUpdatedAt} />
           </div>

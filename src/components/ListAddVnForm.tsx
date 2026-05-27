@@ -52,7 +52,7 @@ export function ListAddVnForm({ listId }: { listId: number }) {
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
         }}
-        className="input min-w-[180px] flex-1"
+        className="input min-w-[140px] sm:min-w-[180px] flex-1"
       />
       <button
         type="button"

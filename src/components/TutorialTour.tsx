@@ -121,7 +121,7 @@ export function TutorialTour() {
       // R5-161: respect iOS safe-area so the tour panel doesn't
       // sit underneath the home-indicator pill.
       style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
-      className="fixed bottom-4 right-4 z-50 w-[min(92vw,420px)] rounded-2xl border border-accent/40 bg-bg-card p-5 shadow-card"
+      className="fixed bottom-16 right-4 z-50 w-[min(92vw,420px)] rounded-2xl border border-accent/40 bg-bg-card p-5 shadow-card sm:bottom-4"
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span id={titleId} className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
@@ -130,7 +130,7 @@ export function TutorialTour() {
         <button
           type="button"
           onClick={() => close(true)}
-          className="tap-target-tight rounded text-muted hover:text-white"
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white"
           aria-label={t.common.close}
         >
           <X className="h-4 w-4" aria-hidden />

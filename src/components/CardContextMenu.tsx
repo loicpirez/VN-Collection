@@ -121,6 +121,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
     <div
       ref={ref}
       role="menu"
+      aria-label={t.quickActions.title}
       className="fixed z-50 w-[220px] rounded-lg border border-border bg-bg-card p-1 text-xs shadow-card"
       style={{ left, top }}
     >
@@ -130,7 +131,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
           type="button"
           onClick={onClose}
           aria-label={t.common.close}
-          className="tap-target-tight rounded text-muted hover:text-white"
+          className="tap-target rounded text-muted hover:text-white"
         >
           <X className="h-3 w-3" aria-hidden />
         </button>

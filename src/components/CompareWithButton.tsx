@@ -93,7 +93,7 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
         onClose={() => setOpen(false)}
         title={t.compareWith.title}
         hideTitleVisually
-        panelClassName="p-0 max-w-2xl overflow-hidden"
+        panelClassName="p-0 max-w-2xl max-h-[85vh] overflow-y-auto"
       >
         <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0 flex-1">

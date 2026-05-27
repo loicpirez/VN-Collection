@@ -112,12 +112,12 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
       <p className="mb-3 text-[11px] text-muted">{t.banner.hint}</p>
       {hiddenInput}
       <div className="flex flex-wrap gap-2">
-        <button className="btn" onClick={() => inputRef.current?.click()} disabled={busy || pending}>
+        <button type="button" className="btn" onClick={() => inputRef.current?.click()} disabled={busy || pending}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
           {t.banner.uploadCta}
         </button>
         {hasCustomBanner && (
-          <button className="btn btn-danger" onClick={reset} disabled={busy || pending}>
+          <button type="button" className="btn btn-danger" onClick={reset} disabled={busy || pending}>
             <ImageMinus className="h-4 w-4" /> {t.banner.reset}
           </button>
         )}

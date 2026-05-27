@@ -215,9 +215,19 @@ export function MediaGallery({
           aria-modal="true"
           aria-labelledby={lightboxTitleId}
           tabIndex={-1}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 outline-none"
-          onClick={close}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 outline-none"
         >
+          {/* Sibling backdrop so the close-on-click target is the
+              backdrop element itself, not the dialog. Previously a
+              parent `onClick={close}` fired for any nested click that
+              forgot to call stopPropagation (A-018). */}
+          <button
+            type="button"
+            aria-label={t.common.close}
+            tabIndex={-1}
+            className="absolute inset-0 cursor-default bg-black/90"
+            onClick={close}
+          />
           <h2 id={lightboxTitleId} className="sr-only">
             {visible[active].alt}
           </h2>
@@ -710,7 +720,7 @@ function TileKebab({
             onClick={() => setOpen(false)}
             aria-label={t.media.openOriginal}
             title={t.media.openOriginal}
-            className="flex w-full items-center gap-2 overflow-hidden rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white focus:bg-bg-elev focus:text-white focus:outline-none"
+            className="flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white focus:bg-bg-elev focus:text-white focus:outline-none"
           >
             <ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
             <span className="truncate whitespace-nowrap">{t.media.openOriginalShort}</span>
@@ -753,7 +763,7 @@ function MenuItem({
       disabled={disabled}
       aria-label={longLabel}
       title={longLabel}
-      className="flex w-full items-center gap-2 overflow-hidden rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white focus:bg-bg-elev focus:text-white focus:outline-none disabled:opacity-50"
+      className="flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white focus:bg-bg-elev focus:text-white focus:outline-none disabled:opacity-50"
     >
       <span className="shrink-0">{icon}</span>
       <span className="truncate whitespace-nowrap">{shortLabel}</span>

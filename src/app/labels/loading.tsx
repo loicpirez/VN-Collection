@@ -1,8 +1,10 @@
-import { SkeletonBlock } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function LabelsLoading() {
+export default async function LabelsLoading() {
+  const t = await getDict();
   return (
-    <div className="w-full space-y-4">
+    <SkeletonBoundary label={t.app.loading} className="w-full space-y-4">
       <SkeletonBlock className="h-7 w-48" />
       <SkeletonBlock className="h-24 w-full rounded-2xl" />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -10,6 +12,6 @@ export default function LabelsLoading() {
           <SkeletonBlock key={i} className="h-32 w-full rounded-xl" />
         ))}
       </div>
-    </div>
+    </SkeletonBoundary>
   );
 }

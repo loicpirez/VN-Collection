@@ -22,6 +22,9 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const { confirm } = useConfirm();
   const router = useRouter();
   const [routes, setRoutes] = useState<RouteRow[]>([]);
+  // U-071: gate the empty-state copy on a resolved load so the
+  // panel doesn't flash "no routes yet" before the fetch returns.
+  const [loadedRoutes, setLoadedRoutes] = useState(false);
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
@@ -35,14 +38,18 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const reload = useCallback(async (signal?: AbortSignal) => {
     if (!inCollection) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/routes`, { signal });
+      const r = await fetch(`/api/collection/${vnId}/routes`, { signal, cache: 'no-store' });
       if (!r.ok) return;
       const d = (await r.json()) as { routes: RouteRow[] };
       if (signal?.aborted) return;
       setRoutes(d.routes);
     } catch (e) {
       if ((e as Error).name === 'AbortError' || signal?.aborted) return;
-      // ignore
+      // P-074 / P-121: log so a routes-fetch failure surfaces in
+      // dev tools instead of leaving the panel empty silently.
+      console.error('[RoutesSection] routes reload failed:', e);
+    } finally {
+      if (!signal?.aborted) setLoadedRoutes(true);
     }
   }, [vnId, inCollection]);
 
@@ -55,14 +62,18 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   useEffect(() => {
     if (!inCollection) return;
     const ctrl = new AbortController();
-    fetch(`/api/vn/${vnId}/characters`, { signal: ctrl.signal })
+    // P-074 / P-209: cache: 'no-store' is the consistent default for
+    // mutable VN data. The fetch is intentionally duplicated with
+    // CharactersSection — both panels need autocomplete and the
+    // characters endpoint is already 24h cached server-side.
+    fetch(`/api/vn/${vnId}/characters`, { signal: ctrl.signal, cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { characters: VndbCharacter[] } | null) => {
         if (!ctrl.signal.aborted && d) setCharacters(d.characters);
       })
       .catch((e) => {
         if ((e as Error).name === 'AbortError') return;
-        // ignore — autocomplete is optional
+        console.error('[RoutesSection] characters fetch failed:', e);
       });
     return () => ctrl.abort();
   }, [vnId, inCollection]);
@@ -227,7 +238,9 @@ export function RoutesSection({ vnId, inCollection }: Props) {
 
       {error && <p role="alert" className="mb-3 text-xs text-status-dropped">{error}</p>}
 
-      {routes.length === 0 && <p className="mb-3 text-xs text-muted">{t.routes.empty}</p>}
+      {loadedRoutes && routes.length === 0 && (
+        <p className="mb-3 text-xs text-muted">{t.routes.empty}</p>
+      )}
 
       {routes.length > 0 && (
         <ul className="mb-4 space-y-2">

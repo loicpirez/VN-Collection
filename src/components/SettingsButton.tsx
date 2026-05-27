@@ -9,6 +9,7 @@ import {
   DndContext,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -225,6 +226,15 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
   const [showPw, setShowPw] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; ms?: number; error?: string } | null>(null);
   const [testing, startTesting] = useTransition();
+  // Stable per-instance ids so the labels above each input can wire up
+  // an `htmlFor` association. Previously the sibling `<span>` carried
+  // the visible text but the input had no programmatic name.
+  const protocolId = useId();
+  const hostId = useId();
+  const portId = useId();
+  const usernameId = useId();
+  const passwordId = useId();
+  const testDisabledHintId = useId();
 
   function handleTest() {
     startTesting(async () => {
@@ -268,8 +278,9 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
           {t.settings.proxyEnabled}
         </label>
         <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-[11px]">
-          <span className="font-semibold text-muted">{t.settings.proxyProtocol}</span>
+          <label htmlFor={protocolId} className="font-semibold text-muted">{t.settings.proxyProtocol}</label>
           <select
+            id={protocolId}
             value={config?.protocol ?? 'socks5h'}
             onChange={(e) => onSave({ protocol: e.target.value })}
             className="input text-[11px]"
@@ -278,16 +289,18 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
-          <span className="font-semibold text-muted">{t.settings.proxyHost}</span>
+          <label htmlFor={hostId} className="font-semibold text-muted">{t.settings.proxyHost}</label>
           <input
+            id={hostId}
             type="text"
             defaultValue={config?.host ?? ''}
             placeholder="proxy.example.com"
             onBlur={(e) => onSave({ host: e.target.value.trim() || null })}
             className="input text-[11px]"
           />
-          <span className="font-semibold text-muted">{t.settings.proxyPort}</span>
+          <label htmlFor={portId} className="font-semibold text-muted">{t.settings.proxyPort}</label>
           <input
+            id={portId}
             type="number"
             inputMode="numeric"
             min={1}
@@ -300,17 +313,19 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
             }}
             className="input text-[11px]"
           />
-          <span className="font-semibold text-muted">{t.settings.proxyUsername}</span>
+          <label htmlFor={usernameId} className="font-semibold text-muted">{t.settings.proxyUsername}</label>
           <input
+            id={usernameId}
             type="text"
             autoComplete="username"
             defaultValue={config?.username ?? ''}
             onBlur={(e) => onSave({ username: e.target.value.trim() || null })}
             className="input text-[11px]"
           />
-          <span className="font-semibold text-muted">{t.settings.proxyPassword}</span>
+          <label htmlFor={passwordId} className="font-semibold text-muted">{t.settings.proxyPassword}</label>
           <div className="flex items-center gap-1">
             <input
+              id={passwordId}
               type={showPw ? 'text' : 'password'}
               autoComplete="current-password"
               placeholder={config?.hasPassword ? t.settings.proxyPasswordStored : t.settings.proxyPasswordPlaceholder}
@@ -335,11 +350,21 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
             disabled={testing || !config?.enabled}
             onClick={handleTest}
             className="rounded-md border border-border px-2 py-1.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+            aria-describedby={!config?.enabled ? testDisabledHintId : undefined}
           >
             {testing ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.settings.proxyTestButton}
           </button>
+          {!config?.enabled && (
+            <span id={testDisabledHintId} className="sr-only">
+              {t.settings.proxyTestDisabledHint}
+            </span>
+          )}
           {testResult && (
-            <span className={`text-[10px] ${testResult.ok ? 'text-status-completed' : 'text-status-dropped'}`}>
+            <span
+              role="status"
+              aria-live="polite"
+              className={`text-[10px] ${testResult.ok ? 'text-status-completed' : 'text-status-dropped'}`}
+            >
               {testResult.ok
                 ? t.settings.proxyTestOk.replace('{ms}', String(testResult.ms ?? 0))
                 : t.settings.proxyTestFail.replace('{error}', testResult.error ?? '')}
@@ -699,7 +724,7 @@ export function SettingsButton() {
                     <div className="md:col-span-2 flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
                       <span className="text-sm font-semibold">{t.spoiler.title}</span>
                       <p className="text-[11px] text-muted">{t.spoiler.hint}</p>
-                      <div role="radiogroup" aria-label={t.spoiler.title} className="grid grid-cols-3 gap-2">
+                      <div role="radiogroup" aria-label={t.spoiler.title} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         {[0, 1, 2].map((lvl) => {
                           const label =
                             lvl === 0 ? t.spoiler.lvl0 : lvl === 1 ? t.spoiler.lvl1 : t.spoiler.lvl2;
@@ -779,6 +804,7 @@ export function SettingsButton() {
                       value={tokenInput}
                       onChange={(e) => setTokenInput(e.target.value)}
                       autoComplete="off"
+                      aria-label={t.settings.vndbTokenPlaceholder}
                     />
                     <button
                       type="button"
@@ -817,8 +843,8 @@ export function SettingsButton() {
 
                   {server?.vndb_token.hasToken && (
                     <div className="mt-3 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-[180px] flex-1">
                           <div className="font-bold">{t.settings.vndbPullTitle}</div>
                           <div className="text-[10px] text-muted">{t.settings.vndbPullDesc}</div>
                         </div>
@@ -1551,6 +1577,7 @@ function HomeLayoutPanel({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -1697,6 +1724,7 @@ function VnLayoutPanel({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -1811,6 +1839,7 @@ function PageLayoutPanel<Id extends string>({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 

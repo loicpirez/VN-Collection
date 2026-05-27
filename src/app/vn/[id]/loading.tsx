@@ -1,8 +1,10 @@
-import { SkeletonBlock, SkeletonText } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonBoundary, SkeletonText } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function Loading() {
+export default async function Loading() {
+  const t = await getDict();
   return (
-    <div>
+    <SkeletonBoundary label={t.app.loading}>
       <SkeletonBlock className="mb-6 h-40 w-full rounded-2xl" />
       <div className="grid gap-6 md:grid-cols-[180px_1fr]">
         <SkeletonBlock className="aspect-[2/3] w-full rounded-xl" />
@@ -12,6 +14,6 @@ export default function Loading() {
           <SkeletonText lines={6} />
         </div>
       </div>
-    </div>
+    </SkeletonBoundary>
   );
 }

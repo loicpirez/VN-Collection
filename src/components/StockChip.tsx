@@ -22,11 +22,18 @@ export function StockChip({ vnId }: { vnId: string }) {
     const el = ref.current;
     if (!el) return;
     let unsub: (() => void) | null = null;
+    // P-138: track mount state so the subscribe callback never sets
+    // state on an unmounted component (the queue flushes asynchronously
+    // and the IO callback can fire just before the unmount tick).
+    let alive = true;
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
           if (e.isIntersecting && !unsub) {
-            unsub = subscribeStockSummary(vnId, (value) => setEntry(value));
+            unsub = subscribeStockSummary(vnId, (value) => {
+              if (!alive) return;
+              setEntry(value);
+            });
             io.unobserve(el);
           }
         }
@@ -35,6 +42,7 @@ export function StockChip({ vnId }: { vnId: string }) {
     );
     io.observe(el);
     return () => {
+      alive = false;
       io.disconnect();
       unsub?.();
     };

@@ -18,7 +18,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.nav.library };
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  const t = await getDict();
   // Server-read once per render. Each strip ignores its body and
   // returns null when `state.visible === false`; the menu inside each
   // header writes mutations back via PATCH /api/settings and triggers
@@ -47,6 +48,7 @@ export default function HomePage() {
   };
   return (
     <Suspense fallback={<SkeletonCardGrid count={12} />}>
+      <h1 className="sr-only">{t.nav.library}</h1>
       <HomeLayoutEditorTrigger layout={layout} />
       <div className="space-y-5">
         {layout.order.map((id) => (

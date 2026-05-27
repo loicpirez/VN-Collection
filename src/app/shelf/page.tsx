@@ -1,4 +1,4 @@
-import { fmtNum } from '@/lib/locale-number';
+import { BCP47, fmtNum } from '@/lib/locale-number';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, ArrowDown, Box, Coins, Eye, Layers, LayoutGrid, Library, Package } from 'lucide-react';
@@ -54,11 +54,9 @@ function bucketKey(e: ShelfEntry): string {
   return e.physical_location[0];
 }
 
-const BCP47_MAP: Record<Locale, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
-
 function fmtMoneyLocale(amount: number | null, currency: string | null, locale: Locale): string {
   if (amount == null) return '—';
-  const bcp47 = BCP47_MAP[locale];
+  const bcp47 = BCP47[locale];
   if (currency && /^[A-Z]{3}$/i.test(currency)) {
     try {
       return new Intl.NumberFormat(bcp47, {
@@ -268,7 +266,7 @@ export default async function ShelfPage({
             and mounting it consistently keeps the header layout
             stable across the four view modes.
           */}
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <CardDensitySlider scope="shelf" />
             {/* Display knobs only relevant to the read-only views. The
                 layout editor owns its own placement geometry and

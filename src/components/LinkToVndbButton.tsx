@@ -108,7 +108,8 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
         <Link2 className="h-4 w-4" aria-hidden /> {t.linkVndb.cta}
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setOpen(false)}>
+          <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
           <div
             ref={panelRef}
             role="dialog"
@@ -116,7 +117,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
             aria-labelledby={titleId}
             tabIndex={-1}
             onClick={(e) => e.stopPropagation()}
-            className="max-h-[80vh] w-[min(92vw,640px)] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 shadow-card outline-none sm:p-5"
+            className="relative max-h-[80vh] w-[min(92vw,640px)] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 shadow-card outline-none sm:p-5"
           >
             <header className="mb-3 flex items-baseline justify-between gap-3">
               <div>

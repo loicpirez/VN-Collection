@@ -5,11 +5,48 @@
  * Rule of thumb (also in CLAUDE.md): every async section renders a skeleton
  * while the request is in flight. "No results" / "empty" copy is **only** for
  * post-resolve zero-item cases. Never show emptiness during loading.
+ *
+ * For screen readers, wrap any skeleton tree in `<SkeletonBoundary>` (or
+ * apply `aria-busy="true"` + `aria-live="polite"` on the surrounding
+ * container). The boundary exposes a polite live region with a
+ * configurable label so SR users hear "Loading…" instead of silence.
  */
 
 interface BlockProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Tailwind size classes (h-* w-* etc.) — anything goes. */
   className?: string;
+}
+
+/**
+ * Wrap any skeleton tree to announce loading to screen-reader users.
+ * Renders a `<div aria-busy aria-live="polite">` with an optional
+ * visually-hidden label so SR users hear "Loading…" while the
+ * placeholder paints. Sighted users see only the children.
+ *
+ *   <SkeletonBoundary label={t.common.loading}>
+ *     <SkeletonCardGrid count={12} />
+ *   </SkeletonBoundary>
+ */
+export function SkeletonBoundary({
+  children,
+  label,
+  className,
+}: {
+  children: React.ReactNode;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      aria-busy
+      aria-live="polite"
+      role="status"
+      className={className}
+    >
+      {label && <span className="sr-only">{label}</span>}
+      {children}
+    </div>
+  );
 }
 
 function cx(...parts: (string | false | null | undefined)[]): string {
@@ -49,10 +86,34 @@ export function SkeletonCard() {
 /**
  * Grid of card placeholders. Use for any cover-based list (library, wishlist,
  * search, recommendations, similar VN, …).
+ *
+ * Mirrors the density-driven grid used by real cards so the layout doesn't
+ * jump between skeleton and real content. Falls back to 220px column min when
+ * the consumer is not wrapped in a CardDensityVarSetter.
+ *
+ * Sets `aria-busy="true"` + `aria-live="polite"` so screen readers
+ * announce the loading state without the caller needing to wrap.
  */
-export function SkeletonCardGrid({ count = 12 }: { count?: number }) {
+export function SkeletonCardGrid({
+  count = 18,
+  label,
+}: {
+  count?: number;
+  /** Optional visually-hidden label announced to screen readers. */
+  label?: string;
+}) {
   return (
-    <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+    <div
+      aria-busy
+      aria-live="polite"
+      role="status"
+      className="grid gap-5"
+      style={{
+        gridTemplateColumns:
+          'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+      }}
+    >
+      {label && <span className="sr-only">{label}</span>}
       {Array.from({ length: count }).map((_, i) => (
         <SkeletonCard key={i} />
       ))}
@@ -63,10 +124,28 @@ export function SkeletonCardGrid({ count = 12 }: { count?: number }) {
 /**
  * Stack of horizontal rows — good for a list of releases, characters, credits,
  * activity entries, etc. Each row has a thumbnail block + two text lines.
+ *
+ * Sets `aria-busy="true"` + `aria-live="polite"` so screen readers
+ * announce the loading state without the caller needing to wrap.
  */
-export function SkeletonRows({ count = 5, withThumb = true }: { count?: number; withThumb?: boolean }) {
+export function SkeletonRows({
+  count = 5,
+  withThumb = true,
+  label,
+}: {
+  count?: number;
+  withThumb?: boolean;
+  /** Optional visually-hidden label announced to screen readers. */
+  label?: string;
+}) {
   return (
-    <ul className="space-y-3">
+    <ul
+      aria-busy
+      aria-live="polite"
+      role="status"
+      className="space-y-3"
+    >
+      {label && <li className="sr-only">{label}</li>}
       {Array.from({ length: count }).map((_, i) => (
         <li key={i} className="flex gap-3 rounded-lg border border-border bg-bg-elev/30 p-3">
           {withThumb && <SkeletonBlock className="h-20 w-14 shrink-0" />}
@@ -95,10 +174,28 @@ export function SkeletonText({ lines = 3, className }: { lines?: number; classNa
   );
 }
 
-/** Tabular skeleton — header row + N body rows. */
-export function SkeletonTable({ rows = 6, cols = 4 }: { rows?: number; cols?: number }) {
+/**
+ * Tabular skeleton — header row + N body rows. Sets `aria-busy` so screen
+ * readers announce the loading state without the caller needing to wrap.
+ */
+export function SkeletonTable({
+  rows = 6,
+  cols = 4,
+  label,
+}: {
+  rows?: number;
+  cols?: number;
+  /** Optional visually-hidden label announced to screen readers. */
+  label?: string;
+}) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-bg-card">
+    <div
+      aria-busy
+      aria-live="polite"
+      role="status"
+      className="overflow-hidden rounded-xl border border-border bg-bg-card"
+    >
+      {label && <span className="sr-only">{label}</span>}
       <div className="grid border-b border-border bg-bg-elev/30 p-3" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {Array.from({ length: cols }).map((_, i) => (
           <SkeletonBlock key={i} className="mx-1 h-3 w-3/4" />

@@ -486,15 +486,20 @@ function EgsPicker({
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-6"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
+      className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto p-2 sm:p-6"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div ref={panelRef} tabIndex={-1} className="mt-6 w-full max-w-xl rounded-2xl border border-border bg-bg-card p-4 shadow-card outline-none sm:mt-12 sm:p-6">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" aria-hidden />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="relative mt-6 w-full max-w-xl rounded-2xl border border-border bg-bg-card p-4 shadow-card outline-none sm:mt-12 sm:p-6"
+      >
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 id={titleId} className="inline-flex items-center gap-2 text-lg font-bold">
             <Sparkles className="h-5 w-5 text-accent" aria-hidden />

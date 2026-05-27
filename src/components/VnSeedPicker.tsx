@@ -295,7 +295,7 @@ export function VnSeedPicker({
               <p title={initialSeed.alttitle} className="line-clamp-1 text-[11px] text-muted">{initialSeed.alttitle}</p>
             )}
             {invalid && (
-              <p className="text-[11px] text-status-dropped">
+              <p role="alert" className="text-[11px] text-status-dropped">
                 {t.recommend.seedPicker.invalidSeed}
               </p>
             )}

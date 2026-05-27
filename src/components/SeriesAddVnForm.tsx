@@ -47,12 +47,12 @@ export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
           onChange={(e) => setVnId(e.target.value)}
           aria-label={t.series.addVn}
         />
-        <button className="btn btn-primary" onClick={add} disabled={busy || pending || !vnId.trim()}>
+        <button type="button" className="btn btn-primary" onClick={add} disabled={busy || pending || !vnId.trim()}>
           <Plus className="h-4 w-4" aria-hidden /> {t.common.add}
         </button>
       </div>
       <p className="mt-1 text-[11px] text-muted">{t.series.addVnHint}</p>
-      {error && <p className="mt-2 text-sm text-status-dropped">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-sm text-status-dropped">{error}</p>}
     </div>
   );
 }

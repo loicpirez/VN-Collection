@@ -1,11 +1,13 @@
-import { SkeletonBlock, SkeletonCardGrid } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonCardGrid, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function HomeLoading() {
+export default async function HomeLoading() {
+  const t = await getDict();
   return (
-    <div className="space-y-6">
+    <SkeletonBoundary label={t.app.loading} className="space-y-6">
       <SkeletonBlock className="h-9 w-64" />
       <SkeletonBlock className="h-10 w-full rounded-xl" />
       <SkeletonCardGrid count={18} />
-    </div>
+    </SkeletonBoundary>
   );
 }

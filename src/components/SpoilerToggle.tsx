@@ -82,7 +82,7 @@ export function SpoilerToggle() {
         onClick={() => setOpen((v) => !v)}
         className="tap-target inline-flex h-11 items-center gap-1.5 rounded-lg border border-border bg-bg-card px-2 text-xs font-semibold text-muted hover:text-white"
         title={t.contentControls.title}
-        aria-haspopup="dialog"
+        aria-haspopup="true"
         aria-expanded={open}
         aria-controls={popoverId}
         aria-label={t.contentControls.title}
@@ -94,7 +94,7 @@ export function SpoilerToggle() {
         <div
           id={popoverId}
           className="absolute right-0 top-full z-40 mt-1 w-[min(95vw,20rem)] rounded-lg border border-border bg-bg-card p-3 shadow-card"
-          role="dialog"
+          role="region"
           aria-label={t.contentControls.title}
         >
           <header className="mb-2 flex items-baseline justify-between">

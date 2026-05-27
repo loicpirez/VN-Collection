@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { ArrowLeft } from 'lucide-react';
 import { toString as qrToString } from 'qrcode';
-import { listCollection } from '@/lib/db';
+import { listCollectionForCards } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -78,7 +78,8 @@ export default async function LabelsPage({
   // Push id filtering into SQL so we don't load the full library just
   // to drop most rows.
   const idList = filter ? Array.from(filter) : undefined;
-  const allItems = listCollection({ sort: 'title', vnIds: idList }).filter(
+  // P-050: card-only projection — labels only need id/title/physical_location/status.
+  const allItems = listCollectionForCards({ sort: 'title', vnIds: idList }).filter(
     (it) => !status || it.status === status,
   );
   const truncated = allItems.length > MAX_LABELS;
@@ -86,7 +87,28 @@ export default async function LabelsPage({
 
   // Pre-render every QR SVG server-side, so the printed sheet doesn't
   // depend on any third-party service.
-  const qrs = await Promise.all(items.map((it) => qrSvg(`${origin}/vn/${it.id}`)));
+  // P-169: bounded worker pool. `items` is capped at MAX_LABELS (200)
+  // but each qrSvg call is CPU-bound and `Promise.all(items.map(...))`
+  // starts every QR encode immediately, stalling the event loop on a
+  // full label sheet. 8 concurrent strikes the balance.
+  const qrs: string[] = new Array(items.length);
+  {
+    const QR_CONCURRENCY = 8;
+    let cursor = 0;
+    const workers: Promise<void>[] = [];
+    for (let w = 0; w < Math.min(QR_CONCURRENCY, items.length); w++) {
+      workers.push(
+        (async () => {
+          while (true) {
+            const idx = cursor++;
+            if (idx >= items.length) return;
+            qrs[idx] = await qrSvg(`${origin}/vn/${items[idx].id}`);
+          }
+        })(),
+      );
+    }
+    await Promise.all(workers);
+  }
 
   return (
     <div className="w-full">
@@ -101,8 +123,10 @@ export default async function LabelsPage({
       <p className="mb-6 text-sm text-muted print:hidden">{t.labels.hint}</p>
 
       {truncated && (
-        <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-400 print:hidden">
-          Showing first {MAX_LABELS} of {allItems.length} labels. Use the filter to narrow the selection.
+        <div className="mb-4 rounded-md border border-status-on_hold/40 bg-status-on_hold/10 px-4 py-2 text-sm text-status-on_hold print:hidden">
+          {t.labels.truncated
+            .replace('{shown}', String(MAX_LABELS))
+            .replace('{total}', String(allItems.length))}
         </div>
       )}
 

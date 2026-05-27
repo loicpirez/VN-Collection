@@ -165,6 +165,14 @@ export function WishlistClient() {
   // `?density=N` override still wins thanks to `resolveScopedDensity`.
   const search = useSearchParams();
   const density = resolveScopedDensity(settings, 'wishlist', search?.get('density') ?? null);
+  // P-079: memoize the inline grid template so the outer `<div>`'s
+  // style ref is stable across renders. Without this every keystroke
+  // in the search box re-creates the style object even though the
+  // inner `<MemoWishlistCard>` properly memoizes.
+  const wishlistGridStyle: React.CSSProperties = useMemo(
+    () => ({ gridTemplateColumns: cardGridColumns(density) }),
+    [density],
+  );
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   // Gate the empty-state copy so it never renders before the first successful
@@ -283,16 +291,26 @@ export function WishlistClient() {
     });
     if (!ok) return;
     setDeleting(true);
+    // P-054: parallel DELETE fan-out. Serial loop made 50 selected
+    // deletes a 50+ second wall-clock job because each fetch waited
+    // on the previous response. Promise.all + per-call try/catch keeps
+    // partial-failure accounting intact.
     let removed = 0;
     let failed = 0;
-    for (const id of list) {
-      try {
-        const r = await fetch(`/api/wishlist/${id}`, { method: 'DELETE' });
-        if (r.ok) removed++;
-        else failed++;
-      } catch {
-        failed++;
-      }
+    const results = await Promise.all(
+      list.map(async (id) => {
+        try {
+          const r = await fetch(`/api/wishlist/${id}`, { method: 'DELETE' });
+          return r.ok ? 'ok' : 'fail';
+        } catch (e) {
+          console.error(`[WishlistClient] delete failed for ${id}:`, e);
+          return 'fail';
+        }
+      }),
+    );
+    for (const outcome of results) {
+      if (outcome === 'ok') removed++;
+      else failed++;
     }
     setItems((prev) => prev.filter((it) => !selected.has(it.vn.id)));
     clearSelection();
@@ -476,7 +494,7 @@ export function WishlistClient() {
       ) : (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
               <input
                 className="input pl-9"
@@ -521,8 +539,9 @@ export function WishlistClient() {
               type="button"
               onClick={onRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/50 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+              className="btn"
               title={t.wishlist.refresh}
+              aria-label={t.wishlist.refresh}
             >
               <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
               {t.wishlist.refresh}
@@ -662,7 +681,7 @@ export function WishlistClient() {
               )}
               <div
                 className="grid gap-3"
-                style={{ gridTemplateColumns: cardGridColumns(density) }}
+                style={wishlistGridStyle}
               >
                 {g.items.map((it) => (
                   <MemoWishlistCard
@@ -683,7 +702,7 @@ export function WishlistClient() {
 
           {selectMode && selected.size > 0 && (
             <div
-              className="fixed bottom-10 left-1/2 z-50 w-[min(96vw,32rem)] -translate-x-1/2 rounded-full border border-border bg-bg-card px-4 py-2 shadow-card sm:bottom-4"
+              className="fixed bottom-16 left-1/2 z-50 w-[min(96vw,32rem)] -translate-x-1/2 rounded-full border border-border bg-bg-card px-4 py-2 shadow-card sm:bottom-4"
               style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
             >
               <div className="flex flex-wrap items-center justify-center gap-3 text-sm">

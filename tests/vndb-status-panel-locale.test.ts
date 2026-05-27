@@ -34,10 +34,15 @@ const PANEL = readFileSync(join(ROOT, 'src/components/VndbStatusPanel.tsx'), 'ut
 const ROUTE = readFileSync(join(ROOT, 'src/app/api/vn/[id]/vndb-status/route.ts'), 'utf8');
 
 describe('R5-198 — DateInput uses app locale + ISO wire format', () => {
-  it('LOCALE_TAG maps fr / en / ja to explicit BCP-47 tags', () => {
-    expect(DATE_INPUT).toMatch(/LOCALE_TAG[\s\S]*fr:\s*['"]fr-FR['"]/);
-    expect(DATE_INPUT).toMatch(/LOCALE_TAG[\s\S]*en:\s*['"]en-US['"]/);
-    expect(DATE_INPUT).toMatch(/LOCALE_TAG[\s\S]*ja:\s*['"]ja-JP['"]/);
+  it('imports the shared BCP47 map (canonical fr-FR / en-US / ja-JP tags)', () => {
+    // U-034: the per-component LOCALE_TAG constant was replaced by the
+    // canonical `BCP47` map in `lib/locale-number.ts`. Verify the import
+    // is wired up and the canonical map carries the expected tags.
+    expect(DATE_INPUT).toMatch(/import\s*\{[^}]*BCP47[^}]*\}\s+from\s+['"]@\/lib\/locale-number['"]/);
+    const LOCALE_NUMBER = readFileSync(join(ROOT, 'src/lib/locale-number.ts'), 'utf8');
+    expect(LOCALE_NUMBER).toMatch(/fr:\s*['"]fr-FR['"]/);
+    expect(LOCALE_NUMBER).toMatch(/en:\s*['"]en-US['"]/);
+    expect(LOCALE_NUMBER).toMatch(/ja:\s*['"]ja-JP['"]/);
   });
 
   it('Intl.DateTimeFormat is called with the locale tag, not navigator.language', () => {

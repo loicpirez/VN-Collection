@@ -23,6 +23,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { VnCard } from './VnCard';
 import { toCardData } from './cardData';
 import type { CollectionItem } from '@/lib/types';
+import { useT } from '@/lib/i18n/client';
 
 interface Props {
   items: CollectionItem[];
@@ -48,6 +49,7 @@ interface Props {
  * @dnd-kit's keyboard sensor.
  */
 export function SortableGrid({ items, onReorder, dense = false }: Props) {
+  const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   // 6 px activation distance — small enough to feel responsive, large
   // enough that a click on the favorite / lists / context-menu overlays
@@ -87,6 +89,10 @@ export function SortableGrid({ items, onReorder, dense = false }: Props) {
       onDragEnd={onDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
+      {/* Visually-hidden hint announcing the keyboard drag-and-drop
+          contract. dnd-kit's KeyboardSensor is wired above; this gives
+          screen-reader users a discoverable summary of the gesture. */}
+      <p className="sr-only">{t.lists.reorderKeyboardHint}</p>
       <SortableContext items={ids} strategy={rectSortingStrategy}>
         {/*
           Density-aware grid. Previously this branch used hard-coded

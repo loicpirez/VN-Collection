@@ -735,6 +735,15 @@ function open(): Database.Database {
       ON vn_stock_offer(vn_id, availability, price);
     CREATE INDEX IF NOT EXISTS idx_vn_stock_offer_provider
       ON vn_stock_offer(provider, fetched_at);
+    -- P-143: partial index for batchVnStockSummaries. Filters by
+    -- (vn_id IN (...), availability IN ('in_stock','limited')); without
+    -- this index the library card grid does a full scan over offers.
+    CREATE INDEX IF NOT EXISTS idx_vn_stock_offer_vn_avail
+      ON vn_stock_offer(vn_id, availability)
+      WHERE availability IN ('in_stock', 'limited');
+    -- P-144: order-by-fetched_at-DESC + LIMIT path for listRecentVnStockOffers.
+    CREATE INDEX IF NOT EXISTS idx_vn_stock_offer_fetched_at
+      ON vn_stock_offer(fetched_at DESC);
 
     CREATE TABLE IF NOT EXISTS vn_stock_provider_status (
       vn_id      TEXT NOT NULL,
@@ -1120,6 +1129,21 @@ function open(): Database.Database {
   ensureColumn(db, 'vn_stock_provider_status', 'cached_offers_available', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'vn_stock_source', 'release_id', 'TEXT');
   ensureColumn(db, 'vn_stock_source', 'product_id', 'TEXT');
+
+  // P-149: partial indexes for the AliceNet Kobe page filter tabs.
+  // Declared AFTER ensureColumn because the indexed columns
+  // (last_matched_at, vn_match_source) are themselves added via
+  // ensureColumn earlier in this function. Putting the index inside
+  // the initial db.exec block at line ~696 would reference a column
+  // that doesn't exist yet on first-run DBs.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_unmatched
+      ON alicesoft_kobe_stock(last_matched_at, code)
+      WHERE vn_id IS NULL AND egs_id IS NULL AND vn_match_source IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_no_vndb
+      ON alicesoft_kobe_stock(last_matched_at, code)
+      WHERE vn_match_source = 'none' AND vn_id IS NULL;
+  `);
 
   // Migration: rewrite EGS cover URLs to point at the resolver endpoint
   // (/api/egs-cover/{egs_id}) instead of hardcoded DMM / Suruga-ya / image.php

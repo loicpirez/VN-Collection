@@ -152,7 +152,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           </a>
         </div>
 
-        <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+        <dl className="mt-5 grid grid-cols-2 gap-x-3 gap-y-3 text-sm sm:gap-x-6 sm:grid-cols-3">
           {release.released && (
             <div>
               <dt className="text-[10px] uppercase tracking-wider text-muted">{t.detail.released}</dt>

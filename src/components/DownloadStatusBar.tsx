@@ -381,7 +381,7 @@ export function DownloadStatusBar() {
         <div
           ref={popoverRef}
           id={popoverId}
-          role="dialog"
+          role="region"
           aria-label={t.downloadStatus.title}
           tabIndex={-1}
           className="absolute bottom-full right-0 mb-2 w-[min(92vw,24rem)] max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card outline-none"
@@ -393,7 +393,7 @@ export function DownloadStatusBar() {
 	            <button
 	              type="button"
 	              onClick={() => setOpen(false)}
-	              className="tap-target-tight rounded text-muted hover:text-white"
+	              className="tap-target rounded text-muted hover:text-white"
 	              aria-label={t.common.close}
 	            >
 	              <X className="h-3 w-3" aria-hidden />

@@ -8,6 +8,8 @@ import { languageDisplayName } from '@/lib/language-names';
 import { parseStaffSearchParams } from '@/lib/char-staff-search-filters';
 import { roleLabel } from '@/lib/staff-roles';
 import { NavTabStrip } from '@/components/NavTabStrip';
+import { CardDensitySlider } from '@/components/CardDensitySlider';
+import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,16 +146,21 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
   const langs: readonly string[] = ['ja', 'en', 'zh-Hans', 'zh-Hant', 'ko'];
 
   return (
-    <div className="w-full">
+    <DensityScopeProvider scope="staffWorks" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" /> {t.nav.library}
       </Link>
 
       <header className="mb-5 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-          <Users className="h-6 w-6 text-accent" aria-hidden /> {t.staffSearch.pageTitle}
-        </h1>
-        <p className="mt-1 text-sm text-muted">{t.staffSearch.pageSubtitle}</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
+              <Users className="h-6 w-6 text-accent" aria-hidden /> {t.staffSearch.pageTitle}
+            </h1>
+            <p className="mt-1 text-sm text-muted">{t.staffSearch.pageSubtitle}</p>
+          </div>
+          <CardDensitySlider scope="staffWorks" />
+        </div>
 
         <form method="get" className="mt-4 flex flex-wrap items-center gap-2">
           <input
@@ -162,7 +169,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
             defaultValue={query}
             placeholder={t.staffSearch.searchPlaceholder}
             aria-label={t.staffSearch.searchPlaceholder}
-            className="input flex-1 min-w-[200px]"
+            className="input flex-1 min-w-[160px] sm:min-w-[200px]"
           />
           {tab === 'vndb' && <input type="hidden" name="tab" value="vndb" />}
           {role && <input type="hidden" name="role" value={role} />}
@@ -283,7 +290,10 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
           </p>
           <ul
             className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
+            style={{
+              gridTemplateColumns:
+                'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+            }}
           >
             {results.map((s) => (
               <li key={s.id}>
@@ -331,7 +341,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
           </ul>
         </>
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }
 

@@ -78,7 +78,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
-          <button className="btn btn-primary" onClick={create} disabled={!name.trim() || pending}>
+          <button type="button" className="btn btn-primary" onClick={create} disabled={!name.trim() || pending}>
             <Plus className="h-4 w-4" /> {t.series.create}
           </button>
         </div>
@@ -88,7 +88,13 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
       {items.length === 0 ? (
         <div className="py-16 text-center text-muted">{t.series.empty}</div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+          }}
+        >
           {items.map((s) => (
             <div key={s.id} className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-card p-4 hover:border-accent">
               <Link href={`/series/${s.id}`} className="min-w-0 flex-1">
@@ -96,6 +102,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
                 {s.description && <div className="line-clamp-2 text-xs text-muted" title={s.description}>{s.description}</div>}
               </Link>
               <button
+                type="button"
                 className="btn btn-danger transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                 onClick={() => remove(s.id)}
                 aria-label={t.series.delete}

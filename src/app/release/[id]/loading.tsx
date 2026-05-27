@@ -1,8 +1,10 @@
-import { SkeletonBlock } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function ReleaseLoading() {
+export default async function ReleaseLoading() {
+  const t = await getDict();
   return (
-    <div className="space-y-4">
+    <SkeletonBoundary label={t.app.loading} className="space-y-4">
       <SkeletonBlock className="h-6 w-32" />
       <SkeletonBlock className="h-9 w-2/3" />
       <SkeletonBlock className="h-5 w-1/3" />
@@ -12,6 +14,6 @@ export default function ReleaseLoading() {
         <SkeletonBlock className="h-24" />
         <SkeletonBlock className="h-24" />
       </div>
-    </div>
+    </SkeletonBoundary>
   );
 }

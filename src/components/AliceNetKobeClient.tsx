@@ -27,6 +27,7 @@ import { useToast } from './ToastProvider';
 import { SafeImage } from './SafeImage';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { formatVndbDateString } from '@/lib/locale-number';
+import { timeAgo } from '@/lib/time-ago';
 import { readApiError } from '@/lib/api-error-read';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
@@ -199,14 +200,15 @@ function LinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-bg/80 backdrop-blur" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
-        className="w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
+        className="relative w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
       >
         <header className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -387,7 +389,16 @@ export function AliceNetKobeClient() {
   const [yearMax, setYearMax] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
+  // Two-tier search state: the input mirror updates instantly while the
+  // debounced `search` value drives the actual filter pipeline. U-087 / U-148
+  // — the kobe page filters thousands of rows client-side, so a per-keystroke
+  // filter pass blocks the main thread.
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  useEffect(() => {
+    const handle = setTimeout(() => setSearch(searchInput), 250);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
   const [linkTarget, setLinkTarget] = useState<KobeItem | null>(null);
   const stopRef = useRef(false);
 
@@ -548,6 +559,11 @@ export function AliceNetKobeClient() {
   }
 
   async function clearLink(code: string) {
+    const ok = await confirm({
+      message: t.kobe.kobeClearMatchConfirm,
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE' });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
@@ -695,8 +711,8 @@ export function AliceNetKobeClient() {
     { id: 'egs_only', label: t.kobe.kobeEgsOnly, count: stats.egs_only },
     { id: 'unmatched', label: t.kobe.kobeFilterUnmatched, count: stats.unmatched },
     { id: 'none_found', label: t.kobe.kobeNoneFound, count: stats.none_found },
-    { id: 'collection', label: t.kobe.kobeInCollection, count: stats.in_collection, icon: <BookHeart className="h-3 w-3 text-green-400" aria-hidden /> },
-    { id: 'wishlist', label: t.kobe.kobeInWishlist, count: stats.in_wishlist, icon: <BookHeart className="h-3 w-3 text-rose-400" aria-hidden /> },
+    { id: 'collection', label: t.kobe.kobeInCollection, count: stats.in_collection, icon: <BookHeart className="h-3 w-3 text-status-completed" aria-hidden /> },
+    { id: 'wishlist', label: t.kobe.kobeInWishlist, count: stats.in_wishlist, icon: <BookHeart className="h-3 w-3 text-status-dropped" aria-hidden /> },
   ];
 
   const sortLabels: Record<KobeSort, string> = {
@@ -735,7 +751,7 @@ export function AliceNetKobeClient() {
     const kind = matchKind(item);
     if (kind === 'vndb') {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full border border-green-500/25 bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-400">
+        <span className="inline-flex items-center gap-1 rounded-full border border-status-completed/25 bg-status-completed/10 px-2 py-0.5 text-[11px] font-semibold text-status-completed">
           <CheckCircle2 className="h-3 w-3" aria-hidden />
           {t.kobe.kobeVndbMatched}
         </span>
@@ -743,14 +759,14 @@ export function AliceNetKobeClient() {
     }
     if (kind === 'egs') {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/25 bg-sky-500/10 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
+        <span className="inline-flex items-center gap-1 rounded-full border border-status-playing/25 bg-status-playing/10 px-2 py-0.5 text-[11px] font-semibold text-status-playing">
           <PackageCheck className="h-3 w-3" aria-hidden />
           {t.kobe.kobeEgsOnly}
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-400">
+      <span className="inline-flex items-center gap-1 rounded-full border border-status-on_hold/25 bg-status-on_hold/10 px-2 py-0.5 text-[11px] font-semibold text-status-on_hold">
         <Search className="h-3 w-3" aria-hidden />
         {kind === 'unresolved' ? t.kobe.kobeNeedsMatch : t.kobe.kobeNotYetMatched}
       </span>
@@ -793,7 +809,7 @@ export function AliceNetKobeClient() {
     const image = item.vn_image_url || item.egs_image_url;
     const date = item.release_date || item.egs_release_date;
     return (
-      <article key={item.code} className="group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card">
+      <article key={item.code} role="listitem" className="group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card">
         <div className="relative aspect-[2/3] bg-bg-elev">
           <SafeImage
             src={image}
@@ -806,12 +822,12 @@ export function AliceNetKobeClient() {
           <div className="absolute left-2 top-2 flex flex-wrap gap-1">{statusBadge(item)}</div>
           <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
             {item.in_wishlist === 1 && (
-              <span className="rounded-full border border-rose-500/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-rose-300 backdrop-blur">
+              <span className="rounded-full border border-status-dropped/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-status-dropped backdrop-blur">
                 {t.kobe.kobeInWishlist}
               </span>
             )}
             {item.in_collection === 1 && (
-              <span className="rounded-full border border-green-500/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-green-300 backdrop-blur">
+              <span className="rounded-full border border-status-completed/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-status-completed backdrop-blur">
                 {t.kobe.kobeInCollection}
               </span>
             )}
@@ -819,7 +835,7 @@ export function AliceNetKobeClient() {
         </div>
         <div className="flex flex-1 flex-col gap-2 p-3">
           <div className="min-w-0">
-            <h2 className="line-clamp-2 text-sm font-bold leading-snug" title={item.title}>{displayTitle(item)}</h2>
+            <h3 className="line-clamp-2 text-sm font-bold leading-snug" title={item.title}>{displayTitle(item)}</h3>
             {item.egs_title && item.egs_title !== item.title && (
               <p className="mt-0.5 line-clamp-1 text-[11px] text-muted" title={item.title}>{item.title}</p>
             )}
@@ -860,7 +876,7 @@ export function AliceNetKobeClient() {
               <button
                 type="button"
                 onClick={() => clearLink(item.code)}
-                className="btn btn-xs text-muted hover:text-red-400"
+                className="btn btn-xs text-muted hover:text-status-dropped"
                 title={t.kobe.kobeClearMatch}
               >
                 <X className="h-3 w-3" />
@@ -926,7 +942,7 @@ export function AliceNetKobeClient() {
         <h1 className="text-xl font-bold">{t.kobe.kobeTitle}</h1>
         {lastFetch && (
           <span className="text-xs text-muted">
-            {t.kobe.kobeLastFetch.replace('{date}', new Date(lastFetch).toLocaleString(locale))}
+            {t.kobe.kobeLastFetch.replace('{date}', timeAgo(lastFetch, t))}
           </span>
         )}
       </div>
@@ -948,38 +964,38 @@ export function AliceNetKobeClient() {
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterMatched}</div>
-              <div className="text-2xl font-bold text-green-400">{stats.matched}</div>
+              <div className="text-2xl font-bold text-status-completed">{stats.matched}</div>
               {stats.total > 0 && <div className="mt-0.5 text-[10px] text-muted">{matchPct}%</div>}
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterUnmatched}</div>
               <div className="text-2xl font-bold">{stats.unmatched}</div>
               {(stats.unprocessed > 0 || stats.none_found > 0) && (
-                <div className="mt-0.5 text-[10px] text-amber-400/80">
+                <div className="mt-0.5 text-[10px] text-status-on_hold/80">
                   {t.kobe.kobeUnmatchedBreakdown
                     .replace('{new}', String(stats.unprocessed))
                     .replace('{none}', String(stats.none_found))}
                 </div>
               )}
             </div>
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center">
+            <div className="rounded-xl border border-status-on_hold/20 bg-status-on_hold/5 p-4 text-center">
               <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeNoneFound}</div>
-              <div className="text-2xl font-bold text-amber-400">{stats.none_found}</div>
+              <div className="text-2xl font-bold text-status-on_hold">{stats.none_found}</div>
               {stats.unprocessed > 0 && <div className="mt-0.5 text-[10px] text-muted">{stats.unprocessed} {t.kobe.kobeNotYetMatched}</div>}
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
-                <BookHeart className="h-3 w-3 text-green-400" aria-hidden />
+                <BookHeart className="h-3 w-3 text-status-completed" aria-hidden />
                 {t.kobe.kobeInCollection}
               </div>
-              <div className="text-2xl font-bold text-green-400">{stats.in_collection}</div>
+              <div className="text-2xl font-bold text-status-completed">{stats.in_collection}</div>
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
-                <BookHeart className="h-3 w-3 text-rose-400" aria-hidden />
+                <BookHeart className="h-3 w-3 text-status-dropped" aria-hidden />
                 {t.kobe.kobeInWishlist}
               </div>
-              <div className="text-2xl font-bold text-rose-400">{stats.in_wishlist}</div>
+              <div className="text-2xl font-bold text-status-dropped">{stats.in_wishlist}</div>
             </div>
           </>
         )}
@@ -1129,12 +1145,13 @@ export function AliceNetKobeClient() {
       {/* Browsing controls */}
       <div className="mb-4 rounded-xl border border-border bg-bg-card p-3">
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t.kobe.kobeFilterAll}>
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setFilter(tab.id)}
+                aria-pressed={filter === tab.id}
                 className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
                   filter === tab.id
                     ? 'border-accent bg-accent/10 font-semibold text-accent'
@@ -1155,8 +1172,8 @@ export function AliceNetKobeClient() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
               <input
                 type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder={t.kobe.kobeSearchPlaceholder}
                 aria-label={t.kobe.kobeSearchPlaceholder}
                 className="input min-h-[44px] w-full pl-9 text-sm"
@@ -1181,7 +1198,7 @@ export function AliceNetKobeClient() {
                 <button
                   type="button"
                   onClick={() => setView('cards')}
-                  className={`inline-flex min-h-[36px] min-w-[40px] items-center justify-center rounded px-2 ${view === 'cards' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
+                  className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded px-2 ${view === 'cards' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
                   aria-label={t.kobe.kobeViewCards}
                   title={t.kobe.kobeViewCards}
                 >
@@ -1190,7 +1207,7 @@ export function AliceNetKobeClient() {
                 <button
                   type="button"
                   onClick={() => setView('list')}
-                  className={`inline-flex min-h-[36px] min-w-[40px] items-center justify-center rounded px-2 ${view === 'list' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
+                  className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded px-2 ${view === 'list' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
                   aria-label={t.kobe.kobeViewList}
                   title={t.kobe.kobeViewList}
                 >
@@ -1289,13 +1306,28 @@ export function AliceNetKobeClient() {
 
       {/* Items */}
       {loading ? (
-        <div className={view === 'cards' ? 'grid gap-3' : 'space-y-2'} style={view === 'cards' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' } : undefined}>
+        <div
+          aria-busy
+          aria-live="polite"
+          role="status"
+          className={view === 'cards' ? 'grid gap-3' : 'space-y-2'}
+          style={view === 'cards' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' } : undefined}
+        >
+          <span className="sr-only">{t.common.loading}</span>
           {Array.from({ length: view === 'cards' ? 12 : 10 }).map((_, i) => (
-            <div key={i} className={`${view === 'cards' ? 'h-96' : 'h-24'} animate-pulse rounded-xl bg-bg-elev/40`} />
+            <div key={i} className={`${view === 'cards' ? 'h-96' : 'h-24'} animate-pulse rounded-xl bg-bg-elev/40`} aria-hidden />
           ))}
         </div>
       ) : sorted.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted">{t.kobe.kobeUnmatched}</p>
+        // U-067 / U-073: distinguish "no stock fetched yet" vs "no rows match the
+        // current filter" so the empty-state copy is actually useful.
+        <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted">
+          {stats.total === 0 ? (
+            <p>{t.kobe.kobeEmptyNoStock ?? t.kobe.kobeUnmatched}</p>
+          ) : (
+            <p>{t.kobe.kobeEmptyForFilter ?? t.kobe.kobeUnmatched}</p>
+          )}
+        </div>
       ) : (
         <div className="space-y-5">
           {grouped.map((section) => (
@@ -1308,6 +1340,7 @@ export function AliceNetKobeClient() {
               )}
               {view === 'cards' ? (
                 <div
+                  role="list"
                   className="grid gap-3"
                   style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
                 >

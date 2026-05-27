@@ -203,7 +203,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
       </div>
 
       <div className="mb-6 flex flex-wrap gap-2">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
           <input
             className="input pl-9"
@@ -437,7 +437,13 @@ function TagFlatView({ results, mode, q, localCounts, locale }: { results: VndbT
               <span className="rounded bg-accent/10 px-2 py-0.5 text-accent">{label}</span>
               <span className="text-muted/70">({bucket.tags.length})</span>
             </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div
+              className="grid gap-3"
+              style={{
+                gridTemplateColumns:
+                  'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+              }}
+            >
               {bucket.tags.map((tag) => (
                 <article
                   key={tag.id}

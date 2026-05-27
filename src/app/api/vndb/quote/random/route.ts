@@ -1,11 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { getAppSetting, getCharacterImage, getRandomLocalQuote, getVnCover } from '@/lib/db';
 import { getRandomQuote } from '@/lib/vndb';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  // Audit S-023: TTL=0 by design; LAN amplification on every footer
+  // poll would saturate the throttle. Gate it.
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   try {
     const source = getAppSetting('random_quote_source') ?? 'all';
     if (source === 'mine') {

@@ -14,6 +14,8 @@ import {
   X,
 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
+import { BCP47 } from '@/lib/locale-number';
+import type { Locale } from '@/lib/i18n/dictionaries';
 import { timeAgo } from '@/lib/time-ago';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -30,7 +32,6 @@ export interface GameLogEntry {
 }
 
 const NOTE_MAX = 8000;
-const LOCALE_BCP47: Record<string, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
 
 interface Props {
   vnId: string;
@@ -332,7 +333,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
 }
 
 function fmtTime(ts: number, locale: string): string {
-  return new Date(ts).toLocaleTimeString(LOCALE_BCP47[locale] ?? 'en-US', {
+  return new Date(ts).toLocaleTimeString(BCP47[locale as Locale] ?? 'en-US', {
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -344,7 +345,7 @@ function relative(ts: number, now: number | null, t: ReturnType<typeof useT>): s
 }
 
 function groupByDay(entries: GameLogEntry[], locale: string): { day: string; items: GameLogEntry[] }[] {
-  const fmt = new Intl.DateTimeFormat(LOCALE_BCP47[locale] ?? 'en-US', {
+  const fmt = new Intl.DateTimeFormat(BCP47[locale as Locale] ?? 'en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',

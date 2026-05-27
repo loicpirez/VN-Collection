@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDialogA11y } from './Dialog';
 import Link from 'next/link';
@@ -72,6 +72,12 @@ export function GroupedNav({ kobeEnabled = false }: { kobeEnabled?: boolean }) {
   const t = useT();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileSheetId = useId();
+  // U-033: stash the current year once on mount so the /year href
+  // is deterministic between SSR and CSR. Reading
+  // `new Date().getFullYear()` inline on every render risks an
+  // SSR/CSR mismatch right at the New Year boundary.
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
 
   // i18n labels live here so they update under the same render cycle as the
   // rest of the layout — duplicating into a static const would force a full
@@ -116,7 +122,7 @@ export function GroupedNav({ kobeEnabled = false }: { kobeEnabled?: boolean }) {
     { href: '/brand-overlap', label: t.nav.brandOverlap, icon: GitMerge },
     { href: '/stats', label: t.nav.stats, icon: BarChart3 },
     { href: '/shelf', label: t.nav.shelf, icon: LayoutGrid },
-    { href: `/year?y=${new Date().getFullYear()}`, label: t.nav.year, icon: Award },
+    { href: `/year?y=${currentYear}`, label: t.nav.year, icon: Award },
     { href: '/labels', label: t.nav.labels, icon: Tag },
     { href: '/dumped', label: t.nav.dumped, icon: HardDriveDownload },
     { href: '/activity', label: t.nav.activity, icon: Activity },
@@ -138,7 +144,7 @@ export function GroupedNav({ kobeEnabled = false }: { kobeEnabled?: boolean }) {
     <>
       <nav
         className="hidden flex-wrap items-center gap-0.5 md:flex lg:gap-1"
-        aria-label={t.nav.openMenu}
+        aria-label={t.nav.mainNavLabel}
       >
         {primary.map((item) => (
           <NavLink key={item.href} item={item} pathname={pathname} />
@@ -172,11 +178,13 @@ export function GroupedNav({ kobeEnabled = false }: { kobeEnabled?: boolean }) {
         aria-label={t.nav.openMenu}
         aria-expanded={mobileOpen}
         aria-haspopup="dialog"
+        aria-controls={mobileSheetId}
       >
         <Menu className="h-5 w-5" aria-hidden />
       </button>
       {mobileOpen && (
         <MobileSheet
+          id={mobileSheetId}
           onClose={() => setMobileOpen(false)}
           t={t}
           pathname={pathname}
@@ -337,11 +345,13 @@ function NavGroup({
 }
 
 function MobileSheet({
+  id,
   onClose,
   groups,
   pathname,
   t,
 }: {
+  id: string;
   onClose: () => void;
   groups: { title: string; icon: LucideIcon; items: NavItem[] }[];
   pathname: string | null;
@@ -354,6 +364,7 @@ function MobileSheet({
     <div className="fixed inset-0 z-50 md:hidden">
       <div className="absolute inset-0 bg-bg/80 backdrop-blur" onClick={onClose} aria-hidden />
       <div
+        id={id}
         ref={panelRef}
         role="dialog"
         aria-modal="true"

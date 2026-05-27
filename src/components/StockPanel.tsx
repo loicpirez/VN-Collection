@@ -25,6 +25,8 @@ import { normalizeProviderDiagnostic, type NormalizedProviderDiagnostic, type Pr
 import { classifyOfferGroup, isEligibleGameStockOffer, type OfferGroup } from '@/lib/stock-classify';
 import { StockPhysicalLocations, type PhysicalOffer } from './StockPhysicalLocations';
 import { SkeletonRows } from './Skeleton';
+import { useDialogA11y } from './Dialog';
+import { useConfirm } from './ConfirmDialog';
 
 interface StockOffer {
   vn_id: string;
@@ -112,6 +114,17 @@ interface StockSource {
   updated_at: number;
 }
 
+// P-200: STALE_MS used to live inside the component body; hoist to
+// module scope so the literal isn't recreated on every render.
+const STALE_MS = 7 * 24 * 60 * 60 * 1000;
+
+// P-025 / P-027: module-level EMPTY arrays so consumers can use a
+// stable reference for the "no snapshot yet" case. Used directly
+// in useMemo deps; avoids re-creating a fresh `[]` on every render
+// when the snapshot fields are undefined.
+const EMPTY_OFFERS: StockOffer[] = [];
+const EMPTY_PROVIDERS: StockProvider[] = [];
+
 export function StockPanel({
   vnId,
   title,
@@ -125,6 +138,7 @@ export function StockPanel({
 }) {
   const t = useT();
   const locale = useLocale();
+  const { confirm } = useConfirm();
   const [snapshot, setSnapshot] = useState<StockSnapshot | null>(initialSnapshot ?? null);
   const [loading, setLoading] = useState(!initialSnapshot);
   const [refreshing, setRefreshing] = useState(false);
@@ -143,8 +157,6 @@ export function StockPanel({
   const [clearingCache, setClearingCache] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const physicalDefaultRef = useRef(false);
-
-  const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 
   const currency = useMemo(
     () => new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }),
@@ -186,7 +198,9 @@ export function StockPanel({
     return () => ctrl.abort();
   }, [vnId]);
 
-  const providers = snapshot?.providers ?? [];
+  // P-027: stabilize providers reference so downstream useMemos don't
+  // re-compute on every render when the snapshot fields are undefined.
+  const providers = snapshot?.providers ?? EMPTY_PROVIDERS;
 
   useEffect(() => {
     if (initialSnapshot || physicalDefaultRef.current || providers.length === 0) return;
@@ -264,6 +278,11 @@ export function StockPanel({
   }
 
   async function removeAlias(term: string) {
+    const ok = await confirm({
+      message: t.stock.aliasRemoveConfirm.replace('{term}', term),
+      tone: 'danger',
+    });
+    if (!ok) return;
     setAliasLoading(true);
     try {
       const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
@@ -274,8 +293,13 @@ export function StockPanel({
       if (r.ok) {
         const data = (await r.json()) as { aliases: string[] };
         setAliases(data.aliases ?? []);
+      } else {
+        // P-122: previously swallowed. Surface failure so the user
+        // doesn't see the alias quietly remain.
+        setAliasError(await readApiError(r, t.common.error));
       }
-    } catch {
+    } catch (e) {
+      setAliasError((e as Error).message);
     } finally {
       setAliasLoading(false);
     }
@@ -304,6 +328,11 @@ export function StockPanel({
   }
 
   async function removeSource(id: number) {
+    const ok = await confirm({
+      message: t.stock.manualSourceDeleteConfirm,
+      tone: 'danger',
+    });
+    if (!ok) return;
     setSourceLoading(true);
     setSourceError(null);
     try {
@@ -340,15 +369,27 @@ export function StockPanel({
           setSnapshot(null);
           await load();
         }
+      } else {
+        // P-122: surface clear-cache failure so the user knows the
+        // operation didn't succeed.
+        setError(await readApiError(r, t.common.error));
       }
-    } catch {
+    } catch (e) {
+      setError((e as Error).message);
     } finally {
       setClearingCache(false);
     }
   }
 
-  const now = Date.now();
-  const allOffers = snapshot?.offers ?? [];
+  // P-021 / P-193: memoize `now` per snapshot. Date.now() at top-of-
+  // render would mean the staleProviderIds memo's `now` dep changes on
+  // every render, defeating the memo entirely. Re-evaluating staleness
+  // once per snapshot is the right granularity — a 7-day staleness
+  // threshold doesn't care about a few ms of drift.
+  const now = useMemo(() => Date.now(), [snapshot]);
+  // P-025: stabilize the empty-snapshot fallback so this reference is
+  // the same array across renders.
+  const allOffers = snapshot?.offers ?? EMPTY_OFFERS;
   const staleProviderIds = useMemo(() => {
     if (!hideStale) return new Set<string>();
     return new Set(
@@ -356,10 +397,15 @@ export function StockPanel({
         .filter((s) => now - s.fetched_at > STALE_MS)
         .map((s) => s.provider),
     );
-  }, [hideStale, snapshot?.statuses, now, STALE_MS]);
-  const offers = hideStale
-    ? allOffers.filter((o) => !staleProviderIds.has(o.provider))
-    : allOffers;
+  }, [hideStale, snapshot?.statuses, now]);
+  // P-024: memoize the filtered `offers` array so identity is stable
+  // when hideStale is false (returns allOffers ref directly) and only
+  // changes when the stale set changes. Downstream useMemos that
+  // depend on `offers` now actually hit the cache.
+  const offers = useMemo(
+    () => (hideStale ? allOffers.filter((o) => !staleProviderIds.has(o.provider)) : allOffers),
+    [hideStale, allOffers, staleProviderIds],
+  );
   const refreshableProviders = providers.filter((p) => p.kind !== 'cached');
   const selectedProviderIds = selectedProviders ?? refreshableProviders.map((p) => p.id);
   const selectedProviderSet = useMemo(() => new Set(selectedProviderIds), [selectedProviderIds]);
@@ -561,7 +607,7 @@ export function StockPanel({
             onClick={() => setHideStale((h) => !h)}
             className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-bold ${
               hideStale
-                ? 'border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                ? 'border-status-on_hold/50 bg-status-on_hold/10 text-status-on_hold hover:bg-status-on_hold/20'
                 : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
             }`}
           >
@@ -728,13 +774,13 @@ export function StockPanel({
                 key={alias}
                 className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-white"
               >
-                {alias}
+                <span className="inline-block max-w-[12rem] truncate align-bottom">{alias}</span>
                 <button
                   type="button"
                   onClick={() => removeAlias(alias)}
                   disabled={aliasLoading}
                   aria-label={t.stock.aliasRemoveTerm}
-                  className="rounded p-0.5 text-muted hover:text-status-dropped disabled:opacity-50"
+                  className="tap-target rounded p-0.5 text-muted hover:text-status-dropped disabled:opacity-50"
                 >
                   <X className="h-3 w-3" aria-hidden />
                 </button>
@@ -853,8 +899,8 @@ export function StockPanel({
       )}
 
       {!loading && lastRefresh != null && (now - lastRefresh > STALE_MS) && offers.length > 0 && (
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200" role="status">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-xs text-status-on_hold" role="status">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-status-on_hold" aria-hidden />
           <span>
             {(t.stock.staleBanner as string).replace('{ago}', timeAgo(lastRefresh, t))}
           </span>
@@ -908,22 +954,22 @@ function ClearCacheModal({
   onConfirm: () => void;
 }) {
   const titleId = useId();
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useDialogA11y({ open: true, onClose: onCancel, panelRef });
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div className="w-full max-w-sm rounded-xl border border-border bg-bg-card p-4 shadow-xl">
+      <div className="absolute inset-0 bg-black/60" aria-hidden />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="relative w-full max-w-sm rounded-xl border border-border bg-bg-card p-4 shadow-xl outline-none"
+      >
         <h2 id={titleId} className="text-sm font-bold text-white">
           {t.stock.clearCache as string}
         </h2>
@@ -932,15 +978,14 @@ function ClearCacheModal({
           <button
             type="button"
             onClick={onCancel}
-            className="min-h-[36px] rounded-md border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            autoFocus
+            className="min-h-[44px] rounded-md border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
             {t.common.cancel as string}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="min-h-[36px] rounded-md border border-status-dropped/50 bg-status-dropped/15 px-3 py-1.5 text-xs font-bold text-status-dropped hover:bg-status-dropped/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped"
+            className="min-h-[44px] rounded-md border border-status-dropped/50 bg-status-dropped/15 px-3 py-1.5 text-xs font-bold text-status-dropped hover:bg-status-dropped/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped"
           >
             {t.stock.clearCache as string}
           </button>
@@ -964,7 +1009,7 @@ function GroupBtn({
   return (
     <button
       type="button"
-      className={`min-h-[36px] rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`min-h-[44px] rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 ${
         active
           ? 'border-accent bg-accent/15 text-accent'
           : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
@@ -1068,7 +1113,7 @@ function providerDiagnosticText(t: TDict, key: string): string {
 
 function diagnosticToneClass(tone: NormalizedProviderDiagnostic['tone']): string {
   if (tone === 'danger') return 'border-status-dropped/50 bg-status-dropped/10 text-status-dropped';
-  if (tone === 'warning') return 'border-amber-500/50 bg-amber-500/10 text-amber-400';
+  if (tone === 'warning') return 'border-status-on_hold/50 bg-status-on_hold/10 text-status-on_hold';
   if (tone === 'success') return 'border-status-completed/50 bg-status-completed/15 text-status-completed';
   return 'border-border bg-bg-elev text-muted';
 }
@@ -1103,7 +1148,7 @@ function ProviderDiagnostics({ diagnostics, t }: { diagnostics: NormalizedProvid
                     {diag.tone === 'danger' ? (
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-dropped" aria-hidden />
                     ) : diag.group === 'blocked' ? (
-                      <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden />
+                      <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-on_hold" aria-hidden />
                     ) : (
                       <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
                     )}
@@ -1286,7 +1331,7 @@ function OfferCard({
         </div>
       )}
       {notCounted && (
-        <div className="mt-1.5 rounded-md border border-amber-500/35 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200">
+        <div className="mt-1.5 rounded-md border border-status-on_hold/35 bg-status-on_hold/10 px-2 py-1 text-[11px] text-status-on_hold">
           <span className="font-semibold">{t.stock.notCounted}</span>
           {' '}
           {notCounted}
@@ -1297,9 +1342,9 @@ function OfferCard({
           {t.stock.source.replace('{source}', stockSourceLabel(t, offer.source))}
           {' · '}
           {timeAgo(offer.fetched_at, t)}
-          {Date.now() - offer.fetched_at > 7 * 24 * 60 * 60 * 1000 && (
+          {Date.now() - offer.fetched_at > STALE_MS && (
             <span
-              className="ml-1.5 inline-flex items-center rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300"
+              className="ml-1.5 inline-flex items-center rounded border border-status-on_hold/40 bg-status-on_hold/10 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-status-on_hold"
               title={t.stock.staleHint as string}
             >
               {t.stock.staleHint as string}

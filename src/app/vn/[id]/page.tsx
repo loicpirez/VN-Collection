@@ -205,6 +205,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const { vn, error } = await loadVn(id);
   if (!vn) {
+    // Log the technical detail server-side so the operator can diagnose,
+    // without leaking the raw upstream message to the page. See U-012.
+    if (error) {
+      console.warn(`[vn/${id}] upstream lookup failed:`, error);
+    }
     return (
       <div className="mx-auto max-w-2xl">
         {/*
@@ -226,7 +231,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           <h1 className="mb-2 text-xl font-bold text-status-dropped">{t.detail.notFoundTitle}</h1>
           <p className="text-sm text-muted">{t.detail.notFoundBody.replace('{id}', id)}</p>
           {error && (
-            <pre className="mt-3 overflow-x-auto rounded bg-bg-elev/60 p-2 text-[11px] text-status-dropped/80">{error}</pre>
+            // Surface a generic line — full upstream message is sent to the
+            // server log (where the operator can grep it) rather than dumped
+            // verbatim into the page (which can leak stack traces). See
+            // U-012 in docs/audit-uiux-full.md.
+            <p className="mt-3 text-xs text-status-dropped/80">{t.common.error}</p>
           )}
           <p className="mt-4 text-xs text-muted">
             <a
@@ -442,14 +451,14 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                     <ul className="mt-1 space-y-0.5 pl-2">
                       {(vn.titles ?? []).map((tr) => (
                         <li key={`${tr.lang}-${tr.title}`} className="text-white/85">
-                          <span className="mr-1 inline-flex h-4 min-w-[1.5rem] items-center justify-center rounded bg-bg-elev/60 px-1 text-[9px] font-bold uppercase tracking-wider text-muted">
+                          <span className="mr-1 inline-flex h-4 min-w-[1.5rem] items-center justify-center rounded bg-bg-elev/60 px-1 text-[10px] font-bold uppercase tracking-wider text-muted">
                             {tr.lang}
                           </span>
                           {tr.title}
                           {tr.latin && tr.latin !== tr.title && (
                             <span className="ml-1 text-muted">({tr.latin})</span>
                           )}
-                          {!tr.official && <span className="ml-1 text-[9px] text-muted">· {t.titles.unofficial}</span>}
+                          {!tr.official && <span className="ml-1 text-[10px] text-muted">· {t.titles.unofficial}</span>}
                           {tr.main && (
                             <Star
                               className="ml-1 inline h-2.5 w-2.5 fill-accent text-accent"

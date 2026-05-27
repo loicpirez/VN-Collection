@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, Bookmark, Check, Loader2, Plus, Trash2 } from 'lucide-react';
@@ -45,12 +45,29 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const [knownPlaces, setKnownPlaces] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch('/api/places').then((r) => r.json()).then((d) => setKnownPlaces(d.places ?? [])).catch(() => {});
+    // P-005 / P-072 / P-118: AbortController + cache: 'no-store' + log
+    // failures. Previously `.catch(() => {})` swallowed every error
+    // including network failures, leaving the places dropdown silently
+    // empty.
+    const ctrl = new AbortController();
+    fetch('/api/places', { signal: ctrl.signal, cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (ctrl.signal.aborted) return;
+        setKnownPlaces(d.places ?? []);
+      })
+      .catch((e: unknown) => {
+        if ((e as Error).name === 'AbortError') return;
+        console.error('[EditForm] places fetch failed:', e);
+      });
+    return () => ctrl.abort();
   }, []);
 
   const [seriesPickerId, setSeriesPickerId] = useState<string>('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const myseries = vn.series ?? [];
+  // P-211: memoize so downstream consumers (e.g. SeriesManager) get a
+  // stable array reference when `vn.series` is null.
+  const myseries = useMemo(() => vn.series ?? [], [vn.series]);
 
   const buildPayload = useCallback(() => ({
     status,
@@ -71,6 +88,15 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   const lastSavedRef = useRef<string | null>(null);
   const mountedRef = useRef(false);
+  // P-100: per-component lifecycle tracking. `setTimeout(() =>
+  // setSaveStatus('idle'), 2000)` used to fire on unmounted components
+  // because the inner timer wasn't cleaned up.
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef(false);
+  useEffect(() => () => {
+    unmountedRef.current = true;
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!mountedRef.current) {
@@ -88,11 +114,17 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
       lastSavedRef.current = serialized;
       call('PATCH', payload)
         .then(() => {
+          if (unmountedRef.current) return;
           setSaveStatus('saved');
           startTransition(() => router.refresh());
-          setTimeout(() => setSaveStatus('idle'), 2000);
+          if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+          idleTimerRef.current = setTimeout(() => {
+            if (unmountedRef.current) return;
+            setSaveStatus('idle');
+          }, 2000);
         })
         .catch((e: Error) => {
+          if (unmountedRef.current) return;
           setSaveStatus('idle');
           setError(e.message);
           toast.error(e.message);
@@ -176,11 +208,11 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     return (
       <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <p className="mb-4 text-muted">{t.form.notInCollection}</p>
-        <button className="btn btn-primary" onClick={handleAdd} disabled={pending}>
+        <button type="button" className="btn btn-primary" onClick={handleAdd} disabled={pending}>
           <Plus className="h-4 w-4" />
           {pending ? t.form.adding : t.form.add}
         </button>
-        {error && <p className="mt-3 text-sm text-status-dropped">{error}</p>}
+        {error && <p role="alert" className="mt-3 text-sm text-status-dropped">{error}</p>}
       </div>
     );
   }
@@ -402,16 +434,20 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         )}
       </div>
 
-      {error && <p className="text-sm text-status-dropped">{error}</p>}
+      {error && <p role="alert" className="text-sm text-status-dropped">{error}</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg-card px-4 py-2.5">
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
+        <span
+          aria-live="polite"
+          aria-atomic="true"
+          className="inline-flex items-center gap-1.5 text-[11px] text-muted"
+        >
           {saveStatus === 'saving' && (
             <><Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.form.saving}</>
           )}
           {saveStatus === 'saved' && (
-            <><Check className="h-3 w-3 text-status-finished" aria-hidden />
-              <span className="text-status-finished">{t.toast.saved}</span>
+            <><Check className="h-3 w-3 text-status-completed" aria-hidden />
+              <span className="text-status-completed">{t.toast.saved}</span>
             </>
           )}
           {saveStatus === 'idle' && (

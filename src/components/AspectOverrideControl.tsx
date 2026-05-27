@@ -91,7 +91,12 @@ export function AspectOverrideControl({
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-border bg-bg-card p-3 text-xs text-muted">
+      <section
+        role="status"
+        aria-live="polite"
+        aria-busy
+        className="rounded-xl border border-border bg-bg-card p-3 text-xs text-muted"
+      >
         <Loader2 className="inline h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
       </section>
     );

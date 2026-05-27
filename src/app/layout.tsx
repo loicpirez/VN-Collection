@@ -104,6 +104,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <header
                   className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur"
                   style={{ paddingTop: 'env(safe-area-inset-top)' }}
+                  aria-label={dict.app.title}
                 >
                   <HeaderSpaceFrame className="flex flex-wrap items-center gap-2 py-3 sm:gap-4">
                     <Link href="/" className="flex items-center gap-2">
@@ -127,10 +128,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   // status bar.
                   className="pb-16 pt-4 sm:pt-5"
                   tabIndex={-1}
+                  aria-label={dict.app.title}
                 >
                   <PageSpaceFrame>{children}</PageSpaceFrame>
                 </main>
-                <QuoteFooter />
+                <footer role="contentinfo" aria-label={dict.app.footer}>
+                  <QuoteFooter />
+                </footer>
                 <KeyboardShortcuts />
                 <TutorialTour />
                 <DownloadStatusBar />

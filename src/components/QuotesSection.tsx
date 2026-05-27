@@ -53,6 +53,7 @@ export function QuotesSection({
       className="group rounded-xl border border-border bg-bg-card"
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      aria-busy={loading || undefined}
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-6 py-4 hover:bg-bg-elev/50">
         <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
@@ -73,7 +74,7 @@ export function QuotesSection({
             ))}
           </ul>
         )}
-        {error && <p className="text-sm text-status-dropped">{error}</p>}
+        {error && <p role="alert" className="text-sm text-status-dropped">{error}</p>}
         {!loading && quotes && quotes.length === 0 && <p className="text-sm text-muted">{t.quotes.empty}</p>}
         {quotes && quotes.length > 0 && (
           <ul className="space-y-3">

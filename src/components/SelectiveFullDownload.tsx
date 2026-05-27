@@ -264,7 +264,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
       <p className="text-[11px] text-muted">{t.selectiveFullDownload.hint}</p>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[180px]">
+        <div className="relative flex-1 min-w-[140px] sm:min-w-[180px]">
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted" aria-hidden />
           <input
             type="text"

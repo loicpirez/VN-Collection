@@ -307,16 +307,17 @@ export function CoverSourcePicker({
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={() => setOpen(false)}
         >
+          <div className="absolute inset-0 bg-black/80" aria-hidden />
           <div
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
             tabIndex={-1}
-            className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card outline-none"
+            className="relative max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -502,7 +503,7 @@ export function CoverSourcePicker({
                         onChange={(e) => setUrlValue(e.target.value)}
                         placeholder="https://…"
                         aria-label={t.coverPicker.urlLabel}
-                        className="input flex-1 min-w-[200px]"
+                        className="input flex-1 min-w-[160px] sm:min-w-[200px]"
                       />
                       <button
                         type="button"
@@ -677,7 +678,7 @@ function EgsCandidateGrid({
   }, [egsId]);
 
   if (error) {
-    return <p className="text-xs text-status-dropped">{error}</p>;
+    return <p role="alert" className="text-xs text-status-dropped">{error}</p>;
   }
   if (!candidates) {
     return <SkeletonBlock className="h-48 w-full" />;

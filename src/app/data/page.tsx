@@ -98,16 +98,18 @@ export default async function DataPage() {
               <KeyRound className="inline h-3 w-3" /> {t.dataMgmt.statusRows}
             </CollapsibleSummary>
           </summary>
-          <table className="mt-2 w-full" aria-label={t.dataMgmt.statusRows}>
-            <tbody>
-              {status.rows.map((r) => (
-                <tr key={r.table} className="border-t border-border/40">
-                  <th scope="row" className="py-1 text-left font-mono font-normal text-muted">{r.table}</th>
-                  <td className="py-1 text-right font-bold tabular-nums">{fmtNum(r.count, locale)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full" aria-label={t.dataMgmt.statusRows}>
+              <tbody>
+                {status.rows.map((r) => (
+                  <tr key={r.table} className="border-t border-border/40">
+                    <th scope="row" className="py-1 text-left font-mono font-normal text-muted">{r.table}</th>
+                    <td className="py-1 text-right font-bold tabular-nums">{fmtNum(r.count, locale)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </details>
       </section>
 

@@ -2,6 +2,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
+import { BCP47 } from '@/lib/locale-number';
+import type { Locale } from '@/lib/i18n/dictionaries';
 
 interface Props {
   value: string;
@@ -9,8 +11,6 @@ interface Props {
   className?: string;
   ariaLabel?: string;
 }
-
-const LOCALE_TAG: Record<string, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
 
 function pad(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
@@ -33,13 +33,17 @@ function startOfMonth(d: Date): Date {
 export function DateInput({ value, onChange, className = '', ariaLabel }: Props) {
   const t = useT();
   const locale = useLocale();
-  const tag = LOCALE_TAG[locale] ?? 'fr-FR';
+  const tag = BCP47[locale as Locale] ?? 'fr-FR';
   const id = useId();
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<Date>(() => parseIso(value) ?? new Date());
   const wrapperRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Track whether the picker was open at last cycle so we can restore
+  // focus to the trigger button on close (A-013).
+  const wasOpenRef = useRef(false);
 
   // Close on outside click + Escape
   useEffect(() => {
@@ -72,6 +76,17 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
+  }, [open]);
+
+  // Focus restoration: when the picker closes after being open, return
+  // focus to the trigger so keyboard users land back where they started.
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true;
+    } else if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      triggerRef.current?.focus({ preventScroll: true });
+    }
   }, [open]);
 
   // When value changes externally, snap the view to that month.
@@ -166,9 +181,12 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
       */}
       <div className={`inline-flex items-center justify-between gap-2 ${className || 'input'}`}>
         <button
+          ref={triggerRef}
           type="button"
           id={id}
           aria-label={ariaLabel}
+          aria-haspopup="dialog"
+          aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
           className="inline-flex min-h-[44px] flex-1 items-center gap-2 text-left"
         >

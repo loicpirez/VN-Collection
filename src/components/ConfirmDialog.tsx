@@ -160,6 +160,10 @@ function ConfirmDialog({
   useEffect(() => {
     previouslyFocused.current = document.activeElement;
     confirmBtnRef.current?.focus();
+    // Body-scroll lock (WCAG 2.4.3) so the underlying page can't
+    // scroll behind the modal while it's open.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -186,6 +190,7 @@ function ConfirmDialog({
     window.addEventListener('keydown', onKey, true);
     return () => {
       window.removeEventListener('keydown', onKey, true);
+      document.body.style.overflow = prevOverflow;
       if (
         previouslyFocused.current &&
         previouslyFocused.current instanceof HTMLElement &&
@@ -222,6 +227,11 @@ function ConfirmDialog({
             }`}
           >
             <AlertTriangle className="h-4 w-4" aria-hidden />
+            {/* When `tone='danger'` the destructive intent is conveyed
+                by the AlertTriangle icon + red palette. A visually-
+                hidden warning prefix duplicates the cue for SR users
+                so they don't depend on color alone (WCAG 1.4.1). */}
+            {danger && <span className="sr-only">{t.common.dangerWarning} </span>}
             {entry.title ?? t.common.confirmTitle}
           </h2>
           <button
@@ -300,6 +310,10 @@ function PromptDialog({
     previouslyFocused.current = document.activeElement;
     inputRef.current?.focus();
     inputRef.current?.select();
+    // Body-scroll lock (WCAG 2.4.3) so the underlying page can't
+    // scroll behind the modal while it's open.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -325,6 +339,7 @@ function PromptDialog({
     window.addEventListener('keydown', onKey, true);
     return () => {
       window.removeEventListener('keydown', onKey, true);
+      document.body.style.overflow = prevOverflow;
       if (
         previouslyFocused.current &&
         previouslyFocused.current instanceof HTMLElement &&

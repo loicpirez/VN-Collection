@@ -72,7 +72,7 @@ async function VnActivitySummary({
         <span>
           {formatMinutes(to, locale, t.year, { emptyValue: 'allow_zero', fallback: '0m' })}
           {delta !== 0 && (
-            <span className={`ml-1.5 inline-flex items-center gap-0.5 text-[10px] ${delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <span className={`ml-1.5 inline-flex items-center gap-0.5 text-[10px] ${delta > 0 ? 'text-status-completed' : 'text-status-dropped'}`}>
               {delta > 0
                 ? <ArrowUp className="h-2.5 w-2.5" aria-hidden />
                 : <ArrowDown className="h-2.5 w-2.5" aria-hidden />}
@@ -231,7 +231,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
         </h1>
         <p className="mt-1 text-sm text-muted">{t.userActivity.subtitle}</p>
         <form method="get" className="mt-4 flex flex-wrap items-end gap-2">
-          <label className="min-w-[220px] flex-1 text-xs text-muted">
+          <label className="min-w-[160px] sm:min-w-[220px] flex-1 text-xs text-muted">
             <span className="mb-1 inline-flex items-center gap-1">
               <Search className="h-3 w-3" aria-hidden /> {t.userActivity.search}
             </span>
@@ -241,7 +241,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
               className="input w-full"
             />
           </label>
-          <label className="min-w-[160px] text-xs text-muted">
+          <label className="sm:min-w-[160px] flex-1 text-xs text-muted">
             <span className="mb-1 inline-flex items-center gap-1">
               <Filter className="h-3 w-3" aria-hidden /> {t.userActivity.kind}
             </span>
@@ -250,7 +250,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
               {kinds.map((k) => <option key={k} value={k}>{systemKindLabel(k)}</option>)}
             </select>
           </label>
-          <label className="min-w-[160px] text-xs text-muted">
+          <label className="sm:min-w-[160px] flex-1 text-xs text-muted">
             <span className="mb-1 block">{t.userActivity.entity}</span>
             <input name="entity" defaultValue={entity} className="input w-full" />
           </label>

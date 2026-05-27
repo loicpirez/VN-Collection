@@ -164,11 +164,16 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           data.displays.some((slot) => slot.vn_id === highlightVnId);
         if (found && !ac.signal.aborted) {
           setActiveId(shelf.id);
-          window.setTimeout(() => {
+          // P-113: capture the timer id so the cleanup can clear it.
+          // Without this the 120ms timer can fire after the editor
+          // unmounts (rapid tab swap) and try to scroll a stale node.
+          const scrollTimer = window.setTimeout(() => {
+            if (ac.signal.aborted) return;
             document
               .querySelector<HTMLElement>(`[data-shelf-vn="${CSS.escape(highlightVnId)}"]`)
               ?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
           }, 120);
+          ac.signal.addEventListener('abort', () => clearTimeout(scrollTimer), { once: true });
           return;
         }
       }

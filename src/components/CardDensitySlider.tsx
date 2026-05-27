@@ -82,7 +82,7 @@ export function CardDensitySlider({
         <span>{t.cardDensity.label}</span>
         {canReset && (
           <span
-            className="ml-1 inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-1 py-0 text-[9px] font-semibold text-accent"
+            className="ml-1 inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-1 py-0 text-[10px] font-semibold text-accent"
             title={customTitle}
           >
             {t.cardDensity.customOverrideChip}

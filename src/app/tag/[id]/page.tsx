@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Star, Tag as TagIcon } from 'lucide-react';
-import { countListMembershipsByVn, getReadingQueueVnIds, listCollection } from '@/lib/db';
+import { countListMembershipsByVn, getReadingQueueVnIds, listCollectionForCards } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
@@ -63,7 +63,10 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   // Use the shared `listCollection` pipeline so every VnCard surface
   // (badge, density, list-count chip, reading-queue chip, aspect badge,
   // EGS score, etc.) renders consistently with the rest of the app.
-  const rawLocalItems = listCollection({ tag: tagId }).slice(0, LOCAL_LIMIT);
+  // P-050: card-only projection — drops the heavy `vn.*` JSON columns
+  // (raw, description, staff, va, titles, editions, screenshots,
+  // release_images, extlinks, aliases) that VnCard never reads.
+  const rawLocalItems = listCollectionForCards({ tag: tagId }).slice(0, LOCAL_LIMIT);
   const listCounts = countListMembershipsByVn();
   const queueIds = getReadingQueueVnIds();
   const localItems = rawLocalItems.map((it) => ({

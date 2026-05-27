@@ -90,7 +90,7 @@ export function QuoteFooter() {
               hovered ? 'opacity-100 delay-75' : 'opacity-0'
             }`}
           >
-            {error && <p className="text-[11px] text-status-dropped">{error}</p>}
+            {error && <p role="alert" className="text-[11px] text-status-dropped">{error}</p>}
             {!error && !quote && loading && (
               <div className="space-y-1.5">
                 <SkeletonBlock className="h-3 w-5/6" />

@@ -6,7 +6,7 @@ import { findCharacterSiblings, getVasForCharacter, getAppSetting, isInCollectio
 import { Check } from 'lucide-react';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
-import { fmtNum } from '@/lib/locale-number';
+import { BCP47, fmtNum } from '@/lib/locale-number';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -26,13 +26,11 @@ export const dynamic = 'force-dynamic';
 
 const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
 
-const BCP47_MAP: Record<Locale, string> = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' };
-
 function fmtBirthday(b: [number, number] | null, locale: Locale): string | null {
   if (!b) return null;
   const [m, d] = b;
   if (!m) return null;
-  if (!d) return new Date(0, m - 1).toLocaleString(BCP47_MAP[locale], { month: 'long' });
+  if (!d) return new Date(0, m - 1).toLocaleString(BCP47[locale], { month: 'long' });
   return `${d}/${String(m).padStart(2, '0')}`;
 }
 
@@ -175,7 +173,7 @@ export default async function CharacterPage({
           )}
 
           {meta.length > 0 && (
-            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+            <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 text-sm sm:gap-x-6 sm:grid-cols-3">
               {meta.map((m) => (
                 <div key={m.label}>
                   <dt className="text-[11px] uppercase tracking-wider text-muted">{m.label}</dt>
@@ -385,7 +383,7 @@ export default async function CharacterPage({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline justify-between gap-1">
                             <span title={v.title ?? v.id} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">{v.title ?? v.id}</span>
-                            <span className="shrink-0 rounded bg-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">{role}</span>
+                            <span className="shrink-0 rounded bg-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">{role}</span>
                           </div>
                           {/* R5-238: visible owned chip when this
                               appears-in VN is in the local collection.
@@ -393,7 +391,7 @@ export default async function CharacterPage({
                               ownership, but a chip is more discoverable
                               and matches the staff-credits surface. */}
                           {owned && (
-                            <span className="mt-1 inline-flex items-center gap-0.5 rounded bg-status-completed/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-status-completed">
+                            <span className="mt-1 inline-flex items-center gap-0.5 rounded bg-status-completed/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-status-completed">
                               <Check className="h-2.5 w-2.5" aria-hidden /> {t.staff.ownedLabel}
                             </span>
                           )}
@@ -412,7 +410,7 @@ export default async function CharacterPage({
                           // release-tuples VNDB reported for this VN id
                           // so the user knows the deduped card still
                           // covers multiple editions.
-                          <span className="rounded bg-bg px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted">
+                          <span className="rounded bg-bg px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">
                             {t.characters.releaseCountChip.replace('{n}', String(v.releaseCount))}
                           </span>
                         )}

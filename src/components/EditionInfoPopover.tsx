@@ -236,19 +236,18 @@ export function EditionInfoTrigger({
         aria-expanded={open}
         aria-label={ariaLabel}
         title={ariaLabel}
-        className={`${buttonPositionClassName} z-20 inline-flex h-6 w-6 items-center justify-center rounded bg-bg/80 text-muted hover:text-accent ${hoverOpacityClass} ${buttonClassName}`}
+        className={`${buttonPositionClassName} tap-target z-20 inline-flex h-6 w-6 items-center justify-center rounded bg-bg/80 text-muted hover:text-accent ${hoverOpacityClass} ${buttonClassName}`}
       >
         <Info className="h-3 w-3" aria-hidden />
       </button>
       {open && (
         <div
           ref={popoverRef}
-          role="dialog"
-          aria-modal="true"
+          role="region"
           aria-label={ariaLabel}
           onPointerDown={stop}
           onMouseDown={stop}
-          className={`absolute z-30 w-max min-w-[200px] max-w-[280px] rounded-lg border border-border bg-bg-card p-2 text-[11px] shadow-card ${
+          className={`absolute z-30 w-max min-w-[180px] max-w-[calc(100vw-2rem)] sm:max-w-[280px] rounded-lg border border-border bg-bg-card p-2 text-[11px] shadow-card ${
             placement.vertical === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'
           } ${placement.horizontal === 'right' ? 'right-0' : 'left-0'} ${
             placed ? 'visible opacity-100' : 'invisible opacity-0'

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Bookmark } from 'lucide-react';
-import { countListMembershipsByVn, getAppSetting, getReadingQueueVnIds, getSeries, listCollection } from '@/lib/db';
+import { countListMembershipsByVn, getAppSetting, getReadingQueueVnIds, getSeries, listCollectionForCards } from '@/lib/db';
 import { publicUrlFor } from '@/lib/files';
 import { getDict } from '@/lib/i18n/server';
 import { VnCard } from '@/components/VnCard';
@@ -33,7 +33,11 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
   const series = getSeries(n);
   if (!series) notFound();
   const t = await getDict();
-  const rawItems = listCollection({ series: n });
+  // P-050: card-only projection — drops the heavy `vn.*` JSON columns
+  // (raw, description, staff, va, titles, editions, screenshots,
+  // release_images, extlinks, aliases) that VnCard never reads. On a
+  // 1000+ VN library this drops the JSON.parse cost by ~30 MB.
+  const rawItems = listCollectionForCards({ series: n });
   // R5-115: preload the `ListsPicker` membership-count chip on each
   // card by annotating `list_count` from the same helper the
   // `/api/collection` route uses. Without this the chip mounts

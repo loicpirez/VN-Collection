@@ -68,7 +68,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
           <input
             className="input pl-9"
@@ -100,7 +100,13 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
           <p className="mx-auto mt-1 max-w-md text-xs">{t.traits.emptyBody}</p>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+          }}
+        >
           {results.map((tr) => (
             <Link
               key={tr.id}

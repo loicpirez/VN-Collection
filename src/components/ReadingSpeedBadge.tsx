@@ -1,15 +1,8 @@
 import { Gauge } from 'lucide-react';
 import { getReadingSpeedProfile, predictReadingMinutes } from '@/lib/reading-speed';
 import { getDict, getLocale } from '@/lib/i18n/server';
-
-function fmt(m: number | null | undefined): string {
-  if (!m || m <= 0) return '—';
-  const h = Math.floor(m / 60);
-  const mn = m % 60;
-  if (h && mn) return `${h}h ${mn}m`;
-  if (h) return `${h}h`;
-  return `${mn}m`;
-}
+import { BCP47 } from '@/lib/locale-number';
+import { formatMinutes } from '@/lib/format';
 
 interface Props {
   vndbLength: number | null;
@@ -21,10 +14,10 @@ interface Props {
  * times into one compact row. Hidden entirely when neither side has a value
  * (the parent already shows "—" in that case).
  */
-const BCP47_MAP = { fr: 'fr-FR', en: 'en-US', ja: 'ja-JP' } as const;
-
 export async function ReadingSpeedBadge({ vndbLength, egsLength }: Props) {
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
+  const fmt = (m: number | null | undefined): string =>
+    formatMinutes(m, locale, t.year, { fallback: '—' });
   const profile = getReadingSpeedProfile();
   const predicted = predictReadingMinutes(vndbLength, egsLength, profile);
   if (vndbLength == null && egsLength == null) return null;
@@ -46,7 +39,7 @@ export async function ReadingSpeedBadge({ vndbLength, egsLength }: Props) {
           {t.readingSpeed.you}: <span className="font-semibold text-accent">≈ {fmt(predicted)}</span>
           {multiplier != null && (
             <span className="ml-1 opacity-70">
-              ×{multiplier.toLocaleString(BCP47_MAP[locale], { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ×{multiplier.toLocaleString(BCP47[locale], { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           )}
         </span>
