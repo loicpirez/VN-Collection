@@ -419,6 +419,26 @@ export function AliceNetKobeClient() {
   const isKobeGroup = (v: string | null): v is KobeGroup =>
     v != null && (KOBE_GROUPS as readonly string[]).includes(v);
   const isKobeView = (v: string | null): v is KobeView => v === 'cards' || v === 'list';
+
+  // U-129: persisted defaults beyond URL state. When the URL is clean
+  // (no `?filter=` / `?sort=` / etc.) the initial state falls back to
+  // the last-saved localStorage values. Effect below mirrors writes.
+  const KOBE_PREFS_KEY = 'vncoll.kobe.prefs.v1';
+  function loadKobePrefs(): { sort?: KobeSort; group?: KobeGroup; view?: KobeView } {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = window.localStorage.getItem(KOBE_PREFS_KEY);
+      if (!raw) return {};
+      const obj = JSON.parse(raw) as { sort?: unknown; group?: unknown; view?: unknown };
+      return {
+        sort: isKobeSort(obj.sort as string | null) ? (obj.sort as KobeSort) : undefined,
+        group: isKobeGroup(obj.group as string | null) ? (obj.group as KobeGroup) : undefined,
+        view: isKobeView(obj.view as string | null) ? (obj.view as KobeView) : undefined,
+      };
+    } catch {
+      return {};
+    }
+  }
   const [items, setItems] = useState<KobeItem[]>([]);
   const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, vndb_matched: 0, egs_only: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
   const [pending, setPending] = useState<PendingCounts>({ vndb_pending: 0, egs_pending: 0 });
@@ -436,15 +456,18 @@ export function AliceNetKobeClient() {
   const [producerFilter, setProducerFilter] = useState('');
   const [sort, setSort] = useState<KobeSort>(() => {
     const v = urlSearch?.get('sort') ?? null;
-    return isKobeSort(v) ? v : 'match_status';
+    if (isKobeSort(v)) return v;
+    return loadKobePrefs().sort ?? 'match_status';
   });
   const [group, setGroup] = useState<KobeGroup>(() => {
     const v = urlSearch?.get('group') ?? null;
-    return isKobeGroup(v) ? v : 'none';
+    if (isKobeGroup(v)) return v;
+    return loadKobePrefs().group ?? 'none';
   });
   const [view, setView] = useState<KobeView>(() => {
     const v = urlSearch?.get('view') ?? null;
-    return isKobeView(v) ? v : 'cards';
+    if (isKobeView(v)) return v;
+    return loadKobePrefs().view ?? 'cards';
   });
   const [showFilters, setShowFilters] = useState(true);
   const [yearMin, setYearMin] = useState('');
@@ -487,6 +510,20 @@ export function AliceNetKobeClient() {
   }, [t, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // U-129: persist durable view prefs (sort / group / view) to
+  // localStorage so the next visit's clean-URL initial state restores
+  // the user's last choice. `filter` deliberately stays session-only
+  // — it's a tab-like quick switcher, not a default the user wants
+  // to revisit a week later.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(KOBE_PREFS_KEY, JSON.stringify({ sort, group, view }));
+    } catch {
+      // Quota / private-mode — ignore.
+    }
+  }, [sort, group, view]);
 
   // U-006: sync kobe state → URL. Only writes non-default values so
   // /alicesoft_kobe stays clean.
