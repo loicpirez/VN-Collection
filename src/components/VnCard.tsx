@@ -300,7 +300,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           title={t.form.add}
         >
           <span className="inline-flex h-3 w-3 items-center justify-center">
-            {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+            {adding ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" />}
           </span>
           {t.cardAdd}
         </button>

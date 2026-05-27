@@ -91,7 +91,7 @@ export function ListCardActions({ list }: { list: List }) {
         aria-controls={menuId}
         aria-label={t.nav.openMenu}
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <MoreVertical className="h-4 w-4" />}
       </button>
       {open && (
         <div

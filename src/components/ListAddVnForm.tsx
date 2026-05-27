@@ -60,7 +60,7 @@ export function ListAddVnForm({ listId }: { listId: number }) {
         disabled={busy || value.trim().length === 0}
         className="btn btn-primary"
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" />}
         {t.series.addVn}
       </button>
     </div>

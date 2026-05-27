@@ -162,7 +162,7 @@ function LinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
             aria-label={t.mapEgs.searchPlaceholder}
             className="input w-full pl-7 text-xs"
           />
-          {searching && <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" />}
+          {searching && <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" aria-hidden />}
         </div>
 
         <ul className="mb-3 space-y-1">
@@ -190,7 +190,7 @@ function LinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
                 <ExternalLink className="h-3 w-3" />
               </a>
               <button type="button" onClick={() => link(h.id)} disabled={busy != null} className="btn btn-primary">
-                {busy === h.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
+                {busy === h.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" />}
                 {t.mapEgs.useThis}
               </button>
             </li>
@@ -199,7 +199,7 @@ function LinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
 
         <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
           <button type="button" onClick={() => link(null)} disabled={busy != null} className="btn btn-danger btn-xs">
-            {busy === 'none' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2Off className="h-3 w-3" />}
+            {busy === 'none' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2Off className="h-3 w-3" />}
             {t.kobe.kobeNoMatch}
           </button>
         </footer>
@@ -258,7 +258,7 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
                 : 'border border-border bg-bg-elev/30 text-muted hover:border-accent hover:text-white'
             }`}
           >
-            {busy === c.id && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
+            {busy === c.id && <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden />}
             {c.id}
           </button>
         );

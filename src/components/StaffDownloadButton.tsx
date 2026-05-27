@@ -40,7 +40,7 @@ export function StaffDownloadButton({ sid }: { sid: string }) {
 
   return (
     <button type="button" onClick={onClick} disabled={busy} className="btn">
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" />}
       {t.staff.downloadAction}
     </button>
   );

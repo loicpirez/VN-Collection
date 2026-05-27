@@ -102,7 +102,7 @@ export function CreateListForm() {
         disabled={busy || name.trim().length === 0}
         className="btn btn-primary"
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" />}
         {t.lists.create}
       </button>
     </div>

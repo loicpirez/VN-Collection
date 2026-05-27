@@ -10,7 +10,6 @@ import { useDisplaySettings } from '@/lib/settings/client';
 import type { VndbCharacter } from '@/lib/vndb-types';
 import { fetchVnCharacters, type VnCharacterRow } from '@/lib/vn-characters-cache';
 
-import { readApiError } from '@/lib/api-error-read';
 const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
 
 function ageString(ch: VndbCharacter, t: ReturnType<typeof useT>): string[] {

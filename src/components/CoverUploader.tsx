@@ -90,7 +90,7 @@ export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
           title={t.cover.hint}
           data-menu-keep-open=""
         >
-          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ImagePlus className="h-3 w-3" />}
           {busy ? t.cover.uploading : t.cover.uploadCta}
         </button>
         {error && <p role="alert" className="text-[10px] text-status-dropped">{error}</p>}
@@ -105,7 +105,7 @@ export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
       {hiddenInput}
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn" onClick={() => inputRef.current?.click()} disabled={busy || pending}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" />}
           {busy ? t.cover.uploading : t.cover.uploadCta}
         </button>
         {hasCustom && (

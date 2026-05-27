@@ -26,11 +26,23 @@ export function BrandOverlapPicker({ initialA, initialB }: { initialA: string | 
   const [b, setB] = useState(initialB ?? '');
 
   useEffect(() => {
-    fetch('/api/producers', { cache: 'no-store' })
+    // R12-001: abort the fetch on unmount so the success/error/finally
+    // callbacks never call setState on a torn-down component. Without
+    // this the picker leaks a setLoading(false) into React's no-op
+    // warning bucket whenever the user navigates away mid-flight.
+    const ac = new AbortController();
+    fetch('/api/producers', { cache: 'no-store', signal: ac.signal })
       .then((r) => (r.ok ? r.json() : { producers: [] }))
-      .then((d: { producers?: Producer[] }) => setList(d.producers ?? []))
-      .catch(() => setList([]))
-      .finally(() => setLoading(false));
+      .then((d: { producers?: Producer[] }) => {
+        if (!ac.signal.aborted) setList(d.producers ?? []);
+      })
+      .catch(() => {
+        if (!ac.signal.aborted) setList([]);
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false);
+      });
+    return () => ac.abort();
   }, []);
 
   function submit(e: React.FormEvent) {
@@ -42,7 +54,7 @@ export function BrandOverlapPicker({ initialA, initialB }: { initialA: string | 
   if (loading) {
     return (
       <div className="mt-4 inline-flex items-center gap-2 text-xs text-muted">
-        <Loader2 className="h-3 w-3 animate-spin" /> {t.common.loading}
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
       </div>
     );
   }

@@ -316,7 +316,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
           onClick={submit}
           disabled={submitting || picked.size === 0}
         >
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" />}
           {t.selectiveFullDownload.runOnSelected.replace('{n}', String(picked.size))}
         </button>
       </div>

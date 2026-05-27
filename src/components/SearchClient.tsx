@@ -683,7 +683,7 @@ export function SearchClient() {
                     disabled={isAdding || isAdded}
                     className={`btn shrink-0 ${isAdded ? '' : 'btn-primary'}`}
                   >
-                    {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                    {isAdding ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" />}
                     {isAdded ? t.search.inCollection : t.search.addEgsOnly}
                   </button>
                 </li>

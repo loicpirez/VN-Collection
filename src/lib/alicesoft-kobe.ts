@@ -3,22 +3,7 @@ import { searchVn } from './vndb';
 import { fetchEgsGame, searchEgsByName, searchEgsCandidates, type EgsCandidate, type EgsGame } from './erogamescape';
 import { providerFetch } from './proxy-fetch';
 import { isVndbVnId } from './vn-id-shape';
-import {
-  countKobeNoVndbResult,
-  countKobeNoVndbNoEgs,
-  countKobeNoVndbWithEgs,
-  countKobeUnmatchedQueue,
-  countKobeStock,
-  listKobeNoVndbWithEgs,
-  listKobeNoVndbNoEgs,
-  listKobeNoVndbResult,
-  listKobeUnmatched,
-  resetKobeAutoMatches as dbResetKobeAutoMatches,
-  setKobeEgsLink,
-  setKobeVnLink,
-  upsertKobeStock,
-  type KobeStockRow,
-} from './db';
+import { countKobeNoVndbResult, countKobeNoVndbNoEgs, countKobeNoVndbWithEgs, countKobeUnmatchedQueue, listKobeNoVndbWithEgs, listKobeNoVndbNoEgs, listKobeNoVndbResult, listKobeUnmatched, resetKobeAutoMatches as dbResetKobeAutoMatches, setKobeEgsLink, setKobeVnLink, upsertKobeStock, type KobeStockRow } from './db'
 
 const ALICE_KOBE_URL = 'https://www.alice-kobe.com/html/page4.html';
 const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;

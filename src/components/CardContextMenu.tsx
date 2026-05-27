@@ -157,7 +157,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
               <StatusIcon status={s} className="h-3.5 w-3.5" />
               {t.status[s]}
             </span>
-            {busy === `status-${s}` ? <Loader2 className="h-3 w-3 animate-spin" /> : active ? <Check className="h-3 w-3" /> : null}
+            {busy === `status-${s}` ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : active ? <Check className="h-3 w-3" /> : null}
           </button>
         );
       })}
@@ -184,7 +184,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
           <Heart className={`h-3.5 w-3.5 ${favLocal ? 'fill-accent text-accent' : ''}`} />
           {favLocal ? t.quickActions.unfavorite : t.quickActions.favorite}
         </span>
-        {busy === 'favorite' && <Loader2 className="h-3 w-3 animate-spin" />}
+        {busy === 'favorite' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
       </button>
 
       <Link

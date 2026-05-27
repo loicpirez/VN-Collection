@@ -107,7 +107,7 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
             )}
             {uploadingKind === 'cover' && (
               <div className="absolute inset-0 flex items-center justify-center bg-bg/70">
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
               </div>
             )}
           </div>
@@ -174,7 +174,7 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
               )}
               {uploadingKind === 'banner' && (
                 <div className="absolute inset-0 flex items-center justify-center bg-bg/70">
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
                 </div>
               )}
             </div>
@@ -234,7 +234,7 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
           disabled={!dirty || saving || !name.trim()}
           className="btn btn-primary"
         >
-          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Save className="h-3 w-3" />}
           {t.common.save}
         </button>
       </div>

@@ -227,7 +227,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
           aria-expanded={pickerOpen}
           aria-controls={menuId}
         >
-          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
+          {running ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" />}
           {running ? `${done}/${total}` : (label ?? t.bulk.cta)}
         </button>
         {pickerOpen && !running && (

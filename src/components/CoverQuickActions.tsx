@@ -177,7 +177,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
             onClick={addToCollection}
             disabled={busy !== null}
           >
-            {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" />}
             {t.coverActions.addToCollection}
           </button>
         ) : (
@@ -188,7 +188,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
             disabled={busy !== null}
             title={t.coverActions.removeFromCollection}
           >
-            {busy === 'remove' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            {busy === 'remove' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" />}
             {t.coverActions.removeFromCollection}
           </button>
         )
@@ -207,7 +207,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
           aria-pressed={wishlist.onWishlist}
         >
           {busy === 'wish' || wishlist.loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
             <Heart className={`h-4 w-4 ${wishlist.onWishlist ? 'fill-current' : ''}`} />
           )}

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Library, Loader2, Search, SearchX, Sparkles } from 'lucide-react';
+import { Library, Search, SearchX, Sparkles } from 'lucide-react'
 import { RefreshScopeButton } from './RefreshScopeButton';
 import { SkeletonRows } from './Skeleton';
 import { useLocale, useT } from '@/lib/i18n/client';

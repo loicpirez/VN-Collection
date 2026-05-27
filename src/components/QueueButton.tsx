@@ -69,7 +69,7 @@ export function QueueButton({ vnId }: { vnId: string }) {
       }`}
       title={queued ? t.readingQueue.removeCta : t.readingQueue.addCta}
     >
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : queued ? <ListOrdered className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : queued ? <ListOrdered className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
       {queued ? t.readingQueue.removeCta : t.readingQueue.addCta}
     </button>
   );

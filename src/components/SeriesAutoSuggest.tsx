@@ -114,7 +114,7 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
             disabled={!!busy}
             className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11px] font-bold text-bg disabled:opacity-50"
           >
-            {busy === `join-${s.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            {busy === `join-${s.id}` ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Check className="h-3 w-3" />}
             {t.seriesAutoSuggest.joinExisting}: {s.name}
           </button>
         ))}
@@ -125,7 +125,7 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
             disabled={!!busy}
             className="inline-flex items-center gap-1 rounded-md border border-accent/60 bg-bg-card px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent/15 disabled:opacity-50"
           >
-            {busy === 'create' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+            {busy === 'create' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" />}
             {t.seriesAutoSuggest.createNew}: {suggestion.suggestedName}
           </button>
         )}

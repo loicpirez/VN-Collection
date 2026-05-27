@@ -288,7 +288,7 @@ export default function SteamSyncPage() {
                   disabled={applying || picks.size === 0}
                   className="btn btn-primary"
                 >
-                  {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  {applying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" />}
                   {t.steam.apply.replace('{n}', String(picks.size))}
                 </button>
               </div>

@@ -74,7 +74,7 @@ export function ProducerRefreshButton({ producerId }: { producerId: string }) {
       disabled={busy}
       className="btn inline-flex items-center gap-1.5 text-xs disabled:opacity-60"
     >
-      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" />}
       {busy ? t.producerVns.refreshing : t.producerVns.refresh}
     </button>
   );

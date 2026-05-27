@@ -1,21 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  Award,
-  Check,
-  Compass,
-  Eye,
-  EyeOff,
-  Gem,
-  Heart,
-  Lightbulb,
-  ListChecks,
-  Sparkles,
-  Star,
-  Tag as TagIcon,
-} from 'lucide-react';
+import { ArrowLeft, Check, Eye, EyeOff, Heart, Lightbulb, ListChecks, Sparkles, Star } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react';
 import type { ModeTabIconId } from '@/components/RecommendModeTabs';
 import {
@@ -334,7 +320,6 @@ export default async function RecommendationsPage({
     </DensityScopeProvider>
   );
 }
-
 
 /**
  * Per-mode "Why these recommendations?" panel. The copy differs by mode

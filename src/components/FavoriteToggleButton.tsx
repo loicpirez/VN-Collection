@@ -85,7 +85,7 @@ export function FavoriteToggleButton({
         }`}
       >
         {busy ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
         ) : (
           <Heart className={`h-3.5 w-3.5 ${on ? 'fill-status-dropped' : ''}`} aria-hidden />
         )}
@@ -109,7 +109,7 @@ export function FavoriteToggleButton({
       } left-2 top-2`}
     >
       {busy ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
       ) : (
         <Heart className={`h-4 w-4 ${on ? 'fill-white' : ''}`} aria-hidden />
       )}

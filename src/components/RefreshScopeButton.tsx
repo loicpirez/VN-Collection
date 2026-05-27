@@ -99,7 +99,7 @@ export function RefreshScopeButton({
         title={titleText}
         data-refresh-scope={scope}
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" />}
         {ctaText}
       </button>
     </div>

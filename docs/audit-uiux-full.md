@@ -76,6 +76,45 @@ storage-format ISO date, not a display string).
 (list virtualisation — needs a library choice + adoption pattern),
 U-074/U-097/U-226/U-234 (kobe toolbar tiering / shared Toolbar
 primitive / 1300-line file split — full kobe redesign epic).
+
+## Round 3 findings (2026-05-28)
+
+Fresh sweep after Round 2 — focus on a11y polish + dead imports +
+mount-leak risk. Implemented inline:
+
+- **U-313 (Med, a11y)** — 80+ `<Loader2>` spinner icons across 54
+  component files rendered without `aria-hidden`. Screen readers
+  emit a phantom "loader" announcement next to the visible action
+  label. Bulk added `aria-hidden` to every self-closing /
+  multi-line `<Loader2 … />` in `src/components/*.tsx` and
+  `src/app/**/*.tsx` (Python regex sweep — every spinner now
+  carries either `aria-hidden` or an existing `aria-label`).
+- **U-314 (Low, hygiene)** — 22 unused named imports across 12
+  files (`LibraryClient` re-exported but not used in
+  `src/app/page.tsx`, `resolveField` / `readApiError` /
+  `Loader2` / `useEffect` / `HOME_SECTION_IDS` /
+  `validateCharacterDetailLayoutV1` / etc.). All removed.
+- **U-315 (Med, perf+a11y)** `src/components/BrandOverlapPicker.tsx:28-44`
+  — `useEffect` fetched `/api/producers` without cleanup: navigating
+  away mid-flight triggered the React "setState on unmounted
+  component" warning and a wasted render. Now wraps the fetch in
+  an `AbortController`; every success / catch / finally branch
+  guards on `ac.signal.aborted` before calling setState.
+
+**Verified-clean (no-action this round)**:
+- Every `<a target="_blank">` outside JSDoc comments already
+  carries `rel="noopener noreferrer"` (one false positive in
+  `MediaGallery.tsx:427` — the line is inside the file-level
+  comment that documents the kebab menu, not actual JSX).
+- Every `role="dialog"` mount (`ConfirmDialog`, `DateInput`,
+  `TutorialTour`) has a `keydown` listener that closes on Escape.
+- No `<button>` in the codebase lacks an accessible name once
+  JSX text expressions (`{t.foo}`, `{busy ? t.cancel : …}`) are
+  counted — earlier 142-button audit was 100% false positives.
+- No naked `console.log`, no empty catch blocks, no FIXME/TODO
+  comments, no native `confirm()` / `alert()` / `prompt()` calls
+  remaining outside the styled `ConfirmDialog` API.
+
 **Rubric**: 25 categories; no item limit.
 
 ---

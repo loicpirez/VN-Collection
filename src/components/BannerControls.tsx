@@ -86,7 +86,7 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
             title={t.banner.hint}
             data-menu-keep-open=""
           >
-            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ImagePlus className="h-3 w-3" />}
             {busy ? t.banner.uploadCta : t.banner.uploadCta}
           </button>
           {hasCustomBanner && (
@@ -113,7 +113,7 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
       {hiddenInput}
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn" onClick={() => inputRef.current?.click()} disabled={busy || pending}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" />}
           {t.banner.uploadCta}
         </button>
         {hasCustomBanner && (

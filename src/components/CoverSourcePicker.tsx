@@ -438,7 +438,7 @@ export function CoverSourcePicker({
                         disabled={busy || !currentCustomCover}
                         className="btn btn-primary"
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" />}
                         {t.coverPicker.useVndb}
                       </button>
                       {!currentCustomCover && (
@@ -486,7 +486,7 @@ export function CoverSourcePicker({
                       disabled={busy}
                       className="btn"
                     >
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" />}
                       {t.coverPicker.chooseFile}
                     </button>
                   </div>
@@ -511,7 +511,7 @@ export function CoverSourcePicker({
                         disabled={busy || urlValue.trim().length === 0}
                         className="btn"
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LinkIcon className="h-4 w-4" />}
                         {t.coverPicker.applyUrl}
                       </button>
                     </div>
@@ -721,7 +721,7 @@ function EgsCandidateGrid({
           className="btn btn-primary"
           title={t.coverPicker.useEgsAutoHint}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" />}
           {t.coverPicker.useEgsAuto}
         </button>
         <span className="text-muted">{t.coverPicker.egsCandidateHint}</span>

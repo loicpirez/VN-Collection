@@ -144,7 +144,7 @@ export function DataMaintenance() {
                       disabled={refreshing === s.id}
                       className="rounded-md border border-border bg-bg-card px-1.5 py-0.5 text-[10px] hover:border-accent hover:text-accent"
                     >
-                      {refreshing === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : t.maintenance.refresh}
+                      {refreshing === s.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.maintenance.refresh}
                     </button>
                   </li>
                 ))}

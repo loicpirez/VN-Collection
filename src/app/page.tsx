@@ -1,5 +1,5 @@
 import { Fragment, Suspense } from 'react';
-import { LibraryClient } from '@/components/LibraryClient';
+
 import { RecentlyViewedStrip } from '@/components/RecentlyViewedStrip';
 import { AnniversaryFeed } from '@/components/AnniversaryFeed';
 import { ReadingQueueStrip } from '@/components/ReadingQueueStrip';

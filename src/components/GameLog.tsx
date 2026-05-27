@@ -1,18 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  BookOpenText,
-  Check,
-  Clock,
-  Loader2,
-  Pencil,
-  Plus,
-  Send,
-  Sparkles,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { BookOpenText, Check, Clock, Loader2, Pencil, Send, Sparkles, Trash2, X } from 'lucide-react'
 import { useLocale, useT } from '@/lib/i18n/client';
 import { BCP47 } from '@/lib/locale-number';
 import type { Locale } from '@/lib/i18n/dictionaries';
@@ -213,7 +202,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
             disabled={busy || text.trim().length === 0}
             className="btn btn-primary"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" />}
             {busy ? t.gameLog.saving : t.gameLog.add}
           </button>
         </div>
@@ -313,7 +302,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                               disabled={savingEdit || editingText.trim().length === 0}
                               className="btn btn-primary text-xs"
                             >
-                              {savingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                              {savingEdit ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Check className="h-3 w-3" />}
                               {t.gameLog.save}
                             </button>
                           </div>

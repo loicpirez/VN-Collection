@@ -265,7 +265,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
                       aria-label={t.common.delete}
                       className="tap-target-tight rounded text-muted hover:text-status-dropped"
                     >
-                      {busy === `del-${f.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" aria-hidden />}
+                      {busy === `del-${f.id}` ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
                     </button>
                   </li>
                 );
@@ -296,7 +296,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
                 maxLength={60}
               />
               <button type="button" onClick={save} disabled={busy === 'save'} className="btn btn-primary btn-xs">
-                {busy === 'save' ? <Loader2 className="h-3 w-3 animate-spin" /> : t.common.save}
+                {busy === 'save' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.common.save}
               </button>
               <button type="button" onClick={() => setNameOpen(false)} className="btn btn-xs" aria-label={t.common.cancel}>
                 <X className="h-3.5 w-3.5" />

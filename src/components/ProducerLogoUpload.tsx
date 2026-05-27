@@ -87,7 +87,7 @@ export function ProducerLogoUpload({ producerId, hasLogo }: Props) {
         onClick={() => inputRef.current?.click()}
         disabled={busy || pending}
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" />}
         {t.producers.uploadLogo}
       </button>
       {hasLogo && (

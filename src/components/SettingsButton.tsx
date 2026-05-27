@@ -58,14 +58,7 @@ import {
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { fmtNum } from '@/lib/locale-number';
-import {
-  DEFAULT_HOME_LAYOUT,
-  HOME_LAYOUT_EVENT,
-  HOME_SECTION_IDS,
-  type HomeSectionId,
-  type HomeSectionLayoutV1,
-  type HomeSectionState,
-} from '@/lib/home-section-layout';
+import { DEFAULT_HOME_LAYOUT, HOME_LAYOUT_EVENT, type HomeSectionId, type HomeSectionLayoutV1, type HomeSectionState } from '@/lib/home-section-layout'
 import {
   VN_LAYOUT_EVENT,
   VN_SECTION_IDS,
@@ -75,38 +68,10 @@ import {
   type VnSectionState,
 } from '@/lib/vn-detail-layout';
 import { CollapsibleSummary } from './CollapsibleSummary';
-import {
-  CHARACTER_DETAIL_LAYOUT_EVENT,
-  CHARACTER_SECTION_IDS,
-  defaultCharacterDetailLayoutV1,
-  validateCharacterDetailLayoutV1,
-  type CharacterDetailLayoutV1,
-  type CharacterSectionId,
-} from '@/lib/character-detail-layout';
-import {
-  STAFF_DETAIL_LAYOUT_EVENT,
-  STAFF_SECTION_IDS,
-  defaultStaffDetailLayoutV1,
-  validateStaffDetailLayoutV1,
-  type StaffDetailLayoutV1,
-  type StaffSectionId,
-} from '@/lib/staff-detail-layout';
-import {
-  PRODUCER_DETAIL_LAYOUT_EVENT,
-  PRODUCER_SECTION_IDS,
-  defaultProducerDetailLayoutV1,
-  validateProducerDetailLayoutV1,
-  type ProducerDetailLayoutV1,
-  type ProducerSectionId,
-} from '@/lib/producer-detail-layout';
-import {
-  SERIES_DETAIL_LAYOUT_EVENT,
-  SERIES_DETAIL_SECTION_IDS,
-  defaultSeriesDetailLayoutV1,
-  validateSeriesDetailLayoutV1,
-  type SeriesDetailLayoutV1,
-  type SeriesSectionId,
-} from '@/lib/series-detail-layout';
+import { CHARACTER_DETAIL_LAYOUT_EVENT, CHARACTER_SECTION_IDS, defaultCharacterDetailLayoutV1, type CharacterDetailLayoutV1 } from '@/lib/character-detail-layout'
+import { STAFF_DETAIL_LAYOUT_EVENT, STAFF_SECTION_IDS, defaultStaffDetailLayoutV1, type StaffDetailLayoutV1 } from '@/lib/staff-detail-layout'
+import { PRODUCER_DETAIL_LAYOUT_EVENT, PRODUCER_SECTION_IDS, defaultProducerDetailLayoutV1, type ProducerDetailLayoutV1 } from '@/lib/producer-detail-layout'
+import { SERIES_DETAIL_LAYOUT_EVENT, SERIES_DETAIL_SECTION_IDS, defaultSeriesDetailLayoutV1, type SeriesDetailLayoutV1 } from '@/lib/series-detail-layout'
 import { startTour } from './TutorialTour';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -832,7 +797,7 @@ export function SettingsButton() {
                       onClick={onSaveToken}
                       disabled={savingToken || !tokenInput.trim()}
                     >
-                      {savingToken ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {savingToken ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" />}
                       {t.common.save}
                     </button>
                   </div>
@@ -874,7 +839,7 @@ export function SettingsButton() {
                           onClick={onPullStatuses}
                           disabled={pulling}
                         >
-                          {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                          {pulling ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" />}
                           {t.settings.vndbPullAction}
                         </button>
                       </div>

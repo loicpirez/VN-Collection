@@ -11,7 +11,7 @@
  * happy and stops drift from creeping back.
  */
 import type { Locale } from './i18n/dictionaries';
-import { getDict } from './i18n/server'; // Note: Server-only helper, but we pass dictionaries.
+ // Note: Server-only helper, but we pass dictionaries.
 
 /**
  * Format minutes into a short "Xh Ym" / "Xh" / "Ym" string. Pass `t` for

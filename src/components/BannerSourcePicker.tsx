@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useId, useRef, useState, useTransition } from 'react';
+import { useId, useRef, useState, useTransition } from 'react'
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { Check, Image as ImageIcon, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, X } from 'lucide-react';
@@ -249,7 +249,7 @@ export function BannerSourcePicker({
                         disabled={busy || !currentBanner}
                         className="btn btn-primary"
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" />}
                         {t.bannerPicker.useDefault}
                       </button>
                       <button
@@ -258,7 +258,7 @@ export function BannerSourcePicker({
                         disabled={busy}
                         className="btn"
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImageIcon className="h-4 w-4" />}
                         {t.bannerPicker.useCover}
                       </button>
                       {!currentBanner && (
@@ -291,7 +291,7 @@ export function BannerSourcePicker({
                       disabled={busy}
                       className="btn"
                     >
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" />}
                       {t.coverPicker.chooseFile}
                     </button>
                   </div>
@@ -316,7 +316,7 @@ export function BannerSourcePicker({
                         disabled={busy || urlValue.trim().length === 0}
                         className="btn"
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LinkIcon className="h-4 w-4" />}
                         {t.coverPicker.applyUrl}
                       </button>
                     </div>

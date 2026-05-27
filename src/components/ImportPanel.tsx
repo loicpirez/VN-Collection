@@ -115,7 +115,7 @@ export function ImportPanel() {
       />
       <div className="flex flex-col items-center gap-2 py-2">
         {busy ? (
-          <Loader2 className="h-6 w-6 animate-spin text-accent" />
+          <Loader2 className="h-6 w-6 animate-spin text-accent" aria-hidden />
         ) : (
           <Upload className="h-6 w-6 text-muted" />
         )}

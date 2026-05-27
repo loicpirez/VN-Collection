@@ -165,7 +165,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
                 aria-label={t.linkVndb.searchPlaceholder}
                 className="input w-full pl-7 text-xs"
               />
-              {searching && <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" />}
+              {searching && <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" aria-hidden />}
             </div>
             <ul className="space-y-1">
               {hits.length === 0 && !searching && (
@@ -202,7 +202,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
                     disabled={linkingId !== null}
                     className="btn btn-primary"
                   >
-                    {linkingId === h.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
+                    {linkingId === h.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" />}
                     {t.linkVndb.useThis}
                   </button>
                 </li>

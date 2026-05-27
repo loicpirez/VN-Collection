@@ -64,7 +64,7 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
           disabled={busy}
           className="rounded-md bg-accent px-2 py-1 font-bold text-bg disabled:opacity-50"
         >
-          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : t.smartStatus.markCompleted}
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.smartStatus.markCompleted}
         </button>
         <button
           type="button"

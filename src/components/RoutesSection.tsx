@@ -425,7 +425,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
           ))}
         </datalist>
         <button type="submit" className="btn btn-primary" disabled={!draft.trim() || busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" />}
           {t.routes.add}
         </button>
       </form>

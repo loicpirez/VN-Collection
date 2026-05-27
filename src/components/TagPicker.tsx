@@ -160,7 +160,7 @@ export function TagPicker({
           className="input w-full pl-7 text-xs"
         />
         {searching && (
-          <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" />
+          <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" aria-hidden />
         )}
       </div>
       {hits.length > 0 && (

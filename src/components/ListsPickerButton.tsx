@@ -212,7 +212,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
           </div>
           {loading && (
             <div className="flex items-center gap-2 px-1 py-2 text-xs text-muted">
-              <Loader2 className="h-3 w-3 animate-spin" /> {t.common.loading}
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
             </div>
           )}
           {!loading && lists && (
@@ -283,7 +283,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
                   className="btn btn-primary text-xs"
                   aria-label={t.lists.create}
                 >
-                  {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                  {creating ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" />}
                 </button>
               </div>
             </>

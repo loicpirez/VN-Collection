@@ -72,7 +72,7 @@ export function VnListMemberships({ vnId, lists }: { vnId: string; lists: ListCh
             className="tap-target ml-0.5 inline-flex items-center justify-center rounded-full text-muted hover:bg-status-dropped/20 hover:text-status-dropped"
           >
             {removing === l.id ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
             ) : (
               <X className="h-3 w-3" />
             )}

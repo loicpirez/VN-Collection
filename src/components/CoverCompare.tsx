@@ -5,7 +5,7 @@ import { Check, GitCompareArrows, Loader2 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
-import { resolveField, type SourceChoice } from '@/lib/source-resolve';
+import { type SourceChoice } from '@/lib/source-resolve'
 import {
   VN_COVER_CHANGED_EVENT,
   type VnCoverChangedDetail,

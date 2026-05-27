@@ -52,7 +52,7 @@ export function AddMissingVnButton({ vnId }: { vnId: string }) {
       className="inline-flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-md border border-border bg-bg-card text-muted transition-colors hover:border-accent hover:bg-accent hover:text-bg disabled:opacity-60"
     >
       {busy ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
       ) : done ? (
         <Check className="h-3.5 w-3.5" />
       ) : (

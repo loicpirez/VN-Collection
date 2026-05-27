@@ -172,7 +172,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
               className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped"
               title={t.vndbStatus.removeFromList}
             >
-              {pendingClear ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              {pendingClear ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" />}
               {t.vndbStatus.removeFromList}
             </button>
           )}

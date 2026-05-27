@@ -150,7 +150,7 @@ export function EgsSyncBlock() {
           disabled={savingUsername || !usernameDirty}
           onClick={saveUsername}
         >
-          {savingUsername ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {savingUsername ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" />}
           {t.common.save}
         </button>
       </div>
@@ -161,7 +161,7 @@ export function EgsSyncBlock() {
           onClick={compute}
           disabled={computing || !username.trim()}
         >
-          {computing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {computing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" />}
           {t.egsSync.compute}
         </button>
         {suggestions.length > 0 && (
@@ -171,7 +171,7 @@ export function EgsSyncBlock() {
             onClick={apply}
             disabled={applying || picks.size === 0}
           >
-            {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {applying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" />}
             {t.egsSync.applySelected.replace('{count}', String(picks.size))}
           </button>
         )}

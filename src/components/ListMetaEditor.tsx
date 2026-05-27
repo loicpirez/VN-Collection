@@ -109,7 +109,7 @@ export function ListMetaEditor({ list }: { list: List }) {
           aria-label={t.lists.delete}
           title={t.lists.delete}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" />}
         </button>
       </div>
     );
@@ -159,7 +159,7 @@ export function ListMetaEditor({ list }: { list: List }) {
           <X className="h-3 w-3" /> {t.common.cancel}
         </button>
         <button type="button" onClick={save} disabled={busy || name.trim().length === 0} className="btn btn-primary text-xs">
-          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Check className="h-3 w-3" />}
           {t.common.save}
         </button>
       </div>

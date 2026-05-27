@@ -2,23 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize2, RotateCcw, Sliders, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
-import {
-  SHELF_DISPLAY_OVERRIDES_EVENT,
-  SHELF_VIEW_PREFS_BOUNDS,
-  SHELF_TEXT_DENSITIES,
-  SHELF_VIEW_PREFS_EVENT,
-  defaultShelfDisplayOverridesV1,
-  defaultShelfViewPrefsV1,
-  resolveShelfPrefs,
-  shelfHasOverride,
-  shelfViewPrefsDataAttrs,
-  shelfViewPrefsCssVars,
-  type ShelfDisplayOrientation,
-  type ShelfDisplayOverridesV1,
-  type ShelfViewPrefsV1,
-  type ShelfTextDensity,
-  validateShelfViewPrefsV1,
-} from '@/lib/shelf-view-prefs';
+import { SHELF_DISPLAY_OVERRIDES_EVENT, SHELF_VIEW_PREFS_BOUNDS, SHELF_TEXT_DENSITIES, SHELF_VIEW_PREFS_EVENT, defaultShelfViewPrefsV1, resolveShelfPrefs, shelfHasOverride, shelfViewPrefsDataAttrs, shelfViewPrefsCssVars, type ShelfDisplayOrientation, type ShelfDisplayOverridesV1, type ShelfViewPrefsV1, type ShelfTextDensity, validateShelfViewPrefsV1 } from '@/lib/shelf-view-prefs'
 
 interface Props {
   initialPrefs: ShelfViewPrefsV1;

@@ -102,7 +102,7 @@ export function ReadingGoalCard({ year }: Props) {
             className="input w-32"
           />
           <button type="button" onClick={save} disabled={busy} className="btn btn-xs btn-primary">
-            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : t.common.save}
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.common.save}
           </button>
           <button type="button" onClick={() => setEditing(false)} className="btn btn-xs">
             {t.common.cancel}

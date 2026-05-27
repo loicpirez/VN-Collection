@@ -780,7 +780,7 @@ export function WishlistClient() {
                   disabled={deleting}
                   className="btn btn-danger btn-xs"
                 >
-                  {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                  {deleting ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" />}
                   {t.wishlist.deleteSelected}
                 </button>
                 <button

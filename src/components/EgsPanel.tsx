@@ -532,7 +532,7 @@ function EgsPicker({
             autoFocus
           />
           <button type="submit" className="btn btn-primary" disabled={loading || !query.trim()}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Search className="h-4 w-4" />}
             {t.egs.searchAction}
           </button>
         </form>
@@ -568,7 +568,7 @@ function EgsPicker({
                   onClick={() => link(c)}
                   disabled={linking != null}
                 >
-                  {linking === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
+                  {linking === c.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" />}
                   {t.egs.linkAction}
                 </button>
               </li>

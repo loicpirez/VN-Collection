@@ -166,7 +166,7 @@ export function FieldCompare({
                 className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
                 title={t.compare.setDefault}
               >
-                {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <PinIcon className="h-3 w-3" aria-hidden />}
+                {pending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <PinIcon className="h-3 w-3" aria-hidden />}
                 {t.compare.setDefault}
               </button>
             )}

@@ -252,7 +252,7 @@ export function MapEgsToVndbButton({
                     className="btn btn-xs ml-auto"
                   >
                     {busy === 'reset' ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                     ) : (
                       <Link2Off className="h-3 w-3" />
                     )}
@@ -274,7 +274,7 @@ export function MapEgsToVndbButton({
                 className="input w-full pl-7 text-xs"
               />
               {searching && (
-                <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" />
+                <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" aria-hidden />
               )}
             </div>
 
@@ -316,7 +316,7 @@ export function MapEgsToVndbButton({
                     className="btn btn-primary"
                   >
                     {busy === h.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                     ) : (
                       <Link2 className="h-3 w-3" />
                     )}
@@ -335,7 +335,7 @@ export function MapEgsToVndbButton({
                 className="btn btn-danger btn-xs"
               >
                 {busy === 'none' ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                 ) : (
                   <Link2Off className="h-3 w-3" />
                 )}

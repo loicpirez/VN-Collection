@@ -363,8 +363,7 @@ export function VnSeedPicker({
             {totalLoading && (
               <Loader2
                 className="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted"
-                aria-label={searchingLabel ?? undefined}
-              />
+                aria-label={searchingLabel ?? undefined} aria-hidden />
             )}
           </div>
           {open && hits.length === 0 && query.trim().length > 0 && !totalLoading && (

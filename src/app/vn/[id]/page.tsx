@@ -28,7 +28,7 @@ import { platformLabel } from '@/lib/platform-label';
 import { VnDetailLayout } from '@/components/VnDetailLayout';
 import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
-import { resolveField } from '@/lib/source-resolve';
+
 import { formatMinutesWithDash as fmtMinutes } from '@/lib/format';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
@@ -38,11 +38,9 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { SafeImage } from '@/components/SafeImage';
 import { MediaGallery } from '@/components/MediaGallery';
 import { CoverUploader } from '@/components/CoverUploader';
-import { BannerControls } from '@/components/BannerControls';
-import { CoverSourcePicker } from '@/components/CoverSourcePicker';
-import { BannerSourcePicker } from '@/components/BannerSourcePicker';
+
 import { HeroBanner } from '@/components/HeroBanner';
-import { MarkdownView } from '@/components/MarkdownNotes';
+
 import { CharactersSection } from '@/components/CharactersSection';
 import { CastSection } from '@/components/CastSection';
 import { StaffSection } from '@/components/StaffSection';
@@ -117,7 +115,6 @@ function displayTitleForVn(vn: CollectionItem): string {
     .sort((a, b) => a.length - b.length)[0];
   return longerContainingCurrent ?? current;
 }
-
 
 /**
  * Resolve a VN id to its on-screen detail data.
