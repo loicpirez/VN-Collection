@@ -27,6 +27,7 @@ import { useToast } from './ToastProvider';
 import { SafeImage } from './SafeImage';
 import { useT, useLocale } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { timeAgo } from '@/lib/time-ago';
 import { readApiError } from '@/lib/api-error-read';
@@ -406,6 +407,18 @@ export function AliceNetKobeClient() {
   const locale = useLocale();
   const toast = useToast();
   const { confirm } = useConfirm();
+  // U-006: kobe filter / sort / group / view in URL state so the user
+  // can share specific kobe-page views and back/forward restores them.
+  const urlSearch = useSearchParams();
+  const router = useRouter();
+  const isFilterTab = (v: string | null): v is FilterTab =>
+    v === 'all' || v === 'matched' || v === 'vndb' || v === 'egs_only' ||
+    v === 'unmatched' || v === 'none_found' || v === 'collection' || v === 'wishlist';
+  const isKobeSort = (v: string | null): v is KobeSort =>
+    v != null && (KOBE_SORTS as readonly string[]).includes(v);
+  const isKobeGroup = (v: string | null): v is KobeGroup =>
+    v != null && (KOBE_GROUPS as readonly string[]).includes(v);
+  const isKobeView = (v: string | null): v is KobeView => v === 'cards' || v === 'list';
   const [items, setItems] = useState<KobeItem[]>([]);
   const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, vndb_matched: 0, egs_only: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
   const [pending, setPending] = useState<PendingCounts>({ vndb_pending: 0, egs_pending: 0 });
@@ -416,11 +429,23 @@ export function AliceNetKobeClient() {
   const [opTotal, setOpTotal] = useState(0);
   const [opLabel, setOpLabel] = useState('');
   const [lastRun, setLastRun] = useState<{ label: string; processed: number; matched: number; error?: string } | null>(null);
-  const [filter, setFilter] = useState<FilterTab>('all');
+  const [filter, setFilter] = useState<FilterTab>(() => {
+    const v = urlSearch?.get('filter') ?? null;
+    return isFilterTab(v) ? v : 'all';
+  });
   const [producerFilter, setProducerFilter] = useState('');
-  const [sort, setSort] = useState<KobeSort>('match_status');
-  const [group, setGroup] = useState<KobeGroup>('none');
-  const [view, setView] = useState<KobeView>('cards');
+  const [sort, setSort] = useState<KobeSort>(() => {
+    const v = urlSearch?.get('sort') ?? null;
+    return isKobeSort(v) ? v : 'match_status';
+  });
+  const [group, setGroup] = useState<KobeGroup>(() => {
+    const v = urlSearch?.get('group') ?? null;
+    return isKobeGroup(v) ? v : 'none';
+  });
+  const [view, setView] = useState<KobeView>(() => {
+    const v = urlSearch?.get('view') ?? null;
+    return isKobeView(v) ? v : 'cards';
+  });
   const [showFilters, setShowFilters] = useState(true);
   const [yearMin, setYearMin] = useState('');
   const [yearMax, setYearMax] = useState('');
@@ -462,6 +487,29 @@ export function AliceNetKobeClient() {
   }, [t, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // U-006: sync kobe state → URL. Only writes non-default values so
+  // /alicesoft_kobe stays clean.
+  useEffect(() => {
+    const params = new URLSearchParams(urlSearch?.toString() ?? '');
+    let dirty = false;
+    const setOrDelete = (key: string, value: string, defaultValue: string) => {
+      if (value === defaultValue) {
+        if (params.get(key) != null) { params.delete(key); dirty = true; }
+      } else if (params.get(key) !== value) {
+        params.set(key, value);
+        dirty = true;
+      }
+    };
+    setOrDelete('filter', filter, 'all');
+    setOrDelete('sort', sort, 'match_status');
+    setOrDelete('group', group, 'none');
+    setOrDelete('view', view, 'cards');
+    if (dirty) {
+      const next = params.toString();
+      router.replace(`/alicesoft_kobe${next ? `?${next}` : ''}`, { scroll: false });
+    }
+  }, [filter, sort, group, view, urlSearch, router]);
 
   async function downloadStock() {
     const r = await fetch('/api/alicesoft-kobe/fetch', { method: 'POST' });
