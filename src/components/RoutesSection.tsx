@@ -7,6 +7,7 @@ import { formatIsoDateString } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
 import type { RouteRow } from '@/lib/types';
 import type { VndbCharacter } from '@/lib/vndb-types';
+import { fetchVnCharacters } from '@/lib/vn-characters-cache';
 
 import { readApiError } from '@/lib/api-error-read';
 interface Props {
@@ -62,14 +63,14 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   useEffect(() => {
     if (!inCollection) return;
     const ctrl = new AbortController();
-    // P-074 / P-209: cache: 'no-store' is the consistent default for
-    // mutable VN data. The fetch is intentionally duplicated with
-    // CharactersSection — both panels need autocomplete and the
-    // characters endpoint is already 24h cached server-side.
-    fetch(`/api/vn/${vnId}/characters`, { signal: ctrl.signal, cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { characters: VndbCharacter[] } | null) => {
-        if (!ctrl.signal.aborted && d) setCharacters(d.characters);
+    // P-209: route the fetch through the per-page `fetchVnCharacters`
+    // cache so when `<CharactersSection>` later mounts (or has already
+    // pre-warmed it), no second network round-trip happens. The 5-min
+    // in-process cache is enough for one page lifecycle; longer-lived
+    // caching is handled server-side (24h).
+    fetchVnCharacters(vnId, ctrl.signal)
+      .then((data) => {
+        if (!ctrl.signal.aborted) setCharacters(data as unknown as VndbCharacter[]);
       })
       .catch((e) => {
         if ((e as Error).name === 'AbortError') return;

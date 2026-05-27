@@ -8,6 +8,7 @@ import { SpoilerChip } from './SpoilerChip';
 import { useT } from '@/lib/i18n/client';
 import { useDisplaySettings } from '@/lib/settings/client';
 import type { VndbCharacter } from '@/lib/vndb-types';
+import { fetchVnCharacters, type VnCharacterRow } from '@/lib/vn-characters-cache';
 
 import { readApiError } from '@/lib/api-error-read';
 const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
@@ -38,7 +39,7 @@ export function CharactersSection({
   const t = useT();
   const { settings } = useDisplaySettings();
   const [open, setOpen] = useState(initialOpen);
-  const [chars, setChars] = useState<VndbCharacter[] | null>(null);
+  const [chars, setChars] = useState<VnCharacterRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,16 +50,16 @@ export function CharactersSection({
     // letting the response complete and accumulate ghost state on
     // unmounted components (the "opening many VN pages crashes"
     // pattern).
+    // P-209: deduplicated via the per-page `fetchVnCharacters` cache.
+    // When `<RoutesSection>` already pre-warmed the cache (it mounts
+    // earlier in the layout), this resolves synchronously and skips
+    // the redundant network round-trip.
     const ac = new AbortController();
     setLoading(true);
     setError(null);
-    fetch(`/api/vn/${vnId}/characters`, { signal: ac.signal, cache: 'no-store' })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-        return r.json();
-      })
-      .then((d: { characters: VndbCharacter[] }) => {
-        if (!ac.signal.aborted) setChars(d.characters);
+    fetchVnCharacters(vnId, ac.signal)
+      .then((data) => {
+        if (!ac.signal.aborted) setChars(data);
       })
       .catch((e: Error) => {
         if (e.name === 'AbortError' || ac.signal.aborted) return;
