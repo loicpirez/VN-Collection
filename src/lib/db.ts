@@ -66,7 +66,23 @@ interface ColInfo {
 // reference below.
 let tableColsCache: Map<string, Set<string>> | null = null;
 
+/**
+ * Audit S-060: SQL identifiers (table / column names) MUST match this
+ * shape before they're interpolated into raw DDL. Every current caller
+ * passes a module-internal compile-time constant, so this is purely
+ * defence-in-depth against a future refactor that accidentally pipes
+ * caller input through `ensureColumn`.
+ */
+const SQL_IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+function assertSqlIdent(name: string, kind: 'table' | 'column'): void {
+  if (!SQL_IDENT_RE.test(name)) {
+    throw new Error(`invalid SQL ${kind} identifier: ${name}`);
+  }
+}
+
 function ensureColumn(db: Database.Database, table: string, column: string, ddl: string): void {
+  assertSqlIdent(table, 'table');
+  assertSqlIdent(column, 'column');
   if (!tableColsCache) tableColsCache = new Map<string, Set<string>>();
   let cols = tableColsCache.get(table);
   if (!cols) {
@@ -8289,8 +8305,17 @@ export function clearCache(): number {
  * Delete cache rows whose key matches the supplied path prefix. Matches
  * the `% /<path>|%` shape the cache uses; never `<path>|%` (which would
  * miss every row because of the method prefix).
+ *
+ * Audit S-062: the caller is responsible for passing a literal path
+ * prefix without LIKE metacharacters (`%`, `_`). Throw on misuse rather
+ * than silently widening the DELETE. Every current caller passes a
+ * compile-time string, so this is purely defence-in-depth against
+ * future regressions.
  */
 export function deleteCacheByPathPrefix(pathPrefix: string): number {
+  if (/[%_]/.test(pathPrefix)) {
+    throw new Error('deleteCacheByPathPrefix: pathPrefix must not contain LIKE metacharacters');
+  }
   const info = db.prepare('DELETE FROM vndb_cache WHERE cache_key LIKE ?').run(`${pathPrefix}|%`);
   return info.changes;
 }
@@ -8303,13 +8328,17 @@ export function deleteCacheByPathPrefix(pathPrefix: string): number {
  * the "Data Xh ago" chip; patterns should mirror the scope's bust
  * patterns from `src/lib/refresh-scopes.ts:REFRESH_SCOPES` so the
  * freshness display and the refresh action stay in sync.
+ *
+ * Audit S-061: cap the pattern fan-out so an N-fold OR-clause from a
+ * misbehaving caller can't break the SQLite planner.
  */
 export function getCacheFreshness(patterns: string[]): number | null {
   if (patterns.length === 0) return null;
-  const clauses = patterns.map(() => 'cache_key LIKE ?').join(' OR ');
+  const capped = patterns.slice(0, 32);
+  const clauses = capped.map(() => 'cache_key LIKE ?').join(' OR ');
   const row = db
     .prepare(`SELECT MAX(fetched_at) AS newest FROM vndb_cache WHERE ${clauses}`)
-    .get(...patterns) as { newest: number | null } | undefined;
+    .get(...capped) as { newest: number | null } | undefined;
   return row?.newest ?? null;
 }
 

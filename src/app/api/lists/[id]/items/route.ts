@@ -38,7 +38,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (typeof body.vn_id !== 'string' || !VN_ID_RE.test(body.vn_id.trim())) {
     return NextResponse.json({ error: 'invalid vn_id' }, { status: 400 });
   }
-  const item = addVnToList(listId, body.vn_id.trim(), typeof body.note === 'string' ? body.note : null);
+  // Audit S-063: cap the per-item note so a malicious POST can't stuff
+  // megabytes into `user_list_vn.note`. 2 KiB is roomy for any human
+  // memo and matches the description cap on the list itself.
+  let note: string | null = null;
+  if (typeof body.note === 'string') {
+    if (body.note.length > 2000) {
+      return NextResponse.json({ error: 'note too long (max 2000)' }, { status: 400 });
+    }
+    note = body.note;
+  }
+  const item = addVnToList(listId, body.vn_id.trim(), note);
   if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
   recordActivity({
     kind: 'list.item.add',

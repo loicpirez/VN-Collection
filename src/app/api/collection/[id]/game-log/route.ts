@@ -74,10 +74,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const at = typeof body.logged_at === 'number' && body.logged_at > 0 ? body.logged_at : undefined;
+  // Audit S-038: clamp logged_at to a sane epoch window. Accepting any
+  // positive number means a caller can write Number.MAX_SAFE_INTEGER
+  // and break every ORDER BY logged_at query that relies on the value
+  // staying within ISO-date range. One year of slack in the future
+  // accommodates retroactive logging without admitting garbage.
+  const LOGGED_AT_MAX = Date.now() + 365 * 86_400_000;
+  const at = typeof body.logged_at === 'number' && body.logged_at > 0 && body.logged_at <= LOGGED_AT_MAX
+    ? Math.floor(body.logged_at)
+    : undefined;
+  // Audit S-038: clamp session_minutes so a single entry can't claim
+  // millions of minutes (used to compute reading-speed averages).
   const minutes =
     typeof body.session_minutes === 'number' && body.session_minutes > 0
-      ? body.session_minutes
+      ? Math.min(Math.floor(body.session_minutes), 100_000)
       : null;
   try {
     const entry = addGameLogEntry(id, note, at, minutes);

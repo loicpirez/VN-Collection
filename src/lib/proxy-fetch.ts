@@ -2,7 +2,7 @@ import 'server-only';
 import { type Agent } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { request as httpRequest } from 'node:http';
-import type { ProviderId } from './proxy-config';
+import type { ProviderId, ProxyConfig } from './proxy-config';
 import { buildProxyUrl, resolveProxyConfig, resolveStockProviderProxy } from './proxy-config';
 
 /**
@@ -41,9 +41,27 @@ async function nodeAgentFetch(
         agent,
       },
       (res) => {
+        // Audit S-048: enforce a hard cap on the buffered body so a
+        // malicious or misbehaving proxy can't stream gigabytes of data
+        // through us and OOM the Node process. 50 MiB is generous for
+        // any HTML / JSON / image payload we legitimately consume.
+        const MAX_BYTES = 50 * 1024 * 1024;
         const chunks: Buffer[] = [];
-        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        let total = 0;
+        let aborted = false;
+        res.on('data', (chunk: Buffer) => {
+          if (aborted) return;
+          total += chunk.length;
+          if (total > MAX_BYTES) {
+            aborted = true;
+            res.destroy();
+            reject(new Error(`proxy response exceeded ${MAX_BYTES} bytes`));
+            return;
+          }
+          chunks.push(chunk);
+        });
         res.on('end', () => {
+          if (aborted) return;
           const body = Buffer.concat(chunks).toString('utf8');
           const responseHeaders = new Headers();
           for (const [key, val] of Object.entries(res.headers)) {
@@ -62,7 +80,9 @@ async function nodeAgentFetch(
             }),
           );
         });
-        res.on('error', reject);
+        res.on('error', (e) => {
+          if (!aborted) reject(e);
+        });
       },
     );
 
@@ -96,6 +116,29 @@ async function nodeAgentFetch(
  *
  * Apply only to outbound requests for the named provider — never globally.
  */
+/**
+ * Audit S-047: build the proxy agent and swallow any constructor error
+ * inside a sanitised wrapper. The `socks-proxy-agent` / `https-proxy-
+ * agent` packages sometimes include the proxy URL (with userinfo) in
+ * the thrown Error's message when authentication fails or the URL
+ * shape is invalid. Catching here means the raw URL is never re-thrown.
+ */
+async function buildAgent(config: ProxyConfig): Promise<Agent> {
+  const proxyUrl = buildProxyUrl(config);
+  try {
+    if (config.protocol === 'socks5' || config.protocol === 'socks5h') {
+      const { SocksProxyAgent } = await import('socks-proxy-agent');
+      return new SocksProxyAgent(proxyUrl) as unknown as Agent;
+    }
+    const { HttpsProxyAgent } = await import('https-proxy-agent');
+    return new HttpsProxyAgent(proxyUrl) as unknown as Agent;
+  } catch (_e) {
+    // Log a sanitised diagnostic line; never include `proxyUrl` itself.
+    console.error('[proxy-fetch] agent init failed', { protocol: config.protocol, host: config.host });
+    throw new Error('proxy agent init failed');
+  }
+}
+
 export async function providerFetch(
   url: string,
   init: RequestInit,
@@ -103,18 +146,7 @@ export async function providerFetch(
 ): Promise<Response> {
   const config = resolveProxyConfig(provider);
   if (!config) return fetch(url, init);
-
-  const proxyUrl = buildProxyUrl(config);
-  let agent: Agent;
-
-  if (config.protocol === 'socks5' || config.protocol === 'socks5h') {
-    const { SocksProxyAgent } = await import('socks-proxy-agent');
-    agent = new SocksProxyAgent(proxyUrl) as unknown as Agent;
-  } else {
-    const { HttpsProxyAgent } = await import('https-proxy-agent');
-    agent = new HttpsProxyAgent(proxyUrl) as unknown as Agent;
-  }
-
+  const agent = await buildAgent(config);
   return nodeAgentFetch(url, init, agent);
 }
 
@@ -130,15 +162,6 @@ export async function stockProviderFetch(
 ): Promise<Response> {
   const config = resolveStockProviderProxy(providerId);
   if (!config) return fetch(url, init);
-
-  const proxyUrl = buildProxyUrl(config);
-  let agent: Agent;
-  if (config.protocol === 'socks5' || config.protocol === 'socks5h') {
-    const { SocksProxyAgent } = await import('socks-proxy-agent');
-    agent = new SocksProxyAgent(proxyUrl) as unknown as Agent;
-  } else {
-    const { HttpsProxyAgent } = await import('https-proxy-agent');
-    agent = new HttpsProxyAgent(proxyUrl) as unknown as Agent;
-  }
+  const agent = await buildAgent(config);
   return nodeAgentFetch(url, init, agent);
 }

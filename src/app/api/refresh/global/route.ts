@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, materializeReleaseMetaForCollectionVns } from '@/lib/db';
 import { startJob, tickJob, finishJob, recordError, setJobCurrent } from '@/lib/download-status';
+import { sanitizeUnknownError } from '@/lib/error-sanitize';
 import { fetchEgsAnticipated, fetchEgsTopRanked } from '@/lib/erogamescape';
 import { getGlobalStats, getAuthInfo, getSchema, searchTags, searchTraits } from '@/lib/vndb';
 import { fetchVndbTopRanked } from '@/lib/top-ranked';
@@ -151,7 +152,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       done++;
     } catch (e) {
       failed++;
-      recordError(job.id, t.name, (e as Error).message);
+      // Audit S-056: sanitise so a raw upstream message can't leak into
+      // the SSE stream / `DownloadStatusBar` job record.
+      recordError(job.id, t.name, sanitizeUnknownError(e));
     } finally {
       tickJob(job.id);
     }

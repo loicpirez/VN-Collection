@@ -26,7 +26,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (typeof body.text !== 'string' || body.text.trim().length === 0) {
     return NextResponse.json({ error: 'text required' }, { status: 400 });
   }
-  const at = typeof body.occurred_at === 'number' && body.occurred_at > 0 ? body.occurred_at : undefined;
+  // Audit S-064: cap manual activity text — same ceiling as game-log
+  // entries since this is the same shape of free-form journal note.
+  if (body.text.length > 10000) {
+    return NextResponse.json({ error: 'text too long (max 10000)' }, { status: 400 });
+  }
+  // Audit S-038 mirror: clamp occurred_at so a caller can't write
+  // Number.MAX_SAFE_INTEGER and corrupt the ORDER BY on the audit feed.
+  const OCCURRED_AT_MAX = Date.now() + 365 * 86_400_000;
+  const at =
+    typeof body.occurred_at === 'number' && body.occurred_at > 0 && body.occurred_at <= OCCURRED_AT_MAX
+      ? Math.floor(body.occurred_at)
+      : undefined;
   const entry = addManualActivity(id, body.text, at);
   return NextResponse.json({ entry });
 }

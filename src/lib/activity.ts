@@ -135,8 +135,12 @@ export function listUserActivity({
     args.push(entity);
   }
   if (q) {
-    where.push('(label LIKE ? OR entity_id LIKE ? OR payload LIKE ?)');
-    const like = `%${q}%`;
+    // Audit S-040: escape `%` and `_` so a caller passing `q=%` doesn't
+    // widen the LIKE into a dump-everything query. Using `\` as the
+    // escape character (must match the ESCAPE clause on each LIKE).
+    const escaped = q.replace(/[\\%_]/g, '\\$&');
+    where.push("(label LIKE ? ESCAPE '\\' OR entity_id LIKE ? ESCAPE '\\' OR payload LIKE ? ESCAPE '\\')");
+    const like = `%${escaped}%`;
     args.push(like, like, like);
   }
   if (from != null) {

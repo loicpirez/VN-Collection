@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,12 @@ const EGS_BASE = 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki';
  * Empty / malformed sources are filtered out, so a 4-source response
  * means 4 usable image URLs.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+  // Audit S-032: gate — minor info disclosure (confirms which EGS ids
+  // are mapped locally), but consistent with the rest of the egs-cover
+  // surface area.
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const egsId = Number(id);
   if (!Number.isInteger(egsId) || egsId <= 0) {

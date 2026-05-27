@@ -8,10 +8,23 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+/**
+ * AliceNet Kobe stock code shape — `###-######-###` (3-6-3 digits).
+ * Validating up-front means `recordActivity` (which stores `code` in
+ * `user_activity.entity_id` + `label`) never persists attacker-shaped
+ * input. Defence-in-depth — the underlying DB helpers are no-ops for
+ * unknown codes, but the audit row would still leak.
+ */
+const KOBE_CODE_RE = /^\d{3}-\d{6}-\d{3}$/;
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ code: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { code } = await ctx.params;
+  // Audit S-036: reject malformed codes before any DB / audit write.
+  if (!KOBE_CODE_RE.test(code)) {
+    return NextResponse.json({ error: 'invalid kobe code' }, { status: 400 });
+  }
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const vnId = body.vn_id;
   if (vnId !== null && (typeof vnId !== 'string' || !isVndbVnId(vnId as string))) {
@@ -28,6 +41,10 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ code: st
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { code } = await ctx.params;
+  // Audit S-036: same regex gate on the DELETE path.
+  if (!KOBE_CODE_RE.test(code)) {
+    return NextResponse.json({ error: 'invalid kobe code' }, { status: 400 });
+  }
   clearKobeVnLink(code);
   return NextResponse.json({ ok: true });
 }

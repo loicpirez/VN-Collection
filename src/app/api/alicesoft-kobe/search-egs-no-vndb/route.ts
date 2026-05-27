@@ -15,7 +15,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as Record<string, unknown>;
-  const batch = typeof body.batch === 'number' ? body.batch : 10;
+  // Audit S-068: clamp at the route layer for parity with other kobe POSTs.
+  const batch = typeof body.batch === 'number'
+    ? Math.min(50, Math.max(1, Math.floor(body.batch)))
+    : 10;
   const aggressive = body.aggressive === true;
   const runStartedAt = typeof body.run_started_at === 'number' ? body.run_started_at : undefined;
   const result = await searchEgsForKobeNoVndb(batch, aggressive, runStartedAt);

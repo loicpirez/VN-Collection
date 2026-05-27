@@ -34,8 +34,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (deny) return deny;
   const body = (await readJsonObject(req)) as { year?: unknown; target?: unknown };
   const year = clampYear(body.year);
-  const target = typeof body.target === 'number' ? body.target : NaN;
-  if (!Number.isFinite(target)) return NextResponse.json({ error: 'target required' }, { status: 400 });
+  const rawTarget = typeof body.target === 'number' ? body.target : NaN;
+  if (!Number.isFinite(rawTarget)) return NextResponse.json({ error: 'target required' }, { status: 400 });
+  // Audit S-039: clamp target to a sane range. The original handler
+  // accepted any finite number including 1e308; that wrecks the ring-
+  // chart math and the year-comparison sort. 10000 VNs/year is more
+  // than any human reads — and Number.MAX_VALUE would round to ∞.
+  const target = Math.min(Math.max(0, Math.floor(rawTarget)), 10_000);
   const goal = setReadingGoal(year, target);
   try {
     recordActivity({

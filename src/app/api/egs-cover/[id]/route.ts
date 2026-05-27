@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { fetchEgsGame } from '@/lib/erogamescape';
 import { isAllowedHttpTarget as isAllowedTarget } from '@/lib/url-allowlist';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
@@ -81,6 +82,12 @@ async function fetchWithSafeRedirects(initial: string, signal: AbortSignal, extr
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get('location');
       if (!loc) return res;
+      // Audit S-059: a malicious or buggy CDN that emits a Location
+      // header with embedded CR/LF would let new URL() process pieces
+      // that look like a header-injection attempt. Node fetch already
+      // strips most of these, but reject explicitly so the surface
+      // doesn't depend on undocumented client parser behaviour.
+      if (/[\r\n]/.test(loc)) return null;
       url = new URL(loc, url).toString();
       continue;
     }
@@ -257,6 +264,10 @@ async function proxyImage(target: string, origin: string): Promise<Response> {
 // also return `NextResponse.json(...)` for error / redirect branches, so we
 // type the return as the union — the agent over-tightened it to NextResponse.
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
+  // Audit S-031: gate. Every cache miss issues 1-4 outbound image fetches;
+  // a LAN attacker could hammer this to push outbound bandwidth.
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const egsId = Number(id);
   if (!Number.isInteger(egsId) || egsId <= 0) {

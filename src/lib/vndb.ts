@@ -4,6 +4,19 @@ import { throttledFetch } from './vndb-throttle';
 import type { Screenshot, VndbSearchHit } from './types';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
+
+/**
+ * Audit S-045: sanitise an upstream VNDB response body before
+ * interpolating it into a thrown Error message. The body lands in
+ * `console.error` calls and (via `vndbErrorResponse`) is matched
+ * against by route handlers. Strip CR/LF so a malformed VNDB
+ * response can't inject a fake log line, cap length to 200 chars so
+ * a huge HTML error page doesn't blow the log budget.
+ */
+function safeUpstreamBody(text: string): string {
+  return text.replace(/[\r\n]+/g, ' ').slice(0, 200);
+}
+
 export const VNDB_API = 'https://api.vndb.org/kana';
 
 /**
@@ -1434,7 +1447,7 @@ export async function addToVndbWishlist(vnId: string): Promise<{ ok: true } | { 
     body: JSON.stringify({ labels_set: [5] }),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = safeUpstreamBody(await res.text().catch(() => ''));
     throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
   }
   try {
@@ -1465,7 +1478,7 @@ export async function removeFromVndbWishlist(vnId: string): Promise<{ ok: true }
     body: JSON.stringify({ labels_unset: [5] }),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = safeUpstreamBody(await res.text().catch(() => ''));
     throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
   }
   try {
@@ -1549,7 +1562,7 @@ export async function patchUlistEntry(vnId: string, patch: UlistPatch): Promise<
     body: JSON.stringify(patch),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = safeUpstreamBody(await res.text().catch(() => ''));
     throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
   }
   // Invalidate our small ulist cache so subsequent reads reflect the new state.
@@ -1575,7 +1588,7 @@ export async function deleteUlistEntry(vnId: string): Promise<{ ok: true } | { n
     headers: authHeaders(),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = safeUpstreamBody(await res.text().catch(() => ''));
     throw new Error(`VNDB DELETE /ulist/${vnId} -> ${res.status}: ${text}`);
   }
   try {

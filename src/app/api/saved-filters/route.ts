@@ -18,10 +18,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (typeof body.name !== 'string' || !body.name.trim()) {
     return NextResponse.json({ error: 'name required' }, { status: 400 });
   }
+  // Audit S-037: enforce a length cap on name + params so a malicious
+  // PATCH can't store megabytes of garbage in `saved_filter.params`.
+  // The URL fragment we persist for legitimate filters is typically
+  // well under 1 KiB; 4000 is a generous ceiling.
+  if (body.name.length > 200) {
+    return NextResponse.json({ error: 'name too long (max 200)' }, { status: 400 });
+  }
   if (typeof body.params !== 'string') {
     return NextResponse.json({ error: 'params required' }, { status: 400 });
   }
-  const created = createSavedFilter(body.name, body.params);
+  if (body.params.length > 4000) {
+    return NextResponse.json({ error: 'params too long (max 4000)' }, { status: 400 });
+  }
+  const created = createSavedFilter(body.name.trim().slice(0, 200), body.params);
   recordActivity({
     kind: 'saved_filter.create',
     entity: 'saved_filter',
