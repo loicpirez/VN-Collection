@@ -42,19 +42,35 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
   const titleId = useId();
   useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
 
+  // Abort the in-flight VNDB search whenever the user types again or
+  // the dialog closes; otherwise a stale slower response overwrites the
+  // hit list after a newer query has already rendered.
+  const searchAbortRef = useRef<AbortController | null>(null);
   const search = useCallback(async (q: string) => {
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+      searchAbortRef.current = null;
+    }
     if (!q.trim()) {
       setHits([]);
       return;
     }
+    const ac = new AbortController();
+    searchAbortRef.current = ac;
     setSearching(true);
     try {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`, { cache: 'no-store' });
-      if (!r.ok) return;
+      const r = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`, {
+        cache: 'no-store',
+        signal: ac.signal,
+      });
+      if (!r.ok || ac.signal.aborted) return;
       const d = (await r.json()) as { results?: SearchHit[] };
+      if (ac.signal.aborted) return;
       setHits((d.results ?? []).slice(0, 30));
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') return;
     } finally {
-      setSearching(false);
+      if (!ac.signal.aborted) setSearching(false);
     }
   }, []);
 
@@ -71,6 +87,11 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Cancel any in-flight search when the dialog unmounts.
+  useEffect(() => () => {
+    if (searchAbortRef.current) searchAbortRef.current.abort();
+  }, []);
 
   async function link(targetId: string) {
     const ok = await confirm({

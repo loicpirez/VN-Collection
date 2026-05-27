@@ -145,7 +145,12 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
     }
   }
   const showAddButton = enableAdd && !selectable && !data.status && !data.inCollectionBadge && !addedLocal;
-  const showAddedBadge = enableAdd && !selectable && (data.inCollectionBadge || addedLocal);
+  // R5-113: surface the "in collection" pill on any card whose `inCollectionBadge`
+  // is set, even if the parent did NOT pass `enableAdd`. RelationsSection (and
+  // any future card grid that has the badge data but no add affordance) needs
+  // a visible owned-marker — otherwise owned vs unowned related VNs look
+  // identical. StatusBadge still wins when a real status is set.
+  const showAddedBadge = !selectable && !data.status && (data.inCollectionBadge || addedLocal);
 
   async function handleAdd(e: React.MouseEvent | React.KeyboardEvent) {
     e.preventDefault();

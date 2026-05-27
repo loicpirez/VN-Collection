@@ -113,4 +113,24 @@ describe('stock i18n — completeness', () => {
       }
     }
   });
+
+  // I-007: classifier emits slug keys, StockPanel resolves them via
+  // `t.stock.matchWarnings.<slug>`. Every slug listed below must
+  // exist in every locale or the chip falls back to the raw English
+  // slug.
+  it('match-warning labels exist for every slug', () => {
+    for (const locale of LOCALES) {
+      const mw = dictionaries[locale].stock.matchWarnings;
+      for (const key of [
+        'bonus_only_item',
+        'related_music_media',
+        'related_goods_title',
+        'related_goods_category',
+        'only_mentions_target_in_bonus',
+        'same_series_different_game',
+      ] as const) {
+        expect({ locale, key, value: mw[key] }).toMatchObject({ locale, key, value: expect.any(String) });
+      }
+    }
+  });
 });

@@ -5,7 +5,7 @@ import { db, getCollectionItem } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum, formatVndbDateString } from '@/lib/locale-number';
-import { formatMinutes } from '@/lib/format';
+import { formatMinutesWithDash as fmtMinutes } from '@/lib/format';
 import { roleLabel } from '@/lib/staff-roles';
 import { platformLabel } from '@/lib/platform-label';
 import { languageDisplayName } from '@/lib/language-names';
@@ -28,10 +28,6 @@ function parseIds(raw: string | undefined): string[] {
     .map((s) => s.trim())
     .filter((s) => /^(v\d+|egs_\d+)$/i.test(s))
     .slice(0, 4);
-}
-
-function fmtMinutes(m: number | null | undefined, locale: Locale, t: any): string {
-  return formatMinutes(m, locale, t.year, { fallback: '—', emptyValue: 'strict_positive' });
 }
 
 function intersection<T>(sets: Set<T>[]): Set<T> {

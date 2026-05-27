@@ -29,7 +29,7 @@ import { VnDetailLayout } from '@/components/VnDetailLayout';
 import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
 import { resolveField } from '@/lib/source-resolve';
-import { formatMinutes } from '@/lib/format';
+import { formatMinutesWithDash as fmtMinutes } from '@/lib/format';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum, formatVndbDateString } from '@/lib/locale-number';
@@ -87,10 +87,6 @@ import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/l
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
 export const dynamic = 'force-dynamic';
-
-function fmtMinutes(m: number | null | undefined, locale: Locale, t: any = {}): string {
-  return formatMinutes(m, locale, t.year, { fallback: '—', emptyValue: 'strict_positive' });
-}
 
 function combinedScore(vndb: number | null, egs: number | null): number | null {
   if (vndb == null && egs == null) return null;

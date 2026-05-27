@@ -296,31 +296,36 @@ export function classifyOffer(
   if (isBonusPrefix) {
     contentKind = 'bonus_only';
     score -= 60;
-    warnings.push('bonus-only item');
+    // I-007: emit stable slug keys (translated at render time) rather
+    // than English literals — the same string lands in the DB via
+    // `vn_stock_offer.match_warnings_json` and would otherwise show as
+    // raw English to FR/JA users. Legacy rows that still carry the old
+    // English wording are mapped back to slugs in `stockWarningLabel`.
+    warnings.push('bonus_only_item');
   } else if (soundtrackTitle) {
     contentKind = 'soundtrack';
     score -= 60;
-    warnings.push('related music/media');
+    warnings.push('related_music_media');
   } else if (relatedGoodsTitle) {
     contentKind = /フィギュア|figure/i.test(title) ? 'figure' : 'related_goods';
     score -= 55;
-    warnings.push('related goods title');
+    warnings.push('related_goods_title');
   } else if (isFigureCategory(cat)) {
     contentKind = 'figure';
     score -= 50;
-    warnings.push('related goods category');
+    warnings.push('related_goods_category');
   } else if (isSoundtrackCategory(cat)) {
     contentKind = 'soundtrack';
     score -= 40;
-    warnings.push('related goods category');
+    warnings.push('related_goods_category');
   } else if (isArtbookCategory(cat)) {
     contentKind = 'artbook';
     score -= 40;
-    warnings.push('related goods category');
+    warnings.push('related_goods_category');
   } else if (goodsCat) {
     contentKind = 'related_goods';
     score -= 50;
-    warnings.push('related goods category');
+    warnings.push('related_goods_category');
   } else if (softwareCat) {
     contentKind = 'game_package';
     score += 40;
@@ -367,12 +372,12 @@ export function classifyOffer(
     seriesRelation = 'related_goods';
     if (containsTarget) {
       score -= 30;
-      warnings.push('only mentions target inside bonus description');
+      warnings.push('only_mentions_target_in_bonus');
     }
   } else if (numMismatch) {
     seriesRelation = 'same_series_previous_game';
     score -= 40;
-    warnings.push('same series but different game');
+    warnings.push('same_series_different_game');
   } else if (containsTarget) {
     if (contentKind === 'game_package') {
       // Check if it's really the same game or different platform/edition
@@ -401,7 +406,7 @@ export function classifyOffer(
     if (targetNumInTitle && targetBase.length >= 2 && normTitle.includes(targetBase)) {
       seriesRelation = 'same_series_previous_game';
       score -= 40;
-      warnings.push('same series but different game');
+      warnings.push('same_series_different_game');
     } else {
       seriesRelation = 'unrelated';
       score -= 40;

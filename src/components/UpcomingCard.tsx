@@ -118,7 +118,16 @@ export function UpcomingCard({
         }}
       >
         {internalHref ? (
-          <Link href={internalHref} className="block h-full w-full" tabIndex={-1}>
+          <Link
+            href={internalHref}
+            className="block h-full w-full"
+            tabIndex={-1}
+            // R5-088: aria-label communicates the "Open VN" intent so
+            // assistive tech announces something more useful than just
+            // the cover image alt text — the title link below also
+            // targets the same destination.
+            aria-label={t.upcoming.openVn.replace('{title}', title)}
+          >
             <SafeImage
               src={coverUrl}
               localSrc={coverLocal ?? null}
@@ -134,6 +143,7 @@ export function UpcomingCard({
             rel="noopener noreferrer"
             className="block h-full w-full"
             tabIndex={-1}
+            aria-label={t.upcoming.openVn.replace('{title}', title)}
           >
             <SafeImage
               src={coverUrl}
@@ -230,6 +240,12 @@ export function UpcomingCard({
               rel="noopener noreferrer"
               className="tap-target inline-flex items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-muted hover:border-accent hover:text-accent"
               data-affordance="open-egs"
+              // R5-088: screen readers + tooltip should report the
+              // open-on-EGS intent; the bare "EGS" glyph is otherwise
+              // opaque (especially when adjacent to the VNDB chip
+              // with identical visual weight).
+              aria-label={t.upcoming.cardOpenEgs}
+              title={t.upcoming.cardOpenEgs}
             >
               <ExternalLink className="h-3 w-3" aria-hidden /> EGS
             </a>

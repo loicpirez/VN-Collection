@@ -304,7 +304,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                   type="button"
                   onClick={() => move(r.id, -1)}
                   disabled={busy || i === 0}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
+                  className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
                   aria-label={t.routes.moveUp}
                 >
                   <ArrowUp className="h-3 w-3" />
@@ -313,7 +313,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                   type="button"
                   onClick={() => move(r.id, 1)}
                   disabled={busy || i === routes.length - 1}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
+                  className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
                   aria-label={t.routes.moveDown}
                 >
                   <ArrowDown className="h-3 w-3" />
@@ -322,7 +322,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                   <button
                     type="button"
                     onClick={() => setEditingId(null)}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
+                    className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
                     aria-label={t.common.cancel}
                   >
                     <X className="h-3 w-3" />
@@ -331,7 +331,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                   <button
                     type="button"
                     onClick={() => startEdit(r)}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
+                    className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
                     aria-label={t.common.edit}
                   >
                     <Pencil className="h-3 w-3" />
@@ -344,7 +344,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                     setNotesOpen(r.id);
                     setNotesDraft(r.notes ?? '');
                   }}
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded ${
+                  className={`tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded ${
                     r.notes ? 'text-accent' : 'text-muted hover:text-white'
                   }`}
                   aria-label={t.routes.notesToggle}
@@ -356,7 +356,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                   type="button"
                   onClick={() => remove(r.id)}
                   disabled={busy}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
+                  className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
                   aria-label={t.common.delete}
                 >
                   <Trash2 className="h-3 w-3" />

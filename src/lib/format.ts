@@ -65,3 +65,19 @@ export function formatMinutesOrNull(
   const out = formatMinutes(m, locale, t, { emptyValue: 'strict_positive' });
   return out ? out : null;
 }
+
+/**
+ * R5-145: consolidation of the duplicate `fmtMinutes(m, locale, t)`
+ * helpers that lived in `/vn/[id]/page.tsx` and `/compare/page.tsx`.
+ * Both expected the full dictionary object (where `t.year` carries the
+ * `hoursUnit`/`minutesUnit` pair) and rendered `'—'` for the empty
+ * state so the cell could be rendered unconditionally. Centralising
+ * keeps the dash + fallback contract in one place.
+ */
+export function formatMinutesWithDash(
+  m: number | null | undefined,
+  locale: Locale,
+  t: { year?: { hoursUnit: string; minutesUnit: string } } | undefined,
+): string {
+  return formatMinutes(m, locale, t?.year, { fallback: '—', emptyValue: 'strict_positive' });
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
 import { useT, useLocale } from '@/lib/i18n/client';
@@ -53,6 +53,17 @@ export function VnTagsGroupedView({ tags }: Props) {
     if (settings.spoilerLevel === 1) return 'minor';
     return 'none';
   });
+  // R5-040 / Finding 3: keep the section-level toggle in sync with
+  // the global `<SpoilerToggle>` so flipping the navbar control
+  // raises the per-section threshold too. The lazy `useState`
+  // initialiser only fires once at mount, so without this effect
+  // the operator would see the chips remain in their old state
+  // until they manually re-clicked the inline toggle.
+  useEffect(() => {
+    if (settings.spoilerLevel === 2) setSpoilerMode('all');
+    else if (settings.spoilerLevel === 1) setSpoilerMode('minor');
+    else setSpoilerMode('none');
+  }, [settings.spoilerLevel]);
 
   if (!tags || tags.length === 0) return null;
   // Tags are no longer filtered by spoiler level — they are always

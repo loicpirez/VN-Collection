@@ -48,8 +48,16 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
   const ref = useRef<HTMLDivElement>(null);
   const popoverId = useId();
 
+  // Abort the mount-time `load()` if the user navigates away before the
+  // response lands; otherwise the response will try to setState on an
+  // unmounted tree (React 19 still warns + the loadError toast fires).
+  const loadAbortRef = useRef<AbortController | null>(null);
   useEffect(() => {
-    load();
+    const ac = new AbortController();
+    loadAbortRef.current = ac;
+    load(ac.signal);
+    return () => ac.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Remote open: any sibling can dispatch
@@ -98,14 +106,16 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
     };
   }, [open]);
 
-  async function load() {
+  async function load(signal?: AbortSignal) {
     setLoadError(null);
     try {
-      const r = await fetch('/api/saved-filters', { cache: 'no-store' });
+      const r = await fetch('/api/saved-filters', { cache: 'no-store', signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const data = (await r.json()) as { filters: Filter[] };
+      if (signal?.aborted) return;
       setFilters(data.filters);
     } catch (e) {
+      if ((e as { name?: string })?.name === 'AbortError') return;
       const message = (e as Error).message;
       setLoadError(message);
       toast.error(message);

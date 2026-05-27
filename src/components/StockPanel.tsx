@@ -1039,6 +1039,27 @@ function stockSourceLabel(t: ReturnType<typeof useT>, source: string): string {
   return source;
 }
 
+/**
+ * I-007: translate the slug-keyed warnings emitted by stock-classify.
+ * Legacy DB rows still carry the old English wording — map them back
+ * to slugs before resolving via the dict so the chip is localised
+ * regardless of when the row was written.
+ */
+const LEGACY_WARNING_MAP: Record<string, string> = {
+  'bonus-only item': 'bonus_only_item',
+  'related music/media': 'related_music_media',
+  'related goods title': 'related_goods_title',
+  'related goods category': 'related_goods_category',
+  'only mentions target inside bonus description': 'only_mentions_target_in_bonus',
+  'same series but different game': 'same_series_different_game',
+};
+
+function stockWarningLabel(t: ReturnType<typeof useT>, raw: string): string {
+  const slug = LEGACY_WARNING_MAP[raw] ?? raw;
+  const dict = t.stock.matchWarnings as Record<string, string | undefined>;
+  return dict[slug] ?? raw;
+}
+
 function providerDisplayName(providers: StockProvider[], providerId: string): string {
   return providers.find((p) => p.id === providerId)?.label ?? providerId;
 }
@@ -1333,7 +1354,7 @@ function OfferCard({
         <div className="mt-1.5 flex flex-wrap gap-1">
           {warnings.map((w) => (
             <span key={w} className="rounded bg-status-dropped/10 px-1.5 py-0.5 text-[10px] text-status-dropped/70">
-              {w}
+              {stockWarningLabel(t, w)}
             </span>
           ))}
         </div>

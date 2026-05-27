@@ -92,7 +92,7 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
           type="button"
           onClick={() => setDismissed(true)}
           aria-label={t.common.close}
-          className="rounded text-muted hover:text-white"
+          className="tap-target-tight rounded p-1 text-muted hover:text-white"
         >
           <X className="h-3 w-3" />
         </button>

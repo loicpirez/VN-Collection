@@ -95,7 +95,7 @@ export function ListMetaEditor({ list }: { list: List }) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-md p-2 text-muted hover:bg-bg-elev hover:text-white"
+          className="tap-target rounded-md p-2 text-muted hover:bg-bg-elev hover:text-white"
           aria-label={t.lists.rename}
           title={t.lists.rename}
         >
@@ -105,7 +105,7 @@ export function ListMetaEditor({ list }: { list: List }) {
           type="button"
           onClick={destroy}
           disabled={busy}
-          className="rounded-md p-2 text-muted hover:bg-bg-elev hover:text-status-dropped"
+          className="tap-target rounded-md p-2 text-muted hover:bg-bg-elev hover:text-status-dropped"
           aria-label={t.lists.delete}
           title={t.lists.delete}
         >

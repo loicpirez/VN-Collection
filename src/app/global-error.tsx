@@ -12,6 +12,26 @@ function readLocaleCookie(): SupportedLocale | null {
   return loc && (VALID_LOCALES as readonly string[]).includes(loc) ? (loc as SupportedLocale) : null;
 }
 
+/**
+ * U-252: when no `locale` cookie has been set yet (fresh install, or
+ * the user has never opened the language switcher), fall back to the
+ * navigator's preferred language instead of defaulting to French.
+ * This is the only locale-resolution path in the entire app that
+ * runs WITHOUT the I18nProvider — so we have to do the matching
+ * ourselves.
+ */
+function readLocaleFromNavigator(): SupportedLocale | null {
+  if (typeof navigator === 'undefined') return null;
+  const langs = navigator.languages?.length ? navigator.languages : [navigator.language || ''];
+  for (const lang of langs) {
+    const head = lang.toLowerCase().split('-')[0];
+    if ((VALID_LOCALES as readonly string[]).includes(head)) {
+      return head as SupportedLocale;
+    }
+  }
+  return null;
+}
+
 const STRINGS: Record<SupportedLocale, { title: string; body: string; retry: string; digest: string }> = {
   fr: {
     title: 'Une erreur est survenue.',
@@ -51,12 +71,21 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const [lang, setLang] = useState<SupportedLocale>('fr');
+  // U-252: defaulting to 'fr' is wrong for EN/JA browsers that have
+  // never set the locale cookie. Initial state stays 'fr' on the
+  // server (SSR has no `navigator`); useEffect promotes to the
+  // navigator language if the cookie is missing.
+  const [lang, setLang] = useState<SupportedLocale>('en');
 
   useEffect(() => {
     console.error('Global error:', error);
-    const loc = readLocaleCookie();
-    if (loc) setLang(loc);
+    const fromCookie = readLocaleCookie();
+    if (fromCookie) {
+      setLang(fromCookie);
+      return;
+    }
+    const fromNav = readLocaleFromNavigator();
+    if (fromNav) setLang(fromNav);
   }, [error]);
 
   const s = STRINGS[lang];

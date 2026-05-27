@@ -7,6 +7,7 @@ import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
 import { platformLabel } from '@/lib/platform-label';
+import { statusHex } from '@/lib/status-palette';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -43,13 +44,10 @@ function getMyStats(): MyStats {
   };
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  planning: '#475569',
-  playing: '#3b82f6',
-  completed: '#22c55e',
-  on_hold: '#f59e0b',
-  dropped: '#ef4444',
-};
+// U-293: status hex codes live in `lib/status-palette.ts` — single
+// source of truth shared with `tailwind.config.ts`. The previous
+// inline duplicate drifted easily and broke the donut colours when
+// the palette evolved.
 
 export default async function StatsPage() {
   const t = await getDict();
@@ -74,7 +72,7 @@ export default async function StatsPage() {
   const statusDonut = my.byStatus.map((s) => ({
     label: t.status[s.status as keyof typeof t.status] ?? s.status,
     value: s.n,
-    color: STATUS_COLORS[s.status] ?? '#64748b',
+    color: statusHex(s.status),
     href: `/?status=${encodeURIComponent(s.status)}`,
   }));
 

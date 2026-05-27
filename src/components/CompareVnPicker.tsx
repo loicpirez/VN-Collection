@@ -229,7 +229,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
                 type="button"
                 onClick={() => remove(vn.id)}
                 aria-label={t.compareView.removeVn}
-                className="absolute right-1.5 top-1.5 rounded p-0.5 text-muted/40 transition-colors hover:text-status-dropped focus-visible:text-status-dropped"
+                className="tap-target-tight absolute right-1.5 top-1.5 rounded p-0.5 text-muted/40 transition-colors hover:text-status-dropped focus-visible:text-status-dropped"
               >
                 <X className="h-3 w-3" aria-hidden />
               </button>

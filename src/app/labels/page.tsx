@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic';
  */
 const MAX_LABELS = 200;
 
-async function qrSvg(text: string): Promise<string> {
+async function qrSvg(text: string, fallbackText: string): Promise<string> {
   try {
     return await qrToString(text, {
       type: 'svg',
@@ -35,7 +35,12 @@ async function qrSvg(text: string): Promise<string> {
       color: { dark: '#000000', light: '#ffffff' },
     });
   } catch {
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><text x="2" y="14" font-size="10" fill="#cc0000">QR error</text></svg>';
+    // I-003: localised fallback label; the SVG payload is sanitised
+    // (uppercase letters / spaces only) by the dict ensuring no XML
+    // injection. The text is small (max ~16 chars) so it fits in the
+    // 20×20 viewBox.
+    const safe = fallbackText.replace(/[<>&"]/g, '').slice(0, 16);
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><text x="2" y="14" font-size="6" fill="#cc0000">${safe}</text></svg>`;
   }
 }
 
@@ -58,15 +63,15 @@ export default async function LabelsPage({
 }) {
   const { ids: idsRaw, status } = await searchParams;
   const parsedIds = parseIds(idsRaw);
+  const t = await getDict();
   if (parsedIds === 'invalid') {
     return (
       <div className="w-full p-8 text-sm text-status-dropped">
-        Invalid ids parameter: each value must match v&#123;number&#125; or egs_&#123;number&#125;.
+        {t.labels.invalidIds}
       </div>
     );
   }
   const filter = parsedIds;
-  const t = await getDict();
   // Derive the host from the incoming request so QR codes resolve back to
   // the same origin the user is browsing — works for any port or LAN IP.
   // Prefer x-forwarded-host (when behind a reverse proxy) before host
@@ -102,7 +107,7 @@ export default async function LabelsPage({
           while (true) {
             const idx = cursor++;
             if (idx >= items.length) return;
-            qrs[idx] = await qrSvg(`${origin}/vn/${items[idx].id}`);
+            qrs[idx] = await qrSvg(`${origin}/vn/${items[idx].id}`, t.labels.qrError);
           }
         })(),
       );

@@ -91,20 +91,36 @@ export function MapVnToEgsButton({
     return () => ac.abort();
   }, [open, vnId]);
 
+  // Abort the in-flight EGS search when the user types again or the
+  // dialog closes; an older, slower response otherwise overwrites the
+  // candidate list with stale results.
+  const searchAbortRef = useRef<AbortController | null>(null);
   const search = useCallback(async (q: string) => {
     const trimmed = q.trim();
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+      searchAbortRef.current = null;
+    }
     if (!trimmed) {
       setCandidates([]);
       return;
     }
+    const ac = new AbortController();
+    searchAbortRef.current = ac;
     setSearching(true);
     try {
-      const r = await fetch(`/api/egs/search?q=${encodeURIComponent(trimmed)}&limit=20`, { cache: 'no-store' });
-      if (!r.ok) return;
+      const r = await fetch(`/api/egs/search?q=${encodeURIComponent(trimmed)}&limit=20`, {
+        cache: 'no-store',
+        signal: ac.signal,
+      });
+      if (!r.ok || ac.signal.aborted) return;
       const d = (await r.json()) as { candidates?: EgsCandidate[] };
+      if (ac.signal.aborted) return;
       setCandidates(d.candidates ?? []);
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') return;
     } finally {
-      setSearching(false);
+      if (!ac.signal.aborted) setSearching(false);
     }
   }, []);
 
@@ -114,6 +130,11 @@ export function MapVnToEgsButton({
     if (!open) return;
     debouncedSearch(query);
   }, [open, query, debouncedSearch]);
+
+  // Cancel any in-flight search when the dialog unmounts.
+  useEffect(() => () => {
+    if (searchAbortRef.current) searchAbortRef.current.abort();
+  }, []);
 
   async function pin(action: { egsId: number } | 'none' | 'reset', label: number | 'reset' | 'none') {
     setBusy(label);
@@ -203,7 +224,7 @@ export function MapVnToEgsButton({
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label={t.common.close}
-                className="text-muted hover:text-white"
+                className="tap-target inline-flex items-center justify-center rounded p-1 text-muted hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>

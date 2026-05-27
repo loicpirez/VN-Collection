@@ -33,23 +33,30 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
   const [filter, setFilter] = useState('');
   const filterRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
     try {
-      const r = await fetch('/api/collection?sort=released&order=desc', { cache: 'no-store' });
+      const r = await fetch('/api/collection?sort=released&order=desc', { cache: 'no-store', signal });
       if (!r.ok) return;
       const data = (await r.json()) as { items?: CollectionRow[] };
+      if (signal.aborted) return;
       setRows((data.items ?? []).filter((it) => it.id !== currentVnId));
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') return;
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, [currentVnId]);
 
   useEffect(() => {
     if (!open) return;
-    load();
+    const ac = new AbortController();
+    load(ac.signal);
     const frame = requestAnimationFrame(() => filterRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      ac.abort();
+    };
   }, [open, load]);
 
   const filtered = useMemo(() => {

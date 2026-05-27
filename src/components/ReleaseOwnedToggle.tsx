@@ -150,7 +150,7 @@ export function ReleaseOwnedToggle({
             type="button"
             onClick={toggle}
             disabled={busy}
-            className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-status-dropped/10 hover:text-status-dropped"
+            className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-status-dropped/10 hover:text-status-dropped"
             title={t.releases.removeMyEdition}
             aria-label={t.releases.removeMyEdition}
           >

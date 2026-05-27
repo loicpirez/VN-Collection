@@ -90,20 +90,36 @@ export function MapEgsToVndbButton({
     return () => ac.abort();
   }, [open, egsId]);
 
+  // Abort the in-flight search whenever the user types again or the
+  // dialog closes; otherwise an older, slower response can stamp the
+  // hit list with stale results.
+  const searchAbortRef = useRef<AbortController | null>(null);
   const search = useCallback(async (q: string) => {
     const trimmed = q.trim();
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+      searchAbortRef.current = null;
+    }
     if (!trimmed) {
       setHits([]);
       return;
     }
+    const ac = new AbortController();
+    searchAbortRef.current = ac;
     setSearching(true);
     try {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store' });
-      if (!r.ok) return;
+      const r = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, {
+        cache: 'no-store',
+        signal: ac.signal,
+      });
+      if (!r.ok || ac.signal.aborted) return;
       const d = (await r.json()) as { results?: SearchHit[] };
+      if (ac.signal.aborted) return;
       setHits((d.results ?? []).slice(0, 30));
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') return;
     } finally {
-      setSearching(false);
+      if (!ac.signal.aborted) setSearching(false);
     }
   }, []);
 
@@ -113,6 +129,11 @@ export function MapEgsToVndbButton({
     if (!open) return;
     debouncedSearch(query);
   }, [open, query, debouncedSearch]);
+
+  // Cancel any in-flight search when the dialog unmounts.
+  useEffect(() => () => {
+    if (searchAbortRef.current) searchAbortRef.current.abort();
+  }, []);
 
   async function pin(vndbIdToSet: string | null, label: string | 'reset' | 'none') {
     setBusy(label);
@@ -195,7 +216,7 @@ export function MapEgsToVndbButton({
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label={t.common.close}
-                className="text-muted hover:text-white"
+                className="tap-target inline-flex items-center justify-center rounded p-1 text-muted hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>

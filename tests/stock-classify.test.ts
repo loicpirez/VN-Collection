@@ -69,7 +69,7 @@ describe('classifyOffer — サンプル3Cute [通常版] + Switch', () => {
   it('matchConfidence = exact or high (score >= 70)', () =>
     expect(['exact', 'high']).toContain(cl.matchConfidence));
   it('no match warnings about bonus-only', () =>
-    expect(cl.matchWarnings).not.toContain('bonus-only item'));
+    expect(cl.matchWarnings).not.toContain('bonus_only_item'));
   it('matchScore >= 70', () => expect(cl.matchScore).toBeGreaterThanOrEqual(70));
 });
 
@@ -83,7 +83,7 @@ describe('classifyOffer — [単品] アクリルスタンド inside bonus bundl
   it('contentKind = bonus_only', () => expect(cl.contentKind).toBe('bonus_only'));
   it('matchConfidence = reject (not a game package)', () => expect(cl.matchConfidence).toBe('reject'));
   it('matchWarnings contains bonus-only item', () =>
-    expect(cl.matchWarnings).toContain('bonus-only item'));
+    expect(cl.matchWarnings).toContain('bonus_only_item'));
   it('seriesRelation = related_goods', () => expect(cl.seriesRelation).toBe('related_goods'));
   it('matchScore < 10', () => expect(cl.matchScore).toBeLessThan(10));
 });
@@ -94,7 +94,7 @@ describe('classifyOffer — タペストリー category', () => {
   it('contentKind = related_goods', () => expect(cl.contentKind).toBe('related_goods'));
   it('matchConfidence = reject', () => expect(cl.matchConfidence).toBe('reject'));
   it('matchWarnings contains related goods', () =>
-    expect(cl.matchWarnings.join(' ')).toMatch(/related goods/i));
+    expect(cl.matchWarnings.join(' ')).toMatch(/related_goods/i));
   it('seriesRelation = related_goods', () => expect(cl.seriesRelation).toBe('related_goods'));
 });
 
@@ -106,7 +106,7 @@ describe('classifyOffer — サンプル2 when target is サンプル3', () => {
   it('matchConfidence = low (score 10-39) or reject', () =>
     expect(['low', 'reject']).toContain(cl.matchConfidence));
   it('matchWarnings mentions same series but different game', () =>
-    expect(cl.matchWarnings).toContain('same series but different game'));
+    expect(cl.matchWarnings).toContain('same_series_different_game'));
 });
 
 describe('classifyOffer — サンプル (unnumbered) when target is サンプル3', () => {

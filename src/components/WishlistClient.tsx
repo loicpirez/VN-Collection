@@ -16,6 +16,7 @@ import { BulkDownloadButton } from './BulkDownloadButton';
 
 import { readApiError } from '@/lib/api-error-read';
 import { languageDisplayName } from '@/lib/language-names';
+import { yearOnly } from '@/lib/locale-number';
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc' | 'egs_rating_desc';
 type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'platform' | 'status';
 
@@ -416,8 +417,14 @@ export function WishlistClient() {
       if (filterPlatform && !it.vn.platforms.includes(filterPlatform)) return false;
       if (rMin !== null && (it.vn.rating == null || it.vn.rating < rMin)) return false;
       if (rMax !== null && (it.vn.rating == null || it.vn.rating > rMax)) return false;
-      if (yMin && (!it.vn.released || it.vn.released.slice(0, 4) < yMin)) return false;
-      if (yMax && (!it.vn.released || it.vn.released.slice(0, 4) > yMax)) return false;
+      // U-055: use the canonical `yearOnly` helper instead of raw
+      // string-slicing — robust against partial dates / odd whitespace.
+      if (yMin || yMax) {
+        const yr = yearOnly(it.vn.released);
+        if (!yr) return false;
+        if (yMin && yr < yMin) return false;
+        if (yMax && yr > yMax) return false;
+      }
       if (!lower) return true;
       return (
         it.vn.title.toLowerCase().includes(lower) ||
