@@ -85,8 +85,8 @@ import { VnTagsGroupedView } from '@/components/VnTagsGroupedView';
 import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/lib/types';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
 export const dynamic = 'force-dynamic';
-const CACHE_MS = 24 * 3600 * 1000;
 
 function fmtMinutes(m: number | null | undefined, locale: Locale, t: any = {}): string {
   return formatMinutes(m, locale, t.year, { fallback: '—', emptyValue: 'strict_positive' });
@@ -148,7 +148,7 @@ const loadVn = cache(
     if (isEgsOnly(id)) {
       return { vn: cached, error: null };
     }
-    if (cached && Date.now() - cached.fetched_at < CACHE_MS) return { vn: cached, error: null };
+    if (cached && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) return { vn: cached, error: null };
     try {
       const fresh = await getVn(id);
       if (!fresh) {

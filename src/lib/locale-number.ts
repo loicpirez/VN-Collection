@@ -48,6 +48,23 @@ export function formatVndbDateString(raw: string | null | undefined, locale: Loc
   }).format(date);
 }
 
+/**
+ * Extract a year (4 digits) from a VNDB-shaped partial date.
+ * Returns the year string for compact UI surfaces (cards, chips) that
+ * deliberately only show the year — full date formatting belongs in
+ * `formatVndbDateString`. Returns null when the input doesn't carry a
+ * parseable year so the caller can omit the chip entirely.
+ *
+ * Closes audit U-054 / U-055: surfaces previously sprinkled `released.slice(0, 4)`
+ * across the codebase; this helper centralises the parsing.
+ */
+export function yearOnly(raw: string | null | undefined): string | null {
+  const value = raw?.trim();
+  if (!value) return null;
+  const match = /^(\d{4})/.exec(value);
+  return match ? match[1] : null;
+}
+
 /** Format an ISO calendar date from local user data without timezone drift. */
 export function formatIsoDateString(raw: string | null | undefined, locale: Locale): string {
   const value = raw?.trim();

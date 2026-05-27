@@ -16,6 +16,7 @@ import { readScrapedProducerInfo } from '@/lib/scrape-producer-relations';
 import type { ProducerRow } from '@/lib/types';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
 import { safeHref } from '@/lib/safe-href';
+import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
 import {
   PRODUCER_DETAIL_LAYOUT_EVENT,
   PRODUCER_DETAIL_SETTINGS_KEY,
@@ -24,11 +25,10 @@ import {
 } from '@/lib/producer-detail-layout';
 
 export const dynamic = 'force-dynamic';
-const CACHE_MS = 24 * 3600 * 1000;
 
 async function loadProducer(id: string): Promise<ProducerRow | null> {
   const cached = getProducerLocal(id);
-  if (cached && Date.now() - cached.fetched_at < CACHE_MS) return cached;
+  if (cached && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) return cached;
   try {
     const fresh = await fetchProducer(id);
     if (!fresh) return cached;

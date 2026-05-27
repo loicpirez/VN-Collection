@@ -6,7 +6,7 @@ import { fetchVndbTopRankedPage, VNDB_TOP_MIN_VOTES, type VndbTopRanked } from '
 import { egsBayesianScore, fetchEgsTopRankedPage, EGS_TOP_MIN_VOTES, EgsUnreachable, type EgsTopRanked } from '@/lib/erogamescape';
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
-import { fmtDate, fmtNum } from '@/lib/locale-number';
+import { fmtDate, fmtNum, yearOnly } from '@/lib/locale-number';
 import { db, getCacheFreshness } from '@/lib/db';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
@@ -477,7 +477,7 @@ function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]
                     {t.topRanked.voteCount.replace('{n}', fmtNum(v.votecount, locale))}
                   </span>
                 )}
-                {v.released && <span className="tabular-nums">{v.released.slice(0, 4)}</span>}
+                {yearOnly(v.released) && <span className="tabular-nums">{yearOnly(v.released)}</span>}
               </div>
               {v.developers.length > 0 && (
                 <p className="mt-0.5 line-clamp-1 text-[10px] text-muted" title={v.developers.map((d) => d.name).join(' · ')}>

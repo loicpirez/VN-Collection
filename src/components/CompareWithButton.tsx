@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, GitCompare, Loader2, Search, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { yearOnly } from '@/lib/locale-number';
 import { Dialog } from './Dialog';
 
 interface CollectionRow {
@@ -156,7 +157,7 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
                       </span>
                       <span className="min-w-0 flex-1 truncate font-bold" title={r.title}>{r.title}</span>
                       <span className="shrink-0 font-mono text-[10px] text-muted">{r.id}</span>
-                      {r.released && <span className="shrink-0 text-[10px] text-muted">{r.released.slice(0, 4)}</span>}
+                      {yearOnly(r.released) && <span className="shrink-0 text-[10px] text-muted">{yearOnly(r.released)}</span>}
                     </button>
                   </li>
                 );

@@ -3,7 +3,8 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, AlertTriangle, ExternalLink, Search as SearchIcon, Sparkles, Star } from 'lucide-react';
 import { db } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { formatMinutes } from '@/lib/format';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { MapVnToEgsButton } from '@/components/MapVnToEgsButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -179,6 +180,7 @@ function EgsPageSkeleton({ t }: { t: Awaited<ReturnType<typeof getDict>> }) {
 
 async function EgsPageContent() {
   const t = await getDict();
+  const locale = await getLocale();
   const { links, unlinkedRows, unmatched, error } = loadEgsPageData();
   const matched = links.length;
 
@@ -297,7 +299,7 @@ async function EgsPageContent() {
                         </span>
                       )}
                       {l.playtime_minutes != null && l.playtime_minutes > 0 && (
-                        <span>{Math.round(l.playtime_minutes / 60)} {t.year.hoursUnit}</span>
+                        <span>{formatMinutes(l.playtime_minutes, locale, t.year, { emptyValue: 'strict_positive' })}</span>
                       )}
                     </div>
                   </div>

@@ -3,9 +3,9 @@ import { upstreamError } from '@/lib/api-error';
 import { getProducer as getProducerLocal, upsertProducer } from '@/lib/db';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
 
 export const dynamic = 'force-dynamic';
-const CACHE_MS = 24 * 3600 * 1000;
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   // Audit S-027: gate — VNDB POST /producer on miss.
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params;
   if (!/^p\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const cached = getProducerLocal(id);
-  if (cached && Date.now() - cached.fetched_at < CACHE_MS) {
+  if (cached && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) {
     return NextResponse.json({ producer: cached });
   }
   try {

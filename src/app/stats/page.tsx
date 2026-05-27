@@ -112,7 +112,7 @@ export default async function StatsPage() {
             <p className="mb-4 text-xs text-muted">{t.stats.mySubtitle}</p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat label={t.stats.total} value={my.total} locale={locale} />
-              <Stat label={t.stats.playtimeHours} value={`${fmtNum(myH, locale)}h`} locale={locale} />
+              <Stat label={t.stats.playtimeHours} value={`${fmtNum(myH, locale)}${t.year.hoursUnit}`} locale={locale} />
               <Stat label={t.stats.avgRating} value={myAvg} locale={locale} />
               <Stat label={t.stats.favorites} value={my.favorites} locale={locale} />
             </div>

@@ -18,6 +18,13 @@ import { getDict } from './i18n/server'; // Note: Server-only helper, but we pas
  * localised unit suffixes; pass `opts.fallback` for the empty-state string
  * and `emptyValue: 'allow_zero'` when `0` is a meaningful value (e.g. a
  * playtime of "started but not yet played").
+ *
+ * I-025: when `t` is omitted, falls back to English `h`/`m`. This is
+ * `graceful degradation` but means a forgotten `t.year` silently produces
+ * the wrong locale. A dev-mode `console.warn` flags the omission so
+ * regressions are caught during local testing without breaking
+ * production callers (e.g. server contexts that legitimately have no
+ * dict in hand).
  */
 export function formatMinutes(
   m: number | null | undefined,
@@ -31,6 +38,14 @@ export function formatMinutes(
   const total = Math.round(m);
   const h = Math.floor(total / 60);
   const mn = total % 60;
+  if (!t && process.env.NODE_ENV !== 'production' && typeof console !== 'undefined') {
+    // I-025: surface omissions in dev so the next caller doesn't ship
+    // English suffixes to FR/JA users. Silenced in production so we
+    // don't spam the operator's logs for legitimate locale-less calls.
+    console.warn(
+      '[formatMinutes] called without `t` — falling back to English h/m suffixes. Pass `t.year` for localised output.',
+    );
+  }
   const hu = t?.hoursUnit ?? 'h';
   const mu = t?.minutesUnit ?? 'm';
   if (h && mn) return `${h}${hu} ${mn}${mu}`;

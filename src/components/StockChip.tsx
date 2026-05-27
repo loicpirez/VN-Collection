@@ -11,8 +11,14 @@ import { subscribeStockSummary, type StockSummaryEntry } from '@/lib/stock-summa
  * a /api/stock/summary call for every off-screen tile.
  *
  * Off-screen / no-offers VNs render nothing (DOM stays small).
+ *
+ * `hidePrice` is set by the Library `<VnCard>` grid: at card density the
+ * yen price competes visually with the user-rating / playtime chips and
+ * clutters the bottom row. The chip still renders the availability
+ * count so the user can see "{N} en stock"; the precise price stays on
+ * the VN detail page where it has room to breathe.
  */
-export function StockChip({ vnId }: { vnId: string }) {
+export function StockChip({ vnId, hidePrice = false }: { vnId: string; hidePrice?: boolean }) {
   const t = useT();
   const locale = useLocale();
   const [entry, setEntry] = useState<StockSummaryEntry | null | undefined>(undefined);
@@ -60,7 +66,10 @@ export function StockChip({ vnId }: { vnId: string }) {
     currency: 'JPY',
     maximumFractionDigits: 0,
   });
-  const label = price != null
+  // hidePrice (library card grid) — show the availability count
+  // instead of the yen amount. The full price stays in the title
+  // attribute so a desktop hover still surfaces it.
+  const label = !hidePrice && price != null
     ? currencyFmt.format(price)
     : (t.stock.stockChipAvailable as string).replace('{count}', String(entry.available));
   const title = (t.stock.stockChipHint as string)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtDate, fmtNum, formatIsoDateString, formatVndbDateString } from '@/lib/locale-number';
+import { fmtDate, fmtNum, formatIsoDateString, formatVndbDateString, yearOnly } from '@/lib/locale-number';
 
 describe('locale date formatting', () => {
   it('formats VNDB partial dates without inventing missing precision', () => {
@@ -26,5 +26,26 @@ describe('locale date formatting', () => {
     expect(fmtDate(date, 'en', opts)).toBe('May 21, 2020');
     expect(fmtDate(date, 'fr', opts)).toContain('2020');
     expect(fmtDate(date, 'ja', opts)).toContain('2020');
+  });
+});
+
+describe('yearOnly', () => {
+  it('strips a partial VNDB date down to the year', () => {
+    expect(yearOnly('2020')).toBe('2020');
+    expect(yearOnly('2020-05')).toBe('2020');
+    expect(yearOnly('2020-05-21')).toBe('2020');
+  });
+
+  it('returns null for null/undefined/empty/whitespace input', () => {
+    expect(yearOnly(null)).toBeNull();
+    expect(yearOnly(undefined)).toBeNull();
+    expect(yearOnly('')).toBeNull();
+    expect(yearOnly('   ')).toBeNull();
+  });
+
+  it('returns null when the leading four chars are not digits', () => {
+    expect(yearOnly('TBA')).toBeNull();
+    expect(yearOnly('not-a-date')).toBeNull();
+    expect(yearOnly('20--')).toBeNull();
   });
 });

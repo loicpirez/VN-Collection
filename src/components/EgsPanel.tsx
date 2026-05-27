@@ -209,10 +209,11 @@ export function EgsPanel({
   // ----- Matched branch -----
   const combined = combinedScore(vndbRating, game.median);
   const totalPlaytime = (myPlaytimeMinutes || 0) + (game.playtime_median_minutes ?? 0);
-  const myPt = fmtMinutes(myPlaytimeMinutes || null);
-  const egsPt = fmtMinutes(game.playtime_median_minutes);
-  const vndbPt = fmtMinutes(vndbLengthMinutes);
-  const sumPt = fmtMinutes(totalPlaytime || null);
+  // I-025: pass locale + t.year so FR/JA users see localized 'h'/'min'/'時間' suffixes.
+  const myPt = fmtMinutes(myPlaytimeMinutes || null, locale, t.year);
+  const egsPt = fmtMinutes(game.playtime_median_minutes, locale, t.year);
+  const vndbPt = fmtMinutes(vndbLengthMinutes, locale, t.year);
+  const sumPt = fmtMinutes(totalPlaytime || null, locale, t.year);
 
   return (
     <>

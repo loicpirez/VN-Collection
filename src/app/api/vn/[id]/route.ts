@@ -6,10 +6,9 @@ import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
 
 export const dynamic = 'force-dynamic';
-
-const CACHE_MS = 24 * 3600 * 1000;
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
@@ -22,7 +21,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   const cached = getCollectionItem(id);
-  if (cached && cached.fetched_at && Date.now() - cached.fetched_at < CACHE_MS) {
+  if (cached && cached.fetched_at && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) {
     return NextResponse.json({ vn: cached, in_collection: !!cached.status });
   }
   try {

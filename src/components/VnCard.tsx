@@ -15,7 +15,7 @@ import { StockChip } from './StockChip';
 import type { EditionType, Status } from '@/lib/types';
 import type { AspectKey } from '@/lib/aspect-ratio';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, yearOnly } from '@/lib/locale-number';
 
 export interface CardData {
   id: string;
@@ -175,7 +175,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   }
   const ratingNum = data.user_rating ?? data.rating;
   const rating = ratingNum != null ? fmtNum(ratingNum / 10, locale, 1) : null;
-  const year = data.released?.slice(0, 4);
+  const year = yearOnly(data.released);
   const myPlaytimeMin = data.playtime_minutes ?? null;
   const vndbLengthMin = data.length_minutes ?? null;
   const egsPlaytimeMin = data.egs_playtime_minutes ?? null;
@@ -187,10 +187,11 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   if (vndbLengthMin && vndbLengthMin > 0) { allSum += vndbLengthMin; allCount++; }
   if (egsPlaytimeMin && egsPlaytimeMin > 0) { allSum += egsPlaytimeMin; allCount++; }
   const allPlaytimeMin = allCount > 0 ? Math.round(allSum / allCount) : null;
-  const myPlaytime = fmtMinutes(myPlaytimeMin);
-  const vndbLength = fmtMinutes(vndbLengthMin);
-  const egsPlaytime = fmtMinutes(egsPlaytimeMin);
-  const allPlaytime = fmtMinutes(allPlaytimeMin);
+  // I-025: pass locale + t.year so FR/JA users see localized 'h'/'min'/'時間' suffixes.
+  const myPlaytime = fmtMinutes(myPlaytimeMin, locale, t.year);
+  const vndbLength = fmtMinutes(vndbLengthMin, locale, t.year);
+  const egsPlaytime = fmtMinutes(egsPlaytimeMin, locale, t.year);
+  const allPlaytime = fmtMinutes(allPlaytimeMin, locale, t.year);
   const egsScore = data.egs_median != null ? Math.round(data.egs_median) : null;
   const titlePair = useResolvedTitle(data.title, data.alttitle ?? null);
   const visibleAspectKeys = (data.aspectKeys ?? []).filter((key) => key !== 'unknown');
@@ -340,7 +341,10 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
               {visibleAspectKeys.length > 2 ? ` +${visibleAspectKeys.length - 2}` : ''}
             </span>
           )}
-          <StockChip vnId={data.id} />
+          {/* Library card grid: hide the precise yen price; show
+              availability count instead. The full price stays on the
+              VN detail page and in the hover title. */}
+          <StockChip vnId={data.id} hidePrice />
         </div>
         {allPlaytime && (
           <div className="text-[11px]">

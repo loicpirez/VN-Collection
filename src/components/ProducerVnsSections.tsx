@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { AlertTriangle, Check, Package, Star, Wrench } from 'lucide-react';
 import { fetchProducerAssociations, type ProducerAssociations, type ProducerVnRef } from '@/lib/producer-associations';
 import { getDict, getLocale } from '@/lib/i18n/server';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, yearOnly } from '@/lib/locale-number';
 import { SafeImage } from './SafeImage';
 import { AddMissingVnButton } from './AddMissingVnButton';
 import { ProducerRefreshButton } from './ProducerRefreshButton';
@@ -224,7 +224,7 @@ function RoleSection({
                     <p className="line-clamp-1 text-[10px] text-muted/80">{v.alttitle}</p>
                   )}
                   <p className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
-                    {v.released?.slice(0, 4) && <span>{v.released.slice(0, 4)}</span>}
+                    {yearOnly(v.released) && <span>{yearOnly(v.released)}</span>}
                     {v.rating != null && (
                       <span className="inline-flex items-center gap-0.5 text-accent">
                         <Star className="h-2.5 w-2.5 fill-accent" aria-hidden /> {fmtNum(v.rating / 10, locale, 1)}

@@ -67,9 +67,13 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   // whenever a router.refresh() lands new data. Without this the
   // optimistic state from a previous event would survive past a real
   // server update.
+  // P-203: collapsed three sibling effects into one keyed on
+  // `[src, initialRotation]` so a single router.refresh fires one
+  // render cycle instead of three.
   useEffect(() => {
     setLiveSrc(src);
-  }, [src]);
+    setRotation(initialRotation);
+  }, [src, initialRotation]);
   useEffect(() => {
     setBannerLoaded(false);
     const img = imgRef.current;
@@ -77,9 +81,6 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
       setBannerLoaded(true);
     }
   }, [liveSrc]);
-  useEffect(() => {
-    setRotation(initialRotation);
-  }, [initialRotation]);
 
   // Listen for vn:banner-changed dispatched by sibling mutation
   // surfaces. Scoped to this vnId so navigating to another VN in the

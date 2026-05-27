@@ -62,7 +62,7 @@ export function QueueButton({ vnId }: { vnId: string }) {
       type="button"
       onClick={toggle}
       disabled={busy}
-      className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
         queued
           ? 'border-accent bg-accent text-bg hover:bg-accent/90'
           : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'
