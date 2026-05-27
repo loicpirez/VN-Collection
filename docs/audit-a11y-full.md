@@ -3,6 +3,16 @@
 **Audit date:** 2026-05-27
 **Scope:** every component under `src/components/` and every page under `src/app/`
 **Method:** static code review of `.tsx` files
+
+## Closure status (2026-05-27)
+
+**CLOSED — every Critical + every Serious + the actionable Moderate
+findings.** See commit `79d2ace` (a11y agent's bulk batch). Deferred:
+A-115..A-119 (tooltip primitive build-out — requires a shared
+`<Tooltip>` primitive adopted across hundreds of cards, scheduled
+separately) and A-035 / A-040 / A-072 / A-107 / A-156 (verification
+items requiring axe-core / NVDA runtime tooling, out of scope for a
+static-fix pass).
 **Severity scale:**
 - `Critical` — blocks task completion for assistive technology users (WCAG Level A failures)
 - `Serious` — significantly degrades experience but workaround exists (Level AA failures)

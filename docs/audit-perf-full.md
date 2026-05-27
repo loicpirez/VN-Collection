@@ -2,6 +2,19 @@
 
 Walked `src/app/**`, `src/components/**`, `src/lib/**` for every instance of the 20 audit categories. IDs are stable per-finding.
 
+## Closure status (2026-05-27)
+
+**CLOSED — every HIGH/MEDIUM + most LOW findings.** See commit `79d2ace`
+(perf agent's batch). Verified-clean / no-action items: P-045..P-048
+(every column flagged for removal is actually consumed by the UI),
+P-051 (`raw` column needed by importData), P-052 (replaceVnStockOffers
+already transactional), P-082 (already memoised), P-184/P-185 (distinct
+cache rows, not the same blob), P-203 (sibling effects intentionally
+separate). Deferred: P-070 bulk codemod (237 fetch calls — needs a
+project-wide migration), P-093 / P-205 (modal lazy-loading — needs
+page restructure), P-209 (CharactersSection+RoutesSection shared
+context — larger refactor).
+
 Severities used:
 - **critical**: confirmed bug, data corruption, memory leak, or near-certain race that fires on common usage.
 - **high**: definite performance issue or correctness footgun under common usage.

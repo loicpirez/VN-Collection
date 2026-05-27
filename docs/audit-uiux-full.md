@@ -3,6 +3,20 @@
 **Repository**: `/Users/loicpirez/VNDB`
 **Scope**: Every `src/app/**/page.tsx` and major `src/components/*.tsx`
 **Date**: 2026-05-27
+
+## Closure status (2026-05-27)
+
+**CLOSED — every HIGH/MEDIUM batch from the uiux agent.** See commit
+`79d2ace` (uiux agent — palette / i18n / formatting / a11y /
+skeletons / confirms / grids / error surfacing / perf). U-049 closed
+in `a16541a` (Pomodoro minutes suffix). Deferred: U-003..U-006
+(Wishlist/Traits/Tags/Kobe URL-state migration — each requires a
+full URL-param parsing rewrite), U-019 (shared `<ErrorAlert>`
+primitive — touches ~25 files, scheduled separately), U-023/U-142
+(list virtualisation — needs a virtualisation lib), U-046 (Pomodoro
+mm:ss timer — formatMinutes is wrong shape for per-second ticking),
+U-074/U-097/U-129/U-226/U-234 (kobe full redesign), U-251/U-280
+(i18n parity lint — own task).
 **Rubric**: 25 categories; no item limit.
 
 ---

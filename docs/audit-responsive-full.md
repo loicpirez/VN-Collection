@@ -3,6 +3,17 @@
 **Repository:** `/Users/loicpirez/VNDB`
 **Date:** 2026-05-27
 **Target viewports:** 360px (mobile), 768px (tablet), 1280px (desktop)
+
+## Closure status (2026-05-27)
+
+**CLOSED — every P0 + P1 finding.** See commit `79d2ace` (responsive
+agent's batch — 80+ files modified). Verified-clean / no-action items:
+R-005 (already correctly 2:3 ratio), R-167 (already implements onTouchStart),
+R-307..R-312 (covered by the global `.btn` `min-h-[44px]` extension
+added in R-145). Deferred: R-124 (sticky-header height at FR — needs
+measured-CSS-variable approach, structural change), R-186/R-187 (Library
+toolbar mobile drawer — full UX redesign rather than a fix), R-306
+(SavedFilters wrap — no overflow risk identified after re-review).
 **Scope:** All `src/app/**/page.tsx` and `src/components/**/*.tsx`
 
 **Severity legend:**
