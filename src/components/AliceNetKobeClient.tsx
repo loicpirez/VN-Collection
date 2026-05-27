@@ -34,138 +34,31 @@ import { readApiError } from '@/lib/api-error-read';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 
-interface KobeCandidate {
-  id: string;
-  title: string;
-  alttitle: string | null;
-  released: string | null;
-}
-
-interface KobeItem {
-  code: string;
-  title: string;
-  jan: string | null;
-  release_date: string | null;
-  list_price: string | null;
-  sale_price: string | null;
-  vn_id: string | null;
-  vn_match_source: 'auto' | 'manual' | 'none' | null;
-  vn_candidates: string | null;
-  search_title: string | null;
-  egs_id: number | null;
-  egs_match_source: 'auto' | 'manual' | null;
-  egs_title: string | null;
-  egs_brand: string | null;
-  egs_release_date: string | null;
-  egs_image_url: string | null;
-  egs_vndb_raw: string | null;
-  in_collection: number;
-  in_wishlist: number;
-  last_matched_at: number | null;
-  fetched_at: number;
-  updated_at: number;
-  vn_image_url: string | null;
-  vn_local_image: string | null;
-  vn_image_sexual: number | null;
-  vn_developers: string | null;
-}
-
-interface KobeStats {
-  total: number;
-  matched: number;
-  vndb_matched: number;
-  egs_only: number;
-  unmatched: number;
-  unprocessed: number;
-  none_found: number;
-  in_collection: number;
-  in_wishlist: number;
-}
-
-interface SearchHit {
-  id: string;
-  title: string;
-  released: string | null;
-  developers?: { id: string; name: string }[];
-}
-
-type FilterTab = 'all' | 'matched' | 'vndb' | 'egs_only' | 'unmatched' | 'none_found' | 'collection' | 'wishlist';
-type KobeSort = 'title' | 'release_desc' | 'release_asc' | 'price_asc' | 'price_desc' | 'match_status' | 'updated_desc';
-type KobeGroup = 'none' | 'match' | 'producer' | 'year';
-type KobeView = 'cards' | 'list';
-
-const KOBE_SORTS: KobeSort[] = ['match_status', 'release_desc', 'release_asc', 'price_asc', 'price_desc', 'title', 'updated_desc'];
-const KOBE_GROUPS: KobeGroup[] = ['none', 'match', 'producer', 'year'];
-
-function parsePrice(value: string | null): number | null {
-  if (!value) return null;
-  const n = Number(value.replace(/[^\d]/g, ''));
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function comparableDate(value: string | null): string {
-  if (!value) return '';
-  const m = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(value);
-  if (!m) return value;
-  return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
-}
-
-/**
- * Audit U-238: format a raw AliceNet date string ("2017/12/22",
- * "2017年12月22日", "2017") through the locale-aware
- * `formatVndbDateString` helper so the user sees the same date shape
- * as every other VN-detail surface. Falls back to the raw string when
- * the format isn't recognised (e.g. text-only kobe entries).
- */
-function formatKobeDate(value: string | null, locale: Locale): string {
-  if (!value) return '';
-  // Canonical ISO YYYY-MM-DD shape — pass through formatVndbDateString.
-  const iso = comparableDate(value);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatVndbDateString(iso, locale);
-  // YYYY年MM月DD日 / YYYY年MM月 / YYYY年 — convert to ISO then format.
-  const m = /^(\d{4})年(?:(\d{1,2})月(?:(\d{1,2})日)?)?$/.exec(value);
-  if (m) {
-    const [, y, mo, d] = m;
-    const padded = `${y}-${(mo ?? '01').padStart(2, '0')}-${(d ?? '01').padStart(2, '0')}`;
-    return formatVndbDateString(padded, locale);
-  }
-  // Year-only fallback ("2017") — surface as-is, it's already a number.
-  return value;
-}
-
-/**
- * Audit U-239 / U-240: render a kobe price string ("¥4,270", "4,270円")
- * through Intl.NumberFormat so the FR / EN / JA locales each see their
- * native currency presentation. JPY is the single market (audit I-023
- * notes this is acceptable).
- */
-function formatKobePrice(value: string | null, locale: Locale): string {
-  if (!value) return '';
-  const n = parsePrice(value);
-  if (n == null) return value;
-  return new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(n);
-}
-
-function parseDevs(json: string | null): { id: string; name: string }[] {
-  if (!json) return [];
-  try { return JSON.parse(json) as { id: string; name: string }[]; } catch { return []; }
-}
-
-function matchKind(item: KobeItem): 'vndb' | 'egs' | 'unresolved' | 'new' {
-  if (item.vn_id) return 'vndb';
-  if (item.egs_id) return 'egs';
-  if (item.vn_match_source === 'none') return 'unresolved';
-  return 'new';
-}
-
-function displayTitle(item: KobeItem): string {
-  return item.egs_title || item.title;
-}
-
-function displayProducer(item: KobeItem): string {
-  const dev = parseDevs(item.vn_developers)[0]?.name;
-  return dev || item.egs_brand || '';
-}
+// Audit U-234 file-split: types + locale-aware helpers extracted to
+// `kobe-types.ts` so future split sub-components can import without
+// pulling in the full 1300-line client.
+import type {
+  KobeCandidate,
+  KobeItem,
+  KobeStats,
+  KobeSearchHit as SearchHit,
+  KobeFilterTab as FilterTab,
+  KobeSort,
+  KobeGroup,
+  KobeView,
+} from './kobe-types';
+import {
+  KOBE_SORTS,
+  KOBE_GROUPS,
+  parseKobePrice as parsePrice,
+  comparableKobeDate as comparableDate,
+  formatKobeDate,
+  formatKobePrice,
+  parseKobeDevs as parseDevs,
+  kobeMatchKind as matchKind,
+  displayKobeTitle as displayTitle,
+  displayKobeProducer as displayProducer,
+} from './kobe-types';
 
 interface LinkDialogProps {
   item: KobeItem;

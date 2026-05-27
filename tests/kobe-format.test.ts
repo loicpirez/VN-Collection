@@ -1,34 +1,19 @@
 /**
- * Audit U-238 / U-239: pins the kobe date + price formatters that
- * replace the raw scraped Japanese strings with locale-aware
- * presentations.
- *
- * The helpers are defined inside AliceNetKobeClient.tsx — re-implementing
- * them here keeps the test hermetic (the component module pulls
- * React + DOM types that the vitest-node env doesn't need to load).
+ * Audit U-238 / U-239 / U-234: pins the kobe date + price formatters
+ * after the U-234 file split. Imports the canonical helpers from
+ * `src/components/kobe-types.ts` (the post-split home) so the test
+ * exercises the same code the component runs.
  */
 import { describe, expect, it } from 'vitest';
-
-// Mirror the helpers from src/components/AliceNetKobeClient.tsx.
-function parsePrice(value: string | null): number | null {
-  if (!value) return null;
-  const n = Number(value.replace(/[^\d]/g, ''));
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function comparableDate(value: string | null): string {
-  if (!value) return '';
-  const m = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(value);
-  if (!m) return value;
-  return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
-}
-
-function formatKobePrice(value: string | null, locale: 'fr' | 'en' | 'ja'): string {
-  if (!value) return '';
-  const n = parsePrice(value);
-  if (n == null) return value;
-  return new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(n);
-}
+import {
+  comparableKobeDate as comparableDate,
+  formatKobePrice,
+  kobeMatchKind,
+  displayKobeTitle,
+  displayKobeProducer,
+  parseKobeDevs,
+  type KobeItem,
+} from '@/components/kobe-types';
 
 describe('kobe price formatter (U-239)', () => {
   it('parses ¥4,270 and reformats per locale', () => {
@@ -70,5 +55,50 @@ describe('kobe comparableDate (U-238 sorter)', () => {
 
   it('returns empty for null', () => {
     expect(comparableDate(null)).toBe('');
+  });
+});
+
+describe('kobeMatchKind (U-234 — split helpers)', () => {
+  const base: Partial<KobeItem> = {
+    code: '111-222222-333',
+    title: 'sample',
+    vn_id: null,
+    vn_match_source: null,
+    egs_id: null,
+  };
+  it('vndb when vn_id is set', () => {
+    expect(kobeMatchKind({ ...base, vn_id: 'v90017' } as KobeItem)).toBe('vndb');
+  });
+  it('egs when only egs_id is set', () => {
+    expect(kobeMatchKind({ ...base, egs_id: 9500001 } as KobeItem)).toBe('egs');
+  });
+  it('unresolved when vn_match_source = "none"', () => {
+    expect(kobeMatchKind({ ...base, vn_match_source: 'none' } as KobeItem)).toBe('unresolved');
+  });
+  it('new when nothing is set', () => {
+    expect(kobeMatchKind(base as KobeItem)).toBe('new');
+  });
+});
+
+describe('displayKobeTitle / displayKobeProducer / parseKobeDevs', () => {
+  it('prefers egs_title over title', () => {
+    const i = { title: 'raw', egs_title: 'curated' } as KobeItem;
+    expect(displayKobeTitle(i)).toBe('curated');
+  });
+  it('falls back to title when egs_title is empty', () => {
+    const i = { title: 'raw', egs_title: null } as KobeItem;
+    expect(displayKobeTitle(i)).toBe('raw');
+  });
+  it('producer prefers vn_developers JSON first entry', () => {
+    const i = { vn_developers: JSON.stringify([{ id: 'p1', name: 'Studio X' }]), egs_brand: 'Brand Y' } as KobeItem;
+    expect(displayKobeProducer(i)).toBe('Studio X');
+  });
+  it('producer falls back to egs_brand when developers JSON is empty', () => {
+    const i = { vn_developers: '[]', egs_brand: 'Brand Y' } as KobeItem;
+    expect(displayKobeProducer(i)).toBe('Brand Y');
+  });
+  it('parseKobeDevs handles malformed JSON without throwing', () => {
+    expect(parseKobeDevs('not-json')).toEqual([]);
+    expect(parseKobeDevs(null)).toEqual([]);
   });
 });
