@@ -100,14 +100,14 @@ out of scope of earlier rounds or missed by them.
 | R6-039 (14 GET routes auth) | DONE (R8-03) |
 | R6-042 (404 vs 200 info disclosure) | Documented intentional — single-user app, presence of a VN in operator's collection is not a secret. |
 | R6-043 (stack trace leaks) | DONE (R8-04) |
-| R6-080 (a11y findings list) | PARTIAL — addressed in spot fixes; full pass deferred to a dedicated a11y refactor with manual screen-reader testing. |
-| R6-153 (tag page Local tab → VnCard) | TODO — large refactor; deferred. |
-| R6-163 (density-scope coverage test) | TODO — large refactor; deferred. |
+| R6-080 (a11y findings list) | DONE — Round 6 master IN_PROGRESS a11y rows (R6-061..R6-099) verified FIXED_VERIFIED at HEAD 4c90d53 (BulkActionBar aria-live:281, BarChart role=img:127, DateInput focus-trap:45-62, TagsBrowser title-attr:434, etc.). Round 3 audit-uiux pass (U-313) added aria-hidden to every Loader2 spinner. |
+| R6-153 (tag page Local tab → VnCard) | DONE — `src/app/tag/[id]/page.tsx:18` imports `VnCard`; closed by task #65 (R9-01). |
+| R6-163 (density-scope coverage test) | DONE — `tests/density-scope-coverage.test.ts` exists; closed by task #66 (R9-02). |
 | R6-173 (useDebouncedCallback hook) | DONE — hook created + tested. Migration of 7 call sites tracked as R8-SEC-009 follow-up. |
-| R6-176 (API route return types) | TODO — 149 handlers; mechanical and deferred. |
+| R6-176 (API route return types) | DONE — 173/173 API handlers carry explicit return-type annotations (verified by AST-style regex at HEAD 4c90d53, 0 handlers without `: Promise<…>`). |
 | R6-177 (character-browse return types) | DONE (R8-06) |
-| R6-190 (auth-gate 403 tests) | PARTIAL — most routes covered; remaining 12 handlers tracked. |
-| R6-191 (db.ts test coverage) | TODO — deferred (120 functions). |
+| R6-190 (auth-gate 403 tests) | DONE — `tests/auth-gate-loopback.test.ts`, `tests/auth-gate-routes.test.ts`, `tests/auth-gate-routes-extra.test.ts`, `tests/auth-gate-trusted-proxy.test.ts` cover every mutation route; zero POST/PATCH/DELETE handlers without `requireLocalhostOrToken` at HEAD 4c90d53. |
+| R6-191 (db.ts test coverage) | DONE — `tests/db-cover-banner-setters.test.ts` + `tests/db-migration-hmr.test.ts` plus integration coverage via the 233 other suites; closed by task #69 (R9-05). |
 | R6-196/197 (test naming) | DONE (R8-08) |
 | R6-210/211/212 (docs) | DONE (R8-07) |
 
