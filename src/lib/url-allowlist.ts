@@ -141,6 +141,29 @@ export function isPrivateIpv4(addr: string): boolean {
  * attack surface is limited to DNS servers of allowlisted domains.
  */
 export async function assertNoPrivateIpRebind(hostname: string): Promise<void> {
+  await resolveAndCheckHostname(hostname);
+}
+
+/**
+ * Audit S-058 strengthening: resolves the hostname ONCE and returns
+ * the validated IPs. Callers that can pin the IP into the outbound
+ * connection (via a custom `lookup` callback on a Node HTTP agent)
+ * close the TOCTOU race entirely — no second DNS resolution means
+ * the IP can't flip between check and connect.
+ *
+ * Returns `{ ipv4, ipv6 }` arrays AFTER the private-IP validation.
+ * Throws on private/loopback/link-local hits, NODATA on both record
+ * families, or any other DNS failure.
+ *
+ * Callers that DO build their own agent (rare) use this to populate
+ * the agent's lookup. Callers that go through the global `fetch`
+ * (most of the codebase) still benefit from the up-front guard, even
+ * though a single-shot race window remains; the function comment on
+ * `assertNoPrivateIpRebind` documents the gap.
+ */
+export async function resolveAndCheckHostname(
+  hostname: string,
+): Promise<{ ipv4: string[]; ipv6: string[] }> {
   let v4addrs: string[] = [];
   let v6addrs: string[] = [];
   try {
@@ -166,4 +189,5 @@ export async function assertNoPrivateIpRebind(hostname: string): Promise<void> {
       throw new Error(`DNS rebind blocked: ${hostname} resolved to private IPv6 ${addr}`);
     }
   }
+  return { ipv4: v4addrs, ipv6: v6addrs };
 }
