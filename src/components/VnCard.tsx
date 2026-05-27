@@ -11,7 +11,6 @@ import { useResolvedTitle } from './TitleLine';
 import { CardContextMenu } from './CardContextMenu';
 import { FavoriteToggleButton } from './FavoriteToggleButton';
 import { ListsPickerButton } from './ListsPickerButton';
-import { StockChip } from './StockChip';
 import type { EditionType, Status } from '@/lib/types';
 import type { AspectKey } from '@/lib/aspect-ratio';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
@@ -341,10 +340,12 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
               {visibleAspectKeys.length > 2 ? ` +${visibleAspectKeys.length - 2}` : ''}
             </span>
           )}
-          {/* Library card grid: hide the precise yen price; show
-              availability count instead. The full price stays on the
-              VN detail page and in the hover title. */}
-          <StockChip vnId={data.id} hidePrice />
+          {/* Library card grid: no stock chip at all. Per-card the
+              chip competed visually with rating / playtime / aspect
+              chips and the precise availability info isn't actionable
+              from the grid — the user opens the VN page when they
+              actually want to buy something. The full StockPanel is
+              there, plus the /stock lookup page. */}
         </div>
         {allPlaytime && (
           <div className="text-[11px]">
