@@ -108,7 +108,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   {dict.app.skipToContent}
                 </a>
                 <header
-                  className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur"
+                  // z-40 because card-internal absolute buttons
+                  // (FavoriteToggleButton / ListsPickerButton /
+                  // CoverEditOverlay) sit at z-10 inside the card's
+                  // stacking context; the navbar MUST overlay them
+                  // while scrolling. Modals / menus still sit at
+                  // z-50/z-60 above the navbar.
+                  className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur"
                   style={{ paddingTop: 'env(safe-area-inset-top)' }}
                   aria-label={dict.app.title}
                 >
