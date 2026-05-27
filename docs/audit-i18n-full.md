@@ -2,6 +2,19 @@
 
 Scope: every `.tsx` file under `src/app/` and `src/components/` (275 files). i18n stack: `src/lib/i18n/dictionaries.ts` (FR/EN/JA) consumed via `getDict()` (server) and `useT()` (client). Dictionary structure: 126 top-level sections per locale, identical names/order across all three locales.
 
+## Closure status (2026-05-27)
+
+**CLOSED — all HIGH/MEDIUM findings, plus the actionable LOW items
+I-027 (Online stock sentinel) and U-049 (Pomodoro minutes suffix).**
+See commits `905d685` (I-001..I-012), `7a34ac1` (I-013..I-022),
+`7321078` (I-027), `a16541a` (U-049). Verified-clean / acceptable
+items: I-023 (JPY currency — single-market app), I-024 (BCP47_MAP —
+consolidated into `lib/locale-number.ts` by the uiux agent),
+I-026 (kobe AbortError — handled), I-028 (global-error.tsx —
+intentionally inlines locale strings because the I18nProvider can't
+be assumed to be mounted in the global error path), I-029 (dict
+inventory — no action needed).
+
 ## Methodology
 
 1. Confirmed top-level section parity across `fr`/`en`/`ja` blocks — all 126 keys present in all three locales.
