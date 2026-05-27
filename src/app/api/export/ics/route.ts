@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { listCollectionForCards } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { internalError } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,53 +83,57 @@ export async function GET(req: Request): Promise<NextResponse> {
   // ICS reveals reading dates per VN — PII. Gate.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  // P-050: card-only projection — ICS only reads id/title/status/user_rating
-  // and the started/finished dates from `collection.*`.
-  const items = listCollectionForCards({ sort: 'title' });
-  const stamp = dtstamp();
-  const lines: string[] = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//vn-collection//EN',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-  ];
+  try {
+    // P-050: card-only projection — ICS only reads id/title/status/user_rating
+    // and the started/finished dates from `collection.*`.
+    const items = listCollectionForCards({ sort: 'title' });
+    const stamp = dtstamp();
+    const lines: string[] = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//vn-collection//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+    ];
 
-  for (const it of items) {
-    const start = compactDate(it.started_date ?? null);
-    const finish = compactDate(it.finished_date ?? null);
-    const title = it.title || it.id;
-    if (start) {
-      lines.push(
-        'BEGIN:VEVENT',
-        `UID:${uid(it.id, 'start')}`,
-        `DTSTAMP:${stamp}`,
-        `DTSTART;VALUE=DATE:${start}`,
-        `SUMMARY:${ics(`▶ Started ${title}`)}`,
-        `DESCRIPTION:${ics(`Visual novel started\\nStatus: ${it.status ?? '—'}\\n${it.id}`)}`,
-        'END:VEVENT',
-      );
+    for (const it of items) {
+      const start = compactDate(it.started_date ?? null);
+      const finish = compactDate(it.finished_date ?? null);
+      const title = it.title || it.id;
+      if (start) {
+        lines.push(
+          'BEGIN:VEVENT',
+          `UID:${uid(it.id, 'start')}`,
+          `DTSTAMP:${stamp}`,
+          `DTSTART;VALUE=DATE:${start}`,
+          `SUMMARY:${ics(`▶ Started ${title}`)}`,
+          `DESCRIPTION:${ics(`Visual novel started\\nStatus: ${it.status ?? '—'}\\n${it.id}`)}`,
+          'END:VEVENT',
+        );
+      }
+      if (finish) {
+        lines.push(
+          'BEGIN:VEVENT',
+          `UID:${uid(it.id, 'finish')}`,
+          `DTSTAMP:${stamp}`,
+          `DTSTART;VALUE=DATE:${finish}`,
+          `SUMMARY:${ics(`Finished: ${title}`)}`,
+          `DESCRIPTION:${ics(`Visual novel finished\\nRating: ${it.user_rating ?? '—'} / 100\\n${it.id}`)}`,
+          'END:VEVENT',
+        );
+      }
     }
-    if (finish) {
-      lines.push(
-        'BEGIN:VEVENT',
-        `UID:${uid(it.id, 'finish')}`,
-        `DTSTAMP:${stamp}`,
-        `DTSTART;VALUE=DATE:${finish}`,
-        `SUMMARY:${ics(`Finished: ${title}`)}`,
-        `DESCRIPTION:${ics(`Visual novel finished\\nRating: ${it.user_rating ?? '—'} / 100\\n${it.id}`)}`,
-        'END:VEVENT',
-      );
-    }
+
+    lines.push('END:VCALENDAR');
+    const today = new Date().toISOString().slice(0, 10);
+    // Apply RFC 5545 line folding to every line before joining.
+    return new NextResponse(lines.map(fold).join('\r\n'), {
+      headers: {
+        'Content-Type': 'text/calendar; charset=utf-8',
+        'Content-Disposition': `attachment; filename="vn-collection-${today}.ics"`,
+      },
+    });
+  } catch (err) {
+    return internalError('export.ics.GET', err);
   }
-
-  lines.push('END:VCALENDAR');
-  const today = new Date().toISOString().slice(0, 10);
-  // Apply RFC 5545 line folding to every line before joining.
-  return new NextResponse(lines.map(fold).join('\r\n'), {
-    headers: {
-      'Content-Type': 'text/calendar; charset=utf-8',
-      'Content-Disposition': `attachment; filename="vn-collection-${today}.ics"`,
-    },
-  });
 }

@@ -122,18 +122,24 @@ export async function cachedFetch<T>(
 
   const cached = getCacheRow(key);
   if (cached && now < cached.expires_at) {
-    let data: T;
+    let data: T | undefined;
     try {
       data = JSON.parse(cached.body) as T;
-    } catch {
-      throw new Error(`vndb-cache: corrupt cache body for key ${key}`);
+    } catch (e) {
+      // LIB-audit hardening: a corrupted/truncated cache row used to throw
+      // an uncaught error here and surface as a 500. Treat the parse
+      // failure as a cache miss instead, so the next branch re-fetches
+      // from upstream and the bad row is overwritten.
+      console.warn(`[vndb-cache] corrupt body for ${key}, treating as miss: ${(e as Error).message}`);
     }
-    return {
-      data,
-      fromCache: true,
-      status: 200,
-      cachedAt: cached.fetched_at,
-    };
+    if (data !== undefined) {
+      return {
+        data,
+        fromCache: true,
+        status: 200,
+        cachedAt: cached.fetched_at,
+      };
+    }
   }
 
   const existing = inflight.get(key);

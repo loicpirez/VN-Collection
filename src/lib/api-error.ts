@@ -39,3 +39,22 @@ export function upstreamError(route: string, err: unknown): NextResponse {
     { status: 502 },
   );
 }
+
+/**
+ * Round 5 audit (DBA-006 / DBA-007 / DBA-008): standard catch-block
+ * response for an unexpected DB / runtime error in an API route.
+ * Mirrors `upstreamError` but returns 500 with a sanitised body so
+ * the raw SQLite / driver message never reaches the network.
+ *
+ *   } catch (err) {
+ *     return internalError('reading-queue', err);
+ *   }
+ */
+export function internalError(route: string, err: unknown): NextResponse {
+  const detail = err instanceof Error ? err.message : String(err);
+  console.error(`[internal:${route}] ${detail}`);
+  return NextResponse.json(
+    { error: 'internal error' },
+    { status: 500 },
+  );
+}

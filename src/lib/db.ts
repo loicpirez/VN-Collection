@@ -855,6 +855,33 @@ function open(): Database.Database {
   ensureColumn(db, 'collection', 'custom_order', 'INTEGER NOT NULL DEFAULT 0');
   db.exec('CREATE INDEX IF NOT EXISTS idx_collection_custom_order ON collection(custom_order)');
 
+  // Partial index for the favourite filter. Consumer: `/stats`
+  // dashboard ("Favorites" counter) and `lib/recommend.ts` favourite
+  // signal collection. Both run `WHERE favorite = 1`; without this
+  // index they full-scan the `collection` table. The partial
+  // predicate keeps the index lean — most rows are `favorite = 0`
+  // (the default). See `src/app/stats/page.tsx` line 34 and
+  // `src/lib/recommend.ts` line 415.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_collection_favorite
+      ON collection(vn_id)
+      WHERE favorite = 1;
+  `);
+
+  // Partial index for the rating-distribution query path. Consumer:
+  // stats charts (rating histogram), `lib/recommend.ts` rated-signal
+  // collection (`WHERE user_rating IS NOT NULL AND user_rating >= 70`),
+  // and per-year aggregates that JOIN on `user_rating IS NOT NULL`.
+  // Filtering `WHERE user_rating IS NOT NULL` lets SQLite skip the
+  // bulk of the table where no rating exists. Index includes the
+  // rating value so the planner can satisfy range filters from the
+  // index alone.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_collection_user_rating
+      ON collection(user_rating)
+      WHERE user_rating IS NOT NULL;
+  `);
+
   ensureColumn(db, 'owned_release', 'location', "TEXT NOT NULL DEFAULT 'unknown'");
   ensureColumn(db, 'owned_release', 'physical_location', 'TEXT');
   ensureColumn(db, 'owned_release', 'box_type', "TEXT NOT NULL DEFAULT 'none'");
@@ -867,6 +894,27 @@ function open(): Database.Database {
   // Free text — pairs with `acquired_date` for full provenance.
   ensureColumn(db, 'owned_release', 'purchase_place', 'TEXT');
   ensureColumn(db, 'owned_release', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
+  // Partial index for dumped-edition aggregates. Consumer: the
+  // dumped-coverage stats counter (`getDumpedCoverage` in `db.ts`
+  // ~line 5800), `/dumped` page filters, and the
+  // "dumped editions" library badge. The query is
+  // `SELECT … FROM owned_release WHERE dumped = 1` which without
+  // the partial index full-scans the table. Most rows have
+  // `dumped = 0` so the partial predicate keeps the index lean.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_owned_release_dumped
+      ON owned_release(vn_id)
+      WHERE dumped = 1;
+  `);
+  // Symmetric partial index on `collection.dumped = 1`. Consumer:
+  // the dumped-coverage counter (`getDumpedCoverage`) and
+  // `listDumpedVns`. Without the index, every page-load that shows
+  // the dumped chip on the library card runs a full table scan.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_collection_dumped
+      ON collection(vn_id)
+      WHERE dumped = 1;
+  `);
   // Per-edition cover rotation (degrees, 0/90/180/270). Independent of
   // the VN-level `vn.cover_rotation` so a misaligned scan for one
   // edition can be straightened without flipping every other tile.
@@ -2764,7 +2812,17 @@ export function migrateVnId(fromId: string, toId: string): void {
   const target = db.prepare('SELECT id FROM vn WHERE id = ?').get(toId);
   if (!target) throw new Error(`migrateVnId: target ${toId} not in vn table`);
 
+  // LIB-audit: `defer_foreign_keys` resets at COMMIT/ROLLBACK automatically
+  // and only suspends FK enforcement until the end of the transaction,
+  // whereas the previous session-level `foreign_keys = OFF` left the DB
+  // unguarded if a follow-on operation slipped between the OFF and ON
+  // pragmas (e.g. if anyone makes this function async in future). The
+  // transaction itself is synchronous under better-sqlite3, so neither
+  // pattern actually races today — but `defer_foreign_keys` is the
+  // safer default and matches what the egs_colon_to_underscore_v1
+  // migration does.
   const tx = db.transaction(() => {
+    db.pragma('defer_foreign_keys = ON');
     // Drop a possible duplicate collection row on the target before moving.
     const targetCol = db.prepare('SELECT 1 FROM collection WHERE vn_id = ?').get(toId);
     if (targetCol) {
@@ -2779,15 +2837,22 @@ export function migrateVnId(fromId: string, toId: string): void {
     db.prepare('UPDATE vn_activity SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
     db.prepare('UPDATE vn_staff_credit SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
     db.prepare('UPDATE vn_va_credit SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    // LIB-audit: tables previously missed by the migration; these are
+    // safe no-ops when there is nothing to move but matter when an
+    // EGS-only synthetic VN has accumulated state.
+    db.prepare('UPDATE vn_game_log SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE steam_link SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE reading_queue SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE vn_aspect_override SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE vn_egs_link SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE user_list_vn SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE staff_credit_index SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE character_vn_index SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
+    db.prepare('UPDATE collection_place_index SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
     // Synthetic row is no longer referenced — clean up.
     db.prepare('DELETE FROM vn WHERE id = ?').run(fromId);
   });
-  db.pragma('foreign_keys = OFF');
-  try {
-    tx();
-  } finally {
-    db.pragma('foreign_keys = ON');
-  }
+  tx();
   // R5-135: migrating a vn_id rewrites the `collection` table, which
   // is the source-of-truth for aggregate stats (byEdition, byLocation,
   // byYear, byLanguage, ratingDistribution). Bust the snapshot so the
@@ -3280,6 +3345,20 @@ export function addManualActivity(vnId: string, text: string, occurredAt?: numbe
 /** Delete one row from `vn_activity` by its auto-incrementing id. */
 export function deleteActivity(id: number): void {
   db.prepare('DELETE FROM vn_activity WHERE id = ?').run(id);
+}
+
+/**
+ * R5 page-audit hardening: scoped variant that only deletes a row when it
+ * belongs to the supplied VN. Prevents the activity DELETE endpoint
+ * from removing an entry for a different VN when the caller passes an
+ * `eid` outside the URL's VN scope. Returns `true` when a row was
+ * removed.
+ */
+export function deleteActivityForVn(id: number, vnId: string): boolean {
+  const info = db
+    .prepare('DELETE FROM vn_activity WHERE id = ? AND vn_id = ?')
+    .run(id, vnId);
+  return info.changes > 0;
 }
 
 /**
@@ -8673,6 +8752,9 @@ export function cacheStats(): CacheStat {
     .prepare('SELECT COUNT(*) AS total, COALESCE(SUM(LENGTH(body)),0) AS bytes, MIN(fetched_at) AS oldest, MAX(fetched_at) AS newest FROM vndb_cache')
     .get() as { total: number; bytes: number; oldest: number | null; newest: number | null };
   const fresh = (db.prepare('SELECT COUNT(*) AS n FROM vndb_cache WHERE expires_at >= ?').get(now) as { n: number }).n;
+  // LIB-audit DBA-* coverage: cap the GROUP BY result so a pathological cache
+  // table (thousands of distinct cache_key prefixes) doesn't return all groups
+  // into JS. The UI on /stats only ever renders the top N anyway.
   const byPath = db
     .prepare(`
       SELECT
@@ -8681,6 +8763,7 @@ export function cacheStats(): CacheStat {
       FROM vndb_cache
       GROUP BY path
       ORDER BY n DESC
+      LIMIT 200
     `)
     .all() as { path: string; n: number }[];
   return {

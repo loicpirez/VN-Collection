@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { listCollection } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { internalError } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,43 +65,47 @@ export async function GET(req: Request): Promise<NextResponse> {
   // play history). Gate behind localhost / admin token.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const items = listCollection({ sort: 'title' });
-  const lines: string[] = [COLUMNS.join(',')];
-  for (const it of items) {
-    const row = [
-      it.id,
-      it.title,
-      it.alttitle ?? '',
-      it.status ?? '',
-      it.user_rating ?? '',
-      it.rating ?? '',
-      it.playtime_minutes ?? 0,
-      it.length_minutes ?? '',
-      it.released ?? '',
-      (it.languages ?? []).join('; '),
-      (it.platforms ?? []).join('; '),
-      (it.developers ?? []).map((d) => d.name).join('; '),
-      (it.tags ?? []).map((t) => t.name).join('; '),
-      it.favorite ? 1 : 0,
-      it.started_date ?? '',
-      it.finished_date ?? '',
-      it.location ?? '',
-      it.edition_type ?? '',
-      it.edition_label ?? '',
-      it.box_type ?? '',
-      (it.physical_location ?? []).join('; '),
-      it.download_url ?? '',
-      it.dumped ? 1 : 0,
-      it.added_at ?? '',
-      it.updated_at ?? '',
-    ];
-    lines.push(row.map(csvEscape).join(','));
+  try {
+    const items = listCollection({ sort: 'title' });
+    const lines: string[] = [COLUMNS.join(',')];
+    for (const it of items) {
+      const row = [
+        it.id,
+        it.title,
+        it.alttitle ?? '',
+        it.status ?? '',
+        it.user_rating ?? '',
+        it.rating ?? '',
+        it.playtime_minutes ?? 0,
+        it.length_minutes ?? '',
+        it.released ?? '',
+        (it.languages ?? []).join('; '),
+        (it.platforms ?? []).join('; '),
+        (it.developers ?? []).map((d) => d.name).join('; '),
+        (it.tags ?? []).map((t) => t.name).join('; '),
+        it.favorite ? 1 : 0,
+        it.started_date ?? '',
+        it.finished_date ?? '',
+        it.location ?? '',
+        it.edition_type ?? '',
+        it.edition_label ?? '',
+        it.box_type ?? '',
+        (it.physical_location ?? []).join('; '),
+        it.download_url ?? '',
+        it.dumped ? 1 : 0,
+        it.added_at ?? '',
+        it.updated_at ?? '',
+      ];
+      lines.push(row.map(csvEscape).join(','));
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    return new NextResponse(lines.join('\r\n'), {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="vn-collection-${today}.csv"`,
+      },
+    });
+  } catch (err) {
+    return internalError('export.csv.GET', err);
   }
-  const today = new Date().toISOString().slice(0, 10);
-  return new NextResponse(lines.join('\r\n'), {
-    headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="vn-collection-${today}.csv"`,
-    },
-  });
 }
