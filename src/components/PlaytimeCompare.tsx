@@ -3,7 +3,8 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Clock, GitCompareArrows, Hourglass, Loader2, Sparkles, User as UserIcon } from 'lucide-react';
 import { useToast } from './ToastProvider';
-import { useT } from '@/lib/i18n/client';
+import { useT, useLocale } from '@/lib/i18n/client';
+import { formatMinutes } from '@/lib/format';
 import type { SourceChoice } from '@/lib/source-resolve';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -21,14 +22,7 @@ interface Props {
 
 type Tab = 'vndb' | 'egs' | 'mine' | 'combined';
 
-function fmt(min: number | null): string {
-  if (min == null || min <= 0) return '—';
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  if (h && m) return `${h}h ${m}m`;
-  if (h) return `${h}h`;
-  return `${m}m`;
-}
+// I-022: deferred to use the locale-aware variant inside the component.
 
 /**
  * Numeric variant of FieldCompare for playtime. Three independent
@@ -46,6 +40,10 @@ function fmt(min: number | null): string {
  */
 export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
   const t = useT();
+  const locale = useLocale();
+  // I-022: locale-aware playtime formatter — previous helper hardcoded English 'h'/'m'.
+  const fmt = (min: number | null): string =>
+    formatMinutes(min, locale, t.year, { fallback: '—', emptyValue: 'strict_positive' });
   const toast = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();

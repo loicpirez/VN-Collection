@@ -20,10 +20,9 @@ function n(v: string | null | undefined): number | null {
   return Number.isFinite(x) ? x : null;
 }
 
-function fmtMin(m: number | null): string | null {
-  const v = formatMinutes(m, undefined, undefined, { emptyValue: 'strict_positive' });
-  return v === '' ? null : v;
-}
+// I-020: deferred to use the locale-aware variant inside the component
+// — the previous helper passed undefined for locale + t and silently
+// produced English 'h' / 'm' on every EGS playtime row.
 
 /**
  * Surfaces the EGS columns the main EgsPanel doesn't already display:
@@ -37,6 +36,11 @@ function fmtMin(m: number | null): string | null {
 export function EgsRichDetails({ vnId }: { vnId: string }) {
   const t = useT();
   const locale = useLocale();
+  // I-020: locale-aware playtime formatter.
+  const fmtMin = (m: number | null): string | null => {
+    const v = formatMinutes(m, locale, t.year, { emptyValue: 'strict_positive' });
+    return v === '' ? null : v;
+  };
   const [raw, setRaw] = useState<RawRow | null>(null);
   const [loading, setLoading] = useState(true);
 

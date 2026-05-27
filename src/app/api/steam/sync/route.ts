@@ -38,7 +38,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .replace(/steamid=\d+/gi, 'steamid=***')
       .slice(0, 500);
     console.error('steam sync failed:', safe);
-    return NextResponse.json({ ok: false, error: 'Steam sync failed' }, { status: 400 });
+    // Audit I-016: emit a stable machine-readable `code` so the client
+    // can detect "not configured" without string-matching English copy.
+    // The previous handler returned the raw message; the client compared
+    // its lowercased substring to detect the "set the keys" callout —
+    // that comparison silently broke when the route was localized.
+    const code = /Steam not configured/i.test(raw) ? 'steam_not_configured' : 'steam_sync_failed';
+    return NextResponse.json({ ok: false, error: 'Steam sync failed', code }, { status: 400 });
   }
 }
 

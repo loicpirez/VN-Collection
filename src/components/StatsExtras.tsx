@@ -3,15 +3,7 @@ import { Award, Clock, Layers, Star } from 'lucide-react';
 import { bestRoi, ratingHistogram, tagsCompletedPerYear } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { fmtNum } from '@/lib/locale-number';
-
-function fmt(m: number): string {
-  if (m <= 0) return '—';
-  const h = Math.floor(m / 60);
-  const mn = m % 60;
-  if (h && mn) return `${h}h ${mn}m`;
-  if (h) return `${h}h`;
-  return `${mn}m`;
-}
+import { formatMinutes } from '@/lib/format';
 
 /**
  * Three richer breakdowns rendered together at the bottom of /stats:
@@ -94,7 +86,8 @@ export async function StatsExtras() {
                   <span className="text-accent">{fmtNum(r.user_rating / 10, locale, 1)}</span>
                   <span className="mx-1 opacity-50">/</span>
                   <Clock className="mr-0.5 inline-block h-3 w-3" />
-                  <span>{fmt(r.playtime_minutes)}</span>
+                  {/* I-021: localized playtime via shared formatMinutes */}
+                  <span>{formatMinutes(r.playtime_minutes, locale, t.year, { fallback: '—', emptyValue: 'strict_positive' })}</span>
                 </span>
               </li>
             ))}

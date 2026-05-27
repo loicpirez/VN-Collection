@@ -57,6 +57,10 @@ export default function SteamSyncPage() {
   // Suggestions (auto+manual links where Steam > local)
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  // I-016: track the stable error code from the route so we can render
+  // the "How to configure" callout without locale-sensitive substring
+  // matching against the user-visible error message.
+  const [suggestionsErrorCode, setSuggestionsErrorCode] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [picks, setPicks] = useState<Set<string>>(new Set());
 
@@ -90,8 +94,10 @@ export default function SteamSyncPage() {
         setSuggestions(sugg);
         setPicks(new Set(sugg.map((s) => s.vn_id)));
         setSuggestionsError(null);
+        setSuggestionsErrorCode(null);
       } else {
         setSuggestionsError(sync.error ?? t.common.error);
+        setSuggestionsErrorCode(typeof sync.code === 'string' ? sync.code : null);
       }
       setUnlinked(lib.ok ? (lib.games ?? []) : []);
       setLinks(ls.links ?? []);
@@ -197,7 +203,9 @@ export default function SteamSyncPage() {
       {suggestionsError && (
         <div className="mb-4 rounded-xl border border-status-on_hold/40 bg-status-on_hold/10 p-4 text-sm">
           <p className="font-semibold text-status-on_hold">{suggestionsError}</p>
-          {suggestionsError.toLowerCase().includes('steam not configured') && (
+          {/* I-016: compare against the stable code, not the locale-
+              sensitive message string. */}
+          {suggestionsErrorCode === 'steam_not_configured' && (
             <p className="mt-2 text-xs text-muted">
               {t.steam.howToConfigure}{' '}
               <Link href="/data" className="inline-flex items-center gap-1 font-bold text-accent hover:underline">
@@ -320,7 +328,8 @@ export default function SteamSyncPage() {
                     l.source === 'manual' ? 'bg-accent/15 text-accent' : 'bg-bg-elev text-muted'
                   }`}
                 >
-                  {l.source}
+                  {/* I-015: localize the auto/manual chip label */}
+                  {l.source === 'manual' ? t.steam.linkSourceManual : t.steam.linkSourceAuto}
                 </span>
                 <button
                   type="button"

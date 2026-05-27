@@ -21,9 +21,9 @@ interface Suggestion {
   egs_start_date: string | null;
 }
 
-function fmtMin(n: number | null): string {
-  return formatMinutes(n, undefined, undefined, { fallback: '—', emptyValue: 'allow_zero' });
-}
+// I-019: deferred to use the locale-aware variant inside the component
+// — the top-level helper had no access to `t` / `locale` and quietly
+// produced English 'h' / 'm' suffixes for every EGS playtime row.
 
 /**
  * EGS playtime + score sync. Symmetric to the Steam suggestions section:
@@ -36,6 +36,10 @@ function fmtMin(n: number | null): string {
 export function EgsSyncBlock() {
   const t = useT();
   const locale = useLocale();
+  // I-019: locale-aware playtime formatter — was previously a top-level
+  // helper that defaulted to English 'h' / 'm' suffixes.
+  const fmtMin = (n: number | null): string =>
+    formatMinutes(n, locale, t.year, { fallback: '—', emptyValue: 'allow_zero' });
   const toast = useToast();
   const [username, setUsername] = useState('');
   const [usernameDirty, setUsernameDirty] = useState(false);

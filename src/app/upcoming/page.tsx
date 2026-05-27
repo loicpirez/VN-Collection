@@ -391,7 +391,9 @@ function ReleasesSection({
       {Array.from(grouped.entries()).map(([month, rels]) => (
         <section key={month} className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
-            {month} · <span className="opacity-70">{rels.length}</span>
+            {/* I-013: localize the TBA sentinel — the bucket KEY stays 'TBA'
+                  so grouping works, but the display text is dict-driven. */}
+            {month === 'TBA' ? t.upcoming.bucketTba : month} · <span className="opacity-70">{rels.length}</span>
           </h2>
           {/*
             Density-responsive grid: column min follows the slider

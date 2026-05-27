@@ -68,15 +68,17 @@ async function VnActivitySummary({
       const delta = typeof p?.delta === 'number' ? p.delta : (to - from);
       const t = await getDict();
       const locale = await getLocale();
+      // I-017: localized zero-playtime fallback (was hardcoded English '0m').
+      const zeroPlaytime = formatMinutes(0, locale, t.year, { emptyValue: 'allow_zero' });
       return (
         <span>
-          {formatMinutes(to, locale, t.year, { emptyValue: 'allow_zero', fallback: '0m' })}
+          {formatMinutes(to, locale, t.year, { emptyValue: 'allow_zero', fallback: zeroPlaytime })}
           {delta !== 0 && (
             <span className={`ml-1.5 inline-flex items-center gap-0.5 text-[10px] ${delta > 0 ? 'text-status-completed' : 'text-status-dropped'}`}>
               {delta > 0
                 ? <ArrowUp className="h-2.5 w-2.5" aria-hidden />
                 : <ArrowDown className="h-2.5 w-2.5" aria-hidden />}
-              {ta.playtimeDelta} {formatMinutes(Math.abs(delta), locale, t.year, { emptyValue: 'allow_zero', fallback: '0m' })}
+              {ta.playtimeDelta} {formatMinutes(Math.abs(delta), locale, t.year, { emptyValue: 'allow_zero', fallback: zeroPlaytime })}
             </span>
           )}
         </span>
