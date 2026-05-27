@@ -26,6 +26,7 @@ import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { SafeImage } from './SafeImage';
 import { useT, useLocale } from '@/lib/i18n/client';
+import type { Locale } from '@/lib/i18n/dictionaries';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { timeAgo } from '@/lib/time-ago';
 import { readApiError } from '@/lib/api-error-read';
@@ -106,6 +107,42 @@ function comparableDate(value: string | null): string {
   const m = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(value);
   if (!m) return value;
   return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+}
+
+/**
+ * Audit U-238: format a raw AliceNet date string ("2017/12/22",
+ * "2017年12月22日", "2017") through the locale-aware
+ * `formatVndbDateString` helper so the user sees the same date shape
+ * as every other VN-detail surface. Falls back to the raw string when
+ * the format isn't recognised (e.g. text-only kobe entries).
+ */
+function formatKobeDate(value: string | null, locale: Locale): string {
+  if (!value) return '';
+  // Canonical ISO YYYY-MM-DD shape — pass through formatVndbDateString.
+  const iso = comparableDate(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatVndbDateString(iso, locale);
+  // YYYY年MM月DD日 / YYYY年MM月 / YYYY年 — convert to ISO then format.
+  const m = /^(\d{4})年(?:(\d{1,2})月(?:(\d{1,2})日)?)?$/.exec(value);
+  if (m) {
+    const [, y, mo, d] = m;
+    const padded = `${y}-${(mo ?? '01').padStart(2, '0')}-${(d ?? '01').padStart(2, '0')}`;
+    return formatVndbDateString(padded, locale);
+  }
+  // Year-only fallback ("2017") — surface as-is, it's already a number.
+  return value;
+}
+
+/**
+ * Audit U-239 / U-240: render a kobe price string ("¥4,270", "4,270円")
+ * through Intl.NumberFormat so the FR / EN / JA locales each see their
+ * native currency presentation. JPY is the single market (audit I-023
+ * notes this is acceptable).
+ */
+function formatKobePrice(value: string | null, locale: Locale): string {
+  if (!value) return '';
+  const n = parsePrice(value);
+  if (n == null) return value;
+  return new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(n);
 }
 
 function parseDevs(json: string | null): { id: string; name: string }[] {
@@ -841,8 +878,12 @@ export function AliceNetKobeClient() {
             )}
           </div>
           <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted">
-            {item.sale_price && <span className="font-semibold text-white">{item.sale_price}</span>}
-            {date && <span>{date}</span>}
+            {/* U-239: format the raw kobe price ('¥4,270') through
+                  Intl.NumberFormat so the user sees the locale-native
+                  presentation instead of the raw scraped string. */}
+            {item.sale_price && <span className="font-semibold text-white">{formatKobePrice(item.sale_price, locale)}</span>}
+            {/* U-238: format the raw kobe date through formatVndbDateString. */}
+            {date && <span>{formatKobeDate(date, locale)}</span>}
             <span className="font-mono opacity-70">{item.code}</span>
           </div>
           {producer && (
@@ -907,8 +948,9 @@ export function AliceNetKobeClient() {
               <div className="min-w-0">
                 <p className="truncate font-semibold leading-tight" title={item.title}>{displayTitle(item)}</p>
                 <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted">
-                  {item.sale_price && <span className="font-semibold text-white">{item.sale_price}</span>}
-                  {date && <span>{date}</span>}
+                  {/* U-239 / U-238: locale-aware reformatting. */}
+                  {item.sale_price && <span className="font-semibold text-white">{formatKobePrice(item.sale_price, locale)}</span>}
+                  {date && <span>{formatKobeDate(date, locale)}</span>}
                   <span className="font-mono opacity-60">{item.code}</span>
                   {producer && <span>{producer}</span>}
                 </div>
