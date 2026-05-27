@@ -9,7 +9,7 @@ import { DensityScopeProvider } from './DensityScopeProvider';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useT } from '@/lib/i18n/client';
 import { platformLabel } from '@/lib/platform-label';
 import { BulkDownloadButton } from './BulkDownloadButton';
@@ -18,6 +18,21 @@ import { readApiError } from '@/lib/api-error-read';
 import { languageDisplayName } from '@/lib/language-names';
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc' | 'egs_rating_desc';
 type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'platform' | 'status';
+
+const WISHLIST_SORTS: ReadonlySet<WishlistSort> = new Set<WishlistSort>([
+  'added_desc', 'added_asc', 'title', 'rating_desc',
+  'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc',
+]);
+const WISHLIST_GROUPS: ReadonlySet<WishlistGroup> = new Set<WishlistGroup>([
+  'none', 'year', 'developer', 'language', 'platform', 'status',
+]);
+
+function readSortFromUrl(value: string | null, fallback: WishlistSort): WishlistSort {
+  return value && WISHLIST_SORTS.has(value as WishlistSort) ? (value as WishlistSort) : fallback;
+}
+function readGroupFromUrl(value: string | null, fallback: WishlistGroup): WishlistGroup {
+  return value && WISHLIST_GROUPS.has(value as WishlistGroup) ? (value as WishlistGroup) : fallback;
+}
 
 const SORT_KEYS: WishlistSort[] = ['added_desc', 'added_asc', 'title', 'rating_desc', 'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc'];
 const GROUP_KEYS: WishlistGroup[] = ['none', 'year', 'developer', 'language', 'platform', 'status'];
@@ -164,7 +179,14 @@ export function WishlistClient() {
   // Resolve the active density for the wishlist scope; the
   // `?density=N` override still wins thanks to `resolveScopedDensity`.
   const search = useSearchParams();
+  const router = useRouter();
   const density = resolveScopedDensity(settings, 'wishlist', search?.get('density') ?? null);
+  // U-003: URL params take priority over the persisted localStorage
+  // prefs. So a deep-link to `/wishlist?sort=rating_desc&group=year`
+  // renders that view regardless of what the user last saved.
+  const urlSort = search?.get('sort') ?? null;
+  const urlGroup = search?.get('group') ?? null;
+  const urlHideOwned = search?.get('hideOwned');
   // P-079: memoize the inline grid template so the outer `<div>`'s
   // style ref is stable across renders. Without this every keystroke
   // in the search box re-creates the style object even though the
@@ -195,12 +217,17 @@ export function WishlistClient() {
   // initialiser runs once on mount; subsequent setX calls below
   // mirror to storage via the useEffect at the bottom of this hook
   // chain.
-  const [hideOwned, setHideOwned] = useState<boolean>(() => loadPrefs().hideOwned);
+  // U-003: initialize from URL first, fall back to localStorage. Subsequent
+  // setX writes push BOTH localStorage (persisted default) AND the URL
+  // (sharable view) via the effect below.
+  const [hideOwned, setHideOwned] = useState<boolean>(() =>
+    urlHideOwned != null ? urlHideOwned === '1' : loadPrefs().hideOwned,
+  );
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
-  const [sort, setSort] = useState<WishlistSort>(() => loadPrefs().sort);
-  const [group, setGroup] = useState<WishlistGroup>(() => loadPrefs().group);
+  const [sort, setSort] = useState<WishlistSort>(() => readSortFromUrl(urlSort, loadPrefs().sort));
+  const [group, setGroup] = useState<WishlistGroup>(() => readGroupFromUrl(urlGroup, loadPrefs().group));
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   // Mirror durable prefs (sort, group, hideOwned) to localStorage on
@@ -210,6 +237,33 @@ export function WishlistClient() {
   useEffect(() => {
     persistPrefs({ sort, group, hideOwned });
   }, [sort, group, hideOwned]);
+
+  // U-003: sync state → URL so the user can copy/paste a wishlist URL
+  // and another tab opens the same view. Only writes values that
+  // diverge from the defaults, keeping shared URLs clean.
+  useEffect(() => {
+    const params = new URLSearchParams(search?.toString() ?? '');
+    let dirty = false;
+    if (sort === 'added_desc') {
+      if (params.get('sort')) { params.delete('sort'); dirty = true; }
+    } else if (params.get('sort') !== sort) {
+      params.set('sort', sort); dirty = true;
+    }
+    if (group === 'none') {
+      if (params.get('group')) { params.delete('group'); dirty = true; }
+    } else if (params.get('group') !== group) {
+      params.set('group', group); dirty = true;
+    }
+    if (hideOwned) {
+      if (params.get('hideOwned') !== '1') { params.set('hideOwned', '1'); dirty = true; }
+    } else if (params.get('hideOwned') != null) {
+      params.delete('hideOwned'); dirty = true;
+    }
+    if (dirty) {
+      const next = params.toString();
+      router.replace(`/wishlist${next ? `?${next}` : ''}`, { scroll: false });
+    }
+  }, [sort, group, hideOwned, search, router]);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
