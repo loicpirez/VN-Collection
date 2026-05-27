@@ -73,7 +73,7 @@ export function MapVnToEgsButton({
     const ac = new AbortController();
     (async () => {
       try {
-        const r = await fetch(`/api/vn/${vnId}/erogamescape?search=0`, { signal: ac.signal });
+        const r = await fetch(`/api/vn/${vnId}/erogamescape?search=0`, { cache: 'no-store', signal: ac.signal });
         if (!r.ok) return;
         const d = (await r.json()) as {
           game: { id?: number } | null;
@@ -99,7 +99,7 @@ export function MapVnToEgsButton({
     }
     setSearching(true);
     try {
-      const r = await fetch(`/api/egs/search?q=${encodeURIComponent(trimmed)}&limit=20`);
+      const r = await fetch(`/api/egs/search?q=${encodeURIComponent(trimmed)}&limit=20`, { cache: 'no-store' });
       if (!r.ok) return;
       const d = (await r.json()) as { candidates?: EgsCandidate[] };
       setCandidates(d.candidates ?? []);

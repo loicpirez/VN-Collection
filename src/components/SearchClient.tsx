@@ -222,7 +222,7 @@ export function SearchClient() {
     const ctrl = new AbortController();
     const handle = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`, { signal: ctrl.signal });
+        const r = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`, { cache: 'no-store', signal: ctrl.signal });
         if (!r.ok) {
           const err = await r.json().catch(() => ({}));
           throw new Error(err.error || t.search.errorPrefix);

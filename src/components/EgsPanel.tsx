@@ -446,7 +446,7 @@ function EgsPicker({
     }
     setLoading(true);
     try {
-      const r = await fetch(`/api/egs/search?q=${encodeURIComponent(q)}&limit=20`, { signal });
+      const r = await fetch(`/api/egs/search?q=${encodeURIComponent(q)}&limit=20`, { cache: 'no-store', signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { candidates: EgsCandidate[] };
       setCandidates(d.candidates);

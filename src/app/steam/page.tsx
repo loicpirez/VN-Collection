@@ -149,7 +149,7 @@ export default function SteamSyncPage() {
       setAssignMatches((s) => ({ ...s, [appid]: [] }));
       return;
     }
-    const r = await fetch(`/api/collection/find?q=${encodeURIComponent(query)}`);
+    const r = await fetch(`/api/collection/find?q=${encodeURIComponent(query)}`, { cache: 'no-store' });
     const d = (await r.json()) as { matches: CollectionMatch[] };
     setAssignMatches((s) => ({ ...s, [appid]: d.matches }));
   }
