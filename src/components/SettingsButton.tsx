@@ -298,7 +298,14 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
               const v = e.target.value.trim();
               onSave({ port: v ? Number(v) : null });
             }}
-            className="input text-[11px]"
+            // `no-spinner` removes the native up/down stepper arrows
+            // that made it easy to bump the port by ±1 by accident
+            // (user feedback). Manual edits via keyboard still work
+            // and `inputMode="numeric"` keeps the mobile numpad.
+            // `onWheel.preventDefault` stops scroll-while-focused
+            // from silently changing the value.
+            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+            className="input no-spinner text-[11px]"
           />
           <label htmlFor={usernameId} className="font-semibold text-muted">{t.settings.proxyUsername}</label>
           <input
@@ -310,65 +317,80 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
             className="input text-[11px]"
           />
           <label htmlFor={passwordId} className="font-semibold text-muted">{t.settings.proxyPassword}</label>
-          <div className="flex items-center gap-1">
-            <input
-              id={passwordId}
-              ref={pwInputRef}
-              type={showPw ? 'text' : 'password'}
-              autoComplete="current-password"
-              // Hide the "•••••••• already saved" hint when the field is
-              // focused — the dots are a *placeholder*, not the stored
-              // value, and prior user feedback ("STILL NOT WORKING the
-              // unhide") was driven by that confusion. The hint copy
-              // moves below the row, where it stays visible regardless
-              // of focus state.
-              placeholder={
-                !pwFocused && !pwDraft && config?.hasPassword
-                  ? t.settings.proxyPasswordStored
-                  : t.settings.proxyPasswordPlaceholder
-              }
-              value={pwDraft}
-              onChange={(e) => setPwDraft(e.target.value)}
-              onFocus={() => setPwFocused(true)}
-              onBlur={(e) => {
-                setPwFocused(false);
-                if (e.target.value) onSave({ password: e.target.value });
-              }}
-              className="input flex-1 text-[11px]"
-              aria-describedby={config?.hasPassword ? `${passwordId}-hint` : undefined}
-            />
-            <button
-              type="button"
-              // onMouseDown + preventDefault stops the password input
-              // from losing focus when the eye button is clicked.
-              // Without this, click → blur → input value persists but
-              // the focus jump caused some browsers to lose the active
-              // selection; preventing the default blur keeps the
-              // caret in place.
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setShowPw((v) => !v);
-                // Pull focus back into the input so the user can
-                // immediately keep typing after toggling visibility.
-                pwInputRef.current?.focus();
-              }}
-              className="rounded p-1 text-muted hover:text-fg"
-              aria-label={showPw ? t.settings.proxyPasswordHide : t.settings.proxyPasswordShow}
-              aria-pressed={showPw}
-              title={showPw ? t.settings.proxyPasswordHide : t.settings.proxyPasswordShow}
-            >
-              {showPw ? <EyeOff className="h-3.5 w-3.5" aria-hidden /> : <Eye className="h-3.5 w-3.5" aria-hidden />}
-            </button>
-          </div>
-          {config?.hasPassword && (
-            // The stored password is never echoed by the server
-            // (`/api/settings` returns `{ hasPassword: true }` only).
-            // Explain the replacement workflow inline so the user
-            // doesn't expect the eye button to surface the stored
-            // value.
-            <p id={`${passwordId}-hint`} className="col-span-2 text-[10px] text-muted/80">
-              {t.settings.proxyPasswordStoredHint}
-            </p>
+          {config?.hasPassword && !pwFocused && !pwDraft ? (
+            // STORED STATE — render a real chip + Replace button
+            // instead of relying on placeholder text. Previous design
+            // showed `•••••••• déjà enregistré` *inside* the input as
+            // a placeholder; users repeatedly mistook the dots for
+            // the actual stored password and tried to "unhide" them
+            // with the eye button. The server never echoes the
+            // stored value back (`/api/settings` returns only
+            // `{ hasPassword: true }`), so the right UI is to make
+            // the stored state explicit (badge + Replace + Clear)
+            // and the editable state a separate mode.
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-md border border-status-completed/40 bg-status-completed/10 px-2 py-1 text-[10px] font-semibold text-status-completed"
+                aria-live="polite"
+              >
+                <Check className="h-3 w-3" aria-hidden />
+                {t.settings.proxyPasswordStoredBadge}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setPwFocused(true);
+                  // setTimeout pushes focus to the next paint so the
+                  // newly-mounted real input receives it.
+                  setTimeout(() => pwInputRef.current?.focus(), 0);
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent"
+              >
+                <KeyRound className="h-3 w-3" aria-hidden />
+                {t.settings.proxyPasswordReplace}
+              </button>
+              <button
+                type="button"
+                onClick={() => onSave({ password: null })}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-status-dropped hover:text-status-dropped"
+              >
+                <X className="h-3 w-3" aria-hidden />
+                {t.settings.proxyPasswordClear}
+              </button>
+            </div>
+          ) : (
+            // EDIT STATE — normal password input + visibility toggle.
+            <div className="flex items-center gap-1">
+              <input
+                id={passwordId}
+                ref={pwInputRef}
+                type={showPw ? 'text' : 'password'}
+                autoComplete="current-password"
+                placeholder={t.settings.proxyPasswordPlaceholder}
+                value={pwDraft}
+                onChange={(e) => setPwDraft(e.target.value)}
+                onFocus={() => setPwFocused(true)}
+                onBlur={(e) => {
+                  setPwFocused(false);
+                  if (e.target.value) onSave({ password: e.target.value });
+                }}
+                className="input flex-1 text-[11px]"
+              />
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setShowPw((v) => !v);
+                  pwInputRef.current?.focus();
+                }}
+                className="rounded p-1 text-muted hover:text-fg"
+                aria-label={showPw ? t.settings.proxyPasswordHide : t.settings.proxyPasswordShow}
+                aria-pressed={showPw}
+                title={showPw ? t.settings.proxyPasswordHide : t.settings.proxyPasswordShow}
+              >
+                {showPw ? <EyeOff className="h-3.5 w-3.5" aria-hidden /> : <Eye className="h-3.5 w-3.5" aria-hidden />}
+              </button>
+            </div>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">

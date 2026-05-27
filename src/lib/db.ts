@@ -1191,6 +1191,13 @@ function open(): Database.Database {
   ensureColumn(db, 'vn_stock_provider_status', 'blocked_kind', 'TEXT');
   ensureColumn(db, 'vn_stock_provider_status', 'fresh_offers_found', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'vn_stock_provider_status', 'cached_offers_available', 'INTEGER NOT NULL DEFAULT 0');
+  // R12-EROGEPRICE: per-provider structured metadata blob. Currently
+  // only Eroge Price writes here — the parser pulls the full game
+  // detail (release date, age, scenario/artist/music/seiyuu, all-time
+  // high / 30-day low, related games) and the UI surfaces it as a
+  // dedicated panel. JSON column so adding new fields (other
+  // aggregators) doesn't need another migration.
+  ensureColumn(db, 'vn_stock_provider_status', 'extras_json', 'TEXT');
   ensureColumn(db, 'vn_stock_source', 'release_id', 'TEXT');
   ensureColumn(db, 'vn_stock_source', 'product_id', 'TEXT');
 
@@ -9781,6 +9788,54 @@ export function listVnStockProviderStatuses(vnId: string): VnStockProviderStatus
     WHERE vn_id = ?
     ORDER BY provider
   `).all(vnId) as VnStockProviderStatusRow[];
+}
+
+/**
+ * Persist the per-provider `extras_json` blob. Currently used only by
+ * the Eroge Price refresh path to store the rich game metadata
+ * (release date, age, staff, voice actors, all-time high / 30-day low,
+ * related games). Inserts a status row when none exists yet so the
+ * extras survive even before the first successful refresh.
+ *
+ * Returns true on write, false when the input JSON serialisation fails.
+ */
+export function setStockProviderExtras(vnId: string, provider: string, extras: unknown): boolean {
+  let payload: string;
+  try {
+    payload = JSON.stringify(extras);
+  } catch {
+    return false;
+  }
+  const exists = db
+    .prepare(`SELECT 1 FROM vn_stock_provider_status WHERE vn_id = ? AND provider = ? LIMIT 1`)
+    .get(vnId, provider);
+  if (exists) {
+    db.prepare(
+      `UPDATE vn_stock_provider_status SET extras_json = ? WHERE vn_id = ? AND provider = ?`,
+    ).run(payload, vnId, provider);
+  } else {
+    db.prepare(
+      `INSERT INTO vn_stock_provider_status (vn_id, provider, extras_json, fetched_at) VALUES (?, ?, ?, ?)`,
+    ).run(vnId, provider, payload, Date.now());
+  }
+  return true;
+}
+
+/**
+ * Read the JSON-decoded extras blob for `(vnId, provider)`. Returns
+ * null when no row exists or when the stored JSON is unparseable
+ * (the column is opportunistically written, never required).
+ */
+export function getStockProviderExtras<T = unknown>(vnId: string, provider: string): T | null {
+  const row = db
+    .prepare(`SELECT extras_json FROM vn_stock_provider_status WHERE vn_id = ? AND provider = ? LIMIT 1`)
+    .get(vnId, provider) as { extras_json: string | null } | undefined;
+  if (!row?.extras_json) return null;
+  try {
+    return JSON.parse(row.extras_json) as T;
+  } catch {
+    return null;
+  }
 }
 
 /**

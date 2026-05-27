@@ -9,6 +9,7 @@ export type ContentKind =
   | 'soundtrack'
   | 'artbook'
   | 'figure'
+  | 'novel'
   | 'unknown';
 
 export type Platform = 'PC' | 'Switch' | 'PS4' | 'PS5' | 'PSVita' | 'other' | 'unknown';
@@ -97,6 +98,19 @@ const SOUNDTRACK_CATEGORY_PATTERNS: ReadonlyArray<RegExp> = [/サウンドトラ
 
 const ARTBOOK_CATEGORY_PATTERNS: ReadonlyArray<RegExp> = [/画集|アートブック|artbook/i, /設定資料集/];
 
+// Light-novel / novel adaptations of a VN. User-flagged regression:
+// `【小説】沙耶の唄` was reaching the offer list as if it were the
+// game. Detect the bracketed `【小説】` / `【ノベル】` prefix plus the
+// loose "ノベライズ" / "novelization" / "小説版" suffix variants so the
+// row drops to `content_kind=novel` (heavy penalty, same shape as
+// related-goods).
+const NOVEL_TITLE_PATTERNS: ReadonlyArray<RegExp> = [
+  /[【「『]\s*(?:小説|ノベル|ノベライズ|novelization)\s*[】」』]/i,
+  /(?:^|\s)(?:小説版|ノベル版|ノベライズ|novelization)(?:\s|$)/i,
+  // Bracket-less leading "【novel】" / "【ライトノベル】" with English text.
+  /[【「『]\s*(?:novel|light\s*novel|ライトノベル)\s*[】」』]/i,
+];
+
 const SOUNDTRACK_TITLE_PATTERNS: ReadonlyArray<RegExp> = [
   /MP3\s*ダウンロード|Amazon\s*Music/i,
   /(?:^|[\s【「『])CD(?:[\s】」』]|$)/i,
@@ -174,6 +188,10 @@ function isSoundtrackTitle(title: string): boolean {
 
 function isRelatedGoodsTitle(title: string): boolean {
   return RELATED_GOODS_TITLE_PATTERNS.some((re) => re.test(title));
+}
+
+function isNovelTitle(title: string): boolean {
+  return NOVEL_TITLE_PATTERNS.some((re) => re.test(title));
 }
 
 /** Detect a `Platform` from a shop's category label. Falls back to `'unknown'`. */
@@ -291,9 +309,18 @@ export function classifyOffer(
   const softwareCat = isSoftwareCategory(cat);
   const soundtrackTitle = isSoundtrackTitle(title);
   const relatedGoodsTitle = isRelatedGoodsTitle(title);
+  const novelTitle = isNovelTitle(title);
 
   let contentKind: ContentKind;
-  if (isBonusPrefix) {
+  if (novelTitle) {
+    // Light-novel / novel adaptation. User-reported: `【小説】沙耶の唄`
+    // was leaking through as a normal result. Heavier penalty than
+    // artbook because the title overlap with the VN is exact and
+    // would otherwise rank high.
+    contentKind = 'novel';
+    score -= 55;
+    warnings.push('novel_title');
+  } else if (isBonusPrefix) {
     contentKind = 'bonus_only';
     score -= 60;
     // I-007: emit stable slug keys (translated at render time) rather

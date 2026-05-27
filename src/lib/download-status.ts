@@ -22,7 +22,8 @@ export type JobKind =
   | 'vndb-pull'
   | 'egs-sync'
   | 'vn-fetch'
-  | 'cache-refresh';
+  | 'cache-refresh'
+  | 'stock-batch';
 
 export interface DownloadJob {
   id: string;

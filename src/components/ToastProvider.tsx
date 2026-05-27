@@ -128,14 +128,25 @@ function ToastView({ toast, onDismiss }: { toast: ToastEntry; onDismiss: () => v
   return (
     <div
       role={toast.kind === 'error' ? 'alert' : 'status'}
-      className={`pointer-events-auto flex max-w-[min(92vw,420px)] items-start gap-2 rounded-lg border px-3 py-2 text-sm shadow-card backdrop-blur ${tone} animate-in fade-in slide-in-from-bottom-2`}
+      className={`pointer-events-auto flex max-w-[min(92vw,420px)] items-center gap-2 rounded-lg border px-3 py-2 text-sm shadow-card backdrop-blur ${tone} animate-in fade-in slide-in-from-bottom-2`}
     >
-      <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <Icon className="h-4 w-4 shrink-0" aria-hidden />
       <span className="flex-1 whitespace-pre-wrap">{toast.message}</span>
       <button
         type="button"
         onClick={onDismiss}
-        className="ml-1 inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded text-muted hover:text-white"
+        // R6-UX user feedback: the dismiss button used hard 44px
+        // min-width/min-height utilities to satisfy the WCAG-AA
+        // touch target, but that forced the whole toast to 44px
+        // tall and left a fat empty band below the 16px icon +
+        // single-line text. The `.tap-target` utility provides the
+        // same ±10px invisible hit area through a CSS pseudo-
+        // element without bloating the chrome. `items-center`
+        // keeps the icon + text + close baseline-aligned on one
+        // row. (tests/toast-no-empty-bottom-space.test.ts pins
+        // both the alignment and the absence of the legacy hard
+        // sizing).
+        className="tap-target ml-1 inline-flex shrink-0 items-center justify-center rounded p-0.5 text-muted hover:text-white"
         aria-label={t.common.dismiss}
       >
         <X className="h-3 w-3" />

@@ -258,9 +258,20 @@ export function saveProxyConfig(
     const pw = patch.password;
     if (pw != null && typeof pw !== 'string') return 'password must be a string';
     if (typeof pw === 'string' && pw.length > 512) return 'password too long (max 512)';
-    const value = typeof pw === 'string' ? pw : '';
-    if (value !== '' && value !== PROXY_PASSWORD_MASK) {
-      next.password = value;
+    // Three intents resolve cleanly:
+    // 1. `pw === null` → explicit clear (the "Clear" button in
+    //    the Integrations UI). Drop the stored password.
+    // 2. `pw === ''` or `pw === PROXY_PASSWORD_MASK` → no-op
+    //    (the form blurred with no real edit, or echoed the
+    //    masked value back).
+    // 3. anything else → save as new password.
+    if (pw === null) {
+      next.password = undefined;
+    } else {
+      const value = typeof pw === 'string' ? pw : '';
+      if (value !== '' && value !== PROXY_PASSWORD_MASK) {
+        next.password = value;
+      }
     }
   }
 
@@ -326,9 +337,16 @@ export function saveStockProviderProxyConfig(
     const pw = patch.password;
     if (pw != null && typeof pw !== 'string') return 'password must be a string';
     if (typeof pw === 'string' && pw.length > 512) return 'password too long (max 512)';
-    const value = typeof pw === 'string' ? pw : '';
-    if (value !== '' && value !== PROXY_PASSWORD_MASK) {
-      next.password = value;
+    // `pw === null` → explicit clear (Clear button). Empty string
+    // / mask = no-op (form blur or echo). Anything else = new
+    // password.
+    if (pw === null) {
+      next.password = undefined;
+    } else {
+      const value = typeof pw === 'string' ? pw : '';
+      if (value !== '' && value !== PROXY_PASSWORD_MASK) {
+        next.password = value;
+      }
     }
   }
 

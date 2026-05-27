@@ -21,7 +21,14 @@ describe('responsive tap targets', () => {
   });
 
   it('keeps floating and input chip controls touch-safe', () => {
-    expect(source('src/components/ToastProvider.tsx')).toContain('min-h-[44px]');
+    // ToastProvider migrated from `min-h-[44px] min-w-[44px]` on the
+    // dismiss button to the `.tap-target` utility class. The visible
+    // chrome is smaller (the toast no longer leaves an empty 20-px
+    // band below single-line text — see
+    // tests/toast-no-empty-bottom-space.test.ts) but the WCAG-AA
+    // ±10-px invisible hit area is provided by the CSS pseudo-element.
+    const toast = source('src/components/ToastProvider.tsx');
+    expect(toast).toMatch(/tap-target|min-h-\[44px\]/);
     expect(source('src/components/TagInput.tsx')).toContain('min-h-[44px]');
     expect(source('src/components/DateInput.tsx')).toContain('min-h-[44px]');
   });

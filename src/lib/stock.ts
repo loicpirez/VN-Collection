@@ -1,12 +1,18 @@
 import 'server-only';
 import iconv from 'iconv-lite';
-import { getCollectionItem, getEgsForVn, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
+import { db, getCollectionItem, getEgsForVn, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
 import { stockProviderFetch } from './proxy-fetch';
 import type { CollectionItem } from './types';
 import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
+import {
+  buildErogePriceSearchUrl,
+  parseErogePriceMeta,
+  parseErogePriceSearch,
+  type ErogePriceMeta,
+} from './erogeprice-meta';
 
 // Re-export the canonical provider id list from the client-safe constants
 // module so client components (Settings UI, etc.) can use the same list
@@ -2032,13 +2038,45 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
 }
 
 async function refreshErogePrice(vnId: string, egsId: number | null | undefined, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
-  if (!egsId) return [];
-  const url = `https://eroge-price.com/games/${egsId}`;
+  // R12-EROGEPRICE: when the operator hasn't pinned an EGS id we used
+  // to bail out entirely. Operator feedback flagged that searching by
+  // the English / romaji title returns zero hits, but `沙耶の唄` returns
+  // 2 candidates. Switch the no-id path to use the Eroge Price search
+  // endpoint with the Japanese alttitle and auto-pick the first
+  // candidate. The caller's classifier still filters obvious mismatches.
+  let resolvedId: number | null = egsId ?? null;
+  if (!resolvedId) {
+    const query = (vn.alttitle ?? vn.title ?? '').trim();
+    if (!query) return [];
+    try {
+      const searchUrl = buildErogePriceSearchUrl(query);
+      const searchHtml = await fetchShopText(searchUrl, { signal });
+      const candidates = parseErogePriceSearch(searchHtml);
+      if (candidates.length === 0) return [];
+      // Prefer the first candidate (Eroge Price orders by recency / canonical
+      // listing — when multiple Saya no Uta exist, 33072 is the modern
+      // re-release). The operator can pin the right one with the manual
+      // EGS picker if needed.
+      resolvedId = candidates[0].egsId;
+    } catch {
+      return [];
+    }
+  }
+  const url = `https://eroge-price.com/games/${resolvedId}`;
   const html = await fetchShopText(url, { signal });
   // Pass the operator's canonical VN title so each row carries the
   // expected title, not whatever Eroge Price chose to display in its <h1>
   // (which might be a different game when egs_id mapping is bad).
   const raw = parseErogePrice(html, url, vnId, now, vn.title ?? null);
+  // Best-effort persist the rich metadata block so the UI can surface
+  // staff / voice actors / all-time high / 30-day low. Failures here
+  // must not break offer extraction.
+  try {
+    const meta = parseErogePriceMeta(html, url, resolvedId);
+    if (meta) setStockProviderExtras(vnId, 'eroge_price', meta);
+  } catch {
+    /* ignore meta-parse errors */
+  }
   const classifyTarget: ClassifyTarget = {
     title: vn.title ?? '',
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
