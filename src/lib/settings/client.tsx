@@ -339,7 +339,10 @@ export function DisplaySettingsProvider({
       // Mirror to a cookie so the server can pre-hydrate on next navigation
       // and avoid the "image flashes before hiding" issue.
       const value = encodeURIComponent(JSON.stringify(settings));
-      document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+      // Audit S-019: append `; Secure` when running over HTTPS so the
+      // cookie never ships in cleartext on HTTP requests.
+      const secureFlag = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax${secureFlag}`;
     } catch {
       // ignore
     }

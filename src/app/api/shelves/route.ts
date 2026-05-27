@@ -33,9 +33,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (typeof body.name !== 'string' || body.name.trim().length === 0) {
     return NextResponse.json({ error: 'name required' }, { status: 400 });
   }
+  // Audit S-014: cap shelf name length before it reaches createShelf.
+  const name = body.name.trim().slice(0, 100);
   try {
     const shelf = createShelf({
-      name: body.name,
+      name,
       cols: typeof body.cols === 'number' ? body.cols : undefined,
       rows: typeof body.rows === 'number' ? body.rows : undefined,
     });

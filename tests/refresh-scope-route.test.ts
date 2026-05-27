@@ -123,20 +123,23 @@ describe('POST /api/refresh/scope — R5-058 behaviour', () => {
     const res = await POST(postScope({ scope: 'not-a-scope' }));
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toMatch(/unknown refresh scope/);
+    // S-003: response is generic so the route never reflects attacker-
+    // controlled input back. The raw "unknown refresh scope: <input>"
+    // detail goes to the server log only.
+    expect(json.error).toBe('unknown scope');
   });
 
   it('returns 400 when a templated param is missing', async () => {
     const res = await POST(postScope({ scope: 'tag-detail' }));
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toMatch(/missing param/);
+    expect(json.error).toBe('missing param');
   });
 
   it('returns 400 when a param value contains LIKE metacharacters', async () => {
     const res = await POST(postScope({ scope: 'tag-detail', params: { gid: 'g%' } }));
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toMatch(/unsafe param value/);
+    expect(json.error).toBe('invalid param value');
   });
 });

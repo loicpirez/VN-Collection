@@ -46,7 +46,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   try {
     if (typeof body.name === 'string' && body.name.trim().length > 0) {
-      const shelf = renameShelf(sid, body.name);
+      // Audit S-015: cap shelf name length.
+      const name = body.name.trim().slice(0, 100);
+      const shelf = renameShelf(sid, name);
       if (!shelf) return NextResponse.json({ error: 'not found' }, { status: 404 });
       recordActivity({ kind: 'shelf.rename', entity: 'shelf', entityId: String(sid), label: 'Renamed shelf', payload: { name: shelf.name } });
     }

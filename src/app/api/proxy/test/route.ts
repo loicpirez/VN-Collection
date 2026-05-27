@@ -8,6 +8,7 @@ import {
   type ProviderId,
 } from '@/lib/proxy-config';
 import { STOCK_PROVIDER_IDS, type StockProviderId } from '@/lib/stock-provider-constants';
+import { sanitizeUnknownError } from '@/lib/error-sanitize';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -132,7 +133,10 @@ async function runProbe(
     return NextResponse.json({ ok: true, latencyMs, status: res.status });
   } catch (e) {
     const latencyMs = Date.now() - start;
-    const msg = e instanceof Error ? e.message : String(e);
+    // SocksProxyAgent / HttpsProxyAgent occasionally surface the proxy URL
+    // (including userinfo) in their error messages. Sanitize so credentials
+    // never land in the JSON response.
+    const msg = sanitizeUnknownError(e);
     return NextResponse.json({ ok: false, error: msg, latencyMs }, { status: 200 });
   } finally {
     clearTimeout(timer);

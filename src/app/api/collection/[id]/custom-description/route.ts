@@ -21,11 +21,20 @@ function logActivity(id: string, text: string | null) {
   }
 }
 
+/** Cap on custom synopsis length. Matches the editor textarea contract. */
+const CUSTOM_DESCRIPTION_MAX = 50_000;
+
 async function applyPatch(req: NextRequest, id: string): Promise<NextResponse> {
   const body = (await readJsonObject(req)) as { text?: unknown };
   const raw = body.text;
   if (raw != null && typeof raw !== 'string') {
     return NextResponse.json({ error: 'text must be a string or null' }, { status: 400 });
+  }
+  if (typeof raw === 'string' && raw.length > CUSTOM_DESCRIPTION_MAX) {
+    return NextResponse.json(
+      { error: `text too long (max ${CUSTOM_DESCRIPTION_MAX})` },
+      { status: 400 },
+    );
   }
   const next = (raw as string | null) ?? null;
   try {

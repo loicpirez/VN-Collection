@@ -15,18 +15,32 @@ export async function GET(): Promise<NextResponse> {
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const body = (await readJsonObject(req)) as { name?: string; description?: string };
-  const name = body.name?.trim();
+  const body = (await readJsonObject(req)) as { name?: unknown; description?: unknown };
+  // Audit S-012: type-check + length-cap both fields before any DB write.
+  if (typeof body.name !== 'string') {
+    return NextResponse.json({ error: 'name must be a string' }, { status: 400 });
+  }
+  const name = body.name.trim().slice(0, 200);
   if (!name) return NextResponse.json({ error: 'missing name' }, { status: 400 });
+  let description: string | null = null;
+  if (body.description != null) {
+    if (typeof body.description !== 'string') {
+      return NextResponse.json({ error: 'description must be a string or null' }, { status: 400 });
+    }
+    if (body.description.length > 5000) {
+      return NextResponse.json({ error: 'description too long (max 5000)' }, { status: 400 });
+    }
+    description = body.description;
+  }
   try {
-    const created = createSeries(name, body.description ?? null);
+    const created = createSeries(name, description);
     try {
       recordActivity({
         kind: 'series.create',
         entity: 'series',
         entityId: String(created.id),
         label: created.name,
-        payload: { hasDescription: !!body.description },
+        payload: { hasDescription: !!description },
       });
     } catch (e) {
       console.error('[series:create] activity log failed:', (e as Error).message);

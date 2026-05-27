@@ -36,12 +36,28 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ routeId: 
     fields.name = trimmed;
   }
   if ('completed' in body) fields.completed = !!body.completed;
-  if ('completed_date' in body) fields.completed_date = (body.completed_date as string | null) || null;
+  if ('completed_date' in body) {
+    // Audit S-011: completed_date must be YYYY-MM-DD or null.
+    const v = body.completed_date;
+    if (v == null || v === '') {
+      fields.completed_date = null;
+    } else if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      fields.completed_date = v;
+    } else {
+      return NextResponse.json({ error: 'completed_date must be YYYY-MM-DD or null' }, { status: 400 });
+    }
+  }
   if ('order_index' in body) {
     if (typeof body.order_index !== 'number') return NextResponse.json({ error: 'order_index must be number' }, { status: 400 });
     fields.order_index = body.order_index;
   }
-  if ('notes' in body) fields.notes = (body.notes as string | null) || null;
+  if ('notes' in body) {
+    // Audit S-011: cap notes length.
+    const v = body.notes;
+    if (v != null && typeof v !== 'string') return NextResponse.json({ error: 'notes must be a string or null' }, { status: 400 });
+    if (typeof v === 'string' && v.length > 10_000) return NextResponse.json({ error: 'notes too long (max 10000)' }, { status: 400 });
+    fields.notes = (v as string | null) || null;
+  }
   const updated = updateRoute(id, fields);
   try {
     recordActivity({

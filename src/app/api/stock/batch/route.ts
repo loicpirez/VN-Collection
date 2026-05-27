@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { refreshStockForVn, STOCK_PROVIDER_IDS, type StockProviderId } from '@/lib/stock';
+import { sanitizeUnknownError } from '@/lib/error-sanitize';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -35,7 +36,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const snapshot = await refreshStockForVn(vnId, providers, req.signal);
       results.push({ vnId, ok: true, offerCount: snapshot.summary.total });
     } catch (e) {
-      results.push({ vnId, ok: false, error: (e as Error).message });
+      const msg = sanitizeUnknownError(e);
+      console.error('[stock/batch] refresh failed', { vnId, msg });
+      results.push({ vnId, ok: false, error: msg });
     }
   }
 

@@ -28,18 +28,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const suggestions = await computeSteamSuggestions(games);
     return NextResponse.json({ ok: true, suggestions });
   } catch (e) {
-    // Audit H1: log the MASKED message, not the raw one. The Steam
-    // resolver only masks `key=` inside its own typed errors; if any
-    // future code path throws an Error whose .message contains the
-    // request URL verbatim, the raw message would leak both the API
-    // key and the SteamID to the server log even though the client
-    // response is sanitized. Defence in depth: log `safe`, not `raw`.
+    // Audit S-004: surface a fixed user-visible error. The masked
+    // detail still goes to the server log so the operator can
+    // diagnose, but the JSON response stays opaque — a stray URL or
+    // header fragment in `e.message` never reaches the client.
     const raw = (e as Error).message ?? 'unknown error';
     const safe = raw
       .replace(/key=[^&\s]+/g, 'key=***')
-      .replace(/steamid=\d+/gi, 'steamid=***');
+      .replace(/steamid=\d+/gi, 'steamid=***')
+      .slice(0, 500);
     console.error('steam sync failed:', safe);
-    return NextResponse.json({ ok: false, error: `Steam sync failed: ${safe}` }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'Steam sync failed' }, { status: 400 });
   }
 }
 

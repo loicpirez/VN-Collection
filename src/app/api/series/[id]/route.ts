@@ -42,21 +42,52 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const n = parseId(id);
   if (n == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const body = (await readJsonObject(req)) as {
+    name?: unknown;
+    description?: unknown;
+    cover_path?: string | null;
+    banner_path?: string | null;
+  };
+  // Audit S-013: type-check + length-cap name/description before they
+  // reach updateSeries. cover_path/banner_path were already validated.
+  const patch: {
     name?: string;
     description?: string | null;
     cover_path?: string | null;
     banner_path?: string | null;
-  };
-  if (body.name !== undefined && !body.name.trim()) {
-    return NextResponse.json({ error: 'name cannot be empty' }, { status: 400 });
+  } = {};
+  if ('name' in body) {
+    if (typeof body.name !== 'string') {
+      return NextResponse.json({ error: 'name must be a string' }, { status: 400 });
+    }
+    const trimmed = body.name.trim().slice(0, 200);
+    if (!trimmed) return NextResponse.json({ error: 'name cannot be empty' }, { status: 400 });
+    patch.name = trimmed;
   }
-  if ('cover_path' in body && !isValidStoragePath(body.cover_path)) {
-    return NextResponse.json({ error: 'invalid cover_path' }, { status: 400 });
+  if ('description' in body) {
+    if (body.description == null) {
+      patch.description = null;
+    } else if (typeof body.description === 'string') {
+      if (body.description.length > 5000) {
+        return NextResponse.json({ error: 'description too long (max 5000)' }, { status: 400 });
+      }
+      patch.description = body.description;
+    } else {
+      return NextResponse.json({ error: 'description must be a string or null' }, { status: 400 });
+    }
   }
-  if ('banner_path' in body && !isValidStoragePath(body.banner_path)) {
-    return NextResponse.json({ error: 'invalid banner_path' }, { status: 400 });
+  if ('cover_path' in body) {
+    if (!isValidStoragePath(body.cover_path)) {
+      return NextResponse.json({ error: 'invalid cover_path' }, { status: 400 });
+    }
+    patch.cover_path = body.cover_path;
   }
-  const s = updateSeries(n, body);
+  if ('banner_path' in body) {
+    if (!isValidStoragePath(body.banner_path)) {
+      return NextResponse.json({ error: 'invalid banner_path' }, { status: 400 });
+    }
+    patch.banner_path = body.banner_path;
+  }
+  const s = updateSeries(n, patch);
   if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 });
   try {
     recordActivity({
@@ -64,7 +95,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       entity: 'series',
       entityId: String(n),
       label: 'Updated series',
-      payload: { changed: Object.keys(body) },
+      payload: { changed: Object.keys(patch) },
     });
   } catch (e) {
     console.error(`[series:${n}] activity log failed:`, (e as Error).message);

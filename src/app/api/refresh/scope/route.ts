@@ -52,10 +52,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     patterns = resolveScopePatterns(scopeId, params);
   } catch (e) {
-    return NextResponse.json(
-      { error: (e as Error).message },
-      { status: 400 },
-    );
+    // Map known throw kinds to fixed copy so the response never reflects
+    // attacker-controlled input back (`unknown refresh scope: <raw>`,
+    // `refresh scope <id>: unsafe param value`). The raw message lands in
+    // the server log instead.
+    const rawMsg = (e as Error).message ?? '';
+    console.error('[refresh/scope] reject:', { scopeId, msg: rawMsg });
+    let error = 'invalid scope or params';
+    if (/^unknown refresh scope:/.test(rawMsg)) error = 'unknown scope';
+    else if (/unsafe param value/.test(rawMsg)) error = 'invalid param value';
+    else if (/missing param/.test(rawMsg)) error = 'missing param';
+    return NextResponse.json({ error }, { status: 400 });
   }
 
   // Bust each pattern inside a transaction so partial failures

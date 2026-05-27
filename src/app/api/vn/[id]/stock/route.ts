@@ -3,6 +3,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { clearVnStockCache } from '@/lib/db';
 import { getStockForVn, refreshStockForVn, STOCK_PROVIDER_IDS, type StockProviderId } from '@/lib/stock';
+import { sanitizeErrorMessage } from '@/lib/error-sanitize';
 
 
 export const dynamic = 'force-dynamic';
@@ -40,30 +41,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     console.error('[stock] refresh failed', { id, msg: rawMsg });
     // Single-user self-hosted app — surfacing the underlying error message
-    // is fine for diagnostics. Strip anything that looks like an embedded
-    // proxy URL with credentials before echoing it so a misconfigured proxy
-    // never leaks user:pass@host into the UI.
-    const safeMsg = sanitizeErrorMessage(rawMsg);
+    // is fine for diagnostics. Sanitize so credential-shaped substrings
+    // and proxy URLs never reach the UI even on a malformed Error.message.
     return NextResponse.json(
-      { error: 'stock refresh failed', detail: safeMsg },
+      { error: 'stock refresh failed', detail: sanitizeErrorMessage(rawMsg) },
       { status: 500 },
     );
   }
-}
-
-/**
- * Strip URLs containing userinfo (`user:pass@host`) and anything that looks
- * like a long credential token. Keep the rest of the message so the
- * batch-refresh UI can show "ETIMEDOUT" / "Cloudflare challenge detected"
- * etc. inline without burying the actual cause.
- */
-function sanitizeErrorMessage(msg: string): string {
-  return msg
-    // URL with userinfo (proxy URL with credentials)
-    .replace(/[a-z][a-z0-9+.-]*:\/\/[^/\s]*@[^\s]+/gi, '[REDACTED_URL]')
-    // Long opaque token-shaped strings
-    .replace(/\b[A-Za-z0-9]{32,}\b/g, '[REDACTED_TOKEN]')
-    .slice(0, 500);
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {

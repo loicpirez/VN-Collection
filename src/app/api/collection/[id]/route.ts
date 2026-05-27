@@ -71,7 +71,12 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
     else if (isIsoDate(v)) fields.finished_date = v;
     else return { fields, error: 'finished_date must be YYYY-MM-DD or null' };
   }
-  if ('notes' in body) fields.notes = (body.notes as string | null) || null;
+  if ('notes' in body) {
+    const v = body.notes;
+    if (v != null && typeof v !== 'string') return { fields, error: 'notes must be a string or null' };
+    if (typeof v === 'string' && v.length > 50_000) return { fields, error: 'notes too long (max 50000)' };
+    fields.notes = (v as string | null) || null;
+  }
   if ('favorite' in body) fields.favorite = !!body.favorite;
   if ('location' in body) {
     if (!isValidLocation(body.location)) return { fields, error: 'invalid location' };
@@ -81,7 +86,12 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
     if (!isValidEditionType(body.edition_type)) return { fields, error: 'invalid edition_type' };
     fields.edition_type = body.edition_type;
   }
-  if ('edition_label' in body) fields.edition_label = (body.edition_label as string | null) || null;
+  if ('edition_label' in body) {
+    const v = body.edition_label;
+    if (v != null && typeof v !== 'string') return { fields, error: 'edition_label must be a string or null' };
+    if (typeof v === 'string' && v.length > 200) return { fields, error: 'edition_label too long (max 200)' };
+    fields.edition_label = (v as string | null) || null;
+  }
   if ('box_type' in body) {
     if (!isValidBoxType(body.box_type)) return { fields, error: 'invalid box_type' };
     fields.box_type = body.box_type;

@@ -24,7 +24,12 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; error?: string } {
   const patch: OwnedReleasePatch = {};
-  if ('notes' in body) patch.notes = (body.notes as string | null) || null;
+  if ('notes' in body) {
+    const v = body.notes;
+    if (v != null && typeof v !== 'string') return { patch, error: 'notes must be a string or null' };
+    if (typeof v === 'string' && v.length > 10_000) return { patch, error: 'notes too long (max 10000)' };
+    patch.notes = (v as string | null) || null;
+  }
   if ('location' in body) {
     if (!isValidLocation(body.location)) return { patch, error: 'invalid location' };
     patch.location = body.location;
@@ -33,7 +38,12 @@ function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; e
     if (!isValidBoxType(body.box_type)) return { patch, error: 'invalid box_type' };
     patch.box_type = body.box_type;
   }
-  if ('edition_label' in body) patch.edition_label = (body.edition_label as string | null) || null;
+  if ('edition_label' in body) {
+    const v = body.edition_label;
+    if (v != null && typeof v !== 'string') return { patch, error: 'edition_label must be a string or null' };
+    if (typeof v === 'string' && v.length > 200) return { patch, error: 'edition_label too long (max 200)' };
+    patch.edition_label = (v as string | null) || null;
+  }
   if ('condition' in body) {
     const v = body.condition;
     if (v === null || v === '') patch.condition = null;
@@ -193,7 +203,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       const width = typeof obj.width === 'number' ? obj.width : null;
       const height = typeof obj.height === 'number' ? obj.height : null;
       const aspectKey = isAspectKey(obj.aspect_key) ? obj.aspect_key : null;
-      const note = typeof obj.note === 'string' ? obj.note : null;
+      // Audit S-052: cap free-text aspect_override.note to bound DB storage.
+      const note = typeof obj.note === 'string' ? obj.note.slice(0, 500) : null;
       setOwnedReleaseAspectOverride({
         vnId: id,
         releaseId: validation.normalized,

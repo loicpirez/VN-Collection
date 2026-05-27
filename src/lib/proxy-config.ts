@@ -248,13 +248,19 @@ export function saveProxyConfig(
   }
 
   if ('username' in patch) {
-    next.username = ((patch.username as string) ?? '').trim() || undefined;
+    const u = patch.username;
+    if (u != null && typeof u !== 'string') return 'username must be a string';
+    if (typeof u === 'string' && u.length > 256) return 'username too long (max 256)';
+    next.username = (typeof u === 'string' ? u : '').trim() || undefined;
   }
 
   if ('password' in patch) {
-    const pw = (patch.password as string) ?? '';
-    if (pw !== '' && pw !== PROXY_PASSWORD_MASK) {
-      next.password = pw;
+    const pw = patch.password;
+    if (pw != null && typeof pw !== 'string') return 'password must be a string';
+    if (typeof pw === 'string' && pw.length > 512) return 'password too long (max 512)';
+    const value = typeof pw === 'string' ? pw : '';
+    if (value !== '' && value !== PROXY_PASSWORD_MASK) {
+      next.password = value;
     }
   }
 
@@ -310,13 +316,19 @@ export function saveStockProviderProxyConfig(
   }
 
   if ('username' in patch) {
-    next.username = ((patch.username as string) ?? '').trim() || undefined;
+    const u = patch.username;
+    if (u != null && typeof u !== 'string') return 'username must be a string';
+    if (typeof u === 'string' && u.length > 256) return 'username too long (max 256)';
+    next.username = (typeof u === 'string' ? u : '').trim() || undefined;
   }
 
   if ('password' in patch) {
-    const pw = (patch.password as string) ?? '';
-    if (pw !== '' && pw !== PROXY_PASSWORD_MASK) {
-      next.password = pw;
+    const pw = patch.password;
+    if (pw != null && typeof pw !== 'string') return 'password must be a string';
+    if (typeof pw === 'string' && pw.length > 512) return 'password too long (max 512)';
+    const value = typeof pw === 'string' ? pw : '';
+    if (value !== '' && value !== PROXY_PASSWORD_MASK) {
+      next.password = value;
     }
   }
 

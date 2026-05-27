@@ -47,24 +47,26 @@ describe('seca-input-length-caps — game-log note length cap', () => {
 });
 
 describe('seca-input-length-caps — lists field length caps (source-pin)', () => {
-  it('lists/route.ts slices name, description, color, icon', async () => {
+  it('lists/route.ts caps name, description, color, icon length', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const src = readFileSync(join(__dirname, '..', 'src/app/api/lists/route.ts'), 'utf8');
+    // S-016 introduced regex validation for color + icon; the trim+slice
+    // remains the length-cap contract, just composed with .trim() now.
     expect(src).toContain('body.name.slice(0, 200)');
     expect(src).toContain('body.description.slice(0, 2000)');
-    expect(src).toContain('body.color.slice(0, 64)');
-    expect(src).toContain('body.icon.slice(0, 64)');
+    expect(src).toContain("body.color.trim().slice(0, 64)");
+    expect(src).toContain("body.icon.trim().slice(0, 64)");
   });
 
-  it('lists/[id]/route.ts slices name, description, color, icon on PATCH', async () => {
+  it('lists/[id]/route.ts caps name, description, color, icon length on PATCH', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const src = readFileSync(join(__dirname, '..', 'src/app/api/lists/[id]/route.ts'), 'utf8');
     expect(src).toContain('body.name.slice(0, 200)');
     expect(src).toContain('body.description.slice(0, 2000)');
-    expect(src).toContain('body.color.slice(0, 64)');
-    expect(src).toContain('body.icon.slice(0, 64)');
+    expect(src).toContain("body.color.trim().slice(0, 64)");
+    expect(src).toContain("body.icon.trim().slice(0, 64)");
   });
 });
 
