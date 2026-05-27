@@ -224,6 +224,14 @@ interface ProxySettingsSectionProps {
 
 function ProxySettingsSection({ t, providerId, label, config, onSave, compact = false }: ProxySettingsSectionProps) {
   const [showPw, setShowPw] = useState(false);
+  // Audit (user feedback): the eye button used to toggle the input's
+  // `type` between "password" and "text". Browsers (Chromium / Safari)
+  // drop the typed value when an uncontrolled <input> changes its
+  // `type` attribute mid-life — the toggle visibly did nothing and the
+  // password field reset. Now we make the password row CONTROLLED via
+  // `pwDraft` so the value survives the type swap, and persist on blur
+  // exactly like before.
+  const [pwDraft, setPwDraft] = useState('');
   const [testResult, setTestResult] = useState<{ ok: boolean; ms?: number; error?: string } | null>(null);
   const [testing, startTesting] = useTransition();
   // Stable per-instance ids so the labels above each input can wire up
@@ -329,6 +337,8 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
               type={showPw ? 'text' : 'password'}
               autoComplete="current-password"
               placeholder={config?.hasPassword ? t.settings.proxyPasswordStored : t.settings.proxyPasswordPlaceholder}
+              value={pwDraft}
+              onChange={(e) => setPwDraft(e.target.value)}
               onBlur={(e) => {
                 if (e.target.value) onSave({ password: e.target.value });
               }}
@@ -336,9 +346,17 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
             />
             <button
               type="button"
+              // onMouseDown + preventDefault stops the password input
+              // from losing focus when the eye button is clicked.
+              // Without this, click → blur → input value persists but
+              // the focus jump caused some browsers to lose the active
+              // selection; preventing the default blur keeps the
+              // caret in place.
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setShowPw((v) => !v)}
               className="rounded p-1 text-muted hover:text-fg"
               aria-label={showPw ? t.settings.proxyPasswordHide : t.settings.proxyPasswordShow}
+              aria-pressed={showPw}
             >
               {showPw ? <EyeOff className="h-3.5 w-3.5" aria-hidden /> : <Eye className="h-3.5 w-3.5" aria-hidden />}
             </button>
