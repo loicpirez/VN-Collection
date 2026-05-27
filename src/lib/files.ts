@@ -81,6 +81,40 @@ export async function readStored(relPath: string): Promise<{ buffer: Buffer; con
   }
 }
 
+/**
+ * Audit S-049: stream a Response body into a Buffer while enforcing a
+ * hard byte cap. Returns null when the cap is exceeded; callers then
+ * throw their own "too large" error. Reads via the WHATWG ReadableStream
+ * reader so the underlying socket is torn down on cap-hit rather than
+ * letting `arrayBuffer()` buffer the entire payload first.
+ */
+async function readBodyWithCap(res: Response, maxBytes: number): Promise<Buffer | null> {
+  const body = res.body;
+  if (!body) {
+    const buf = Buffer.from(await res.arrayBuffer());
+    return buf.byteLength <= maxBytes ? buf : null;
+  }
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel('cap exceeded').catch(() => undefined);
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock?.();
+  }
+  return Buffer.concat(chunks);
+}
+
 function extFromContentType(ct: string | null): string {
   if (!ct) return '.bin';
   if (ct.includes('jpeg') || ct.includes('jpg')) return '.jpg';
@@ -136,9 +170,13 @@ export async function downloadToBucket(
     throw new Error(`Image too large: ${cl} bytes (max ${MAX_IMAGE_BYTES})`);
   }
   const ct = res.headers.get('content-type');
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.byteLength > MAX_IMAGE_BYTES) {
-    throw new Error(`Image too large: ${buf.byteLength} bytes (max ${MAX_IMAGE_BYTES})`);
+  // Audit S-049: stream into a chunked buffer with a running total so a
+  // lying Content-Length AND a missing one are both bounded. `arrayBuffer()`
+  // buffers everything before our check fires; a malicious upstream that
+  // omits Content-Length and streams gigabytes would still OOM the process.
+  const buf = await readBodyWithCap(res, MAX_IMAGE_BYTES);
+  if (!buf) {
+    throw new Error(`Image too large: > ${MAX_IMAGE_BYTES} bytes (streaming cap)`);
   }
   const ext = ct ? extFromContentType(ct) : extname(url) || '.bin';
   const safeName = `${sanitizeFilename(filenameHint)}${ext}`;
