@@ -390,7 +390,20 @@ async function fetchOne(sql: string): Promise<Record<string, string | null> | nu
  *     long comment as the EGS "description" instead.
  *   - Some columns return PostgreSQL `t` / `f` for booleans; toBool handles both.
  */
+/**
+ * Audit S-035: assert that an integer argument is safe to interpolate
+ * into a SQL string. Callers MUST validate user input before reaching
+ * EGS helpers, but this catches a regression where a non-integer (or
+ * a float, or NaN) slips through.
+ */
+function assertSqlInt(n: number, fieldName: string): void {
+  if (!Number.isInteger(n) || n < 0 || n > Number.MAX_SAFE_INTEGER) {
+    throw new Error(`invalid EGS SQL integer for ${fieldName}: ${n}`);
+  }
+}
+
 export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): Promise<EgsGame | null> {
+  assertSqlInt(id, 'gamelist.id');
   const cacheK = cacheKey('game', String(id));
   if (!opts.force) {
     const cached = readCache<EgsGame | null>(cacheK);
@@ -468,6 +481,8 @@ function egsHoursToMinutes(v: string | null | undefined): number | null {
 }
 
 async function fetchEgsPlaytimeMedian(gameId: number): Promise<number | null> {
+  // Audit S-035: ensure the interpolated FK is integer.
+  assertSqlInt(gameId, 'userreview.game');
   // userreview.total_play_time is in HOURS. We compute the median across
   // non-null entries client-side then convert to minutes for our internal
   // storage. Filter by `game` (FK) — `id` is the userreview PK.

@@ -19,6 +19,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
 
   const contentLength = req.headers.get('content-length');
+  const transferEncoding = req.headers.get('transfer-encoding');
+  // Audit S-050: a chunked request without Content-Length skips the
+  // pre-buffer cap below. Reject it with 411 so an attacker can't sidestep
+  // the size limit by streaming an unbounded chunked payload.
+  if (!contentLength && transferEncoding?.toLowerCase().includes('chunked')) {
+    return NextResponse.json(
+      { error: 'Content-Length required (chunked transfer not accepted for import)' },
+      { status: 411 },
+    );
+  }
   if (contentLength) {
     const n = Number(contentLength);
     if (Number.isFinite(n) && n > MAX_IMPORT_BYTES) {
@@ -49,6 +59,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
   if (!body || typeof body !== 'object' || !Array.isArray(body.collection) || !Array.isArray(body.vns)) {
     return NextResponse.json({ error: 'unexpected payload shape' }, { status: 400 });
+  }
+  // Audit S-041: per-row validation so malformed entries are rejected
+  // BEFORE they reach `importData` — every accepted row must carry a
+  // VN id matching `v\d+` or `egs_\d+`. The previous handler relied on
+  // `importData` to either swallow or surface unexpected shapes via the
+  // returned summary, which let bad rows persist into the local tables.
+  const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
+  const cap = 50_000; // hard ceiling per import file (one-shot user import).
+  if (body.vns.length > cap || body.collection.length > cap) {
+    return NextResponse.json(
+      { error: `import exceeds row cap (max ${cap} per table)` },
+      { status: 413 },
+    );
+  }
+  const badVn = body.vns.findIndex((v) => !v || typeof v !== 'object' || typeof (v as { id?: unknown }).id !== 'string' || !VN_ID_RE.test((v as { id: string }).id));
+  if (badVn !== -1) {
+    return NextResponse.json({ error: `vns[${badVn}].id must match v\\d+ or egs_\\d+` }, { status: 400 });
+  }
+  const badC = body.collection.findIndex((c) => !c || typeof c !== 'object' || typeof (c as { vn_id?: unknown }).vn_id !== 'string' || !VN_ID_RE.test((c as { vn_id: string }).vn_id));
+  if (badC !== -1) {
+    return NextResponse.json({ error: `collection[${badC}].vn_id must match v\\d+ or egs_\\d+` }, { status: 400 });
   }
   try {
     const summary = importData(body);

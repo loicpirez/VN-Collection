@@ -59,25 +59,39 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // `/producer/[id]` tab incurred a multi-second blocking re-fetch
   // on the next visit, which is what a "global refresh" should
   // not do.
-  const bust = db.prepare(
-    "DELETE FROM vndb_cache WHERE " +
-    "cache_key LIKE 'egs:cover-resolved:%' OR " +
+  // Audit S-069: typed registry of patterns so a future regression
+  // can't silently widen the bust by appending an attacker-influenced
+  // string. Every pattern is a compile-time constant; the validator
+  // below asserts none contains characters outside the safe set.
+  const BUST_PATTERNS: ReadonlyArray<string> = [
+    'egs:cover-resolved:%',
     // Real EGS anticipated cache keys are `egs:anticipated:%` —
     // the previous `anticipated:%` pattern matched zero rows so
     // the global refresh silently left the /upcoming?tab=anticipated
-    // cache stale up to 12h. Restored to match the real prefix.
-    "cache_key LIKE 'egs:anticipated:%' OR " +
-    "cache_key LIKE 'egs:top-ranked:%' OR " +
-    "cache_key LIKE '% /stats|%' OR " +
-    "cache_key LIKE '% /schema|%' OR " +
-    "cache_key LIKE '% /authinfo|%' OR " +
-    "cache_key LIKE '% /release|%' OR " +
-    "cache_key LIKE '% /release:upcoming|%' OR " +
-    "cache_key LIKE '% /release:upcoming-all|%' OR " +
-    "cache_key LIKE '% /producer|%' OR " +
-    "cache_key LIKE '% /tag|%' OR " +
-    "cache_key LIKE '% /trait|%' OR " +
-    "cache_key LIKE '% /vn:top-ranked:%'",
+    // cache stale up to 12h.
+    'egs:anticipated:%',
+    'egs:top-ranked:%',
+    '% /stats|%',
+    '% /schema|%',
+    '% /authinfo|%',
+    '% /release|%',
+    '% /release:upcoming|%',
+    '% /release:upcoming-all|%',
+    '% /producer|%',
+    '% /tag|%',
+    '% /trait|%',
+    '% /vn:top-ranked:%',
+  ];
+  // Each pattern must use only `[ A-Za-z0-9_/|:%-]` characters — no
+  // backslashes, no quotes, no nested wildcards from arbitrary input.
+  for (const p of BUST_PATTERNS) {
+    if (!/^[\sA-Za-z0-9_/|:%-]+$/.test(p)) {
+      throw new Error(`refresh/global: unsafe bust pattern: ${p}`);
+    }
+  }
+  const bust = db.prepare(
+    'DELETE FROM vndb_cache WHERE ' +
+    BUST_PATTERNS.map(() => 'cache_key LIKE ?').join(' OR '),
   );
   // Wipe the materialised per-release metadata too. The shelf
   // popover / owned-editions surfaces read from `release_meta_cache`
@@ -105,7 +119,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // fetched (previous behavior was just "cache-refresh · Global
   // refresh" with no detail, which manual QA flagged as opaque).
   const tasks: Array<{ name: string; run: () => Promise<unknown> }> = [
-    { name: 'Cache rows (bust)', run: async () => { bust.run(); } },
+    { name: 'Cache rows (bust)', run: async () => { bust.run(...BUST_PATTERNS); } },
     {
       name: 'Release metadata cache (bust)',
       run: async () => { bustReleaseMeta.run(); },
