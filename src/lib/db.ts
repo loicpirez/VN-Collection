@@ -9859,6 +9859,20 @@ export function getStockProviderExtras<T = unknown>(vnId: string, provider: stri
 }
 
 /**
+ * Wipe the per-provider extras blob WITHOUT touching the status row's
+ * other columns. Used by the eroge-price manual DELETE endpoint when
+ * the operator removes the last candidate — we want the row's status
+ * / offer_count to stay accurate, but the rich-meta envelope is no
+ * longer useful.
+ */
+export function clearStockProviderExtras(vnId: string, provider: string): boolean {
+  const result = db
+    .prepare(`UPDATE vn_stock_provider_status SET extras_json = NULL WHERE vn_id = ? AND provider = ?`)
+    .run(vnId, provider);
+  return result.changes > 0;
+}
+
+/**
  * Batch aggregate for stock chip on VnCard. Returns a map of vnId to
  * available-offer count and best price across in_stock / limited offers.
  * A single query regardless of how many IDs are passed.
@@ -9908,6 +9922,51 @@ export function batchVnStockSummaries(
     .all(...vnIds) as Row[];
   const out = new Map<string, { available: number; best_price: number | null }>();
   for (const r of rows) out.set(r.vn_id, { available: r.available, best_price: r.best_price });
+
+  // Eroge Price source-of-truth fallback. The bulk-resolve script
+  // (and a fresh stock refresh that's still queued) populates
+  // `vn_stock_provider_status.extras_json` BEFORE the offer rows are
+  // materialised; without this fallback, those VNs read as
+  // "no stock" until the live refresh fires. Walk any vnIds that
+  // didn't pick up an offer-based row above and pull the lowest
+  // `currentPrice` across every retailer in the selected candidate.
+  const fallbackIds = vnIds.filter((id) => !out.has(id));
+  if (fallbackIds.length === 0) return out;
+  const fbPh = fallbackIds.map(() => '?').join(',');
+  const fbRows = db
+    .prepare(
+      `SELECT vn_id, extras_json FROM vn_stock_provider_status
+       WHERE provider = 'eroge_price' AND vn_id IN (${fbPh}) AND extras_json IS NOT NULL`,
+    )
+    .all(...fallbackIds) as { vn_id: string; extras_json: string }[];
+  for (const row of fbRows) {
+    try {
+      const decoded = JSON.parse(row.extras_json) as {
+        candidates?: {
+          epId?: number;
+          egsId?: number; // legacy
+          detail?: { downloadRetailers?: { currentPrice?: number | null }[]; packageRetailers?: { currentPrice?: number | null }[] };
+        }[];
+        selectedEpId?: number | null;
+        selectedEgsId?: number | null;
+      };
+      const sel = decoded.selectedEpId ?? decoded.selectedEgsId;
+      const candidate =
+        (decoded.candidates ?? []).find((c) => (c.epId ?? c.egsId) === sel) ??
+        decoded.candidates?.[0];
+      const prices = [
+        ...(candidate?.detail?.downloadRetailers ?? []),
+        ...(candidate?.detail?.packageRetailers ?? []),
+      ]
+        .map((r) => r.currentPrice)
+        .filter((n): n is number => typeof n === 'number' && n > 0);
+      if (prices.length > 0) {
+        out.set(row.vn_id, { available: prices.length, best_price: Math.min(...prices) });
+      }
+    } catch {
+      /* malformed envelope — skip */
+    }
+  }
   return out;
 }
 

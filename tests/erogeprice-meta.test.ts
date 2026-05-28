@@ -72,11 +72,11 @@ describe('URL builders', () => {
     );
   });
 
-  it('public game URL is /games/{egsId}', () => {
+  it('public game URL is /games/{epId}', () => {
     expect(buildErogePriceGameUrl(3676)).toBe('https://eroge-price.com/games/3676');
   });
 
-  it('JSON-API URLs are /api/games/{egsId}*', () => {
+  it('JSON-API URLs are /api/games/{epId}*', () => {
     expect(apiGameUrl(3676)).toBe('https://eroge-price.com/api/games/3676');
     expect(apiPricesUrl(3676)).toBe('https://eroge-price.com/api/games/3676/prices');
     expect(apiPriceStatsUrl(3676)).toBe('https://eroge-price.com/api/games/3676/priceStats');
@@ -182,7 +182,7 @@ describe('fetchErogePriceBundle — single id', () => {
   it('assembles detail + stats + prices + related into one bundle', async () => {
     const bundle = await fetchErogePriceBundle(3676, fakeFetcher);
     expect(bundle).not.toBeNull();
-    expect(bundle!.egsId).toBe(3676);
+    expect(bundle!.epId).toBe(3676);
     expect(bundle!.detail.title).toBe('沙耶の唄');
     expect(bundle!.priceStats.allTimeMin).toBe(1501);
     expect(bundle!.priceHistory.length).toBeGreaterThan(100);
@@ -196,14 +196,14 @@ describe('searchAndFetchAll — integrates EVERY candidate', () => {
     const extras = await searchAndFetchAll('沙耶の唄', fakeFetcher);
     expect(extras).not.toBeNull();
     expect(extras!.schemaVersion).toBe(1);
-    expect(extras!.candidates.map((c) => c.egsId).sort((a, b) => a - b)).toEqual([3676, 33072]);
-    expect(extras!.selectedEgsId).toBe(extras!.candidates[0].egsId);
+    expect(extras!.candidates.map((c) => c.epId).sort((a, b) => a - b)).toEqual([3676, 33072]);
+    expect(extras!.selectedEpId).toBe(extras!.candidates[0].epId);
     expect(extras!.searchQuery).toBe('沙耶の唄');
   });
 
   it('each candidate carries its own detail / stats / history / related', async () => {
     const extras = await searchAndFetchAll('沙耶の唄', fakeFetcher);
-    const c33072 = extras!.candidates.find((c) => c.egsId === 33072)!;
+    const c33072 = extras!.candidates.find((c) => c.epId === 33072)!;
     expect(c33072.detail.releaseDate).toBe('2015-11-27T00:00:00.000Z');
     expect(c33072.priceStats.allTimeMin).toBe(2200);
     expect(c33072.priceHistory.length).toBeGreaterThan(0);

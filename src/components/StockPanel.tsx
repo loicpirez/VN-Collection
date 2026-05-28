@@ -253,6 +253,38 @@ export function StockPanel({
     setLoading(false);
   }
 
+  /**
+   * Single-provider refresh — surfaced as a per-tile button so the
+   * operator can re-check just one shop without re-running the entire
+   * lineup. Same wire shape as the bulk refresh, just constrained to
+   * one provider.
+   */
+  async function refreshOnlyProvider(provider: string) {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setRefreshing(true);
+    setError(null);
+    setProgress({ done: 0, total: 1 });
+    setCurrentProvider(provider);
+    try {
+      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providers: [provider] }),
+        signal: ctrl.signal,
+      });
+      if (r.ok) setSnapshot((await r.json()) as StockSnapshot);
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') setError((e as Error).message);
+    }
+    setProgress({ done: 1, total: 1 });
+    setCurrentProvider(null);
+    if (abortRef.current === ctrl) abortRef.current = null;
+    setRefreshing(false);
+    setLoading(false);
+  }
+
   function stop() {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -736,52 +768,76 @@ export function StockPanel({
               const tooltipParts: string[] = [];
               if (diagnosticMessage && diagnostic?.kind !== 'ok') tooltipParts.push(diagnosticMessage);
               if (lastCheckedFull) tooltipParts.push((t.stock.lastChecked as string).replace('{date}', lastCheckedFull));
+              const isRefreshingThis = refreshing && currentProvider === provider.id;
               return (
-                <button
+                <div
                   key={provider.id}
-                  type="button"
-                  onClick={() => selectable && toggleProvider(provider.id)}
-                  disabled={refreshing || !selectable}
-                  aria-pressed={selected}
-                  aria-label={ariaLabel}
-                  title={tooltipParts.length > 0 ? tooltipParts.join('\n') : undefined}
-                  className={`min-h-[44px] rounded-lg border px-3 py-2 text-left transition-colors ${
+                  className={`group relative min-h-[44px] rounded-lg border px-3 py-2 text-left transition-colors ${
                     selected
                       ? 'border-accent bg-accent/10 text-white'
                       : selectable
                         ? 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
                         : 'border-border bg-bg/60 text-muted opacity-80'
                   }`}
+                  title={tooltipParts.length > 0 ? tooltipParts.join('\n') : undefined}
                 >
-                  <span className="flex items-start justify-between gap-2">
-                    <span className="min-w-0">
-                      <span className="block truncate text-xs font-bold">{provider.label}</span>
-                      <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-muted">
-                        {provider.kind === 'cached'
-                          ? t.stock.providerCached
-                          : provider.kind === 'aggregate'
-                            ? t.stock.providersAggregate
-                            : provider.confirmedPhysicalUsable
-                              ? t.stock.groupPhysical
-                              : provider.physical
-                                ? t.stock.physicalCapable
-                                : t.stock.providersDirect}
-                      </span>
-                      {lastChecked && (
-                        <span className="mt-0.5 block text-[10px] text-muted/70">
-                          {(t.stock.lastCheckedShort as string).replace('{time}', lastChecked)}
+                  <button
+                    type="button"
+                    onClick={() => selectable && toggleProvider(provider.id)}
+                    disabled={refreshing || !selectable}
+                    aria-pressed={selected}
+                    aria-label={ariaLabel}
+                    className="block w-full min-w-0 text-left"
+                  >
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-bold">{provider.label}</span>
+                        <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-muted">
+                          {provider.kind === 'cached'
+                            ? t.stock.providerCached
+                            : provider.kind === 'aggregate'
+                              ? t.stock.providersAggregate
+                              : provider.confirmedPhysicalUsable
+                                ? t.stock.groupPhysical
+                                : provider.physical
+                                  ? t.stock.physicalCapable
+                                  : t.stock.providersDirect}
                         </span>
-                      )}
+                        {lastChecked && (
+                          <span className="mt-0.5 block text-[10px] text-muted/70">
+                            {(t.stock.lastCheckedShort as string).replace('{time}', lastChecked)}
+                          </span>
+                        )}
+                      </span>
+                      <ProviderStatusBadge
+                        t={t}
+                        diagnostic={diagnostic}
+                        count={count}
+                        cached={provider.kind === 'cached'}
+                        loading={isRefreshingThis}
+                      />
                     </span>
-                    <ProviderStatusBadge
-                      t={t}
-                      diagnostic={diagnostic}
-                      count={count}
-                      cached={provider.kind === 'cached'}
-                      loading={refreshing && currentProvider === provider.id}
-                    />
-                  </span>
-                </button>
+                  </button>
+                  {selectable && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        refreshOnlyProvider(provider.id);
+                      }}
+                      disabled={refreshing}
+                      aria-label={(t.stock.refreshOnlyProvider as string).replace('{provider}', provider.label)}
+                      title={(t.stock.refreshOnlyProvider as string).replace('{provider}', provider.label)}
+                      className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-accent hover:text-accent focus:flex group-hover:flex group-focus-within:flex disabled:opacity-40"
+                    >
+                      {isRefreshingThis ? (
+                        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                      ) : (
+                        <RefreshCw className="h-3 w-3" aria-hidden />
+                      )}
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>

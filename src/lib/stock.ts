@@ -213,18 +213,57 @@ export function shouldShowAsPhysicalLead(
 }
 
 /**
- * Browser-shaped User-Agent so providers don't trip simple bot heuristics.
- * The previous "Mozilla/5.0 VN-Collection local stock checker" was the root
- * cause of Suruga-ya / WonderGOO challenge pages and several 403s. We still
- * disclose ourselves via `accept-language` (ja-JP first) so the response is
- * the same shape a Japanese desktop visitor gets.
+ * Browser-shaped headers so providers don't trip bot heuristics.
+ *
+ * Operator caught Suruga-ya / WonderGOO 403s; the fix is to send the
+ * full Chromium 148 macOS desktop header set including the
+ * `sec-ch-ua` / `sec-fetch-*` / `priority` triplets. These are
+ * implicit in real Chrome traffic and several Japanese shops gate
+ * on their presence (sometimes silently — same status, different
+ * HTML).
+ *
+ * Per-host `referer` / `origin` are layered on top via
+ * `browserHeadersForHost`; static defaults here are the irreducible
+ * client-fingerprint bits.
  */
-const SHOP_HEADERS = {
-  'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
-  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+const BROWSER_HEADERS = {
+  'user-agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
   'accept-language': 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7',
-  'accept-encoding': 'gzip, deflate, br',
-};
+  'accept-encoding': 'gzip, deflate, br, zstd',
+  'cache-control': 'no-cache',
+  pragma: 'no-cache',
+  priority: 'u=0, i',
+  'sec-ch-ua': '"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"macOS"',
+  'sec-fetch-dest': 'document',
+  'sec-fetch-mode': 'navigate',
+  'sec-fetch-site': 'none',
+  'sec-fetch-user': '?1',
+  'upgrade-insecure-requests': '1',
+} as const;
+/** Legacy alias; SHOP_HEADERS callers still exist. */
+const SHOP_HEADERS = BROWSER_HEADERS;
+
+/**
+ * Layer per-host `referer` / `origin` / `sec-fetch-site` on top of
+ * `BROWSER_HEADERS` so a request to `eroge-price.com/api/games/3676`
+ * looks like the operator clicked through from
+ * `eroge-price.com/games/3676`. Shops that gate on the
+ * referer (Suruga-ya, WonderGOO) get the host they expect; shops
+ * that don't, harmlessly receive the extra hint.
+ */
+function browserHeadersForHost(host: string): Record<string, string> {
+  const origin = `https://${host}`;
+  return {
+    ...BROWSER_HEADERS,
+    origin,
+    referer: `${origin}/`,
+    'sec-fetch-site': 'same-origin',
+  };
+}
 
 const TRADER_MOBILE_HEADERS = {
   'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
@@ -411,10 +450,15 @@ async function fetchShopText(url: string, init: RequestInit & { encoding?: strin
       : null;
   let res: Response;
   try {
+    // Per-host headers (referer / origin) layered on top of the
+    // Chrome fingerprint. Each external request now looks the same
+    // way a real browser navigation looks — Suruga-ya / Eroge Price
+    // / WonderGOO can't distinguish us from a desktop user.
+    const host = sourceHost(url) || '';
     res = await stockProviderFetch(url, {
       redirect: 'follow',
       cache: 'no-store',
-      headers: { ...SHOP_HEADERS, ...(init.headers ?? {}) },
+      headers: { ...browserHeadersForHost(host), ...(init.headers ?? {}) },
       signal: timeoutCtrl.signal,
     }, detectedProvider);
   } catch (err) {
@@ -2045,7 +2089,12 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
  * the legacy offer-row parser the existing `parseErogePrice` already
  * understands.
  */
-const erogePriceJsonFetcher: JsonFetcher = async (url, init) => {
+/**
+ * Exported so the manual-matching API route can hydrate a single
+ * candidate via `fetchErogePriceBundle(epId, erogePriceJsonFetcher)`
+ * without duplicating the request layer.
+ */
+export const erogePriceJsonFetcher: JsonFetcher = async (url, init) => {
   const text = await fetchShopText(url, init);
   return JSON.parse(text);
 };
@@ -2083,7 +2132,7 @@ function retailerToOffer(
   const availability: VnStockAvailability = r.isAvailable ? 'in_stock' : 'out_of_stock';
   const effectivePrice = r.isOnSale && r.currentPrice != null ? r.currentPrice : r.regularPrice ?? r.currentPrice;
   return offerInput(vnId, 'eroge_price', 'search', now, {
-    provider_offer_id: `ep:${bundle.egsId}:${r.retailerId}:${edition}`,
+    provider_offer_id: `ep:${bundle.epId}:${r.retailerId}:${edition}`,
     title,
     url: r.productUrl,
     price: effectivePrice ?? null,
@@ -2098,7 +2147,7 @@ function retailerToOffer(
   });
 }
 
-async function refreshErogePrice(vnId: string, egsId: number | null | undefined, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshErogePrice(vnId: string, pinnedEpId: number | null | undefined, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   // R12-EROGEPRICE: switched from SSR-HTML scraping to the public
   // JSON API (`/api/games/...`). The API returns every field the
   // user asked for — full staff (incl. singer + voice), per-edition
@@ -2109,18 +2158,27 @@ async function refreshErogePrice(vnId: string, egsId: number | null | undefined,
   // them all") is satisfied by `searchAndFetchAll`: every candidate
   // becomes a persisted bundle, the StockPanel renders them as
   // tabs, no candidate is dropped.
+  //
+  // NAMING — `pinnedEpId` is the eroge-price.com numeric game id.
+  // It happens to be sourced from `getEgsForVn(vnId)?.egs_id`
+  // because eroge-price.com federates ids from ErogameScape, but
+  // semantically the value here is consumed as the eroge-price
+  // path segment, so the local name reflects that meaning. NOT to
+  // be confused with the project's VN id (`v\d+` / `egs_\d+`),
+  // which is entirely separate.
+
   // Read the previous extras envelope BEFORE we overwrite it. The
   // operator may have manually pinned a non-default candidate via
   // PATCH `/api/vn/[id]/stock/eroge-price`; that pin must survive
-  // a refresh as long as the chosen egsId still appears in the new
+  // a refresh as long as the chosen epId still appears in the new
   // candidate set. Without this, every refresh would silently
   // revert to the first-by-default candidate and frustrate the
   // operator who explicitly disagreed with the auto-pick.
   let previousManualPin: number | null = null;
   try {
     const previous = getStockProviderExtras<ErogePriceExtrasV1>(vnId, 'eroge_price');
-    if (previous && typeof previous.selectedEgsId === 'number') {
-      previousManualPin = previous.selectedEgsId;
+    if (previous && typeof previous.selectedEpId === 'number') {
+      previousManualPin = previous.selectedEpId;
     }
   } catch {
     /* Stale extras_json is non-fatal — just skip the pin preservation. */
@@ -2128,13 +2186,13 @@ async function refreshErogePrice(vnId: string, egsId: number | null | undefined,
 
   let extras: ErogePriceExtrasV1 | null = null;
   try {
-    if (egsId) {
-      const bundle = await fetchErogePriceBundle(egsId, erogePriceJsonFetcher, signal);
+    if (pinnedEpId) {
+      const bundle = await fetchErogePriceBundle(pinnedEpId, erogePriceJsonFetcher, signal);
       if (bundle) {
         extras = {
           schemaVersion: 1,
           candidates: [bundle],
-          selectedEgsId: egsId,
+          selectedEpId: pinnedEpId,
           searchQuery: null,
           refreshedAt: Date.now(),
         };
@@ -2153,10 +2211,10 @@ async function refreshErogePrice(vnId: string, egsId: number | null | undefined,
   if (!extras || extras.candidates.length === 0) return [];
 
   // Preserve the operator's manual pin when the previously-pinned
-  // egsId still exists in the refreshed candidate list. Falls back
+  // epId still exists in the refreshed candidate list. Falls back
   // to whatever `searchAndFetchAll` chose (first candidate).
-  if (previousManualPin != null && extras.candidates.some((c) => c.egsId === previousManualPin)) {
-    extras = { ...extras, selectedEgsId: previousManualPin };
+  if (previousManualPin != null && extras.candidates.some((c) => c.epId === previousManualPin)) {
+    extras = { ...extras, selectedEpId: previousManualPin };
   }
 
   // Persist the full meta blob so StockPanel can render the UI

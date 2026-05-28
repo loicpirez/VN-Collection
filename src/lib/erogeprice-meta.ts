@@ -154,9 +154,17 @@ export interface EpApiRelatedPayload {
  * exact-title match commonly returns multiple games — original release,
  * re-release, mobile port, etc. The user explicitly asked for all of
  * them to be integrated, not just the first.
+ *
+ * NAMING — `epId` is the **eroge-price.com** numeric game id (the
+ * path segment in `/games/<n>`). It is NOT the project's
+ * ErogameScape "EGS" id (`egs_game.egs_id`, `vn_id = egs_<n>`).
+ * Earlier drafts confused the two; do not revert. Legacy
+ * persisted JSON blobs may carry an `egsId` key — the reader at
+ * `decodeStoredExtras` upgrades on read, so both forms parse.
  */
 export interface ErogePriceBundle {
-  egsId: number;
+  /** Eroge-price.com game id (NOT ErogameScape). */
+  epId: number;
   /** Original eroge-price URL for `Open on Erogeprice` actions. */
   gameUrl: string;
   detail: EpApiGameDetail;
@@ -172,8 +180,11 @@ export interface ErogePriceExtrasV1 {
   schemaVersion: 1;
   /** All exact-title candidates returned by `/api/games?q=…`. */
   candidates: ErogePriceBundle[];
-  /** Operator's chosen candidate id (defaults to first when null). */
-  selectedEgsId: number | null;
+  /**
+   * Operator's chosen candidate eroge-price game id (defaults to
+   * first when null). NOT an ErogameScape id.
+   */
+  selectedEpId: number | null;
   /** The query string we sent to `/api/games?q=…`. */
   searchQuery: string | null;
   /** Epoch ms when the bundle was assembled. */
@@ -187,8 +198,8 @@ export interface ErogePriceExtrasV1 {
 const BASE = 'https://eroge-price.com';
 
 /** Build the public-facing game URL (for "Open on Erogeprice"). */
-export function buildErogePriceGameUrl(egsId: number): string {
-  return `${BASE}/games/${egsId}`;
+export function buildErogePriceGameUrl(epId: number): string {
+  return `${BASE}/games/${epId}`;
 }
 
 /** Build the search URL (for human reference in the UI). */
@@ -206,10 +217,10 @@ export function buildErogePriceApiSearchUrl(query: string, page = 1): string {
   return u.toString();
 }
 
-export const apiGameUrl = (egsId: number): string => `${BASE}/api/games/${egsId}`;
-export const apiPricesUrl = (egsId: number): string => `${BASE}/api/games/${egsId}/prices`;
-export const apiPriceStatsUrl = (egsId: number): string => `${BASE}/api/games/${egsId}/priceStats`;
-export const apiRelatedUrl = (egsId: number): string => `${BASE}/api/games/${egsId}/related`;
+export const apiGameUrl = (epId: number): string => `${BASE}/api/games/${epId}`;
+export const apiPricesUrl = (epId: number): string => `${BASE}/api/games/${epId}/prices`;
+export const apiPriceStatsUrl = (epId: number): string => `${BASE}/api/games/${epId}/priceStats`;
+export const apiRelatedUrl = (epId: number): string => `${BASE}/api/games/${epId}/related`;
 
 // ────────────────────────────────────────────────────────────────────────────
 // JSON parsers (safe — any field can be missing on partial responses).
@@ -450,21 +461,21 @@ export type JsonFetcher = (url: string, init?: { signal?: AbortSignal }) => Prom
  * (tests).
  */
 export async function fetchErogePriceBundle(
-  egsId: number,
+  epId: number,
   fetcher: JsonFetcher,
   signal?: AbortSignal,
 ): Promise<ErogePriceBundle | null> {
   const [detailRaw, statsRaw, pricesRaw, relatedRaw] = await Promise.all([
-    fetcher(apiGameUrl(egsId), { signal }),
-    fetcher(apiPriceStatsUrl(egsId), { signal }),
-    fetcher(apiPricesUrl(egsId), { signal }),
-    fetcher(apiRelatedUrl(egsId), { signal }),
+    fetcher(apiGameUrl(epId), { signal }),
+    fetcher(apiPriceStatsUrl(epId), { signal }),
+    fetcher(apiPricesUrl(epId), { signal }),
+    fetcher(apiRelatedUrl(epId), { signal }),
   ]);
   const detail = parseEpGameDetail(detailRaw);
   if (!detail) return null;
   return {
-    egsId,
-    gameUrl: buildErogePriceGameUrl(egsId),
+    epId,
+    gameUrl: buildErogePriceGameUrl(epId),
     detail,
     priceStats: parseEpPriceStats(statsRaw),
     priceHistory: parseEpPriceHistory(pricesRaw),
@@ -514,29 +525,114 @@ export async function searchAndFetchAll(
   return {
     schemaVersion: 1,
     candidates: bundles,
-    selectedEgsId: bundles[0].egsId,
+    selectedEpId: bundles[0].epId,
     searchQuery: query.trim(),
     refreshedAt: Date.now(),
   };
 }
 
 /**
- * Convenience: when the operator HAS a pinned EGS id, fetch just that
- * one game's bundle and wrap it in the schema-v1 envelope so the UI
- * layer can read both code paths uniformly.
+ * Convenience: when the operator HAS a pinned eroge-price game id
+ * (NOT an ErogameScape id), fetch just that one game's bundle and
+ * wrap it in the schema-v1 envelope so the UI layer can read both
+ * code paths uniformly.
  */
 export async function fetchPinnedExtras(
-  egsId: number,
+  epId: number,
   fetcher: JsonFetcher,
   signal?: AbortSignal,
 ): Promise<ErogePriceExtrasV1 | null> {
-  const bundle = await fetchErogePriceBundle(egsId, fetcher, signal);
+  const bundle = await fetchErogePriceBundle(epId, fetcher, signal);
   if (!bundle) return null;
   return {
     schemaVersion: 1,
     candidates: [bundle],
-    selectedEgsId: egsId,
+    selectedEpId: epId,
     searchQuery: null,
     refreshedAt: Date.now(),
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Backward-compatible reader for persisted `extras_json`.
+//
+// Earlier drafts called the eroge-price game id `egsId` / `selectedEgsId`,
+// which collided with the project-wide "EGS = ErogameScape" meaning.
+// The keys have been renamed to `epId` / `selectedEpId`, but the row
+// is stored in TEXT JSON so legacy blobs may still carry the old names.
+// `decodeStoredExtras` is the single read path — every consumer that
+// pulls `extras_json` MUST go through this helper, never `JSON.parse`
+// directly, otherwise the rename will silently regress old DBs.
+// ────────────────────────────────────────────────────────────────────────────
+
+interface LegacyBundle {
+  egsId?: number;
+  epId?: number;
+  gameUrl?: string;
+  detail?: unknown;
+  priceStats?: unknown;
+  priceHistory?: unknown;
+  related?: unknown;
+  fetchedAt?: number;
+}
+
+interface LegacyExtras {
+  schemaVersion?: number;
+  candidates?: LegacyBundle[];
+  selectedEgsId?: number | null;
+  selectedEpId?: number | null;
+  searchQuery?: string | null;
+  refreshedAt?: number;
+}
+
+/**
+ * Read a possibly-legacy persisted envelope and upgrade it on-the-fly.
+ * Returns null for anything that doesn't look like an ErogePrice extras
+ * blob so callers can fall back to a fresh refresh.
+ */
+export function decodeStoredExtras(raw: string | null | undefined): ErogePriceExtrasV1 | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  const legacy = parsed as LegacyExtras;
+  if (legacy.schemaVersion !== 1 || !Array.isArray(legacy.candidates)) return null;
+
+  const candidates: ErogePriceBundle[] = [];
+  for (const c of legacy.candidates) {
+    if (!c || typeof c !== 'object') continue;
+    const id = typeof c.epId === 'number' ? c.epId : typeof c.egsId === 'number' ? c.egsId : null;
+    if (id == null || !Number.isInteger(id) || id <= 0) continue;
+    candidates.push({
+      epId: id,
+      gameUrl: typeof c.gameUrl === 'string' ? c.gameUrl : buildErogePriceGameUrl(id),
+      // Trust the persisted shapes for nested payloads — we wrote them
+      // ourselves via the parsers above so they already conform.
+      detail: c.detail as ErogePriceBundle['detail'],
+      priceStats: c.priceStats as ErogePriceBundle['priceStats'],
+      priceHistory: (c.priceHistory as ErogePriceBundle['priceHistory']) ?? [],
+      related: (c.related as ErogePriceBundle['related']) ?? { connections: [], sameBrand: [] },
+      fetchedAt: typeof c.fetchedAt === 'number' ? c.fetchedAt : Date.now(),
+    });
+  }
+  if (candidates.length === 0) return null;
+
+  const selected =
+    typeof legacy.selectedEpId === 'number'
+      ? legacy.selectedEpId
+      : typeof legacy.selectedEgsId === 'number'
+        ? legacy.selectedEgsId
+        : null;
+
+  return {
+    schemaVersion: 1,
+    candidates,
+    selectedEpId: selected != null && candidates.some((c) => c.epId === selected) ? selected : candidates[0].epId,
+    searchQuery: typeof legacy.searchQuery === 'string' ? legacy.searchQuery : null,
+    refreshedAt: typeof legacy.refreshedAt === 'number' ? legacy.refreshedAt : Date.now(),
   };
 }

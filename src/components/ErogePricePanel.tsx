@@ -23,7 +23,7 @@
  * `extras` prop and never re-fetched.
  */
 import { useState } from 'react';
-import { ExternalLink, BadgePercent, Crown, Pin, TrendingDown, TrendingUp, Mic2, Pencil, Music2 } from 'lucide-react';
+import { ExternalLink, BadgePercent, Crown, Pin, TrendingDown, TrendingUp, Mic2, Pencil, Music2, X } from 'lucide-react';
 import type {
   EpApiPricePoint,
   EpApiRelatedConnection,
@@ -279,7 +279,59 @@ function CandidateCard({ bundle }: { bundle: ErogePriceBundle }) {
                 <ExternalLink className="h-3 w-3" aria-hidden /> {t.erogePrice.brandSite}
               </a>
             )}
+            {/* FANZA product ids — when present, link straight to the
+                FANZA product page so the operator can cross-reference
+                without leaving the panel. The id format is
+                `<cid>` and FANZA's canonical URL is
+                /digital/pcgame/-/detail/=/cid=<cid>/ */}
+            {d.fanzaDownloadCid && (
+              <a
+                href={`https://dlsoft.dmm.co.jp/detail/${d.fanzaDownloadCid}/`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-muted hover:text-accent"
+                title={d.fanzaDownloadCid}
+              >
+                <ExternalLink className="h-3 w-3" aria-hidden /> FANZA DL
+              </a>
+            )}
+            {d.fanzaPackageCid && (
+              <a
+                href={`https://www.dmm.co.jp/mono/pcgame/-/detail/=/cid=${d.fanzaPackageCid}/`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-muted hover:text-accent"
+                title={d.fanzaPackageCid}
+              >
+                <ExternalLink className="h-3 w-3" aria-hidden /> FANZA PKG
+              </a>
+            )}
           </div>
+          {/* Genres — render as small unobtrusive chips next to the
+              identity row so the operator can see at a glance whether
+              eroge-price has the title classified the same way as
+              their VNDB tags. */}
+          {d.genres && d.genres.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {d.genres.slice(0, 12).map((g) => (
+                <span
+                  key={g}
+                  className="rounded-md border border-border bg-bg-elev/40 px-1.5 py-0.5 text-[10px] text-muted"
+                >
+                  {g}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* Description — long, but worth surfacing collapsed. */}
+          {d.description && (
+            <details className="pt-2 text-[11px] text-muted">
+              <summary className="cursor-pointer text-muted hover:text-accent">
+                {t.erogePrice.descriptionLabel}
+              </summary>
+              <p className="mt-1 whitespace-pre-line text-white/80">{d.description}</p>
+            </details>
+          )}
         </div>
       </header>
 
@@ -398,41 +450,119 @@ function Stat({
   );
 }
 
-export function ErogePricePanel({ vnId, extras }: Props) {
+export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
   const t = useT();
-  // Two pieces of state:
-  //   - `activeId` controls which tab body is visible (a transient
-  //     "preview" affordance — operator can browse without committing)
-  //   - `primaryId` mirrors `extras.selectedEgsId`, optimistically
-  //     updated when the operator clicks "Set as primary". The
-  //     refresh-survives-pin guarantee lives server-side; this
-  //     mirror keeps the badge in sync without a full router refresh.
+  // The panel owns a local copy of the envelope so add / remove
+  // mutations can repaint without a router.refresh. Each successful
+  // mutation reuses the same shape `ErogePriceExtrasV1` so the
+  // CandidateCard render path doesn't need to know the data was
+  // edited client-side.
+  const [extras, setExtras] = useState<ErogePriceExtrasV1>(initialExtras);
   const [activeId, setActiveId] = useState<number>(
-    extras.selectedEgsId ?? extras.candidates[0]?.egsId ?? 0,
+    initialExtras.selectedEpId ?? initialExtras.candidates[0]?.epId ?? 0,
   );
-  const [primaryId, setPrimaryId] = useState<number | null>(extras.selectedEgsId);
   const [pinState, setPinState] = useState<'idle' | 'saving' | 'error'>('idle');
+  const [addOpen, setAddOpen] = useState(false);
+  const [addInput, setAddInput] = useState('');
+  const [addState, setAddState] = useState<'idle' | 'saving' | 'error'>('idle');
+  const [addError, setAddError] = useState<string | null>(null);
 
   if (extras.candidates.length === 0) return null;
-  const active = extras.candidates.find((c) => c.egsId === activeId) ?? extras.candidates[0];
-  const isActiveAlreadyPrimary = primaryId === active.egsId;
+  const active = extras.candidates.find((c) => c.epId === activeId) ?? extras.candidates[0];
+  const primaryId = extras.selectedEpId;
+  const isActiveAlreadyPrimary = primaryId === active.epId;
 
   const handleSetPrimary = async () => {
     if (isActiveAlreadyPrimary) return;
     const previous = primaryId;
     setPinState('saving');
-    setPrimaryId(active.egsId); // optimistic
+    setExtras((s) => ({ ...s, selectedEpId: active.epId })); // optimistic
     try {
       const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/eroge-price`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ egs_id: active.egsId }),
+        body: JSON.stringify({ ep_id: active.epId }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setPinState('idle');
     } catch {
-      setPrimaryId(previous); // rollback
+      setExtras((s) => ({ ...s, selectedEpId: previous })); // rollback
       setPinState('error');
+    }
+  };
+
+  const handleAdd = async () => {
+    const id = Number(addInput.trim());
+    if (!Number.isFinite(id) || !Number.isInteger(id) || id <= 0) {
+      setAddError(t.erogePrice.manualMatch.invalidEpId);
+      setAddState('error');
+      return;
+    }
+    setAddState('saving');
+    setAddError(null);
+    try {
+      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/eroge-price`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ep_id: id }),
+      });
+      if (!r.ok) {
+        const body = (await r.json().catch(() => ({ error: 'fetch failed' }))) as {
+          error?: string;
+        };
+        throw new Error(body.error ?? 'fetch failed');
+      }
+      // Server-side persistence succeeded — fetch the canonical bundle
+      // so we mirror the same shape (avoids hand-crafting the bundle
+      // in JS and diverging from the parser).
+      const snapshotRes = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
+        cache: 'no-store',
+      });
+      if (snapshotRes.ok) {
+        const snap = (await snapshotRes.json()) as {
+          statuses?: { provider: string; extras_json?: string | null }[];
+        };
+        const row = (snap.statuses ?? []).find((s) => s.provider === 'eroge_price');
+        if (row?.extras_json) {
+          try {
+            const next = JSON.parse(row.extras_json) as ErogePriceExtrasV1;
+            if (next.schemaVersion === 1) setExtras(next);
+          } catch {
+            /* swallow — server is the source of truth, page reload fixes */
+          }
+        }
+      }
+      setAddInput('');
+      setAddOpen(false);
+      setAddState('idle');
+    } catch (e) {
+      setAddError((e as Error).message);
+      setAddState('error');
+    }
+  };
+
+  const handleRemove = async (epId: number) => {
+    if (extras.candidates.length <= 1) return;
+    const wasPrimary = primaryId === epId;
+    const prev = extras;
+    setExtras((s) => {
+      const remaining = s.candidates.filter((c) => c.epId !== epId);
+      return {
+        ...s,
+        candidates: remaining,
+        selectedEpId: wasPrimary ? remaining[0]?.epId ?? null : s.selectedEpId,
+      };
+    });
+    if (activeId === epId && extras.candidates[0]) setActiveId(extras.candidates[0].epId);
+    try {
+      const r = await fetch(
+        `/api/vn/${encodeURIComponent(vnId)}/stock/eroge-price?ep_id=${encodeURIComponent(epId)}`,
+        { method: 'DELETE' },
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    } catch {
+      // rollback
+      setExtras(prev);
     }
   };
 
@@ -443,53 +573,111 @@ export function ErogePricePanel({ vnId, extras }: Props) {
     >
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-white">{t.erogePrice.panelTitle}</h2>
-        {extras.searchQuery && (
-          <span className="text-[10px] text-muted">
-            {t.erogePrice.searchedAs}: <span className="font-mono">{extras.searchQuery}</span> ·{' '}
-            {extras.candidates.length} {t.erogePrice.matchCount}
-          </span>
-        )}
+        <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted">
+          {extras.searchQuery && (
+            <span>
+              {t.erogePrice.searchedAs}: <span className="font-mono">{extras.searchQuery}</span> ·{' '}
+              {extras.candidates.length} {t.erogePrice.matchCount}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setAddOpen((v) => !v);
+              setAddError(null);
+            }}
+            className="tap-target rounded-md border border-border bg-bg-elev/40 px-2 py-1 hover:border-accent hover:text-accent"
+            aria-expanded={addOpen}
+          >
+            + {t.erogePrice.manualMatch.addCandidate}
+          </button>
+        </div>
       </header>
 
-      {/* Multi-candidate tabs — operator demand: integrate them all */}
+      {addOpen && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-elev/30 p-2 text-[11px]">
+          <label className="flex flex-wrap items-center gap-2">
+            <span className="text-muted">{t.erogePrice.manualMatch.addCandidateHint}</span>
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={addInput}
+              onChange={(e) => setAddInput(e.target.value)}
+              placeholder="e.g. 3676"
+              className="w-32 rounded-md border border-border bg-bg px-2 py-1 text-white"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={addState === 'saving' || !addInput.trim()}
+            className="tap-target rounded-md border border-accent/60 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 disabled:cursor-progress disabled:opacity-50"
+          >
+            {addState === 'saving'
+              ? t.erogePrice.manualMatch.saving
+              : t.erogePrice.manualMatch.confirmAdd}
+          </button>
+          {addError && (
+            <span className="text-status-dropped" role="alert">
+              {addError}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Multi-candidate tabs — operator demand: integrate them all.
+          Each tab gets a hover-revealed delete affordance so the
+          operator can prune the panel without leaving it. */}
       {extras.candidates.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-1.5" role="tablist" aria-label={t.erogePrice.candidates}>
           {extras.candidates.map((c) => {
-            const isActive = c.egsId === activeId;
-            const isPrimary = c.egsId === primaryId;
+            const isActive = c.epId === activeId;
+            const isPrimary = c.epId === primaryId;
             return (
-              <button
-                key={c.egsId}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => setActiveId(c.egsId)}
-                className={`tap-target relative rounded-lg border px-3 py-1.5 text-xs ${
-                  isActive
-                    ? 'border-accent bg-accent/15 font-bold text-accent'
-                    : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-                }`}
-              >
-                {isPrimary && (
-                  <Pin
-                    className="absolute -left-1 -top-1 h-3 w-3 rounded-full bg-accent p-0.5 text-bg"
-                    aria-label={t.erogePrice.manualMatch.primaryBadge}
-                  />
-                )}
-                <span>{c.detail.title}</span>
-                <span className="ml-1.5 text-[10px] opacity-80">
-                  {c.detail.releaseDate ? new Date(c.detail.releaseDate).getFullYear() : c.egsId}
-                </span>
-              </button>
+              <div key={c.epId} className="group relative inline-flex">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveId(c.epId)}
+                  className={`tap-target rounded-lg border px-3 py-1.5 text-xs ${
+                    isActive
+                      ? 'border-accent bg-accent/15 font-bold text-accent'
+                      : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+                  }`}
+                >
+                  {isPrimary && (
+                    <Pin
+                      className="-ml-0.5 mr-1 inline-block h-3 w-3 rounded-full bg-accent p-0.5 text-bg"
+                      aria-label={t.erogePrice.manualMatch.primaryBadge}
+                    />
+                  )}
+                  <span>{c.detail.title}</span>
+                  <span className="ml-1.5 text-[10px] opacity-80">
+                    {c.detail.releaseDate ? new Date(c.detail.releaseDate).getFullYear() : c.epId}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemove(c.epId);
+                  }}
+                  className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full border border-border bg-bg text-muted hover:border-status-dropped hover:text-status-dropped focus:flex group-hover:flex"
+                  title={t.erogePrice.manualMatch.removeCandidate}
+                  aria-label={`${t.erogePrice.manualMatch.removeCandidate}: ${c.detail.title}`}
+                >
+                  <X className="h-3 w-3" aria-hidden />
+                </button>
+              </div>
             );
           })}
         </div>
       )}
 
-      {/* Set-as-primary action — only shown when more than one
-          candidate AND the active tab is not already the primary.
-          Operator gets a visual badge on the tab + a status string
-          underneath so they know the click actually persisted. */}
+      {/* Set-as-primary action — only shown when the active tab is
+          not already the primary. */}
       {extras.candidates.length > 1 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
           {isActiveAlreadyPrimary ? (
