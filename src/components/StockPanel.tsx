@@ -1377,16 +1377,15 @@ function ProviderDiagnostics({ diagnostics, t, defaultOpen }: { diagnostics: Nor
   const technical = diagnostics.filter((diag) => diag.technicalDetail);
   const attentionCount = diagnostics.filter((d) => d.group === 'attention' || d.group === 'blocked').length;
   const [isOpen, setIsOpen] = useState(() => {
-    if (defaultOpen) return true;
     try {
       const raw = localStorage.getItem(STOCK_UI_KEY);
-      if (raw) return (JSON.parse(raw) as Record<string, boolean>).providerDiagOpen ?? false;
+      if (raw) {
+        const stored = (JSON.parse(raw) as Record<string, boolean>).providerDiagOpen;
+        if (stored !== undefined) return stored;
+      }
     } catch {}
-    return false;
+    return defaultOpen ?? false;
   });
-  useEffect(() => {
-    if (defaultOpen) setIsOpen(true);
-  }, [defaultOpen]);
   useEffect(() => {
     try {
       const prev = JSON.parse(localStorage.getItem(STOCK_UI_KEY) ?? '{}') as Record<string, boolean>;

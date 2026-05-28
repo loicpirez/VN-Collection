@@ -187,11 +187,6 @@ function RelatedRail({
                         {kindLabel}
                       </span>
                     )}
-                    {vnId && (
-                      <span className="absolute right-1 top-1 rounded-md bg-accent/80 px-1 py-0.5 text-[9px] font-bold text-white">
-                        {vnId}
-                      </span>
-                    )}
                   </div>
                   <p className="mt-1 line-clamp-2 text-[11px] font-semibold text-white">{item.title}</p>
                   {item.maker && <p className="text-[10px] text-muted">{item.maker}</p>}
