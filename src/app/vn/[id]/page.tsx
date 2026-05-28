@@ -909,7 +909,13 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             fallbackMessage={t.stock.boundaryFallback as string}
             retryLabel={t.stock.boundaryRetry as string}
           >
-            <StockPanel vnId={vn.id} title={displayTitle} initialSnapshot={getStockForVn(vn.id)} />
+            <StockPanel
+              vnId={vn.id}
+              title={displayTitle}
+              altTitle={vn.alttitle ?? null}
+              vndbAliases={(vn.aliases ?? []) as string[]}
+              initialSnapshot={getStockForVn(vn.id)}
+            />
           </StockPanelBoundary>
         );
         sectionNodes['egs-panel'] = (

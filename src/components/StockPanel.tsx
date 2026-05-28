@@ -6,6 +6,7 @@ import type { ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   CircleDollarSign,
   Clock,
   ExternalLink,
@@ -139,11 +140,15 @@ const EMPTY_PROVIDERS: StockProvider[] = [];
 export function StockPanel({
   vnId,
   title,
+  altTitle,
+  vndbAliases,
   dense = false,
   initialSnapshot,
 }: {
   vnId: string;
   title?: string;
+  altTitle?: string | null;
+  vndbAliases?: string[];
   dense?: boolean;
   initialSnapshot?: StockSnapshot;
 }) {
@@ -162,6 +167,25 @@ export function StockPanel({
   const [aliasInput, setAliasInput] = useState('');
   const [aliasLoading, setAliasLoading] = useState(false);
   const [aliasError, setAliasError] = useState<string | null>(null);
+
+  const aliasSuggestions = useMemo(() => {
+    const normalised = (s: string) => s.trim().toLowerCase();
+    const existing = new Set(aliases.map(normalised));
+    const candidates = [
+      altTitle ?? null,
+      ...(vndbAliases ?? []),
+    ].filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const c of candidates) {
+      const key = normalised(c);
+      if (!existing.has(key) && !seen.has(key)) {
+        seen.add(key);
+        out.push(c.trim());
+      }
+    }
+    return out;
+  }, [aliases, altTitle, vndbAliases]);
   const [sourceInput, setSourceInput] = useState('');
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceError, setSourceError] = useState<string | null>(null);
@@ -759,7 +783,7 @@ export function StockPanel({
               const status = statusByProvider.get(provider.id);
               const count = offerCountByProvider.get(provider.id) ?? status?.offer_count ?? 0;
               const diagnostic = diagnosticByProvider.get(provider.id);
-              const selectable = provider.kind !== 'cached';
+              const selectable = provider.kind !== 'cached' && !provider.disabled;
               const selected = selectable ? selectedProviderSet.has(provider.id) : false;
               const badgeLabel = diagnostic ? providerDiagnosticText(t, diagnostic.badgeKey) : null;
               const lastChecked = status?.fetched_at
@@ -778,13 +802,15 @@ export function StockPanel({
                 <div
                   key={provider.id}
                   className={`group relative min-h-[44px] rounded-lg border px-3 py-2 text-left transition-colors ${
-                    selected
-                      ? 'border-accent bg-accent/10 text-white'
-                      : selectable
-                        ? 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
-                        : 'border-border bg-bg/60 text-muted opacity-80'
+                    provider.disabled
+                      ? 'border-border bg-bg/30 text-muted/40 opacity-60'
+                      : selected
+                        ? 'border-accent bg-accent/10 text-white'
+                        : selectable
+                          ? 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
+                          : 'border-border bg-bg/60 text-muted opacity-80'
                   }`}
-                  title={tooltipParts.length > 0 ? tooltipParts.join('\n') : undefined}
+                  title={provider.disabled ? (t.stock.providerDisabledHint as string) : (tooltipParts.length > 0 ? tooltipParts.join('\n') : undefined)}
                 >
                   <button
                     type="button"
@@ -814,13 +840,19 @@ export function StockPanel({
                           </span>
                         )}
                       </span>
-                      <ProviderStatusBadge
-                        t={t}
-                        diagnostic={diagnostic}
-                        count={count}
-                        cached={provider.kind === 'cached'}
-                        loading={isRefreshingThis}
-                      />
+                      {provider.disabled ? (
+                        <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted/60">
+                          {t.stock.providerDisabled as string}
+                        </span>
+                      ) : (
+                        <ProviderStatusBadge
+                          t={t}
+                          diagnostic={diagnostic}
+                          count={count}
+                          cached={provider.kind === 'cached'}
+                          loading={isRefreshingThis}
+                        />
+                      )}
                     </span>
                   </button>
                   {selectable && (
@@ -849,7 +881,19 @@ export function StockPanel({
         </div>
       )}
 
-      <div className="mt-4 rounded-lg border border-border bg-bg-elev/25 p-3">
+      <details className="mt-4 group rounded-lg border border-border bg-bg-elev/25">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-white [&::-webkit-details-marker]:hidden">
+          <Tag className="h-3 w-3" aria-hidden />
+          <span className="flex-1">{t.stock.searchSetup as string}</span>
+          {(aliases.length > 0 || (snapshot?.sources ?? []).length > 0) && (
+            <span className="rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-bold text-accent">
+              {aliases.length + (snapshot?.sources ?? []).length}
+            </span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" aria-hidden />
+        </summary>
+        <div className="p-3 pt-0 space-y-4">
+        <div>
         <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-muted">
           <Tag className="h-3 w-3" aria-hidden />
           {t.stock.aliases}
@@ -876,6 +920,42 @@ export function StockPanel({
             ))}
           </div>
         )}
+        {aliasSuggestions.length > 0 && (
+          <div className="mt-2">
+            <p className="mb-1 text-[10px] text-muted">{t.stock.aliasSuggested as string}</p>
+            <div className="flex flex-wrap gap-1">
+              {aliasSuggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={aliasLoading}
+                  onClick={async () => {
+                    setAliasLoading(true);
+                    setAliasError(null);
+                    try {
+                      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ term: s, action: 'add' }),
+                      });
+                      const data = (await r.json()) as { aliases?: string[]; error?: string };
+                      if (r.ok) setAliases(data.aliases ?? []);
+                      else setAliasError(data.error ?? t.common.error);
+                    } catch (e) {
+                      setAliasError((e as Error).message);
+                    } finally {
+                      setAliasLoading(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-dashed border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                >
+                  <Plus className="h-3 w-3" aria-hidden />
+                  <span className="inline-block max-w-[12rem] truncate align-bottom">{s}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <form onSubmit={handleAddAlias} className="mt-2 flex gap-2">
           <input
             type="text"
@@ -900,9 +980,8 @@ export function StockPanel({
         {aliasError && (
           <p id="stock-alias-error" role="alert" className="mt-2 text-xs text-status-dropped">{aliasError}</p>
         )}
-      </div>
-
-      <div className="mt-4 rounded-lg border border-border bg-bg-elev/25 p-3">
+        </div>
+        <div>
         <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-muted">
           <ExternalLink className="h-3 w-3" aria-hidden />
           {t.stock.manualSources}
@@ -972,7 +1051,9 @@ export function StockPanel({
         {sourceError && (
           <p id="stock-source-error" role="alert" className="mt-2 text-xs text-status-dropped">{sourceError}</p>
         )}
-      </div>
+        </div>
+        </div>
+      </details>
 
       {error && (
         <div role="alert" className="mt-3 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-3 text-sm text-status-dropped">
@@ -1027,7 +1108,7 @@ export function StockPanel({
       {!loading && erogePriceExtras && <ErogePricePanel vnId={vnId} extras={erogePriceExtras} />}
 
       {!loading && displayDiagnostics.length > 0 && (
-        <ProviderDiagnostics diagnostics={displayDiagnostics} t={t} />
+        <ProviderDiagnostics diagnostics={displayDiagnostics} t={t} defaultOpen={displayDiagnostics.some((d) => d.group === 'attention' || d.group === 'blocked')} />
       )}
 
       {clearConfirmOpen && (
@@ -1304,12 +1385,22 @@ function diagnosticGroupTitle(t: TDict, group: ProviderDiagnosticGroup): string 
   return providerDiagnosticText(t, map[group]);
 }
 
-function ProviderDiagnostics({ diagnostics, t }: { diagnostics: NormalizedProviderDiagnostic[]; t: TDict }) {
+function ProviderDiagnostics({ diagnostics, t, defaultOpen }: { diagnostics: NormalizedProviderDiagnostic[]; t: TDict; defaultOpen?: boolean }) {
   const groups: ProviderDiagnosticGroup[] = ['attention', 'blocked', 'skipped', 'no_results', 'not_checked'];
   const technical = diagnostics.filter((diag) => diag.technicalDetail);
+  const attentionCount = diagnostics.filter((d) => d.group === 'attention' || d.group === 'blocked').length;
   return (
-    <div className="mt-4 rounded-lg border border-border bg-bg-elev/25 p-3 text-[11px] text-muted">
-      <h3 className="mb-2 font-bold uppercase tracking-widest text-muted">{t.stock.providerStatus}</h3>
+    <details open={defaultOpen} className="mt-4 group rounded-lg border border-border bg-bg-elev/25 text-[11px] text-muted">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden hover:text-white">
+        <span className="flex-1 font-bold uppercase tracking-widest">{t.stock.providerStatus}</span>
+        {attentionCount > 0 && (
+          <span className="rounded-full border border-status-dropped/50 bg-status-dropped/10 px-1.5 py-0.5 text-[10px] font-bold text-status-dropped">
+            {attentionCount}
+          </span>
+        )}
+        <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="p-3 pt-0">
       <div className="grid gap-3 md:grid-cols-2">
         {groups.map((group) => {
           const items = diagnostics.filter((diag) => diag.group === group);
@@ -1360,7 +1451,8 @@ function ProviderDiagnostics({ diagnostics, t }: { diagnostics: NormalizedProvid
           </ul>
         </details>
       )}
-    </div>
+      </div>
+    </details>
   );
 }
 

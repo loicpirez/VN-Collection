@@ -231,15 +231,21 @@ export function editionFromTitle(title: string): EditionKind {
 }
 
 /**
- * Lowercase, fold full-width punctuation to half-width, strip brackets and
+ * Lowercase, fold full-width punctuation to half-width, strip brackets,
+ * collapse decorative symbols (☆★♪…), normalize tilde variants, and
  * collapse whitespace. Used by classifier matching so visual differences
- * (e.g. 【 vs [ ) don't break similarity scoring.
+ * (e.g. 【 vs [, ☆ vs ★, ～ vs ~) don't break similarity scoring.
+ *
+ * Tilde note: the full-width range U+FF01–U+FF5E maps ～ (U+FF5E) → ~ (U+7E).
+ * The WAVE DASH 〜 (U+301C) sits outside that range and must be handled
+ * separately so "あいれぼ〜IDOL" normalizes the same as "あいれぼ～IDOL".
  */
 export function normalizeTitle(title: string): string {
   return title
     .replace(/\s+/g, ' ')
     .replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
-    .replace(/[　]/g, ' ')
+    .replace(/[　〜]/g, (c) => (c === '　' ? ' ' : '~'))
+    .replace(/[☆★♪♥◆◇♦♠♣♡✿❀✦✧✩✪✫✬✭✮✯✰❤♔♕♖♗♘♙♚♛♜♝♞♟]/g, '')
     .replace(/[【】「」『』（）()[\]]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()

@@ -22,7 +22,7 @@
  * state; the data itself is server-rendered into the initial
  * `extras` prop and never re-fetched.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ExternalLink, BadgePercent, Crown, Pin, TrendingDown, TrendingUp, Mic2, Pencil, Music2, X } from 'lucide-react';
 import type {
   EpApiPricePoint,
@@ -153,9 +153,11 @@ function StaffBlock({ staff }: { staff: EpApiStaff }) {
 function RelatedRail({
   title,
   items,
+  vnMatches,
 }: {
   title: string;
   items: (EpApiRelatedItem | EpApiRelatedConnection)[];
+  vnMatches?: Map<string, string>;
 }) {
   if (items.length === 0) return null;
   return (
@@ -163,29 +165,41 @@ function RelatedRail({
       <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">{title}</h4>
       <ul className="scroll-fade-right -mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="list">
         {items.map((item) => {
-          const link = `https://eroge-price.com/games/${item.id}`;
+          const epLink = `https://eroge-price.com/games/${item.id}`;
+          const vnId = vnMatches?.get(item.title);
           const kindLabel = 'kindLabel' in item ? item.kindLabel : null;
           return (
             <li key={item.id} className="shrink-0">
-              <a
-                href={link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-[110px] rounded-lg border border-border bg-bg-card p-1.5 hover:border-accent"
-              >
-                <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-bg-elev">
-                  {item.coverImageUrl && (
-                    <SafeImage src={item.coverImageUrl} alt={item.title} className="h-full w-full object-cover" />
-                  )}
-                  {kindLabel && (
-                    <span className="absolute left-1 top-1 rounded-md bg-bg/90 px-1 py-0.5 text-[9px] font-bold text-accent">
-                      {kindLabel}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 line-clamp-2 text-[11px] font-semibold text-white">{item.title}</p>
-                {item.maker && <p className="text-[10px] text-muted">{item.maker}</p>}
-              </a>
+              <div className="w-[110px] rounded-lg border border-border bg-bg-card p-1.5 hover:border-accent">
+                <a
+                  href={epLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block"
+                >
+                  <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-bg-elev">
+                    {item.coverImageUrl && (
+                      <SafeImage src={item.coverImageUrl} alt={item.title} className="h-full w-full object-cover" />
+                    )}
+                    {kindLabel && (
+                      <span className="absolute left-1 top-1 rounded-md bg-bg/90 px-1 py-0.5 text-[9px] font-bold text-accent">
+                        {kindLabel}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[11px] font-semibold text-white">{item.title}</p>
+                  {item.maker && <p className="text-[10px] text-muted">{item.maker}</p>}
+                </a>
+                {vnId && (
+                  <a
+                    href={`/vn/${vnId}`}
+                    className="mt-1 flex items-center justify-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-1 py-0.5 text-[10px] font-semibold text-accent hover:bg-accent/20"
+                  >
+                    <ExternalLink className="h-2.5 w-2.5" aria-hidden />
+                    {vnId}
+                  </a>
+                )}
+              </div>
             </li>
           );
         })}
@@ -194,7 +208,7 @@ function RelatedRail({
   );
 }
 
-function CandidateCard({ bundle }: { bundle: ErogePriceBundle }) {
+function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatches: Map<string, string> }) {
   const t = useT();
   const locale = useLocale();
   const d = bundle.detail;
@@ -419,10 +433,10 @@ function CandidateCard({ bundle }: { bundle: ErogePriceBundle }) {
 
       {/* Related */}
       {bundle.related.connections.length > 0 && (
-        <RelatedRail title={t.erogePrice.related.connections} items={bundle.related.connections} />
+        <RelatedRail title={t.erogePrice.related.connections} items={bundle.related.connections} vnMatches={vnMatches} />
       )}
       {bundle.related.sameBrand.length > 0 && (
-        <RelatedRail title={t.erogePrice.related.sameBrand} items={bundle.related.sameBrand} />
+        <RelatedRail title={t.erogePrice.related.sameBrand} items={bundle.related.sameBrand} vnMatches={vnMatches} />
       )}
     </article>
   );
@@ -452,11 +466,6 @@ function Stat({
 
 export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
   const t = useT();
-  // The panel owns a local copy of the envelope so add / remove
-  // mutations can repaint without a router.refresh. Each successful
-  // mutation reuses the same shape `ErogePriceExtrasV1` so the
-  // CandidateCard render path doesn't need to know the data was
-  // edited client-side.
   const [extras, setExtras] = useState<ErogePriceExtrasV1>(initialExtras);
   const [activeId, setActiveId] = useState<number>(
     initialExtras.selectedEpId ?? initialExtras.candidates[0]?.epId ?? 0,
@@ -466,6 +475,28 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
   const [addInput, setAddInput] = useState('');
   const [addState, setAddState] = useState<'idle' | 'saving' | 'error'>('idle');
   const [addError, setAddError] = useState<string | null>(null);
+  const [vnMatches, setVnMatches] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const allItems = extras.candidates.flatMap((c) => [
+      ...c.related.sameBrand,
+      ...c.related.connections,
+    ]);
+    const titles = [...new Set(allItems.map((i) => i.title))].filter(Boolean);
+    if (titles.length === 0) return;
+    const params = new URLSearchParams();
+    for (const t of titles) params.append('q', t);
+    fetch(`/api/stock/resolve-titles?${params.toString()}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data: Record<string, { vnId: string } | null>) => {
+        const m = new Map<string, string>();
+        for (const [title, match] of Object.entries(data)) {
+          if (match?.vnId) m.set(title, match.vnId);
+        }
+        setVnMatches(m);
+      })
+      .catch(() => { /* silent — links just won't appear */ });
+  }, [extras.candidates]);
 
   if (extras.candidates.length === 0) return null;
   const active = extras.candidates.find((c) => c.epId === activeId) ?? extras.candidates[0];
@@ -706,7 +737,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
         </div>
       )}
 
-      <CandidateCard bundle={active} />
+      <CandidateCard bundle={active} vnMatches={vnMatches} />
     </section>
   );
 }

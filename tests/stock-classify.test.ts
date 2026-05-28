@@ -43,6 +43,22 @@ describe('normalizeTitle', () => {
   it('full-width to half-width', () => {
     expect(normalizeTitle('Ａｉ　Ｋｉｓｓ')).toBe('ai kiss');
   });
+  it('normalizes full-width tilde ～ to ~', () => {
+    expect(normalizeTitle('あいれぼ～IDOL☆REVOLUTION～')).toBe('あいれぼ~idolrevolution~');
+  });
+  it('normalizes wave dash 〜 (U+301C) same as full-width tilde', () => {
+    expect(normalizeTitle('へんし〜ん')).toBe('へんし~ん');
+  });
+  it('strips decorative symbols ☆★♪', () => {
+    expect(normalizeTitle('IDOL☆REVOLUTION')).toBe('idolrevolution');
+    expect(normalizeTitle('IDOL★REVOLUTION')).toBe('idolrevolution');
+    expect(normalizeTitle('ゲーム♪スター')).toBe('ゲームスター');
+  });
+  it('tilde variants (full-width ～ and wave dash 〜) normalize identically', () => {
+    const a = normalizeTitle('あいれぼ～IDOL☆REVOLUTION～');
+    const b = normalizeTitle('あいれぼ〜IDOL★REVOLUTION〜');
+    expect(a).toBe(b);
+  });
 });
 
 describe('seriesNumberMismatch', () => {
