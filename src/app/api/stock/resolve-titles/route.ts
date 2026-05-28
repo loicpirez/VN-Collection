@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { db } from '@/lib/db';
+import { db, getCachedTitleResolution, setCachedTitleResolution } from '@/lib/db';
 import { searchVn } from '@/lib/vndb';
 import { searchEgsByName } from '@/lib/erogamescape';
 
@@ -15,6 +15,9 @@ async function resolveTitle(trimmed: string): Promise<{ vnId: string; title: str
     .get(like, like) as { id: string; title: string } | undefined;
   if (hit) return { vnId: hit.id, title: hit.title };
 
+  const cached = getCachedTitleResolution(trimmed);
+  if (cached) return cached;
+
   const [vndbResult, egsResult] = await Promise.all([
     searchVn(trimmed, { results: 1 }).catch(() => null),
     searchEgsByName(trimmed).catch(() => null),
@@ -22,11 +25,14 @@ async function resolveTitle(trimmed: string): Promise<{ vnId: string; title: str
 
   if (vndbResult && vndbResult.results.length > 0) {
     const r = vndbResult.results[0];
+    setCachedTitleResolution(trimmed, r.id, r.title);
     return { vnId: r.id, title: r.title };
   }
 
   if (egsResult) {
-    return { vnId: `egs_${egsResult.id}`, title: egsResult.gamename };
+    const vnId = `egs_${egsResult.id}`;
+    setCachedTitleResolution(trimmed, vnId, egsResult.gamename);
+    return { vnId, title: egsResult.gamename };
   }
 
   return null;

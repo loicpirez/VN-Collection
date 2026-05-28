@@ -782,6 +782,12 @@ function open(): Database.Database {
       created_at  INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (vn_id, alias_term)
     );
+
+    CREATE TABLE IF NOT EXISTS vn_title_resolve_cache (
+      query      TEXT PRIMARY KEY,
+      vn_id      TEXT NOT NULL,
+      title      TEXT NOT NULL
+    );
   `);
 
   // The aspect-ratio filter used to require an `owned_release` row to
@@ -9959,6 +9965,18 @@ export function clearVnStockCache(vnId: string): { offers: number; statuses: num
   const offerResult = db.prepare(`DELETE FROM vn_stock_offer WHERE vn_id = ?`).run(vnId);
   const statusResult = db.prepare(`DELETE FROM vn_stock_provider_status WHERE vn_id = ?`).run(vnId);
   return { offers: offerResult.changes, statuses: statusResult.changes };
+}
+
+export function getCachedTitleResolution(query: string): { vnId: string; title: string } | null {
+  const row = db
+    .prepare(`SELECT vn_id, title FROM vn_title_resolve_cache WHERE query = ?`)
+    .get(query) as { vn_id: string; title: string } | undefined;
+  return row ? { vnId: row.vn_id, title: row.title } : null;
+}
+
+export function setCachedTitleResolution(query: string, vnId: string, title: string): void {
+  db.prepare(`INSERT OR REPLACE INTO vn_title_resolve_cache (query, vn_id, title) VALUES (?, ?, ?)`)
+    .run(query, vnId, title);
 }
 
 /** Kobe stock rows currently matched to one VN id (usually 0 or 1, occasionally 2+). */
