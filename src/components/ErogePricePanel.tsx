@@ -558,9 +558,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
           try {
             const next = JSON.parse(row.extras_json) as ErogePriceExtrasV1;
             if (next.schemaVersion === 1) setExtras(next);
-          } catch {
-            /* swallow — server is the source of truth, page reload fixes */
-          }
+          } catch {}
         }
       }
       setAddInput('');

@@ -9822,9 +9822,7 @@ export function batchVnStockSummaries(
       if (prices.length > 0) {
         out.set(row.vn_id, { available: prices.length, best_price: Math.min(...prices) });
       }
-    } catch {
-      /* malformed envelope — skip */
-    }
+    } catch {}
   }
   return out;
 }

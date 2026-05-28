@@ -2146,9 +2146,7 @@ async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | und
     if (previous && typeof previous.selectedEpId === 'number') {
       previousManualPin = previous.selectedEpId;
     }
-  } catch {
-    /* non-fatal */
-  }
+  } catch {}
 
   let extras: ErogePriceExtrasV1 | null = null;
   const queries = buildErogePriceQueries(vn.alttitle, vn.title, aliases);
@@ -2171,9 +2169,7 @@ async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | und
 
   try {
     setStockProviderExtras(vnId, 'eroge_price', extras);
-  } catch {
-    /* non-fatal */
-  }
+  } catch {}
 
   const classifyTarget: ClassifyTarget = {
     title: vn.title ?? '',
