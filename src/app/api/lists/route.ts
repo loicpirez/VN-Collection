@@ -28,10 +28,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (body.name.length > 200) {
     return NextResponse.json({ error: 'name too long (max 200)' }, { status: 400 });
   }
-  // Audit S-016: validate color + icon shape so a malicious PATCH can't
-  // smuggle 64 arbitrary bytes into a future style attribute. Color
-  // accepts named CSS colors and hex codes; icon accepts lucide-react
-  // icon names (PascalCase letters + digits).
   const COLOR_RE = /^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,32})$/;
   const ICON_RE = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
   let color: string | null = null;

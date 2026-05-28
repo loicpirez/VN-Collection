@@ -17,7 +17,7 @@ describe('app_setting_audit preview hardening', () => {
     expect(rows[0].next_preview).not.toContain('AAAA');
   });
 
-  it('vndb_backup_url preview is the hostname, not the last 4 chars (audit M5)', () => {
+  it('vndb_backup_url preview is the hostname, not the last 4 chars', () => {
     setAppSetting('vndb_backup_url', 'https://attacker.example.com/path/kana');
     const rows = db
       .prepare(`SELECT next_preview FROM app_setting_audit WHERE key = ? ORDER BY id DESC`)

@@ -2,11 +2,9 @@
  * Regression pin: lightbox prev/next/close buttons must stack ABOVE the
  * displayed image on responsive viewports.
  *
- * Previously the nav buttons carried no z-index. Because the image
  * container is rendered AFTER the buttons in the JSX tree and sits at
  * `max-w-[92vw]` on mobile, the image painted on top of the buttons,
  * making them visually disappear once it finished loading
- * (operator-reported regression).
  *
  * The fix pins each button at `z-20` and the image container at `z-10`
  * so the nav controls are always reachable.

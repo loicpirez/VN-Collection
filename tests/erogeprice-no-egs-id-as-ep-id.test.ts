@@ -1,24 +1,3 @@
-/**
- * Regression test for the operator-flagged bug:
- *   "you matched NOT by original title airebo idol revolution
- *    so shit match wrong totally"
- *
- * Counter-example pinned in commit: a VN has ErogameScape
- * `egs_game.egs_id = N`, but eroge-price game id N is a
- * completely unrelated title. Eroge-price.com
- * uses its own id namespace; ErogameScape ids are NOT a 1:1 mapping.
- *
- * Contract: `refreshErogePrice` MUST go through the title search
- * (`searchAndFetchAll(alttitle ?? title)`) regardless of any
- * `egs_id` available locally. The only way an `epId` ever ends up
- * in `fetchErogePriceBundle` is via the operator's manual PATCH /
- * POST endpoints.
- *
- * Strategy: read the stock.ts source and assert the buggy pattern
- * is gone. A behaviour test would need to fake the eroge-price
- * upstream which is out of scope here — the source-level contract
- * is the right granularity.
- */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';

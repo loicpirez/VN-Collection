@@ -27,7 +27,6 @@ export function SimilarSeedEmptyState({
 }) {
   // Synthesise a chip from the raw id when the seed is invalid and
   // the local DB has nothing for us. The picker still renders the
-  // chip in the error tone so the operator sees what was broken.
   const seedForPicker: SeedChipData | null = chip
     ? chip
     : invalid && fallbackSeedId

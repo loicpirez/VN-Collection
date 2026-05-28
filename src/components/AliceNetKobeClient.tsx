@@ -34,9 +34,6 @@ import { readApiError } from '@/lib/api-error-read';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 
-// Audit U-234 file-split: types + locale-aware helpers extracted to
-// `kobe-types.ts` so future split sub-components can import without
-// pulling in the full 1300-line client.
 import type {
   KobeCandidate,
   KobeItem,
@@ -300,8 +297,6 @@ export function AliceNetKobeClient() {
   const locale = useLocale();
   const toast = useToast();
   const { confirm } = useConfirm();
-  // U-006: kobe filter / sort / group / view in URL state so the user
-  // can share specific kobe-page views and back/forward restores them.
   const urlSearch = useSearchParams();
   const router = useRouter();
   const isFilterTab = (v: string | null): v is FilterTab =>
@@ -313,9 +308,6 @@ export function AliceNetKobeClient() {
     v != null && (KOBE_GROUPS as readonly string[]).includes(v);
   const isKobeView = (v: string | null): v is KobeView => v === 'cards' || v === 'list';
 
-  // U-129: persisted defaults beyond URL state. When the URL is clean
-  // (no `?filter=` / `?sort=` / etc.) the initial state falls back to
-  // the last-saved localStorage values. Effect below mirrors writes.
   const KOBE_PREFS_KEY = 'vncoll.kobe.prefs.v1';
   function loadKobePrefs(): { sort?: KobeSort; group?: KobeGroup; view?: KobeView } {
     if (typeof window === 'undefined') return {};
@@ -367,10 +359,6 @@ export function AliceNetKobeClient() {
   const [yearMax, setYearMax] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
-  // Two-tier search state: the input mirror updates instantly while the
-  // debounced `search` value drives the actual filter pipeline. U-087 / U-148
-  // — the kobe page filters thousands of rows client-side, so a per-keystroke
-  // filter pass blocks the main thread.
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   useEffect(() => {
@@ -404,11 +392,6 @@ export function AliceNetKobeClient() {
 
   useEffect(() => { load(); }, [load]);
 
-  // U-129: persist durable view prefs (sort / group / view) to
-  // localStorage so the next visit's clean-URL initial state restores
-  // the user's last choice. `filter` deliberately stays session-only
-  // — it's a tab-like quick switcher, not a default the user wants
-  // to revisit a week later.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -418,8 +401,6 @@ export function AliceNetKobeClient() {
     }
   }, [sort, group, view]);
 
-  // U-006: sync kobe state → URL. Only writes non-default values so
-  // /alicesoft_kobe stays clean.
   useEffect(() => {
     const params = new URLSearchParams(urlSearch?.toString() ?? '');
     let dirty = false;
@@ -1339,8 +1320,6 @@ export function AliceNetKobeClient() {
           ))}
         </div>
       ) : sorted.length === 0 ? (
-        // U-067 / U-073: distinguish "no stock fetched yet" vs "no rows match the
-        // current filter" so the empty-state copy is actually useful.
         <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted">
           {stats.total === 0 ? (
             <p>{t.kobe.kobeEmptyNoStock ?? t.kobe.kobeUnmatched}</p>

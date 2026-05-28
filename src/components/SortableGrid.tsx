@@ -94,17 +94,6 @@ export function SortableGrid({ items, onReorder, dense = false }: Props) {
           screen-reader users a discoverable summary of the gesture. */}
       <p className="sr-only">{t.lists.reorderKeyboardHint}</p>
       <SortableContext items={ids} strategy={rectSortingStrategy}>
-        {/*
-          Density-aware grid. Previously this branch used hard-coded
-          column counts (`grid-cols-3 sm:grid-cols-4 …`) which meant
-          `?sort=custom` ignored the operator's density slider — the
-          regular `<Grid>` honoured `--card-density-px` but the
-          reorder branch did not, producing a jarring layout jump
-          when entering / leaving custom-sort mode. Now both
-          branches use the same `minmax(min(100%, var(--card-density-px) * …))`
-          formula. `dense` keeps its 0.72 multiplier so the Library's
-          density-toggle still produces tighter columns.
-        */}
         <div
           className="grid gap-3"
           style={{

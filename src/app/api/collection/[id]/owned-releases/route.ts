@@ -90,10 +90,6 @@ function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; e
   if ('dumped' in body) patch.dumped = !!body.dumped;
   if ('physical_location' in body) {
     const v = body.physical_location;
-    // Audit S-054: bound BOTH the array length AND each item length so
-    // a hostile PATCH can't stuff multi-megabyte JSON into the
-    // owned_release.physical_location TEXT column. The `.slice(0, 32)`
-    // already capped the array; the per-item `.slice(0, 100)` is new.
     const TAG_MAX = 100;
     if (v == null) patch.physical_location = [];
     else if (Array.isArray(v)) {
@@ -212,7 +208,6 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       const width = typeof obj.width === 'number' ? obj.width : null;
       const height = typeof obj.height === 'number' ? obj.height : null;
       const aspectKey = isAspectKey(obj.aspect_key) ? obj.aspect_key : null;
-      // Audit S-052: cap free-text aspect_override.note to bound DB storage.
       const note = typeof obj.note === 'string' ? obj.note.slice(0, 500) : null;
       setOwnedReleaseAspectOverride({
         vnId: id,

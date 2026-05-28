@@ -120,10 +120,6 @@ export function validateVnDetailLayoutV1(input: unknown): VnDetailLayoutV1 {
   return { order, sections };
 }
 
-// P-191: single-slot per-request cache for the raw → parsed result.
-// Multiple consumers (page.tsx + layout-host) hit this within one
-// request; skipping the JSON.parse + validate on the duplicate calls
-// avoids per-request work that scales with the number of sections.
 let lastVnDetailRaw: string | null = null;
 let lastVnDetailResult: VnDetailLayoutV1 | null = null;
 

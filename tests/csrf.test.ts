@@ -58,9 +58,6 @@ describe('csrfGuard', () => {
   });
 
   it('rejects same-site Sec-Fetch-Site (tightened policy)', () => {
-    // The audit flagged this — `same-site` would have allowed any
-    // subdomain of the deployment's eTLD+1 to mutate state. The
-    // current policy rejects it; this test pins that decision.
     const resp = csrfGuard(
       req('POST', {
         'content-type': 'application/json',
@@ -102,7 +99,6 @@ describe('csrfGuard', () => {
   });
 
   it('rejects `Origin: null` (browser extensions / sandboxed iframes)', () => {
-    // The audit's recommended tightening — was previously allowed.
     const resp = csrfGuard(
       req('POST', { 'content-type': 'application/json', origin: 'null' }),
     );

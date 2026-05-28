@@ -26,10 +26,6 @@ export function BrandOverlapPicker({ initialA, initialB }: { initialA: string | 
   const [b, setB] = useState(initialB ?? '');
 
   useEffect(() => {
-    // R12-001: abort the fetch on unmount so the success/error/finally
-    // callbacks never call setState on a torn-down component. Without
-    // this the picker leaks a setLoading(false) into React's no-op
-    // warning bucket whenever the user navigates away mid-flight.
     const ac = new AbortController();
     fetch('/api/producers', { cache: 'no-store', signal: ac.signal })
       .then((r) => (r.ok ? r.json() : { producers: [] }))

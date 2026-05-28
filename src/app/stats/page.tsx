@@ -44,11 +44,6 @@ function getMyStats(): MyStats {
   };
 }
 
-// U-293: status hex codes live in `lib/status-palette.ts` — single
-// source of truth shared with `tailwind.config.ts`. The previous
-// inline duplicate drifted easily and broke the donut colours when
-// the palette evolved.
-
 export default async function StatsPage() {
   const t = await getDict();
   const locale = await getLocale();

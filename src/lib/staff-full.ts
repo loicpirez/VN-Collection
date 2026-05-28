@@ -38,7 +38,6 @@ function key(sid: string): string {
 }
 
 /**
- * Read a previously-cached full-staff payload from `vndb_cache`. Returns
  * `null` on miss or parse error so callers can decide between cache miss
  * and live re-fetch.
  */

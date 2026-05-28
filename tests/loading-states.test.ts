@@ -18,7 +18,6 @@ import { join } from 'node:path';
 const ROOT = join(__dirname, '..');
 
 const ROUTES = [
-  // R5-178 explicitly cited list.
   { row: 'R5-178 /recommendations', file: 'src/app/recommendations/loading.tsx' },
   { row: 'R5-178 /upcoming', file: 'src/app/upcoming/loading.tsx' },
   { row: 'R5-178 /egs', file: 'src/app/egs/loading.tsx' },
@@ -27,7 +26,6 @@ const ROUTES = [
   { row: 'R5-178 /dumped', file: 'src/app/dumped/loading.tsx' },
   { row: 'R5-178 /shelf', file: 'src/app/shelf/loading.tsx' },
   { row: 'R5-178 /search', file: 'src/app/search/loading.tsx' },
-  // R5-175 / R5-176 / R5-177 — route-level shell.
   { row: 'R5-175 /tag/[id]', file: 'src/app/tag/[id]/loading.tsx' },
   { row: 'R5-176 /tags', file: 'src/app/tags/loading.tsx' },
   { row: 'R5-177 /characters', file: 'src/app/characters/loading.tsx' },

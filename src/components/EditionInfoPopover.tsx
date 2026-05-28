@@ -167,16 +167,6 @@ export function EditionInfoTrigger({
       return;
     }
     if (typeof window === 'undefined') return;
-    // CRITICAL: measure against the same element the popover
-    // anchors against. The popover uses `absolute` with
-    // `top-full`/`bottom-full` + `left-0`/`right-0`, which resolves
-    // relative to the nearest positioned ancestor (`offsetParent`).
-    // Measuring against the small `h-6 w-6` button silently
-    // overestimates the space below because the popover actually
-    // paints at parent.bottom, not button.bottom — that was the
-    // root cause of the bottom-overflow regression: a tile near
-    // the bottom of the page had ~80px below the button but only
-    // ~10px below the parent tile, so the flip never triggered.
     const button = buttonRef.current;
     const popover = popoverRef.current;
     if (!button || !popover) return;

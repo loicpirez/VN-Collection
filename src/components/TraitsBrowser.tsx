@@ -14,8 +14,6 @@ import { readApiError } from '@/lib/api-error-read';
 export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null } = {}) {
   const t = useT();
   const locale = useLocale();
-  // U-004: q + onlyMine in URL state so the user can copy/paste a
-  // /traits view (e.g. /traits?q=glasses&mine=1).
   const search = useSearchParams();
   const router = useRouter();
   const [q, setQ] = useState(() => search?.get('q') ?? '');
@@ -61,8 +59,6 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
     };
   }, [q, onlyMine, t.common.error]);
 
-  // U-004: sync state → URL so the view is sharable. Only writes non-
-  // default values so /traits stays clean.
   useEffect(() => {
     const params = new URLSearchParams(search?.toString() ?? '');
     let dirty = false;

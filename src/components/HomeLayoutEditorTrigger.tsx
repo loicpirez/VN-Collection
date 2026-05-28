@@ -40,19 +40,6 @@ import { readApiError } from '@/lib/api-error-read';
  */
 export const HOME_LAYOUT_OPEN_EVENT = 'vn:open-home-layout';
 
-/**
- * Always-mounted dialog that lets the user reorder every home strip
- * via drag-and-drop and toggle visibility per section. The reorder
- * cascades through `home_section_layout_v1.order`; the visibility
- * toggle lives here too so users have one canonical place to manage
- * the home page.
- *
- * Previously paired with a standalone floating icon at the top of
- * the home page. Manual QA flagged that as detached and dominant;
- * the trigger is now consumed via a CustomEvent (HOME_LAYOUT_OPEN_EVENT)
- * dispatched from the Library toolbar's Options menu and from the
- * Settings → Home tab.
- */
 export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV1 }) {
   const t = useT();
   const toast = useToast();

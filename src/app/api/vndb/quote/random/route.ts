@@ -7,8 +7,6 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  // Audit S-023: TTL=0 by design; LAN amplification on every footer
-  // poll would saturate the throttle. Gate it.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {

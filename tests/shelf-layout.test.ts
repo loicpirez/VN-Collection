@@ -21,9 +21,6 @@ import {
 } from '@/lib/db';
 
 // Force lib/db to bootstrap the schema before we open our own raw
-// connection. The lib/db `db` export is a lazy Proxy now (audit
-// `db perf C-1` fix); without this nudge the file is empty until
-// the first real DB call inside one of the lib helpers.
 listShelves();
 const db = new Database(process.env.DB_PATH!);
 
@@ -186,8 +183,6 @@ describe('placeShelfItem', () => {
   it('places a synthetic release id (used by EGS-only VNs)', () => {
     const shelf = createShelf({ name: 'A', cols: 2, rows: 2 });
     // Synthetic release ids contain a colon — the only release shape
-    // for VNs that have no VNDB release row. Regression test for the
-    // drag-id delimiter collision (DnD ids switched to `|`).
     ensureVnAndOwned('v42', 'synthetic:v42');
     placeShelfItem({
       shelfId: shelf.id,

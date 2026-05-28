@@ -22,7 +22,6 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.userActivity.title };
 }
 
-
 async function VnActivitySummary({
   entry,
   t,
@@ -68,7 +67,6 @@ async function VnActivitySummary({
       const delta = typeof p?.delta === 'number' ? p.delta : (to - from);
       const t = await getDict();
       const locale = await getLocale();
-      // I-017: localized zero-playtime fallback (was hardcoded English '0m').
       const zeroPlaytime = formatMinutes(0, locale, t.year, { emptyValue: 'allow_zero' });
       return (
         <span>

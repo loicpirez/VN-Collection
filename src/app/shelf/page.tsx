@@ -140,15 +140,6 @@ export default async function ShelfPage({
         : legacyGlobal;
       return { overrides, legacyGlobal, effective, prefs, activeShelfEntry, activeShelfKey };
     })();
-    // We always need the flat owned-release list to compute the
-    // header summary (`N éditions · N VN uniques · totals`). The
-    // spatial view's GRID still reads shelf_unit/slot/display_slot
-    // tables directly — `items` here is only used for the header
-    // counts and the flat release/item views. The earlier "only
-    // load when view is release|item" optimisation was incorrect:
-    // it made the spatial-view header always show '0 éditions ·
-    // 0 VN uniques' even when the user had owned editions placed
-    // on shelves — manual QA flagged this as a regression.
     items = listAllOwnedReleases();
   } catch (err) {
     console.error('[shelf page] DB error:', (err as Error).message);

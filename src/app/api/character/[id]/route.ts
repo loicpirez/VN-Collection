@@ -6,7 +6,6 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
-  // Audit S-025: gate — VNDB POST /character on miss.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

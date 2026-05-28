@@ -50,12 +50,6 @@ describe('top-ranked display rules', () => {
     // pathological case (1-vote 100/100 vs 1000-vote 70/100) is a
     // near-tie by design (the veteran row sits exactly at the prior
     // and the outlier collapses to it). The more interesting case
-    // the audit flagged is when the veteran row is materially above
-    // the prior. Pick 1000-vote 85/100 (the typical EGS heavyweight)
-    // and assert the 1-vote 100/100 cannot beat it.
-    //
-    //   outlier = (1*100 + 30*70) / 31  ≈ 70.97
-    //   veteran = (1000*85 + 30*70) / 1030 ≈ 84.56
     const rows: SyntheticRow[] = [
       { id: 1, median: 100, count: 1 },
       { id: 2, median: 85, count: 1000 },

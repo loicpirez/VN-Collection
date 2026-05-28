@@ -23,8 +23,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!ct.startsWith('multipart/form-data')) {
     return NextResponse.json({ error: 'expected multipart/form-data' }, { status: 400 });
   }
-  // R5-122: reject oversized payloads BEFORE buffering the multipart
-  // body into memory via `req.formData()`.
   const tooLarge = precheckContentLength(req, MAX_UPLOAD_BYTES);
   if (tooLarge) return tooLarge;
   const fd = await req.formData();

@@ -118,8 +118,6 @@ export function TutorialTour() {
       role="dialog"
       aria-modal="false"
       aria-labelledby={titleId}
-      // R5-161: respect iOS safe-area so the tour panel doesn't
-      // sit underneath the home-indicator pill.
       style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
       className="fixed bottom-16 right-4 z-50 w-[min(92vw,420px)] rounded-2xl border border-accent/40 bg-bg-card p-5 shadow-card sm:bottom-4"
     >

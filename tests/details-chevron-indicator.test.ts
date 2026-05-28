@@ -19,7 +19,6 @@
  * with an explicit chevron (Characters / Releases / Quotes /
  * Relations sections, /vn/[id] titles details) keep their
  * existing pattern; this row is about the BARE `<details>` that
- * previously relied on the browser-default marker.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';

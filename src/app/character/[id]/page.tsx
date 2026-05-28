@@ -132,9 +132,6 @@ export default async function CharacterPage({
   const sortedVns = dedupAppearances(char.vns).sort(
     (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9),
   );
-  // R5-238: which of the appears-in VNs are in the operator's local
-  // collection? One batched IN-query lets the card add a visible
-  // in-collection chip without N+1 SELECTs.
   const appearsInOwned = isInCollectionMany(sortedVns.map((v) => v.id));
   // "Also voiced by" comes from local vn_va_credit (covers every VN the
   // user has fetched). VNDB doesn't expose per-VN voiced data on the
@@ -209,10 +206,6 @@ export default async function CharacterPage({
       </div>
 
       {(() => {
-        // R5-222: thread localised section labels into each
-        // DetailSection so <DetailReorderLayout>'s collapse-by-
-        // default headers + edit-mode chevrons have something to
-        // render. The dictionaries already define every label.
         const sectionLabels = t.characterLayout.sectionLabels;
         const characterSections: DetailSection[] = [];
         if (siblings.length > 0) characterSections.push({

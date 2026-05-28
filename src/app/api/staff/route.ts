@@ -11,9 +11,6 @@ export const dynamic = 'force-dynamic';
 const Q_MAX = 200;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  // Audit S-020: gate against LAN amplification — each hit issues a
-  // VNDB POST /staff via the 1 req/s throttle. A LAN caller could
-  // starve the operator's own UI of the throttle budget.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const sp = req.nextUrl.searchParams;

@@ -24,25 +24,6 @@ interface Props {
   anchor?: 'top-right' | 'bottom-right' | 'bottom-left';
 }
 
-/**
- * Standalone rotation controls for the VN cover.
- *
- * The previous regression: rotation buttons only lived inside
- * `<CoverHero>`, which is the SIMPLE cover branch on `/vn/[id]`.
- * When the operator has a custom or EGS cover, the page renders
- * `<CoverCompare>` instead, and the rotation controls vanished —
- * the only remaining surface was the source-picker modal, which
- * the operator (correctly) flagged as the wrong scope (it rotates
- * a candidate preview, not the active cover).
- *
- * Solution: extract rotation into its own component and mount it
- * from `/vn/[id]/page.tsx` alongside the cover container, regardless
- * of which display branch is rendering the image. Persists to
- * `vn.cover_rotation` via `PATCH /api/collection/[id]/cover`,
- * broadcasts via `vn:cover-changed`, and listens for the same event
- * so any other rotation surface (the legacy `<CoverHero>` inline
- * buttons, the source-picker modal) keeps this one in sync.
- */
 export function CoverRotationButtons({
   vnId,
   initialRotation = 0,
@@ -119,12 +100,6 @@ export function CoverRotationButtons({
         ? 'right-2 bottom-2'
         : 'left-2 bottom-2';
 
-  // R5-226: the reset control must always be visible when a non-zero
-  // rotation is active — the user explicitly flagged the hover-gating
-  // of the rotation degree chip as the regression. Rotate-left /
-  // rotate-right buttons still hide on desktop until hover (they are
-  // discovered via the rotation chip and clicked once-per-quarter,
-  // not as a primary affordance).
   const hasRotation = rotation !== 0;
   return (
     <div
@@ -172,10 +147,6 @@ export function CoverRotationButtons({
         aria-label={t.coverActions.resetRotation}
         title={t.coverActions.resetRotation}
         data-rotation-active={hasRotation ? 'true' : 'false'}
-        // R5-226: the reset chip is ALWAYS visible on the rotation
-        // anchor. When no rotation is active it's a passive '0°'
-        // readout (disabled). When the user has rotated, the chip
-        // stays visible so they can reset without hovering.
         className="min-h-[44px] rounded-md bg-bg-card/80 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-45"
       >
         {rotation}°

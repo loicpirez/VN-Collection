@@ -16,7 +16,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { name?: unknown; description?: unknown };
-  // Audit S-012: type-check + length-cap both fields before any DB write.
   if (typeof body.name !== 'string') {
     return NextResponse.json({ error: 'name must be a string' }, { status: 400 });
   }

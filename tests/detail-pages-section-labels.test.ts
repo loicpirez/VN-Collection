@@ -15,7 +15,7 @@ function read(rel: string): string {
   return readFileSync(join(ROOT, rel), 'utf8');
 }
 
-describe('detail pages — section labels threaded (R5-222)', () => {
+describe('detail pages — section labels threaded', () => {
   const PAGES: Array<{ rel: string; layoutNamespace: string }> = [
     { rel: 'src/app/character/[id]/page.tsx', layoutNamespace: 'characterLayout' },
     { rel: 'src/app/staff/[id]/page.tsx', layoutNamespace: 'staffLayout' },

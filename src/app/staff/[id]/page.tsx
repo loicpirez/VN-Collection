@@ -79,10 +79,6 @@ export default async function StaffPage({
     : allVoice;
   if (!profile && production.length === 0 && voice.length === 0) notFound();
 
-  // R5-239: surface other VNDB staff ids that share a name/original
-  // with this profile AND appear in the operator's collection. The
-  // helper returns only owned VNs and is intentionally conservative
-  // (no auto-merge). The UI labels every row "Possible match".
   const staffSiblings = findStaffSiblings(id);
 
   const totalAll = countDistinctVnIds(allProduction, allVoice);
@@ -201,9 +197,6 @@ export default async function StaffPage({
                 <div className="text-[10px] uppercase tracking-wider text-muted">{t.staff.extlinksLabel}</div>
                 <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
                   {extlinks.map((l) => {
-                    // R5-124: drop non-http(s) extlinks before they
-                    // reach the DOM. See lib/safe-href.ts for the
-                    // rationale.
                     const href = safeHref(l.url);
                     if (!href) return null;
                     return (
@@ -259,9 +252,6 @@ export default async function StaffPage({
       </header>
 
       {(() => {
-        // R5-222: thread localised section labels through so
-        // DetailReorderLayout's collapse-by-default headers and
-        // edit-mode chevrons have something to render.
         const sectionLabels = t.staffLayout.sectionLabels;
         const staffSections: DetailSection[] = [];
         if (voice.length > 0) staffSections.push({

@@ -15,9 +15,6 @@ describe('characters page pagination and density', () => {
   it('uses the characterWorks density scope for character appearance cards', () => {
     expect(PAGE_SOURCE).toContain('<DensityScopeProvider scope="characterWorks"');
     expect(PAGE_SOURCE).toContain('<CardDensitySlider scope="characterWorks"');
-    // U-081: characters grid was the only consumer of the
-    // CSS fallback at 180px while every other surface
-    // defaulted to 220px. Standardize on 220px.
     expect(PAGE_SOURCE).toContain('var(--card-density-px, 220px)');
   });
 

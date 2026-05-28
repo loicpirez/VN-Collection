@@ -365,13 +365,6 @@ function buildSeedUnion(useWishlist: boolean): SeedUnion {
     total: 0,
   };
 
-  // R5-140: collect every (vnId, signal, rating) event first so the
-  // `vn` table read can happen in a SINGLE bulk `WHERE id IN (...)`
-  // query. The previous `touch()` issued one `SELECT title, tags,
-  // developers, staff FROM vn WHERE id = ?` per VN per signal — a
-  // 500-VN collection with three positive signals each meant ~1500
-  // round-trips for the seed pool. The bulk fetch caps it at one
-  // query (or a handful of 500-id chunks for very large pools).
   type SignalEvent = {
     vnId: string;
     signal: SeedVnInfo['signals'][number];
@@ -441,9 +434,6 @@ function buildSeedUnion(useWishlist: boolean): SeedUnion {
     }
   }
 
-  // R5-140: one bulk `SELECT … WHERE id IN (…)` instead of N
-  // per-VN scans. Chunked at 500 to stay below SQLite's older
-  // 999-parameter cap (mirroring `isInCollectionMany`).
   const distinctIds = Array.from(new Set(events.map((e) => e.vnId)));
   type VnRow = {
     id: string;

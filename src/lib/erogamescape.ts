@@ -28,23 +28,6 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
  */
 
 const EGS_BASE = 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki';
-// R5-216: EGS constraints (none of these are documented anywhere
-// outside the form's HTML source — keep this comment honest).
-//   - SQL form path is `sql_for_erogamer_form.php`; the bare
-//     `sql_for_erogamer.php` is a 404 even though the site's
-//     own footer links to it.
-//   - The form REQUIRES POST. GET just re-renders the input
-//     HTML, no SQL execution.
-//   - Response is ALWAYS an HTML table — there's no CSV /
-//     JSON output. The `format` query parameter is silently
-//     ignored; we parse the `<tr>/<td>` structure.
-//   - The SQL is executed against EGS's snapshot DB so any
-//     query you'd write against PostgreSQL works, but the
-//     row count cap is ~10 000 (the form truncates above that
-//     without telling you).
-//   - Identifiers in the SQL must be quoted lowercase — EGS's
-//     PostgreSQL is case-sensitive and the public schema uses
-//     lowercase column names. (Mixed-case `GameName` fails.)
 const SQL_ENDPOINT = `${EGS_BASE}/sql_for_erogamer_form.php`;
 const CACHE_TTL_MS = 24 * 3600 * 1000;
 const FETCH_TIMEOUT_MS = 7000;
@@ -120,7 +103,6 @@ function readCache<T>(key: string): T | null {
  * Read the cache regardless of expiry. Returns `null` only when no row
  * exists or the body is unparseable. Used by the page-style EGS
  * fetchers so they can serve stale data + a `stale: true` flag when
- * the remote SQL form is unreachable AND the cache holds a previously
  * successful payload — the user keeps browsing instead of seeing a
  * generic error block.
  */
@@ -177,6 +159,11 @@ export class EgsUnreachable extends Error {
 const EGS_FETCH_MAX_RETRIES = 1;
 const EGS_FETCH_RETRY_BASE_MS = 1500;
 
+/**
+ * EGS SQL form endpoint constraints: REQUIRES POST with form-encoded body,
+ * returns an HTML table (not JSON/CSV), column names are lowercase.
+ * Practical row cap ~10k — callers must LIMIT in the SQL.
+ */
 async function fetchTableOnce(sql: string): Promise<string[][]> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
@@ -425,8 +412,6 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
     LIMIT 1
   `;
   // fetchOne re-throws EgsUnreachable so the caller can preserve a
-  // previously-good match instead of overwriting with a "no match" placeholder.
-  // A successful query that returns 0 rows is the only path that returns null.
   const row = await fetchOne(sql);
   if (!row) {
     writeCache(cacheK, null, 6 * 3600 * 1000);
@@ -481,7 +466,6 @@ function egsHoursToMinutes(v: string | null | undefined): number | null {
 }
 
 async function fetchEgsPlaytimeMedian(gameId: number): Promise<number | null> {
-  // Audit S-035: ensure the interpolated FK is integer.
   assertSqlInt(gameId, 'userreview.game');
   // userreview.total_play_time is in HOURS. We compute the median across
   // non-null entries client-side then convert to minutes for our internal

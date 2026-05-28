@@ -12,7 +12,6 @@
  *   display|<vnId>|<releaseId>|<shelfId>|<afterRow>|<position>
  *
  * Pulled out of `<ShelfLayoutEditor>` so the tests can exercise the
- * same code path the component runs at drag end — previously the test
  * suite re-inlined the parser and would silently pass while the source
  * regressed.
  */

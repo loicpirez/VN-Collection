@@ -84,8 +84,6 @@ export async function GET(req: Request): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {
-    // P-050: card-only projection — ICS only reads id/title/status/user_rating
-    // and the started/finished dates from `collection.*`.
     const items = listCollectionForCards({ sort: 'title' });
     const stamp = dtstamp();
     const lines: string[] = [

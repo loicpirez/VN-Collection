@@ -71,10 +71,6 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  // U-252: defaulting to 'fr' is wrong for EN/JA browsers that have
-  // never set the locale cookie. Initial state stays 'fr' on the
-  // server (SSR has no `navigator`); useEffect promotes to the
-  // navigator language if the cookie is missing.
   const [lang, setLang] = useState<SupportedLocale>('en');
 
   useEffect(() => {

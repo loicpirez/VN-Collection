@@ -33,7 +33,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (typeof body.name !== 'string' || body.name.trim().length === 0) {
     return NextResponse.json({ error: 'name required' }, { status: 400 });
   }
-  // Audit S-014: cap shelf name length before it reaches createShelf.
   const name = body.name.trim().slice(0, 100);
   try {
     const shelf = createShelf({
@@ -56,9 +55,6 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { order?: unknown };
-  // Audit S-048: cap the array length and validate every element is a
-  // positive integer so a malicious PATCH can't enqueue thousands of
-  // UPDATEs or send a `NaN` into the prepared statement.
   if (
     !Array.isArray(body.order) ||
     body.order.length > 500 ||

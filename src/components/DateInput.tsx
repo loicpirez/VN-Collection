@@ -41,8 +41,6 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
   const wrapperRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  // Track whether the picker was open at last cycle so we can restore
-  // focus to the trigger button on close (A-013).
   const wasOpenRef = useRef(false);
 
   // Close on outside click + Escape

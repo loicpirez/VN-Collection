@@ -39,9 +39,6 @@ export function formatMinutes(
   const h = Math.floor(total / 60);
   const mn = total % 60;
   if (!t && process.env.NODE_ENV !== 'production' && typeof console !== 'undefined') {
-    // I-025: surface omissions in dev so the next caller doesn't ship
-    // English suffixes to FR/JA users. Silenced in production so we
-    // don't spam the operator's logs for legitimate locale-less calls.
     console.warn(
       '[formatMinutes] called without `t` — falling back to English h/m suffixes. Pass `t.year` for localised output.',
     );

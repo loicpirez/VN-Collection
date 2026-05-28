@@ -23,7 +23,7 @@ function* walkSrc(dir: string): Generator<string> {
 
 const INLINE_VN_ID_RE_TEST = /\/\^v\\d\+\$\/i?\.test\(/;
 
-describe('isVndbVnId — R5-120 helper behaviour', () => {
+describe('isVndbVnIdhelper behaviour', () => {
   it('accepts canonical v\\d+ ids', () => {
     expect(isVndbVnId('v17')).toBe(true);
     expect(isVndbVnId('V17')).toBe(true);

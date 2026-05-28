@@ -49,10 +49,6 @@ export default async function TopRankedPage({
   // its own cache key, so switching is free after the first fetch.
   const minDefault = tab === 'egs' ? EGS_TOP_MIN_VOTES : VNDB_TOP_MIN_VOTES;
   const minVotes = parseMinVotes(rawMin, minDefault);
-  // Per-tab freshness: previously the chip showed MAX(vndb, egs)
-  // which misled the operator on the inactive tab (e.g. EGS tab
-  // chip reading "just now" when only VNDB was refreshed). Read
-  // only the cache rows backing the currently-visible tab.
   const lastUpdatedAt =
     tab === 'egs'
       ? getCacheFreshness(['egs:top-ranked:%'])
@@ -78,8 +74,6 @@ export default async function TopRankedPage({
           </div>
         </div>
         <nav
-          // R5-156: navigates to a different URL state — plain
-          // `<nav>` + `aria-current="page"` on the active link.
           className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs"
           aria-label={t.topRanked.tabsLabel}
         >

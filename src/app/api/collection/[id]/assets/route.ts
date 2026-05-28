@@ -71,9 +71,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       upsertVn(fresh);
     } catch (e) {
-      // R5-129: was leaking `(e as Error).message` (e.g. raw VNDB
-      // 5xx body). Funnel through upstreamError so the upstream
-      // text only reaches the server log.
       return upstreamError(`collection/${id}/assets:hydrate`, e);
     }
   }

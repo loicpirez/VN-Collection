@@ -16,9 +16,6 @@ import { BulkDownloadButton } from './BulkDownloadButton';
 
 import { readApiError } from '@/lib/api-error-read';
 import { languageDisplayName } from '@/lib/language-names';
-// I-N01: locale-aware Collator for FR/JA title sort. Without this, the
-// runtime default locale was used which produced confusing order on
-// JA systems sorting an EN-titled wishlist.
 import { BCP47, yearOnly } from '@/lib/locale-number';
 
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc' | 'egs_rating_desc';
@@ -188,16 +185,9 @@ export function WishlistClient() {
   const search = useSearchParams();
   const router = useRouter();
   const density = resolveScopedDensity(settings, 'wishlist', search?.get('density') ?? null);
-  // U-003: URL params take priority over the persisted localStorage
-  // prefs. So a deep-link to `/wishlist?sort=rating_desc&group=year`
-  // renders that view regardless of what the user last saved.
   const urlSort = search?.get('sort') ?? null;
   const urlGroup = search?.get('group') ?? null;
   const urlHideOwned = search?.get('hideOwned');
-  // P-079: memoize the inline grid template so the outer `<div>`'s
-  // style ref is stable across renders. Without this every keystroke
-  // in the search box re-creates the style object even though the
-  // inner `<MemoWishlistCard>` properly memoizes.
   const wishlistGridStyle: React.CSSProperties = useMemo(
     () => ({ gridTemplateColumns: cardGridColumns(density) }),
     [density],
@@ -219,14 +209,6 @@ export function WishlistClient() {
   const [filterYearMin, setFilterYearMin] = useState('');
   const [filterYearMax, setFilterYearMax] = useState('');
   // Seed `hideOwned`, `sort`, and `group` from localStorage so the
-  // user's preferred view is restored on every visit (audit/QA #13:
-  // wishlist prefs should auto-save like the rest of the app). The
-  // initialiser runs once on mount; subsequent setX calls below
-  // mirror to storage via the useEffect at the bottom of this hook
-  // chain.
-  // U-003: initialize from URL first, fall back to localStorage. Subsequent
-  // setX writes push BOTH localStorage (persisted default) AND the URL
-  // (sharable view) via the effect below.
   const [hideOwned, setHideOwned] = useState<boolean>(() =>
     urlHideOwned != null ? urlHideOwned === '1' : loadPrefs().hideOwned,
   );
@@ -245,9 +227,6 @@ export function WishlistClient() {
     persistPrefs({ sort, group, hideOwned });
   }, [sort, group, hideOwned]);
 
-  // U-003: sync state → URL so the user can copy/paste a wishlist URL
-  // and another tab opens the same view. Only writes values that
-  // diverge from the defaults, keeping shared URLs clean.
   useEffect(() => {
     const params = new URLSearchParams(search?.toString() ?? '');
     let dirty = false;
@@ -312,13 +291,6 @@ export function WishlistClient() {
     setRefreshing(false);
   }, [load]);
 
-  // R5-137: every per-card callback flows through a stable
-  // `useCallback` + functional `setState` so `React.memo(VnCard)`
-  // (and the local `MemoWishlistCard` wrapper below) can skip
-  // re-renders driven by sibling state changes (search query,
-  // sort, group). Functional updaters mean no dep on `items` /
-  // `selected`, so the callback identity stays the same across
-  // renders.
   const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -333,10 +305,6 @@ export function WishlistClient() {
     setSelectMode(false);
   }, []);
 
-  // R5-137: `handleAdded` is a single allocation per WishlistClient
-  // instance; passing it to every card replaces the old
-  // `onAdded={(id) => setItems(…)}` arrow that was re-created on
-  // every render and defeated React.memo on VnCard.
   const handleAdded = useCallback((id: string) => {
     setItems((prev) =>
       prev.map((x) => (x.vn.id === id ? { ...x, in_collection: true } : x)),
@@ -352,10 +320,6 @@ export function WishlistClient() {
     });
     if (!ok) return;
     setDeleting(true);
-    // P-054: parallel DELETE fan-out. Serial loop made 50 selected
-    // deletes a 50+ second wall-clock job because each fetch waited
-    // on the previous response. Promise.all + per-call try/catch keeps
-    // partial-failure accounting intact.
     let removed = 0;
     let failed = 0;
     const results = await Promise.all(
@@ -423,8 +387,6 @@ export function WishlistClient() {
       if (filterPlatform && !it.vn.platforms.includes(filterPlatform)) return false;
       if (rMin !== null && (it.vn.rating == null || it.vn.rating < rMin)) return false;
       if (rMax !== null && (it.vn.rating == null || it.vn.rating > rMax)) return false;
-      // U-055: use the canonical `yearOnly` helper instead of raw
-      // string-slicing — robust against partial dates / odd whitespace.
       if (yMin || yMax) {
         const yr = yearOnly(it.vn.released);
         if (!yr) return false;
@@ -490,14 +452,6 @@ export function WishlistClient() {
       .map(([key, items]) => ({ key, items }));
   }, [sorted, group, t.wishlist.groupUnknown, t.wishlist.groupOwned, t.wishlist.groupTodo, collator]);
 
-  // R5-137: `removeOne` is a stable `useCallback` so the
-  // `onRemoveFromWishlist` arrow rendered per card can read it
-  // without changing identity each render. `t.*` strings are
-  // stable per locale (the dictionary is the same object), so
-  // deps don't churn between cards. `removingId` is intentionally
-  // omitted from deps — we read the latest value via a ref so a
-  // tap on card B while card A is still removing doesn't get
-  // blocked by a stale closure capture.
   const removingIdRef = useRef(removingId);
   removingIdRef.current = removingId;
   const removeOne = useCallback(

@@ -7,8 +7,6 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 3600;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  // Audit S-024: cached, but a LAN burst on the first cache miss
-  // still amplifies. Gate to keep the LAN-attack surface honest.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {

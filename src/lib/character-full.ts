@@ -30,7 +30,6 @@ function key(cid: string): string {
 }
 
 /**
- * Read a previously-cached full-character payload from `vndb_cache`. Returns
  * `null` on missing / unparseable rows so callers can decide between a cache
  * miss and an upstream re-fetch.
  */

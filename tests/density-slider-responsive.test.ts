@@ -2,7 +2,6 @@
  * Regression pin: `<CardDensitySlider>` and `<GlobalCardDensitySlider>`
  * must shrink gracefully on narrow viewports.
  *
- * Operator-reported regression: on /producer/[id] and /staff/[id], the
  * slider row used `inline-flex` with a hard-coded `w-28` range input
  * (~112 px) + four 44 px tap-target buttons + a value badge — the row's
  * natural width pushed past a 360 px viewport, forcing a horizontal

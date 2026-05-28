@@ -155,10 +155,6 @@ export function validateHomeSectionLayoutV1(input: unknown): HomeSectionLayoutV1
   return out;
 }
 
-// P-191: cache the most-recent parse so repeat calls with the same
-// raw string (multiple consumers in a single request) skip the
-// JSON.parse + validate cost. Single-slot cache is enough because
-// the raw value rarely changes during a request.
 let lastParseRaw: string | null = null;
 let lastParseResult: HomeSectionLayoutV1 | null = null;
 

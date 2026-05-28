@@ -62,8 +62,6 @@ describe('stripVndbMarkup', () => {
   });
 
   it('drops unclosed BBCode tag content cleanly', () => {
-    // The audit-documented policy: dangling `[b]` opener drops the
-    // tag, keeps the inner text. Stack-unwind merges to parent.
     expect(stripVndbMarkup('hello [b]bold and unclosed')).toBe('hello bold and unclosed');
   });
 

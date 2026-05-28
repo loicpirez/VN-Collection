@@ -45,10 +45,6 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const [knownPlaces, setKnownPlaces] = useState<string[]>([]);
 
   useEffect(() => {
-    // P-005 / P-072 / P-118: AbortController + cache: 'no-store' + log
-    // failures. Previously `.catch(() => {})` swallowed every error
-    // including network failures, leaving the places dropdown silently
-    // empty.
     const ctrl = new AbortController();
     fetch('/api/places', { signal: ctrl.signal, cache: 'no-store' })
       .then((r) => r.json())
@@ -65,8 +61,6 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   const [seriesPickerId, setSeriesPickerId] = useState<string>('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  // P-211: memoize so downstream consumers (e.g. SeriesManager) get a
-  // stable array reference when `vn.series` is null.
   const myseries = useMemo(() => vn.series ?? [], [vn.series]);
 
   const buildPayload = useCallback(() => ({
@@ -88,9 +82,6 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   const lastSavedRef = useRef<string | null>(null);
   const mountedRef = useRef(false);
-  // P-100: per-component lifecycle tracking. `setTimeout(() =>
-  // setSaveStatus('idle'), 2000)` used to fire on unmounted components
-  // because the inner timer wasn't cleaned up.
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
   useEffect(() => () => {

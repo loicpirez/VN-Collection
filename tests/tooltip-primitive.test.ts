@@ -1,10 +1,3 @@
-/**
- * Pins the shared Tooltip primitive contract (audit A-115..A-119):
- *   - role="tooltip" set on the descriptor
- *   - escape dismisses (WCAG 2.1 SC 1.4.13)
- *   - hover + focus open; mouseleave + blur close
- *   - disabled prop short-circuits rendering
- */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

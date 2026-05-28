@@ -239,14 +239,6 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                           </span>
                         )}
                         {!isEditing && (
-                          // R5-150: the edit + delete buttons must
-                          // be VISIBLE on touch (no hover surface).
-                          // The `md:opacity-0` prefix keeps the
-                          // hover-only-on-desktop visual but the
-                          // controls always render on mobile /
-                          // tablet — the bare `opacity-0 group-
-                          // hover:opacity-100` shape made them
-                          // unreachable below md.
                           <span className="ml-auto inline-flex gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
                             <button
                               type="button"

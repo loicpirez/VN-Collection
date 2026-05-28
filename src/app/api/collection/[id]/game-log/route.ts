@@ -74,17 +74,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  // Audit S-038: clamp logged_at to a sane epoch window. Accepting any
-  // positive number means a caller can write Number.MAX_SAFE_INTEGER
-  // and break every ORDER BY logged_at query that relies on the value
-  // staying within ISO-date range. One year of slack in the future
-  // accommodates retroactive logging without admitting garbage.
   const LOGGED_AT_MAX = Date.now() + 365 * 86_400_000;
   const at = typeof body.logged_at === 'number' && body.logged_at > 0 && body.logged_at <= LOGGED_AT_MAX
     ? Math.floor(body.logged_at)
     : undefined;
-  // Audit S-038: clamp session_minutes so a single entry can't claim
-  // millions of minutes (used to compute reading-speed averages).
   const minutes =
     typeof body.session_minutes === 'number' && body.session_minutes > 0
       ? Math.min(Math.floor(body.session_minutes), 100_000)
@@ -118,9 +111,6 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   const patch: { note?: string; logged_at?: number; session_minutes?: number | null } = {};
   if (typeof body.note === 'string') patch.note = body.note.slice(0, 10000);
-  // Audit S-053: apply the same clamps used by POST — without them the
-  // PATCH path could write Number.MAX_SAFE_INTEGER into logged_at /
-  // session_minutes and break the reading-speed math.
   const LOGGED_AT_MAX_PATCH = Date.now() + 365 * 86_400_000;
   if (typeof body.logged_at === 'number' && body.logged_at > 0 && body.logged_at <= LOGGED_AT_MAX_PATCH) {
     patch.logged_at = Math.floor(body.logged_at);

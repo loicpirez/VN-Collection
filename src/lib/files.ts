@@ -170,10 +170,6 @@ export async function downloadToBucket(
     throw new Error(`Image too large: ${cl} bytes (max ${MAX_IMAGE_BYTES})`);
   }
   const ct = res.headers.get('content-type');
-  // Audit S-049: stream into a chunked buffer with a running total so a
-  // lying Content-Length AND a missing one are both bounded. `arrayBuffer()`
-  // buffers everything before our check fires; a malicious upstream that
-  // omits Content-Length and streams gigabytes would still OOM the process.
   const buf = await readBodyWithCap(res, MAX_IMAGE_BYTES);
   if (!buf) {
     throw new Error(`Image too large: > ${MAX_IMAGE_BYTES} bytes (streaming cap)`);
@@ -235,7 +231,6 @@ export class UnsupportedFileType extends Error {
 /**
  * Save a client-uploaded image. Sniffs the actual bytes to determine
  * the real MIME type — the client-supplied Content-Type can lie,
- * and previously a banner / cover upload would happily persist an
  * HTML or SVG file with a fake `.png` extension. By picking the
  * extension from sniffed bytes instead of `file.type`, we both
  * reject non-image uploads up front and store the file under a

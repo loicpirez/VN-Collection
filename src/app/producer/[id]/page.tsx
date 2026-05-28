@@ -156,9 +156,6 @@ export default async function ProducerPage({
       </div>
 
       {(() => {
-        // R5-222: thread localised section labels through so
-        // DetailReorderLayout's collapse-by-default headers and
-        // edit-mode chevrons have something to render.
         const sectionLabels = t.producerLayout.sectionLabels;
         const producerSections: DetailSection[] = [];
 
@@ -191,8 +188,6 @@ export default async function ProducerPage({
                 <ExternalLink className="h-3.5 w-3.5" /> VNDB
               </a>
               {producer.extlinks.map((l) => {
-                // R5-124: drop non-http(s) extlinks before they reach
-                // the DOM. See lib/safe-href.ts for the rationale.
                 const href = safeHref(l.url);
                 if (!href) return null;
                 return (
@@ -221,14 +216,6 @@ export default async function ProducerPage({
           ),
         });
 
-        // R5-235: `stats` is in the canonical PRODUCER_SECTION_IDS so
-        // the user can enable/disable/reorder it in Settings → Page
-        // layout. We MUST push it whenever it's marked visible —
-        // otherwise the UI lies (the user sees the section listed in
-        // Settings but nothing renders on the page). Render a small
-        // empty-state placeholder when no scraped data is available so
-        // the user knows the section exists and is empty rather than
-        // wondering why their layout setting has no effect.
         const scrapedInfo = readScrapedProducerInfo(producer.id);
         producerSections.push({
           id: 'stats',
@@ -296,7 +283,6 @@ function ProducerVnsSkeleton() {
     </section>
   );
 }
-
 
 /**
  * Renders the parent/subsidiary/spawned/imprint relations VNDB exposes

@@ -110,7 +110,6 @@ export function CoverSourcePicker({
   /**
    * Storing a new custom_cover only changes the displayed hero when the
    * user's `source_pref.image` resolves to the custom column. If the user
-   * had previously pinned VNDB or EGS, custom would lose. So every
    * "pick a custom" path here ALSO flips `source_pref.image` to 'custom'
    * — picking a new cover should obviously promote it to active. This
    * was the "selecting new cover doesn't do anything" bug.

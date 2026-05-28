@@ -198,8 +198,6 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const { vn, error } = await loadVn(id);
   if (!vn) {
-    // Log the technical detail server-side so the operator can diagnose,
-    // without leaking the raw upstream message to the page. See U-012.
     if (error) {
       console.warn(`[vn/${id}] upstream lookup failed:`, error);
     }
@@ -227,7 +225,6 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             // Surface a generic line — full upstream message is sent to the
             // server log (where the operator can grep it) rather than dumped
             // verbatim into the page (which can leak stack traces). See
-            // U-012 in docs/audit-uiux-full.md.
             <p className="mt-3 text-xs text-status-dropped/80">{t.common.error}</p>
           )}
           <p className="mt-4 text-xs text-muted">

@@ -50,12 +50,7 @@ describe('SpoilerReveal — cascade + single-wrapper invariants', () => {
   });
 
   it('does not paint the masked state with an opaque black overlay', () => {
-    // The operator flagged "black block after reveal". The fix is
-    // a dashed-bordered tile + lock icon, NOT a `bg-black` /
-    // `bg-status-dropped` rectangle.
     expect(SOURCE).not.toMatch(/bg-black\b/);
-    // Allow `bg-bg-elev/40` (a very soft tint) — that's the
-    // tile-surface class the codebase uses everywhere.
   });
 
   it('keeps children mounted in the hidden branch (sr-only) so SR users hear the spoiler text', () => {

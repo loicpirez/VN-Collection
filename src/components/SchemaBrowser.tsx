@@ -152,7 +152,6 @@ function Node({
 
   // When a filter goes from non-empty back to empty, promote the
   // filter-driven open state into the local toggle so the user
-  // doesn't see every previously-matched branch suddenly collapse.
   const prevHadFilter = useRef(hasFilter);
   useEffect(() => {
     if (prevHadFilter.current && !hasFilter && inMatchTree && !openLocal) {

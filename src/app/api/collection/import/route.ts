@@ -20,9 +20,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const contentLength = req.headers.get('content-length');
   const transferEncoding = req.headers.get('transfer-encoding');
-  // Audit S-050: a chunked request without Content-Length skips the
-  // pre-buffer cap below. Reject it with 411 so an attacker can't sidestep
-  // the size limit by streaming an unbounded chunked payload.
   if (!contentLength && transferEncoding?.toLowerCase().includes('chunked')) {
     return NextResponse.json(
       { error: 'Content-Length required (chunked transfer not accepted for import)' },
@@ -60,11 +57,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!body || typeof body !== 'object' || !Array.isArray(body.collection) || !Array.isArray(body.vns)) {
     return NextResponse.json({ error: 'unexpected payload shape' }, { status: 400 });
   }
-  // Audit S-041: per-row validation so malformed entries are rejected
-  // BEFORE they reach `importData` — every accepted row must carry a
-  // VN id matching `v\d+` or `egs_\d+`. The previous handler relied on
-  // `importData` to either swallow or surface unexpected shapes via the
-  // returned summary, which let bad rows persist into the local tables.
   const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
   const cap = 50_000; // hard ceiling per import file (one-shot user import).
   if (body.vns.length > cap || body.collection.length > cap) {

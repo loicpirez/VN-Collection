@@ -27,9 +27,6 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
-  // P-114: clean up the 250ms refresh timer on unmount so a navigate-
-  // away during the window doesn't fire router.refresh() on a stale
-  // tree.
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);

@@ -8,7 +8,6 @@
  * series colour, or a chart donut slice — we read from THIS file.
  *
  * Keep the keys + values byte-identical to `tailwind.config.ts`.
- * U-293: previously `src/app/stats/page.tsx` duplicated the hex
  * values inline; if the palette ever drifted, the donut chart would
  * be silently out of sync with the chips on every other surface.
  */

@@ -63,11 +63,6 @@ describe('R5-138 — listCollection filters via derived indexes', () => {
 
   it('listCollection WHERE clauses no longer EXISTS json_each over filter JSON columns', () => {
     const body = SOURCE.split('export function listCollection')[1]?.split('\nexport ')[0] ?? '';
-    // Only assert the EXISTS-over-json_each FILTER shape is gone.
-    // The sort path that still does `MIN(json_extract(...) FROM
-    // json_each(...))` for ORDER BY publisher / developer name is
-    // a separate optimisation (R5-138 carry-over) — out of scope
-    // for the filter rewrite.
     expect(body).not.toMatch(/EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+json_each\(v\.developers\)/);
     expect(body).not.toMatch(/EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+json_each\(v\.tags\)/);
     expect(body).not.toMatch(/EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+json_each\(COALESCE\(v\.publishers/);

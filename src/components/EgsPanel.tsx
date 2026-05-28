@@ -209,7 +209,6 @@ export function EgsPanel({
   // ----- Matched branch -----
   const combined = combinedScore(vndbRating, game.median);
   const totalPlaytime = (myPlaytimeMinutes || 0) + (game.playtime_median_minutes ?? 0);
-  // I-025: pass locale + t.year so FR/JA users see localized 'h'/'min'/'時間' suffixes.
   const myPt = fmtMinutes(myPlaytimeMinutes || null, locale, t.year);
   const egsPt = fmtMinutes(game.playtime_median_minutes, locale, t.year);
   const vndbPt = fmtMinutes(vndbLengthMinutes, locale, t.year);

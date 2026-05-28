@@ -47,38 +47,6 @@ interface SpoilerCascade {
 }
 const SpoilerCascadeContext = createContext<SpoilerCascade>({ ancestorRevealedLevel: -1 as 0 });
 
-/**
- * Shared spoiler gate component.
- *
- * Rule fixes vs. the prior implementation:
- *
- *   1. The masked + revealed states render through the SAME wrapper
- *      element. Previously we returned a fresh `<span>` for the
- *      hidden branch and a different `<span>` for the
- *      transient/revealed branch. React unmounted the first wrapper
- *      the moment hover fired, the cursor was still over the *old*
- *      element, and the new element didn't receive a fresh
- *      pointerEnter — so the gate flickered back to hidden and
- *      stayed "black-blocked". The single-wrapper layout keeps the
- *      listener attached across state transitions.
- *
- *   2. Children stay in the DOM in every state. Hidden replaces the
- *      visible content with a localised `aria-label` + a small lock
- *      icon, but the underlying children remain so SR users still
- *      hear "spoiler — press to reveal" and screen-search can index
- *      the page. No more wholesale block-character replacement,
- *      which the operator saw as a persistent black block.
- *
- *   3. `SpoilerCascadeContext` propagates the ancestor's revealed
- *      level downward. A nested `<SpoilerReveal level=2>` inside a
- *      revealed `<SpoilerReveal level=2>` is automatically marked
- *      revealed too — the cascade prevents double-hiding.
- *
- *   4. Sexual-content tags use the same gate (no separate
- *      "blackout" CSS branch). They render through `<SpoilerReveal
- *      level={2}>` per the existing call sites, and now obey the
- *      same hover / focus / click / tap rules.
- */
 export function SpoilerReveal({
   level,
   perSectionOverride = null,

@@ -21,7 +21,6 @@ export interface ReleaseFullPayload {
 }
 
 /**
- * Read a previously-cached full-release payload from `vndb_cache`. Returns
  * `null` on missing / unparseable rows so callers fall back to a fresh fetch.
  */
 export function readReleaseFullCache(rid: string): ReleaseFullPayload | null {

@@ -3,23 +3,6 @@ import { type ReactNode } from 'react';
 import { AlertTriangle, XCircle } from 'lucide-react';
 import { ERROR_ALERT_TONE_CLASSES, type ErrorAlertTone } from './error-alert-tones';
 
-/**
- * Shared error / warning banner primitive — closes audit U-019.
- *
- * Surfaces a coloured banner with an icon + title + optional body. Use
- * for any "the operation failed" / "something is stale" callout that
- * was previously open-coded as a `<div className="rounded-xl border
- * border-status-dropped/40 bg-status-dropped/10 …">` blob.
- *
- * Tones map to the project's canonical status palette:
- *   - `error`   — red (`status-dropped`). Default. For hard failures.
- *   - `warning` — amber (`status-on_hold`). For stale-data / partial-result hints.
- *   - `info`    — blue (`accent-blue`). For "for your information" callouts.
- *
- * Renders `role="alert"` by default so screen readers announce the
- * banner when it mounts mid-page (matches the a11y audit `role="alert"`
- * convention applied across inline error messages).
- */
 export interface ErrorAlertProps {
   /** Short title or one-line summary. Required. */
   title: string;

@@ -35,16 +35,8 @@ const ROOT = join(__dirname, '..');
 const ALLOWLIST = new Set([
   'scripts/qa-ids.mjs',
   'tests/qa-no-real-ids-outside-fixtures.test.ts',
-  // QA scripts are allowed during the migration but must SOURCE
-  // their IDs from scripts/qa-ids.mjs (R5-220 follow-up tracks the
-  // refactor). For now the scanner allows them so existing QA
-  // selectors don't break; once the QA scripts import QA_IDS the
-  // exceptions below can be removed.
   'scripts/browser-interactions.mjs',
   'scripts/browser-qa.sh',
-  // Audit logs / round checklists legitimately cite real IDs in
-  // bug-report context. docs/TODO_/ is an archive directory and is
-  // excluded from the walk entirely (see walker below).
   'docs/round6-master-regression-checklist.md',
 ]);
 

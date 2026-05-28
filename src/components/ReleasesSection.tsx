@@ -359,8 +359,6 @@ export function ReleasesSection({
                   {r.extlinks.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {r.extlinks.slice(0, 6).map((l) => {
-                        // R5-124: drop non-http(s) extlinks. See
-                        // lib/safe-href.ts for the rationale.
                         const href = safeHref(l.url);
                         if (!href) return null;
                         return (

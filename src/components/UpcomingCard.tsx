@@ -96,12 +96,6 @@ export function UpcomingCard({
       data-testid="upcoming-card"
       data-variant={variant}
       className={
-        // R5-219: `items-start` prevents the default `align-items:
-        // stretch` from overriding the cover frame's `aspect-ratio: 2/3`
-        // when the metadata column is taller than the cover. Without
-        // this, a tall card (e.g. with multi-line title + producers +
-        // tags) stretched the cover to match the row height, producing
-        // a 2:3.x or 2:4 aspect instead of the intended 2:3.
         variant === 'wide'
           ? 'group flex items-start gap-4 rounded-xl border border-border bg-bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card sm:p-4'
           : 'flex items-start gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all hover:border-accent'
@@ -122,10 +116,6 @@ export function UpcomingCard({
             href={internalHref}
             className="block h-full w-full"
             tabIndex={-1}
-            // R5-088: aria-label communicates the "Open VN" intent so
-            // assistive tech announces something more useful than just
-            // the cover image alt text — the title link below also
-            // targets the same destination.
             aria-label={t.upcoming.openVn.replace('{title}', title)}
           >
             <SafeImage
@@ -240,10 +230,6 @@ export function UpcomingCard({
               rel="noopener noreferrer"
               className="tap-target inline-flex items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 text-muted hover:border-accent hover:text-accent"
               data-affordance="open-egs"
-              // R5-088: screen readers + tooltip should report the
-              // open-on-EGS intent; the bare "EGS" glyph is otherwise
-              // opaque (especially when adjacent to the VNDB chip
-              // with identical visual weight).
               aria-label={t.upcoming.cardOpenEgs}
               title={t.upcoming.cardOpenEgs}
             >

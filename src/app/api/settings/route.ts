@@ -460,8 +460,6 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     }
   }
   if ('vndb_writeback' in body) {
-    // Strict boolean check — previously any truthy value (including
-    // the string "false") was accepted.
     if (typeof body.vndb_writeback !== 'boolean') {
       return NextResponse.json({ error: 'vndb_writeback must be boolean' }, { status: 400 });
     }
@@ -526,12 +524,6 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       setAppSetting('egs_username', null);
     } else if (typeof v === 'string') {
       const trimmed = v.trim();
-      // R5-128: tighten the validator to match the downstream
-      // EGS lookup constraint in `lib/erogamescape.ts`
-      // (`/^[A-Za-z0-9_]{1,32}$/`). Previously the PATCH accepted
-      // any character set as long as it lacked whitespace/quotes
-      // — a username like `foo.bar` would be stored but every
-      // subsequent fetch silently returned empty results.
       if (!/^[A-Za-z0-9_]{1,32}$/.test(trimmed)) {
         return NextResponse.json({ error: 'invalid EGS username' }, { status: 400 });
       }

@@ -123,9 +123,6 @@ describe('POST /api/refresh/scope — R5-058 behaviour', () => {
     const res = await POST(postScope({ scope: 'not-a-scope' }));
     expect(res.status).toBe(400);
     const json = await res.json();
-    // S-003: response is generic so the route never reflects attacker-
-    // controlled input back. The raw "unknown refresh scope: <input>"
-    // detail goes to the server log only.
     expect(json.error).toBe('unknown scope');
   });
 

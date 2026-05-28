@@ -40,10 +40,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     added.push(vnId);
     if (body.expand) {
       const related = walkSeriesRelations(vnId);
-      // R5-142: one batched membership lookup for the relation graph.
-      // The previous per-relation `isInCollection(r.id)` was a single
-      // SELECT per node in a graph that can easily reach 20-30 nodes
-      // for long-running series (Higurashi-style arc chains).
       const ownedRelatedSet = isInCollectionMany(related.map((r) => r.id));
       let idx = baseIndex + 1;
       for (const r of related) {

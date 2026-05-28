@@ -50,7 +50,7 @@ afterAll(() => {
   db.close();
 });
 
-describe('findStaffSiblings (R5-239)', () => {
+describe('findStaffSiblings', () => {
   beforeEach(() => {
     db.exec(`
       DELETE FROM vn_va_credit;

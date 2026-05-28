@@ -67,9 +67,6 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   // whenever a router.refresh() lands new data. Without this the
   // optimistic state from a previous event would survive past a real
   // server update.
-  // P-203: collapsed three sibling effects into one keyed on
-  // `[src, initialRotation]` so a single router.refresh fires one
-  // render cycle instead of three.
   useEffect(() => {
     setLiveSrc(src);
     setRotation(initialRotation);

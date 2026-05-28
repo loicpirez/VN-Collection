@@ -32,9 +32,6 @@ function parseAdvancedBody(raw: unknown): { ok: true; opts: AdvancedSearchOption
       out[key] = v as string[];
     }
   }
-  // R5-123: clamp numeric ranges so a wild client value doesn't
-  // generate a VNDB filter like `[released, >=, '9999999999-01-01']`
-  // and bubble back a confusing 502.
   const RANGE: Record<string, { min: number; max: number }> = {
     lengthMin: { min: 1, max: 5 },
     lengthMax: { min: 1, max: 5 },

@@ -134,15 +134,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       materializeAspectForCollectionVns(allVnIds);
     }
 
-    // R5-144: default to the slim card projection so the library
-    // grid doesn't pay for ~30-80 MB of JSON.parse work per
-    // request on a 1000+ VN library. Callers that need the full
-    // payload pass `?detail=full` (used by export / debug
-    // tooling). The slim projection keeps `developers`,
-    // `publishers`, `tags`, and `relations` (LibraryClient reads
-    // those) and drops `description` / `aliases` / `staff` /
-    // `va` / `titles` / `editions` / `extlinks` / `screenshots` /
-    // `release_images` / `raw` / `languages` / `platforms` etc.
     const wantsFullDetail = sp.get('detail') === 'full';
     const collectionFetcher = wantsFullDetail ? listCollection : listCollectionForCards;
     const raw = collectionFetcher({

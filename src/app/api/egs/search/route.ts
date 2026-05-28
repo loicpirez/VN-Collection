@@ -13,7 +13,6 @@ export const runtime = 'nodejs';
 const Q_MAX = 200;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  // Audit S-030: gate — every miss issues an EGS SQL POST.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const q = (req.nextUrl.searchParams.get('q') ?? '').slice(0, Q_MAX).trim();
@@ -27,10 +26,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ candidates });
   } catch (e) {
     if (e instanceof EgsUnreachable) {
-      // Audit I-016 follow-up: return a STABLE machine-readable kind so
-      // the client can localize the message itself. The previous FR-only
-      // copy never reached EN/JA users — and EN code-string comparisons
-      // (`/steam_not_configured/`) couldn't pattern-match into French.
       return NextResponse.json(
         { error: 'egs_unreachable', kind: e.kind, status: e.status, candidates: [] },
         { status: 503 },

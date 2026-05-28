@@ -35,11 +35,6 @@ export default async function SchemaPage() {
     error = (e as Error).message;
   }
 
-  // R5-058/R5-215: scope the freshness chip to the schema cache
-  // ONLY (not authinfo / stats — those are unrelated to this page
-  // and were inflating the chip's "Data Xh ago" reading). The
-  // scoped refresh button below busts the same pattern so the
-  // freshness display and the refresh action stay in sync.
   const lastUpdatedAt = getCacheFreshness(['% /schema|%']);
 
   return (

@@ -46,7 +46,6 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   } else if (body.description === null) {
     patch.description = null;
   }
-  // Audit S-017: validate color + icon shape on PATCH too.
   const COLOR_RE = /^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,32})$/;
   const ICON_RE = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
   if (typeof body.color === 'string') {

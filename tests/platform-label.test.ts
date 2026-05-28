@@ -22,13 +22,8 @@ describe('platformLabel', () => {
   });
 
   it('VNDB-real codes seen in local data resolve to their full names', () => {
-    // The operator flagged "N3D" rendering raw in some VN cards.
-    // VNDB's `release.platforms` enum uses `n3d` (lowercase) — NOT
-    // `3ds`. Both alias to the same label.
     expect(platformLabel('n3d')).toBe('Nintendo 3DS');
     expect(platformLabel('N3D')).toBe('Nintendo 3DS');
-    // Other codes the operator's DB carries that didn't have a
-    // friendly label before:
     expect(platformLabel('dos')).toBe('MS-DOS');
     expect(platformLabel('mob')).toBe('Mobile');
     expect(platformLabel('x68')).toBe('X68000');

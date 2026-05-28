@@ -54,9 +54,6 @@ function listCardData(
     developers,
     publishers,
     isFanDisc: parseRelations(row.relations).some((relation) => relation === 'orig'),
-    // R5-114: preload the ListsPicker membership-count chip so the
-    // badge renders immediately on the list page (the popover-open
-    // round-trip was the only thing populating it before).
     listCount,
   };
   listRowCache.set(row, data);
@@ -125,11 +122,6 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const items = listUserListItems(listId);
   const queueIds = getReadingQueueVnIds();
   const rows = loadCards(items, queueIds);
-  // R5-114: preload the ListsPicker membership-count chip on every
-  // card via the same compact `vn_id → list_count` map the
-  // `/api/collection` route uses. Without this annotation, every
-  // card on `/lists/[id]` mounted the chip with zero and only
-  // populated the badge after the popover opened.
   const listCounts = countListMembershipsByVn();
 
   return (

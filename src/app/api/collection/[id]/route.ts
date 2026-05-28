@@ -38,8 +38,6 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
   if ('user_rating' in body) {
     const v = body.user_rating;
     if (v !== null && (typeof v !== 'number' || !Number.isInteger(v) || v < 10 || v > 100)) {
-      // SQLite column is INTEGER; previously we accepted 12.345 and
-      // SQLite silently coerced. Reject non-integers up front.
       return { fields, error: 'user_rating must be an integer 10-100 or null' };
     }
     fields.user_rating = v as number | null;

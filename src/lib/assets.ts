@@ -171,10 +171,6 @@ async function downloadCharacterImages(characters: VndbCharacter[]): Promise<voi
   if (characters.length === 0) return;
   const ids = characters.map((c) => c.id);
   const existing = getCharacterImages(ids);
-  // P-053: bounded worker pool. Previously sequential — a VN with 60
-  // characters meant 60 round-trips waiting on each other, since each
-  // downloadToBucket awaits a single network request. 4 concurrent
-  // workers mirror the screenshot loop above.
   const CONCURRENCY = 4;
   let cursor = 0;
   async function workOne(c: VndbCharacter): Promise<void> {

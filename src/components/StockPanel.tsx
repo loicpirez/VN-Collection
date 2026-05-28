@@ -29,9 +29,6 @@ import { normalizeProviderDiagnostic, type NormalizedProviderDiagnostic, type Pr
 import { classifyOfferGroup, isEligibleGameStockOffer, type OfferGroup } from '@/lib/stock-classify';
 import { ONLINE_STOCK_SENTINEL } from '@/lib/stock-provider-constants';
 import { StockPhysicalLocations, type PhysicalOffer } from './StockPhysicalLocations';
-// R12-EROGEPRICE-UI: lazy-load so the line-chart SVG + the per-
-// candidate panel never ship to operators who never open a VN with
-// eroge_price data. ~12 KB gz delta.
 const ErogePricePanel = dynamic(() => import('./ErogePricePanel').then((m) => m.ErogePricePanel), { ssr: false });
 import { SkeletonRows } from './Skeleton';
 import { useDialogA11y } from './Dialog';
@@ -126,14 +123,8 @@ interface StockSource {
   updated_at: number;
 }
 
-// P-200: STALE_MS used to live inside the component body; hoist to
-// module scope so the literal isn't recreated on every render.
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 
-// P-025 / P-027: module-level EMPTY arrays so consumers can use a
-// stable reference for the "no snapshot yet" case. Used directly
-// in useMemo deps; avoids re-creating a fresh `[]` on every render
-// when the snapshot fields are undefined.
 const EMPTY_OFFERS: StockOffer[] = [];
 const EMPTY_PROVIDERS: StockProvider[] = [];
 
@@ -191,6 +182,7 @@ export function StockPanel({
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [hideStale, setHideStale] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
+  const [searchSetupOpen, setSearchSetupOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const physicalDefaultRef = useRef(false);
 
@@ -234,8 +226,6 @@ export function StockPanel({
     return () => ctrl.abort();
   }, [vnId]);
 
-  // P-027: stabilize providers reference so downstream useMemos don't
-  // re-compute on every render when the snapshot fields are undefined.
   const providers = snapshot?.providers ?? EMPTY_PROVIDERS;
 
   useEffect(() => {
@@ -364,8 +354,6 @@ export function StockPanel({
         const data = (await r.json()) as { aliases: string[] };
         setAliases(data.aliases ?? []);
       } else {
-        // P-122: previously swallowed. Surface failure so the user
-        // doesn't see the alias quietly remain.
         setAliasError(await readApiError(r, t.common.error));
       }
     } catch (e) {
@@ -440,8 +428,6 @@ export function StockPanel({
           await load();
         }
       } else {
-        // P-122: surface clear-cache failure so the user knows the
-        // operation didn't succeed.
         setError(await readApiError(r, t.common.error));
       }
     } catch (e) {
@@ -451,14 +437,7 @@ export function StockPanel({
     }
   }
 
-  // P-021 / P-193: memoize `now` per snapshot. Date.now() at top-of-
-  // render would mean the staleProviderIds memo's `now` dep changes on
-  // every render, defeating the memo entirely. Re-evaluating staleness
-  // once per snapshot is the right granularity — a 7-day staleness
-  // threshold doesn't care about a few ms of drift.
   const now = useMemo(() => Date.now(), [snapshot]);
-  // P-025: stabilize the empty-snapshot fallback so this reference is
-  // the same array across renders.
   const allOffers = snapshot?.offers ?? EMPTY_OFFERS;
   const staleProviderIds = useMemo(() => {
     if (!hideStale) return new Set<string>();
@@ -468,10 +447,6 @@ export function StockPanel({
         .map((s) => s.provider),
     );
   }, [hideStale, snapshot?.statuses, now]);
-  // P-024: memoize the filtered `offers` array so identity is stable
-  // when hideStale is false (returns allOffers ref directly) and only
-  // changes when the stale set changes. Downstream useMemos that
-  // depend on `offers` now actually hit the cache.
   const offers = useMemo(
     () => (hideStale ? allOffers.filter((o) => !staleProviderIds.has(o.provider)) : allOffers),
     [hideStale, allOffers, staleProviderIds],
@@ -483,11 +458,6 @@ export function StockPanel({
     () => new Map((snapshot?.statuses ?? []).map((s) => [s.provider, s])),
     [snapshot?.statuses],
   );
-  // R12-EROGEPRICE-UI: pull the persisted eroge-price extras out of
-  // the provider-status row and decode the JSON envelope. The blob
-  // holds every candidate game's full bundle (detail / priceStats /
-  // priceHistory / related). Failures here must not crash the panel
-  // — fall back to `null` so the panel just skips the section.
   const erogePriceExtras = useMemo<ErogePriceExtrasV1 | null>(() => {
     const row = statusByProvider.get('eroge_price');
     if (!row || !row.extras_json) return null;
@@ -546,8 +516,6 @@ export function StockPanel({
         confirmedPhysicalIds.has(o.provider) &&
         (o.availability === 'in_stock' || o.availability === 'limited') &&
         !!o.location_label &&
-        // Audit I-027: compare against the machine-readable sentinel,
-        // not the English label that used to be persisted directly.
         o.location_label !== ONLINE_STOCK_SENTINEL,
     ).map((o) => ({
       provider: o.provider,
@@ -881,7 +849,11 @@ export function StockPanel({
         </div>
       )}
 
-      <details className="mt-4 group rounded-lg border border-border bg-bg-elev/25">
+      <details
+        open={searchSetupOpen}
+        onToggle={(e) => setSearchSetupOpen((e.currentTarget as HTMLDetailsElement).open)}
+        className="mt-4 group rounded-lg border border-border bg-bg-elev/25"
+      >
         <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-white [&::-webkit-details-marker]:hidden">
           <Tag className="h-3 w-3" aria-hidden />
           <span className="flex-1">{t.stock.searchSetup as string}</span>
@@ -1389,8 +1361,16 @@ function ProviderDiagnostics({ diagnostics, t, defaultOpen }: { diagnostics: Nor
   const groups: ProviderDiagnosticGroup[] = ['attention', 'blocked', 'skipped', 'no_results', 'not_checked'];
   const technical = diagnostics.filter((diag) => diag.technicalDetail);
   const attentionCount = diagnostics.filter((d) => d.group === 'attention' || d.group === 'blocked').length;
+  const [isOpen, setIsOpen] = useState(defaultOpen ?? false);
+  useEffect(() => {
+    if (defaultOpen) setIsOpen(true);
+  }, [defaultOpen]);
   return (
-    <details open={defaultOpen} className="mt-4 group rounded-lg border border-border bg-bg-elev/25 text-[11px] text-muted">
+    <details
+      open={isOpen}
+      onToggle={(e) => setIsOpen((e.currentTarget as HTMLDetailsElement).open)}
+      className="mt-4 group rounded-lg border border-border bg-bg-elev/25 text-[11px] text-muted"
+    >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden hover:text-white">
         <span className="flex-1 font-bold uppercase tracking-widest">{t.stock.providerStatus}</span>
         {attentionCount > 0 && (

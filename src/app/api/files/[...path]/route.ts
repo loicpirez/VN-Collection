@@ -14,12 +14,6 @@ function safeAttachmentFilename(raw: string | undefined): string {
 export async function GET(_req: Request, ctx: { params: Promise<{ path: string[] }> }): Promise<NextResponse> {
   const { path } = await ctx.params;
   const rel = path.join('/');
-  // Audit S-034: reject explicit `..` SEGMENTS (parent-directory escapes)
-  // without rejecting filenames that happen to contain ".." as a literal
-  // substring (e.g. `foo..bar.jpg`). The precise traversal guard lives
-  // inside `readStored` via `isInsideStorage`; this check is just a fast
-  // pre-filter to avoid touching the filesystem on a clearly invalid
-  // request.
   if (path.some((seg) => seg === '..' || seg === '.')) {
     return NextResponse.json({ error: 'invalid path' }, { status: 400 });
   }

@@ -36,9 +36,6 @@ const EGS_BASE = 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki';
  * means 4 usable image URLs.
  */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
-  // Audit S-032: gate — minor info disclosure (confirms which EGS ids
-  // are mapped locally), but consistent with the rest of the egs-cover
-  // surface area.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

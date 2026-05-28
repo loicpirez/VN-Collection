@@ -52,8 +52,6 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
   const [showAdd, setShowAdd] = useState(initialVns.length < 4);
   const lastQueryRef = useRef('');
   const inputRef = useRef<HTMLInputElement | null>(null);
-  // P-101: focus-timer cleanup. Without this, rapid open/close cycles
-  // stack focus calls and the timer can fire on an unmounted ref.
   const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (focusTimerRef.current) clearTimeout(focusTimerRef.current);

@@ -16,10 +16,6 @@ export interface StockSummaryEntry {
 type Listener = (entry: StockSummaryEntry | null) => void;
 
 const COALESCE_MS = 60;
-// P-195: cap the module-level cache so a user who scrolls past 5000+
-// unique VNs doesn't accumulate unbounded entries. Insertion-order Map
-// gives us free LRU semantics: re-insert on touch promotes a key to
-// the most-recently-used slot, and eviction always targets the front.
 const CACHE_MAX = 500;
 const cache = new Map<string, StockSummaryEntry | null>();
 const listeners = new Map<string, Set<Listener>>();

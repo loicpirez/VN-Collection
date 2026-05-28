@@ -22,8 +22,6 @@ interface Props {
 
 type Tab = 'vndb' | 'egs' | 'mine' | 'combined';
 
-// I-022: deferred to use the locale-aware variant inside the component.
-
 /**
  * Numeric variant of FieldCompare for playtime. Three independent
  * sources (VNDB community length / EGS user-review median / user's
@@ -41,7 +39,6 @@ type Tab = 'vndb' | 'egs' | 'mine' | 'combined';
 export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
   const t = useT();
   const locale = useLocale();
-  // I-022: locale-aware playtime formatter — previous helper hardcoded English 'h'/'m'.
   const fmt = (min: number | null): string =>
     formatMinutes(min, locale, t.year, { fallback: '—', emptyValue: 'strict_positive' });
   const toast = useToast();

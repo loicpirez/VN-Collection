@@ -8,7 +8,6 @@ import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
-  // Audit S-027: gate — VNDB POST /producer on miss.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { id } = await ctx.params;

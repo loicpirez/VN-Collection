@@ -21,7 +21,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ code: stri
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { code } = await ctx.params;
-  // Audit S-036: reject malformed codes before any DB / audit write.
   if (!KOBE_CODE_RE.test(code)) {
     return NextResponse.json({ error: 'invalid kobe code' }, { status: 400 });
   }
@@ -41,7 +40,6 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ code: st
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const { code } = await ctx.params;
-  // Audit S-036: same regex gate on the DELETE path.
   if (!KOBE_CODE_RE.test(code)) {
     return NextResponse.json({ error: 'invalid kobe code' }, { status: 400 });
   }

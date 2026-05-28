@@ -73,10 +73,6 @@ export function GroupedNav({ kobeEnabled = false }: { kobeEnabled?: boolean }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileSheetId = useId();
-  // U-033: stash the current year once on mount so the /year href
-  // is deterministic between SSR and CSR. Reading
-  // `new Date().getFullYear()` inline on every render risks an
-  // SSR/CSR mismatch right at the New Year boundary.
   const currentYear = useMemo(() => new Date().getFullYear(), []);
 
   // i18n labels live here so they update under the same render cycle as the

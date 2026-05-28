@@ -38,8 +38,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const ct = req.headers.get('content-type') ?? '';
 
   if (ct.startsWith('multipart/form-data')) {
-    // R5-122: reject oversized payloads BEFORE buffering the multipart
-    // body into memory via `req.formData()`.
     const tooLarge = precheckContentLength(req, MAX_COVER_BYTES);
     if (tooLarge) return tooLarge;
     const fd = await req.formData().catch(() => null);

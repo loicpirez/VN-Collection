@@ -21,7 +21,6 @@ const FORWARDED_PARAMS = [
   'q',
 ] as const;
 
-
 interface Failure {
   id: string;
   message: string;
@@ -307,9 +306,6 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
 
       {(onLibrary || hasOverride) && (running || finished || aborted || error) && (
         <div
-          // R5-161: respect iOS safe-area on devices with a
-          // home-indicator pill so the panel doesn't sit
-          // underneath it.
           style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
           className="fixed bottom-12 left-1/2 z-30 w-[min(92vw,420px)] -translate-x-1/2 rounded-xl border border-border bg-bg-card p-4 shadow-card"
         >

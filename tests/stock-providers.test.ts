@@ -682,7 +682,7 @@ describe('shouldShowInConfirmedPhysicalResults', () => {
     })).toBe(false);
   });
 
-  it('false when location_label is the ONLINE_STOCK_SENTINEL (audit I-027)', () => {
+  it('false when location_label is the ONLINE_STOCK_SENTINEL', () => {
     // Sentinel is the persisted machine-readable value, never the
     // human-facing "Online stock" label (the UI translates at render).
     expect(shouldShowInConfirmedPhysicalResults({

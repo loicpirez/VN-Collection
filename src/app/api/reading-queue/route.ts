@@ -63,15 +63,6 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   try {
     const body = (await readJsonObject(req)) as { ids?: unknown };
-    // R5-126: each id must match the canonical vn-id shape. Without this
-    // filter `reorderReadingQueue` is called with arbitrary strings —
-    // SQL-safe (parameter-bound UPDATE) but it lets a malformed payload
-    // silently no-op against `reading_queue` rows, masking client bugs
-    // and admitting non-vn-id strings into the audit payload.
-    // Audit S-055: cap the array length. `listReadingQueue` already
-    // returns at most 1000 rows, so a legitimate reorder will never
-    // exceed that; the cap shields the transaction loop and the
-    // audit payload from a hostile PATCH.
     if (
       !Array.isArray(body.ids) ||
       body.ids.length > 1000 ||

@@ -63,9 +63,6 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   // Use the shared `listCollection` pipeline so every VnCard surface
   // (badge, density, list-count chip, reading-queue chip, aspect badge,
   // EGS score, etc.) renders consistently with the rest of the app.
-  // P-050: card-only projection — drops the heavy `vn.*` JSON columns
-  // (raw, description, staff, va, titles, editions, screenshots,
-  // release_images, extlinks, aliases) that VnCard never reads.
   const rawLocalItems = listCollectionForCards({ tag: tagId }).slice(0, LOCAL_LIMIT);
   const listCounts = countListMembershipsByVn();
   const queueIds = getReadingQueueVnIds();

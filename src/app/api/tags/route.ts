@@ -11,7 +11,6 @@ const RESULTS_MIN = 1;
 const RESULTS_MAX = 200;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  // Audit S-021: gate against LAN amplification on the VNDB throttle.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const sp = req.nextUrl.searchParams;

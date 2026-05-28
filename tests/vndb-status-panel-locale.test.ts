@@ -35,9 +35,6 @@ const ROUTE = readFileSync(join(ROOT, 'src/app/api/vn/[id]/vndb-status/route.ts'
 
 describe('R5-198 — DateInput uses app locale + ISO wire format', () => {
   it('imports the shared BCP47 map (canonical fr-FR / en-US / ja-JP tags)', () => {
-    // U-034: the per-component LOCALE_TAG constant was replaced by the
-    // canonical `BCP47` map in `lib/locale-number.ts`. Verify the import
-    // is wired up and the canonical map carries the expected tags.
     expect(DATE_INPUT).toMatch(/import\s*\{[^}]*BCP47[^}]*\}\s+from\s+['"]@\/lib\/locale-number['"]/);
     const LOCALE_NUMBER = readFileSync(join(ROOT, 'src/lib/locale-number.ts'), 'utf8');
     expect(LOCALE_NUMBER).toMatch(/fr:\s*['"]fr-FR['"]/);

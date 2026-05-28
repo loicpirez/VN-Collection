@@ -59,10 +59,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // `/producer/[id]` tab incurred a multi-second blocking re-fetch
   // on the next visit, which is what a "global refresh" should
   // not do.
-  // Audit S-069: typed registry of patterns so a future regression
-  // can't silently widen the bust by appending an attacker-influenced
-  // string. Every pattern is a compile-time constant; the validator
-  // below asserts none contains characters outside the safe set.
   const BUST_PATTERNS: ReadonlyArray<string> = [
     'egs:cover-resolved:%',
     // Real EGS anticipated cache keys are `egs:anticipated:%` —
@@ -114,10 +110,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .map((r) => r.vn_id)
     .filter((id) => isVndbVnId(id));
   // Each task has a stable `name` plus the existing run() closure.
-  // The name is broadcast through `setJobCurrent` so the
-  // DownloadStatusBar's "Now: …" hint shows precisely what is being
-  // fetched (previous behavior was just "cache-refresh · Global
-  // refresh" with no detail, which manual QA flagged as opaque).
   const tasks: Array<{ name: string; run: () => Promise<unknown> }> = [
     { name: 'Cache rows (bust)', run: async () => { bust.run(...BUST_PATTERNS); } },
     {
@@ -137,14 +129,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // hanging on the now-deleted older value.
     { name: 'Tags · default search',      run: () => searchTags('', { results: 60 }) },
     { name: 'Traits · default search',    run: () => searchTraits('', { results: 60 }) },
-    // R5-133: ONE cache-wide pass replaces the previous N per-VN
-    // jobs. The new helper scans cached `POST /release` payloads
-    // once, dispatches each release to every owned VN listed in
-    // `vns[]`, and upserts inside a single transaction. The SSE
-    // chatter drops from N ticks to one tick, and the cost scales
-    // O(cached release rows) instead of O(collection size × cached
-    // release rows). Synthetic `egs_*` ids are already filtered out
-    // above (`collectionVnIds`).
     {
       name: 'Release metadata · all collection VNs',
       run: async () => { materializeReleaseMetaForCollectionVns(collectionVnIds); },
@@ -166,8 +150,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       done++;
     } catch (e) {
       failed++;
-      // Audit S-056: sanitise so a raw upstream message can't leak into
-      // the SSE stream / `DownloadStatusBar` job record.
       recordError(job.id, t.name, sanitizeUnknownError(e));
     } finally {
       tickJob(job.id);

@@ -90,7 +90,6 @@ const PRIMARY_ROW_CLASSES =
 const ACTION_BUTTON_CLASSES =
   'inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
 
-
 export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBanner }: Props) {
   const t = await getDict();
   const isEgsOnly = vn.id.startsWith('egs_');
@@ -343,10 +342,6 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
  * Items carry role="menuitem" and are reachable via CSS selector [role="menuitem"].
  */
 function ExternalLinkGridItem({ href, label }: { href: string; label: string }) {
-  // R5-124: every dynamic extlink the actions toolbar emits flows
-  // through here, so this is the cheapest place to gate hrefs that
-  // came from upstream VNDB/EGS data. Non-http(s) URLs render
-  // nothing — the rest of the cluster stays intact.
   const safe = safeHref(href);
   if (!safe) return null;
   return (

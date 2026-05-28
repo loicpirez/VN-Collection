@@ -38,8 +38,6 @@ interface TagsBrowserProps {
 export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initialTree = null }: TagsBrowserProps = {}) {
   const t = useT();
   const locale = useLocale();
-  // U-005: q + category + mode in URL state so the user can copy/paste a
-  // /tags view.
   const search = useSearchParams();
   const router = useRouter();
   const [q, setQ] = useState(() => search?.get('q') ?? '');
@@ -145,12 +143,6 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         }
         if (alive) {
           setResults(list);
-          // R5-224: never clobber `homeTree` to null. Only set it
-          // when we actually fetched a tree (the VNDB-browse path).
-          // The Local branch leaves `tree=null`; we used to call
-          // `setHomeTree(null)` from there and lose the SSR tree,
-          // so a subsequent Local → VNDB tab switch landed on an
-          // empty state.
           if (tree !== null) setHomeTree(tree);
         }
       } catch (e) {
@@ -164,9 +156,6 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, category, mode, refreshNonce, t.common.error]);
 
-  // U-005: sync state → URL so the view is sharable. The `mode`
-  // change handler also updates the URL via `switchMode` below;
-  // this effect handles q + category which don't go through it.
   useEffect(() => {
     const params = new URLSearchParams(search?.toString() ?? '');
     let dirty = false;

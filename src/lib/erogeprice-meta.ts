@@ -219,18 +219,12 @@ function removeDecorative(s: string): string {
   return s.replace(/[☆★♪♥◆◇♦♠♣♡✿❀✦✧✩✪✫✬✭✮✯✰❤♔♕♖♗♘♙♚♛♜♝♞♟]/g, '').trim();
 }
 
-/**
- * Build an ordered list of search query variants for eroge-price.com.
- *
- * The API search is fuzzy but benefits from title normalisation — the
- * site sometimes stores `～` variants differently. We try the most
- * specific form first (original alttitle), then progressively normalised
- * forms, then fall back to the romaji title and VNDB aliases.
- *
- * Callers iterate the list and stop at the first variant that returns
- * candidates. The list is deduplicated so a VN whose alttitle already
- * uses `～` doesn't waste a round-trip on the same string.
- */
+function japaneseKanaStem(s: string): string {
+  const idx = s.search(/[～〜~☆★♪♥◆◇♦♠♣♡a-zA-Z]/);
+  const prefix = (idx > 0 ? s.slice(0, idx) : s).trim();
+  return /[぀-鿿]/.test(prefix) ? prefix : '';
+}
+
 export function buildErogePriceQueries(
   alttitle: string | null | undefined,
   title: string | null | undefined,
@@ -253,6 +247,8 @@ export function buildErogePriceQueries(
       add(normalizeTildes(fullToHalf(a)));
       const stripped = removeDecorative(normalizeTildes(fullToHalf(a)));
       if (stripped !== normalizeTildes(fullToHalf(a))) add(stripped);
+      const stem = japaneseKanaStem(a);
+      if (stem) add(stem);
     }
   }
 

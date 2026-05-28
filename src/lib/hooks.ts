@@ -12,7 +12,6 @@ import { useCallback, useEffect, useRef } from 'react';
  * `fn` against a dead component.
  *
  * Replaces the inline `setTimeout(...)` + `debounceRef` boilerplate that
- * previously lived in 7 picker components.
  *
  * @example
  *   const debounced = useDebouncedCallback((q: string) => fetchHits(q), 250);

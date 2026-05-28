@@ -57,9 +57,6 @@ export default function SteamSyncPage() {
   // Suggestions (auto+manual links where Steam > local)
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
-  // I-016: track the stable error code from the route so we can render
-  // the "How to configure" callout without locale-sensitive substring
-  // matching against the user-visible error message.
   const [suggestionsErrorCode, setSuggestionsErrorCode] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [picks, setPicks] = useState<Set<string>>(new Set());

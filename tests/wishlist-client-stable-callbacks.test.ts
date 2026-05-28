@@ -32,7 +32,7 @@ function stripComments(src: string): string {
     .join('\n');
 }
 
-describe('WishlistClient — R5-137 stable callbacks', () => {
+describe('WishlistClientstable callbacks', () => {
   const code = stripComments(SOURCE);
 
   it('imports memo, useCallback, useRef from react', () => {

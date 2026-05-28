@@ -41,10 +41,6 @@ async function nodeAgentFetch(
         agent,
       },
       (res) => {
-        // Audit S-048: enforce a hard cap on the buffered body so a
-        // malicious or misbehaving proxy can't stream gigabytes of data
-        // through us and OOM the Node process. 50 MiB is generous for
-        // any HTML / JSON / image payload we legitimately consume.
         const MAX_BYTES = 50 * 1024 * 1024;
         const chunks: Buffer[] = [];
         let total = 0;

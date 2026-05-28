@@ -116,11 +116,6 @@ export function TagPicker({
           <span className="text-[11px] italic text-muted">{t.tagPicker.empty}</span>
         )}
         {tags.map((tag) => (
-          // Raw VNDB tag ids (e.g. `g90033`) were previously rendered as
-          // the leading span — implementation detail leaking into the
-          // primary recommendations UI. The id is preserved on the
-          // `title` attribute and the React `key` for power users /
-          // automation; only the human-readable name is visible.
           <span
             key={tag.id}
             className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] text-accent"

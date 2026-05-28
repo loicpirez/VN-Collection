@@ -63,9 +63,6 @@ describe('R6-217 — FIXED_VERIFIED rows have commit + substantive evidence', ()
   });
 
   it('every FIXED_VERIFIED row has a commit hash OR an "already shipped" marker', () => {
-    // Pre-round-5 baseline rows (R5-001..R5-011) cite the
-    // shipped state rather than a round-5 commit; both shapes
-    // are acceptable evidence of completion.
     const offenders: string[] = [];
     for (const line of lines) {
       const cells = splitMarkdownRow(line);

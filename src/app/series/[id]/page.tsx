@@ -33,16 +33,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
   const series = getSeries(n);
   if (!series) notFound();
   const t = await getDict();
-  // P-050: card-only projection — drops the heavy `vn.*` JSON columns
-  // (raw, description, staff, va, titles, editions, screenshots,
-  // release_images, extlinks, aliases) that VnCard never reads. On a
-  // 1000+ VN library this drops the JSON.parse cost by ~30 MB.
   const rawItems = listCollectionForCards({ series: n });
-  // R5-115: preload the `ListsPicker` membership-count chip on each
-  // card by annotating `list_count` from the same helper the
-  // `/api/collection` route uses. Without this the chip mounts
-  // showing zero and only fetches the real count when the popover
-  // opens, which made the chip useless as an at-a-glance affordance.
   const listCounts = countListMembershipsByVn();
   const queueIds = getReadingQueueVnIds();
   const items = rawItems.map((it) => ({

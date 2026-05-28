@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isCacheFresh, isCacheStale, VNDB_CACHE_MS, STOCK_STALE_MS } from '@/lib/cache-age';
 
-/**
- * Tests for the shared cache-age helper (audit U-063). The helper
- * previously lived inline in four files, each declaring its own
- * `CACHE_MS = 24 * 3600 * 1000`. The test fixes the contract so
- * a future refactor that touches the constants stays observably
- * compatible.
- */
 describe('isCacheStale / isCacheFresh', () => {
   it('treats a freshly-fetched row as fresh', () => {
     const now = 10_000_000;

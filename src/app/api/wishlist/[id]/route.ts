@@ -23,20 +23,12 @@ function vndbErrorResponse(e: Error, label: string): NextResponse {
   // VNDB's PATCH /ulist returns 401 when the token lacks the `listwrite`
   // permission. Translate that into something actionable instead of the
   // raw 'VNDB PATCH … -> 401: Unauthorized' string.
-  // Audit S-044: match against the precise "-> 401:" shape emitted by
-  // `vndb.ts:throw new Error('VNDB PATCH /ulist/... -> 401: ...')`,
-  // not a bare `/401/` substring (which would also match "got 4015
-  // retries" or any other future error containing "401" anywhere in
-  // its body).
   if (/-> 401:/.test(e.message)) {
     return NextResponse.json(
       { error: 'VNDB token does not have listwrite permission. Regenerate it on vndb.org/u/tokens with listwrite enabled.', code: 'vndb_listwrite_required' },
       { status: 401 },
     );
   }
-  // R5-129: was returning `{ error: e.message }` (raw upstream
-  // text). Funnel through upstreamError so the raw VNDB body
-  // reaches the server log only.
   return upstreamError(label, e);
 }
 

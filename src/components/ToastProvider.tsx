@@ -135,17 +135,6 @@ function ToastView({ toast, onDismiss }: { toast: ToastEntry; onDismiss: () => v
       <button
         type="button"
         onClick={onDismiss}
-        // R6-UX user feedback: the dismiss button used hard 44px
-        // min-width/min-height utilities to satisfy the WCAG-AA
-        // touch target, but that forced the whole toast to 44px
-        // tall and left a fat empty band below the 16px icon +
-        // single-line text. The `.tap-target` utility provides the
-        // same ±10px invisible hit area through a CSS pseudo-
-        // element without bloating the chrome. `items-center`
-        // keeps the icon + text + close baseline-aligned on one
-        // row. (tests/toast-no-empty-bottom-space.test.ts pins
-        // both the alignment and the absence of the legacy hard
-        // sizing).
         className="tap-target ml-1 inline-flex shrink-0 items-center justify-center rounded p-0.5 text-muted hover:text-white"
         aria-label={t.common.dismiss}
       >

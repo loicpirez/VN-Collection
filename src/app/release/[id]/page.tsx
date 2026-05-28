@@ -37,7 +37,6 @@ function fmtRes(r: VndbRelease['resolution']): string | null {
   return `${r[0]}×${r[1]}`;
 }
 
-
 const TYPE_LABEL: Record<string, 'pkgfront' | 'pkgback' | 'pkgcontent' | 'pkgside' | 'pkgmed' | 'dig'> = {
   pkgfront: 'pkgfront',
   pkgback: 'pkgback',
@@ -106,9 +105,6 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
   // Owned-inventory shortcut: if any of the VNs linked to this release is in
   // the collection, surface a quick toggle/edit panel here.
-  // R5-142: one batched `IN (...)` membership lookup instead of N
-  // single-row SELECTs on releases that list many VNs (compilations,
-  // anthologies, etc.).
   const ownedSet = isInCollectionMany(release.vns.map((v) => v.id));
   const ownedContexts = release.vns
     .map((v) => ({
@@ -300,10 +296,6 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
         {release.extlinks.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-1.5">
             {release.extlinks.map((l) => {
-              // R5-124: refuse to emit non-http(s) hrefs into the
-              // DOM. VNDB extlinks are scraped from many sources;
-              // an upstream regression that yielded a `javascript:`
-              // URL would otherwise become a clickable XSS vector.
               const href = safeHref(l.url);
               if (!href) return null;
               return (

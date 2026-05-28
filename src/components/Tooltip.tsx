@@ -2,8 +2,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 /**
- * Shared `<Tooltip>` primitive — closes audit A-115..A-119.
- *
  * Wraps the trigger child with a hover / focus-revealed tooltip that
  * - is reachable by keyboard (focus + Escape to dismiss)
  * - announces via `aria-describedby` to screen readers when shown

@@ -23,8 +23,6 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const { confirm } = useConfirm();
   const router = useRouter();
   const [routes, setRoutes] = useState<RouteRow[]>([]);
-  // U-071: gate the empty-state copy on a resolved load so the
-  // panel doesn't flash "no routes yet" before the fetch returns.
   const [loadedRoutes, setLoadedRoutes] = useState(false);
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -46,8 +44,6 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       setRoutes(d.routes);
     } catch (e) {
       if ((e as Error).name === 'AbortError' || signal?.aborted) return;
-      // P-074 / P-121: log so a routes-fetch failure surfaces in
-      // dev tools instead of leaving the panel empty silently.
       console.error('[RoutesSection] routes reload failed:', e);
     } finally {
       if (!signal?.aborted) setLoadedRoutes(true);
@@ -63,11 +59,6 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   useEffect(() => {
     if (!inCollection) return;
     const ctrl = new AbortController();
-    // P-209: route the fetch through the per-page `fetchVnCharacters`
-    // cache so when `<CharactersSection>` later mounts (or has already
-    // pre-warmed it), no second network round-trip happens. The 5-min
-    // in-process cache is enough for one page lifecycle; longer-lived
-    // caching is handled server-side (24h).
     fetchVnCharacters(vnId, ctrl.signal)
       .then((data) => {
         if (!ctrl.signal.aborted) setCharacters(data as unknown as VndbCharacter[]);

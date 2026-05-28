@@ -88,9 +88,6 @@ export function VnSourcePicker({
       setError(null);
       setLoading({ library: enabled('library'), vndb: enabled('vndb'), egs: enabled('egs') });
       const promises: Promise<void>[] = [];
-      // P-120: log per-source failures instead of swallowing — if all
-      // three sources fail the user sees an empty picker; logging lets
-      // dev tools surface the actual reason.
       if (enabled('library')) {
         promises.push(
           fetch(`/api/collection/find?q=${encodeURIComponent(q)}`, { cache: 'no-store', signal: ctrl.signal })

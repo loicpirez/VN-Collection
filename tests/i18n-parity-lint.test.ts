@@ -1,15 +1,3 @@
-/**
- * Pins audit U-251 / U-280 — every key in the FR dictionary MUST exist
- * in EN and JA. The runtime `Widen<typeof dictionaries['fr']>` enforces
- * shape at compile time, but a property-deep walker is more
- * informative on regressions (it tells you exactly which path is
- * missing rather than a one-line compile error somewhere in the
- * dictionary).
- *
- * Also catches stale placeholder mismatches: if `fr.section.key`
- * contains `{n}` and `en.section.key` contains `{count}` (typo), this
- * test flags it.
- */
 import { describe, expect, it } from 'vitest';
 import { dictionaries, type Locale } from '@/lib/i18n/dictionaries';
 
@@ -45,7 +33,7 @@ function extractPlaceholders(s: string): string[] {
   return out.sort();
 }
 
-describe('i18n dictionary parity (audit U-251 / U-280)', () => {
+describe('i18n dictionary parity', () => {
   const locales: Locale[] = ['fr', 'en', 'ja'];
   const flat = new Map<Locale, Map<Path, string>>();
   for (const loc of locales) {

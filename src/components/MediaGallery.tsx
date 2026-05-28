@@ -231,13 +231,7 @@ export function MediaGallery({
           <h2 id={lightboxTitleId} className="sr-only">
             {visible[active].alt}
           </h2>
-          {/*
-            Nav buttons stack ABOVE the image via z-20. Without an
-            explicit z-index, the image — which is a later sibling and
-            sits at 92vw on mobile — paints on top of the buttons,
-            making prev/next/close unclickable once the image loads
-            (operator-reported regression).
-          */}
+          {/* Nav buttons stack above the image via z-20 to stay clickable. */}
           <button
             type="button"
             className="absolute right-4 top-4 z-20 tap-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-bg-card/90 text-white shadow-lg ring-1 ring-white/10 backdrop-blur-sm hover:bg-bg-card focus-visible:ring-2 focus-visible:ring-accent"
@@ -631,14 +625,6 @@ function TileKebab({
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden />
       </button>
-      {/*
-        Portal-mounted dropdown — escapes the tile's
-        `overflow-hidden` clipping so the menu never gets sliced
-        by the image bounds. The old in-tile absolute-positioned
-        version was cropped by the `aspect-[2/3]` /
-        `aspect-video` parent, which is exactly the regression
-        the operator flagged ("partial labels inside the image").
-      */}
       <PortalPopover
         open={open}
         onClose={() => setOpen(false)}

@@ -74,7 +74,6 @@ interface VnCardProps {
   onRemoveFromWishlist?: () => void | Promise<void>;
 }
 
-
 export const VnCard = memo(VnCardImpl);
 
 /**
@@ -145,11 +144,6 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
     }
   }
   const showAddButton = enableAdd && !selectable && !data.status && !data.inCollectionBadge && !addedLocal;
-  // R5-113: surface the "in collection" pill on any card whose `inCollectionBadge`
-  // is set, even if the parent did NOT pass `enableAdd`. RelationsSection (and
-  // any future card grid that has the badge data but no add affordance) needs
-  // a visible owned-marker — otherwise owned vs unowned related VNs look
-  // identical. StatusBadge still wins when a real status is set.
   const showAddedBadge = !selectable && !data.status && (data.inCollectionBadge || addedLocal);
 
   async function handleAdd(e: React.MouseEvent | React.KeyboardEvent) {
@@ -191,7 +185,6 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   if (vndbLengthMin && vndbLengthMin > 0) { allSum += vndbLengthMin; allCount++; }
   if (egsPlaytimeMin && egsPlaytimeMin > 0) { allSum += egsPlaytimeMin; allCount++; }
   const allPlaytimeMin = allCount > 0 ? Math.round(allSum / allCount) : null;
-  // I-025: pass locale + t.year so FR/JA users see localized 'h'/'min'/'時間' suffixes.
   const myPlaytime = fmtMinutes(myPlaytimeMin, locale, t.year);
   const vndbLength = fmtMinutes(vndbLengthMin, locale, t.year);
   const egsPlaytime = fmtMinutes(egsPlaytimeMin, locale, t.year);

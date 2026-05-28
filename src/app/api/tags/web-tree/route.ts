@@ -6,8 +6,6 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  // Audit S-022: gate. `?force=1` can rebuild the entire tag tree cache
-  // — an unauthenticated trigger of that is a DoS amplification.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const force = req.nextUrl.searchParams.get('force') === '1';

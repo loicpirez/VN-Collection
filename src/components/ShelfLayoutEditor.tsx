@@ -164,9 +164,6 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           data.displays.some((slot) => slot.vn_id === highlightVnId);
         if (found && !ac.signal.aborted) {
           setActiveId(shelf.id);
-          // P-113: capture the timer id so the cleanup can clear it.
-          // Without this the 120ms timer can fire after the editor
-          // unmounts (rapid tab swap) and try to scroll a stale node.
           const scrollTimer = window.setTimeout(() => {
             if (ac.signal.aborted) return;
             document
@@ -1443,12 +1440,6 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
         {(() => {
           // The owned platform (or single-platform release) is the
           // most useful single distinguisher when two editions of
-          // the same VN coexist in the pool. We funnel through
-          // `derivePlatformDisplay` so the chip never widens to the
-          // VN-aggregate platform list — the failure mode flagged
-          // by manual QA. Only 'owned' / 'release-single' surface a
-          // platform code here; multi-platform / unknown states fall
-          // through to other distinguishers below.
           const platformState = derivePlatformDisplay({
             ownedPlatform: entry.owned_platform,
             releasePlatforms: entry.rel_platforms ?? [],
@@ -1673,7 +1664,6 @@ function Legend({ used, total }: { used?: number; total?: number }) {
   );
 }
 
-
 function findEdition(
   src: DragSource,
   slots: ShelfSlotEntry[],
@@ -1702,7 +1692,6 @@ function findEdition(
   owned_platform?: string | null;
   /**
    * Owned-release annotations now plumbed through `listShelfSlots` /
-   * `listShelfDisplaySlots` (previously synthesized as empty / null
    * by the optimistic snapshots, then refetched from the server). All
    * four are optional because the synthetic pool synthesizer for
    * brand-new editions doesn't know them.
@@ -1851,8 +1840,6 @@ function shelfSlotToPopoverData(slot: ShelfSlotEntry): EditionInfoPopoverData {
     // The owned-release columns are now part of the slot SQL projection
     // (physical_location, price_paid, currency, acquired_date), so the
     // popover gets the full edition picture even when triggered from a
-    // placed cell. Previously these were hardcoded `[]` / null, which
-    // hid useful info the user had recorded.
     physical_location: slot.physical_location,
     price_paid: slot.price_paid,
     currency: slot.currency,

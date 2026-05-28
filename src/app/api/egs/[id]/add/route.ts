@@ -24,20 +24,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'invalid EGS id' }, { status: 400 });
   }
   // Distinguish "EGS is unreachable" (502) from "lookup succeeded but
-  // returned zero rows" (404). `fetchEgsGame` previously collapsed both
-  // into `null`, which the route surfaced as a misleading 404 during
-  // transient network outages.
   let game: Awaited<ReturnType<typeof fetchEgsGame>>;
   try {
     game = await fetchEgsGame(egsId);
   } catch (e) {
     if (e instanceof EgsUnreachable) {
-      // R5-129: the EgsUnreachable.kind classifies the failure
-      // (network / timeout / 5xx) and is safe to surface; the
-      // underlying e.message can include the raw HTTP body and
-      // belongs only in the server log. `upstreamError` logs the
-      // full diagnostic detail and returns a generic 502 to the
-      // client.
       return upstreamError(`egs/${egsId}/add (${e.kind})`, e);
     }
     throw e;

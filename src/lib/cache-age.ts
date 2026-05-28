@@ -1,15 +1,3 @@
-/**
- * Shared cache-age helpers. Previously each surface that needed to
- * decide "should I re-fetch from VNDB or serve the cached row?"
- * declared its own `const CACHE_MS = 24 * 3600 * 1000;` and inline
- * `Date.now() - cached.fetched_at < CACHE_MS` math (audit U-063).
- *
- * Centralising the constants keeps refreshes consistent across:
- *   - /vn/[id]            (server page)
- *   - /producer/[id]      (server page)
- *   - /api/vn/[id]        (API route)
- *   - /api/producer/[id]  (API route)
- */
 export const VNDB_CACHE_MS = 24 * 3600 * 1000;
 export const STOCK_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 

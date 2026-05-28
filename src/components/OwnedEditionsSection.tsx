@@ -452,10 +452,6 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
   const price = edition.price_paid != null && edition.price_paid > 0
     ? `${fmtNum(edition.price_paid, locale)} ${edition.currency ?? ''}`.trim()
     : null;
-  // Funnel through the shared helper so the per-edition platform
-  // string here reads the same as the shelf popover / pool tiles
-  // for the same edition. Drift between surfaces was the failure
-  // mode manual QA flagged.
   const platformState = derivePlatformDisplay({
     ownedPlatform: edition.owned_platform,
     releasePlatforms: edition.rel_platforms ?? [],

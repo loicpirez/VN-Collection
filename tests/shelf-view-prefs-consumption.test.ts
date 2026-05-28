@@ -4,7 +4,6 @@
  * (`ShelfSpatialView` and the layout editor surface). Without this
  * source-pin, a refactor that drops a `var(--shelf-…)` reference
  * silently leaves an exposed slider doing nothing — exactly the
- * regression the operator reported (`Espace des sections` and
  * `Taille face visible` looked broken).
  *
  * Source-pin only: vitest runs in `environment: 'node'` so we don't

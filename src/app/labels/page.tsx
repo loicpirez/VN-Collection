@@ -35,10 +35,6 @@ async function qrSvg(text: string, fallbackText: string): Promise<string> {
       color: { dark: '#000000', light: '#ffffff' },
     });
   } catch {
-    // I-003: localised fallback label; the SVG payload is sanitised
-    // (uppercase letters / spaces only) by the dict ensuring no XML
-    // injection. The text is small (max ~16 chars) so it fits in the
-    // 20×20 viewBox.
     const safe = fallbackText.replace(/[<>&"]/g, '').slice(0, 16);
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><text x="2" y="14" font-size="6" fill="#cc0000">${safe}</text></svg>`;
   }
@@ -83,7 +79,6 @@ export default async function LabelsPage({
   // Push id filtering into SQL so we don't load the full library just
   // to drop most rows.
   const idList = filter ? Array.from(filter) : undefined;
-  // P-050: card-only projection — labels only need id/title/physical_location/status.
   const allItems = listCollectionForCards({ sort: 'title', vnIds: idList }).filter(
     (it) => !status || it.status === status,
   );
@@ -92,10 +87,6 @@ export default async function LabelsPage({
 
   // Pre-render every QR SVG server-side, so the printed sheet doesn't
   // depend on any third-party service.
-  // P-169: bounded worker pool. `items` is capped at MAX_LABELS (200)
-  // but each qrSvg call is CPU-bound and `Promise.all(items.map(...))`
-  // starts every QR encode immediately, stalling the event loop on a
-  // full label sheet. 8 concurrent strikes the balance.
   const qrs: string[] = new Array(items.length);
   {
     const QR_CONCURRENCY = 8;

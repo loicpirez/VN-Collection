@@ -840,7 +840,6 @@ export async function matchNextKobeItems(
  * Resolve VNDB ids for items in the "No VNDB result" tab via ErogameScape.
  *
  * Walks every kobe row where `vn_match_source = 'none' AND vn_id IS NULL`
- * (i.e. title search against VNDB previously returned nothing). For each:
  *  1. If we don't yet have an `egs_id`, run a fresh `searchEgsByName` and
  *     persist whatever it finds.
  *  2. If we now have an `egs_id`, call `fetchEgsGame` (24h cached) and read

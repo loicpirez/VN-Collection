@@ -163,9 +163,6 @@ function ExternalVnCard({
             {vn.title}
           </Link>
           {inCollection && (
-            // R5-237: mirror the local-credits surface — render an
-            // explicit Star + "owned" chip so the inCollection state
-            // is visible at a glance, not just a subtle border tint.
             <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-accent/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
               <Check className="h-2.5 w-2.5" aria-hidden /> {ownedLabel}
             </span>

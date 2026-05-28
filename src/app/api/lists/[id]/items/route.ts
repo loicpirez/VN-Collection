@@ -26,8 +26,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const body = (await readJsonObject(req)) as { vn_id?: unknown; note?: unknown; order?: unknown };
     if (typeof body.order === 'object' && Array.isArray((body.order as unknown[]) ?? null)) {
-      // Audit S-051: cap the array length so a hostile reorder PATCH
-      // can't drive 100k UPDATE statements through the transaction.
       const arr = body.order as unknown[];
       if (arr.length > 10000) {
         return NextResponse.json({ error: 'order array too long (max 10000)' }, { status: 400 });
@@ -46,9 +44,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (typeof body.vn_id !== 'string' || !VN_ID_RE.test(body.vn_id.trim())) {
       return NextResponse.json({ error: 'invalid vn_id' }, { status: 400 });
     }
-    // Audit S-063: cap the per-item note so a malicious POST can't stuff
-    // megabytes into `user_list_vn.note`. 2 KiB is roomy for any human
-    // memo and matches the description cap on the list itself.
     let note: string | null = null;
     if (typeof body.note === 'string') {
       if (body.note.length > 2000) {

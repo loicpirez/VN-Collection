@@ -96,9 +96,6 @@ type SortKey =
   | 'combined_rating'
   | 'custom';
 
-// Mirrors LibraryClient.tsx SORT_KEYS — keep these aligned with the
-// route's VALID_SORTS too. Previously `publisher` was missing from this
-// list (only) so the Settings dropdown silently dropped the option.
 const SORT_KEYS: SortKey[] = [
   'updated_at',
   'added_at',
@@ -191,32 +188,11 @@ interface ProxySettingsSectionProps {
 
 function ProxySettingsSection({ t, providerId, label, config, onSave, compact = false }: ProxySettingsSectionProps) {
   const [showPw, setShowPw] = useState(false);
-  // Audit (user feedback): the eye button used to toggle the input's
-  // `type` between "password" and "text". Browsers (Chromium / Safari)
-  // drop the typed value when an uncontrolled <input> changes its
-  // `type` attribute mid-life — the toggle visibly did nothing and the
-  // password field reset. Now we make the password row CONTROLLED via
-  // `pwDraft` so the value survives the type swap, and persist on blur
-  // exactly like before.
   const [pwDraft, setPwDraft] = useState('');
-  // Round 5 user feedback ("STILL NOT WORKING The unhide on integration"):
-  // the prior toggle worked at the DOM level but the UX was a lie — the
-  // `••••••••` were a *decorative placeholder*, not the stored value.
-  // Clicking the eye on an empty input revealed an empty input and the
-  // user (correctly) reported that nothing changed. The stored password
-  // is never echoed back from the server by design (`/api/settings`
-  // returns `{ hasPassword: true }` only). The right fix is to be
-  // explicit: when focused, hide the decorative dots so the user clearly
-  // sees the editable empty field; clicking the eye + typing shows the
-  // characters as expected. The replacement workflow is also surfaced
-  // via an inline hint below the input.
   const [pwFocused, setPwFocused] = useState(false);
   const pwInputRef = useRef<HTMLInputElement | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; ms?: number; error?: string } | null>(null);
   const [testing, startTesting] = useTransition();
-  // Stable per-instance ids so the labels above each input can wire up
-  // an `htmlFor` association. Previously the sibling `<span>` carried
-  // the visible text but the input had no programmatic name.
   const protocolId = useId();
   const hostId = useId();
   const portId = useId();
@@ -299,12 +275,6 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
               const v = e.target.value.trim();
               onSave({ port: v ? Number(v) : null });
             }}
-            // `no-spinner` removes the native up/down stepper arrows
-            // that made it easy to bump the port by ±1 by accident
-            // (user feedback). Manual edits via keyboard still work
-            // and `inputMode="numeric"` keeps the mobile numpad.
-            // `onWheel.preventDefault` stops scroll-while-focused
-            // from silently changing the value.
             onWheel={(e) => (e.target as HTMLInputElement).blur()}
             className="input no-spinner text-[11px]"
           />
@@ -679,14 +649,6 @@ export function SettingsButton() {
                     return (
                       <button
                         key={tab}
-                        // R5-102: each tab carries the explicit
-                        // `id` + `aria-controls` pair the panel
-                        // below references via `aria-labelledby`,
-                        // closing the tab/tabpanel wiring loop. The
-                        // roving `tabIndex` (active=0, others=-1)
-                        // keeps arrow-key navigation off until the
-                        // active tab is focused — required by WAI-
-                        // ARIA's authoring practices for tablists.
                         id={`settings-tab-${tab}`}
                         type="button"
                         role="tab"
@@ -1617,7 +1579,6 @@ export function SettingsButton() {
 /**
  * Manage home-page section visibility from inside the Settings modal.
  * Mirrors the per-strip "..." menu but with a flat list so the user
- * can restore sections they previously hid (when the strip is gone
  * from the home page the "..." menu is gone too).
  *
  * Each toggle issues an optimistic PATCH to /api/settings — same

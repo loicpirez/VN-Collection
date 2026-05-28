@@ -59,11 +59,6 @@ interface ColInfo {
   name: string;
 }
 
-// R5-141: cache the column set per table so repeated `ensureColumn`
-// calls during cold-start (`~32` of them per `open()`) don't fire
-// `PRAGMA table_info(...)` once per call. The cache is keyed by
-// table name and is reset for each `open()` call via the function
-// reference below.
 let tableColsCache: Map<string, Set<string>> | null = null;
 
 /**
@@ -99,11 +94,6 @@ function ensureColumn(db: Database.Database, table: string, column: string, ddl:
 }
 
 function open(): Database.Database {
-  // R5-141: reset the column cache on every open() — the cache is
-  // bound to the connection's schema state, and HMR can swap the
-  // connection out from under us. Clearing here means the first
-  // ensureColumn() call against each table re-issues PRAGMA once,
-  // then subsequent calls in the same session reuse the set.
   tableColsCache = null;
   // HMR resilience: reuse the cached connection if it exists, but
   // ALWAYS re-run the idempotent migration body below. A long-running
@@ -662,8 +652,6 @@ function open(): Database.Database {
   db.exec(`DROP INDEX IF EXISTS idx_shelf_slot_item`);
 
   // AUD-DB-011: deduplicate vn_staff_credit / vn_va_credit rows before
-  // adding unique indexes. Re-imports previously created silent duplicates.
-  // DELETE keeps the first-inserted rowid per unique key (MIN(rowid)).
   db.exec(`
     DELETE FROM vn_staff_credit WHERE rowid NOT IN (
       SELECT MIN(rowid) FROM vn_staff_credit GROUP BY vn_id, sid, role
@@ -990,11 +978,6 @@ function open(): Database.Database {
   // Legacy migration: physical_location used to be a free-form string.
   // Convert any non-JSON value into a JSON array (split on commas).
   //
-  // R5-136: gate on an `app_setting` marker so the (cheap but
-  // unnecessary) full-table scan + JSON validity check doesn't fire
-  // on every cold start once nothing's left to convert. Also hoist
-  // the prepared statement out of the loop so it's not rebuilt on
-  // every legacy row.
   if (db.prepare(`SELECT value FROM app_setting WHERE key = 'phys_loc_json_migration_v1'`).get() == null) {
     const legacy = db
       .prepare(`SELECT vn_id, physical_location FROM collection WHERE physical_location IS NOT NULL AND NOT json_valid(physical_location)`)
@@ -1191,22 +1174,10 @@ function open(): Database.Database {
   ensureColumn(db, 'vn_stock_provider_status', 'blocked_kind', 'TEXT');
   ensureColumn(db, 'vn_stock_provider_status', 'fresh_offers_found', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'vn_stock_provider_status', 'cached_offers_available', 'INTEGER NOT NULL DEFAULT 0');
-  // R12-EROGEPRICE: per-provider structured metadata blob. Currently
-  // only Eroge Price writes here — the parser pulls the full game
-  // detail (release date, age, scenario/artist/music/seiyuu, all-time
-  // high / 30-day low, related games) and the UI surfaces it as a
-  // dedicated panel. JSON column so adding new fields (other
-  // aggregators) doesn't need another migration.
   ensureColumn(db, 'vn_stock_provider_status', 'extras_json', 'TEXT');
   ensureColumn(db, 'vn_stock_source', 'release_id', 'TEXT');
   ensureColumn(db, 'vn_stock_source', 'product_id', 'TEXT');
 
-  // P-149: partial indexes for the AliceNet Kobe page filter tabs.
-  // Declared AFTER ensureColumn because the indexed columns
-  // (last_matched_at, vn_match_source) are themselves added via
-  // ensureColumn earlier in this function. Putting the index inside
-  // the initial db.exec block at line ~696 would reference a column
-  // that doesn't exist yet on first-run DBs.
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_unmatched
       ON alicesoft_kobe_stock(last_matched_at, code)
@@ -1341,10 +1312,6 @@ function open(): Database.Database {
     })();
   }
 
-  // R5-138 backfill: populate `vn_tag_index` / `vn_developer_index`
-  // / `vn_publisher_index` from existing `vn` rows. Marker-gated so
-  // it only runs once. Mirrors the staff_va_credits_v1 shape: parse
-  // each VN's JSON columns and INSERT into the index tables.
   const tagIndexBackfilled = (db
     .prepare(`SELECT value FROM app_setting WHERE key = 'vn_tag_index_v1'`)
     .get() as { value: string | null } | undefined)?.value;
@@ -1742,12 +1709,6 @@ function buildUpsertVnTx(): (vn: RawVnPayload) => void {
     fetched_at: Date.now(),
   });
   rebuildStaffVaCredits(vn.id, (vn.staff as StaffEntry[] | undefined) ?? [], (vn.va as VaEntry[] | undefined) ?? []);
-  // R5-138: rebuild the derived tag + developer indexes so
-  // `listCollection`'s tag / developer filters can hit a flat
-  // (vn_id, X_id) index instead of walking every row's JSON
-  // column. The publisher index is maintained in
-  // `setVnPublishers` (publishers are computed at release-fetch
-  // time, not part of RawVnPayload).
   rebuildVnTagIndex(vn.id, (vn.tags as Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }> | undefined) ?? []);
   rebuildVnDeveloperIndex(vn.id, (vn.developers as Array<{ id?: unknown }> | undefined) ?? []);
   rebuildVnLanguageIndex(vn.id, (vn.languages as unknown[] | undefined) ?? []);
@@ -2101,11 +2062,6 @@ export interface CharacterSibling {
  * names with at least 2 characters and excludes the original c_id.
  */
 export function findCharacterSiblings(charId: string): CharacterSibling[] {
-  // R5-233: collect EVERY known display name + original for this
-  // character id (different VNs may spell the same recurring
-  // character differently — kana vs. romaji, translation variants).
-  // The previous `LIMIT 1` was non-deterministic without ORDER BY
-  // and missed siblings under alternate spellings.
   const candidateNames = db
     .prepare('SELECT DISTINCT c_name FROM vn_va_credit WHERE c_id = ? AND c_name IS NOT NULL AND length(c_name) >= 2')
     .all(charId) as Array<{ c_name: string }>;
@@ -2116,11 +2072,6 @@ export function findCharacterSiblings(charId: string): CharacterSibling[] {
   for (const r of candidateOriginals) names.add(r.c_original);
   if (names.size === 0) return [];
 
-  // R5-236: the heading says "Same name in your collection" so the
-  // SQL must JOIN collection — only VNs the operator actually owns
-  // belong in the result. The previous query joined vn only, which
-  // surfaced VNs from cached relations / EGS-only synthetic rows /
-  // never-collected lookup results.
   const placeholders = Array.from(names).map(() => '?').join(',');
   const rows = db
     .prepare(`
@@ -2351,11 +2302,6 @@ export function setVnPublishers(vnId: string, publishers: { id: string; name: st
   }
   const list = Array.from(dedup.values());
   const json = JSON.stringify(list);
-  // R5-138: keep `vn_publisher_index` in sync with the JSON
-  // column. The publishers list is computed at release-fetch
-  // time (not part of `RawVnPayload`), so the upsertVn rebuild
-  // doesn't run here — we maintain the index in this writer
-  // instead.
   db.transaction(() => {
     db.prepare('UPDATE vn SET publishers = ? WHERE id = ?').run(json, vnId);
     db.prepare('DELETE FROM vn_publisher_index WHERE vn_id = ?').run(vnId);
@@ -2819,15 +2765,6 @@ export function migrateVnId(fromId: string, toId: string): void {
   const target = db.prepare('SELECT id FROM vn WHERE id = ?').get(toId);
   if (!target) throw new Error(`migrateVnId: target ${toId} not in vn table`);
 
-  // LIB-audit: `defer_foreign_keys` resets at COMMIT/ROLLBACK automatically
-  // and only suspends FK enforcement until the end of the transaction,
-  // whereas the previous session-level `foreign_keys = OFF` left the DB
-  // unguarded if a follow-on operation slipped between the OFF and ON
-  // pragmas (e.g. if anyone makes this function async in future). The
-  // transaction itself is synchronous under better-sqlite3, so neither
-  // pattern actually races today — but `defer_foreign_keys` is the
-  // safer default and matches what the egs_colon_to_underscore_v1
-  // migration does.
   const tx = db.transaction(() => {
     db.pragma('defer_foreign_keys = ON');
     // Drop a possible duplicate collection row on the target before moving.
@@ -2844,9 +2781,6 @@ export function migrateVnId(fromId: string, toId: string): void {
     db.prepare('UPDATE vn_activity SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
     db.prepare('UPDATE vn_staff_credit SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
     db.prepare('UPDATE vn_va_credit SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
-    // LIB-audit: tables previously missed by the migration; these are
-    // safe no-ops when there is nothing to move but matter when an
-    // EGS-only synthetic VN has accumulated state.
     db.prepare('UPDATE vn_game_log SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
     db.prepare('UPDATE steam_link SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
     db.prepare('UPDATE reading_queue SET vn_id = ? WHERE vn_id = ?').run(toId, fromId);
@@ -2860,11 +2794,6 @@ export function migrateVnId(fromId: string, toId: string): void {
     db.prepare('DELETE FROM vn WHERE id = ?').run(fromId);
   });
   tx();
-  // R5-135: migrating a vn_id rewrites the `collection` table, which
-  // is the source-of-truth for aggregate stats (byEdition, byLocation,
-  // byYear, byLanguage, ratingDistribution). Bust the snapshot so the
-  // next `getAggregateStats()` call recomputes from the post-migration
-  // state instead of serving the pre-migration cache for up to 30s.
   invalidateAggregateStats();
 }
 
@@ -3893,11 +3822,6 @@ export function listCollection({
     where.push("(v.title LIKE ? ESCAPE '\\' OR v.alttitle LIKE ? ESCAPE '\\')");
     params.push(`%${safe}%`, `%${safe}%`);
   }
-  // R5-138: filter against the flat derived indexes instead of
-  // walking each VN's JSON column with json_each. The index
-  // tables (`vn_developer_index`, `vn_publisher_index`,
-  // `vn_tag_index`) are populated inside `upsertVn` and
-  // backfilled at startup via the `vn_tag_index_v1` marker.
   if (producer) {
     where.push('EXISTS (SELECT 1 FROM vn_developer_index WHERE vn_id = c.vn_id AND producer_id = ?)');
     params.push(producer);
@@ -4030,9 +3954,6 @@ export function listCollection({
     join += 'LEFT JOIN egs_game e ON e.vn_id = v.id ';
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  // R5-144: when `_projection === 'cards'`, only fetch the VN
-  // columns the library grid reads; rowToItem fills the heavy
-  // JSON fields with safe defaults (`[]` / `null`).
   const vnProjection = _projection === 'cards' ? CARDS_VN_COLUMNS : 'v.*';
   const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10_000;
   params.push(safeLimit);
@@ -4052,9 +3973,6 @@ export function listCollection({
   const items = rows.map((r) => rowToItem(r)!).filter(Boolean);
   const ids = items.map((i) => i.id);
   const egsMap = getEgsForVns(ids);
-  // Batch the series lookup — was previously one query per VN
-  // (`listSeriesForVn(item.id)` inside the loop). For a library of
-  // 500 VNs that meant 500 extra round-trips per page load.
   const seriesMap = listSeriesForVnsMany(ids);
   const aspectMap = listAspectKeysForVns(ids);
   // Batch-fetch the merged place index so `group=place` and
@@ -4240,9 +4158,6 @@ export function materializeReleaseAspectsForVn(vnId: string): void {
     )
     .get(vnId);
   if (existing) return;
-  // R5-132: anchor the LIKE prefix so the PK index serves the lookup.
-  // The cache_key shape is `<pathTag>|<METHOD>|<hash>` and the only
-  // pathTag written by `vndbPost('/release', …)` is `POST /release`.
   const rows = db
     .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
     .all() as Array<{ body: string }>;
@@ -4447,12 +4362,6 @@ export function getReleaseMeta(releaseId: string): ReleaseMetaRow | null {
  */
 export function materializeReleaseMetaForVn(vnId: string): void {
   if (!isVndbVnId(vnId)) return;
-  // R5-132 / AUD-DB-009: short-circuit when release_meta_cache rows
-  // for THIS VN are at least as fresh as the newest vndb_cache release
-  // payload. The old watermark used a global MAX(fetched_at) over all
-  // vndb_cache release entries — any single VN's cache refresh bumped
-  // the watermark and forced all other VNs to re-scan. Scoping both
-  // timestamps to this VN avoids that cross-VN contamination.
   const vnNewest = db
     .prepare(`SELECT MAX(fetched_at) AS latest FROM release_meta_cache WHERE vn_id = ?`)
     .get(vnId) as { latest: number | null };
@@ -4460,14 +4369,6 @@ export function materializeReleaseMetaForVn(vnId: string): void {
     .prepare(`SELECT MAX(fetched_at) AS latest FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
     .get() as { latest: number | null };
   if (vnNewest?.latest && cacheNewest?.latest && vnNewest.latest >= cacheNewest.latest) return;
-  // R5-132: anchor the `LIKE` prefix so the `vndb_cache` PRIMARY KEY
-  // index serves it (instead of a leading-wildcard `% /release|%`
-  // which forced a full table scan). The cache key shape is
-  // `<pathTag>|<METHOD>|<hash>` and `vndbPost('/release', …)` writes
-  // `POST /release|POST|…`; colon-suffixed pathTags like
-  // `POST /release:steam` are intentionally excluded — they carry a
-  // smaller payload tuned to a different filter shape and would
-  // dilute the materialisation result.
   const rows = db
     .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
     .all() as Array<{ body: string }>;
@@ -5112,10 +5013,6 @@ export function searchLocalCharacters({
     .all() as Array<{ cache_key: string; body: string }>;
   const needle = q?.trim().toLowerCase() ?? '';
   // First pass: parse the cache payloads and build the matched
-  // profile list WITHOUT issuing per-row VA-language queries. This
-  // keeps the inner loop O(N) on JSON parsing only; the language
-  // lookup is amortised across all matches via a single batched
-  // SELECT (R5-063).
   type Match = { id: string; profile: Record<string, unknown> };
   const matches: Match[] = [];
   for (const row of rows) {
@@ -5958,17 +5855,6 @@ function clampShelfDim(n: number, fallback: number): number {
 
 /** Every named shelf with its placed-item count, ordered by `order_index`. */
 export function listShelves(): ShelfUnitWithCount[] {
-  // R5-143: count regular grid slots + face-out display slots in a
-  // single CTE/GROUP BY pass instead of two correlated subqueries
-  // per shelf. The previous shape fired two `COUNT(*) WHERE shelf_id
-  // = u.id` subqueries per shelf row (O(N_shelves) subquery
-  // evaluations, each a separate scan); the CTE aggregates each
-  // placement table ONCE, unions the per-shelf totals, sums them
-  // inside the CTE, and the outer query is a single LEFT JOIN on
-  // `shelf_id`. Same `placed_count` semantics (both placement kinds
-  // are summed; missing shelves coalesce to 0) — covered by
-  // `tests/shelf-layout.test.ts:listShelves counts display slots
-  // as placed editions`.
   return db
     .prepare(`
       WITH placement_counts AS (
@@ -6115,7 +6001,6 @@ export interface ShelfSlotEntry {
   owned_platform: string | null;
   /**
    * Forwarded `owned_release` annotations so the shelf popover stops
-   * showing empty rows for placed editions. Previously the SQL only
    * pulled display-critical columns and the synthesizer hardcoded
    * `physical_location: []` / `price_paid: null`, which contradicted
    * the popover's contract of "surface every owned-release fact".
@@ -8588,11 +8473,6 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
     }
   });
   trx();
-  // R5-134: importData writes directly to `collection` via inline
-  // INSERT/UPDATE (bypassing addToCollection / updateCollection /
-  // removeFromCollection, which each call invalidateAggregateStats()).
-  // Bust the snapshot so `getAggregateStats()` reflects imported data
-  // immediately instead of serving up to 30s of stale numbers.
   invalidateAggregateStats();
   return summary;
 }
@@ -8648,14 +8528,6 @@ export async function restoreFromSqliteFile(buffer: Buffer): Promise<SqliteResto
 
   const summary: SqliteRestoreSummary = { tables: [], skipped: [] };
 
-  // Audit H2: snapshot the audited credential / config previews BEFORE
-  // we DELETE FROM main.app_setting. A backup restore silently
-  // overwrites every audited setting (token, Steam key, backup URL);
-  // without this snapshot the swap would leave no trace in
-  // app_setting_audit because the audit table itself is also wiped in
-  // the same transaction. Write the snapshot rows in a fresh insert
-  // AFTER the restore commits so the source DB's audit log doesn't
-  // overwrite them.
   const restoreSnapshot: Array<{ key: string; prior_preview: string | null }> = [];
   for (const key of AUDITED_SETTING_KEYS) {
     restoreSnapshot.push({ key, prior_preview: settingAuditPreview(key, getAppSetting(key)) });
@@ -8714,10 +8586,6 @@ export async function restoreFromSqliteFile(buffer: Buffer): Promise<SqliteResto
     await unlink(tmpPath).catch(() => undefined);
   }
 
-  // Audit H2 (continued): after the restore has committed, write the
-  // before/after snapshot rows so the credential swap leaves a trail.
-  // Done outside the restore transaction on purpose — if the restore
-  // rolls back, we don't pollute the audit log.
   try {
     const now = Date.now();
     const ins = db.prepare(`
@@ -8733,7 +8601,7 @@ export async function restoreFromSqliteFile(buffer: Buffer): Promise<SqliteResto
       }
     }
   } catch {
-    // Audit-trail writes are best-effort; restore still succeeded.
+    // best-effort; restore still succeeded even if audit trail fails.
   }
 
   return summary;
@@ -8759,9 +8627,6 @@ export function cacheStats(): CacheStat {
     .prepare('SELECT COUNT(*) AS total, COALESCE(SUM(LENGTH(body)),0) AS bytes, MIN(fetched_at) AS oldest, MAX(fetched_at) AS newest FROM vndb_cache')
     .get() as { total: number; bytes: number; oldest: number | null; newest: number | null };
   const fresh = (db.prepare('SELECT COUNT(*) AS n FROM vndb_cache WHERE expires_at >= ?').get(now) as { n: number }).n;
-  // LIB-audit DBA-* coverage: cap the GROUP BY result so a pathological cache
-  // table (thousands of distinct cache_key prefixes) doesn't return all groups
-  // into JS. The UI on /stats only ever renders the top N anyway.
   const byPath = db
     .prepare(`
       SELECT
@@ -9249,7 +9114,6 @@ function retryWindowClause(retryBefore?: number): { sql: string; params: number[
 
 /**
  * Kobe rows still missing a VN match. With `retryNone=true`, also surfaces
- * rows previously marked `'none'` so the retry button can take another pass.
  */
 export function listKobeUnmatched(limit: number, retryNone = false, retryBefore?: number): KobeStockRow[] {
   const retryWindow = retryNone ? retryWindowClause(retryBefore) : { sql: '', params: [] as number[] };

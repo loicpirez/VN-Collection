@@ -114,10 +114,6 @@ describe('stock i18n — completeness', () => {
     }
   });
 
-  // I-007: classifier emits slug keys, StockPanel resolves them via
-  // `t.stock.matchWarnings.<slug>`. Every slug listed below must
-  // exist in every locale or the chip falls back to the raw English
-  // slug.
   it('match-warning labels exist for every slug', () => {
     for (const locale of LOCALES) {
       const mw = dictionaries[locale].stock.matchWarnings;

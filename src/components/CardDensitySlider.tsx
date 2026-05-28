@@ -73,10 +73,6 @@ export function CardDensitySlider({
   const followsDefaultTitle = t.cardDensity.followsDefault;
   const customTitle = t.cardDensity.customOverride;
   return (
-    // `max-w-full` keeps the slider inside its parent on small viewports.
-    // Previously the row's total natural width (~400px) overflowed the
-    // viewport on 360px phones and pushed the page horizontally —
-    // operator-reported regression on /producer/[id] + /staff/[id].
     <div
       className={`flex max-w-full items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:gap-2 ${className}`}
       title={canReset ? customTitle : followsDefaultTitle}

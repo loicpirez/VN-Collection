@@ -55,7 +55,6 @@ export function formatVndbDateString(raw: string | null | undefined, locale: Loc
  * `formatVndbDateString`. Returns null when the input doesn't carry a
  * parseable year so the caller can omit the chip entirely.
  *
- * Closes audit U-054 / U-055: surfaces previously sprinkled `released.slice(0, 4)`
  * across the codebase; this helper centralises the parsing.
  */
 export function yearOnly(raw: string | null | undefined): string | null {

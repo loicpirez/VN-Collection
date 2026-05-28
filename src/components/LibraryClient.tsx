@@ -250,10 +250,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       ? (urlGroupSort as GroupSortKey)
       : 'count';
 
-  // P-153: search-input draft state moved into the extracted
-  // `<SearchInput>` sub-component so a keystroke only re-renders the
-  // input itself, not the entire 2000-line library tree.
-
   const replaceParams = useCallback(
     (mutator: (sp: URLSearchParams) => void) => {
       const next = new URLSearchParams(searchParams.toString());
@@ -274,9 +270,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     [replaceParams],
   );
 
-  // P-153: search debounce is now owned by `<SearchInput>` so the
-  // parent component doesn't re-render on every keystroke.
-  // Stable commit callback for the extracted input.
   const commitSearch = useCallback(
     (next: string) => setParam('q', next || null),
     [setParam],
@@ -299,8 +292,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const [error, setError] = useState<string | null>(null);
   const [tagName, setTagName] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  // P-213: stable callback so `<BulkDownloadButton>`'s React.memo
-  // doesn't see a fresh function identity on every parent render.
   const onBulkItemDone = useCallback(() => setRefreshKey((k) => k + 1), []);
   const [resettingOrder, setResettingOrder] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
@@ -327,13 +318,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   }
 
   useEffect(() => {
-    // P-001 / P-070 / P-132: every sibling fetch shares one
-    // AbortController so rapid unmount-during-load (tab switch on the
-    // home page) cancels the network rather than leaking setX onto an
-    // unmounted component. `cache: 'no-store'` skips the browser
-    // HTTP-cache — the /api routes are `force-dynamic` server-side, but
-    // a stale browser cache can resurrect a deleted place / producer /
-    // series filter for hours after a mutation.
     const ctrl = new AbortController();
     const opts: RequestInit = { signal: ctrl.signal, cache: 'no-store' };
     fetch('/api/producers', opts)
@@ -401,8 +385,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       return;
     }
     setTagName(urlTag);
-    // P-002: AbortController gates rapid tag changes — stale responses
-    // can no longer overwrite the latest set.
     const ctrl = new AbortController();
     fetch(`/api/tags?q=${encodeURIComponent(urlTag)}&results=1`, {
       signal: ctrl.signal,
@@ -444,9 +426,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     if (urlQ) params.set('q', urlQ);
     params.set('sort', sort);
     params.set('order', order);
-    // P-071: cache: 'no-store' bypasses the browser HTTP-cache so a
-    // mutation (status change, edition add) reliably shows in the
-    // library on the next URL update.
     fetch(`/api/collection?${params}`, { signal: ctrl.signal, cache: 'no-store' })
       .then(async (r) => {
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
@@ -664,9 +643,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   );
   const hiddenBySexualCount = items.length - visibleItems.length;
   const groups = useMemo(() => groupItems(visibleItems, group, t, sort, order, groupSort, collator), [visibleItems, group, t, sort, order, groupSort, collator]);
-  // P-083: memoize the candidates projection so RandomPickButton's
-  // props ref is stable when nothing changed. Previously a fresh array
-  // of fresh objects was created on every parent render.
   const randomPickCandidates = useMemo(
     () => visibleItems.map((it) => ({ id: it.id, title: it.title })),
     [visibleItems],
@@ -1202,9 +1178,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           type="button"
           className={`btn inline-flex items-center gap-1 ${sort === 'custom' ? 'btn-primary' : ''}`}
           onClick={() => setParam('sort', sort === 'custom' ? null : 'custom')}
-          // R5-099/153: keep `aria-label` on the button so the
-          // icon-only state below lg has an accessible name. The
-          // visible text label still appears at lg+.
           aria-label={sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
           title={t.library.customSortHint}
         >
@@ -1252,7 +1225,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             type="button"
             onClick={() => set('denseLibrary', !settings.denseLibrary)}
             className={`btn ${settings.denseLibrary ? 'btn-primary' : ''}`}
-            // R5-099: aria-label for icon-only below lg.
             aria-label={settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
             title={t.library.denseToggle}
           >
@@ -1277,7 +1249,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                 else setSelectMode(true);
               }}
               className={`btn ${selectMode ? 'btn-primary' : ''}`}
-              // R5-099: aria-label for icon-only below lg.
               aria-label={selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
               title={t.bulkEdit.toggleSelectMode}
             >
@@ -1569,19 +1540,9 @@ function Grid({
   // mode). The slider value itself is the floor; the grid auto-fills
   // remaining space at 1fr. Cards inside use `aspect-[2/3] w-full`
   // so cover size scales with column width.
-  // Spacing audit: the comfortable mode used `gap-5` and the dense
-  // mode used `gap-3`. Comfortable felt loose on a 1440px monitor and
-  // inconsistent with the rest of the listing grids (which all use
-  // `gap-3`). Tightened to `gap-3` (comfortable) / `gap-4` (dense)
-  // — the dense mode keeps slightly more breathing room because the
-  // cover-bias makes each column visually narrower.
   const cls = dense ? 'grid gap-4' : 'grid gap-3';
   const densityMul = dense ? 0.72 : 1;
   const gapPx = dense ? 16 : 12;
-  // P-081: memoize the inline style so a fresh ref isn't created on
-  // every parent render; otherwise the outer `<div>`'s style prop
-  // identity changes on every keystroke in the search box and React's
-  // reconciliation re-applies an identical style.
   const gridStyle: React.CSSProperties = useMemo(
     () => ({
       gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${densityMul})), 1fr))`,
@@ -1657,8 +1618,6 @@ function Grid({
   // Re-project once per `items` reference change instead of identity-
   // caching each row. WeakMap-by-identity inside `toCardData` still
   // catches re-renders that re-use the same array, and `useMemo`
-  // catches the bulk array-replace case after a refetch — the audit's
-  // M6 concern about the WeakMap missing on every refetch.
   const cardData = useMemo(() => renderedItems.map(toCardData), [renderedItems]);
   return (
     <div
@@ -1712,7 +1671,6 @@ const MemoCard = memo(function MemoCard({
   );
 });
 
-
 interface Group {
   key: string;
   label: string;
@@ -1743,8 +1701,6 @@ function groupItems(
       const dev = it.developers[0];
       // Fall back to the developer name when the id is missing or blank.
       // EGS-synthetic entries sometimes carry a brand_name without a VNDB
-      // producer id, which was previously dumping every such VN into the
-      // generic "Other" bucket and hiding the brand.
       const devKey = (dev?.id && dev.id.trim()) || (dev?.name && `n:${dev.name}`) || '__none__';
       const label = dev?.name ?? t.library.groupOther;
       if (!map.has(devKey)) map.set(devKey, { key: devKey, label, items: [] });

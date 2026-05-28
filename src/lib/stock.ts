@@ -1174,7 +1174,6 @@ async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: Colle
   return offers;
 }
 
-
 function traderEditionLabel(title: string): string | null {
   if (/グッズ|タペストリー|抱き枕|特典|単品/.test(title)) return 'Bonus item';
   if (/初回限定版|初回版/.test(title)) return 'First press';
@@ -1986,19 +1985,8 @@ function classifyErogePriceRow(rowHtml: string, baseUrl: string): ErogePriceCell
   return { seller, sellerLink, edition, condition, priceText, salePriceText, saleLabel, listPriceText, rowHtml };
 }
 
-/**
- * Parse an Eroge-Price aggregator page into one offer row per seller. Returns
- * `VnStockOfferInput[]` directly (not `ParsedOffer`) because each row needs
- * the seller link as a separate URL.
- *
- * The optional `vnTitle` parameter overrides the page `<h1>` so each offer
- * carries the operator's canonical VN title (avoids confusing "館熟女〜"
- * rows when the EGS id maps to a wrong game).
- */
 export function parseErogePrice(html: string, url: string, vnId: string, now: number, vnTitle?: string | null): VnStockOfferInput[] {
   const pageTitle = firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i) ?? 'Eroge Price';
-  // Prefer the operator-known VN title; fall back to the page H1 when the
-  // caller didn't pass one (legacy callers / tests).
   const title = vnTitle && vnTitle.trim().length > 0 ? vnTitle.trim() : pageTitle;
   const pageJan = extractJan(html);
   const offers: VnStockOfferInput[] = [];
@@ -2150,42 +2138,8 @@ function retailerToOffer(
 }
 
 async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | undefined, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
-  // R12-EROGEPRICE: switched from SSR-HTML scraping to the public
-  // JSON API (`/api/games/...`). Multi-candidate via
-  // `searchAndFetchAll` (operator: "one exact name match can have
-  // many games; integrate them all").
-  //
-  // BUG FIX: ErogameScape `egs_game.egs_id` is NOT the same as
-  // the eroge-price.com numeric game id. Earlier drafts assumed
-  // eroge-price federates ids from EGS; counter-example pinned by
-  // operator inspection on prod confirmed a VN whose EGS id was a
-  // valid eroge-price id but pointed at a completely unrelated
-  // title. eroge-price uses its own id namespace.
-  //
-  // The `egsId` parameter passed in here from `refreshProvider`
-  // (ultimately `getEgsForVn(vnId)?.egs_id`) is therefore
-  // **deliberately ignored** for the refresh path. We ALWAYS go
-  // through the title search:
-  //
-  //   1. Search eroge-price with the original Japanese title
-  //      (`vn.alttitle`), falling back to the romaji
-  //      `vn.title` only when alttitle is empty.
-  //   2. Hydrate every candidate the search returns.
-  //   3. If a previous extras envelope already exists with a
-  //      `selectedEpId` that appears in the new candidate list,
-  //      preserve the operator's pin. Otherwise default to the
-  //      first search hit.
-  //
-  // The `_egsIdUnused` parameter is kept in the signature for
-  // call-site stability and is asserted unused so a future cleanup
-  // can drop it safely.
   void _egsIdUnused;
 
-  // Read the previous extras envelope BEFORE we overwrite it. The
-  // operator may have manually pinned a non-default candidate via
-  // PATCH `/api/vn/[id]/stock/eroge-price`; that pin must survive
-  // a refresh as long as the chosen epId still appears in the new
-  // candidate set.
   let previousManualPin: number | null = null;
   try {
     const previous = getStockProviderExtras<ErogePriceExtrasV1>(vnId, 'eroge_price');
@@ -2193,7 +2147,7 @@ async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | und
       previousManualPin = previous.selectedEpId;
     }
   } catch {
-    /* Stale extras_json is non-fatal — just skip the pin preservation. */
+    /* non-fatal */
   }
 
   let extras: ErogePriceExtrasV1 | null = null;
@@ -2205,31 +2159,21 @@ async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | und
       if (extras && extras.candidates.length > 0) break;
     }
   } catch {
-    /* Network or parse failure — surfaces as empty stock for this provider. */
     extras = null;
   }
 
   if (!extras || extras.candidates.length === 0) return [];
 
-  // Preserve the operator's manual pin when the previously-pinned
-  // epId still exists in the refreshed candidate list. Falls back
-  // to whatever `searchAndFetchAll` chose (first candidate).
   if (previousManualPin != null && extras.candidates.some((c) => c.epId === previousManualPin)) {
     extras = { ...extras, selectedEpId: previousManualPin };
   }
 
-  // Persist the full meta blob so StockPanel can render the UI
-  // without re-fetching after a page reload.
   try {
     setStockProviderExtras(vnId, 'eroge_price', extras);
   } catch {
-    /* extras write failure is non-fatal — offers still flow downstream. */
+    /* non-fatal */
   }
 
-  // Project every candidate's retailer rows into the offers pipeline.
-  // The classifier still trims obvious mismatches; the default-selected
-  // candidate's title is the one the offers carry so the legacy
-  // VnCard / chip surfaces use the right label.
   const classifyTarget: ClassifyTarget = {
     title: vn.title ?? '',
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),

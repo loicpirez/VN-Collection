@@ -47,8 +47,6 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     cover_path?: string | null;
     banner_path?: string | null;
   };
-  // Audit S-013: type-check + length-cap name/description before they
-  // reach updateSeries. cover_path/banner_path were already validated.
   const patch: {
     name?: string;
     description?: string | null;

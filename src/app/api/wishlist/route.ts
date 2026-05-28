@@ -19,9 +19,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // Echo the id into the nested `vn` object so existing client code that
     // reads `it.vn.id` keeps working without a coordinated rename.
     //
-    // R5-234: replace the per-row `isInCollection(e.id)` with a single
-    // batched `isInCollectionMany(ids)` call so a 200-item wishlist no
-    // longer triggers 200 single-row SELECTs.
     const ids = result.map((e) => e.id);
     const ownedSet = isInCollectionMany(ids);
     const egsMap = getEgsForVns(ids);

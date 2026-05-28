@@ -28,7 +28,6 @@ interface DialogProps {
  * wiring, ESC handling, backdrop click, body-scroll lock, and a tiny
  * focus trap that keeps Tab from escaping into the page underneath.
  * On open the first interactive element inside the panel receives
- * focus; on close, the previously-focused element is restored.
  *
  * Drop-in replacement pattern:
  *

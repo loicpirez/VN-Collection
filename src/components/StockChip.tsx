@@ -29,9 +29,6 @@ export function StockChip({ vnId, hidePrice = false }: { vnId: string; hidePrice
     const el = ref.current;
     if (!el) return;
     let unsub: (() => void) | null = null;
-    // P-138: track mount state so the subscribe callback never sets
-    // state on an unmounted component (the queue flushes asynchronously
-    // and the IO callback can fire just before the unmount tick).
     let alive = true;
     const io = new IntersectionObserver(
       (entries) => {

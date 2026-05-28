@@ -70,7 +70,6 @@ function violations(): Hit[] {
         const tokens = cls.split(/\s+/);
         // We only care about classes that include the canonical `btn`
         // primitive — bespoke buttons that don't use `.btn` at all are
-        // a separate concern (audited per surface, not banned wholesale).
         if (!tokens.includes('btn')) continue;
         // Reject `!py-…` / `!text-…` forced overrides.
         if (tokens.some((t) => /^!py-/.test(t) || /^!text-/.test(t) || /^!px-/.test(t))) {
@@ -93,7 +92,7 @@ function violations(): Hit[] {
   return out;
 }
 
-describe('R5-211 — no forced-override button styles on `.btn`', () => {
+describe('no forced-override button styles on `.btn`', () => {
   it('every <button className="btn …"> uses canonical variants only', () => {
     const hits = violations();
     expect(
@@ -107,7 +106,7 @@ describe('R5-211 — no forced-override button styles on `.btn`', () => {
   });
 });
 
-describe('R5-211 — .btn-xs primitive exists and is well-defined', () => {
+describe('.btn-xs primitive exists and is well-defined', () => {
   const CSS = readFileSync(join(ROOT, 'src/app/globals.css'), 'utf8');
 
   it('globals.css declares .btn-xs', () => {
@@ -115,7 +114,7 @@ describe('R5-211 — .btn-xs primitive exists and is well-defined', () => {
   });
 });
 
-describe('R5-211 — canonical large variants still defined', () => {
+describe('canonical large variants still defined', () => {
   const CSS = readFileSync(join(ROOT, 'src/app/globals.css'), 'utf8');
   it('globals.css declares .btn with px-4 / py-2 / text-sm', () => {
     expect(CSS).toMatch(/\.btn\s*\{[\s\S]+?px-4[\s\S]+?py-2[\s\S]+?text-sm/);

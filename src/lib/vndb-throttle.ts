@@ -115,14 +115,6 @@ async function sleep(ms: number): Promise<void> {
  * in which case acquire() adds a soft 10 s pause.
  */
 export async function throttledFetch(url: string, init?: RequestInit, provider: ProviderId = 'vndb'): Promise<Response> {
-  // R5-121: SSRF allowlist on every outbound write/read through the
-  // VNDB throttle. The `vndb-sync` write path (PATCH/DELETE
-  // /ulist/<vnId>) and any other future caller that builds a URL
-  // from user-influenced data must not be one bug away from
-  // hitting `http://169.254.169.254` or any other non-allowlisted
-  // host. `cachedFetch:doFetch` already gates the primary URL
-  // (R5-125); centralising the same check here means every
-  // bypassing caller is covered too.
   if (!isAllowedHttpTarget(url)) {
     throw new Error(`vndb-throttle: refusing fetch to non-allowlisted URL ${url}`);
   }

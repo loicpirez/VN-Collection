@@ -24,10 +24,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (typeof body.name !== 'string' || !body.name.trim()) {
       return NextResponse.json({ error: 'name required' }, { status: 400 });
     }
-    // Audit S-037: enforce a length cap on name + params so a malicious
-    // PATCH can't store megabytes of garbage in `saved_filter.params`.
-    // The URL fragment we persist for legitimate filters is typically
-    // well under 1 KiB; 4000 is a generous ceiling.
     if (body.name.length > 200) {
       return NextResponse.json({ error: 'name too long (max 200)' }, { status: 400 });
     }
@@ -78,9 +74,6 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   try {
     const body = (await readJsonObject(req)) as { ids?: unknown };
-    // Audit S-047: cap the array length and validate every element is a
-    // positive integer so a malicious PATCH can't enqueue a million UPDATE
-    // statements or send `id=NaN` into the prepared statement.
     if (
       !Array.isArray(body.ids) ||
       body.ids.length > 500 ||

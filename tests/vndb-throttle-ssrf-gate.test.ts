@@ -25,7 +25,7 @@ const SOURCE = readFileSync(
   'utf8',
 );
 
-describe('vndb-throttle — R5-121 SSRF gate', () => {
+describe('vndb-throttleSSRF gate', () => {
   it('imports isAllowedHttpTarget from url-allowlist', () => {
     expect(SOURCE).toMatch(/from\s+['"]\.\/url-allowlist['"]/);
     expect(SOURCE).toMatch(/\bisAllowedHttpTarget\b/);

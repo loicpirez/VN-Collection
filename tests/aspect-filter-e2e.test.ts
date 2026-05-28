@@ -64,8 +64,6 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
     const items = listCollection({ aspect: '16:9' });
     expect(items.map((i) => i.id)).toContain('v90001');
     // And the card chip / group key surfaces the manual override
-    // (this was broken before — listAspectKeysForVns only saw
-    // owned-release-cached rows).
     const it90001 = items.find((i) => i.id === 'v90001');
     expect(it90001?.aspect_keys).toContain('16:9');
   });

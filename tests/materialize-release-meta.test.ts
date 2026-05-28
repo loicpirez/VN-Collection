@@ -56,7 +56,7 @@ afterAll(() => {
   db.close();
 });
 
-describe('materializeReleaseMeta — R5-132/R5-133', () => {
+describe('materializeReleaseMeta133', () => {
   beforeEach(() => {
     db.exec(`
       DELETE FROM release_meta_cache;
@@ -68,13 +68,13 @@ describe('materializeReleaseMeta — R5-132/R5-133', () => {
   });
 
   it('per-VN helper uses anchored LIKE prefix (no leading wildcard)', () => {
-    const body = SOURCE.split('export function materializeReleaseMetaForVn')[1]?.split('\nexport ')[0] ?? '';
+    const body = SOURCE.split('export function materializeReleaseMetaForVn')[1]?.split('\nexport')[0] ?? '';
     expect(body).toMatch(/LIKE 'POST \/release\|%'/);
     expect(body).not.toMatch(/LIKE '% \/release\|%'/);
   });
 
   it('aspect-materialiser also uses anchored LIKE', () => {
-    const body = SOURCE.split('export function materializeReleaseAspectsForVn')[1]?.split('\nexport ')[0] ?? '';
+    const body = SOURCE.split('export function materializeReleaseAspectsForVn')[1]?.split('\nexport')[0] ?? '';
     expect(body).toMatch(/LIKE 'POST \/release\|%'/);
     expect(body).not.toMatch(/LIKE '% \/release\|%'/);
   });

@@ -27,11 +27,7 @@ interface EgsCandidate {
 }
 
 const COMMON_LANGS = ['en', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'fr', 'de', 'es', 'it', 'ru'];
-// R5-230: VNDB enumerates Xbox Series X/S as 'xxs', not 'xbs'. The
-// previous 'xbs' chip rendered as raw `XBS` (label fallback uppercase)
-// and the search payload sent 'xbs' to VNDB which never matched.
 const COMMON_PLATFORMS = ['win', 'lin', 'mac', 'ios', 'and', 'web', 'swi', 'ps4', 'ps5', 'psv', 'psp', 'xb1', 'xxs', 'n3d'];
-
 
 interface AdvParams {
   langs: string[];
@@ -123,10 +119,6 @@ export function SearchClient() {
   const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  // P-026: useRef-on-first-render — the `useMemo` here was useless
-  // since `searchParams` identity changes on every URL change, so the
-  // memo never hit. We only need the value once for the initial
-  // useState seed below.
   const initialAdvRef = useRef<AdvParams | null>(null);
   if (initialAdvRef.current === null) {
     initialAdvRef.current = readAdvFromUrl(new URLSearchParams(searchParams.toString()));
@@ -451,9 +443,6 @@ export function SearchClient() {
             <SlidersHorizontal className="h-4 w-4" />
             {t.search.advanced}
             {advActive && (
-              // R5-152: Lucide `<Circle>` filled via `fill-current` —
-              // screen readers announce it as the labelled dot
-              // rather than the bare Unicode `●` glyph.
               <Circle
                 className="h-2 w-2 fill-current opacity-80"
                 aria-label={t.search.advancedActive}
@@ -722,10 +711,6 @@ function SearchResultsGrid({ results }: { results: VndbSearchHit[] }) {
   const { settings } = useDisplaySettings();
   const search = useSearchParams();
   const density = resolveScopedDensity(settings, 'search', search?.get('density') ?? null);
-  // P-080: memoize the inline style so the outer wrapper's style ref
-  // stays stable across renders. Without this every keystroke in the
-  // search input re-creates the style object, defeating React's
-  // reconciliation short-circuit on identical CSS.
   const gridStyle: React.CSSProperties = useMemo(
     () => ({ gridTemplateColumns: cardGridColumns(density) }),
     [density],

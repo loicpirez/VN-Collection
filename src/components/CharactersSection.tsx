@@ -49,10 +49,6 @@ export function CharactersSection({
     // letting the response complete and accumulate ghost state on
     // unmounted components (the "opening many VN pages crashes"
     // pattern).
-    // P-209: deduplicated via the per-page `fetchVnCharacters` cache.
-    // When `<RoutesSection>` already pre-warmed the cache (it mounts
-    // earlier in the layout), this resolves synchronously and skips
-    // the redundant network round-trip.
     const ac = new AbortController();
     setLoading(true);
     setError(null);
@@ -70,8 +66,6 @@ export function CharactersSection({
     return () => ac.abort();
   }, [open, vnId, chars, t.common.error]);
 
-  // P-086: memoize the sort. For 50+ characters this used to run on
-  // every render (parent state ticks, spoiler toggle, lightbox open).
   const sorted = useMemo(
     () =>
       chars
@@ -160,12 +154,6 @@ export function CharactersSection({
                               href={`/trait/${encodeURIComponent(tr.id)}`}
                               level={tr.spoiler ?? 0}
                               sexual={!!tr.sexual}
-                              // R5-231: VNDB's per-character trait
-                              // payload includes a `lie` boolean for
-                              // traits the character pretends about.
-                              // Pass it through so the chip renders
-                              // the AlertTriangle "lie tag" hint that
-                              // /character/[id] already shows.
                               lie={!!tr.lie}
                               currentSpoilerLevel={settings.spoilerLevel}
                               showSexual={settings.showSexualTraits}

@@ -80,8 +80,6 @@ export function TextualSearchPanel({
     }
     let alive = true;
     setLoading(true);
-    // P-128: AbortController + log on real failures. Previously
-    // `.catch(() => undefined)` swallowed every error.
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
       Promise.all([

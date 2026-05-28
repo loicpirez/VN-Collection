@@ -55,8 +55,6 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     setVnAspectOverride({ vnId: id, aspectKey: null });
     logAspect('aspect.clear', id);
   } else if (typeof raw === 'string' && isAspectKey(raw) && raw !== 'unknown') {
-    // Cap free-text override note so a malicious PATCH can't store
-    // megabytes into vn_aspect_override.note (audit S-051).
     const note = typeof body.note === 'string' ? body.note.slice(0, 500) : null;
     setVnAspectOverride({
       vnId: id,

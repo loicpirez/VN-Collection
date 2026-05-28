@@ -57,13 +57,6 @@ export function maskActivityPayload(value: unknown): unknown {
   return out;
 }
 
-// R5-127: hard cap on serialised activity payloads. The `payload`
-// JSON is stored as TEXT in `user_activity` and was previously
-// bound only by the table-row size. A pathological import / EGS
-// scrape could write a multi-megabyte blob per row. Cap at 8 KB
-// and replace overflow with a `{ truncated: true, size: N }`
-// stub so the row stays useful for "what kind of event happened"
-// without ballooning the table.
 const ACTIVITY_PAYLOAD_MAX_BYTES = 8 * 1024;
 
 function safePayloadJson(payload: unknown): string | null {
@@ -135,9 +128,6 @@ export function listUserActivity({
     args.push(entity);
   }
   if (q) {
-    // Audit S-040: escape `%` and `_` so a caller passing `q=%` doesn't
-    // widen the LIKE into a dump-everything query. Using `\` as the
-    // escape character (must match the ESCAPE clause on each LIKE).
     const escaped = q.replace(/[\\%_]/g, '\\$&');
     where.push("(label LIKE ? ESCAPE '\\' OR entity_id LIKE ? ESCAPE '\\' OR payload LIKE ? ESCAPE '\\')");
     const like = `%${escaped}%`;

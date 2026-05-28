@@ -79,10 +79,6 @@ async function Result({ a, b, page }: { a: string; b: string; page: number }) {
   const t = await getDict();
   const result = await findBrandStaffOverlap(a, b);
   if (result.needsMoreData) {
-    // R5-110: the empty state explains the missing-cache gap AND
-    // links to each producer's page so the user can trigger the
-    // context-specific staff fan-out (`/producer/[id]` runs its
-    // own per-producer download — no global refresh).
     return (
       <div className="rounded-xl border border-status-on_hold/40 bg-status-on_hold/10 p-6 text-sm">
         <p>{t.brandOverlap.needsMoreData}</p>
@@ -99,9 +95,6 @@ async function Result({ a, b, page }: { a: string; b: string; page: number }) {
     );
   }
 
-  // R5-209: mark in-collection VNs across both producer credit
-  // lists so the user can tell at a glance which overlap items
-  // they already own. One batched lookup per render.
   const ownedSet = isInCollectionMany(
     result.entries.flatMap((e) => [...e.aCredits, ...e.bCredits].map((c) => c.vn_id)),
   );
@@ -126,9 +119,6 @@ async function Result({ a, b, page }: { a: string; b: string; page: number }) {
       </header>
 
       {result.entries.length === 0 ? (
-        // R5-110: the zero-match empty state also points back to
-        // each producer so the user has a clear next step (more
-        // VNs to download) instead of a dead-end message.
         <div className="text-sm text-muted">
           <p>{t.brandOverlap.empty}</p>
           <p className="mt-1 text-xs">

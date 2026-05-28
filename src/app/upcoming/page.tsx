@@ -486,9 +486,6 @@ function AnticipatedSection({
       <p className="mb-4 text-[11px] text-muted">{t.upcoming.anticipatedSubtitle}</p>
       <ol
         className="grid gap-4 lg:gap-5"
-        // R5-219: anticipated grid uses the same min-floor + max-clamp
-        // pattern as the upcoming list to keep cards readable at low
-        // density and prevent a sparse row from ballooning.
         style={{
           gridTemplateColumns:
             'repeat(auto-fill, minmax(min(100%, max(280px, var(--card-density-px, 280px))), min(600px, calc(var(--card-density-px, 280px) * 1.4))))',

@@ -111,12 +111,6 @@ export function ActionMenu({
         setOpen(false);
         return;
       }
-      // R5-157: arrow / Home / End keys move the roving focus
-      // through `role="menuitem"` / `role="menuitemcheckbox"`
-      // entries in the panel. Mirrors the WAI-ARIA menu
-      // pattern. Without this the menu was tab-only — a long
-      // menu meant 4-5 discrete Tab keystrokes to reach the
-      // last entry.
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
         const items = Array.from(
           panelRef.current?.querySelectorAll<HTMLElement>(

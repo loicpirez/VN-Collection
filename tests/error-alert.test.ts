@@ -1,9 +1,3 @@
-/**
- * Pins the ErrorAlert primitive contract (audit U-019):
- *   - default tone = 'error' (status-dropped palette)
- *   - role defaults to 'alert' so screen readers announce on mount
- *   - tones map to canonical status palette classes
- */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -27,7 +21,6 @@ describe('ErrorAlert primitive', () => {
     expect(TONES).toContain('status-on_hold');
     expect(TONES).toContain('accent-blue');
     // No off-palette `red-` / `amber-` / `green-` classes that the
-    // uiux audit specifically called out.
     expect(TONES).not.toMatch(/\bred-\d/);
     expect(TONES).not.toMatch(/\bamber-\d/);
     expect(TONES).not.toMatch(/\brose-\d/);

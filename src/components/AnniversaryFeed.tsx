@@ -17,14 +17,6 @@ import { AnniversaryFeedView, type AnniversaryEntry } from './AnniversaryFeedVie
 export async function AnniversaryFeed({ initialState }: { initialState?: HomeSectionState }) {
   const t = await getDict();
   const rows = todaysAnniversaries();
-  // Always hand control to the client view, even when there are no
-  // anniversaries today. The previous "return null on empty" branch
-  // made the section invisible AND unreachable from the per-section
-  // menu, so users who hid it (or who simply have no VN released on
-  // this calendar day) thought the feature was broken. The client
-  // view now renders a clear empty-state with a hint and keeps the
-  // hide/collapse controls reachable.
-
   const entries: AnniversaryEntry[] = rows.slice(0, 8).map((r) => ({
     id: r.id,
     title: r.title,

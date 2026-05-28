@@ -3,7 +3,6 @@
  *
  * VNDB's `/vn`, `/release`, and the persisted `release_meta_cache`
  * all use short three-letter platform codes ("win", "ps4", "swi").
- * Surfaces that previously rendered the raw code in
  * uppercase ("WIN", "PS4", "SWI") read as in-jargon and were flagged
  * by manual QA as opaque. This helper centralises the mapping so
  * every consumer renders the same friendly label.

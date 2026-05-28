@@ -238,7 +238,7 @@ export function editionFromTitle(title: string): EditionKind {
  *
  * Tilde note: the full-width range U+FF01–U+FF5E maps ～ (U+FF5E) → ~ (U+7E).
  * The WAVE DASH 〜 (U+301C) sits outside that range and must be handled
- * separately so "あいれぼ〜IDOL" normalizes the same as "あいれぼ～IDOL".
+ * separately so "てすと〜ABC" normalizes the same as "てすと～ABC".
  */
 export function normalizeTitle(title: string): string {
   return title
@@ -329,11 +329,6 @@ export function classifyOffer(
   } else if (isBonusPrefix) {
     contentKind = 'bonus_only';
     score -= 60;
-    // I-007: emit stable slug keys (translated at render time) rather
-    // than English literals — the same string lands in the DB via
-    // `vn_stock_offer.match_warnings_json` and would otherwise show as
-    // raw English to FR/JA users. Legacy rows that still carry the old
-    // English wording are mapped back to slugs in `stockWarningLabel`.
     warnings.push('bonus_only_item');
   } else if (soundtrackTitle) {
     contentKind = 'soundtrack';
