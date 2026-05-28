@@ -56,7 +56,7 @@ describe('refreshErogePrice must not use egs_id as eroge-price id', () => {
     expect(body).not.toMatch(/fetchErogePriceBundle\s*\(/);
   });
 
-  it('uses vn.alttitle ?? vn.title for the search query', () => {
+  it('uses buildErogePriceQueries(vn.alttitle, vn.title) for the search query', () => {
     const start = STOCK_SRC.indexOf('async function refreshErogePrice');
     let depth = 0;
     let i = STOCK_SRC.indexOf('{', start);
@@ -75,6 +75,6 @@ describe('refreshErogePrice must not use egs_id as eroge-price id', () => {
     }
     const body = STOCK_SRC.slice(start, end);
     expect(body).toMatch(/searchAndFetchAll\s*\(/);
-    expect(body).toMatch(/vn\.alttitle\s*\?\?\s*vn\.title/);
+    expect(body).toMatch(/buildErogePriceQueries\s*\(\s*vn\.alttitle\s*,\s*vn\.title/);
   });
 });

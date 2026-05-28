@@ -1,6 +1,7 @@
 'use client';
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
 import {
   AlertTriangle,
@@ -94,6 +95,7 @@ interface StockProvider {
   cloudflare: boolean;
   branchParserImplemented: boolean;
   confirmedPhysicalUsable: boolean;
+  disabled?: boolean;
 }
 
 interface StockSnapshot {
@@ -147,6 +149,7 @@ export function StockPanel({
 }) {
   const t = useT();
   const locale = useLocale();
+  const router = useRouter();
   const { confirm } = useConfirm();
   const [snapshot, setSnapshot] = useState<StockSnapshot | null>(initialSnapshot ?? null);
   const [loading, setLoading] = useState(!initialSnapshot);
@@ -251,6 +254,7 @@ export function StockPanel({
     if (abortRef.current === ctrl) abortRef.current = null;
     setRefreshing(false);
     setLoading(false);
+    router.refresh();
   }
 
   /**
@@ -283,6 +287,7 @@ export function StockPanel({
     if (abortRef.current === ctrl) abortRef.current = null;
     setRefreshing(false);
     setLoading(false);
+    router.refresh();
   }
 
   function stop() {
@@ -447,7 +452,7 @@ export function StockPanel({
     () => (hideStale ? allOffers.filter((o) => !staleProviderIds.has(o.provider)) : allOffers),
     [hideStale, allOffers, staleProviderIds],
   );
-  const refreshableProviders = providers.filter((p) => p.kind !== 'cached');
+  const refreshableProviders = providers.filter((p) => p.kind !== 'cached' && !p.disabled);
   const selectedProviderIds = selectedProviders ?? refreshableProviders.map((p) => p.id);
   const selectedProviderSet = useMemo(() => new Set(selectedProviderIds), [selectedProviderIds]);
   const statusByProvider = useMemo(

@@ -106,6 +106,9 @@ const SAFE_KEYS = new Set<string>([
   // through `saveStockProviderProxyConfig` so the shop id is checked
   // a second time before any DB write.
   ...STOCK_PROVIDER_PROXY_KEYS,
+  // JSON array of StockProviderId values the operator has disabled.
+  // Default (absent or null) = all providers enabled.
+  'stock_disabled_providers',
 ]);
 
 const DEFAULT_VNDB_BACKUP_URL = 'https://api.yorhel.org/kana';
@@ -209,6 +212,11 @@ export async function GET(req: Request): Promise<NextResponse> {
       steam_id: getAppSetting('steam_id') ?? '',
       egs_username: getAppSetting('egs_username') ?? '',
       vndb_fanout: getAppSetting('vndb_fanout') !== '0',
+      stock_disabled_providers: (() => {
+        const raw = getAppSetting('stock_disabled_providers');
+        if (!raw) return [];
+        try { return JSON.parse(raw) as string[]; } catch { return []; }
+      })(),
       vndb_proxy_config: getProxyConfigForDisplay('vndb'),
       vndbmirror_proxy_config: getProxyConfigForDisplay('vndbmirror'),
       egs_proxy_config: getProxyConfigForDisplay('egs'),
@@ -530,6 +538,16 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       setAppSetting('egs_username', trimmed);
     } else {
       return NextResponse.json({ error: 'egs_username must be a string' }, { status: 400 });
+    }
+  }
+  if ('stock_disabled_providers' in body) {
+    const v = body.stock_disabled_providers;
+    if (v == null) {
+      setAppSetting('stock_disabled_providers', null);
+    } else if (Array.isArray(v) && v.every((item) => typeof item === 'string' && STOCK_PROVIDER_IDS.includes(item as (typeof STOCK_PROVIDER_IDS)[number]))) {
+      setAppSetting('stock_disabled_providers', v.length > 0 ? JSON.stringify(v) : null);
+    } else {
+      return NextResponse.json({ error: 'stock_disabled_providers must be an array of valid provider IDs' }, { status: 400 });
     }
   }
   for (const [key, providerId] of [

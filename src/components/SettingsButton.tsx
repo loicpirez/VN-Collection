@@ -153,6 +153,7 @@ interface ServerSettings {
   egs_proxy_config?: ProxyDisplayConfig;
   alicesoft_kobe_proxy_config?: ProxyDisplayConfig;
   stock_proxy_config?: ProxyDisplayConfig;
+  stock_disabled_providers?: string[];
 }
 
 const SETTINGS_TABS = [
@@ -506,6 +507,7 @@ export function SettingsButton() {
       egs_proxy_config: Record<string, unknown>;
       alicesoft_kobe_proxy_config: Record<string, unknown>;
       stock_proxy_config: Record<string, unknown>;
+      stock_disabled_providers: string[] | null;
     }>,
   ) {
     try {
@@ -1255,6 +1257,12 @@ export function SettingsButton() {
                     label={t.settings.proxyProviderStock}
                     config={server?.stock_proxy_config}
                     onSave={(patch) => saveServer({ stock_proxy_config: patch })}
+                  />
+
+                  <StockProviderToggles
+                    t={t}
+                    disabledProviders={server?.stock_disabled_providers ?? []}
+                    onSave={(next) => saveServer({ stock_disabled_providers: next.length > 0 ? next : null })}
                   />
 
                   <section className="border-t border-border pt-5">
@@ -2308,6 +2316,84 @@ function PerPageLayoutPanel() {
         </button>
       </div>
     </div>
+  );
+}
+
+function StockProviderToggles({
+  t,
+  disabledProviders,
+  onSave,
+}: {
+  t: ReturnType<typeof useT>;
+  disabledProviders: string[];
+  onSave: (next: string[]) => void;
+}) {
+  const disabledSet = new Set(disabledProviders);
+
+  function toggle(id: string) {
+    const next = new Set(disabledSet);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onSave([...next]);
+  }
+
+  return (
+    <section className="border-t border-border pt-5">
+      <details className="group">
+        <summary className="cursor-pointer text-sm font-bold hover:text-accent">
+          {t.settings.stockProvidersTitle}
+          <ChevronDown className="inline-block h-3.5 w-3.5 align-baseline transition-transform group-open:rotate-180" aria-hidden />
+        </summary>
+        <p className="mb-3 mt-2 text-[11px] text-muted">{t.settings.stockProvidersDesc}</p>
+        <div className="mb-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onSave([])}
+            className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent"
+          >
+            {t.settings.stockProviderEnableAll}
+          </button>
+          <button
+            type="button"
+            onClick={() => onSave([...STOCK_PROVIDER_IDS])}
+            className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] text-muted hover:border-status-dropped hover:text-status-dropped"
+          >
+            {t.settings.stockProviderDisableAll}
+          </button>
+        </div>
+        <ul className="grid gap-1.5 sm:grid-cols-2">
+          {STOCK_PROVIDER_IDS.map((id) => {
+            const enabled = !disabledSet.has(id);
+            return (
+              <li key={id}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={enabled}
+                  onClick={() => toggle(id)}
+                  className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-[11px] transition-colors ${
+                    enabled
+                      ? 'border-accent/40 bg-accent/5 text-white'
+                      : 'border-border bg-bg-elev/30 text-muted'
+                  }`}
+                >
+                  <span className="truncate font-medium">{STOCK_PROVIDER_LABELS[id]}</span>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      enabled
+                        ? 'bg-accent/20 text-accent'
+                        : 'bg-bg-elev text-muted'
+                    }`}
+                  >
+                    {enabled ? t.settings.stockProviderEnabled : t.settings.stockProviderDisabled}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </details>
+    </section>
   );
 }
 

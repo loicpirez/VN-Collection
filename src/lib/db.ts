@@ -10081,6 +10081,23 @@ export function deleteStockSource(vnId: string, sourceId: number): boolean {
 }
 
 /** Delete all cached stock offers and provider statuses for one VN. */
+/**
+ * Return the set of stock provider IDs the operator has disabled.
+ * Reads from `app_setting` key `stock_disabled_providers` (JSON array).
+ * Returns an empty set when the setting is absent (all providers enabled).
+ */
+export function getDisabledStockProviders(): Set<string> {
+  const raw = getAppSetting('stock_disabled_providers');
+  if (!raw) return new Set();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((v): v is string => typeof v === 'string'));
+  } catch {
+    return new Set();
+  }
+}
+
 export function clearVnStockCache(vnId: string): { offers: number; statuses: number } {
   const offerResult = db.prepare(`DELETE FROM vn_stock_offer WHERE vn_id = ?`).run(vnId);
   const statusResult = db.prepare(`DELETE FROM vn_stock_provider_status WHERE vn_id = ?`).run(vnId);

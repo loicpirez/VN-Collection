@@ -1,6 +1,6 @@
 import 'server-only';
 import iconv from 'iconv-lite';
-import { db, getCollectionItem, getEgsForVn, getStockProviderExtras, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
+import { db, getCollectionItem, getDisabledStockProviders, getEgsForVn, getStockProviderExtras, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
@@ -8,6 +8,7 @@ import { stockProviderFetch } from './proxy-fetch';
 import type { CollectionItem } from './types';
 import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
 import {
+  buildErogePriceQueries,
   searchAndFetchAll,
   type ErogePriceBundle,
   type ErogePriceExtrasV1,
@@ -52,6 +53,8 @@ export interface StockProviderMeta {
   branchParserImplemented: boolean;
   /** Whether this provider should appear in confirmed-physical-location results right now. */
   confirmedPhysicalUsable: boolean;
+  /** True when the operator has disabled this provider in settings. Absent means enabled. */
+  disabled?: boolean;
 }
 
 export interface StockOffer extends VnStockOfferRow {
@@ -2195,11 +2198,11 @@ async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | und
 
   let extras: ErogePriceExtrasV1 | null = null;
   try {
-    // ALWAYS search by original Japanese title. The fallback to
-    // romaji `vn.title` is only when alttitle is empty.
-    const query = (vn.alttitle ?? vn.title ?? '').trim();
-    if (query) {
+    const queries = buildErogePriceQueries(vn.alttitle, vn.title, aliases);
+    for (const query of queries) {
+      if (signal?.aborted) break;
       extras = await searchAndFetchAll(query, erogePriceJsonFetcher, signal);
+      if (extras && extras.candidates.length > 0) break;
     }
   } catch {
     /* Network or parse failure — surfaces as empty stock for this provider. */
@@ -2602,6 +2605,8 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
   const aliases = listStockAliases(vnId).map((a) => a.alias_term);
   const releases = isVndbVnId(vnId) ? await getReleasesForVn(vnId, 100) : [];
   const egsId = getEgsForVn(vnId)?.egs_id ?? null;
+  const disabledProviders = getDisabledStockProviders();
+  const activeProviders = providers.filter((p) => !disabledProviders.has(p));
   const discovered = await discoverRetailerTargetsFromOfficialPages(vn, releases, signal);
   for (const source of listStockSources(vnId)) {
     if (!STOCK_PROVIDER_IDS.includes(source.provider as StockProviderId)) continue;
@@ -2617,14 +2622,14 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
     });
     discovered.set(provider, uniqTargets(list));
   }
-  for (const provider of providers) {
+  for (const provider of activeProviders) {
     const now = Date.now();
     try {
       const rawOffers = await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases);
       const offers = dedupeProviderOffers(rawOffers);
       const hasInputs =
         provider === 'eroge_price'
-          ? !!egsId
+          ? !!(vn.alttitle ?? vn.title)
           : provider === 'surugaya' || provider === 'trader'
             ? titleQueries(vn, aliases).length > 0
             : allTargetsForProvider(releases, provider, vn, discovered, aliases).length > 0;
@@ -2725,6 +2730,11 @@ export function getStockForVn(vnId: string): StockSnapshot {
       (a.price ?? Number.MAX_SAFE_INTEGER) - (b.price ?? Number.MAX_SAFE_INTEGER);
   });
   const statuses = listVnStockProviderStatuses(vnId);
+  const disabledSet = getDisabledStockProviders();
+  const providersWithDisabled = PROVIDERS.map((p) => ({
+    ...p,
+    disabled: disabledSet.has(p.id),
+  }));
   const eligibleOffers = offers.filter(isEligibleGameStockOffer);
   const bestPriority = eligibleOffers.length > 0 ? Math.min(...eligibleOffers.map(offerPriorityRank)) : null;
   const bestPricePool = bestPriority == null
@@ -2744,7 +2754,7 @@ export function getStockForVn(vnId: string): StockSnapshot {
   return {
     offers,
     statuses,
-    providers: PROVIDERS,
+    providers: providersWithDisabled,
     sources: listStockSources(vnId),
     summary: {
       total: offers.length,

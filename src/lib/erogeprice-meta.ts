@@ -192,6 +192,91 @@ export interface ErogePriceExtrasV1 {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Title normalization for search queries.
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Convert full-width ASCII/Latin characters (！-～, 0xFF01-0xFF5E) to
+ * half-width equivalents. Leaves CJK, hiragana, katakana untouched.
+ */
+function fullToHalf(s: string): string {
+  return s.replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+}
+
+/**
+ * Normalise tilde variants. The three most common in Japanese VN titles:
+ *  U+007E  ~  TILDE (ASCII half-width)
+ *  U+FF5E  ～ FULLWIDTH TILDE
+ *  U+301C  〜 WAVE DASH
+ * All are mapped to U+FF5E (the form most common in eroge-price titles).
+ */
+function normalizeTildes(s: string): string {
+  return s.replace(/[~〜～]/g, '～');
+}
+
+/** Remove decorative non-letter symbols (☆ ★ ♪ ♥ ◆ ◇ ♦ ♠ etc.) */
+function removeDecorative(s: string): string {
+  return s.replace(/[☆★♪♥◆◇♦♠♣♡✿❀✦✧✩✪✫✬✭✮✯✰❤♔♕♖♗♘♙♚♛♜♝♞♟]/g, '').trim();
+}
+
+/**
+ * Build an ordered list of search query variants for eroge-price.com.
+ *
+ * The API search is fuzzy but benefits from title normalisation — the
+ * site sometimes stores `～` variants differently. We try the most
+ * specific form first (original alttitle), then progressively normalised
+ * forms, then fall back to the romaji title and VNDB aliases.
+ *
+ * Callers iterate the list and stop at the first variant that returns
+ * candidates. The list is deduplicated so a VN whose alttitle already
+ * uses `～` doesn't waste a round-trip on the same string.
+ */
+export function buildErogePriceQueries(
+  alttitle: string | null | undefined,
+  title: string | null | undefined,
+  aliases: string[] = [],
+): string[] {
+  const candidates: string[] = [];
+
+  const add = (s: string) => {
+    const q = s.trim();
+    if (q.length < 2) return;
+    if (!candidates.some((c) => c.toLowerCase() === q.toLowerCase())) candidates.push(q);
+  };
+
+  if (alttitle) {
+    const a = alttitle.trim();
+    if (a) {
+      add(a);
+      add(normalizeTildes(a));
+      add(fullToHalf(a));
+      add(normalizeTildes(fullToHalf(a)));
+      const stripped = removeDecorative(normalizeTildes(fullToHalf(a)));
+      if (stripped !== normalizeTildes(fullToHalf(a))) add(stripped);
+    }
+  }
+
+  if (title) {
+    const t = title.trim();
+    if (t) {
+      add(t);
+      add(normalizeTildes(t));
+      add(fullToHalf(t));
+    }
+  }
+
+  for (const alias of aliases) {
+    const a = alias.trim();
+    if (a.length >= 2) {
+      add(a);
+      add(normalizeTildes(fullToHalf(a)));
+    }
+  }
+
+  return candidates;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // URL builders.
 // ────────────────────────────────────────────────────────────────────────────
 
