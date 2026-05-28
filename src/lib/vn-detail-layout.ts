@@ -24,6 +24,7 @@ export const VN_SECTION_IDS = [
   'relations',
   'vndb-status',
   'stock',
+  'stock-prices',
   'egs-panel',
   'egs-details',
   'characters',

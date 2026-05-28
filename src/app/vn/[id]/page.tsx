@@ -70,6 +70,7 @@ import { NotInCollectionBanner } from '@/components/NotInCollectionBanner';
 import { TitleLine } from '@/components/TitleLine';
 import { StockPanel } from '@/components/StockPanel';
 import { StockPanelBoundary } from '@/components/StockPanelBoundary';
+import { StockPricesSection } from '@/components/StockPricesSection';
 import { getStockForVn } from '@/lib/stock';
 import { EgsPanel } from '@/components/EgsPanel';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
@@ -912,9 +913,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               altTitle={vn.alttitle ?? null}
               vndbAliases={(vn.aliases ?? []) as string[]}
               initialSnapshot={getStockForVn(vn.id)}
+              showErogePrice={false}
             />
           </StockPanelBoundary>
         );
+        sectionNodes['stock-prices'] = <StockPricesSection vnId={vn.id} />;
         sectionNodes['egs-panel'] = (
           <EgsPanel
             vnId={vn.id}
