@@ -59,7 +59,7 @@ interface Props {
   hideLegend?: boolean;
 }
 
-const DEFAULT_PALETTE = [
+export const DEFAULT_PALETTE = [
   'rgb(56, 189, 248)', // sky-400
   'rgb(248, 113, 113)', // red-400
   'rgb(74, 222, 128)', // green-400

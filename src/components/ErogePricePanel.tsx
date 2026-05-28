@@ -36,7 +36,7 @@ import type {
 import { useT, useLocale } from '@/lib/i18n/client';
 import { fmtNum } from '@/lib/locale-number';
 import { SafeImage } from './SafeImage';
-import { PriceHistoryChart, type SparklineSeries } from './charts/Sparkline';
+import { DEFAULT_PALETTE, PriceHistoryChart, type SparklineSeries } from './charts/Sparkline';
 
 interface Props {
   /**
@@ -226,6 +226,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
   const locale = useLocale();
   const d = bundle.detail;
   const [range, setRange] = useState<RangeKey>('2Y');
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
 
   const filteredHistory = useMemo(() => {
     const opt = RANGE_OPTIONS.find((o) => o.key === range)!;
@@ -234,7 +235,35 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
     return bundle.priceHistory.filter((p) => new Date(p.scrapedAt).getTime() >= cutoff);
   }, [bundle.priceHistory, range]);
 
-  const series = pointsToSeries(filteredHistory);
+  const allSeries: SparklineSeries[] = useMemo(() => {
+    const raw = pointsToSeries(filteredHistory);
+    return raw.map((s, i) => ({ ...s, color: s.color ?? DEFAULT_PALETTE[i % DEFAULT_PALETTE.length] }));
+  }, [filteredHistory]);
+
+  const series = allSeries.filter((s) => !hiddenSeries.has(s.label));
+
+  function toggleGroup(edition: 'DL' | 'PKG') {
+    const inGroup = allSeries.filter((s) => s.label.endsWith(`(${edition})`));
+    const allHidden = inGroup.every((s) => hiddenSeries.has(s.label));
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      for (const s of inGroup) {
+        if (allHidden) next.delete(s.label);
+        else next.add(s.label);
+      }
+      return next;
+    });
+  }
+
+  function toggleOneSeries(label: string) {
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
+
   const guides: { y: number; label: string; color?: string }[] = [];
   if (bundle.priceStats.allTimeMin != null) {
     guides.push({
@@ -421,11 +450,52 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
             })}
           </div>
         </div>
+        {allSeries.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1">
+            {(['DL', 'PKG'] as const).map((edition) => {
+              const inGroup = allSeries.filter((s) => s.label.endsWith(`(${edition})`));
+              if (inGroup.length === 0) return null;
+              const allHidden = inGroup.every((s) => hiddenSeries.has(s.label));
+              return (
+                <button
+                  key={edition}
+                  type="button"
+                  onClick={() => toggleGroup(edition)}
+                  className={`rounded border px-2 py-0.5 text-[10px] font-bold transition-colors ${
+                    allHidden
+                      ? 'border-border text-muted opacity-50'
+                      : 'border-accent/60 bg-accent/10 text-accent'
+                  }`}
+                >
+                  {edition}
+                </button>
+              );
+            })}
+            <span className="mx-0.5 self-center text-[10px] text-border/60">·</span>
+            {allSeries.map((s) => {
+              const hidden = hiddenSeries.has(s.label);
+              return (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => toggleOneSeries(s.label)}
+                  className={`flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                    hidden ? 'border-border opacity-40' : 'border-border/60 text-white hover:border-accent/60'
+                  }`}
+                >
+                  <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: s.color }} />
+                  <span className={hidden ? 'line-through text-muted' : ''}>{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <PriceHistoryChart
           series={series}
           guides={guides}
           ariaLabel={`${t.erogePrice.priceHistory} — ${d.title}`}
           formatYen={(y) => fmtYen(y, locale)}
+          hideLegend
         />
       </section>
 
