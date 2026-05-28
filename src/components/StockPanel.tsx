@@ -125,6 +125,7 @@ interface StockSource {
 
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 const STOCK_UI_KEY = 'stock:ui:v1';
+const STOCK_OFFERS_KEY = 'stock:ui:offers:v1';
 
 const EMPTY_OFFERS: StockOffer[] = [];
 const EMPTY_PROVIDERS: StockProvider[] = [];
@@ -1651,6 +1652,7 @@ function OfferCard({
 
 function OfferGroup({
   label,
+  groupKey,
   offers,
   best,
   currency,
@@ -1659,6 +1661,7 @@ function OfferGroup({
   defaultCollapsed = false,
 }: {
   label: string;
+  groupKey: string;
   offers: StockOffer[];
   best: number | null;
   currency: Intl.NumberFormat;
@@ -1666,7 +1669,22 @@ function OfferGroup({
   locale: string;
   defaultCollapsed?: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      const raw = localStorage.getItem(STOCK_OFFERS_KEY);
+      if (raw) {
+        const stored = (JSON.parse(raw) as Record<string, boolean>)[groupKey];
+        if (stored !== undefined) return stored;
+      }
+    } catch {}
+    return defaultCollapsed;
+  });
+  useEffect(() => {
+    try {
+      const prev = JSON.parse(localStorage.getItem(STOCK_OFFERS_KEY) ?? '{}') as Record<string, boolean>;
+      localStorage.setItem(STOCK_OFFERS_KEY, JSON.stringify({ ...prev, [groupKey]: collapsed }));
+    } catch {}
+  }, [collapsed, groupKey]);
   const panelId = useId();
   if (offers.length === 0) return null;
   return (
@@ -1674,19 +1692,17 @@ function OfferGroup({
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted" id={`${panelId}-label`}>{label}</h3>
         <span className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted" aria-label={`${offers.length}`}>{offers.length}</span>
-        {defaultCollapsed && (
-          <button
-            type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            className="rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            aria-expanded={!collapsed}
-            aria-controls={panelId}
-          >
-            {collapsed
-              ? (t.stock.groupExpand as string).replace('{count}', String(offers.length))
-              : (t.stock.groupCollapse as string)}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          className="rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          aria-expanded={!collapsed}
+          aria-controls={panelId}
+        >
+          {collapsed
+            ? (t.stock.groupExpand as string).replace('{count}', String(offers.length))
+            : (t.stock.groupCollapse as string)}
+        </button>
       </div>
       {!collapsed && (
         <ul
@@ -1749,11 +1765,11 @@ function OffersGrouped({
           </span>
         )}
       </div>
-      <OfferGroup label={t.stock.groupGame as string} offers={game} best={best} currency={currency} t={t} locale={locale} />
-      <OfferGroup label={t.stock.groupNeedsReview as string} offers={needsReview} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
-      <OfferGroup label={t.stock.groupSameSeries as string} offers={series} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
-      <OfferGroup label={t.stock.groupRelated as string} offers={related} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
-      <OfferGroup label={t.stock.groupRejected as string} offers={rejected} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
+      <OfferGroup label={t.stock.groupGame as string} groupKey="game" offers={game} best={best} currency={currency} t={t} locale={locale} />
+      <OfferGroup label={t.stock.groupNeedsReview as string} groupKey="needs_review" offers={needsReview} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
+      <OfferGroup label={t.stock.groupSameSeries as string} groupKey="series" offers={series} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
+      <OfferGroup label={t.stock.groupRelated as string} groupKey="related" offers={related} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
+      <OfferGroup label={t.stock.groupRejected as string} groupKey="rejected" offers={rejected} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
     </div>
   );
 }

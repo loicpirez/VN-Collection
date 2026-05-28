@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Square, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { STOCK_PROVIDER_IDS, STOCK_PROVIDER_LABELS } from '@/lib/stock-provider-constants';
@@ -26,6 +26,18 @@ export function StockBatchClient() {
   const [queued, setQueued] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedProviders, setSelectedProviders] = useState<string[]>([...STOCK_PROVIDER_IDS]);
+
+  useEffect(() => {
+    fetch('/api/settings', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { stock_disabled_providers?: string[] } | null) => {
+        if (!data) return;
+        const disabled = new Set(data.stock_disabled_providers ?? []);
+        if (disabled.size === 0) return;
+        setSelectedProviders(STOCK_PROVIDER_IDS.filter((id) => !disabled.has(id)));
+      })
+      .catch(() => {});
+  }, []);
 
   function toggleProvider(id: string) {
     setSelectedProviders((prev) =>
