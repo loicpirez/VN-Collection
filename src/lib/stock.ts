@@ -8,7 +8,6 @@ import { stockProviderFetch } from './proxy-fetch';
 import type { CollectionItem } from './types';
 import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
 import {
-  fetchErogePriceBundle,
   searchAndFetchAll,
   type ErogePriceBundle,
   type ErogePriceExtrasV1,
@@ -2147,33 +2146,43 @@ function retailerToOffer(
   });
 }
 
-async function refreshErogePrice(vnId: string, pinnedEpId: number | null | undefined, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | undefined, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   // R12-EROGEPRICE: switched from SSR-HTML scraping to the public
-  // JSON API (`/api/games/...`). The API returns every field the
-  // user asked for — full staff (incl. singer + voice), per-edition
-  // retailer rows with sale state + condition + product code,
-  // all-time min/max + 30-day min stats, the FULL price-history
-  // time-series, and the related-games graph. Operator's other
-  // demand ("one exact name match can have many games; integrate
-  // them all") is satisfied by `searchAndFetchAll`: every candidate
-  // becomes a persisted bundle, the StockPanel renders them as
-  // tabs, no candidate is dropped.
+  // JSON API (`/api/games/...`). Multi-candidate via
+  // `searchAndFetchAll` (operator: "one exact name match can have
+  // many games; integrate them all").
   //
-  // NAMING — `pinnedEpId` is the eroge-price.com numeric game id.
-  // It happens to be sourced from `getEgsForVn(vnId)?.egs_id`
-  // because eroge-price.com federates ids from ErogameScape, but
-  // semantically the value here is consumed as the eroge-price
-  // path segment, so the local name reflects that meaning. NOT to
-  // be confused with the project's VN id (`v\d+` / `egs_\d+`),
-  // which is entirely separate.
+  // BUG FIX: ErogameScape `egs_game.egs_id` is NOT the same as
+  // the eroge-price.com numeric game id. Earlier drafts assumed
+  // eroge-price federates ids from EGS; counter-example pinned by
+  // operator inspection on prod confirmed a VN whose EGS id was a
+  // valid eroge-price id but pointed at a completely unrelated
+  // title. eroge-price uses its own id namespace.
+  //
+  // The `egsId` parameter passed in here from `refreshProvider`
+  // (ultimately `getEgsForVn(vnId)?.egs_id`) is therefore
+  // **deliberately ignored** for the refresh path. We ALWAYS go
+  // through the title search:
+  //
+  //   1. Search eroge-price with the original Japanese title
+  //      (`vn.alttitle`), falling back to the romaji
+  //      `vn.title` only when alttitle is empty.
+  //   2. Hydrate every candidate the search returns.
+  //   3. If a previous extras envelope already exists with a
+  //      `selectedEpId` that appears in the new candidate list,
+  //      preserve the operator's pin. Otherwise default to the
+  //      first search hit.
+  //
+  // The `_egsIdUnused` parameter is kept in the signature for
+  // call-site stability and is asserted unused so a future cleanup
+  // can drop it safely.
+  void _egsIdUnused;
 
   // Read the previous extras envelope BEFORE we overwrite it. The
   // operator may have manually pinned a non-default candidate via
   // PATCH `/api/vn/[id]/stock/eroge-price`; that pin must survive
   // a refresh as long as the chosen epId still appears in the new
-  // candidate set. Without this, every refresh would silently
-  // revert to the first-by-default candidate and frustrate the
-  // operator who explicitly disagreed with the auto-pick.
+  // candidate set.
   let previousManualPin: number | null = null;
   try {
     const previous = getStockProviderExtras<ErogePriceExtrasV1>(vnId, 'eroge_price');
@@ -2186,22 +2195,11 @@ async function refreshErogePrice(vnId: string, pinnedEpId: number | null | undef
 
   let extras: ErogePriceExtrasV1 | null = null;
   try {
-    if (pinnedEpId) {
-      const bundle = await fetchErogePriceBundle(pinnedEpId, erogePriceJsonFetcher, signal);
-      if (bundle) {
-        extras = {
-          schemaVersion: 1,
-          candidates: [bundle],
-          selectedEpId: pinnedEpId,
-          searchQuery: null,
-          refreshedAt: Date.now(),
-        };
-      }
-    } else {
-      const query = (vn.alttitle ?? vn.title ?? '').trim();
-      if (query) {
-        extras = await searchAndFetchAll(query, erogePriceJsonFetcher, signal);
-      }
+    // ALWAYS search by original Japanese title. The fallback to
+    // romaji `vn.title` is only when alttitle is empty.
+    const query = (vn.alttitle ?? vn.title ?? '').trim();
+    if (query) {
+      extras = await searchAndFetchAll(query, erogePriceJsonFetcher, signal);
     }
   } catch {
     /* Network or parse failure — surfaces as empty stock for this provider. */
