@@ -5,6 +5,12 @@ import { useT } from '@/lib/i18n/client';
 import { STOCK_PROVIDER_IDS, STOCK_PROVIDER_LABELS } from '@/lib/stock-provider-constants';
 import { VnSourcePicker, type VnPickerHit } from './VnSourcePicker';
 
+const PROVIDER_GROUPS = {
+  aggregator: ['eroge_price', 'getchu'] as string[],
+  physical: ['sofmap', 'surugaya', 'hgame1', 'melonbooks', 'mandarake', 'wondergoo', 'trader', 'animate', 'gamers', 'geo', 'joshin', 'asakusa_mach', 'otakarasouko'] as string[],
+  online: ['ebten', 'gamecity', 'amazon_jp', 'amiami', 'neowing', 'yodobashi', 'bikkuri_takarajima'] as string[],
+} as const;
+
 interface QueueEntry {
   vnId: string;
   title?: string;
@@ -71,7 +77,13 @@ export function StockBatchClient() {
       setQueue(merged);
     } catch (e) {
       setError((e as Error).message);
+      throw e;
     }
+  }
+
+  async function loadAllScopes() {
+    await loadScope('collection').catch(() => {});
+    await loadScope('wishlist').catch(() => {});
   }
 
   async function run() {
@@ -136,11 +148,61 @@ export function StockBatchClient() {
               {scope === 'wishlist' && (t.stock.batchScopeWishlist as string)}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={loadAllScopes}
+            disabled={running}
+            className="min-h-[36px] rounded-md border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+          >
+            {t.stock.batchScopeAll as string}
+          </button>
         </div>
 
         {/* Provider filter */}
         <div>
           <span className="mb-1 block text-[11px] uppercase tracking-widest text-muted">{t.stock.batchProviderFilter as string}</span>
+          <div className="mb-1.5 flex flex-wrap gap-1">
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => setSelectedProviders([...STOCK_PROVIDER_IDS])}
+              className="rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+            >
+              {t.stock.batchGroupAll as string}
+            </button>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => setSelectedProviders([])}
+              className="rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+            >
+              {t.stock.batchGroupNone as string}
+            </button>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => setSelectedProviders(PROVIDER_GROUPS.aggregator.filter((id) => (STOCK_PROVIDER_IDS as readonly string[]).includes(id)))}
+              className="rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+            >
+              {t.stock.batchGroupAggregator as string}
+            </button>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => setSelectedProviders(PROVIDER_GROUPS.physical.filter((id) => (STOCK_PROVIDER_IDS as readonly string[]).includes(id)))}
+              className="rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+            >
+              {t.stock.batchGroupPhysical as string}
+            </button>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => setSelectedProviders(PROVIDER_GROUPS.online.filter((id) => (STOCK_PROVIDER_IDS as readonly string[]).includes(id)))}
+              className="rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+            >
+              {t.stock.batchGroupOnline as string}
+            </button>
+          </div>
           <div className="flex flex-wrap gap-1">
             {STOCK_PROVIDER_IDS.map((id) => {
               const active = selectedProviders.includes(id);
