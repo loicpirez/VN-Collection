@@ -1876,6 +1876,84 @@ VNDB id space so a typo can't accidentally hit a real record.
 
 ---
 
+## Code hygiene (non-negotiable)
+
+### Comments — zero by default
+
+Default: write **no comments at all**. The only acceptable form is a single-line JSDoc
+(`/** … */`) on an exported function or type when the WHY is genuinely non-obvious — a
+hidden upstream constraint, a subtle invariant, a specific bug workaround. If removing
+the comment wouldn't confuse a future reader, don't write it.
+
+Never write:
+- `// This function handles…` / `// We need to…` / `// Important:` — narrate nothing
+- Multi-line `/** */` docblocks on test functions or internal helpers
+- `/* non-fatal */` / `/* swallow */` / `/* skip */` / `/* intentionally empty */` or
+  any variant inside a catch block
+- `// TODO` / `// FIXME` stubs — implement it or omit it entirely
+- Any reference to audit codes, ticket numbers, or external tracking ids
+
+**Empty catch blocks** use `} catch {}` — no body, no comment, ever.
+
+One structural exception: routes that are intentionally un-gated carry an
+`// intentionally public — single-user self-hosted app …` single-liner so future
+readers don't add an unnecessary gate. That specific form is sanctioned.
+
+### AI slop — zero tolerance
+
+- **Commit messages**: imperative subject line (≤ 72 chars), optional 1–2 lines of WHY.
+  No bullet lists. No "Added:", "Implemented:", "Note:", no trailing `Co-Authored-By:`.
+- **No real names**: never reference real VN titles, character names, studio names,
+  or any other copyrighted material anywhere — source, comments, tests, commits, docs.
+  Use synthetic placeholders (`v9xxxx`, "heroine A", "Studio X", `c9xxxx`).
+- **No verbose narratives** in any text the repo carries. Keep everything terse.
+
+### Error handling in loops
+
+When retrying with multiple candidates, put `try/catch` **inside** the loop body, not
+wrapping the whole loop. A single outer catch kills every remaining iteration on the
+first failure.
+
+```ts
+for (const candidate of candidates) {
+  try {
+    const result = await fetch(candidate);
+    if (result) { best = result; break; }
+  } catch {}           // this candidate failed — try the next one
+}
+```
+
+### Testing
+
+- `yarn test` after **every** code change. All 2406 tests must pass before commit.
+- Run test commands verbatim — never filter or redirect output (`| tail`, `| grep`,
+  `> /tmp/out`). The user has flagged this repeatedly.
+- Never use `/* istanbul ignore next */` or any coverage-disable directive. Reshape code
+  or add genuine tests to achieve coverage.
+- Tests must not leak timers or open handles. Use `vi.useFakeTimers()` for any code
+  that schedules `setTimeout`.
+- Do NOT refactor working production components just to make them easier to test.
+  Write tests against the existing public surface or use Playwright.
+
+### Feature completeness
+
+A feature is not done until all surfaces that would logically show it have it: detail
+page, library sort, card chip, filter param, DB sortMap. Never ship half a feature.
+
+- Every async section renders a **skeleton** while loading. Empty-state copy appears
+  only after the fetch resolves with zero results — never flash "No results" before data
+  arrives.
+- Every feature must work on mobile/tablet at full fidelity. Never use `hidden sm:inline`
+  to strip a label or control. Wrap, scroll, or stack — never remove functionality.
+
+### Scope discipline
+
+Fix the stated bug. Do not refactor surrounding code. Do not add error handling for
+states that cannot happen. Do not introduce abstractions beyond what the immediate task
+requires. Three similar lines are better than a premature abstraction.
+
+---
+
 ## When in doubt
 - Run `yarn build`.
 - Read the relevant i18n key — if it's missing in EN/JA, add it.
