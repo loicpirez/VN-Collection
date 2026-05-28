@@ -2151,15 +2151,16 @@ async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | und
   }
 
   let extras: ErogePriceExtrasV1 | null = null;
-  try {
-    const queries = buildErogePriceQueries(vn.alttitle, vn.title, aliases);
-    for (const query of queries) {
-      if (signal?.aborted) break;
-      extras = await searchAndFetchAll(query, erogePriceJsonFetcher, signal);
-      if (extras && extras.candidates.length > 0) break;
-    }
-  } catch {
-    extras = null;
+  const queries = buildErogePriceQueries(vn.alttitle, vn.title, aliases);
+  for (const query of queries) {
+    if (signal?.aborted) break;
+    try {
+      const result = await searchAndFetchAll(query, erogePriceJsonFetcher, signal);
+      if (result && result.candidates.length > 0) {
+        extras = result;
+        break;
+      }
+    } catch {}
   }
 
   if (!extras || extras.candidates.length === 0) return [];
