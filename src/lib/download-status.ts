@@ -46,6 +46,7 @@ export interface DownloadJob {
 }
 
 const jobs = new Map<string, DownloadJob>();
+const cancelledJobs = new Set<string>();
 let nextSeq = 1;
 const MAX_LIVE_JOBS = 200;
 
@@ -219,13 +220,24 @@ export function finishJob(jobId: string): void {
   const j = jobs.get(jobId);
   if (!j) return;
   j.finished_at = Date.now();
-  // If we never ticked but total > 0, mark as complete so the UI doesn't
-  // appear stuck on partial progress.
   if (j.done < j.total) j.done = j.total;
-  // Clear the in-flight hint — the job is done, nothing is being
-  // downloaded right now even if a stale label survived.
   j.current_item = null;
+  cancelledJobs.delete(jobId);
   emit();
+}
+
+export function cancelJob(jobId: string): void {
+  cancelledJobs.add(jobId);
+  const j = jobs.get(jobId);
+  if (j) {
+    j.finished_at = Date.now();
+    j.current_item = null;
+    emit();
+  }
+}
+
+export function isJobCancelled(jobId: string): boolean {
+  return cancelledJobs.has(jobId);
 }
 
 /**

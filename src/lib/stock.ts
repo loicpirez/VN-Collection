@@ -431,89 +431,97 @@ function sourceHost(url: string): string {
 
 /** Per-request timeout for shop fetches — avoids one slow shop hanging the refresh loop. */
 const STOCK_FETCH_TIMEOUT_MS = 15_000;
+const STOCK_MAX_RETRY = 2;
+const STOCK_MAX_RETRY_AFTER_MS = 60_000;
+const STOCK_DEFAULT_429_WAIT_MS = 5_000;
+const STOCK_NET_ERR_BASE_MS = 1_000;
+
+async function sleepMs(ms: number): Promise<void> {
+  await new Promise<void>((r) => setTimeout(r, ms));
+}
 
 async function fetchShopText(url: string, init: RequestInit & { encoding?: string; timeoutMs?: number } = {}): Promise<string> {
   if (!isAllowedHttpTarget(url)) throw new Error(`Blocked stock URL: ${sourceHost(url) || 'invalid host'}`);
-  // Auto-detect provider from host so each fetch can apply a per-shop proxy
-  // override (e.g. AmiAmi via SOCKS5 #1, Suruga-ya direct, GEO via SOCKS5
-  // #2). Falls back to the catch-all `stock` proxy then no proxy.
   const detectedProvider = providerForHost(sourceHost(url)) ?? 'stock';
   const timeoutMs = init.timeoutMs ?? STOCK_FETCH_TIMEOUT_MS;
-  const timeoutCtrl = new AbortController();
-  const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
-  // Chain external signal (refresh-stop) with the internal timeout controller.
-  const cleanupExternalListener =
-    init.signal && !init.signal.aborted
-      ? (() => {
-          const onAbort = () => timeoutCtrl.abort();
-          init.signal.addEventListener('abort', onAbort, { once: true });
-          return () => init.signal!.removeEventListener('abort', onAbort);
-        })()
-      : null;
-  let res: Response;
-  try {
-    // Per-host headers (referer / origin) layered on top of the
-    // Chrome fingerprint. Each external request now looks the same
-    // way a real browser navigation looks — Suruga-ya / Eroge Price
-    // / WonderGOO can't distinguish us from a desktop user.
-    const host = sourceHost(url) || '';
-    res = await stockProviderFetch(url, {
-      redirect: 'follow',
-      cache: 'no-store',
-      headers: { ...browserHeadersForHost(host), ...(init.headers ?? {}) },
-      signal: timeoutCtrl.signal,
-    }, detectedProvider);
-  } catch (err) {
-    if (timeoutCtrl.signal.aborted && !(init.signal && init.signal.aborted)) {
-      throw new Error(`fetch timeout after ${timeoutMs}ms from ${sourceHost(url)}`);
+  let attempt = 0;
+  while (true) {
+    attempt += 1;
+    const timeoutCtrl = new AbortController();
+    const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
+    const cleanupExternalListener =
+      init.signal && !init.signal.aborted
+        ? (() => {
+            const onAbort = () => timeoutCtrl.abort();
+            init.signal!.addEventListener('abort', onAbort, { once: true });
+            return () => init.signal!.removeEventListener('abort', onAbort);
+          })()
+        : null;
+    let res: Response;
+    try {
+      const host = sourceHost(url) || '';
+      res = await stockProviderFetch(url, {
+        redirect: 'follow',
+        cache: 'no-store',
+        headers: { ...browserHeadersForHost(host), ...(init.headers ?? {}) },
+        signal: timeoutCtrl.signal,
+      }, detectedProvider);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      cleanupExternalListener?.();
+      if (init.signal?.aborted) throw err;
+      if (timeoutCtrl.signal.aborted) throw new Error(`fetch timeout after ${timeoutMs}ms from ${sourceHost(url)}`);
+      if (attempt > STOCK_MAX_RETRY) throw err;
+      await sleepMs(Math.min(STOCK_MAX_RETRY_AFTER_MS, STOCK_NET_ERR_BASE_MS * (2 ** (attempt - 1))));
+      continue;
     }
-    throw err;
-  } finally {
     clearTimeout(timeoutId);
     cleanupExternalListener?.();
-  }
-  if (!res.ok) throw new Error(`HTTP ${res.status} from ${sourceHost(url)}`);
-  // Cap the buffered response so a malicious or misbehaving shop can't
-  // OOM the process by streaming many MB of HTML. 16 MiB is generous —
-  // the largest legitimate shop pages are search/result listings under
-  // ~2 MB. Stream into a chunked buffer so a lying / missing Content-
-  // Length still hits the cap (arrayBuffer() would buffer everything
-  // before our check fires).
-  const MAX_SHOP_BYTES = 16 * 1024 * 1024;
-  const cl = res.headers.get('content-length');
-  if (cl && parseInt(cl, 10) > MAX_SHOP_BYTES) {
-    throw new Error(`response too large (${cl} bytes) from ${sourceHost(url)}`);
-  }
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error(`empty body from ${sourceHost(url)}`);
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    total += value.byteLength;
-    if (total > MAX_SHOP_BYTES) {
-      await reader.cancel('cap exceeded').catch(() => undefined);
-      throw new Error(`response exceeded ${MAX_SHOP_BYTES} bytes from ${sourceHost(url)}`);
+    if (res.status === 429) {
+      const retryAfterHeader = res.headers.get('retry-after');
+      const headerMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : 0;
+      const waitMs = Math.min(STOCK_MAX_RETRY_AFTER_MS, Math.max(STOCK_DEFAULT_429_WAIT_MS, headerMs));
+      if (attempt > STOCK_MAX_RETRY) throw new Error(`HTTP 429 from ${sourceHost(url)}`);
+      await sleepMs(waitMs);
+      continue;
     }
-    chunks.push(value);
+    if (!res.ok) throw new Error(`HTTP ${res.status} from ${sourceHost(url)}`);
+    const MAX_SHOP_BYTES = 16 * 1024 * 1024;
+    const cl = res.headers.get('content-length');
+    if (cl && parseInt(cl, 10) > MAX_SHOP_BYTES) {
+      throw new Error(`response too large (${cl} bytes) from ${sourceHost(url)}`);
+    }
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error(`empty body from ${sourceHost(url)}`);
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > MAX_SHOP_BYTES) {
+        await reader.cancel('cap exceeded').catch(() => undefined);
+        throw new Error(`response exceeded ${MAX_SHOP_BYTES} bytes from ${sourceHost(url)}`);
+      }
+      chunks.push(value);
+    }
+    const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+    const charset = /charset=([^;]+)/i.exec(res.headers.get('content-type') ?? '')?.[1]?.trim();
+    const encodings = [init.encoding, charset, 'utf-8', 'shift_jis', 'euc-jp'].filter(Boolean) as string[];
+    let decoded = '';
+    for (const enc of encodings) {
+      try {
+        decoded = new TextDecoder(enc).decode(buf);
+        break;
+      } catch {}
+    }
+    if (!decoded) decoded = buf.toString('utf8');
+    if (/<title[^>]*>\s*Just a moment\b/i.test(decoded) || /window\._cf_chl_opt\b/.test(decoded)) {
+      throw new Error('cloudflare_challenge');
+    }
+    return decoded;
   }
-  const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
-  const charset = /charset=([^;]+)/i.exec(res.headers.get('content-type') ?? '')?.[1]?.trim();
-  const encodings = [init.encoding, charset, 'utf-8', 'shift_jis', 'euc-jp'].filter(Boolean) as string[];
-  let decoded = '';
-  for (const enc of encodings) {
-    try {
-      decoded = new TextDecoder(enc).decode(buf);
-      break;
-    } catch {}
-  }
-  if (!decoded) decoded = buf.toString('utf8');
-  if (/<title[^>]*>\s*Just a moment\b/i.test(decoded) || /window\._cf_chl_opt\b/.test(decoded)) {
-    throw new Error('cloudflare_challenge');
-  }
-  return decoded;
 }
 
 function janFromRelease(release: VndbRelease): string | null {
@@ -2084,9 +2092,30 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
  * candidate via `fetchErogePriceBundle(epId, erogePriceJsonFetcher)`
  * without duplicating the request layer.
  */
+const EP_MAX_RETRY = 2;
+const EP_RATE_LIMIT_WAIT_MS = 10_000;
+
 export const erogePriceJsonFetcher: JsonFetcher = async (url, init) => {
-  const text = await fetchShopText(url, init);
-  return JSON.parse(text);
+  let attempt = 0;
+  while (true) {
+    attempt += 1;
+    const text = await fetchShopText(url, init);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      if (attempt > EP_MAX_RETRY) throw new Error(`eroge-price: invalid JSON response`);
+      await sleepMs(EP_RATE_LIMIT_WAIT_MS);
+      continue;
+    }
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'error' in parsed) {
+      const msg = String((parsed as Record<string, unknown>).error ?? 'unknown');
+      if (attempt > EP_MAX_RETRY) throw new Error(`eroge-price API error: ${msg}`);
+      await sleepMs(EP_RATE_LIMIT_WAIT_MS);
+      continue;
+    }
+    return parsed;
+  }
 };
 
 /**

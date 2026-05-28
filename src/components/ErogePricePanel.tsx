@@ -22,7 +22,7 @@
  * state; the data itself is server-rendered into the initial
  * `extras` prop and never re-fetched.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, BadgePercent, Crown, Pin, TrendingDown, TrendingUp, Mic2, Pencil, Music2, X } from 'lucide-react';
 import type {
   EpApiPricePoint,
@@ -159,6 +159,7 @@ function RelatedRail({
   items: (EpApiRelatedItem | EpApiRelatedConnection)[];
   vnMatches?: Map<string, string>;
 }) {
+  const t = useT();
   if (items.length === 0) return null;
   return (
     <section>
@@ -167,14 +168,14 @@ function RelatedRail({
         {items.map((item) => {
           const epLink = `https://eroge-price.com/games/${item.id}`;
           const vnId = vnMatches?.get(item.title);
+          const mainHref = vnId ? `/vn/${vnId}` : epLink;
           const kindLabel = 'kindLabel' in item ? item.kindLabel : null;
           return (
             <li key={item.id} className="shrink-0">
               <div className="w-[110px] rounded-lg border border-border bg-bg-card p-1.5 hover:border-accent">
                 <a
-                  href={epLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={mainHref}
+                  {...(vnId ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
                   className="block"
                 >
                   <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-bg-elev">
@@ -186,17 +187,25 @@ function RelatedRail({
                         {kindLabel}
                       </span>
                     )}
+                    {vnId && (
+                      <span className="absolute right-1 top-1 rounded-md bg-accent/80 px-1 py-0.5 text-[9px] font-bold text-white">
+                        {vnId}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 line-clamp-2 text-[11px] font-semibold text-white">{item.title}</p>
                   {item.maker && <p className="text-[10px] text-muted">{item.maker}</p>}
                 </a>
                 {vnId && (
                   <a
-                    href={`/vn/${vnId}`}
-                    className="mt-1 flex items-center justify-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-1 py-0.5 text-[10px] font-semibold text-accent hover:bg-accent/20"
+                    href={epLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={t.erogePrice.openOnErogePrice}
+                    className="mt-1 flex items-center justify-center gap-1 rounded-md border border-border/60 px-1 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
                   >
                     <ExternalLink className="h-2.5 w-2.5" aria-hidden />
-                    {vnId}
+                    EP
                   </a>
                 )}
               </div>
@@ -208,11 +217,29 @@ function RelatedRail({
   );
 }
 
+const RANGE_OPTIONS = [
+  { key: '6M', ms: 180 * 24 * 3600 * 1000 },
+  { key: '1Y', ms: 365 * 24 * 3600 * 1000 },
+  { key: '2Y', ms: 2 * 365 * 24 * 3600 * 1000 },
+  { key: 'ALL', ms: null },
+] as const;
+
+type RangeKey = (typeof RANGE_OPTIONS)[number]['key'];
+
 function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatches: Map<string, string> }) {
   const t = useT();
   const locale = useLocale();
   const d = bundle.detail;
-  const series = pointsToSeries(bundle.priceHistory);
+  const [range, setRange] = useState<RangeKey>('2Y');
+
+  const filteredHistory = useMemo(() => {
+    const opt = RANGE_OPTIONS.find((o) => o.key === range)!;
+    if (opt.ms == null) return bundle.priceHistory;
+    const cutoff = Date.now() - opt.ms;
+    return bundle.priceHistory.filter((p) => new Date(p.scrapedAt).getTime() >= cutoff);
+  }, [bundle.priceHistory, range]);
+
+  const series = pointsToSeries(filteredHistory);
   const guides: { y: number; label: string; color?: string }[] = [];
   if (bundle.priceStats.allTimeMin != null) {
     guides.push({
@@ -373,9 +400,32 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
 
       {/* Price-history chart */}
       <section>
-        <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
-          {t.erogePrice.priceHistory} · {bundle.priceHistory.length} {t.erogePrice.dataPoints}
-        </h4>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+            {t.erogePrice.priceHistory} · {bundle.priceHistory.length} {t.erogePrice.dataPoints}
+          </h4>
+          <div className="flex gap-1" role="group" aria-label={t.erogePrice.priceHistory}>
+            {RANGE_OPTIONS.map((opt) => {
+              const label = t.erogePrice.historyRange[
+                opt.key === '6M' ? 'sixMonths' : opt.key === '1Y' ? 'oneYear' : opt.key === '2Y' ? 'twoYears' : 'allTime'
+              ];
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setRange(opt.key)}
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
+                    range === opt.key
+                      ? 'bg-accent text-white'
+                      : 'border border-border text-muted hover:border-accent hover:text-accent'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <PriceHistoryChart
           series={series}
           guides={guides}

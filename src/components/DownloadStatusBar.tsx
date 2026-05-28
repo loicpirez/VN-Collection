@@ -19,7 +19,8 @@ interface Job {
     | 'vndb-pull'
     | 'egs-sync'
     | 'vn-fetch'
-    | 'cache-refresh';
+    | 'cache-refresh'
+    | 'stock-batch';
   vn_id: string | null;
   /** Resolved from the local DB by the enrichment layer in the API route. */
   vn_title?: string | null;

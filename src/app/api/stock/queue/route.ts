@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { db } from '@/lib/db';
+import { isVndbVnId } from '@/lib/vn-id-shape';
+import { fetchAuthenticatedWishlist } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -60,8 +62,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ scope, ids, entries: buildEntries(ids) });
   }
   if (scope === 'recent_stock') {
-    // VNs whose stock was checked at least once, ordered by most-stale first
-    // (oldest fetched_at). Useful for "refresh oldest" batch operations.
     const rows = db.prepare(`
       SELECT vn_id, MIN(fetched_at) AS oldest
       FROM vn_stock_provider_status
@@ -69,6 +69,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ORDER BY oldest ASC
     `).all() as { vn_id: string; oldest: number }[];
     const ids = rows.map((r) => r.vn_id);
+    return NextResponse.json({ scope, ids, entries: buildEntries(ids) });
+  }
+  if (scope === 'wishlist') {
+    const result = await fetchAuthenticatedWishlist();
+    if ('needsAuth' in result) {
+      return NextResponse.json({ error: 'VNDB authentication required' }, { status: 401 });
+    }
+    const ids = result.map((e) => e.id).filter(isVndbVnId);
     return NextResponse.json({ scope, ids, entries: buildEntries(ids) });
   }
   return NextResponse.json({ error: 'unknown scope' }, { status: 400 });
