@@ -9653,13 +9653,27 @@ export interface VnStockProviderStatusRow {
   blocked_kind: string | null;
   fresh_offers_found: number;
   cached_offers_available: number;
+  /**
+   * Per-provider extras blob (JSON string in SQLite). Currently only
+   * `eroge_price` writes here — the value is an `ErogePriceExtrasV1`
+   * envelope holding every candidate, full game detail, price stats,
+   * price history, and related-games payload. UI layer decodes via
+   * `JSON.parse` after deciding the row belongs to the right provider.
+   */
+  extras_json: string | null;
 }
 
 export type VnStockOfferInput = Omit<VnStockOfferRow, 'updated_at'>;
 type VnStockProviderStatusInput = Omit<
   VnStockProviderStatusRow,
-  'vn_id' | 'provider' | 'blocked_kind' | 'fresh_offers_found' | 'cached_offers_available'
-> & Partial<Pick<VnStockProviderStatusRow, 'blocked_kind' | 'fresh_offers_found' | 'cached_offers_available'>>;
+  'vn_id' | 'provider' | 'blocked_kind' | 'fresh_offers_found' | 'cached_offers_available' | 'extras_json'
+> &
+  Partial<
+    Pick<
+      VnStockProviderStatusRow,
+      'blocked_kind' | 'fresh_offers_found' | 'cached_offers_available' | 'extras_json'
+    >
+  >;
 
 /**
  * Atomically replace one provider's stock snapshot for one VN: delete the
@@ -9814,9 +9828,15 @@ export function setStockProviderExtras(vnId: string, provider: string, extras: u
       `UPDATE vn_stock_provider_status SET extras_json = ? WHERE vn_id = ? AND provider = ?`,
     ).run(payload, vnId, provider);
   } else {
+    // `status` is NOT NULL on this table — the schema models it as the
+    // last-run state. When extras land before a refresh has populated
+    // a row (e.g. unit test that seeds the JSON envelope directly, or
+    // race between providers), the column is filled with the inert
+    // 'unknown' literal so the snapshot reader still understands the
+    // row as "no live snapshot yet, but metadata is there".
     db.prepare(
-      `INSERT INTO vn_stock_provider_status (vn_id, provider, extras_json, fetched_at) VALUES (?, ?, ?, ?)`,
-    ).run(vnId, provider, payload, Date.now());
+      `INSERT INTO vn_stock_provider_status (vn_id, provider, status, extras_json, fetched_at) VALUES (?, ?, ?, ?, ?)`,
+    ).run(vnId, provider, 'unknown', payload, Date.now());
   }
   return true;
 }

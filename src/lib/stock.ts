@@ -1,6 +1,6 @@
 import 'server-only';
 import iconv from 'iconv-lite';
-import { db, getCollectionItem, getEgsForVn, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
+import { db, getCollectionItem, getEgsForVn, getStockProviderExtras, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
@@ -8,10 +8,11 @@ import { stockProviderFetch } from './proxy-fetch';
 import type { CollectionItem } from './types';
 import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
 import {
-  buildErogePriceSearchUrl,
-  parseErogePriceMeta,
-  parseErogePriceSearch,
-  type ErogePriceMeta,
+  fetchErogePriceBundle,
+  searchAndFetchAll,
+  type ErogePriceBundle,
+  type ErogePriceExtrasV1,
+  type JsonFetcher,
 } from './erogeprice-meta';
 
 // Re-export the canonical provider id list from the client-safe constants
@@ -2037,62 +2038,156 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
   return offers;
 }
 
+/**
+ * JSON fetcher wired to the per-provider proxy stack. Eroge Price
+ * exposes a clean REST API (`/api/games/...`) that returns far richer
+ * data than the SSR HTML; we go through that for everything except
+ * the legacy offer-row parser the existing `parseErogePrice` already
+ * understands.
+ */
+const erogePriceJsonFetcher: JsonFetcher = async (url, init) => {
+  const text = await fetchShopText(url, init);
+  return JSON.parse(text);
+};
+
+/**
+ * Convert one `ErogePriceBundle` into the `VnStockOfferInput[]` shape
+ * the rest of the stock pipeline consumes. Each retailer row becomes
+ * one offer with seller / edition / sale fields populated.
+ */
+function bundleToOfferInputs(
+  bundle: ErogePriceBundle,
+  vnId: string,
+  now: number,
+  vnTitle: string | null,
+): VnStockOfferInput[] {
+  const title = vnTitle && vnTitle.trim().length > 0 ? vnTitle.trim() : bundle.detail.title;
+  const out: VnStockOfferInput[] = [];
+  for (const r of bundle.detail.downloadRetailers) {
+    out.push(retailerToOffer(r, bundle, vnId, now, title, 'ダウンロード版'));
+  }
+  for (const r of bundle.detail.packageRetailers) {
+    out.push(retailerToOffer(r, bundle, vnId, now, title, 'パッケージ版'));
+  }
+  return out;
+}
+
+function retailerToOffer(
+  r: ErogePriceBundle['detail']['downloadRetailers'][number],
+  bundle: ErogePriceBundle,
+  vnId: string,
+  now: number,
+  title: string,
+  edition: string,
+): VnStockOfferInput {
+  const availability: VnStockAvailability = r.isAvailable ? 'in_stock' : 'out_of_stock';
+  const effectivePrice = r.isOnSale && r.currentPrice != null ? r.currentPrice : r.regularPrice ?? r.currentPrice;
+  return offerInput(vnId, 'eroge_price', 'search', now, {
+    provider_offer_id: `ep:${bundle.egsId}:${r.retailerId}:${edition}`,
+    title,
+    url: r.productUrl,
+    price: effectivePrice ?? null,
+    availability,
+    availability_label: r.retailerName,
+    condition: r.condition,
+    edition_label: edition,
+    location_label: r.retailerName,
+    source_release_id: null,
+    jan: null,
+    list_price: r.originalPrice && r.originalPrice !== effectivePrice ? r.originalPrice : null,
+  });
+}
+
 async function refreshErogePrice(vnId: string, egsId: number | null | undefined, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
-  // R12-EROGEPRICE: when the operator hasn't pinned an EGS id we used
-  // to bail out entirely. Operator feedback flagged that searching by
-  // the English / romaji title returns zero hits, but `沙耶の唄` returns
-  // 2 candidates. Switch the no-id path to use the Eroge Price search
-  // endpoint with the Japanese alttitle and auto-pick the first
-  // candidate. The caller's classifier still filters obvious mismatches.
-  let resolvedId: number | null = egsId ?? null;
-  if (!resolvedId) {
-    const query = (vn.alttitle ?? vn.title ?? '').trim();
-    if (!query) return [];
-    try {
-      const searchUrl = buildErogePriceSearchUrl(query);
-      const searchHtml = await fetchShopText(searchUrl, { signal });
-      const candidates = parseErogePriceSearch(searchHtml);
-      if (candidates.length === 0) return [];
-      // Prefer the first candidate (Eroge Price orders by recency / canonical
-      // listing — when multiple Saya no Uta exist, 33072 is the modern
-      // re-release). The operator can pin the right one with the manual
-      // EGS picker if needed.
-      resolvedId = candidates[0].egsId;
-    } catch {
-      return [];
-    }
-  }
-  const url = `https://eroge-price.com/games/${resolvedId}`;
-  const html = await fetchShopText(url, { signal });
-  // Pass the operator's canonical VN title so each row carries the
-  // expected title, not whatever Eroge Price chose to display in its <h1>
-  // (which might be a different game when egs_id mapping is bad).
-  const raw = parseErogePrice(html, url, vnId, now, vn.title ?? null);
-  // Best-effort persist the rich metadata block so the UI can surface
-  // staff / voice actors / all-time high / 30-day low. Failures here
-  // must not break offer extraction.
+  // R12-EROGEPRICE: switched from SSR-HTML scraping to the public
+  // JSON API (`/api/games/...`). The API returns every field the
+  // user asked for — full staff (incl. singer + voice), per-edition
+  // retailer rows with sale state + condition + product code,
+  // all-time min/max + 30-day min stats, the FULL price-history
+  // time-series, and the related-games graph. Operator's other
+  // demand ("one exact name match can have many games; integrate
+  // them all") is satisfied by `searchAndFetchAll`: every candidate
+  // becomes a persisted bundle, the StockPanel renders them as
+  // tabs, no candidate is dropped.
+  // Read the previous extras envelope BEFORE we overwrite it. The
+  // operator may have manually pinned a non-default candidate via
+  // PATCH `/api/vn/[id]/stock/eroge-price`; that pin must survive
+  // a refresh as long as the chosen egsId still appears in the new
+  // candidate set. Without this, every refresh would silently
+  // revert to the first-by-default candidate and frustrate the
+  // operator who explicitly disagreed with the auto-pick.
+  let previousManualPin: number | null = null;
   try {
-    const meta = parseErogePriceMeta(html, url, resolvedId);
-    if (meta) setStockProviderExtras(vnId, 'eroge_price', meta);
+    const previous = getStockProviderExtras<ErogePriceExtrasV1>(vnId, 'eroge_price');
+    if (previous && typeof previous.selectedEgsId === 'number') {
+      previousManualPin = previous.selectedEgsId;
+    }
   } catch {
-    /* ignore meta-parse errors */
+    /* Stale extras_json is non-fatal — just skip the pin preservation. */
   }
+
+  let extras: ErogePriceExtrasV1 | null = null;
+  try {
+    if (egsId) {
+      const bundle = await fetchErogePriceBundle(egsId, erogePriceJsonFetcher, signal);
+      if (bundle) {
+        extras = {
+          schemaVersion: 1,
+          candidates: [bundle],
+          selectedEgsId: egsId,
+          searchQuery: null,
+          refreshedAt: Date.now(),
+        };
+      }
+    } else {
+      const query = (vn.alttitle ?? vn.title ?? '').trim();
+      if (query) {
+        extras = await searchAndFetchAll(query, erogePriceJsonFetcher, signal);
+      }
+    }
+  } catch {
+    /* Network or parse failure — surfaces as empty stock for this provider. */
+    extras = null;
+  }
+
+  if (!extras || extras.candidates.length === 0) return [];
+
+  // Preserve the operator's manual pin when the previously-pinned
+  // egsId still exists in the refreshed candidate list. Falls back
+  // to whatever `searchAndFetchAll` chose (first candidate).
+  if (previousManualPin != null && extras.candidates.some((c) => c.egsId === previousManualPin)) {
+    extras = { ...extras, selectedEgsId: previousManualPin };
+  }
+
+  // Persist the full meta blob so StockPanel can render the UI
+  // without re-fetching after a page reload.
+  try {
+    setStockProviderExtras(vnId, 'eroge_price', extras);
+  } catch {
+    /* extras write failure is non-fatal — offers still flow downstream. */
+  }
+
+  // Project every candidate's retailer rows into the offers pipeline.
+  // The classifier still trims obvious mismatches; the default-selected
+  // candidate's title is the one the offers carry so the legacy
+  // VnCard / chip surfaces use the right label.
   const classifyTarget: ClassifyTarget = {
     title: vn.title ?? '',
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
-  return raw.map((offer) => {
-    const cl = classifyOffer(offer.title, null, classifyTarget, {
-      // Eroge Price page is keyed by EGS id — the result IS the canonical
-      // product. Trust the seller name + price even when the rendered title
-      // is the page's <h1>. Source 'direct' boost matches the classifier
-      // rule for "this URL is the product" not "this is a search hit".
-      source: 'direct',
-      provider: 'eroge_price',
-    });
-    return { ...offer, ...classificationToFields(cl) };
-  });
+  const all: VnStockOfferInput[] = [];
+  for (const bundle of extras.candidates) {
+    const offers = bundleToOfferInputs(bundle, vnId, now, vn.title ?? null);
+    for (const offer of offers) {
+      const cl = classifyOffer(offer.title, null, classifyTarget, {
+        source: 'direct',
+        provider: 'eroge_price',
+      });
+      all.push({ ...offer, ...classificationToFields(cl) });
+    }
+  }
+  return all;
 }
 
 /** Build a Suruga-ya search URL using URLSearchParams. Never uses raw & concatenation. */

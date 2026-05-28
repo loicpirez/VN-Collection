@@ -1,5 +1,7 @@
 'use client';
+import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -25,6 +27,10 @@ import { normalizeProviderDiagnostic, type NormalizedProviderDiagnostic, type Pr
 import { classifyOfferGroup, isEligibleGameStockOffer, type OfferGroup } from '@/lib/stock-classify';
 import { ONLINE_STOCK_SENTINEL } from '@/lib/stock-provider-constants';
 import { StockPhysicalLocations, type PhysicalOffer } from './StockPhysicalLocations';
+// R12-EROGEPRICE-UI: lazy-load so the line-chart SVG + the per-
+// candidate panel never ship to operators who never open a VN with
+// eroge_price data. ~12 KB gz delta.
+const ErogePricePanel = dynamic(() => import('./ErogePricePanel').then((m) => m.ErogePricePanel), { ssr: false });
 import { SkeletonRows } from './Skeleton';
 import { useDialogA11y } from './Dialog';
 import { useConfirm } from './ConfirmDialog';
@@ -75,6 +81,8 @@ interface StockStatus {
   blocked_kind: string | null;
   fresh_offers_found: number;
   cached_offers_available: number;
+  /** Provider-specific JSON blob (eroge_price game bundles, etc.). */
+  extras_json?: string | null;
 }
 
 interface StockProvider {
@@ -414,6 +422,22 @@ export function StockPanel({
     () => new Map((snapshot?.statuses ?? []).map((s) => [s.provider, s])),
     [snapshot?.statuses],
   );
+  // R12-EROGEPRICE-UI: pull the persisted eroge-price extras out of
+  // the provider-status row and decode the JSON envelope. The blob
+  // holds every candidate game's full bundle (detail / priceStats /
+  // priceHistory / related). Failures here must not crash the panel
+  // — fall back to `null` so the panel just skips the section.
+  const erogePriceExtras = useMemo<ErogePriceExtrasV1 | null>(() => {
+    const row = statusByProvider.get('eroge_price');
+    if (!row || !row.extras_json) return null;
+    try {
+      const decoded = JSON.parse(row.extras_json) as ErogePriceExtrasV1;
+      if (decoded.schemaVersion !== 1 || !Array.isArray(decoded.candidates)) return null;
+      return decoded;
+    } catch {
+      return null;
+    }
+  }, [statusByProvider]);
   const offerCountByProvider = useMemo(() => {
     const out = new Map<string, number>();
     for (const offer of offers) out.set(offer.provider, (out.get(offer.provider) ?? 0) + 1);
@@ -931,6 +955,15 @@ export function StockPanel({
       {!loading && confirmedPhysicalIds.size > 0 && (
         <StockPhysicalLocations offers={physicalOffers} />
       )}
+
+      {/* R12-EROGEPRICE-UI: render the full Eroge Price bundle —
+          multi-candidate tabs, identity card, all-time / 30-day stats,
+          full price-history line chart, per-edition retailer rows,
+          staff / voice actors, related games. The data is the
+          extras_json blob stored on `vn_stock_provider_status` for the
+          eroge_price provider. Lazy-loaded so the whole graph chunk
+          doesn't ride along with every StockPanel mount. */}
+      {!loading && erogePriceExtras && <ErogePricePanel vnId={vnId} extras={erogePriceExtras} />}
 
       {!loading && displayDiagnostics.length > 0 && (
         <ProviderDiagnostics diagnostics={displayDiagnostics} t={t} />

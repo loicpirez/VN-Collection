@@ -1,74 +1,122 @@
 /**
- * Real-fixture tests for the Eroge Price metadata + search parsers.
+ * JSON-API fixture tests for the Eroge Price client.
  *
- * The fixtures were captured with `curl` on 2026-05-28 against
- * `eroge-price.com` for the user's reported case (the romaji
- * "Saya no Uta" returned zero hits, but the Japanese title
- * `沙耶の唄` returns two — `/games/3676` and `/games/33072`).
+ * Real responses were captured 2026-05-28 with
+ *   `curl https://eroge-price.com/api/games?q=…` etc.
+ * Fixtures live under `tests/fixtures/eroge-price/json/`.
  *
- * All three artefacts live under `tests/fixtures/eroge-price/` so
- * re-running them is offline and deterministic.
+ * The operator asked: "one exact name match can have many games;
+ * integrate them all". `searchAndFetchAll` is the helper that does
+ * that — every candidate the search returns becomes a fully-
+ * hydrated `ErogePriceBundle` (detail + priceStats + priceHistory +
+ * related) in the persisted `ErogePriceExtrasV1` envelope.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  parseErogePriceMeta,
-  parseErogePriceSearch,
-  buildErogePriceSearchUrl,
+  apiGameUrl,
+  apiPriceStatsUrl,
+  apiPricesUrl,
+  apiRelatedUrl,
+  buildErogePriceApiSearchUrl,
   buildErogePriceGameUrl,
+  buildErogePriceSearchUrl,
+  fetchErogePriceBundle,
+  parseEpGameDetail,
+  parseEpPriceHistory,
+  parseEpPriceStats,
+  parseEpRelated,
+  parseEpSearch,
+  searchAndFetchAll,
+  type JsonFetcher,
 } from '../src/lib/erogeprice-meta';
 
-const FIXTURE = (name: string): string =>
-  readFileSync(join(__dirname, 'fixtures/eroge-price', name), 'utf8');
+const FIXTURE = (name: string): unknown =>
+  JSON.parse(readFileSync(join(__dirname, 'fixtures/eroge-price/json', name), 'utf8'));
 
-describe('parseErogePriceSearch', () => {
-  it('returns both Saya-no-Uta candidates with brand', () => {
-    const candidates = parseErogePriceSearch(FIXTURE('search-saya.html'));
-    expect(candidates).toEqual([
-      { egsId: 33072, title: '沙耶の唄', brand: 'NitroPlus' },
-      { egsId: 3676, title: '沙耶の唄', brand: 'NitroPlus' },
-    ]);
+const SEARCH_SAYA = FIXTURE('search-saya.json');
+const GAME_3676 = FIXTURE('game-3676.json');
+const PRICES_3676 = FIXTURE('prices-3676.json');
+const STATS_3676 = FIXTURE('priceStats-3676.json');
+const RELATED_3676 = FIXTURE('related-3676.json');
+const GAME_33072 = FIXTURE('game-33072.json');
+const PRICES_33072 = FIXTURE('prices-33072.json');
+const STATS_33072 = FIXTURE('priceStats-33072.json');
+const RELATED_33072 = FIXTURE('related-33072.json');
+
+/** Look up the right JSON for the requested API URL. */
+const FIXTURE_ROUTER: Record<string, unknown> = {
+  [buildErogePriceApiSearchUrl('沙耶の唄')]: SEARCH_SAYA,
+  [apiGameUrl(3676)]: GAME_3676,
+  [apiPricesUrl(3676)]: PRICES_3676,
+  [apiPriceStatsUrl(3676)]: STATS_3676,
+  [apiRelatedUrl(3676)]: RELATED_3676,
+  [apiGameUrl(33072)]: GAME_33072,
+  [apiPricesUrl(33072)]: PRICES_33072,
+  [apiPriceStatsUrl(33072)]: STATS_33072,
+  [apiRelatedUrl(33072)]: RELATED_33072,
+};
+
+const fakeFetcher: JsonFetcher = (url) => {
+  if (!(url in FIXTURE_ROUTER)) {
+    throw new Error(`Unmocked URL: ${url}`);
+  }
+  return Promise.resolve(FIXTURE_ROUTER[url]);
+};
+
+describe('URL builders', () => {
+  it('public search URL encodes Japanese', () => {
+    expect(buildErogePriceSearchUrl('沙耶の唄')).toBe(
+      'https://eroge-price.com/games?q=%E6%B2%99%E8%80%B6%E3%81%AE%E5%94%84',
+    );
   });
 
-  it('returns an empty array for a non-search page', () => {
-    expect(parseErogePriceSearch('<html>nope</html>')).toEqual([]);
+  it('public game URL is /games/{egsId}', () => {
+    expect(buildErogePriceGameUrl(3676)).toBe('https://eroge-price.com/games/3676');
+  });
+
+  it('JSON-API URLs are /api/games/{egsId}*', () => {
+    expect(apiGameUrl(3676)).toBe('https://eroge-price.com/api/games/3676');
+    expect(apiPricesUrl(3676)).toBe('https://eroge-price.com/api/games/3676/prices');
+    expect(apiPriceStatsUrl(3676)).toBe('https://eroge-price.com/api/games/3676/priceStats');
+    expect(apiRelatedUrl(3676)).toBe('https://eroge-price.com/api/games/3676/related');
   });
 });
 
-describe('parseErogePriceMeta — /games/3676 (Saya no Uta original 2003 release)', () => {
-  const meta = parseErogePriceMeta(FIXTURE('game-3676-saya.html'), 'https://eroge-price.com/games/3676', 3676);
-
-  it('hydrates the top-of-page identity block', () => {
-    expect(meta).not.toBeNull();
-    expect(meta!.egsId).toBe(3676);
-    expect(meta!.title).toBe('沙耶の唄');
-    expect(meta!.brand).toBe('NitroPlus');
-    expect(meta!.releaseDate).toBe('2003-12-26');
-    expect(meta!.ageRating).toBe('R18');
-    expect(meta!.imageUrl).toBe('https://pics.dmm.co.jp/digital/pcgame/hobc_0527/hobc_0527pl.jpg');
-    expect(meta!.editionsAvailable.sort()).toEqual(['ダウンロード版', 'パッケージ版']);
+describe('parseEpSearch — /api/games?q=沙耶の唄', () => {
+  const payload = parseEpSearch(SEARCH_SAYA);
+  it('finds two Saya-no-Uta candidates with rich card metadata', () => {
+    expect(payload).not.toBeNull();
+    expect(payload!.games).toHaveLength(2);
+    expect(payload!.games.map((g) => g.id).sort((a, b) => a - b)).toEqual([3676, 33072]);
   });
-
-  it('reads the current low / high / offerCount from AggregateOffer', () => {
-    expect(meta!.currentLow).toBe(2530);
-    expect(meta!.currentHigh).toBe(3211);
-    expect(meta!.offerCount).toBe(3);
+  it('includes lowestPrice / lowestDownloadPrice / lowestPackagePrice', () => {
+    const a = payload!.games.find((g) => g.id === 3676)!;
+    expect(a.lowestPrice).toBe(2530);
+    expect(a.lowestDownloadPrice).toBe(2530);
+    expect(a.lowestPackagePrice).toBe(3211);
+    expect(a.retailerCount).toBe(3);
   });
+});
 
-  it('parses the price-history summary block', () => {
-    expect(meta!.history.sampleCount).toBe(217);
-    expect(meta!.history.allTimeLow).toEqual({ price: 1501, date: '2026-05-22' });
-    expect(meta!.history.allTimeHigh).toEqual({ price: 3411, date: '2026-05-25' });
-    expect(meta!.history.updatedAt).toBe('2026-05-27');
+describe('parseEpGameDetail — /api/games/3676', () => {
+  const d = parseEpGameDetail(GAME_3676)!;
+  it('parses identity + flags', () => {
+    expect(d.id).toBe(3676);
+    expect(d.title).toBe('沙耶の唄');
+    expect(d.maker).toBe('NitroPlus');
+    expect(d.releaseDate).toBe('2003-12-26T00:00:00.000Z');
+    expect(d.platform).toBe('PC');
+    expect(d.ageRating).toBe('R18');
+    expect(d.hasDownload).toBe(true);
+    expect(d.hasPackage).toBe(true);
   });
-
-  it('parses the full staff block including 声優', () => {
-    expect(meta!.staff.scenario).toEqual(['虚淵玄']);
-    expect(meta!.staff.artist).toEqual(['中央東口']);
-    expect(meta!.staff.music).toEqual(['磯江俊道', '川越好博', '神保伸太郎', '大山曜']);
-    expect(meta!.staff.themeSong).toEqual(['いとうかなこ']);
-    expect(meta!.staff.voiceActors).toEqual([
+  it('parses the structured staff block including singer + voice', () => {
+    expect(d.mainStaff.scenario).toEqual(['虚淵玄']);
+    expect(d.mainStaff.illustration).toEqual(['中央東口']);
+    expect(d.mainStaff.singer).toEqual(['いとうかなこ']);
+    expect(d.mainStaff.voice).toEqual([
       '矢沢泉',
       '川村みどり',
       '海原エレナ',
@@ -77,54 +125,87 @@ describe('parseErogePriceMeta — /games/3676 (Saya no Uta original 2003 release
       '片岡大二郎',
       '鬼沢雅維',
     ]);
+    expect(d.mainStaff.music.length).toBeGreaterThanOrEqual(4);
   });
-
-  it('parses the comparison table — three rows, each with shop / edition / price / condition', () => {
-    expect(meta!.offers).toEqual([
-      { shop: '駿河屋', edition: 'パッケージ版', price: 3211, condition: '特殊版・限定版 / 中古', saleLabel: null },
-      { shop: 'DLsite', edition: 'ダウンロード版', price: 2530, condition: '通常', saleLabel: null },
-      { shop: 'FANZA', edition: 'ダウンロード版', price: 2530, condition: '通常', saleLabel: null },
-    ]);
+  it('parses every retailer row (DLsite, FANZA, 駿河屋)', () => {
+    const names = [...d.downloadRetailers, ...d.packageRetailers].map((r) => r.retailerName);
+    expect(names).toContain('DLsite');
+    expect(names).toContain('FANZA');
+    expect(names).toContain('駿河屋');
   });
-
-  it('walks the three related-games sections', () => {
-    const sameStaff = meta!.related.filter((r) => r.kind === 'same-staff');
-    expect(sameStaff.length).toBeGreaterThan(0);
-    // The same-staff list specifically renders `（Brand）` after each link.
-    expect(sameStaff[0].brand).toBeTruthy();
-    expect(sameStaff.some((r) => r.egsId === 33072 && r.title === '沙耶の唄')).toBe(true);
-    expect(meta!.related.some((r) => r.kind === 'brand-other')).toBe(true);
-    expect(meta!.related.some((r) => r.kind === 'same-year')).toBe(true);
+  it('preserves official site URLs', () => {
+    expect(d.officialSiteUrl).toBe('https://www.nitroplus.co.jp/pc/lineup/into_06/');
+    expect(d.brandSiteUrl).toBe('https://www.nitroplus.co.jp/');
   });
 });
 
-describe('parseErogePriceMeta — /games/33072 (Saya no Uta 2015 re-release)', () => {
-  const meta = parseErogePriceMeta(FIXTURE('game-33072-saya.html'), 'https://eroge-price.com/games/33072', 33072);
-
-  it('hydrates the identity block for the re-release', () => {
-    expect(meta!.title).toBe('沙耶の唄');
-    expect(meta!.brand).toBe('NitroPlus');
-    expect(meta!.releaseDate).toBe('2015-11-27');
-    expect(meta!.ageRating).toBe('R18');
-  });
-
-  it('keeps the らしんばん row (multiline condition cell)', () => {
-    const rashinban = meta!.offers.find((r) => r.shop === 'らしんばん');
-    expect(rashinban).toBeTruthy();
-    expect(rashinban!.edition).toBe('パッケージ版');
-    expect(rashinban!.price).toBe(3390);
-    expect(rashinban!.condition).toContain('店舗併売品');
+describe('parseEpPriceStats — /api/games/3676/priceStats', () => {
+  it('exposes allTimeMin / allTimeMax / thirtyDayMin verbatim', () => {
+    const s = parseEpPriceStats(STATS_3676);
+    expect(s.allTimeMin).toBe(1501);
+    expect(s.allTimeMax).toBe(3990);
+    expect(s.thirtyDayMin).toBe(1501);
   });
 });
 
-describe('build helpers', () => {
-  it('search URL encodes the Japanese query', () => {
-    expect(buildErogePriceSearchUrl('沙耶の唄')).toBe(
-      'https://eroge-price.com/games?q=%E6%B2%99%E8%80%B6%E3%81%AE%E5%94%84',
-    );
+describe('parseEpPriceHistory — /api/games/3676/prices', () => {
+  const points = parseEpPriceHistory(PRICES_3676);
+  it('parses every scrape point', () => {
+    expect(points.length).toBeGreaterThan(100);
+  });
+  it('carries retailer name + edition (DOWNLOAD / PACKAGE)', () => {
+    for (const p of points.slice(0, 5)) {
+      expect(p.retailerEdition).toMatch(/^(DOWNLOAD|PACKAGE)$/);
+      expect(p.retailerName.length).toBeGreaterThan(0);
+      expect(p.price).toBeGreaterThan(0);
+      expect(p.scrapedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    }
+  });
+});
+
+describe('parseEpRelated — /api/games/3676/related', () => {
+  const r = parseEpRelated(RELATED_3676);
+  it('keeps connections with relationship kind labels (FD / 移植 / …)', () => {
+    expect(r.connections.length).toBeGreaterThan(0);
+    const fandisk = r.connections.find((c) => c.kind === 'fandisk');
+    expect(fandisk?.kindLabel).toBe('FD');
+    const port = r.connections.find((c) => c.kind === 'transplant');
+    expect(port?.kindLabel).toBe('移植');
+  });
+  it('keeps sameBrand list non-empty for a NitroPlus title', () => {
+    expect(r.sameBrand.length).toBeGreaterThan(0);
+    expect(r.sameBrand.every((g) => g.id > 0)).toBe(true);
+  });
+});
+
+describe('fetchErogePriceBundle — single id', () => {
+  it('assembles detail + stats + prices + related into one bundle', async () => {
+    const bundle = await fetchErogePriceBundle(3676, fakeFetcher);
+    expect(bundle).not.toBeNull();
+    expect(bundle!.egsId).toBe(3676);
+    expect(bundle!.detail.title).toBe('沙耶の唄');
+    expect(bundle!.priceStats.allTimeMin).toBe(1501);
+    expect(bundle!.priceHistory.length).toBeGreaterThan(100);
+    expect(bundle!.related.connections.length).toBeGreaterThan(0);
+    expect(bundle!.gameUrl).toBe('https://eroge-price.com/games/3676');
+  });
+});
+
+describe('searchAndFetchAll — integrates EVERY candidate', () => {
+  it('returns both Saya-no-Uta releases (operator requirement: integrate them all)', async () => {
+    const extras = await searchAndFetchAll('沙耶の唄', fakeFetcher);
+    expect(extras).not.toBeNull();
+    expect(extras!.schemaVersion).toBe(1);
+    expect(extras!.candidates.map((c) => c.egsId).sort((a, b) => a - b)).toEqual([3676, 33072]);
+    expect(extras!.selectedEgsId).toBe(extras!.candidates[0].egsId);
+    expect(extras!.searchQuery).toBe('沙耶の唄');
   });
 
-  it('game URL is /games/{egsId}', () => {
-    expect(buildErogePriceGameUrl(3676)).toBe('https://eroge-price.com/games/3676');
+  it('each candidate carries its own detail / stats / history / related', async () => {
+    const extras = await searchAndFetchAll('沙耶の唄', fakeFetcher);
+    const c33072 = extras!.candidates.find((c) => c.egsId === 33072)!;
+    expect(c33072.detail.releaseDate).toBe('2015-11-27T00:00:00.000Z');
+    expect(c33072.priceStats.allTimeMin).toBe(2200);
+    expect(c33072.priceHistory.length).toBeGreaterThan(0);
   });
 });
