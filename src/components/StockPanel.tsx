@@ -124,6 +124,7 @@ interface StockSource {
 }
 
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
+const STOCK_UI_KEY = 'stock:ui:v1';
 
 const EMPTY_OFFERS: StockOffer[] = [];
 const EMPTY_PROVIDERS: StockProvider[] = [];
@@ -182,7 +183,19 @@ export function StockPanel({
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [hideStale, setHideStale] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
-  const [searchSetupOpen, setSearchSetupOpen] = useState(false);
+  const [searchSetupOpen, setSearchSetupOpen] = useState(() => {
+    try {
+      const raw = localStorage.getItem(STOCK_UI_KEY);
+      if (raw) return (JSON.parse(raw) as Record<string, boolean>).searchSetupOpen ?? false;
+    } catch {}
+    return false;
+  });
+  useEffect(() => {
+    try {
+      const prev = JSON.parse(localStorage.getItem(STOCK_UI_KEY) ?? '{}') as Record<string, boolean>;
+      localStorage.setItem(STOCK_UI_KEY, JSON.stringify({ ...prev, searchSetupOpen }));
+    } catch {}
+  }, [searchSetupOpen]);
   const abortRef = useRef<AbortController | null>(null);
   const physicalDefaultRef = useRef(false);
 
@@ -1361,10 +1374,23 @@ function ProviderDiagnostics({ diagnostics, t, defaultOpen }: { diagnostics: Nor
   const groups: ProviderDiagnosticGroup[] = ['attention', 'blocked', 'skipped', 'no_results', 'not_checked'];
   const technical = diagnostics.filter((diag) => diag.technicalDetail);
   const attentionCount = diagnostics.filter((d) => d.group === 'attention' || d.group === 'blocked').length;
-  const [isOpen, setIsOpen] = useState(defaultOpen ?? false);
+  const [isOpen, setIsOpen] = useState(() => {
+    if (defaultOpen) return true;
+    try {
+      const raw = localStorage.getItem(STOCK_UI_KEY);
+      if (raw) return (JSON.parse(raw) as Record<string, boolean>).providerDiagOpen ?? false;
+    } catch {}
+    return false;
+  });
   useEffect(() => {
     if (defaultOpen) setIsOpen(true);
   }, [defaultOpen]);
+  useEffect(() => {
+    try {
+      const prev = JSON.parse(localStorage.getItem(STOCK_UI_KEY) ?? '{}') as Record<string, boolean>;
+      localStorage.setItem(STOCK_UI_KEY, JSON.stringify({ ...prev, providerDiagOpen: isOpen }));
+    } catch {}
+  }, [isOpen]);
   return (
     <details
       open={isOpen}

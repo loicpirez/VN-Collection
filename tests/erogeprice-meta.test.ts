@@ -50,6 +50,7 @@ const FIXTURE_ROUTER: Record<string, unknown> = {
   [buildErogePriceApiSearchUrl('沙耶の唄')]: SEARCH_SAYA,
   [apiGameUrl(3676)]: GAME_3676,
   [apiPricesUrl(3676)]: PRICES_3676,
+  [apiPricesUrl(3676, 2)]: [],
   [apiPriceStatsUrl(3676)]: STATS_3676,
   [apiRelatedUrl(3676)]: RELATED_3676,
   [apiGameUrl(33072)]: GAME_33072,
@@ -78,7 +79,7 @@ describe('URL builders', () => {
 
   it('JSON-API URLs are /api/games/{epId}*', () => {
     expect(apiGameUrl(3676)).toBe('https://eroge-price.com/api/games/3676');
-    expect(apiPricesUrl(3676)).toBe('https://eroge-price.com/api/games/3676/prices');
+    expect(apiPricesUrl(3676)).toBe('https://eroge-price.com/api/games/3676/prices?limit=200');
     expect(apiPriceStatsUrl(3676)).toBe('https://eroge-price.com/api/games/3676/priceStats');
     expect(apiRelatedUrl(3676)).toBe('https://eroge-price.com/api/games/3676/related');
   });
