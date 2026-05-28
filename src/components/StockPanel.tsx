@@ -136,6 +136,7 @@ export function StockPanel({
   vndbAliases,
   dense = false,
   initialSnapshot,
+  showErogePrice = true,
 }: {
   vnId: string;
   title?: string;
@@ -143,6 +144,7 @@ export function StockPanel({
   vndbAliases?: string[];
   dense?: boolean;
   initialSnapshot?: StockSnapshot;
+  showErogePrice?: boolean;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -1090,7 +1092,7 @@ export function StockPanel({
           extras_json blob stored on `vn_stock_provider_status` for the
           eroge_price provider. Lazy-loaded so the whole graph chunk
           doesn't ride along with every StockPanel mount. */}
-      {!loading && erogePriceExtras && <ErogePricePanel vnId={vnId} extras={erogePriceExtras} />}
+      {showErogePrice !== false && !loading && erogePriceExtras && <ErogePricePanel vnId={vnId} extras={erogePriceExtras} />}
 
       {!loading && displayDiagnostics.length > 0 && (
         <ProviderDiagnostics diagnostics={displayDiagnostics} t={t} defaultOpen={displayDiagnostics.some((d) => d.group === 'attention' || d.group === 'blocked')} />
