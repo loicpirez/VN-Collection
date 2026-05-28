@@ -588,20 +588,19 @@ export async function searchAndFetchAll(
   const raw = await fetcher(searchUrl, { signal });
   const payload = parseEpSearch(raw);
   if (!payload || payload.games.length === 0) return null;
-  // Only fetch the top `maxCandidates` — operator can broaden later
-  // via a dedicated "fetch more" action. Saya no Uta returns 2 today
-  // so 6 is plenty of headroom for the common case.
   const top = payload.games.slice(0, maxCandidates);
   const bundles: ErogePriceBundle[] = [];
+  let lastError: unknown = undefined;
   for (const card of top) {
     try {
       const bundle = await fetchErogePriceBundle(card.id, fetcher, signal);
       if (bundle) bundles.push(bundle);
-    } catch {
-      // ignore per-id fetch failure — keep going so one bad id
-      // doesn't drop every candidate from the panel.
+    } catch (err) {
+      console.error('[eroge-price] bundle fetch failed for id', card.id, err);
+      lastError = err;
     }
   }
+  if (bundles.length === 0 && lastError !== undefined) throw lastError;
   if (bundles.length === 0) return null;
   return {
     schemaVersion: 1,

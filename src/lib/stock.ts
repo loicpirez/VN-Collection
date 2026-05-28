@@ -2149,6 +2149,7 @@ async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | und
   } catch {}
 
   let extras: ErogePriceExtrasV1 | null = null;
+  let lastFetchError: unknown = undefined;
   const queries = buildErogePriceQueries(vn.alttitle, vn.title, aliases);
   for (const query of queries) {
     if (signal?.aborted) break;
@@ -2158,10 +2159,16 @@ async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | und
         extras = result;
         break;
       }
-    } catch {}
+    } catch (err) {
+      console.error('[eroge-price] query failed:', query, err);
+      lastFetchError = err;
+    }
   }
 
-  if (!extras || extras.candidates.length === 0) return [];
+  if (!extras || extras.candidates.length === 0) {
+    if (lastFetchError !== undefined) throw lastFetchError;
+    return [];
+  }
 
   if (previousManualPin != null && extras.candidates.some((c) => c.epId === previousManualPin)) {
     extras = { ...extras, selectedEpId: previousManualPin };

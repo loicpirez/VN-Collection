@@ -208,4 +208,22 @@ describe('searchAndFetchAll — integrates EVERY candidate', () => {
     expect(c33072.priceStats.allTimeMin).toBe(2200);
     expect(c33072.priceHistory.length).toBeGreaterThan(0);
   });
+
+  it('throws when search finds candidates but all bundle fetches fail', async () => {
+    const fakeSearch = {
+      games: [{ id: 90001, title: 'synthetic-test', maker: null, releaseDate: null, coverImageUrl: null, ageRating: null, hasDownload: true, hasPackage: false, lowestPrice: null, lowestDownloadPrice: null, lowestPackagePrice: null, platform: null, retailerCount: 0 }],
+      pagination: { page: 1, limit: 20, total: 1 },
+    };
+    const errFetcher: JsonFetcher = (url) => {
+      if (url.includes('/api/games?')) return Promise.resolve(fakeSearch);
+      return Promise.reject(new Error('HTTP 503 from eroge-price.com'));
+    };
+    await expect(searchAndFetchAll('dummy', errFetcher)).rejects.toThrow('HTTP 503');
+  });
+
+  it('returns null (no_results) when search yields zero candidates', async () => {
+    const emptySearch = { games: [], pagination: { page: 1, limit: 20, total: 0 } };
+    const emptyFetcher: JsonFetcher = () => Promise.resolve(emptySearch);
+    await expect(searchAndFetchAll('dummy', emptyFetcher)).resolves.toBeNull();
+  });
 });
