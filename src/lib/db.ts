@@ -62,11 +62,9 @@ interface ColInfo {
 let tableColsCache: Map<string, Set<string>> | null = null;
 
 /**
- * Audit S-060: SQL identifiers (table / column names) MUST match this
- * shape before they're interpolated into raw DDL. Every current caller
- * passes a module-internal compile-time constant, so this is purely
- * defence-in-depth against a future refactor that accidentally pipes
- * caller input through `ensureColumn`.
+ * SQL identifiers (table / column names) MUST match this shape before they're
+ * interpolated into raw DDL. Defence-in-depth against a future refactor that
+ * accidentally pipes caller input through `ensureColumn`.
  */
 const SQL_IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 function assertSqlIdent(name: string, kind: 'table' | 'column'): void {
@@ -8277,11 +8275,8 @@ export function clearCache(): number {
  * the `% /<path>|%` shape the cache uses; never `<path>|%` (which would
  * miss every row because of the method prefix).
  *
- * Audit S-062: the caller is responsible for passing a literal path
- * prefix without LIKE metacharacters (`%`, `_`). Throw on misuse rather
- * than silently widening the DELETE. Every current caller passes a
- * compile-time string, so this is purely defence-in-depth against
- * future regressions.
+ * Caller must pass a literal path prefix without LIKE metacharacters (`%`, `_`).
+ * Throws on misuse rather than silently widening the DELETE.
  */
 export function deleteCacheByPathPrefix(pathPrefix: string): number {
   if (/[%_]/.test(pathPrefix)) {
@@ -8300,8 +8295,8 @@ export function deleteCacheByPathPrefix(pathPrefix: string): number {
  * patterns from `src/lib/refresh-scopes.ts:REFRESH_SCOPES` so the
  * freshness display and the refresh action stay in sync.
  *
- * Audit S-061: cap the pattern fan-out so an N-fold OR-clause from a
- * misbehaving caller can't break the SQLite planner.
+ * Caps pattern fan-out so an N-fold OR-clause from a misbehaving caller
+ * can't break the SQLite planner.
  */
 export function getCacheFreshness(patterns: string[]): number | null {
   if (patterns.length === 0) return null;

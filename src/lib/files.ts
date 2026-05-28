@@ -82,11 +82,10 @@ export async function readStored(relPath: string): Promise<{ buffer: Buffer; con
 }
 
 /**
- * Audit S-049: stream a Response body into a Buffer while enforcing a
- * hard byte cap. Returns null when the cap is exceeded; callers then
- * throw their own "too large" error. Reads via the WHATWG ReadableStream
- * reader so the underlying socket is torn down on cap-hit rather than
- * letting `arrayBuffer()` buffer the entire payload first.
+ * Streams a Response body into a Buffer while enforcing a hard byte cap.
+ * Returns null when the cap is exceeded — callers throw their own error.
+ * Uses the WHATWG ReadableStream reader so the socket is torn down on cap-hit
+ * rather than buffering the entire payload first via `arrayBuffer()`.
  */
 async function readBodyWithCap(res: Response, maxBytes: number): Promise<Buffer | null> {
   const body = res.body;

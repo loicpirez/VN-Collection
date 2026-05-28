@@ -145,7 +145,7 @@ export async function assertNoPrivateIpRebind(hostname: string): Promise<void> {
 }
 
 /**
- * Audit S-058 strengthening: resolves the hostname ONCE and returns
+ * Resolves the hostname ONCE and returns
  * the validated IPs. Callers that can pin the IP into the outbound
  * connection (via a custom `lookup` callback on a Node HTTP agent)
  * close the TOCTOU race entirely — no second DNS resolution means

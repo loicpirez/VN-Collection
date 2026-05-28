@@ -1,12 +1,8 @@
 /**
- * Audit I-027: machine-readable sentinel persisted into
- * `vn_stock_offer.location_label` when an offer has no branch / store
- * detail beyond "ships online". Stored verbatim in the DB so the
- * confirmed-physical filter can detect it; never displayed — the UI
- * resolves it to `t.stock.onlineStockLabel` at render time.
- *
- * The literal must NOT collide with any human-emitted branch name; the
- * leading `__` makes it obviously synthetic.
+ * Machine-readable sentinel stored in `vn_stock_offer.location_label` when
+ * an offer ships online with no branch detail. Never displayed — the UI maps
+ * it to `t.stock.onlineStockLabel`. The `__` prefix makes it obviously
+ * synthetic and prevents collision with real branch names.
  */
 export const ONLINE_STOCK_SENTINEL = '__online_stock__';
 

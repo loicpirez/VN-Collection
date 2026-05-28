@@ -378,10 +378,8 @@ async function fetchOne(sql: string): Promise<Record<string, string | null> | nu
  *   - Some columns return PostgreSQL `t` / `f` for booleans; toBool handles both.
  */
 /**
- * Audit S-035: assert that an integer argument is safe to interpolate
- * into a SQL string. Callers MUST validate user input before reaching
- * EGS helpers, but this catches a regression where a non-integer (or
- * a float, or NaN) slips through.
+ * Asserts that an integer argument is safe to interpolate into a SQL string.
+ * Guards against a non-integer, float, or NaN slipping past caller validation.
  */
 function assertSqlInt(n: number, fieldName: string): void {
   if (!Number.isInteger(n) || n < 0 || n > Number.MAX_SAFE_INTEGER) {

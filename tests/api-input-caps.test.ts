@@ -1,18 +1,3 @@
-/**
- * Audit S-047/S-048/S-049/S-050/S-052: array-length caps on bulk-reorder
- * PATCH handlers. A malicious caller should not be able to drive an
- * unbounded UPDATE loop through `/api/saved-filters`, `/api/shelves`,
- * `/api/collection/order`, `/api/reading-queue`, or
- * `/api/collection/[id]/routes`.
- *
- * Audit S-046: query-length caps on the search GET handlers (`/api/search`,
- * `/api/egs/search`, `/api/staff`, `/api/tags`, `/api/traits`). A 1 MB
- * `q` should be silently truncated rather than forwarded to the rate-
- * limited VNDB / EGS backends.
- *
- * Audit S-051: list-items reorder cap.
- * Audit S-053: game-log PATCH `logged_at` / `session_minutes` clamps.
- */
 import { describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 

@@ -113,11 +113,10 @@ async function nodeAgentFetch(
  * Apply only to outbound requests for the named provider — never globally.
  */
 /**
- * Audit S-047: build the proxy agent and swallow any constructor error
- * inside a sanitised wrapper. The `socks-proxy-agent` / `https-proxy-
- * agent` packages sometimes include the proxy URL (with userinfo) in
- * the thrown Error's message when authentication fails or the URL
- * shape is invalid. Catching here means the raw URL is never re-thrown.
+ * Builds the proxy agent and swallows any constructor error in a sanitised
+ * wrapper. `socks-proxy-agent`/`https-proxy-agent` sometimes embed the proxy
+ * URL (with credentials) in thrown Error messages; catching here ensures the
+ * raw URL is never re-thrown.
  */
 async function buildAgent(config: ProxyConfig): Promise<Agent> {
   const proxyUrl = buildProxyUrl(config);

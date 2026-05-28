@@ -1,9 +1,3 @@
-/**
- * Audit U-238 / U-239 / U-234: pins the kobe date + price formatters
- * after the U-234 file split. Imports the canonical helpers from
- * `src/components/kobe-types.ts` (the post-split home) so the test
- * exercises the same code the component runs.
- */
 import { describe, expect, it } from 'vitest';
 import {
   comparableKobeDate as comparableDate,

@@ -6,12 +6,9 @@ import type { Screenshot, VndbSearchHit } from './types';
 import { isVndbVnId } from '@/lib/vn-id-shape';
 
 /**
- * Audit S-045: sanitise an upstream VNDB response body before
- * interpolating it into a thrown Error message. The body lands in
- * `console.error` calls and (via `vndbErrorResponse`) is matched
- * against by route handlers. Strip CR/LF so a malformed VNDB
- * response can't inject a fake log line, cap length to 200 chars so
- * a huge HTML error page doesn't blow the log budget.
+ * Sanitises an upstream VNDB response body before interpolating it into a
+ * thrown Error message. Strips CR/LF to prevent fake log-line injection; caps
+ * at 200 chars so a large HTML error page doesn't blow the log budget.
  */
 function safeUpstreamBody(text: string): string {
   return text.replace(/[\r\n]+/g, ' ').slice(0, 200);

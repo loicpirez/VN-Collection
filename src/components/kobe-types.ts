@@ -99,9 +99,7 @@ export function comparableKobeDate(value: string | null): string {
   return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
 }
 
-/**
- * Audit U-238: locale-format a kobe date for display.
- */
+/** Locale-format a kobe date for display. */
 export function formatKobeDate(value: string | null, locale: Locale): string {
   if (!value) return '';
   const iso = comparableKobeDate(value);
@@ -115,10 +113,7 @@ export function formatKobeDate(value: string | null, locale: Locale): string {
   return value;
 }
 
-/**
- * Audit U-239 / U-240: locale-format a kobe price for display via
- * Intl.NumberFormat. JPY currency (single-market app — I-023 OK).
- */
+/** Locale-format a kobe price for display via Intl.NumberFormat (JPY). */
 export function formatKobePrice(value: string | null, locale: Locale): string {
   if (!value) return '';
   const n = parseKobePrice(value);

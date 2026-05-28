@@ -1,12 +1,7 @@
-/**
- * Audit P-209: the per-page cache for /api/vn/[id]/characters
- * deduplicates concurrent and back-to-back fetches by CharactersSection
- * + RoutesSection.
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchVnCharacters, invalidateVnCharactersCache } from '@/lib/vn-characters-cache';
 
-describe('vn-characters-cache (P-209)', () => {
+describe('vn-characters-cache', () => {
   const VN_ID = 'v90017';
   let fetchSpy: ReturnType<typeof vi.fn>;
 

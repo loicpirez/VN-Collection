@@ -6,12 +6,10 @@ import type { VndbCharacter } from './vndb-types';
 export type VnCharacterRow = VndbCharacter & { localImage: string | null };
 
 /**
- * Audit P-209: per-page shared cache for `/api/vn/[id]/characters`
- * responses. `CharactersSection` and `RoutesSection` both consume the
- * VN's character list on the VN detail page — the former for the
- * full gallery, the latter for the route auto-suggestion list. Before
- * this cache, each component fired its own fetch on mount and the
- * server doubled its work for every detail-page render.
+ * Per-page shared cache for `/api/vn/[id]/characters` responses.
+ * `CharactersSection` and `RoutesSection` both need the character list —
+ * without this, each fires its own fetch on mount and the server handles
+ * duplicate requests for every detail-page render.
  *
  * The cache is module-level + memory-only: it survives across the
  * two consumers within a single client-side route render but doesn't
