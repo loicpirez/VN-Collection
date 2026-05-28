@@ -1,0 +1,67 @@
+[
+  {
+    "id": 1001,
+    "price": 2000,
+    "isOnSale": false,
+    "originalPrice": null,
+    "discountRate": null,
+    "scrapedAt": "2026-04-01T10:00:00.000Z",
+    "retailerId": 1,
+    "retailerName": "TestShop DL",
+    "retailerEdition": "DOWNLOAD",
+    "retailerLogoUrl": null,
+    "conditionNote": null
+  },
+  {
+    "id": 1002,
+    "price": 1200,
+    "isOnSale": true,
+    "originalPrice": 2000,
+    "discountRate": 40,
+    "scrapedAt": "2026-03-15T10:00:00.000Z",
+    "retailerId": 1,
+    "retailerName": "TestShop DL",
+    "retailerEdition": "DOWNLOAD",
+    "retailerLogoUrl": null,
+    "conditionNote": null
+  },
+  {
+    "id": 1003,
+    "price": 2500,
+    "isOnSale": false,
+    "originalPrice": null,
+    "discountRate": null,
+    "scrapedAt": "2026-04-01T10:00:00.000Z",
+    "retailerId": 2,
+    "retailerName": "TestShop PKG",
+    "retailerEdition": "PACKAGE",
+    "retailerLogoUrl": null,
+    "conditionNote": null
+  },
+  {
+    "id": 1004,
+    "price": 2000,
+    "isOnSale": false,
+    "originalPrice": null,
+    "discountRate": null,
+    "scrapedAt": "2026-02-10T10:00:00.000Z",
+    "retailerId": 1,
+    "retailerName": "TestShop DL",
+    "retailerEdition": "DOWNLOAD",
+    "retailerLogoUrl": null,
+    "conditionNote": null
+  },
+  {
+    "id": 1005,
+    "price": 3000,
+    "isOnSale": false,
+    "originalPrice": null,
+    "discountRate": null,
+    "scrapedAt": "2026-01-05T10:00:00.000Z",
+    "retailerId": 2,
+    "retailerName": "TestShop PKG",
+    "retailerEdition": "PACKAGE",
+    "retailerLogoUrl": null,
+    "conditionNote": null
+  }
+]

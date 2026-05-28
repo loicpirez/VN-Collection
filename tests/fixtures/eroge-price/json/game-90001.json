@@ -1,0 +1,62 @@
+{
+  "id": 90001,
+  "title": "Synthetic VN Alpha",
+  "maker": "Test Studio",
+  "genres": ["Drama", "Fantasy"],
+  "mainStaff": {
+    "scenario": ["Author A"],
+    "illustration": ["Artist B"],
+    "voice": ["Voice X", "Voice Y"],
+    "music": ["Composer C"],
+    "singer": ["Singer C"]
+  },
+  "releaseDate": "2020-01-15T00:00:00.000Z",
+  "coverImageUrl": "https://example.com/covers/alpha.jpg",
+  "description": "A synthetic visual novel for testing purposes.",
+  "officialSiteUrl": "https://example.com/game-alpha",
+  "brandSiteUrl": "https://example.com/test-studio",
+  "platform": "PC",
+  "ageRating": "R18",
+  "hasDownload": true,
+  "hasPackage": true,
+  "fanzaDownloadCid": null,
+  "fanzaPackageCid": null,
+  "downloadRetailers": [
+    {
+      "retailerId": 1,
+      "retailerName": "TestShop DL",
+      "retailerLogoUrl": null,
+      "productUrl": "https://testshop.example.com/dl/alpha",
+      "productCode": "TST-DL-90001",
+      "isAvailable": true,
+      "condition": null,
+      "conditionNote": null,
+      "qualityRank": null,
+      "currentPrice": 2000,
+      "isOnSale": false,
+      "originalPrice": null,
+      "discountRate": null,
+      "regularPrice": 2000,
+      "lastChecked": "2026-05-01T00:00:00.000Z"
+    }
+  ],
+  "packageRetailers": [
+    {
+      "retailerId": 2,
+      "retailerName": "TestShop PKG",
+      "retailerLogoUrl": null,
+      "productUrl": "https://testshop.example.com/pkg/alpha",
+      "productCode": "TST-PKG-90001",
+      "isAvailable": true,
+      "condition": null,
+      "conditionNote": null,
+      "qualityRank": null,
+      "currentPrice": 2500,
+      "isOnSale": false,
+      "originalPrice": null,
+      "discountRate": null,
+      "regularPrice": 2500,
+      "lastChecked": "2026-05-01T00:00:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "id": 90002,
+  "title": "Synthetic VN Beta",
+  "maker": "Test Studio",
+  "genres": ["Romance"],
+  "mainStaff": {
+    "scenario": ["Author A"],
+    "illustration": ["Artist B"],
+    "voice": ["Voice X"],
+    "music": [],
+    "singer": []
+  },
+  "releaseDate": "2021-06-01T00:00:00.000Z",
+  "coverImageUrl": "https://example.com/covers/beta.jpg",
+  "description": "A synthetic visual novel sequel for testing purposes.",
+  "officialSiteUrl": "https://example.com/game-beta",
+  "brandSiteUrl": "https://example.com/test-studio",
+  "platform": "PC",
+  "ageRating": "R18",
+  "hasDownload": true,
+  "hasPackage": true,
+  "fanzaDownloadCid": null,
+  "fanzaPackageCid": null,
+  "downloadRetailers": [
+    {
+      "retailerId": 1,
+      "retailerName": "TestShop DL",
+      "retailerLogoUrl": null,
+      "productUrl": "https://testshop.example.com/dl/beta",
+      "productCode": "TST-DL-90002",
+      "isAvailable": true,
+      "condition": null,
+      "conditionNote": null,
+      "qualityRank": null,
+      "currentPrice": 1800,
+      "isOnSale": false,
+      "originalPrice": null,
+      "discountRate": null,
+      "regularPrice": 1800,
+      "lastChecked": "2026-05-01T00:00:00.000Z"
+    }
+  ],
+  "packageRetailers": [
+    {
+      "retailerId": 2,
+      "retailerName": "TestShop PKG",
+      "retailerLogoUrl": null,
+      "productUrl": "https://testshop.example.com/pkg/beta",
+      "productCode": "TST-PKG-90002",
+      "isAvailable": true,
+      "condition": null,
+      "conditionNote": null,
+      "qualityRank": null,
+      "currentPrice": 2200,
+      "isOnSale": false,
+      "originalPrice": null,
+      "discountRate": null,
+      "regularPrice": 2200,
+      "lastChecked": "2026-05-01T00:00:00.000Z"
+    }
+  ]
+}

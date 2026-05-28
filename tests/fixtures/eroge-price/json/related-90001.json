@@ -1,0 +1,26 @@
+{
+  "connections": [
+    {
+      "id": 90003,
+      "title": "Synthetic VN Alpha FD",
+      "maker": "Test Studio",
+      "coverImageUrl": null,
+      "kind": "fandisk",
+      "kindLabel": "FD"
+    }
+  ],
+  "sameBrand": [
+    {
+      "id": 90004,
+      "title": "Synthetic VN Gamma",
+      "maker": "Test Studio",
+      "coverImageUrl": null
+    },
+    {
+      "id": 90005,
+      "title": "Synthetic VN Delta",
+      "maker": "Test Studio",
+      "coverImageUrl": null
+    }
+  ]
+}

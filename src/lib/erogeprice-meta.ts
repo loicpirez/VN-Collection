@@ -299,12 +299,7 @@ export function buildErogePriceApiSearchUrl(query: string, page = 1): string {
 }
 
 export const apiGameUrl = (epId: number): string => `${BASE}/api/games/${epId}`;
-export function apiPricesUrl(epId: number, page = 1, limit = 200): string {
-  const u = new URL(`${BASE}/api/games/${epId}/prices`);
-  u.searchParams.set('limit', String(limit));
-  if (page > 1) u.searchParams.set('page', String(page));
-  return u.toString();
-}
+export const apiPricesUrl = (epId: number): string => `${BASE}/api/games/${epId}/prices`;
 export const apiPriceStatsUrl = (epId: number): string => `${BASE}/api/games/${epId}/priceStats`;
 export const apiRelatedUrl = (epId: number): string => `${BASE}/api/games/${epId}/related`;
 
@@ -551,28 +546,20 @@ export async function fetchErogePriceBundle(
   fetcher: JsonFetcher,
   signal?: AbortSignal,
 ): Promise<ErogePriceBundle | null> {
-  const EP_PRICE_PAGE_LIMIT = 200;
-  const EP_PRICE_MAX_PAGES = 50;
-  const [detailRaw, statsRaw, relatedRaw] = await Promise.all([
+  const [detailRaw, statsRaw, pricesRaw, relatedRaw] = await Promise.all([
     fetcher(apiGameUrl(epId), { signal }),
     fetcher(apiPriceStatsUrl(epId), { signal }),
+    fetcher(apiPricesUrl(epId), { signal }),
     fetcher(apiRelatedUrl(epId), { signal }),
   ]);
   const detail = parseEpGameDetail(detailRaw);
   if (!detail) return null;
-  let priceHistory: EpApiPricePoint[] = [];
-  for (let page = 1; page <= EP_PRICE_MAX_PAGES; page++) {
-    const pricesRaw = await fetcher(apiPricesUrl(epId, page, EP_PRICE_PAGE_LIMIT), { signal });
-    const pts = parseEpPriceHistory(pricesRaw);
-    priceHistory = priceHistory.concat(pts);
-    if (pts.length < EP_PRICE_PAGE_LIMIT) break;
-  }
   return {
     epId,
     gameUrl: buildErogePriceGameUrl(epId),
     detail,
     priceStats: parseEpPriceStats(statsRaw),
-    priceHistory,
+    priceHistory: parseEpPriceHistory(pricesRaw),
     related: parseEpRelated(relatedRaw),
     fetchedAt: Date.now(),
   };
