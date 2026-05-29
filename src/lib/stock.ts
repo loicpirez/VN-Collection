@@ -2166,8 +2166,7 @@ function retailerToOffer(
   });
 }
 
-async function refreshErogePrice(vnId: string, _egsIdUnused: number | null | undefined, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
-  void _egsIdUnused;
+async function refreshErogePrice(vnId: string, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
 
   let previousManualPin: number | null = null;
   try {
@@ -2559,7 +2558,7 @@ async function refreshProvider(
   signal?: AbortSignal,
   aliases: string[] = [],
 ): Promise<VnStockOfferInput[]> {
-  if (provider === 'eroge_price') return refreshErogePrice(vnId, egsId, vn, now, signal, aliases);
+  if (provider === 'eroge_price') return refreshErogePrice(vnId, vn, now, signal, aliases);
   if (provider === 'sofmap') return refreshSofmap(vnId, releases, vn, discovered, now, signal, aliases);
   if (provider === 'hgame1') return refreshHgame1(vnId, releases, vn, discovered, now, signal, aliases);
   if (provider === 'melonbooks') return refreshMelonbooks(vnId, releases, vn, discovered, now, signal, aliases);
