@@ -213,11 +213,11 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const [defaultOrder, setDefaultOrder] = useState<'asc' | 'desc'>('desc');
   const [defaultGroup, setDefaultGroup] = useState<GroupKey>('none');
   useEffect(() => {
-    let alive = true;
-    fetch('/api/settings', { cache: 'no-store' })
+    const ctrl = new AbortController();
+    fetch('/api/settings', { cache: 'no-store', signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { default_sort?: string; default_order?: string; default_group?: string } | null) => {
-        if (!alive || !d) return;
+        if (ctrl.signal.aborted || !d) return;
         if ((SORT_KEYS as readonly string[]).includes(d.default_sort ?? '')) {
           setDefaultSort(d.default_sort as SortKey);
         }
@@ -228,10 +228,11 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           setDefaultGroup(d.default_group as GroupKey);
         }
       })
-      .catch((e: unknown) => { console.error('[LibraryClient] settings fetch failed:', e); });
-    return () => {
-      alive = false;
-    };
+      .catch((e: unknown) => {
+        if ((e as Error).name === 'AbortError') return;
+        console.error('[LibraryClient] settings fetch failed:', e);
+      });
+    return () => ctrl.abort();
   }, []);
   const urlSort = searchParams.get('sort');
   const sort: SortKey = urlSort && (SORT_KEYS as readonly string[]).includes(urlSort)
@@ -1168,7 +1169,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           className="btn"
           onClick={() => setParam('order', order === 'asc' ? 'desc' : 'asc')}
           aria-label={order === 'asc' ? t.library.sortAsc : t.library.sortDesc}
-          title={order === 'asc' ? t.library.sortAsc : t.library.sortDesc}
         >
           {order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
         </button>
