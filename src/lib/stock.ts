@@ -575,10 +575,13 @@ function titleQueriesForProvider(vn: CollectionItem, provider: StockProviderId, 
 }
 
 function amazonSearchTerms(query: string): string[] {
+  // The bare title is the highest-recall query: appending "PCゲーム" /
+  // "Windows" forces an AND match that Amazon's listing titles often miss,
+  // returning zero rows. Keep one qualified variant to favour the game
+  // edition when the bare title is too broad.
   const terms = [
+    query,
     `${query} PCゲーム`,
-    `${query} Windows`,
-    `${query} DVD-ROM`,
   ];
   return [...new Set(terms)];
 }
@@ -833,7 +836,7 @@ export function parseSofmapList(html: string, target: StockTarget): ParsedOffer[
       availability_label: stockText || null,
       condition: /中古/.test(block) ? 'Used' : null,
       edition_label: null,
-      location_label: location ?? 'Sofmap',
+      location_label: location ?? ONLINE_STOCK_SENTINEL,
       location_branch: location ?? null,
       source_release_id: target.releaseId,
       jan: target.jan,

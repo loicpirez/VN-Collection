@@ -22,6 +22,7 @@ import {
   parseSofmapDetail,
   parseSofmapList,
   parseWondergooDetail,
+  ONLINE_STOCK_SENTINEL,
 } from '@/lib/stock';
 
 const target = { url: 'https://example.test/item', releaseId: 'r90001', jan: '4900000000000' };
@@ -144,6 +145,28 @@ describe('stock provider parsers', () => {
     expect(offers).toHaveLength(2);
     expect(offers[0]).toMatchObject({ provider_offer_id: '100000001', availability: 'limited' });
     expect(offers[1]).toMatchObject({ provider_offer_id: '100000002', availability: 'out_of_stock' });
+  });
+
+  it('marks online listings (no per-store branch) as online stock, never a fake shop', () => {
+    const html = `<ul id="change_style_list" class="product_list">
+      <li><div class="mainbox">
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=100000003" class="itemimg"><img alt="x"></a>
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=100000003" class="product_name">サンプルゲーム 【sof000】</a>
+        <span class="price"><strong>&yen;5,280<i>(税込)</i></strong></span>
+        <!-- stock_disp_id : IN_STOCK --><span class="ic stock">在庫あり</span>
+      </div></li>
+      <li><div class="mainbox">
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=100000004" class="itemimg"><img alt="x"></a>
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=100000004" class="product_name">サンプルゲーム 中古【sof000】</a>
+        <span class="price"><strong>&yen;2,980<i>(税込)</i></strong></span>
+        <!-- stock_disp_id : TENPO_IN_STOCK --><span class="ic stock inshop">店舗併売品</span>
+        <dl class="used_link shop"><dd><a href="https://www.sofmap.com/tenpo/contents/?id=shops&sid=akiba_ams">AKIBA アミューズメント館</a></dd></dl>
+      </div></li>
+    </ul>`;
+    const offers = parseSofmapList(html, { ...target, query: 'サンプルゲーム', releaseId: null, jan: null });
+    expect(offers).toHaveLength(2);
+    expect(offers[0]).toMatchObject({ provider_offer_id: '100000003', location_label: ONLINE_STOCK_SENTINEL, location_branch: null });
+    expect(offers[1]).toMatchObject({ provider_offer_id: '100000004', location_label: 'AKIBA アミューズメント館', location_branch: 'AKIBA アミューズメント館' });
   });
 
   it('parses Sofmap detail price and limited stock', () => {
