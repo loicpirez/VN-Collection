@@ -60,6 +60,7 @@ interface Props {
   popupOpenLabel: string;
   popupStockLabel: (n: number) => string;
   popupBranchesLabel: (n: number) => string;
+  sizeClass?: string;
 }
 
 function buildPopup(
@@ -90,6 +91,7 @@ export function MapCanvas({
   popupOpenLabel,
   popupStockLabel,
   popupBranchesLabel,
+  sizeClass,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -212,10 +214,17 @@ export function MapCanvas({
     map.setView([searchTarget.lat, searchTarget.lng], targetZoom);
   }, [searchTarget]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const t = setTimeout(() => { map.invalidateSize(); }, 40);
+    return () => clearTimeout(t);
+  }, [sizeClass]);
+
   return (
     <div
       ref={containerRef}
-      className="h-[60vh] min-h-[400px] w-full rounded-xl border border-border overflow-hidden"
+      className={`w-full rounded-xl border border-border overflow-hidden ${sizeClass ?? 'h-[55vh] min-h-[400px]'}`}
     />
   );
 }

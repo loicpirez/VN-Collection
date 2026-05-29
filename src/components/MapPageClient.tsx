@@ -9,6 +9,25 @@ import type { PlaceWithLinks } from '@/lib/db';
 import { clearSavedMapView } from './MapCanvas';
 import { AddEditPlaceModal } from './AddEditPlaceModal';
 
+type MapSize = 'compact' | 'normal' | 'large' | 'tall';
+
+const SIZE_CLASSES: Record<MapSize, string> = {
+  compact: 'h-[35vh] min-h-[280px]',
+  normal:  'h-[55vh] min-h-[400px]',
+  large:   'h-[72vh] min-h-[500px]',
+  tall:    'h-[88vh] min-h-[600px]',
+};
+const MAP_SIZE_KEY = 'vncoll.map.size.v1';
+
+function loadMapSize(): MapSize {
+  if (typeof window === 'undefined') return 'normal';
+  try {
+    const v = window.localStorage.getItem(MAP_SIZE_KEY);
+    if (v === 'compact' || v === 'normal' || v === 'large' || v === 'tall') return v;
+  } catch { /* ignore */ }
+  return 'normal';
+}
+
 interface NominatimResult {
   display_name: string;
   lat: string;
@@ -23,7 +42,7 @@ const MapCanvas = dynamic(() => import('./MapCanvas').then((m) => m.MapCanvas), 
 function MapLoadingPlaceholder() {
   const t = useT();
   return (
-    <div className="flex h-[60vh] min-h-[400px] w-full items-center justify-center rounded-xl border border-border bg-bg-card text-sm text-muted">
+    <div className="flex h-[55vh] min-h-[400px] w-full items-center justify-center rounded-xl border border-border bg-bg-card text-sm text-muted">
       {t.map.loadingMap as string}
     </div>
   );
@@ -48,6 +67,12 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
   const [activePlaceId, setActivePlaceId] = useState<number | null>(focusId ?? null);
   const [resetKey, setResetKey] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [mapSize, setMapSize] = useState<MapSize>(loadMapSize);
+
+  function changeSize(s: MapSize) {
+    setMapSize(s);
+    try { window.localStorage.setItem(MAP_SIZE_KEY, s); } catch { /* ignore */ }
+  }
 
   const withCoords = places.filter((p) => p.lat != null && p.lng != null);
   const withoutCoords = places.filter((p) => p.lat == null || p.lng == null);
@@ -128,11 +153,11 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
         </div>
       </div>
 
-      <div className="relative mb-4">
-        <div className="flex gap-2">
+      <div className="relative mb-2">
+        <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted"
+              className="pointer-events-none absolute inset-y-0 left-3 my-auto h-3.5 w-3.5 text-muted"
               aria-hidden
             />
             <input
@@ -147,7 +172,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
               <button
                 type="button"
                 onClick={clearSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 icon-btn tap-target text-muted hover:text-white"
+                className="absolute inset-y-0 right-2 my-auto flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
                 aria-label={t.common.close as string}
               >
                 <X className="h-3.5 w-3.5" aria-hidden />
@@ -169,7 +194,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
         {searchResults.length > 0 && (
           <ul
             role="listbox"
-            className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-bg-card shadow-card overflow-hidden"
+            className="absolute z-[9999] mt-1 w-full overflow-hidden rounded-lg border border-border bg-bg-card shadow-card"
           >
             {searchResults.map((r, i) => (
               <li key={i} role="option" aria-selected={false}>
@@ -186,6 +211,24 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
         )}
       </div>
 
+      <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label={t.map.mapSizeLabel as string}>
+        {(['compact', 'normal', 'large', 'tall'] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => changeSize(s)}
+            aria-pressed={mapSize === s}
+            className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${
+              mapSize === s
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-border bg-bg-elev/30 text-muted hover:border-accent/50 hover:text-white'
+            }`}
+          >
+            {t.map[`mapSize${s.charAt(0).toUpperCase()}${s.slice(1)}` as 'mapSizeCompact' | 'mapSizeNormal' | 'mapSizeLarge' | 'mapSizeTall'] as string}
+          </button>
+        ))}
+      </div>
+
       {withCoords.length === 0 ? (
         <p className="text-sm text-muted">{t.map.noPlaces as string}</p>
       ) : (
@@ -200,6 +243,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
           popupOpenLabel={t.map.popupOpen as string}
           popupStockLabel={(n) => (t.map.popupStock as string).replace('{n}', String(n))}
           popupBranchesLabel={(n) => (t.map.popupBranches as string).replace('{n}', String(n))}
+          sizeClass={SIZE_CLASSES[mapSize]}
         />
       )}
 
