@@ -28,7 +28,7 @@ export default function GlobalSegmentError({
   }, [error]);
 
   return (
-    <div className="mx-auto max-w-md py-16 text-center">
+    <div role="alert" className="mx-auto max-w-md py-16 text-center">
       <AlertTriangle className="mx-auto mb-4 h-12 w-12 text-status-dropped" aria-hidden />
       <h1 className="mb-2 text-xl font-bold">{t.errorBoundary.title}</h1>
       <p className="mb-4 text-sm text-muted">{t.errorBoundary.body}</p>

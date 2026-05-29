@@ -89,7 +89,7 @@ export default function GlobalError({
   return (
     <html lang={lang}>
       <body style={{ fontFamily: 'system-ui, sans-serif', padding: 40, background: '#0b1220', color: '#fff' }}>
-        <div style={{ maxWidth: 480, margin: '60px auto', textAlign: 'center' }}>
+        <div role="alert" style={{ maxWidth: 480, margin: '60px auto', textAlign: 'center' }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
             {s.title}
           </h1>
