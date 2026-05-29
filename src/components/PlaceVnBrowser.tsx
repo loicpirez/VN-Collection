@@ -23,8 +23,8 @@ import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import type { PlaceOfferRow, PlaceVnRow } from '@/lib/db';
 
-type PlaceVn = PlaceVnRow & { offers: PlaceOfferRow[] };
-type FilterTab = 'all' | 'in_stock' | 'out_of_stock' | 'in_collection';
+type PlaceVn = PlaceVnRow & { offers: PlaceOfferRow[]; in_wishlist: number };
+type FilterTab = 'all' | 'in_stock' | 'out_of_stock' | 'in_collection' | 'in_wishlist';
 type SortKey = 'name' | 'price_asc' | 'price_desc' | 'fresh';
 type GroupKey = 'none' | 'provider' | 'year';
 type ViewMode = 'cards' | 'list';
@@ -36,12 +36,13 @@ interface StatsShape {
   offer_count: number;
   in_collection: number;
   branch_count: number;
+  in_wishlist: number;
 }
 
 const SORTS = ['name', 'price_asc', 'price_desc', 'fresh'] as const satisfies readonly SortKey[];
 const GROUPS = ['none', 'provider', 'year'] as const satisfies readonly GroupKey[];
 const PREFS_KEY = 'vncoll.place-vn-browser.prefs.v1';
-const EMPTY_STATS: StatsShape = { total: 0, in_stock: 0, out_of_stock: 0, offer_count: 0, in_collection: 0, branch_count: 0 };
+const EMPTY_STATS: StatsShape = { total: 0, in_stock: 0, out_of_stock: 0, offer_count: 0, in_collection: 0, branch_count: 0, in_wishlist: 0 };
 
 function isSort(v: unknown): v is SortKey { return (SORTS as readonly unknown[]).includes(v); }
 function isGroup(v: unknown): v is GroupKey { return (GROUPS as readonly unknown[]).includes(v); }
@@ -130,6 +131,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
     if (filter === 'in_stock') list = list.filter((v) => v.in_stock_count > 0);
     else if (filter === 'out_of_stock') list = list.filter((v) => v.in_stock_count === 0 && v.out_of_stock_count > 0);
     else if (filter === 'in_collection') list = list.filter((v) => v.in_collection === 1);
+    else if (filter === 'in_wishlist') list = list.filter((v) => v.in_wishlist === 1);
     if (providerFilter) {
       list = list.filter((v) => parseDevs(v.developers).some((d) => d.id === providerFilter));
     }
@@ -196,6 +198,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
     { id: 'in_stock', label: t.places.filterInStock as string, count: apiStats.in_stock, icon: <CheckCircle2 className="h-3 w-3 text-status-completed" aria-hidden /> },
     { id: 'out_of_stock', label: t.places.filterOutOfStock as string, count: apiStats.out_of_stock, icon: <PackageX className="h-3 w-3 text-status-dropped" aria-hidden /> },
     { id: 'in_collection', label: t.places.filterInCollection as string, count: apiStats.in_collection, icon: <BookHeart className="h-3 w-3 text-status-completed" aria-hidden /> },
+    { id: 'in_wishlist', label: t.places.filterInWishlist as string, count: apiStats.in_wishlist, icon: <BookHeart className="h-3 w-3 text-status-dropped" aria-hidden /> },
   ];
 
   const sortLabels: Record<SortKey, string> = {
@@ -258,12 +261,20 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
             fit="cover"
           />
           <div className="absolute left-2 top-2 flex flex-wrap gap-1">{statusBadge(vn)}</div>
-          {vn.in_collection === 1 && (
+          {(vn.in_wishlist === 1 || vn.in_collection === 1) && (
             <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
-              <span className="inline-flex items-center gap-1 rounded-full border border-status-completed/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-status-completed backdrop-blur">
-                <BookHeart className="h-2.5 w-2.5" aria-hidden />
-                {t.places.filterInCollection as string}
-              </span>
+              {vn.in_wishlist === 1 && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-status-dropped/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-status-dropped backdrop-blur">
+                  <BookHeart className="h-2.5 w-2.5" aria-hidden />
+                  {t.places.filterInWishlist as string}
+                </span>
+              )}
+              {vn.in_collection === 1 && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-status-completed/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-status-completed backdrop-blur">
+                  <BookHeart className="h-2.5 w-2.5" aria-hidden />
+                  {t.places.filterInCollection as string}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -337,6 +348,12 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {statusBadge(vn)}
+                {vn.in_wishlist === 1 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-status-dropped/25 bg-status-dropped/10 px-2 py-0.5 text-[11px] font-semibold text-status-dropped">
+                    <BookHeart className="h-3 w-3" aria-hidden />
+                    {t.places.filterInWishlist as string}
+                  </span>
+                )}
                 {vn.in_collection === 1 && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-status-completed/25 bg-status-completed/10 px-2 py-0.5 text-[11px] font-semibold text-status-completed">
                     <BookHeart className="h-3 w-3" aria-hidden />
@@ -362,9 +379,9 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
     <DensityScopeProvider scope="places">
 
       {/* Stats grid */}
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         {showStatsSkeleton ? (
-          Array.from({ length: 6 }).map((_, i) => (
+          Array.from({ length: 7 }).map((_, i) => (
             <div key={i} className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <SkeletonBlock className="mx-auto mb-3 h-3 w-20" />
               <SkeletonBlock className="mx-auto h-8 w-14" />
@@ -400,6 +417,13 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
                 {t.places.filterInCollection as string}
               </div>
               <div className="text-2xl font-bold text-status-completed">{apiStats.in_collection}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+              <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
+                <BookHeart className="h-3 w-3 text-status-dropped" aria-hidden />
+                {t.places.filterInWishlist as string}
+              </div>
+              <div className="text-2xl font-bold text-status-dropped">{apiStats.in_wishlist}</div>
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">

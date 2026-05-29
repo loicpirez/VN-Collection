@@ -1606,6 +1606,7 @@ export const dictionaries = {
       priceMin: 'Prix min',
       priceMax: 'Prix max',
       viewLabel: 'Vue',
+      filterInWishlist: 'Dans ma wishlist',
     },
     map: {
       title: 'Carte des boutiques',
@@ -4839,6 +4840,7 @@ export const dictionaries = {
       priceMin: 'Price min',
       priceMax: 'Price max',
       viewLabel: 'View',
+      filterInWishlist: 'In my wishlist',
     },
     map: {
       title: 'Shop map',
@@ -8069,6 +8071,7 @@ export const dictionaries = {
       priceMin: '最低価格',
       priceMax: '最高価格',
       viewLabel: '表示',
+      filterInWishlist: 'ウィッシュリスト内',
     },
     map: {
       title: 'ショップマップ',
