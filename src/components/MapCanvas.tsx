@@ -11,11 +11,52 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
+const VIEW_STORAGE_KEY = 'places:map:view:v1';
+
+interface SavedView {
+  lat: number;
+  lng: number;
+  zoom: number;
+}
+
+function readSavedView(): SavedView | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SavedView>;
+    if (
+      typeof parsed.lat === 'number' &&
+      typeof parsed.lng === 'number' &&
+      typeof parsed.zoom === 'number' &&
+      Number.isFinite(parsed.lat) &&
+      Number.isFinite(parsed.lng) &&
+      Number.isFinite(parsed.zoom)
+    ) {
+      return { lat: parsed.lat, lng: parsed.lng, zoom: Math.max(1, Math.min(20, parsed.zoom)) };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function writeSavedView(view: SavedView): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify(view));
+  } catch {
+    // localStorage may be unavailable (privacy mode, etc.) — silent fail
+  }
+}
+
 interface Props {
   places: PlaceWithLinks[];
   focusLat?: number | null;
   focusLng?: number | null;
   focusId?: number | null;
+  searchTarget?: { lat: number; lng: number; zoom?: number } | null;
+  onMarkerFocus?: (placeId: number) => void;
   popupOpenLabel: string;
   popupStockLabel: (n: number) => string;
   popupBranchesLabel: (n: number) => string;
@@ -44,6 +85,8 @@ export function MapCanvas({
   focusLat,
   focusLng,
   focusId,
+  searchTarget,
+  onMarkerFocus,
   popupOpenLabel,
   popupStockLabel,
   popupBranchesLabel,
@@ -51,24 +94,38 @@ export function MapCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Map<number, L.Marker>>(new Map());
+  const onMarkerFocusRef = useRef(onMarkerFocus);
+  onMarkerFocusRef.current = onMarkerFocus;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const withCoords = places.filter((p) => p.lat != null && p.lng != null);
     const focusPlace = focusId != null ? withCoords.find((p) => p.id === focusId) : null;
-    const defaultCenter: [number, number] =
-      focusPlace
-        ? [focusPlace.lat!, focusPlace.lng!]
-        : focusLat != null && focusLng != null
-          ? [focusLat, focusLng]
-          : withCoords.length > 0
-            ? [withCoords[0].lat!, withCoords[0].lng!]
-            : [35.6894, 139.6917];
+    const saved = readSavedView();
+
+    let center: [number, number];
+    let zoom: number;
+    if (focusPlace) {
+      center = [focusPlace.lat!, focusPlace.lng!];
+      zoom = 15;
+    } else if (focusLat != null && focusLng != null) {
+      center = [focusLat, focusLng];
+      zoom = 15;
+    } else if (saved) {
+      center = [saved.lat, saved.lng];
+      zoom = saved.zoom;
+    } else if (withCoords.length > 0) {
+      center = [withCoords[0].lat!, withCoords[0].lng!];
+      zoom = 12;
+    } else {
+      center = [35.6894, 139.6917];
+      zoom = 12;
+    }
 
     const map = L.map(containerRef.current, {
-      center: defaultCenter,
-      zoom: focusPlace != null || focusLat != null ? 15 : 12,
+      center,
+      zoom,
       scrollWheelZoom: true,
     });
     mapRef.current = map;
@@ -82,7 +139,19 @@ export function MapCanvas({
       },
     ).addTo(map);
 
+    let saveTimer: ReturnType<typeof setTimeout> | null = null;
+    const persist = (): void => {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        const c = map.getCenter();
+        writeSavedView({ lat: c.lat, lng: c.lng, zoom: map.getZoom() });
+      }, 400);
+    };
+    map.on('moveend', persist);
+    map.on('zoomend', persist);
+
     return () => {
+      if (saveTimer) clearTimeout(saveTimer);
       markersRef.current.clear();
       if (mapRef.current) {
         mapRef.current.remove();
@@ -113,6 +182,8 @@ export function MapCanvas({
       } else {
         const marker = L.marker([place.lat!, place.lng!]).addTo(map);
         marker.bindPopup(html);
+        const pid = place.id;
+        marker.on('popupopen', () => { onMarkerFocusRef.current?.(pid); });
         current.set(place.id, marker);
       }
     }
@@ -134,10 +205,26 @@ export function MapCanvas({
     }
   }, [focusId, focusLat, focusLng, places]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !searchTarget) return;
+    const targetZoom = searchTarget.zoom ?? Math.max(map.getZoom(), 13);
+    map.setView([searchTarget.lat, searchTarget.lng], targetZoom);
+  }, [searchTarget]);
+
   return (
     <div
       ref={containerRef}
       className="h-[60vh] min-h-[400px] w-full rounded-xl border border-border overflow-hidden"
     />
   );
+}
+
+export function clearSavedMapView(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(VIEW_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
 }
