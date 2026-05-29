@@ -82,6 +82,9 @@ export function EgsSyncBlock() {
   }
 
   async function compute() {
+    if (usernameDirty) {
+      await saveUsername();
+    }
     setComputing(true);
     try {
       const r = await fetch('/api/egs/sync', { cache: 'no-store' });
