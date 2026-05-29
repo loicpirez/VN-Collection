@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Crosshair, Loader2, RotateCcw, RotateCw, ShieldAlert, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -270,9 +270,10 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   }
 
   const activePos = editing ? draftPosition : position;
-  const [xRaw, yRaw] = activePos.split(' ');
-  const xPct = parseFloat(xRaw);
-  const yPct = parseFloat(yRaw);
+  const { xPct, yPct } = useMemo(() => {
+    const [xRaw, yRaw] = activePos.split(' ');
+    return { xPct: parseFloat(xRaw), yPct: parseFloat(yRaw) };
+  }, [activePos]);
   const rotatedStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null);
 
   if (settings.hideImages && !editing) {
