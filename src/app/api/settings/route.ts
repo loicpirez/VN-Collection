@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAppSetting, setAppSetting } from '@/lib/db';
+import { db, getAppSetting, setAppSetting } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import {
   parseHomeSectionLayoutV1,
@@ -113,6 +113,13 @@ const SAFE_KEYS = new Set<string>([
   // connection when the proxied attempt errors or returns zero offers.
   'stock_retry_without_proxy',
 ]);
+
+/**
+ * Thrown inside the PATCH write transaction when a proxy-config write
+ * helper rejects its field-level patch. Carries the client-facing 400
+ * message and rolls back every prior write in the same transaction.
+ */
+class SettingValidationError extends Error {}
 
 const DEFAULT_VNDB_BACKUP_URL = 'https://api.yorhel.org/kana';
 
@@ -255,18 +262,18 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     }
   }
   const changedKeys = Object.keys(body);
+  const writes: Array<() => void> = [];
   try {
   if ('vndb_token' in body) {
     const v = body.vndb_token;
     if (v == null || v === '') {
-      setAppSetting('vndb_token', null);
+      writes.push(() => setAppSetting('vndb_token', null));
     } else if (typeof v === 'string') {
       const trimmed = v.trim();
-      // VNDB tokens are alphanumeric (usually starts with "vndb-"). 200 chars is plenty.
       if (trimmed.length > 200 || /[\s"]/.test(trimmed)) {
         return NextResponse.json({ error: 'invalid token format' }, { status: 400 });
       }
-      setAppSetting('vndb_token', trimmed || null);
+      writes.push(() => setAppSetting('vndb_token', trimmed || null));
     } else {
       return NextResponse.json({ error: 'vndb_token must be a string' }, { status: 400 });
     }
@@ -276,34 +283,33 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (v !== 'all' && v !== 'mine') {
       return NextResponse.json({ error: 'random_quote_source must be all|mine' }, { status: 400 });
     }
-    setAppSetting('random_quote_source', v);
+    writes.push(() => setAppSetting('random_quote_source', v));
   }
   if ('default_sort' in body) {
     const v = body.default_sort;
     if (typeof v !== 'string' || !VALID_SORTS.has(v)) {
       return NextResponse.json({ error: `default_sort must be one of: ${[...VALID_SORTS].join(', ')}` }, { status: 400 });
     }
-    setAppSetting('default_sort', v);
+    writes.push(() => setAppSetting('default_sort', v));
   }
   if ('default_order' in body) {
     const v = body.default_order;
     if (typeof v !== 'string' || !VALID_ORDERS.has(v)) {
       return NextResponse.json({ error: `default_order must be one of: ${[...VALID_ORDERS].join(', ')}` }, { status: 400 });
     }
-    setAppSetting('default_order', v);
+    writes.push(() => setAppSetting('default_order', v));
   }
   if ('default_group' in body) {
     const v = body.default_group;
     if (typeof v !== 'string' || !VALID_GROUPS.has(v)) {
       return NextResponse.json({ error: `default_group must be one of: ${[...VALID_GROUPS].join(', ')}` }, { status: 400 });
     }
-    setAppSetting('default_group', v);
+    writes.push(() => setAppSetting('default_group', v));
   }
   if ('home_section_layout_v1' in body) {
     const v = body.home_section_layout_v1;
     if (v == null) {
-      // Reset to defaults.
-      setAppSetting('home_section_layout_v1', null);
+      writes.push(() => setAppSetting('home_section_layout_v1', null));
     } else if (typeof v === 'object' && !Array.isArray(v)) {
       // Partial patches are merged on top of the persisted layout so a
       // single section's hide/collapse doesn't clobber the order array
@@ -323,7 +329,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
         order: Array.isArray(patch.order) ? patch.order : current.order,
       };
       const normalized = validateHomeSectionLayoutV1(merged);
-      setAppSetting('home_section_layout_v1', JSON.stringify(normalized));
+      writes.push(() => setAppSetting('home_section_layout_v1', JSON.stringify(normalized)));
     } else {
       return NextResponse.json(
         { error: 'home_section_layout_v1 must be an object or null' },
@@ -334,13 +340,10 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if ('vn_detail_section_layout_v1' in body) {
     const v = body.vn_detail_section_layout_v1;
     if (v == null) {
-      // Reset-to-default: drop the row so the parser falls back.
-      setAppSetting('vn_detail_section_layout_v1', null);
+      writes.push(() => setAppSetting('vn_detail_section_layout_v1', null));
     } else if (typeof v === 'object' && !Array.isArray(v)) {
-      // Round-trip through the validator so unknown ids / bogus values
-      // never persist to app_setting.
       const normalized = validateVnDetailLayoutV1(v);
-      setAppSetting('vn_detail_section_layout_v1', JSON.stringify(normalized));
+      writes.push(() => setAppSetting('vn_detail_section_layout_v1', JSON.stringify(normalized)));
     } else {
       return NextResponse.json(
         { error: 'vn_detail_section_layout_v1 must be an object or null' },
@@ -351,11 +354,8 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if ('series_detail_section_layout_v1' in body) {
     const v = body.series_detail_section_layout_v1;
     if (v == null) {
-      setAppSetting('series_detail_section_layout_v1', null);
+      writes.push(() => setAppSetting('series_detail_section_layout_v1', null));
     } else if (typeof v === 'object' && !Array.isArray(v)) {
-      // Same merge-on-top-of-persisted strategy as the home layout so
-      // partial patches from the per-section menu or drag-reorder don't
-      // clobber each other.
       const current = parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1'));
       const patch = v as Record<string, unknown>;
       const merged: unknown = {
@@ -368,7 +368,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
         order: Array.isArray(patch.order) ? patch.order : current.order,
       };
       const normalized = validateSeriesDetailLayoutV1(merged);
-      setAppSetting('series_detail_section_layout_v1', JSON.stringify(normalized));
+      writes.push(() => setAppSetting('series_detail_section_layout_v1', JSON.stringify(normalized)));
     } else {
       return NextResponse.json(
         { error: 'series_detail_section_layout_v1 must be an object or null' },
@@ -376,12 +376,6 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       );
     }
   }
-  // ─────────────────────────────────────────────────────────────
-  // App-wide section layout — staff / character / producer (item 15).
-  // Same merge-on-persisted strategy as the existing VN/series
-  // layouts so a partial patch from a per-section menu or a
-  // drag-reorder doesn't clobber the other axis.
-  // ─────────────────────────────────────────────────────────────
   for (const [key, parse, validate] of [
     ['staff_detail_section_layout_v1', parseStaffDetailLayoutV1, validateStaffDetailLayoutV1] as const,
     ['character_detail_section_layout_v1', parseCharacterDetailLayoutV1, validateCharacterDetailLayoutV1] as const,
@@ -390,7 +384,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (!(key in body)) continue;
     const v = (body as Record<string, unknown>)[key];
     if (v == null) {
-      setAppSetting(key, null);
+      writes.push(() => setAppSetting(key, null));
       continue;
     }
     if (typeof v !== 'object' || Array.isArray(v)) {
@@ -411,17 +405,15 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       order: Array.isArray(patch.order) ? patch.order : current.order,
     };
     const normalized = validate(merged);
-    setAppSetting(key, JSON.stringify(normalized));
+    writes.push(() => setAppSetting(key, JSON.stringify(normalized)));
   }
   if ('shelf_view_prefs_v1' in body) {
     const v = body.shelf_view_prefs_v1;
     if (v == null) {
-      setAppSetting('shelf_view_prefs_v1', null);
+      writes.push(() => setAppSetting('shelf_view_prefs_v1', null));
     } else if (typeof v === 'object' && !Array.isArray(v)) {
-      // Validator clamps sliders to documented ranges so a malicious
-      // PATCH can't store `cellSizePx: 99999` and break the grid layout.
       const normalized = validateShelfViewPrefsV1(v);
-      setAppSetting('shelf_view_prefs_v1', JSON.stringify(normalized));
+      writes.push(() => setAppSetting('shelf_view_prefs_v1', JSON.stringify(normalized)));
     } else {
       return NextResponse.json(
         { error: 'shelf_view_prefs_v1 must be an object or null' },
@@ -436,7 +428,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     // every per-shelf override row intact. `null` resets to defaults.
     const v = body.shelf_display_overrides_v1;
     if (v == null) {
-      setAppSetting('shelf_display_overrides_v1', null);
+      writes.push(() => setAppSetting('shelf_display_overrides_v1', null));
     } else if (typeof v === 'object' && !Array.isArray(v)) {
       const current = parseShelfDisplayOverridesV1(
         getAppSetting('shelf_display_overrides_v1'),
@@ -455,7 +447,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
             : current.shelves,
       };
       const normalized = validateShelfDisplayOverridesV1(merged);
-      setAppSetting('shelf_display_overrides_v1', JSON.stringify(normalized));
+      writes.push(() => setAppSetting('shelf_display_overrides_v1', JSON.stringify(normalized)));
     } else {
       return NextResponse.json(
         { error: 'shelf_display_overrides_v1 must be an object or null' },
@@ -467,24 +459,27 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (typeof body.vndb_writeback !== 'boolean') {
       return NextResponse.json({ error: 'vndb_writeback must be boolean' }, { status: 400 });
     }
-    setAppSetting('vndb_writeback', body.vndb_writeback ? '1' : null);
+    const vndbWriteback = body.vndb_writeback;
+    writes.push(() => setAppSetting('vndb_writeback', vndbWriteback ? '1' : null));
   }
   if ('stock_retry_without_proxy' in body) {
     if (typeof body.stock_retry_without_proxy !== 'boolean') {
       return NextResponse.json({ error: 'stock_retry_without_proxy must be boolean' }, { status: 400 });
     }
-    setAppSetting('stock_retry_without_proxy', body.stock_retry_without_proxy ? '1' : null);
+    const stockRetryWithoutProxy = body.stock_retry_without_proxy;
+    writes.push(() => setAppSetting('stock_retry_without_proxy', stockRetryWithoutProxy ? '1' : null));
   }
   if ('vndb_backup_enabled' in body) {
     if (typeof body.vndb_backup_enabled !== 'boolean') {
       return NextResponse.json({ error: 'vndb_backup_enabled must be boolean' }, { status: 400 });
     }
-    setAppSetting('vndb_backup_enabled', body.vndb_backup_enabled ? '1' : null);
+    const vndbBackupEnabled = body.vndb_backup_enabled;
+    writes.push(() => setAppSetting('vndb_backup_enabled', vndbBackupEnabled ? '1' : null));
   }
   if ('vndb_backup_url' in body) {
     const v = body.vndb_backup_url;
     if (v == null || v === '') {
-      setAppSetting('vndb_backup_url', null);
+      writes.push(() => setAppSetting('vndb_backup_url', null));
     } else if (typeof v === 'string') {
       const trimmed = v.trim();
       if (!/^https?:\/\//i.test(trimmed) || trimmed.length > 300) {
@@ -496,8 +491,8 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
           { status: 400 },
         );
       }
-      // Strip trailing slash so concatenating `${base}${path}` always yields a single `/`.
-      setAppSetting('vndb_backup_url', trimmed.replace(/\/+$/, ''));
+      const normalizedUrl = trimmed.replace(/\/+$/, '');
+      writes.push(() => setAppSetting('vndb_backup_url', normalizedUrl));
     } else {
       return NextResponse.json({ error: 'vndb_backup_url must be a string' }, { status: 400 });
     }
@@ -506,14 +501,16 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (typeof body.vndb_fanout !== 'boolean') {
       return NextResponse.json({ error: 'vndb_fanout must be boolean' }, { status: 400 });
     }
-    setAppSetting('vndb_fanout', body.vndb_fanout === false ? '0' : null);
+    const vndbFanout = body.vndb_fanout;
+    writes.push(() => setAppSetting('vndb_fanout', vndbFanout === false ? '0' : null));
   }
   if ('steam_api_key' in body) {
     const v = body.steam_api_key;
     if (v == null || v === '') {
-      setAppSetting('steam_api_key', null);
+      writes.push(() => setAppSetting('steam_api_key', null));
     } else if (typeof v === 'string' && v.trim().length > 0) {
-      setAppSetting('steam_api_key', v.trim().slice(0, 64));
+      const steamKey = v.trim().slice(0, 64);
+      writes.push(() => setAppSetting('steam_api_key', steamKey));
     } else {
       return NextResponse.json({ error: 'steam_api_key must be a string' }, { status: 400 });
     }
@@ -521,9 +518,10 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if ('steam_id' in body) {
     const v = body.steam_id;
     if (v == null || v === '') {
-      setAppSetting('steam_id', null);
+      writes.push(() => setAppSetting('steam_id', null));
     } else if (typeof v === 'string' && /^\d{4,20}$/.test(v.trim())) {
-      setAppSetting('steam_id', v.trim());
+      const steamId = v.trim();
+      writes.push(() => setAppSetting('steam_id', steamId));
     } else {
       return NextResponse.json({ error: 'steam_id must be a 64-bit numeric SteamID' }, { status: 400 });
     }
@@ -531,13 +529,13 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if ('egs_username' in body) {
     const v = body.egs_username;
     if (v == null || v === '') {
-      setAppSetting('egs_username', null);
+      writes.push(() => setAppSetting('egs_username', null));
     } else if (typeof v === 'string') {
       const trimmed = v.trim();
       if (!/^[A-Za-z0-9_]{1,32}$/.test(trimmed)) {
         return NextResponse.json({ error: 'invalid EGS username' }, { status: 400 });
       }
-      setAppSetting('egs_username', trimmed);
+      writes.push(() => setAppSetting('egs_username', trimmed));
     } else {
       return NextResponse.json({ error: 'egs_username must be a string' }, { status: 400 });
     }
@@ -545,9 +543,10 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if ('stock_disabled_providers' in body) {
     const v = body.stock_disabled_providers;
     if (v == null) {
-      setAppSetting('stock_disabled_providers', null);
+      writes.push(() => setAppSetting('stock_disabled_providers', null));
     } else if (Array.isArray(v) && v.every((item) => typeof item === 'string' && STOCK_PROVIDER_IDS.includes(item as (typeof STOCK_PROVIDER_IDS)[number]))) {
-      setAppSetting('stock_disabled_providers', v.length > 0 ? JSON.stringify(v) : null);
+      const disabledProviders = v;
+      writes.push(() => setAppSetting('stock_disabled_providers', disabledProviders.length > 0 ? JSON.stringify(disabledProviders) : null));
     } else {
       return NextResponse.json({ error: 'stock_disabled_providers must be an array of valid provider IDs' }, { status: 400 });
     }
@@ -567,8 +566,11 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
         { status: 400 },
       );
     }
-    const err = saveProxyConfig(providerId, v as Record<string, unknown>);
-    if (err) return NextResponse.json({ error: err }, { status: 400 });
+    const patch = v as Record<string, unknown>;
+    writes.push(() => {
+      const err = saveProxyConfig(providerId, patch);
+      if (err) throw new SettingValidationError(err);
+    });
   }
   // Per-shop overrides. The membership in STOCK_PROVIDER_PROXY_KEY_SET is
   // the gate — saveStockProviderProxyConfig validates again before any
@@ -583,19 +585,28 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       );
     }
     const providerId = key.replace(/_proxy_config$/, '');
-    const err = saveStockProviderProxyConfig(providerId, v as Record<string, unknown>);
-    if (err) return NextResponse.json({ error: `${key}: ${err}` }, { status: 400 });
+    const patch = v as Record<string, unknown>;
+    writes.push(() => {
+      const err = saveStockProviderProxyConfig(providerId, patch);
+      if (err) throw new SettingValidationError(`${key}: ${err}`);
+    });
   }
-    if (changedKeys.length > 0) {
-      recordActivity({
-        kind: 'settings.update',
-        entity: 'settings',
-        label: 'Updated settings',
-        payload: { keys: changedKeys, values: maskPayloadValues(body as Record<string, unknown>) },
-      });
-    }
+    db.transaction(() => {
+      for (const write of writes) write();
+      if (changedKeys.length > 0) {
+        recordActivity({
+          kind: 'settings.update',
+          entity: 'settings',
+          label: 'Updated settings',
+          payload: { keys: changedKeys, values: maskPayloadValues(body as Record<string, unknown>) },
+        });
+      }
+    })();
     return NextResponse.json({ ok: true });
   } catch (err) {
+    if (err instanceof SettingValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     console.error('[settings PATCH] DB error:', (err as Error).message);
     return NextResponse.json({ error: 'internal error' }, { status: 500 });
   }
