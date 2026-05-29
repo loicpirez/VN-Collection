@@ -108,6 +108,12 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
   }, [open]);
 
   async function load(signal?: AbortSignal) {
+    if (!signal) {
+      loadAbortRef.current?.abort();
+      const ac = new AbortController();
+      loadAbortRef.current = ac;
+      signal = ac.signal;
+    }
     setLoadError(null);
     try {
       const r = await fetch('/api/saved-filters', { cache: 'no-store', signal });
@@ -207,9 +213,11 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
               {loadError}
             </p>
           ) : !filtersLoaded ? (
-            <p className="inline-flex items-center gap-1.5 px-2 py-1.5 text-muted">
-              <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
-            </p>
+            <div className="flex min-h-[120px] items-center px-2 py-1.5">
+              <p className="inline-flex items-center gap-1.5 text-muted">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
+              </p>
+            </div>
           ) : filters.length === 0 ? (
             <div className="space-y-2 px-1 py-1">
               <p className="text-muted">{t.savedFilters.popoverEmpty}</p>
