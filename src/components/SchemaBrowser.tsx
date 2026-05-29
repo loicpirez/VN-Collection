@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
@@ -125,7 +125,13 @@ function matchesScalar(v: unknown, filter: string): boolean {
   return false;
 }
 
-function Node({
+/**
+ * One node in the recursive schema tree. Memoized so an unchanged
+ * branch skips re-render when a sibling expands or the filter clears;
+ * its props (`v`, `visiblePaths`, the scalar `filter` / `path` / `k`)
+ * are referentially stable across renders that do not touch it.
+ */
+const Node = memo(function NodeInner({
   k,
   v,
   depth,
@@ -222,7 +228,7 @@ function Node({
       )}
     </li>
   );
-}
+});
 
 function KeyChip({ k, filter }: { k: string; filter: string }) {
   if (!filter) return <span className="font-bold text-white">{k}</span>;

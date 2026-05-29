@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ChevronLeft,
@@ -132,6 +132,7 @@ export function MediaGallery({
   };
 
   const close = useCallback(() => setActive(null), []);
+  const openLightbox = useCallback((index: number) => setActive(index), []);
   const prev = useCallback(
     () => setActive((a) => (a == null ? null : (a - 1 + visible.length) % visible.length)),
     [visible.length],
@@ -204,7 +205,8 @@ export function MediaGallery({
             key={item.key}
             item={item}
             vnId={vnId}
-            onOpenLightbox={() => setActive(i)}
+            index={i}
+            onOpen={openLightbox}
           />
         ))}
       </div>
@@ -308,16 +310,19 @@ export function MediaGallery({
  *   - Tap target is 32×32 minimum (h-8 w-8 = 2rem) to clear the
  *     WCAG 2.5.5 + Material touch-size recommendation.
  */
-function MediaTile({
+const MediaTile = memo(function MediaTile({
   item,
   vnId,
-  onOpenLightbox,
+  index,
+  onOpen,
 }: {
   item: MediaItem;
   vnId: string;
-  onOpenLightbox: () => void;
+  index: number;
+  onOpen: (index: number) => void;
 }) {
   const t = useT();
+  const onOpenLightbox = useCallback(() => onOpen(index), [onOpen, index]);
   // Prefer the local path so the banner survives offline / cache misses.
   const bannerValue = item.local || item.url;
   // Per-image rotation preview state. This is intentionally NOT persisted
@@ -387,7 +392,7 @@ function MediaTile({
       )}
     </div>
   );
-}
+});
 
 /**
  * Per-tile kebab dropdown. Renders inside the same positioned tile

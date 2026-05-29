@@ -1,4 +1,5 @@
 'use client';
+import { memo } from 'react';
 import Link from 'next/link';
 import { CakeSlice } from 'lucide-react';
 import { SafeImage } from './SafeImage';
@@ -71,33 +72,49 @@ export function AnniversaryFeedView({ title, yearsAgoTemplate, entries, initialS
       {!isCollapsed && (
         <ul className="flex flex-wrap gap-2">
           {entries.map((r) => (
-            <li key={r.id}>
-              <Link
-                href={`/vn/${r.id}`}
-                className="group flex items-center gap-2 rounded-md bg-bg-card/80 px-2 py-1 text-xs hover:bg-bg-card"
-              >
-                <div className="h-8 w-6 overflow-hidden rounded">
-                  <SafeImage
-                    src={r.image_url || r.image_thumb}
-                    localSrc={r.local_image_thumb}
-                    sexual={r.image_sexual}
-                    alt={r.title}
-                    className="h-full w-full"
-                  />
-                </div>
-                <span className="flex flex-col">
-                  <span className="line-clamp-1 max-w-[200px] font-semibold transition-colors can-hover:group-hover:text-accent" title={r.title}>
-                    {r.title}
-                  </span>
-                  <span className="text-[10px] text-muted">
-                    {yearsAgoTemplate.replace('{n}', String(r.years))}
-                  </span>
-                </span>
-              </Link>
-            </li>
+            <AnniversaryCard key={r.id} entry={r} yearsAgoTemplate={yearsAgoTemplate} />
           ))}
         </ul>
       )}
     </aside>
   );
 }
+
+/**
+ * Single anniversary entry rendered as a linked card. Memoized so the
+ * stable per-entry props skip re-render when sibling sections update.
+ */
+const AnniversaryCard = memo(function AnniversaryCard({
+  entry,
+  yearsAgoTemplate,
+}: {
+  entry: AnniversaryEntry;
+  yearsAgoTemplate: string;
+}) {
+  return (
+    <li>
+      <Link
+        href={`/vn/${entry.id}`}
+        className="group flex items-center gap-2 rounded-md bg-bg-card/80 px-2 py-1 text-xs hover:bg-bg-card"
+      >
+        <div className="h-8 w-6 overflow-hidden rounded">
+          <SafeImage
+            src={entry.image_url || entry.image_thumb}
+            localSrc={entry.local_image_thumb}
+            sexual={entry.image_sexual}
+            alt={entry.title}
+            className="h-full w-full"
+          />
+        </div>
+        <span className="flex flex-col">
+          <span className="line-clamp-1 max-w-[200px] font-semibold transition-colors can-hover:group-hover:text-accent" title={entry.title}>
+            {entry.title}
+          </span>
+          <span className="text-[10px] text-muted">
+            {yearsAgoTemplate.replace('{n}', String(entry.years))}
+          </span>
+        </span>
+      </Link>
+    </li>
+  );
+});
