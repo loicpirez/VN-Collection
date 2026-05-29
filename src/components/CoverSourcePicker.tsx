@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Check, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, RotateCw, Sparkles, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { SkeletonBlock } from './Skeleton';
+import { ErrorAlert } from './ErrorAlert';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { dispatchCoverChanged } from '@/lib/cover-banner-events';
@@ -677,7 +678,7 @@ function EgsCandidateGrid({
   }, [egsId]);
 
   if (error) {
-    return <p role="alert" className="text-xs text-status-dropped">{error}</p>;
+    return <ErrorAlert title={t.common.error}>{error}</ErrorAlert>;
   }
   if (!candidates) {
     return <SkeletonBlock className="h-48 w-full" />;

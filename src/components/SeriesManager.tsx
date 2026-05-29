@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Bookmark, Plus, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
+import { ErrorAlert } from './ErrorAlert';
 import { readApiError } from '@/lib/api-error-read';
 import type { SeriesRow } from '@/lib/types';
 
@@ -82,7 +83,11 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
             <Plus className="h-4 w-4" /> {t.series.create}
           </button>
         </div>
-        {error && <p role="alert" className="mt-3 text-sm text-status-dropped">{error}</p>}
+        {error && (
+          <div className="mt-3">
+            <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
+          </div>
+        )}
       </div>
 
       {items.length === 0 ? (
@@ -106,7 +111,6 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
                 className="btn btn-danger transition-opacity can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                 onClick={() => remove(s.id)}
                 aria-label={t.series.delete}
-                title={t.series.delete}
               >
                 <Trash2 className="h-4 w-4" />
               </button>

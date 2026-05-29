@@ -3,6 +3,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { ErrorAlert } from './ErrorAlert';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
@@ -52,7 +53,11 @@ export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
         </button>
       </div>
       <p className="mt-1 text-[11px] text-muted">{t.series.addVnHint}</p>
-      {error && <p role="alert" className="mt-2 text-sm text-status-dropped">{error}</p>}
+      {error && (
+        <div className="mt-2">
+          <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
+        </div>
+      )}
     </div>
   );
 }

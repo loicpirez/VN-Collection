@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Check, GitBranch, Loader2, Pencil, Plus, StickyNote
 import { useLocale, useT } from '@/lib/i18n/client';
 import { formatIsoDateString } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
+import { ErrorAlert } from './ErrorAlert';
 import type { RouteRow } from '@/lib/types';
 import type { VndbCharacter } from '@/lib/vndb-types';
 import { fetchVnCharacters } from '@/lib/vn-characters-cache';
@@ -228,7 +229,11 @@ export function RoutesSection({ vnId, inCollection }: Props) {
         )}
       </div>
 
-      {error && <p role="alert" className="mb-3 text-xs text-status-dropped">{error}</p>}
+      {error && (
+        <div className="mb-3">
+          <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
+        </div>
+      )}
 
       {loadedRoutes && routes.length === 0 && (
         <p className="mb-3 text-xs text-muted">{t.routes.empty}</p>

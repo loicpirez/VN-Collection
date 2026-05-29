@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, MessageSquareQuote } from 'lucide-react';
 import { SkeletonBlock } from './Skeleton';
+import { ErrorAlert } from './ErrorAlert';
 import { QuoteAvatar } from './QuoteAvatar';
 import { VndbMarkup } from './VndbMarkup';
 import { useT } from '@/lib/i18n/client';
@@ -74,7 +75,7 @@ export function QuotesSection({
             ))}
           </ul>
         )}
-        {error && <p role="alert" className="text-sm text-status-dropped">{error}</p>}
+        {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
         {!loading && quotes && quotes.length === 0 && <p className="text-sm text-muted">{t.quotes.empty}</p>}
         {quotes && quotes.length > 0 && (
           <ul className="space-y-3">

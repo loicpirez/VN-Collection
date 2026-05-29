@@ -19,6 +19,7 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { platformLabel } from '@/lib/platform-label';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { SkeletonRows } from './Skeleton';
+import { ErrorAlert } from './ErrorAlert';
 import {
   OWNED_EDITIONS_EVENT,
   type OwnedEditionsChangedDetail,
@@ -173,7 +174,7 @@ export function ReleasesSection({
       </summary>
       <div className="border-t border-border px-6 py-5">
         {loading && <SkeletonRows count={4} withThumb={false} />}
-        {error && <p role="alert" className="text-sm text-status-dropped">{error}</p>}
+        {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
         {!loading && releases && releases.length === 0 && <p className="text-sm text-muted">{t.releases.empty}</p>}
         {releases && releases.length > 0 && (
           <ul className="space-y-3">

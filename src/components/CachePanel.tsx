@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2, RefreshCw, Database } from 'lucide-react';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { SkeletonBlock } from './Skeleton';
+import { ErrorAlert } from './ErrorAlert';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { fmtDate, fmtNum } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
@@ -96,7 +97,11 @@ export function CachePanel() {
       <div id={panelId}>
       {open && <p className="mb-4 mt-3 text-xs text-muted">{t.cache.subtitle}</p>}
 
-      {open && error && <p role="alert" className="mb-3 text-sm text-status-dropped">{error}</p>}
+      {open && error && (
+        <div className="mb-3">
+          <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
+        </div>
+      )}
 
       {open && !stats ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mt-4">

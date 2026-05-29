@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { SkeletonBlock } from './Skeleton';
 import { SpoilerChip } from './SpoilerChip';
+import { ErrorAlert } from './ErrorAlert';
 import { useT } from '@/lib/i18n/client';
 import { useDisplaySettings } from '@/lib/settings/client';
 import type { VndbCharacter } from '@/lib/vndb-types';
@@ -92,7 +93,7 @@ export function CharactersSection({
       </summary>
       <div className="border-t border-border px-6 py-5">
         {loading && <CharactersSkeleton />}
-        {error && <p role="alert" className="text-sm text-status-dropped">{error}</p>}
+        {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
         {!loading && chars && chars.length === 0 && <p className="text-sm text-muted">{t.characters.empty}</p>}
         {sorted.length > 0 && (
           <div role="list" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
