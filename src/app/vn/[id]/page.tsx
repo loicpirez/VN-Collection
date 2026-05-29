@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { cache } from 'react';
+import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { after } from 'next/server';
 import { notFound } from 'next/navigation';
@@ -26,6 +27,7 @@ import {
 import { parseVnDetailLayoutV1, type VnSectionId } from '@/lib/vn-detail-layout';
 import { platformLabel } from '@/lib/platform-label';
 import { VnDetailLayout } from '@/components/VnDetailLayout';
+import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
 import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
 
@@ -36,12 +38,10 @@ import { fmtNum, formatVndbDateString } from '@/lib/locale-number';
 import { EditForm } from '@/components/EditForm';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SafeImage } from '@/components/SafeImage';
-import { MediaGallery } from '@/components/MediaGallery';
 import { CoverUploader } from '@/components/CoverUploader';
 
 import { HeroBanner } from '@/components/HeroBanner';
 
-import { CharactersSection } from '@/components/CharactersSection';
 import { CastSection } from '@/components/CastSection';
 import { StaffSection } from '@/components/StaffSection';
 import { TagCoOccurrence } from '@/components/TagCoOccurrence';
@@ -59,16 +59,12 @@ import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { VnDetailActionsBar } from '@/components/VnDetailActionsBar';
 import { NotesSectionToggle } from '@/components/NotesSectionToggle';
 import { ScoreSection } from '@/components/ScoreSection';
-import { ReleasesSection } from '@/components/ReleasesSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
-import { QuotesSection } from '@/components/QuotesSection';
-import { RoutesSection } from '@/components/RoutesSection';
 import { LangList } from '@/components/LangFlag';
 import { RelationsSection } from '@/components/RelationsSection';
 import { RecordRecentView } from '@/components/RecordRecentView';
 import { NotInCollectionBanner } from '@/components/NotInCollectionBanner';
 import { TitleLine } from '@/components/TitleLine';
-import { StockPanel } from '@/components/StockPanel';
 import { StockPanelBoundary } from '@/components/StockPanelBoundary';
 import { StockPricesSection } from '@/components/StockPricesSection';
 import { getStockForVn } from '@/lib/stock';
@@ -86,6 +82,37 @@ import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/l
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
 import { getPlaceProviderMap } from '@/lib/db';
+
+const MediaGallery = nextDynamic(() => import('@/components/MediaGallery').then((m) => m.MediaGallery), {
+  loading: () => (
+    <div className="flex gap-3 overflow-hidden">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <SkeletonBlock key={i} className="aspect-video h-28 shrink-0" />
+      ))}
+    </div>
+  ),
+});
+
+const CharactersSection = nextDynamic(() => import('@/components/CharactersSection').then((m) => m.CharactersSection), {
+  loading: () => <SkeletonRows count={4} />,
+});
+
+const RoutesSection = nextDynamic(() => import('@/components/RoutesSection').then((m) => m.RoutesSection), {
+  loading: () => <SkeletonRows count={3} withThumb={false} />,
+});
+
+const QuotesSection = nextDynamic(() => import('@/components/QuotesSection').then((m) => m.QuotesSection), {
+  loading: () => <SkeletonRows count={3} withThumb={false} />,
+});
+
+const ReleasesSection = nextDynamic(() => import('@/components/ReleasesSection').then((m) => m.ReleasesSection), {
+  loading: () => <SkeletonRows count={4} />,
+});
+
+const StockPanel = nextDynamic(() => import('@/components/StockPanel').then((m) => m.StockPanel), {
+  loading: () => <SkeletonRows count={4} />,
+});
+
 export const dynamic = 'force-dynamic';
 
 function combinedScore(vndb: number | null, egs: number | null): number | null {
@@ -835,7 +862,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
 
         {(vn.screenshots.length > 0 || vn.release_images.length > 0) && (
           <div className="border-t border-border px-3 py-4 sm:px-6 sm:py-6 md:px-8">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-widest text-muted">{t.media.section}</h2>
+            <h2 className="mb-3 text-base font-bold uppercase tracking-widest text-muted">{t.media.section}</h2>
             <MediaGallery vnId={vn.id} screenshots={vn.screenshots} releaseImages={vn.release_images} />
           </div>
         )}
@@ -972,7 +999,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-bold uppercase tracking-widest text-muted">
+                  <h2 className="text-base font-bold uppercase tracking-widest text-muted">
                     {t.similar.sectionTitle}
                   </h2>
                   <p className="mt-1 text-xs text-muted/80">{t.similar.sectionHint}</p>
