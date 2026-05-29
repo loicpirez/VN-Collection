@@ -3,7 +3,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { refreshStockForVn, STOCK_PROVIDER_IDS, type StockProviderId } from '@/lib/stock';
 import { sanitizeUnknownError } from '@/lib/error-sanitize';
-import { cancelJob, finishJob, isJobCancelled, recordError, resetJob, setJobCurrent, startJob, tickJob } from '@/lib/download-status';
+import { cancelJob, finishJob, isJobCancelled, recordError, setJobCurrent, startJob, tickJob } from '@/lib/download-status';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,20 +31,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const providers = parseProviders(body.providers);
 
   const job = startJob('stock-batch', `Stock refresh × ${vnIds.length}`, vnIds.length, null);
-  const providerJob = startJob('stock-batch', 'Providers', providers.length, null);
 
   void (async () => {
     try {
       for (const vnId of vnIds) {
         if (isJobCancelled(job.id)) break;
         setJobCurrent(job.id, vnId);
-        let firstProviderTick = true;
+        const providerJob = startJob('stock-batch', `Providers - ${vnId}`, providers.length, vnId);
         try {
-          await refreshStockForVn(vnId, providers, undefined, (provider, done, total) => {
-            if (firstProviderTick) {
-              resetJob(providerJob.id, `Providers - ${vnId}`, total, vnId);
-              firstProviderTick = false;
-            }
+          await refreshStockForVn(vnId, providers, undefined, (provider, _done, _total) => {
             setJobCurrent(providerJob.id, provider);
             tickJob(providerJob.id);
           });
@@ -52,12 +47,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           const msg = sanitizeUnknownError(e);
           console.error('[stock/batch] refresh failed', { vnId, msg });
           recordError(job.id, vnId, msg);
+        } finally {
+          finishJob(providerJob.id);
         }
         tickJob(job.id);
       }
     } finally {
       finishJob(job.id);
-      finishJob(providerJob.id);
     }
   })();
 
