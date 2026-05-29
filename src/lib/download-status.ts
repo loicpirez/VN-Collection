@@ -240,6 +240,19 @@ export function isJobCancelled(jobId: string): boolean {
   return cancelledJobs.has(jobId);
 }
 
+export function resetJob(jobId: string, label: string, total: number, vnId: string | null = null): void {
+  const j = jobs.get(jobId);
+  if (!j) return;
+  j.label = label;
+  j.total = total;
+  j.done = 0;
+  j.vn_id = vnId;
+  j.current_item = null;
+  j.finished_at = null;
+  j.errors = [];
+  emit();
+}
+
 /**
  * Return all tracked jobs sorted newest-first. Called by
  * `GET /api/download-status` (polling) and `GET /api/download-status/stream` (SSE)

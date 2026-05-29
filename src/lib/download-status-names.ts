@@ -6,6 +6,7 @@ import {
   batchGetStaffNames,
   batchGetVnTitles,
 } from './db';
+import { STOCK_PROVIDER_LABELS, type StockProviderId } from './stock-provider-constants';
 
 export interface EnrichedJob extends DownloadJob {
   vn_title: string | null;
@@ -53,6 +54,7 @@ export function enrichJobs(jobs: DownloadJob[]): EnrichedJob[] {
       else if (ci.startsWith('p')) current_item_name = producerNames.get(ci) ?? null;
       else if (ci.startsWith('s')) current_item_name = staffNames.get(ci) ?? null;
       else if (ci.startsWith('c')) current_item_name = charNames.get(ci) ?? null;
+      else if (ci in STOCK_PROVIDER_LABELS) current_item_name = STOCK_PROVIDER_LABELS[ci as StockProviderId];
     }
     return {
       ...j,

@@ -66,8 +66,8 @@ function idToHref(id: string): string | null {
 function EntityLink({ id, name }: { id: string; name?: string | null }) {
   const href = idToHref(id);
   const label = name ? name : id;
-  const suffix = name ? <span className="ml-0.5 opacity-50">({id})</span> : null;
-  if (!href) return <span>{id}</span>;
+  const suffix = name && href ? <span className="ml-0.5 opacity-50">({id})</span> : null;
+  if (!href) return <span>{label}</span>;
   return (
     <Link
       href={href}
@@ -444,7 +444,7 @@ export function DownloadStatusBar() {
                         current_item is set (queue tail / finished).
                       */}
                       {!finished && j.current_item ? (
-                        <EntityLink id={j.current_item} name={j.current_item_name} />
+                        <>{labelKind(j.kind)} – <EntityLink id={j.current_item} name={j.current_item_name} /></>
                       ) : (
                         <span>
                           {labelKind(j.kind)} ·{' '}

@@ -2576,7 +2576,7 @@ async function refreshProvider(
  * a `vn_stock_provider_status` row per provider so the UI can show the
  * skipped / no-results / partial / ok state without re-running the parse.
  */
-export async function refreshStockForVn(vnId: string, providers: StockProviderId[] = [...STOCK_PROVIDER_IDS], signal?: AbortSignal): Promise<StockSnapshot> {
+export async function refreshStockForVn(vnId: string, providers: StockProviderId[] = [...STOCK_PROVIDER_IDS], signal?: AbortSignal, onProviderProgress?: (provider: StockProviderId, done: number, total: number) => void): Promise<StockSnapshot> {
   const vn = await loadVnForStock(vnId);
   if (!vn) throw new Error(`VN not found: ${vnId}`);
   const aliases = listStockAliases(vnId).map((a) => a.alias_term);
@@ -2599,7 +2599,8 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
     });
     discovered.set(provider, uniqTargets(list));
   }
-  for (const provider of activeProviders) {
+  for (let _pi = 0; _pi < activeProviders.length; _pi++) {
+    const provider = activeProviders[_pi];
     const now = Date.now();
     try {
       const rawOffers = await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases);
@@ -2650,6 +2651,7 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
         cached_offers_available: preserveExistingOffers ? cachedOffers.length : 0,
       }, { preserveExistingOffers });
     }
+    onProviderProgress?.(provider, _pi + 1, activeProviders.length);
   }
   return getStockForVn(vnId);
 }
