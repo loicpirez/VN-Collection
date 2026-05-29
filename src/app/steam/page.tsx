@@ -326,8 +326,7 @@ export default function SteamSyncPage() {
                     l.source === 'manual' ? 'bg-accent/15 text-accent' : 'bg-bg-elev text-muted'
                   }`}
                 >
-                  {/* I-015: localize the auto/manual chip label */}
-                  {l.source === 'manual' ? t.steam.linkSourceManual : t.steam.linkSourceAuto}
+                  {l.source === 'manual' ? t.steam.linkSource.manual : t.steam.linkSource.auto}
                 </span>
                 <button
                   type="button"
