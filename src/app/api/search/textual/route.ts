@@ -3,6 +3,7 @@ import { searchTextual } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const Q_MAX = 300;
 

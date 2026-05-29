@@ -9,11 +9,10 @@ import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
+export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// intentionally public — single-user self-hosted app; shelf layout
-// carries no PII. Mutating handlers below remain gated.
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const includePool = req.nextUrl.searchParams.get('pool') === '1';
   return NextResponse.json({

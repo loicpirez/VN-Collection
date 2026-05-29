@@ -4,10 +4,11 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-export const dynamic = 'force-dynamic';
 
-// intentionally public — single-user self-hosted app; series metadata
-// carries no PII. Mutating handlers below remain gated.
+export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(): Promise<NextResponse> {
   return NextResponse.json({ series: listSeries() });
 }

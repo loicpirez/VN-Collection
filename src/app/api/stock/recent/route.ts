@@ -3,6 +3,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { listRecentVnStockOffers } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;

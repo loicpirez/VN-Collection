@@ -4,9 +4,11 @@ import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
-export const dynamic = 'force-dynamic';
 
-// intentionally public — single-user self-hosted app; per-VN route names.
+export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);

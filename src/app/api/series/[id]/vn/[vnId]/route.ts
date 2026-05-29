@@ -7,6 +7,7 @@ import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 function parseSeriesId(s: string): number | null {
   const n = Number(s);

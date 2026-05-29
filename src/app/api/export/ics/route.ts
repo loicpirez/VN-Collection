@@ -4,6 +4,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 /**
  * Escape a string for an ICS TEXT value. RFC 5545 only requires \, ;, ,

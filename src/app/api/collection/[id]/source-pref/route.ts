@@ -11,14 +11,14 @@ import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
+
+export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const VALID_FIELDS: SourceField[] = ['title', 'description', 'image', 'brand', 'rating', 'playtime'];
 const VALID_CHOICES: SourceChoice[] = ['auto', 'vndb', 'egs', 'custom'];
 
-// intentionally public — single-user self-hosted app; per-VN source pref
-// indicates whether VNDB or EGS data is preferred for that VN. Mutating
-// handler below remains gated.
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);

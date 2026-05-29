@@ -5,6 +5,7 @@ import { upsertReleaseResolutionCache } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);

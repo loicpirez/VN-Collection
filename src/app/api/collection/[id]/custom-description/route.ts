@@ -6,6 +6,7 @@ import { validateVnIdOr400 } from '@/lib/vn-id';
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 function logActivity(id: string, text: string | null) {
   try {

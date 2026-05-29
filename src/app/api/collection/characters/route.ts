@@ -3,6 +3,7 @@ import { searchLocalCharacters } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 /**
  * Local character search backing the `/characters` "Local" tab.

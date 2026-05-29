@@ -10,10 +10,11 @@ import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { internalError } from '@/lib/api-error';
-export const dynamic = 'force-dynamic';
 
-// intentionally public — single-user self-hosted app; read-only queue
-// data carries no PII. Mutating handlers below remain gated.
+export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(): Promise<NextResponse> {
   try {
     return NextResponse.json({ entries: listReadingQueue() });

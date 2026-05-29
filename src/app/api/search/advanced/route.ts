@@ -5,6 +5,7 @@ import { isInCollectionMany } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const VALID_SORTS = new Set(['searchrank', 'rating', 'votecount', 'released', 'title']);
 

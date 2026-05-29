@@ -17,7 +17,10 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+
+export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const VALID_CONDITIONS = new Set(['new', 'used', 'sealed', 'opened', 'damaged']);
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -127,8 +130,6 @@ function validateReleaseId(raw: string, vnId: string): { ok: boolean; normalized
   return { ok: false, normalized: trimmed };
 }
 
-// intentionally public — single-user self-hosted app; owned-release
-// metadata references the operator's own VNs only.
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);

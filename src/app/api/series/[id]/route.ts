@@ -5,6 +5,7 @@ import { recordActivity } from '@/lib/activity';
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 function parseId(s: string): number | null {
   const n = Number(s);

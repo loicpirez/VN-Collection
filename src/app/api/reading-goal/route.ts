@@ -5,6 +5,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const YEAR_MIN = 1900;
 const YEAR_MAX = 2200;

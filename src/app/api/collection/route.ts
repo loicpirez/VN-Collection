@@ -17,7 +17,10 @@ import { isAspectKey } from '@/lib/aspect-ratio';
 import { clampQuery } from '@/lib/api-query';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
+
+export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [
   'updated_at',
@@ -37,9 +40,29 @@ const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [
   'custom',
 ];
 
-// intentionally public — single-user self-hosted app; the library view
-// carries the user's own collection metadata only. Mutating handlers
-// (POST/PATCH/DELETE per VN) remain gated via requireLocalhostOrToken.
+/**
+ * 30-second in-process cache for the full-collection `vn_id` scan that
+ * feeds aspect materialization. The scan result is the complete set of
+ * collection VN ids and does not vary by request parameters, so a
+ * keyless TTL is sufficient; the materialize helpers below are
+ * idempotent and short-circuit per VN, so a slightly stale id list at
+ * most defers a freshly added VN's aspect backfill by one TTL window.
+ * Mirrors the `getAggregateStats` cache shape in `@/lib/db`.
+ */
+let collectionVnIdsCache: { at: number; data: string[] } | null = null;
+const COLLECTION_VN_IDS_TTL_MS = 30_000;
+
+function getCachedCollectionVnIds(): string[] {
+  if (collectionVnIdsCache && Date.now() - collectionVnIdsCache.at < COLLECTION_VN_IDS_TTL_MS) {
+    return collectionVnIdsCache.data;
+  }
+  const data = (
+    db.prepare('SELECT vn_id FROM collection').all() as Array<{ vn_id: string }>
+  ).map((r) => r.vn_id);
+  collectionVnIdsCache = { at: Date.now(), data };
+  return data;
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const sp = req.nextUrl.searchParams;
   const status = sp.get('status') ?? '';
@@ -109,9 +132,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const requestsAspect = aspectValid.length > 0 || sp.get('group') === 'aspect';
     if (requestsAspect) {
-      const allVnIds = (
-        db.prepare('SELECT vn_id FROM collection').all() as Array<{ vn_id: string }>
-      ).map((r) => r.vn_id);
+      const allVnIds = getCachedCollectionVnIds();
       // STEP 1: pull aspect from cached VNDB release payloads (per
       // VN, idempotent + short-circuits). The Library was the
       // surface where the user observed VNs with 800x600 (→ 4:3)

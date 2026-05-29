@@ -5,6 +5,7 @@ import { searchVn } from '@/lib/vndb';
 import { searchEgsByName } from '@/lib/erogamescape';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const MAX_TITLES = 50;
 

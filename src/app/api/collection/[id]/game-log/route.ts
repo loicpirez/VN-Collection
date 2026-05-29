@@ -31,6 +31,7 @@ function logGameLogActivity(
   }
 }
 
+export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -49,8 +50,6 @@ export const runtime = 'nodejs';
  * (Date.now()-style). Clients should NOT send local-time milliseconds;
  * convert to UTC server-side or via Date.prototype.getTime() first.
  */
-// intentionally public — single-user self-hosted app; game log entries
-// reference the operator's own VNs only. Mutating handlers below gated.
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   const bad = validateVnIdOr400(id);

@@ -6,6 +6,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { clampQuery } from '@/lib/api-query';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 // Cap user-supplied query strings before forwarding to VNDB. The
 const Q_MAX = 200;

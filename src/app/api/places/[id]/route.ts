@@ -4,6 +4,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 import { readJsonObject } from '@/lib/api-body';
 
+export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -14,7 +15,6 @@ function parseId(raw: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-// intentionally public — single-user self-hosted app, collection metadata
 export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   try {
     const { id: raw } = await ctx.params;

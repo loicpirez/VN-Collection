@@ -40,9 +40,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const vnIds = parseVnIds(body.vnIds);
   if (vnIds.length === 0) return NextResponse.json({ error: 'no valid vnIds' }, { status: 400 });
   const parsed = parseProviders(body.providers);
-  if (Array.isArray(body.providers) && parsed.unknown.length > 0 && parsed.providers.length === 0) {
+  if (Array.isArray(body.providers) && parsed.unknown.length > 0) {
     return NextResponse.json(
-      { error: 'no valid providers', unknown: parsed.unknown },
+      { error: 'invalid providers', code: 'invalid_providers', invalid: parsed.unknown },
       { status: 400 },
     );
   }

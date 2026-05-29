@@ -18,6 +18,7 @@ function logCacheInvalidate(payload: Record<string, unknown>) {
 }
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET(req: Request): Promise<NextResponse> {
   // Cache stats include the list of cached path tags — minor info

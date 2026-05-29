@@ -3,6 +3,7 @@ import { listProducerStats, listPublisherStats } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 /**
  * Returns both developer and publisher rankings so a single client
