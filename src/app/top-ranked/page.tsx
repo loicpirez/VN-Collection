@@ -441,7 +441,7 @@ function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]
               <Link
                 href={`/vn/${v.id}`}
                 title={v.title}
-                className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent"
+                className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent"
               >
                 {v.title}
               </Link>
@@ -546,7 +546,7 @@ function EgsSection({
                   href={href}
                   {...linkProps}
                   title={r.gamename}
-                  className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent"
+                  className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent"
                 >
                   {r.gamename}
                 </Link>

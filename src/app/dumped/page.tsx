@@ -250,7 +250,7 @@ export default async function DumpedPage({
                         />
                       </div>
                       <div className="min-w-0 flex-1 text-[11px]">
-                        <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent" title={e.vn_title}>
+                        <p className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent" title={e.vn_title}>
                           {e.vn_title}
                         </p>
                         {noEditions ? (
@@ -269,7 +269,7 @@ export default async function DumpedPage({
                               {t.dumped.noEditions}
                             </p>
                             <span
-                              className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent group-hover:underline"
+                              className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent can-hover:group-hover:underline"
                             >
                               <Plus className="h-3 w-3" aria-hidden />
                               {t.dumped.addEditionCta}

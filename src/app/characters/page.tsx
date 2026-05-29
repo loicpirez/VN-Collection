@@ -511,7 +511,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                             className="h-full w-full"
                           />
                         </div>
-                        <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent" title={c.name}>
+                        <p className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent" title={c.name}>
                           {c.name}
                         </p>
                         {c.original && (

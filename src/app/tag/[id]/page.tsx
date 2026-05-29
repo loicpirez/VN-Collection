@@ -451,7 +451,7 @@ async function TagVndbResults({ tagId, page }: { tagId: string; page: number }) 
                     className="h-full w-full"
                   />
                 </div>
-                <p title={v.title} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                <p title={v.title} className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent">
                   {v.title}
                 </p>
                 <div className="flex items-center gap-2 text-[11px] text-muted">

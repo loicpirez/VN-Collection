@@ -459,7 +459,7 @@ export default async function ShelfPage({
                               />
                             </div>
                           <div className="min-w-0 flex-1 text-[11px]">
-                            <p title={e.vn_title} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                            <p title={e.vn_title} className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent">
                               {e.vn_title}
                             </p>
                             {/*
@@ -667,7 +667,7 @@ export default async function ShelfPage({
                           />
                         </div>
                         <div className="min-w-0 flex-1 text-[11px]">
-                          <p title={b.vn_title} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                          <p title={b.vn_title} className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent">
                             {b.vn_title}
                           </p>
                           <p className="mt-1 text-[11px] text-muted">

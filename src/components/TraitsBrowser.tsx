@@ -136,7 +136,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
               className="group block rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
             >
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-sm font-bold transition-colors group-hover:text-accent" title={`${tr.group_name ? `${tr.group_name} / ` : ''}${tr.name}`}>
+                <h3 className="text-sm font-bold transition-colors can-hover:group-hover:text-accent" title={`${tr.group_name ? `${tr.group_name} / ` : ''}${tr.name}`}>
                   {tr.group_name && <span className="text-muted">{tr.group_name} / </span>}
                   {tr.name}
                 </h3>

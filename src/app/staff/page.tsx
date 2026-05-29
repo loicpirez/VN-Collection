@@ -303,7 +303,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
                   href={`/staff/${s.id}`}
                   className="group block rounded-lg border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent"
                 >
-                  <p className="line-clamp-1 text-sm font-bold transition-colors group-hover:text-accent" title={s.name}>
+                  <p className="line-clamp-1 text-sm font-bold transition-colors can-hover:group-hover:text-accent" title={s.name}>
                     {s.name}
                   </p>
                   {s.original && (

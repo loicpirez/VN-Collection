@@ -755,7 +755,7 @@ function ResultsGrid({
                 )}
               </div>
               <div className="flex flex-1 flex-col gap-1 p-3">
-                <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-accent" title={r.title}>
+                <h3 className="line-clamp-2 text-sm font-bold transition-colors can-hover:group-hover:text-accent" title={r.title}>
                   {r.title}
                 </h3>
                 {/*

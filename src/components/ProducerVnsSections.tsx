@@ -217,7 +217,7 @@ function RoleSection({
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h4 className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                  <h4 className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent">
                     {v.title}
                   </h4>
                   {v.alttitle && v.alttitle !== v.title && (

@@ -391,7 +391,7 @@ function TreeTagChip({ tag, localCount, locale }: { tag: VndbTagTreeNode; localC
       href={tag.href}
       className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-card px-3 py-1 text-xs transition-colors hover:border-accent hover:bg-accent/10"
     >
-      <span className="font-medium transition-colors group-hover:text-accent">{tag.name}</span>
+      <span className="font-medium transition-colors can-hover:group-hover:text-accent">{tag.name}</span>
       {tag.count != null ? <span className="text-muted tabular-nums">({fmtNum(tag.count, locale)})</span> : null}
       {localCount ? (
         <span className="rounded bg-accent/20 px-1 text-accent tabular-nums">{localCount}</span>
@@ -420,7 +420,7 @@ function TagListPanel({
         {tags.slice(0, 12).map((tag) => (
           <li key={tag.id}>
             <Link href={tag.href} className="group flex items-center gap-2 rounded-lg border border-border bg-bg-elev/35 px-3 py-2 text-sm hover:border-accent">
-              <span className="min-w-0 flex-1 truncate font-medium group-hover:text-accent" title={tag.name}>{tag.name}</span>
+              <span className="min-w-0 flex-1 truncate font-medium can-hover:group-hover:text-accent" title={tag.name}>{tag.name}</span>
               {showDate && tag.dateLabel ? <span className="text-xs text-muted">{tag.dateLabel}</span> : null}
               {tag.count != null ? <span className="text-xs tabular-nums text-muted">({fmtNum(tag.count, locale)})</span> : null}
               {localCounts.get(tag.id) ? <span className="rounded bg-accent/20 px-1 text-xs text-accent">{localCounts.get(tag.id)}</span> : null}
@@ -479,7 +479,7 @@ function TagFlatView({ results, mode, q, localCounts, locale }: { results: VndbT
                     href={tagChipHref(mode, tag.id)}
                     className="block focus-visible:outline-none"
                   >
-                    <h3 className="text-sm font-bold transition-colors group-hover:text-accent" title={tag.name}>{tag.name}</h3>
+                    <h3 className="text-sm font-bold transition-colors can-hover:group-hover:text-accent" title={tag.name}>{tag.name}</h3>
                     {tag.description && (
                       <p className="mt-1 line-clamp-2 text-xs text-muted">
                         {stripVndbMarkup(tag.description)}
@@ -492,7 +492,7 @@ function TagFlatView({ results, mode, q, localCounts, locale }: { results: VndbT
                           {localCounts.get(tag.id)} {t.tags.inCollection}
                         </span>
                       ) : null}
-                      <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                      <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100">
                         <ArrowRight className="h-3 w-3" aria-hidden />
                       </span>
                     </div>

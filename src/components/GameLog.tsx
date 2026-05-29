@@ -239,7 +239,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                           </span>
                         )}
                         {!isEditing && (
-                          <span className="ml-auto inline-flex gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+                          <span className="ml-auto inline-flex gap-1 transition-opacity can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:focus-within:opacity-100">
                             <button
                               type="button"
                               onClick={() => startEdit(entry)}

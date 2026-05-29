@@ -199,7 +199,7 @@ export function TextualSearchPanel({
                             />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="line-clamp-1 text-xs font-bold transition-colors group-hover:text-accent">
+                            <div className="line-clamp-1 text-xs font-bold transition-colors can-hover:group-hover:text-accent">
                               {h.title}
                             </div>
                             {h.alttitle && h.alttitle !== h.title && (
@@ -230,7 +230,7 @@ export function TextualSearchPanel({
                       <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">
-                          <span className="line-clamp-1 text-xs font-bold transition-colors group-hover:text-accent">
+                          <span className="line-clamp-1 text-xs font-bold transition-colors can-hover:group-hover:text-accent">
                             {h.title}
                           </span>
                           <span className="shrink-0 text-[9px] uppercase tracking-wider text-muted">

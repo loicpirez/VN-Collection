@@ -111,7 +111,7 @@ export function CoverRotationButtons({
         // active rotation. As soon as the user rotates, the cluster
         // stays visible (with the rotation chip as the anchor) so
         // the reset is always reachable without hovering the cover.
-        hasRotation ? '' : 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100',
+        hasRotation ? '' : 'can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100',
       ].join(' ')}
     >
       <button
@@ -123,7 +123,7 @@ export function CoverRotationButtons({
         // Rotate buttons keep the hover-fade so the cover is not
         // permanently visually cluttered when no rotation is set.
         className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50 ${
-          hasRotation ? 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100' : ''
+          hasRotation ? 'can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100' : ''
         }`}
       >
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RotateCcw className="h-3.5 w-3.5" aria-hidden />}
@@ -135,7 +135,7 @@ export function CoverRotationButtons({
         aria-label={t.coverActions.rotateRight}
         title={t.coverActions.rotateRight}
         className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-black/70 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg disabled:opacity-50 ${
-          hasRotation ? 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100' : ''
+          hasRotation ? 'can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100' : ''
         }`}
       >
         <RotateCw className="h-3.5 w-3.5" aria-hidden />

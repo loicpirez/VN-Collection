@@ -16,7 +16,7 @@ export function SeriesRemoveVn({ seriesId, vnId }: { seriesId: number; vnId: str
 
   return (
     <button
-      className="tap-target absolute right-1 top-1 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white transition-opacity hover:bg-status-dropped md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+      className="tap-target absolute right-1 top-1 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white transition-opacity hover:bg-status-dropped can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
       aria-label={t.series.removeFromSeries}
       title={t.series.removeFromSeries}
       onClick={async (e) => {

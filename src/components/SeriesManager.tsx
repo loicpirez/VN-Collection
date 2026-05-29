@@ -103,7 +103,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
               </Link>
               <button
                 type="button"
-                className="btn btn-danger transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                className="btn btn-danger transition-opacity can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                 onClick={() => remove(s.id)}
                 aria-label={t.series.delete}
                 title={t.series.delete}

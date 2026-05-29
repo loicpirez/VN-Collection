@@ -85,7 +85,7 @@ export function ListCardActions({ list }: { list: List }) {
         id={triggerId}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-opacity hover:bg-bg-elev hover:text-white focus:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+        className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-opacity hover:bg-bg-elev hover:text-white focus:opacity-100 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}

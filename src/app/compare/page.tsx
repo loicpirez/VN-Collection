@@ -96,7 +96,7 @@ export default async function ComparePage({
 
   // Map shared staff ids → display data (name + role for the first VN that has them).
   const sharedStaff = items[0]?.staff?.filter((s) => sharedStaffIds.has(s.id)) ?? [];
-  const sharedTagsWithNames = items[0]?.tags?.filter((tg) => sharedTagIds.has(tg.id)) ?? [];
+  const sharedTagsWithNames = items[0]?.tags?.filter((tg) => sharedTagIds.has(tg.id) && tg.spoiler === 0) ?? [];
   const sharedVas = findSharedVasForVns(items.map((it) => it.id));
   const sharedVaIds = new Set(sharedVas.map((va) => va.sid));
   const sharedCharacters = findSharedCharacters(items.map((it) => it.id));
@@ -182,12 +182,7 @@ export default async function ComparePage({
                   <Link
                     key={tg.id}
                     href={`/?tag=${encodeURIComponent(tg.id)}`}
-                    title={tg.spoiler > 0 ? `⚠ spoiler lvl ${tg.spoiler}` : undefined}
-                    className={`rounded px-1.5 py-0.5 text-[11px] hover:opacity-80 ${
-                      tg.spoiler > 0
-                        ? 'bg-status-on_hold/20 text-status-on_hold'
-                        : 'bg-accent/20 text-accent hover:bg-accent/30'
-                    }`}
+                    className="rounded bg-accent/20 px-1.5 py-0.5 text-[11px] text-accent hover:bg-accent/30 hover:opacity-80"
                   >
                     {tg.name}
                   </Link>

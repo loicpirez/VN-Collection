@@ -280,7 +280,7 @@ async function EgsPageContent() {
                     />
                   </div>
                   <div className="min-w-0 flex-1 text-[11px]">
-                    <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent" title={l.vn_title}>
+                    <p className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent" title={l.vn_title}>
                       {l.vn_title}
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted">
@@ -363,7 +363,7 @@ async function EgsPageContent() {
                     />
                   </div>
                   <div className="min-w-0 flex-1 text-[11px]">
-                    <p className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent" title={u.vn_title}>
+                    <p className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent" title={u.vn_title}>
                       {u.vn_title}
                     </p>
                     {u.vn_alttitle && u.vn_alttitle !== u.vn_title && (

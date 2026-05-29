@@ -280,19 +280,21 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/60 to-transparent" />
         {liveSrc && (
           <div
-            className="absolute right-3 top-3 z-10 flex items-center gap-1.5 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+            className="absolute right-3 top-3 z-10 flex items-center gap-1.5 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={() => { setDraftPosition(position); setEditing(true); }}
-              className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
-              title={t.banner.adjust}
-              aria-label={t.banner.adjust}
-            >
-              <Crosshair className="h-3 w-3" aria-hidden /> {t.banner.adjust}
-            </button>
+            {inCollection && (
+              <button
+                type="button"
+                onClick={() => { setDraftPosition(position); setEditing(true); }}
+                className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
+                title={t.banner.adjust}
+                aria-label={t.banner.adjust}
+              >
+                <Crosshair className="h-3 w-3" aria-hidden /> {t.banner.adjust}
+              </button>
+            )}
             {inCollection && (
               <>
                 <button
@@ -436,7 +438,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
           className={`absolute right-3 top-3 z-10 flex flex-wrap items-center gap-1.5 transition-opacity ${
             editing
               ? 'opacity-100'
-              : 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:hover:opacity-100'
+              : 'can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100 can-hover:md:hover:opacity-100'
           }`}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerMove={(e) => e.stopPropagation()}
@@ -445,22 +447,20 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         >
           {!editing ? (
             <>
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftPosition(position);
-                  setEditing(true);
-                }}
-                className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
-                title={t.banner.adjust}
-                aria-label={t.banner.adjust}
-              >
-                <Crosshair className="h-3 w-3" aria-hidden /> {t.banner.adjust}
-              </button>
-              {/*
-                Rotation is persisted to the collection row — only
-                available when the VN is already tracked.
-              */}
+              {inCollection && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftPosition(position);
+                    setEditing(true);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
+                  title={t.banner.adjust}
+                  aria-label={t.banner.adjust}
+                >
+                  <Crosshair className="h-3 w-3" aria-hidden /> {t.banner.adjust}
+                </button>
+              )}
               {inCollection && (
                 <>
                   <button

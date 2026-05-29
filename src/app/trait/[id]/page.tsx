@@ -208,7 +208,7 @@ export default async function TraitPage({
                       />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <span title={c.name} className="line-clamp-2 text-xs font-bold transition-colors group-hover:text-accent">
+                      <span title={c.name} className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent">
                         {c.name}
                       </span>
                       {c.original && c.original !== c.name && (
