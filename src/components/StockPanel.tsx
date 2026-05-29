@@ -1,5 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
@@ -1089,7 +1090,7 @@ export function StockPanel({
       )}
 
       {!loading && offers.length > 0 && (
-        <OffersGrouped offers={offers} best={best} currency={currency} t={t} locale={locale} />
+        <OffersGrouped offers={offers} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} />
       )}
 
       {!loading && confirmedPhysicalIds.size > 0 && (
@@ -1540,12 +1541,14 @@ function OfferCard({
   currency,
   t,
   locale,
+  placeMap,
 }: {
   offer: StockOffer;
   best: number | null;
   currency: Intl.NumberFormat;
   t: TDict;
   locale: string;
+  placeMap: Record<string, number>;
 }) {
   const isBest = offer.price != null && offer.price === best && best != null;
   const warnings: string[] = (() => {
@@ -1585,12 +1588,27 @@ function OfferCard({
         </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted">
-        {offer.location_branch && (
-          <span className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 font-semibold text-accent">
-            <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-            {offer.location_branch}
-          </span>
-        )}
+        {offer.location_branch && (() => {
+          const placeId = placeMap[offer.location_branch];
+          const inner = (
+            <>
+              <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+              {offer.location_branch}
+            </>
+          );
+          return placeId != null ? (
+            <Link
+              href={`/places/${placeId}`}
+              className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 font-semibold text-accent hover:bg-accent/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              {inner}
+            </Link>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 font-semibold text-accent">
+              {inner}
+            </span>
+          );
+        })()}
         {offer.location_label && offer.location_label !== offer.location_branch && (
           <span className="rounded bg-bg px-1.5 py-0.5">
             {/* I-027: translate the sentinel at render time. */}
@@ -1668,6 +1686,7 @@ function OfferGroup({
   currency,
   t,
   locale,
+  placeMap,
   defaultCollapsed = false,
 }: {
   label: string;
@@ -1677,6 +1696,7 @@ function OfferGroup({
   currency: Intl.NumberFormat;
   t: TDict;
   locale: string;
+  placeMap: Record<string, number>;
   defaultCollapsed?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(() => {
@@ -1721,7 +1741,7 @@ function OfferGroup({
           className="grid gap-3 lg:grid-cols-2"
         >
           {offers.map((offer) => (
-            <OfferCard key={`${offer.provider}:${offer.provider_offer_id}`} offer={offer} best={best} currency={currency} t={t} locale={locale} />
+            <OfferCard key={`${offer.provider}:${offer.provider_offer_id}`} offer={offer} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} />
           ))}
         </ul>
       )}
@@ -1735,12 +1755,14 @@ function OffersGrouped({
   currency,
   t,
   locale,
+  placeMap,
 }: {
   offers: StockOffer[];
   best: number | null;
   currency: Intl.NumberFormat;
   t: TDict;
   locale: string;
+  placeMap: Record<string, number>;
 }) {
   // Single pass instead of 5 separate .filter() calls. classifyGroup is pure;
   // result depends only on the offer's classification fields. Memoised across
@@ -1775,11 +1797,11 @@ function OffersGrouped({
           </span>
         )}
       </div>
-      <OfferGroup label={t.stock.groupGame as string} groupKey="game" offers={game} best={best} currency={currency} t={t} locale={locale} />
-      <OfferGroup label={t.stock.groupNeedsReview as string} groupKey="needs_review" offers={needsReview} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
-      <OfferGroup label={t.stock.groupSameSeries as string} groupKey="series" offers={series} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
-      <OfferGroup label={t.stock.groupRelated as string} groupKey="related" offers={related} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
-      <OfferGroup label={t.stock.groupRejected as string} groupKey="rejected" offers={rejected} best={best} currency={currency} t={t} locale={locale} defaultCollapsed />
+      <OfferGroup label={t.stock.groupGame as string} groupKey="game" offers={game} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} />
+      <OfferGroup label={t.stock.groupNeedsReview as string} groupKey="needs_review" offers={needsReview} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} defaultCollapsed />
+      <OfferGroup label={t.stock.groupSameSeries as string} groupKey="series" offers={series} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} defaultCollapsed />
+      <OfferGroup label={t.stock.groupRelated as string} groupKey="related" offers={related} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} defaultCollapsed />
+      <OfferGroup label={t.stock.groupRejected as string} groupKey="rejected" offers={rejected} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} defaultCollapsed />
     </div>
   );
 }
