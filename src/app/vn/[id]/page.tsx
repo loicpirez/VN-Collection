@@ -148,7 +148,8 @@ const loadVn = cache(
       const fresh = await getVn(id);
       if (!fresh) {
         if (cached) return { vn: cached, error: null };
-        return { vn: null, error: `VNDB returned no result for ${id}` };
+        const t = await getDict();
+        return { vn: null, error: t.detail.vndbNoResult.replace('{id}', id) };
       }
       upsertVn(fresh);
       return { vn: getCollectionItem(id), error: null };
