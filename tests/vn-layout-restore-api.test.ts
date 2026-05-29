@@ -111,7 +111,10 @@ describe('R5-210 — /api/settings round-trip for VN layout', () => {
 describe('R5-210 — page editor and settings panel agree on VN_SECTION_IDS', () => {
   const ROOT = join(__dirname, '..');
   const EDITOR_SRC = readFileSync(join(ROOT, 'src/components/VnDetailLayout.tsx'), 'utf8');
-  const PANEL_SRC = readFileSync(join(ROOT, 'src/components/SettingsButton.tsx'), 'utf8');
+  const PANEL_SRC =
+    readFileSync(join(ROOT, 'src/components/SettingsButton.tsx'), 'utf8') +
+    '\n' +
+    readFileSync(join(ROOT, 'src/components/settings/LayoutSettingsTab.tsx'), 'utf8');
 
   it('both surfaces import VN_SECTION_IDS from `@/lib/vn-detail-layout`', () => {
     expect(EDITOR_SRC).toMatch(/from\s+['"]@\/lib\/vn-detail-layout['"]/);

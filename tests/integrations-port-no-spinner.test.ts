@@ -19,10 +19,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const SETTINGS_SRC = readFileSync(
-  join(__dirname, '..', 'src/components/SettingsButton.tsx'),
-  'utf8',
-);
+const SETTINGS_SRC = [
+  'src/components/SettingsButton.tsx',
+  'src/components/settings/IntegrationsSettingsTab.tsx',
+]
+  .map((rel) => readFileSync(join(__dirname, '..', rel), 'utf8'))
+  .join('\n');
 
 const GLOBALS_SRC = readFileSync(join(__dirname, '..', 'src/app/globals.css'), 'utf8');
 

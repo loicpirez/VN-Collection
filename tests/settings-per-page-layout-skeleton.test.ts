@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const SOURCE = readFileSync(join(process.cwd(), 'src/components/SettingsButton.tsx'), 'utf8');
+const SOURCE = [
+  'src/components/SettingsButton.tsx',
+  'src/components/settings/LayoutSettingsTab.tsx',
+  'src/components/settings/IntegrationsSettingsTab.tsx',
+]
+  .map((rel) => readFileSync(join(process.cwd(), rel), 'utf8'))
+  .join('\n');
 
 describe('Settings per-page layout panel', () => {
   it('renders a skeleton while client layout settings hydrate', () => {
-    expect(SOURCE).toContain("import { SkeletonBlock } from './Skeleton'");
+    expect(SOURCE).toMatch(/import \{ SkeletonBlock \} from '\.\.?\/Skeleton'/);
     expect(SOURCE).toContain('if (!hydrated)');
     expect(SOURCE).toContain('aria-busy="true"');
   });
