@@ -2272,6 +2272,24 @@ export function buildSurugayaSearchUrl(query: string, page?: number): string {
   return url.toString();
 }
 
+/**
+ * Detect a Cloudflare/protected interstitial in fetched HTML. Suruga-ya is
+ * served behind Cloudflare, and a challenge page parses as an empty success
+ * unless caught first. Covers the markers `fetchShopText` checks plus the
+ * additional interstitial variants ('Checking your browser', managed-challenge
+ * and "Attention Required" pages) that slip past that narrower check.
+ */
+function isCloudflareChallenge(html: string): boolean {
+  return (
+    /<title[^>]*>\s*Just a moment\b/i.test(html) ||
+    /window\._cf_chl_opt\b/.test(html) ||
+    /__cf_chl_/.test(html) ||
+    /cf-browser-verification/i.test(html) ||
+    /Checking your browser before accessing/i.test(html) ||
+    /<title[^>]*>\s*Attention Required\b/i.test(html)
+  );
+}
+
 export interface SurugayaSearchCard {
   productId: string;
   pageKind: 'detail' | 'other';
@@ -2509,6 +2527,7 @@ async function refreshSurugaya(
     if (signal?.aborted) break;
     const url1 = buildSurugayaSearchUrl(query);
     const html1 = await fetchShopText(url1, { signal });
+    if (isCloudflareChallenge(html1)) throw new Error('cloudflare_challenge');
     const { cards: cards1, pagination } = parseSurugayaSearch(html1);
     for (const c of cards1) {
       if (!seen.has(c.productId)) { seen.add(c.productId); allCards.push(c); }
@@ -2519,6 +2538,7 @@ async function refreshSurugaya(
     while (!signal?.aborted && page <= MAX_PAGES && (page - 1) * 24 < total) {
       try {
         const htmlN = await fetchShopText(buildSurugayaSearchUrl(query, page), { signal });
+        if (isCloudflareChallenge(htmlN)) throw new Error('cloudflare_challenge');
         const { cards: cardsN } = parseSurugayaSearch(htmlN);
         for (const c of cardsN) {
           if (!seen.has(c.productId)) { seen.add(c.productId); allCards.push(c); }

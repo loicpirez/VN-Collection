@@ -72,17 +72,19 @@ export function subscribeStockSummary(vnId: string, listener: Listener): () => v
   const set = listeners.get(vnId) ?? new Set<Listener>();
   set.add(listener);
   listeners.set(vnId, set);
+  let alive = true;
   const cached = cache.get(vnId);
   if (cached !== undefined) {
     // Promote to MRU so an active subscriber's entry doesn't get
     // evicted by unrelated cache churn.
     cacheTouch(vnId, cached);
-    listener(cached);
+    queueMicrotask(() => { if (alive) listener(cached); });
   } else {
     queue.add(vnId);
     if (!queueTimer) queueTimer = setTimeout(flushQueue, COALESCE_MS);
   }
   return () => {
+    alive = false;
     const cur = listeners.get(vnId);
     if (!cur) return;
     cur.delete(listener);
