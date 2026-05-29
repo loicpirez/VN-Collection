@@ -2584,6 +2584,51 @@ function dedupeProviderOffers(rows: VnStockOfferInput[]): VnStockOfferInput[] {
   return Array.from(byKey.values());
 }
 
+/**
+ * Provider ids intentionally served by `refreshGenericProvider`. Every
+ * `StockProviderId` without a bespoke handler in `refreshProvider` must be
+ * listed here; the exhaustiveness assertion in `refreshProvider` fails to
+ * compile when a newly added provider id is neither given a dedicated
+ * handler nor enrolled in this set, so a missing handler can never silently
+ * fall through to the generic parser.
+ */
+const GENERIC_REFRESH_PROVIDER_IDS = {
+  animate: true,
+  ebten: true,
+  getchu: true,
+  gamers: true,
+  gamecity: true,
+  asakusa_mach: true,
+  amazon_jp: true,
+  amiami: true,
+  otakarasouko: true,
+  geo: true,
+  joshin: true,
+  neowing: true,
+  yodobashi: true,
+  bikkuri_takarajima: true,
+} as const;
+
+type GenericRefreshProviderId = keyof typeof GENERIC_REFRESH_PROVIDER_IDS;
+type ExplicitRefreshProviderId =
+  | 'eroge_price'
+  | 'sofmap'
+  | 'hgame1'
+  | 'melonbooks'
+  | 'surugaya'
+  | 'mandarake'
+  | 'wondergoo'
+  | 'trader';
+
+type _AssertRefreshDispatchExhaustive =
+  Exclude<StockProviderId, ExplicitRefreshProviderId | GenericRefreshProviderId> extends never
+    ? Exclude<ExplicitRefreshProviderId | GenericRefreshProviderId, StockProviderId> extends never
+      ? true
+      : never
+    : never;
+const _refreshDispatchExhaustive: _AssertRefreshDispatchExhaustive = true;
+void _refreshDispatchExhaustive;
+
 async function refreshProvider(
   provider: StockProviderId,
   vnId: string,
@@ -2665,6 +2710,12 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
       cached_offers_available: 0,
     });
   };
+  if (activeProviders.length === 0 || signal?.aborted) {
+    for (let _pi = 0; _pi < providers.length; _pi++) {
+      onProviderProgress?.(providers[_pi], _pi + 1, providers.length);
+    }
+    return getStockForVn(vnId);
+  }
   for (let _pi = 0; _pi < activeProviders.length; _pi++) {
     const provider = activeProviders[_pi];
     const now = Date.now();
