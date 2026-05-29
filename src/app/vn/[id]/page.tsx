@@ -469,7 +469,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                       {t.detail.aliases}
                     </span>
                     {(vn.aliases ?? []).slice(0, 6).map((a) => (
-                      <span key={a} className="opacity-90">
+                      <span key={a} className="max-w-[16rem] truncate opacity-90" title={a}>
                         {a}
                       </span>
                     ))}

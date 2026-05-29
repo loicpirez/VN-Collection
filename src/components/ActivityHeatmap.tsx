@@ -2,6 +2,9 @@ import { activityHeatmap, type DailyCount } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { ScrollFadeRight } from './ScrollFadeRight';
 
+const CELL = 'h-[10px] w-[10px]';
+const GAP = 'gap-[3px]';
+
 /**
  * GitHub-style 52-week heatmap. Each column is a calendar week (Mon-Sun),
  * each row a day. Saturation tracks the daily activity count clamped to a
@@ -55,23 +58,23 @@ export async function ActivityHeatmap({ year }: { year: number }) {
         </span>
       </div>
       <ScrollFadeRight
-        className="flex gap-[3px]"
+        className={`flex ${GAP}`}
         role="img"
         aria-label={t.year.heatmap.title.replace('{year}', String(year))}
       >
         {weeks.map((wk, i) => {
           const wkKey = wk.find(Boolean)?.day ?? `pad-w${i}`;
           return (
-            <div key={wkKey} className="flex flex-col gap-[3px]">
+            <div key={wkKey} className={`flex flex-col ${GAP}`}>
               {wk.map((d, j) =>
                 d ? (
                   <div
                     key={d.day}
-                    className={`h-[10px] w-[10px] rounded-sm ${tones[level(d.count)]}`}
+                    className={`${CELL} rounded-sm ${tones[level(d.count)]}`}
                     title={`${d.day} · ${d.count}`}
                   />
                 ) : (
-                  <div key={`${wkKey}-pad${j}`} className="h-[10px] w-[10px]" />
+                  <div key={`${wkKey}-pad${j}`} className={CELL} />
                 ),
               )}
             </div>
