@@ -151,6 +151,7 @@ interface ServerSettings {
   alicesoft_kobe_proxy_config?: ProxyDisplayConfig;
   stock_proxy_config?: ProxyDisplayConfig;
   stock_disabled_providers?: string[];
+  stock_retry_without_proxy?: boolean;
 }
 
 const SETTINGS_TABS = [
@@ -478,6 +479,7 @@ export function SettingsButton() {
       alicesoft_kobe_proxy_config: Record<string, unknown>;
       stock_proxy_config: Record<string, unknown>;
       stock_disabled_providers: string[] | null;
+      stock_retry_without_proxy: boolean;
     }>,
   ) {
     try {
@@ -1226,6 +1228,19 @@ export function SettingsButton() {
                     disabledProviders={server?.stock_disabled_providers ?? []}
                     onSave={(next) => saveServer({ stock_disabled_providers: next.length > 0 ? next : null })}
                   />
+
+                  <label className="flex items-start gap-2 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={!!server?.stock_retry_without_proxy}
+                      onChange={(e) => saveServer({ stock_retry_without_proxy: e.target.checked })}
+                      className="mt-0.5 h-4 w-4 accent-accent"
+                    />
+                    <span>
+                      <span className="font-bold">{t.settings.stockRetryDirectTitle}</span>
+                      <span className="block text-[10px] text-muted">{t.settings.stockRetryDirectDesc}</span>
+                    </span>
+                  </label>
 
                   <section className="border-t border-border pt-5">
                     <details className="group">

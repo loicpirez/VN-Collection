@@ -10354,6 +10354,15 @@ export function getDisabledStockProviders(): Set<string> {
   }
 }
 
+/**
+ * Global toggle: when on, a stock provider that errors or returns zero
+ * offers through its proxy is retried once over a direct connection.
+ * Defaults to off so behaviour is unchanged unless the operator opts in.
+ */
+export function getStockRetryWithoutProxy(): boolean {
+  return getAppSetting('stock_retry_without_proxy') === '1';
+}
+
 export function clearVnStockCache(vnId: string): { offers: number; statuses: number } {
   const offerResult = db.prepare(`DELETE FROM vn_stock_offer WHERE vn_id = ?`).run(vnId);
   const statusResult = db.prepare(`DELETE FROM vn_stock_provider_status WHERE vn_id = ?`).run(vnId);

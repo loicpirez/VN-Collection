@@ -3,8 +3,21 @@ import { type Agent } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { request as httpRequest } from 'node:http';
 import zlib from 'node:zlib';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ProviderId, ProxyConfig } from './proxy-config';
 import { buildProxyUrl, resolveProxyConfig, resolveStockProviderProxy } from './proxy-config';
+
+const directFetchStore = new AsyncLocalStorage<boolean>();
+
+/**
+ * Run `fn` with proxying disabled for every `stockProviderFetch` call made
+ * inside it (including nested awaits). The stock-refresh fallback uses this
+ * to retry a provider over a direct connection when the proxied attempt
+ * errored or returned zero offers.
+ */
+export function runStockFetchDirect<T>(fn: () => Promise<T>): Promise<T> {
+  return directFetchStore.run(true, fn);
+}
 
 /**
  * Decompress a proxied HTTP body per its `Content-Encoding`. Node's raw
@@ -225,6 +238,7 @@ export async function stockProviderFetch(
   init: RequestInit,
   providerId: string,
 ): Promise<Response> {
+  if (directFetchStore.getStore() === true) return fetch(url, init);
   const config = resolveStockProviderProxy(providerId);
   if (!config) return fetch(url, init);
   const agent = await buildAgent(config);

@@ -109,6 +109,9 @@ const SAFE_KEYS = new Set<string>([
   // JSON array of StockProviderId values the operator has disabled.
   // Default (absent or null) = all providers enabled.
   'stock_disabled_providers',
+  // Global toggle: retry a proxied stock provider over a direct
+  // connection when the proxied attempt errors or returns zero offers.
+  'stock_retry_without_proxy',
 ]);
 
 const DEFAULT_VNDB_BACKUP_URL = 'https://api.yorhel.org/kana';
@@ -217,6 +220,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         if (!raw) return [];
         try { return JSON.parse(raw) as string[]; } catch { return []; }
       })(),
+      stock_retry_without_proxy: getAppSetting('stock_retry_without_proxy') === '1',
       vndb_proxy_config: getProxyConfigForDisplay('vndb'),
       vndbmirror_proxy_config: getProxyConfigForDisplay('vndbmirror'),
       egs_proxy_config: getProxyConfigForDisplay('egs'),
@@ -464,6 +468,12 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'vndb_writeback must be boolean' }, { status: 400 });
     }
     setAppSetting('vndb_writeback', body.vndb_writeback ? '1' : null);
+  }
+  if ('stock_retry_without_proxy' in body) {
+    if (typeof body.stock_retry_without_proxy !== 'boolean') {
+      return NextResponse.json({ error: 'stock_retry_without_proxy must be boolean' }, { status: 400 });
+    }
+    setAppSetting('stock_retry_without_proxy', body.stock_retry_without_proxy ? '1' : null);
   }
   if ('vndb_backup_enabled' in body) {
     if (typeof body.vndb_backup_enabled !== 'boolean') {

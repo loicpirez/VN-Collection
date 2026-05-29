@@ -1,10 +1,11 @@
 import 'server-only';
 import iconv from 'iconv-lite';
-import { db, getCollectionItem, getDisabledStockProviders, getEgsForVn, getStockProviderExtras, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
+import { db, getCollectionItem, getDisabledStockProviders, getEgsForVn, getStockProviderExtras, getStockRetryWithoutProxy, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
-import { stockProviderFetch } from './proxy-fetch';
+import { stockProviderFetch, runStockFetchDirect } from './proxy-fetch';
+import { isStockProviderProxied } from './proxy-config';
 import type { CollectionItem } from './types';
 import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
 import {
@@ -2602,40 +2603,62 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
     });
     discovered.set(provider, uniqTargets(list));
   }
+  const retryWithoutProxy = getStockRetryWithoutProxy();
+  const writeProviderResult = (provider: StockProviderId, offers: VnStockOfferInput[], now: number): void => {
+    const hasInputs =
+      provider === 'eroge_price'
+        ? !!(vn.alttitle ?? vn.title)
+        : provider === 'surugaya' || provider === 'trader'
+          ? titleQueries(vn, aliases).length > 0
+          : allTargetsForProvider(releases, provider, vn, discovered, aliases).length > 0;
+    const status =
+      !hasInputs
+        ? 'skipped'
+        : offers.length === 0
+          ? 'no_results'
+          : provider === 'surugaya'
+            ? 'partial'
+            : 'ok';
+    replaceVnStockProviderSnapshot(vnId, provider, offers, {
+      status,
+      message: !hasInputs
+        ? 'No release link, JAN, or EGS id available for this provider.'
+        : provider === 'surugaya' && offers.length > 0
+          ? 'Search cards parsed; product detail pages are protected or intentionally not fetched.'
+          : null,
+      fetched_at: now,
+      offer_count: offers.length,
+      blocked_kind: provider === 'surugaya' && offers.length > 0 ? 'detail_page' : null,
+      fresh_offers_found: offers.length,
+      cached_offers_available: 0,
+    });
+  };
   for (let _pi = 0; _pi < activeProviders.length; _pi++) {
     const provider = activeProviders[_pi];
     const now = Date.now();
+    const canRetryDirect = retryWithoutProxy && isStockProviderProxied(provider);
     try {
-      const rawOffers = await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases);
-      const offers = dedupeProviderOffers(rawOffers);
-      const hasInputs =
-        provider === 'eroge_price'
-          ? !!(vn.alttitle ?? vn.title)
-          : provider === 'surugaya' || provider === 'trader'
-            ? titleQueries(vn, aliases).length > 0
-            : allTargetsForProvider(releases, provider, vn, discovered, aliases).length > 0;
-      const status =
-        !hasInputs
-          ? 'skipped'
-          : offers.length === 0
-            ? 'no_results'
-            : provider === 'surugaya'
-              ? 'partial'
-              : 'ok';
-      replaceVnStockProviderSnapshot(vnId, provider, offers, {
-        status,
-        message: !hasInputs
-          ? 'No release link, JAN, or EGS id available for this provider.'
-          : provider === 'surugaya' && offers.length > 0
-            ? 'Search cards parsed; product detail pages are protected or intentionally not fetched.'
-            : null,
-        fetched_at: now,
-        offer_count: offers.length,
-        blocked_kind: provider === 'surugaya' && offers.length > 0 ? 'detail_page' : null,
-        fresh_offers_found: offers.length,
-        cached_offers_available: 0,
-      });
+      let offers = dedupeProviderOffers(await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases));
+      if (offers.length === 0 && canRetryDirect) {
+        const directOffers = dedupeProviderOffers(
+          await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases)),
+        );
+        if (directOffers.length > 0) offers = directOffers;
+      }
+      writeProviderResult(provider, offers, now);
     } catch (e) {
+      if (canRetryDirect) {
+        try {
+          const directOffers = dedupeProviderOffers(
+            await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases)),
+          );
+          writeProviderResult(provider, directOffers, now);
+          onProviderProgress?.(provider, _pi + 1, activeProviders.length);
+          continue;
+        } catch {
+          // Direct retry also failed; record the original proxied error below.
+        }
+      }
       const msg = (e as Error).message;
       const isCloudflare = msg === 'cloudflare_challenge' || /cloudflare|challenge|protected/i.test(msg);
       const cachedOffers = provider === 'surugaya'

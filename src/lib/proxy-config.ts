@@ -142,6 +142,15 @@ export function resolveStockProviderProxy(providerId: StockProxyProviderId): Pro
 }
 
 /**
+ * True when a proxy (per-shop override or the generic `stock` proxy) is
+ * active for this provider. Lets the stock refresh decide whether a
+ * direct-connection retry is meaningful without exposing credentials.
+ */
+export function isStockProviderProxied(providerId: StockProxyProviderId): boolean {
+  return resolveStockProviderProxy(providerId) !== null;
+}
+
+/**
  * Builds a proxy URL string containing credentials.
  * NEVER pass this to a logger or include it in error messages.
  */
