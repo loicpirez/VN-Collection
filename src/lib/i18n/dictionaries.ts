@@ -1379,7 +1379,7 @@ export const dictionaries = {
       priceHistory: "Historique des prix",
       dataPoints: "points",
       retailers: "Vendeurs",
-      editions: { download: "Téléchargement", package: "Boîte" },
+      editions: { download: "Téléchargement", package: "Boîte", dlShort: "DL", pkgShort: "PKG" },
       stats: {
         allTimeMin: "Plus bas historique",
         allTimeMax: "Plus haut historique",
@@ -2499,6 +2499,9 @@ export const dictionaries = {
       registered: 'Ajouté sur EGS',
       povBreakdown: 'Répartition POV',
       povBreakdownHint: 'A : à recommander · B : selon les goûts · C : à éviter (échantillon EGS).',
+      povLabelA: 'A',
+      povLabelB: 'B',
+      povLabelC: 'C',
     },
     egs: {
       section: 'ErogameScape',
@@ -4489,7 +4492,7 @@ export const dictionaries = {
       priceHistory: "Price history",
       dataPoints: "points",
       retailers: "Retailers",
-      editions: { download: "Download", package: "Package" },
+      editions: { download: "Download", package: "Package", dlShort: "DL", pkgShort: "PKG" },
       stats: {
         allTimeMin: "All-time min",
         allTimeMax: "All-time max",
@@ -5606,6 +5609,9 @@ export const dictionaries = {
       registered: 'Added on EGS',
       povBreakdown: 'POV breakdown',
       povBreakdownHint: 'A: recommend · B: depends on taste · C: avoid (EGS sample).',
+      povLabelA: 'A',
+      povLabelB: 'B',
+      povLabelC: 'C',
     },
     egs: {
       section: 'ErogameScape',
@@ -7596,7 +7602,7 @@ export const dictionaries = {
       priceHistory: "価格履歴",
       dataPoints: "件",
       retailers: "ショップ",
-      editions: { download: "ダウンロード版", package: "パッケージ版" },
+      editions: { download: "ダウンロード版", package: "パッケージ版", dlShort: "DL", pkgShort: "PKG" },
       stats: {
         allTimeMin: "過去最安値",
         allTimeMax: "過去最高値",
@@ -8712,6 +8718,9 @@ export const dictionaries = {
       registered: 'EGS 登録日',
       povBreakdown: 'POV 内訳',
       povBreakdownHint: 'A: おすすめ · B: 好み次第 · C: 非推奨（EGS のサンプル）。',
+      povLabelA: 'A',
+      povLabelB: 'B',
+      povLabelC: 'C',
     },
     egs: {
       section: 'ErogameScape',

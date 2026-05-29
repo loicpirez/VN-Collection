@@ -512,7 +512,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
               </p>
               <ul className="rounded-lg border border-border bg-bg-elev/30 px-3 py-2">
                 {d.downloadRetailers.map((r) => (
-                  <RetailerRow key={`dl-${r.retailerId}`} r={r} label="DL" />
+                  <RetailerRow key={`dl-${r.retailerId}`} r={r} label={t.erogePrice.editions.dlShort} />
                 ))}
               </ul>
             </div>
@@ -524,7 +524,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
               </p>
               <ul className="rounded-lg border border-border bg-bg-elev/30 px-3 py-2">
                 {d.packageRetailers.map((r) => (
-                  <RetailerRow key={`pkg-${r.retailerId}`} r={r} label="PKG" />
+                  <RetailerRow key={`pkg-${r.retailerId}`} r={r} label={t.erogePrice.editions.pkgShort} />
                 ))}
               </ul>
             </div>

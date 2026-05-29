@@ -188,9 +188,9 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
           </div>
           <p className="mb-2 text-muted/80">{t.egsRich.povBreakdownHint}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <PovBar tone="good" label="A" value={povA ?? 0} total={totalPov} />
-            <PovBar tone="warn" label="B" value={povB ?? 0} total={totalPov} />
-            <PovBar tone="dropped" label="C" value={povC ?? 0} total={totalPov} />
+            <PovBar tone="good" label={t.egsRich.povLabelA} value={povA ?? 0} total={totalPov} />
+            <PovBar tone="warn" label={t.egsRich.povLabelB} value={povB ?? 0} total={totalPov} />
+            <PovBar tone="dropped" label={t.egsRich.povLabelC} value={povC ?? 0} total={totalPov} />
           </div>
         </div>
       )}
