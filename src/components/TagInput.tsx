@@ -97,7 +97,7 @@ export function TagInput({
           }}
           placeholder={values.length === 0 ? placeholder : ''}
           aria-label={placeholder}
-          className="min-w-[120px] flex-1 bg-transparent text-sm text-white outline-none placeholder:text-muted/60"
+          className="min-w-[120px] flex-1 bg-transparent text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg placeholder:text-muted/60"
           maxLength={maxLength}
         />
       </div>

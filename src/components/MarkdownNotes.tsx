@@ -67,7 +67,7 @@ export function MarkdownNotes({ value, onChange, placeholder }: Props) {
       {tab === 'edit' ? (
         <div id={editPanelId} role="tabpanel" aria-labelledby={editTabId}>
           <textarea
-            className="block w-full resize-y bg-transparent p-3 font-mono text-sm text-white outline-none placeholder:text-muted/60"
+            className="block w-full resize-y bg-transparent p-3 font-mono text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg placeholder:text-muted/60"
             rows={8}
             value={value}
             onChange={(e) => onChange(e.target.value)}
