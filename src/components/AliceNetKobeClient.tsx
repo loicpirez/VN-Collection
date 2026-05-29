@@ -355,13 +355,13 @@ export function AliceNetKobeClient() {
     if (isKobeView(v)) return v;
     return loadKobePrefs().view ?? 'cards';
   });
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(() => urlSearch?.get('filters') !== '0');
   const [yearMin, setYearMin] = useState('');
   const [yearMax, setYearMax] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState(() => urlSearch?.get('q') ?? '');
+  const [search, setSearch] = useState(() => urlSearch?.get('q') ?? '');
   useEffect(() => {
     const handle = setTimeout(() => setSearch(searchInput), 250);
     return () => clearTimeout(handle);
@@ -417,11 +417,13 @@ export function AliceNetKobeClient() {
     setOrDelete('sort', sort, 'match_status');
     setOrDelete('group', group, 'none');
     setOrDelete('view', view, 'cards');
+    setOrDelete('q', search, '');
+    setOrDelete('filters', showFilters ? '1' : '0', '1');
     if (dirty) {
       const next = params.toString();
       router.replace(`/alicesoft_kobe${next ? `?${next}` : ''}`, { scroll: false });
     }
-  }, [filter, sort, group, view, urlSearch, router]);
+  }, [filter, sort, group, view, search, showFilters, urlSearch, router]);
 
   async function downloadStock() {
     const r = await fetch('/api/alicesoft-kobe/fetch', { method: 'POST' });
