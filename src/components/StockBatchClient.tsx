@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Square, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { STOCK_PROVIDER_IDS, STOCK_PROVIDER_LABELS } from '@/lib/stock-provider-constants';
+import { ErrorAlert } from './ErrorAlert';
 import { VnSourcePicker, type VnPickerHit } from './VnSourcePicker';
 
 const PROVIDER_GROUPS = {
@@ -17,6 +18,42 @@ interface QueueEntry {
 }
 
 const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
+
+/**
+ * Single queued VN entry. Memoized with a primitive prop signature and
+ * a stable remove callback so adding entries or toggling the running
+ * flag only re-renders the rows whose own props changed.
+ */
+const QueueRow = memo(function QueueRow({
+  entry,
+  running,
+  t,
+  onRemove,
+}: {
+  entry: QueueEntry;
+  running: boolean;
+  t: ReturnType<typeof useT>;
+  onRemove: (vnId: string) => void;
+}) {
+  return (
+    <li
+      className="flex items-center justify-between gap-2 rounded border border-border bg-bg px-2 py-1 text-xs"
+    >
+      <span className="min-w-0 truncate text-white">{entry.title ?? entry.vnId}</span>
+      <span className="shrink-0 font-mono text-[10px] text-muted">{entry.vnId}</span>
+      {!running && (
+        <button
+          type="button"
+          onClick={() => onRemove(entry.vnId)}
+          aria-label={t.common.delete as string}
+          className="rounded p-0.5 text-muted hover:text-status-dropped"
+        >
+          <X className="h-3 w-3" aria-hidden />
+        </button>
+      )}
+    </li>
+  );
+});
 
 export function StockBatchClient() {
   const t = useT();
@@ -54,9 +91,9 @@ export function StockBatchClient() {
     addToQueue({ vnId: hit.id, title: hit.title });
   }
 
-  function removeFromQueue(vnId: string) {
+  const removeFromQueue = useCallback((vnId: string) => {
     setQueue((prev) => prev.filter((q) => q.vnId !== vnId));
-  }
+  }, []);
 
   function clearQueue() {
     setQueue([]);
@@ -261,23 +298,13 @@ export function StockBatchClient() {
             </div>
             <ul className="max-h-64 space-y-1 overflow-y-auto">
               {queue.map((entry) => (
-                <li
+                <QueueRow
                   key={entry.vnId}
-                  className="flex items-center justify-between gap-2 rounded border border-border bg-bg px-2 py-1 text-xs"
-                >
-                  <span className="min-w-0 truncate text-white">{entry.title ?? entry.vnId}</span>
-                  <span className="shrink-0 font-mono text-[10px] text-muted">{entry.vnId}</span>
-                  {!running && (
-                    <button
-                      type="button"
-                      onClick={() => removeFromQueue(entry.vnId)}
-                      aria-label={t.common.delete as string}
-                      className="rounded p-0.5 text-muted hover:text-status-dropped"
-                    >
-                      <X className="h-3 w-3" aria-hidden />
-                    </button>
-                  )}
-                </li>
+                  entry={entry}
+                  running={running}
+                  t={t}
+                  onRemove={removeFromQueue}
+                />
               ))}
             </ul>
           </div>
@@ -315,8 +342,8 @@ export function StockBatchClient() {
       </div>
 
       {error && (
-        <div className="mt-3 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-3 text-sm text-status-dropped" role="alert">
-          {error}
+        <div className="mt-3">
+          <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
         </div>
       )}
     </div>
