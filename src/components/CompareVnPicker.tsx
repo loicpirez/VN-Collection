@@ -51,10 +51,15 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
   const [highlight, setHighlight] = useState(0);
   const [showAdd, setShowAdd] = useState(initialVns.length < 4);
   const lastQueryRef = useRef('');
+  const aliveRef = useRef(true);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    };
   }, []);
 
   const selectedIds = new Set(selected.map((s) => s.id));
@@ -102,7 +107,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
           ),
       ]);
 
-      if (lastQueryRef.current !== trimmed) return;
+      if (!aliveRef.current || lastQueryRef.current !== trimmed) return;
       setSearching(false);
 
       const localRows = localRes.status === 'fulfilled' ? localRes.value : [];

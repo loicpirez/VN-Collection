@@ -1,5 +1,6 @@
 import { BCP47, fmtNum } from '@/lib/locale-number';
 import type { Metadata } from 'next';
+import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ArrowLeft, ArrowDown, Box, Coins, Eye, Layers, LayoutGrid, Library, Package } from 'lucide-react';
 import {
@@ -11,9 +12,9 @@ import {
 } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
+import { SkeletonBlock } from '@/components/Skeleton';
 import { platformLabel } from '@/lib/platform-label';
 import { languageDisplayName } from '@/lib/language-names';
-import { ShelfLayoutEditor } from '@/components/ShelfLayoutEditor';
 import { ShelfSpatialView } from '@/components/ShelfSpatialView';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
@@ -28,6 +29,16 @@ import type { Locale } from '@/lib/i18n/dictionaries';
 import { formatIsoDateString } from '@/lib/locale-number';
 
 export const dynamic = 'force-dynamic';
+
+const ShelfLayoutEditor = nextDynamic(() => import('@/components/ShelfLayoutEditor').then((m) => m.ShelfLayoutEditor), {
+  loading: () => (
+    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))' }}>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <SkeletonBlock key={i} className="aspect-[2/3] w-full" />
+      ))}
+    </div>
+  ),
+});
 
 // Four view modes:
 // - `spatial` (default): polished read-only browse of every shelf
