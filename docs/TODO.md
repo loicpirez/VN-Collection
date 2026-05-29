@@ -649,7 +649,7 @@
 | R5-015 | Detail Layout | Producer stats section does not render empty or contradict canonical config. | `/producer/[id]` | — | source proof + route QA | TODO |
 | R5-016 | Detail Layout | Staff timeline canonical section handles `voice.length === 0` as optional. | `/staff/[id]`, staff layout config | — | source proof + route QA | TODO |
 | R5-017 | Detail Layout | Staff extra-credits section does not render empty. | `/staff/[id]`, `StaffExtraCredits` | — | route QA with no empty gap | TODO |
-| R5-019 | Visual Restoration | Staff detail pages preserve pre-regression design quality and subtle layout controls. | `/staff/s12799`, `/staff/s1073?scope=collection` | — | browser screenshots/manual route verification | TODO |
+| R5-019 | Visual Restoration | Staff detail pages preserve pre-regression design quality and subtle layout controls. | `/staff/s12799`, `/staff/{QA_IDS.STAFF_COLLECTION_SCOPED}?scope=collection` | — | browser screenshots/manual route verification | TODO |
 | R5-020 | Visual Restoration | Producer detail page preserves pre-regression design quality and no generic wrappers. | `/producer/p604` | — | browser screenshots/manual route verification | TODO |
 | R5-022 | VN Toolbar | Toolbar button heights match within 1 px. | `/vn/v26180` | — | Playwright bounding-box assertion | TODO |
 | R5-023 | VN Toolbar | Toolbar top/bottom baseline alignment includes danger button. | `/vn/v26180` | — | Playwright bounding-box assertion | TODO |
