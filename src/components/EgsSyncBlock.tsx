@@ -43,6 +43,7 @@ export function EgsSyncBlock() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [picks, setPicks] = useState<Set<string>>(new Set());
   const [needsConfig, setNeedsConfig] = useState(false);
+  const [configLoading, setConfigLoading] = useState(true);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -53,6 +54,8 @@ export function EgsSyncBlock() {
       setUsernameDirty(false);
     } catch {
       // silent
+    } finally {
+      setConfigLoading(false);
     }
   }, []);
 
@@ -133,6 +136,7 @@ export function EgsSyncBlock() {
           value={username}
           placeholder={t.egsSync.usernamePlaceholder}
           aria-label={t.egsSync.usernamePlaceholder}
+          disabled={configLoading}
           onChange={(e) => {
             setUsername(e.target.value);
             setUsernameDirty(true);
