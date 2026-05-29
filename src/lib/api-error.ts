@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
 
 /**
+ * Standard shape every error response in `/api/*` SHOULD conform to.
+ * Routes return `{ error: string }` today; the optional `code` and
+ * `detail` slots are reserved for future use (e.g. machine-readable
+ * error categorisation, structured field-level diagnostics). The
+ * helpers below all emit values that satisfy this type.
+ */
+export interface ApiErrorBody {
+  error: string;
+  code?: string;
+  detail?: string;
+}
+
+/**
  * R5-129: standard upstream-error response for API route catch
  * blocks. The previous pattern in every `/api/*` route was:
  *
