@@ -18,7 +18,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
-import { BCP47 } from '@/lib/locale-number';
+import { BCP47, fmtDate as fmtDateShared } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
 type Kind = 'status' | 'rating' | 'playtime' | 'favorite' | 'started' | 'finished' | 'note' | 'manual';
@@ -43,7 +43,7 @@ const ICONS: Record<Kind, typeof History> = {
 };
 
 function fmtDate(ts: number, locale: string): string {
-  return new Date(ts).toLocaleString(BCP47[locale as Locale] ?? 'en-US', {
+  return fmtDateShared(new Date(ts), locale as Locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
