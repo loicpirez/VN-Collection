@@ -34,38 +34,35 @@ function decodeProxyBody(raw: Buffer, contentEncoding: string): ArrayBuffer {
   return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer;
 }
 
+interface RawProxyResponse {
+  statusCode: number;
+  headers: Record<string, string | string[] | undefined>;
+  raw: Buffer;
+}
+
 /**
- * Execute an HTTP/HTTPS request through a Node.js HTTP agent (proxy agent),
- * returning a Web-compatible Response. Handles AbortSignal and string bodies.
+ * Issue a single HTTP/HTTPS request through the proxy agent and buffer the
+ * raw response bytes (no decompression, no redirect following — that is the
+ * caller's job). Honours an AbortSignal and an optional string body.
  */
-async function nodeAgentFetch(
+function performProxyRequest(
   url: string,
-  init: RequestInit,
+  method: string,
+  headerMap: Record<string, string>,
+  bodyStr: string | null,
   agent: Agent,
-): Promise<Response> {
+  signal: AbortSignal | null | undefined,
+): Promise<RawProxyResponse> {
   const parsed = new URL(url);
   const isHttps = parsed.protocol === 'https:';
   const requester = isHttps ? httpsRequest : httpRequest;
-
-  const headerMap: Record<string, string> = {};
-  if (init.headers) {
-    new Headers(init.headers).forEach((v, k) => {
-      headerMap[k] = v;
-    });
-  }
-
-  const bodyStr = typeof init.body === 'string' ? init.body : null;
-  if (bodyStr && !headerMap['content-length']) {
-    headerMap['content-length'] = String(Buffer.byteLength(bodyStr));
-  }
-
-  return new Promise<Response>((resolve, reject) => {
+  return new Promise<RawProxyResponse>((resolve, reject) => {
     const req = requester(
       {
         hostname: parsed.hostname,
         port: parsed.port ? parseInt(parsed.port, 10) : isHttps ? 443 : 80,
         path: parsed.pathname + parsed.search,
-        method: (init.method ?? 'GET').toUpperCase(),
+        method,
         headers: headerMap,
         agent,
       },
@@ -86,25 +83,7 @@ async function nodeAgentFetch(
           chunks.push(chunk);
         });
         res.on('end', () => {
-          if (aborted) return;
-          const body = decodeProxyBody(Buffer.concat(chunks), String(res.headers['content-encoding'] ?? ''));
-          const responseHeaders = new Headers();
-          for (const [key, val] of Object.entries(res.headers)) {
-            if (val == null) continue;
-            const lowerKey = key.toLowerCase();
-            if (lowerKey === 'content-encoding' || lowerKey === 'content-length') continue;
-            if (Array.isArray(val)) {
-              for (const v of val) responseHeaders.append(key, v);
-            } else {
-              responseHeaders.set(key, val);
-            }
-          }
-          resolve(
-            new Response(body, {
-              status: res.statusCode ?? 0,
-              headers: responseHeaders,
-            }),
-          );
+          if (!aborted) resolve({ statusCode: res.statusCode ?? 0, headers: res.headers, raw: Buffer.concat(chunks) });
         });
         res.on('error', (e) => {
           if (!aborted) reject(e);
@@ -112,14 +91,13 @@ async function nodeAgentFetch(
       },
     );
 
-    if (init.signal) {
-      const sig = init.signal as AbortSignal;
-      if (sig.aborted) {
+    if (signal) {
+      if (signal.aborted) {
         req.destroy();
         reject(new DOMException('Signal aborted', 'AbortError'));
         return;
       }
-      sig.addEventListener(
+      signal.addEventListener(
         'abort',
         () => {
           req.destroy();
@@ -133,6 +111,68 @@ async function nodeAgentFetch(
     if (bodyStr) req.write(bodyStr);
     req.end();
   });
+}
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_PROXY_REDIRECTS = 20;
+
+/**
+ * Execute an HTTP/HTTPS request through a Node.js HTTP agent (proxy agent),
+ * returning a Web-compatible Response. Follows redirects (the WHATWG `fetch`
+ * default) since the raw `http`/`https` API never does, decompresses the body
+ * per `Content-Encoding`, and preserves the original bytes for the caller to
+ * decode. Handles AbortSignal and string bodies.
+ */
+async function nodeAgentFetch(
+  url: string,
+  init: RequestInit,
+  agent: Agent,
+): Promise<Response> {
+  const headerMap: Record<string, string> = {};
+  if (init.headers) {
+    new Headers(init.headers).forEach((v, k) => {
+      headerMap[k] = v;
+    });
+  }
+
+  let bodyStr = typeof init.body === 'string' ? init.body : null;
+  if (bodyStr && !headerMap['content-length']) {
+    headerMap['content-length'] = String(Buffer.byteLength(bodyStr));
+  }
+
+  const redirectMode = init.redirect ?? 'follow';
+  let currentUrl = url;
+  let method = (init.method ?? 'GET').toUpperCase();
+
+  for (let hop = 0; ; hop++) {
+    const res = await performProxyRequest(currentUrl, method, headerMap, bodyStr, agent, init.signal as AbortSignal | null | undefined);
+    const locationRaw = res.headers['location'];
+    const location = Array.isArray(locationRaw) ? locationRaw[0] : locationRaw;
+    if (redirectMode === 'follow' && REDIRECT_STATUSES.has(res.statusCode) && location && hop < MAX_PROXY_REDIRECTS) {
+      currentUrl = new URL(location, currentUrl).toString();
+      if (res.statusCode === 303 || ((res.statusCode === 301 || res.statusCode === 302) && method !== 'GET' && method !== 'HEAD')) {
+        method = 'GET';
+        bodyStr = null;
+        delete headerMap['content-length'];
+        delete headerMap['content-type'];
+      }
+      continue;
+    }
+
+    const body = decodeProxyBody(res.raw, String(res.headers['content-encoding'] ?? ''));
+    const responseHeaders = new Headers();
+    for (const [key, val] of Object.entries(res.headers)) {
+      if (val == null) continue;
+      const lowerKey = key.toLowerCase();
+      if (lowerKey === 'content-encoding' || lowerKey === 'content-length') continue;
+      if (Array.isArray(val)) {
+        for (const v of val) responseHeaders.append(key, v);
+      } else {
+        responseHeaders.set(key, val);
+      }
+    }
+    return new Response(body, { status: res.statusCode, headers: responseHeaders });
+  }
 }
 
 /**
