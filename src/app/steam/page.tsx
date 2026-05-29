@@ -100,7 +100,8 @@ export default function SteamSyncPage() {
       setLinks(ls.links ?? []);
       setLinksLoading(false);
     } catch (e) {
-      setSuggestionsError((e as Error).message);
+      console.error('[steam] refresh failed:', e);
+      setSuggestionsError(e instanceof Error && e.message ? e.message : t.common.error);
     } finally {
       setSuggestionsLoading(false);
       setUnlinkedLoading(false);
