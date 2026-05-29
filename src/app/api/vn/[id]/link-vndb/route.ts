@@ -22,7 +22,8 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
+  const { id: rawId } = await ctx.params;
+  const id = rawId.toLowerCase();
   if (!/^egs_\d+$/i.test(id)) {
     return NextResponse.json({ error: 'source must be an egs_NNN id' }, { status: 400 });
   }

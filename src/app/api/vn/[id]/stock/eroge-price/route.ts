@@ -70,7 +70,8 @@ export async function PATCH(
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
 
-  const { id } = await ctx.params;
+  const { id: rawId } = await ctx.params;
+  const id = rawId.toLowerCase();
   if (!isValidVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
@@ -116,7 +117,8 @@ export async function POST(
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
 
-  const { id } = await ctx.params;
+  const { id: rawIdPost } = await ctx.params;
+  const id = rawIdPost.toLowerCase();
   if (!isValidVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
@@ -178,7 +180,8 @@ export async function DELETE(
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
 
-  const { id } = await ctx.params;
+  const { id: rawIdDelete } = await ctx.params;
+  const id = rawIdDelete.toLowerCase();
   if (!isValidVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }

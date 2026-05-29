@@ -13,7 +13,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
+  const { id: rawId } = await ctx.params;
+  const id = rawId.toLowerCase();
   // Restrict to the two id shapes the rest of the app actually
   // produces. Without this gate a caller could burn VNDB rate-limit
   // budget by firing arbitrary strings at the upstream API.

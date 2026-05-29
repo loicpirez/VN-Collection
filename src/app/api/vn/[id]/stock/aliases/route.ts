@@ -18,7 +18,8 @@ function vnAliasTerms(vnId: string): string[] {
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
+  const { id: rawId } = await ctx.params;
+  const id = rawId.toLowerCase();
   if (!/^(v\d+|egs_\d+)$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   return NextResponse.json({ aliases: vnAliasTerms(id) });
 }
@@ -26,7 +27,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
+  const { id: rawIdPost } = await ctx.params;
+  const id = rawIdPost.toLowerCase();
   if (!/^(v\d+|egs_\d+)$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const body = await readJsonObject(req);
   const rawTerm = typeof body.term === 'string' ? body.term : '';

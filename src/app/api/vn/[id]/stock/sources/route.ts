@@ -40,7 +40,8 @@ function normalizeSourceUrl(raw: unknown): { url: string; provider: string; prod
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
+  const { id: rawId } = await ctx.params;
+  const id = rawId.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   return NextResponse.json({ sources: listStockSources(id) });
 }
@@ -48,7 +49,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
+  const { id: rawIdPost } = await ctx.params;
+  const id = rawIdPost.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const body = await readJsonObject(req);
   const parsed = normalizeSourceUrl(body.url);
@@ -77,7 +79,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
+  const { id: rawIdDelete } = await ctx.params;
+  const id = rawIdDelete.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const body = await readJsonObject(req);
   const sourceId = typeof body.id === 'number' ? body.id : typeof body.source_id === 'number' ? body.source_id : null;
