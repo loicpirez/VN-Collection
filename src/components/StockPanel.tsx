@@ -218,7 +218,7 @@ export function StockPanel({
         if (!signal?.aborted) setSnapshot(data);
       } catch (e) {
         if ((e as Error).name === 'AbortError' || signal?.aborted) return;
-        setError((e as Error).message);
+        setError(e instanceof Error && e.message ? e.message : t.common.error);
       } finally {
         if (!signal?.aborted) setLoading(false);
       }
@@ -315,7 +315,7 @@ export function StockPanel({
       });
       if (r.ok) setSnapshot((await r.json()) as StockSnapshot);
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') setError((e as Error).message);
+      if ((e as Error).name !== 'AbortError') setError(e instanceof Error && e.message ? e.message : t.common.error);
     }
     setProgress({ done: 1, total: 1 });
     setCurrentProvider(null);
@@ -352,7 +352,7 @@ export function StockPanel({
         setAliasError(data.error ?? t.common.error);
       }
     } catch (e) {
-      setAliasError((e as Error).message);
+      setAliasError(e instanceof Error && e.message ? e.message : t.common.error);
     } finally {
       setAliasLoading(false);
     }
@@ -378,7 +378,7 @@ export function StockPanel({
         setAliasError(await readApiError(r, t.common.error));
       }
     } catch (e) {
-      setAliasError((e as Error).message);
+      setAliasError(e instanceof Error && e.message ? e.message : t.common.error);
     } finally {
       setAliasLoading(false);
     }
@@ -400,7 +400,7 @@ export function StockPanel({
       setSnapshot((await r.json()) as StockSnapshot);
       setSourceInput('');
     } catch (e) {
-      setSourceError((e as Error).message);
+      setSourceError(e instanceof Error && e.message ? e.message : t.common.error);
     } finally {
       setSourceLoading(false);
     }
@@ -423,7 +423,7 @@ export function StockPanel({
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       setSnapshot((await r.json()) as StockSnapshot);
     } catch (e) {
-      setSourceError((e as Error).message);
+      setSourceError(e instanceof Error && e.message ? e.message : t.common.error);
     } finally {
       setSourceLoading(false);
     }
@@ -452,7 +452,7 @@ export function StockPanel({
         setError(await readApiError(r, t.common.error));
       }
     } catch (e) {
-      setError((e as Error).message);
+      setError(e instanceof Error && e.message ? e.message : t.common.error);
     } finally {
       setClearingCache(false);
     }
@@ -935,7 +935,7 @@ export function StockPanel({
                       if (r.ok) setAliases(data.aliases ?? []);
                       else setAliasError(data.error ?? t.common.error);
                     } catch (e) {
-                      setAliasError((e as Error).message);
+                      setAliasError(e instanceof Error && e.message ? e.message : t.common.error);
                     } finally {
                       setAliasLoading(false);
                     }

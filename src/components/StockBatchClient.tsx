@@ -88,7 +88,7 @@ export function StockBatchClient() {
       ];
       setQueue(merged);
     } catch (e) {
-      setError((e as Error).message);
+      setError(e instanceof Error && e.message ? e.message : t.common.error);
       throw e;
     }
   }
@@ -118,7 +118,7 @@ export function StockBatchClient() {
       setJobId(data.jobId);
       setQueued(data.queued);
     } catch (e) {
-      setError((e as Error).message);
+      setError(e instanceof Error && e.message ? e.message : t.common.error);
     } finally {
       setRunning(false);
     }

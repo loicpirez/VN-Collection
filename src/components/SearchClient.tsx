@@ -223,7 +223,8 @@ export function SearchClient() {
         setResults(data.results);
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
-        setError((e as Error).message);
+        console.error('[SearchClient] VNDB search failed:', e);
+        setError(e instanceof Error && e.message ? e.message : t.search.errorPrefix);
         setResults([]);
       } finally {
         if (!ctrl.signal.aborted) setLoading(false);
@@ -261,7 +262,8 @@ export function SearchClient() {
         setEgsResults(data.candidates);
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
-        setError((e as Error).message);
+        console.error('[SearchClient] EGS search failed:', e);
+        setError(e instanceof Error && e.message ? e.message : t.search.errorPrefix);
         setEgsResults([]);
       } finally {
         if (!ctrl.signal.aborted) setLoading(false);
@@ -322,7 +324,8 @@ export function SearchClient() {
       const data = await r.json();
       setResults(data.results);
     } catch (e) {
-      setError((e as Error).message);
+      console.error('[SearchClient] advanced search failed:', e);
+      setError(e instanceof Error && e.message ? e.message : t.search.errorPrefix);
       setResults([]);
     } finally {
       setLoading(false);

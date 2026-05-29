@@ -439,7 +439,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       })
       .catch((e: Error) => {
         if (!alive || e.name === 'AbortError') return;
-        setError(e.message);
+        console.error('[LibraryClient] collection load failed:', e);
+        setError(e.message || t.common.error);
       })
       .finally(() => alive && setLoading(false));
     return () => {
