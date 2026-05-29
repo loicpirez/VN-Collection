@@ -211,7 +211,7 @@ export function platformFromTitle(title: string): Platform {
   if (/PS5|PlayStation\s*5/i.test(title)) return 'PS5';
   if (/PS4|PlayStation\s*4/i.test(title)) return 'PS4';
   if (/PSVita|PS\s*Vita/i.test(title)) return 'PSVita';
-  if (/PCソフト|for Windows/i.test(title)) return 'PC';
+  if (/PCソフト|PCゲームソフト|for Windows/i.test(title)) return 'PC';
   return 'unknown';
 }
 

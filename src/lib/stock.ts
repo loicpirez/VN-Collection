@@ -349,6 +349,7 @@ const JAN_SEARCH_PROVIDERS: ReadonlySet<StockProviderId> = new Set<StockProvider
 ]);
 
 const TITLE_SEARCH_URLS: Partial<Record<StockProviderId, (query: string) => string>> = {
+  sofmap: (query) => `https://a.sofmap.com/product_list_parts.aspx?keyword=${encodeShiftJisQuery(query)}`,
   melonbooks: (query) => `https://www.melonbooks.co.jp/search/search.php?name=${encodeURIComponent(query)}&category_ids%5B%5D=&search_target_ids%5B%5D=&pageno=1&disp_number=40&sort=sale_desc`,
   mandarake: (query) => `https://order.mandarake.co.jp/order/listPage/list?keyword=${encodeURIComponent(query)}`,
   animate: (query) => `https://www.animate-onlineshop.jp/products/list.php?sci=0&smt=${encodeURIComponent(query)}&ss=5&sl=40&nf=1`,
@@ -864,9 +865,8 @@ export function parseSofmapDetail(html: string, url: string, target: StockTarget
 }
 
 function withSofmapAdultBypass(url: string): string {
-  const u = new URL(url);
-  u.searchParams.set('aac', 'on');
-  return u.toString();
+  if (url.includes('aac=on')) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'aac=on';
 }
 
 async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
