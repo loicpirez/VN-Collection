@@ -14,6 +14,8 @@ import { RandomPickButton } from './RandomPickButton';
 import { SAVED_FILTERS_OPEN_EVENT, SavedFilters } from './SavedFilters';
 import { HOME_LAYOUT_OPEN_EVENT } from './HomeLayoutEditorTrigger';
 import { readApiError } from '@/lib/api-error-read';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { formatMinutes } from '@/lib/format';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { BCP47, fmtNum } from '@/lib/locale-number';
 import { useToast } from './ToastProvider';
@@ -251,14 +253,15 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       ? (urlGroupSort as GroupSortKey)
       : 'count';
 
+  const searchParamsString = searchParams.toString();
   const replaceParams = useCallback(
     (mutator: (sp: URLSearchParams) => void) => {
-      const next = new URLSearchParams(searchParams.toString());
+      const next = new URLSearchParams(searchParamsString);
       mutator(next);
       const qs = next.toString();
       router.replace(qs ? `/?${qs}` : '/', { scroll: false });
     },
-    [router, searchParams],
+    [router, searchParamsString],
   );
 
   const setParam = useCallback(
@@ -462,7 +465,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     () => Object.fromEntries(stats.byStatus.map((s) => [s.status, s.n])) as Record<Status, number>,
     [stats],
   );
-  const totalH = Math.round(stats.playtime_minutes / 60);
+  const totalPlaytime = formatMinutes(stats.playtime_minutes, locale, t.year, { emptyValue: 'allow_zero' });
   const baseHasFilters =
     !!status || !!producer || !!publisher || !!seriesId || !!urlQ || !!urlTag || !!urlPlace || !!urlEdition || !!urlYearMin || !!urlYearMax || !!urlRatingMin || !!urlRatingMax || !!urlPlaytimeMin || !!urlPlaytimeMax || urlAspectSet.length > 0 || urlDumped === '1' || urlDumped === '0';
   const yearLabel = urlYearMin && urlYearMax
@@ -1240,7 +1243,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             className="flex gap-6 text-sm text-muted"
           >
             <span><b className="text-white">{stats.total}</b> {t.library.stats.vnCount}</span>
-            <span><b className="text-white">{fmtNum(totalH, locale)}{t.year.hoursUnit}</b> {t.library.stats.playedHours}</span>
+            <span><b className="text-white">{totalPlaytime}</b> {t.library.stats.playedHours}</span>
           </div>
           {stats.total > 0 && (
             <button
@@ -1269,8 +1272,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       )}
 
       {showGrid && error && (
-        <div role="alert" className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
-          {error}
+        <div className="mb-4">
+          <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
         </div>
       )}
 
