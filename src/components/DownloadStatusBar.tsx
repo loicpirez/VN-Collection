@@ -484,7 +484,7 @@ export function DownloadStatusBar() {
                   </div>
                   {j.errors.length > 0 && (() => {
                     const errorsExpanded = expandedErrors.has(j.id);
-                    const shownErrors = finished && errorsExpanded ? j.errors : j.errors.slice(0, 3);
+                    const shownErrors = errorsExpanded ? j.errors : j.errors.slice(0, 3);
                     const hiddenErrors = j.errors.length - shownErrors.length;
                     return (
                       <ul className="mt-1.5 space-y-0.5 text-[10px] text-status-dropped">
@@ -500,7 +500,7 @@ export function DownloadStatusBar() {
                             </span>: {e.message}
                           </li>
                         ))}
-                        {finished && j.errors.length > 3 ? (
+                        {j.errors.length > 3 && (
                           <li>
                             <button
                               type="button"
@@ -518,9 +518,7 @@ export function DownloadStatusBar() {
                               {errorsExpanded ? t.common.close : `+${hiddenErrors}`}
                             </button>
                           </li>
-                        ) : hiddenErrors > 0 ? (
-                          <li className="opacity-70">+{hiddenErrors}</li>
-                        ) : null}
+                        )}
                       </ul>
                     );
                   })()}

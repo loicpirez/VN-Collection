@@ -42,6 +42,19 @@ interface EgsCandidate {
 
 type Source = 'extlink' | 'search' | 'manual' | null;
 
+/**
+ * Single source of truth for the EGS lookup result. Folding the
+ * loading / game / source trio into one object updated atomically
+ * keeps the panel out of impossible intermediate states (e.g.
+ * `loading: false` with a stale `game` mid-swap) and collapses what
+ * used to be three separate setState calls into one render.
+ */
+interface FetchState {
+  loading: boolean;
+  game: EgsGame | null;
+  source: Source;
+}
+
 interface Props {
   vnId: string;
   /** VNDB rating on the 0-100 scale. */
@@ -85,9 +98,12 @@ export function EgsPanel({
   // Hydrate from the server payload so first paint already shows the match.
   // We skip the fetch-on-mount when initialGame is provided (the server just
   // looked it up in the DB — a client round-trip would only re-confirm).
-  const [loading, setLoading] = useState(initialGame === null && initialSource === null);
-  const [game, setGame] = useState<EgsGame | null>(initialGame);
-  const [source, setSource] = useState<Source>(initialSource);
+  const [fetchState, setFetchState] = useState<FetchState>(() => ({
+    loading: initialGame === null && initialSource === null,
+    game: initialGame,
+    source: initialSource,
+  }));
+  const { loading, game, source } = fetchState;
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,8 +116,7 @@ export function EgsPanel({
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         const d = (await r.json()) as { game: EgsGame | null; source: Source };
         if (signal?.aborted) return;
-        setGame(d.game);
-        setSource(d.source);
+        setFetchState((prev) => ({ ...prev, game: d.game, source: d.source }));
         setError(null);
       } catch (e) {
         if ((e as Error).name === 'AbortError' || signal?.aborted) return;
@@ -115,9 +130,9 @@ export function EgsPanel({
     // Only auto-fetch when the server didn't pre-hydrate us.
     if (initialGame !== null || initialSource !== null) return;
     const ctrl = new AbortController();
-    setLoading(true);
+    setFetchState((prev) => ({ ...prev, loading: true }));
     load(false, ctrl.signal).finally(() => {
-      if (!ctrl.signal.aborted) setLoading(false);
+      if (!ctrl.signal.aborted) setFetchState((prev) => ({ ...prev, loading: false }));
     });
     return () => ctrl.abort();
   }, [load, initialGame, initialSource]);
@@ -137,8 +152,7 @@ export function EgsPanel({
     if (!ok) return;
     try {
       await fetch(`/api/vn/${vnId}/erogamescape`, { method: 'DELETE' });
-      setGame(null);
-      setSource(null);
+      setFetchState((prev) => ({ ...prev, game: null, source: null }));
       toast.success(t.toast.removed);
     } catch (e) {
       toast.error((e as Error).message);
@@ -146,8 +160,7 @@ export function EgsPanel({
   }
 
   function onPicked(picked: EgsGame, pickedSource: Source) {
-    setGame(picked);
-    setSource(pickedSource);
+    setFetchState((prev) => ({ ...prev, game: picked, source: pickedSource }));
     setPickerOpen(false);
   }
 
