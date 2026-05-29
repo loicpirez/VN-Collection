@@ -303,12 +303,12 @@
 | R-005 | responsive | `w-[74px]` cover thumb is hard-coded. At small density, looks tiny vs content. | `/Users/loicpirez/VNDB/src/app/similar/page.tsx:195` | — | Use density-aware width via `var(--card-density-px)`. | TODO |
 | R-007 | responsive | Search input `min-w-[200px] flex-1` — flex-1 in wrapping container; at 360px works because flex-wrap, but the min-w can prevent the chip row siblings from wrapping cleanly. | `/Users/loicpirez/VNDB/src/app/staff/page.tsx:165` | — | Reduce floor to `min-w-[160px]`. | TODO |
 | R-008 | responsive | Same `min-w-[200px]` pattern — same risk. | `/Users/loicpirez/VNDB/src/app/characters/page.tsx:192` | — | Reduce floor. | TODO |
-| R-009 | responsive | `w-[min(92vw,18rem)]` — already responsive via min(). Acceptable. | `/Users/loicpirez/VNDB/src/components/SavedFilters.tsx:190` | — | None. | TODO |
+| R-009 | responsive | `w-[min(92vw,18rem)]` — already responsive via min(). Acceptable. | `/Users/loicpirez/VNDB/src/components/SavedFilters.tsx:190` | — | None. | VERIFIED_WITH_SOURCE: SavedFilters.tsx:209 (w-[min(92vw,18rem)]) |
 | R-010 | responsive | `min-w-[200px] max-w-[280px]` popover — at 360px viewport with viewport padding, min-w 200 leaves only 160px on either side, so popover may clip. | `/Users/loicpirez/VNDB/src/components/EditionInfoPopover.tsx:251` | — | Use `min-w-[180px] max-w-[calc(100vw-2rem)]`. | TODO |
 | R-011 | responsive | `min-w-[200px] flex-1` search — toolbar row has many siblings (sort, group, hide-owned, density slider, refresh, bulk, select-mode); at 360px each wraps to its own line, search stays 200 minimum which works but feels cramped. | `/Users/loicpirez/VNDB/src/components/WishlistClient.tsx:479` | — | Reduce floor to `min-w-[160px]` and `sm:min-w-[200px]`. | TODO |
 | R-012 | responsive | Bulk action bar `w-[min(96vw,32rem)]` — already responsive. | `/Users/loicpirez/VNDB/src/components/WishlistClient.tsx:686` | — | None. | TODO |
 | R-014 | responsive | `<table min-w-[560px]>` inside `overflow-x-auto` — works via scroll but the table has many columns at small viewports. | `/Users/loicpirez/VNDB/src/components/SchemaLocalSection.tsx:24` | — | Acceptable as long as scroll-fade-right is present. | TODO |
-| R-015 | responsive | `w-[min(92vw,640px)] max-h-[85vh]` — responsive. Modal width fine. | `/Users/loicpirez/VNDB/src/components/MapVnToEgsButton.tsx:188` | — | None. | TODO |
+| R-015 | responsive | `w-[min(92vw,640px)] max-h-[85vh]` — responsive. Modal width fine. | `/Users/loicpirez/VNDB/src/components/MapVnToEgsButton.tsx:188` | — | None. | VERIFIED_WITH_SOURCE: MapVnToEgsButton.tsx:215 |
 | R-016 | responsive | `min-w-[44px]` tap target inside row — `flex items-center gap-2` row with a 44px button + 44px button + flex-1 text + 2 small badges may overflow at 360px. | `/Users/loicpirez/VNDB/src/components/MapVnToEgsButton.tsx:297` | — | Verify by reading row structure — buttons should be `shrink-0`. | TODO |
 | R-017 | responsive | `w-[280px] max-w-[calc(100vw-2rem)]` popover — explicit responsive cap. Good. | `/Users/loicpirez/VNDB/src/components/DateInput.tsx:198` | — | None. | TODO |
 | R-018 | responsive | `min-w-[120px] flex-1` input — short floor, OK for 360px. | `/Users/loicpirez/VNDB/src/components/TagInput.tsx:100` | — | None. | TODO |
@@ -316,7 +316,7 @@
 | R-022 | responsive | `w-[min(92vw,16rem)]` action menu popover — responsive. | `/Users/loicpirez/VNDB/src/components/LibraryClient.tsx:1958` | — | None. | TODO |
 | R-023 | responsive | `min-w-[180px] flex-1` search input — same pattern as wishlist. | `/Users/loicpirez/VNDB/src/components/SelectiveFullDownload.tsx:267` | — | Reduce floor on mobile. | TODO |
 | R-024 | responsive | `w-[min(92vw,520px)] max-h-[85vh]` modal — responsive. | `/Users/loicpirez/VNDB/src/components/HomeLayoutEditorTrigger.tsx:171` | — | None. | TODO |
-| R-025 | responsive | `w-[min(95vw,20rem)]` popover — responsive. | `/Users/loicpirez/VNDB/src/components/SpoilerToggle.tsx:96` | — | None. | TODO |
+| R-025 | responsive | `w-[min(95vw,20rem)]` popover — responsive. | `/Users/loicpirez/VNDB/src/components/SpoilerToggle.tsx:96` | — | None. | VERIFIED_WITH_SOURCE: SpoilerToggle.tsx:89 |
 | R-026 | responsive | `max-w-[min(92vw,420px)]` — responsive. | `/Users/loicpirez/VNDB/src/components/ToastProvider.tsx:131` | — | None. | TODO |
 | R-027 | responsive | `min-w-[14rem] flex-1` token input — 14rem=224px. The wrap container has flex-wrap so save button drops below at 360px. Acceptable. | `/Users/loicpirez/VNDB/src/components/SettingsButton.tsx:760` | — | None — already wraps. | TODO |
 | R-028 | responsive | `max-w-[1600px]` ultra-wide cap on fullscreen mode. Acceptable. | `/Users/loicpirez/VNDB/src/components/ShelfLayoutEditor.tsx:800` | — | None. | TODO |
@@ -337,18 +337,18 @@
 | R-043 | responsive | `input min-w-[180px] flex-[2]` — description. Adds wrap pressure. | `/Users/loicpirez/VNDB/src/components/CreateListForm.tsx:78` | — | Reduce. | TODO |
 | R-044 | responsive | `flex-1 min-w-[200px]` URL input — same pattern. | `/Users/loicpirez/VNDB/src/components/CoverSourcePicker.tsx:505` | — | Reduce. | TODO |
 | R-045 | responsive | `min-w-[2.5rem]` rating badge — tiny, fine. | `/Users/loicpirez/VNDB/src/components/CoverSourcePicker.tsx:346` | — | None. | TODO |
-| R-046 | responsive | `w-[min(92vw,480px)]` — responsive. | `/Users/loicpirez/VNDB/src/components/KeyboardShortcuts.tsx:171` | — | None. | TODO |
+| R-046 | responsive | `w-[min(92vw,480px)]` — responsive. | `/Users/loicpirez/VNDB/src/components/KeyboardShortcuts.tsx:171` | — | None. | VERIFIED_WITH_SOURCE: KeyboardShortcuts.tsx:171 |
 | R-047 | responsive | `w-[220px]` context menu — JS clamps via `Math.min(220, viewW - 16)` in `MENU_W`. Good. | `/Users/loicpirez/VNDB/src/components/CardContextMenu.tsx:124` | — | None — runtime clamped. | TODO |
 | R-048 | responsive | `max-w-[200px] line-clamp-1` title. OK. | `/Users/loicpirez/VNDB/src/components/AnniversaryFeedView.tsx:89` | — | None. | TODO |
 | R-049 | responsive | `max-w-[200px] line-clamp-1`. OK. | `/Users/loicpirez/VNDB/src/components/ReadingQueueStripView.tsx:69` | — | None. | TODO |
 | R-050 | responsive | `max-w-[140px] line-clamp-2` title. OK. | `/Users/loicpirez/VNDB/src/components/CompareVnPicker.tsx:214` | — | None. | TODO |
 | R-051 | responsive | `max-w-[140px] line-clamp-1 text-[10px]` — text-[10px] readability issue (see cat 11). | `/Users/loicpirez/VNDB/src/components/CompareVnPicker.tsx:218` | — | Bump to `text-[11px]`. | TODO |
-| R-053 | responsive | `w-[min(92vw,24rem)] max-h-[60vh]` popover — responsive. | `/Users/loicpirez/VNDB/src/components/DownloadStatusBar.tsx:387` | — | None. | TODO |
+| R-053 | responsive | `w-[min(92vw,24rem)] max-h-[60vh]` popover — responsive. | `/Users/loicpirez/VNDB/src/components/DownloadStatusBar.tsx:387` | — | None. | VERIFIED_WITH_SOURCE: DownloadStatusBar.tsx:388 |
 | R-054 | responsive | Default `min-w-[14rem]` action menu — 14rem=224px. At 360px viewport, JS portal clamps via `PortalPopover`. Good. | `/Users/loicpirez/VNDB/src/components/ActionMenu.tsx:67` | — | None. | TODO |
 | R-055 | responsive | `max-h-[90vh] max-w-[95vw]` lightbox — responsive. | `/Users/loicpirez/VNDB/src/components/MediaGallery.tsx:252` | — | None. | TODO |
 | R-056 | responsive | `max-h-[88vh] max-w-[92vw]` image — responsive. | `/Users/loicpirez/VNDB/src/components/MediaGallery.tsx:258` | — | None. | TODO |
 | R-057 | responsive | `max-w-[17rem]` caption — 272px on 360px viewport fits w/ scroll. | `/Users/loicpirez/VNDB/src/components/MediaGallery.tsx:686` | — | None. | TODO |
-| R-058 | responsive | `w-[min(92vw,640px)] max-h-[85vh]` modal. | `/Users/loicpirez/VNDB/src/components/MapEgsToVndbButton.tsx:180` | — | None. | TODO |
+| R-058 | responsive | `w-[min(92vw,640px)] max-h-[85vh]` modal. | `/Users/loicpirez/VNDB/src/components/MapEgsToVndbButton.tsx:180` | — | None. | VERIFIED_WITH_SOURCE: MapEgsToVndbButton.tsx:191 |
 | R-059 | responsive | `w-[min(96vw,720px)]` — responsive. | `/Users/loicpirez/VNDB/src/components/BulkActionBar.tsx:181` | — | None. | TODO |
 | R-060 | responsive | `max-w-[30rem]` mobile sheet — 480px, fine on 360 (sheet is `w-full max-w-…`). | `/Users/loicpirez/VNDB/src/components/MoreNavMenu.tsx:362` | — | None. | TODO |
 | R-061 | responsive | `grid-cols-3` for 3 covers — no mobile fallback, three 2:3 covers on 360px = each ~110px, very cramped. | `/Users/loicpirez/VNDB/src/components/CoverCompare.tsx:217` | — | Add `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`. | TODO |
