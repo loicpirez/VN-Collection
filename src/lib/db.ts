@@ -7569,6 +7569,56 @@ export interface PlaceOfferRow {
   updated_at: number;
 }
 
+export interface PlaceVnRow {
+  vn_id: string;
+  title: string;
+  alttitle: string | null;
+  image_url: string | null;
+  local_image: string | null;
+  image_sexual: number | null;
+  released: string | null;
+  developers: string | null;
+  in_collection: number;
+  min_price: number | null;
+  offer_count: number;
+  in_stock_count: number;
+  out_of_stock_count: number;
+  max_updated_at: number;
+}
+
+/** All VNs at a place with rich metadata for the full browser view. */
+export function listPlaceVnsEnhanced(placeId: number): PlaceVnRow[] {
+  return db
+    .prepare(`
+      SELECT
+        v.id AS vn_id,
+        v.title,
+        v.alttitle,
+        v.image_url,
+        v.local_image,
+        v.image_sexual,
+        v.released,
+        v.developers,
+        CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_collection,
+        MIN(CASE WHEN vso.availability IN ('in_stock', 'limited') THEN vso.price ELSE NULL END) AS min_price,
+        COUNT(*) AS offer_count,
+        SUM(CASE WHEN vso.availability IN ('in_stock', 'limited') THEN 1 ELSE 0 END) AS in_stock_count,
+        SUM(CASE WHEN vso.availability = 'out_of_stock' THEN 1 ELSE 0 END) AS out_of_stock_count,
+        MAX(vso.updated_at) AS max_updated_at
+      FROM vn_stock_offer vso
+      JOIN place_provider_link ppl ON (
+        ppl.provider_label = vso.location_branch
+        OR ppl.provider_label = vso.location_label
+      )
+      JOIN vn v ON v.id = vso.vn_id
+      LEFT JOIN collection c ON c.vn_id = v.id
+      WHERE ppl.place_id = ?
+      GROUP BY v.id
+      ORDER BY v.title COLLATE NOCASE ASC
+    `)
+    .all(placeId) as PlaceVnRow[];
+}
+
 type PlaceAvailFilter = 'in_stock' | 'all' | 'out_of_stock';
 
 function availSql(avail: PlaceAvailFilter): string {
