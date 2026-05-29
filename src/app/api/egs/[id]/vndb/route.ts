@@ -30,7 +30,7 @@ export const runtime = 'nodejs';
 function parseEgsId(raw: string): number | null {
   const cleaned = raw.replace(/^egs_/i, '');
   const n = Number(cleaned);
-  if (!Number.isInteger(n) || n <= 0) return null;
+  if (!Number.isSafeInteger(n) || n <= 0) return null;
   return n;
 }
 
