@@ -143,6 +143,7 @@ export function MediaGallery({
 
   const lightboxRef = useRef<HTMLDivElement | null>(null);
   const lightboxTitleId = useId();
+  const lightboxDescId = useId();
   useDialogA11y({ open: active != null, onClose: close, panelRef: lightboxRef });
 
   // Arrow-key navigation in the lightbox so the user can flip through
@@ -214,6 +215,7 @@ export function MediaGallery({
           role="dialog"
           aria-modal="true"
           aria-labelledby={lightboxTitleId}
+          aria-describedby={lightboxDescId}
           tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 outline-none"
         >
@@ -269,7 +271,7 @@ export function MediaGallery({
               className="max-h-[88vh] max-w-[92vw] rounded-lg"
               fit="contain"
             />
-            <div className="absolute -bottom-7 left-0 right-0 text-center text-xs text-muted">
+            <div id={lightboxDescId} className="absolute -bottom-7 left-0 right-0 text-center text-xs text-muted">
               {active + 1} / {visible.length}
               {visible[active].dims && visible[active].dims![0] > 0 && (
                 <span className="ml-2 font-mono opacity-80">
@@ -351,7 +353,7 @@ function MediaTile({
         }}
         className="h-full w-full cursor-pointer"
         title={item.caption ?? item.alt}
-        aria-label={t.media.openLightbox}
+        aria-label={item.caption ? `${t.media.openLightbox} — ${item.caption}` : item.alt ? `${t.media.openLightbox} — ${item.alt}` : t.media.openLightbox}
       >
         <SafeImage
           src={item.thumbnail || item.url}
