@@ -12,6 +12,14 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
   const t = useT();
   const router = useRouter();
   const [resolvedTitle, setResolvedTitle] = useState<string | null>(null);
+  const [placeMap, setPlaceMap] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetch('/api/places/provider-map')
+      .then((r) => r.json())
+      .then((d) => setPlaceMap(d.map ?? {}))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!initialVnId) { setResolvedTitle(null); return; }
@@ -60,7 +68,7 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
             fallbackMessage={t.stock.boundaryFallback as string}
             retryLabel={t.stock.boundaryRetry as string}
           >
-            <StockPanel vnId={initialVnId} title={resolvedTitle ?? undefined} />
+            <StockPanel vnId={initialVnId} title={resolvedTitle ?? undefined} placeMap={placeMap} />
           </StockPanelBoundary>
         </div>
       ) : (

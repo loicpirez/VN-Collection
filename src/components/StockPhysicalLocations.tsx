@@ -1,5 +1,6 @@
 'use client';
 import { useMemo } from 'react';
+import Link from 'next/link';
 import { ExternalLink, MapPin } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { VnStockAvailability } from '@/lib/db';
@@ -49,7 +50,13 @@ function sortKey(a: PhysicalOffer, b: PhysicalOffer): number {
 }
 
 /** Pure presentational component — receives pre-filtered physical offers. */
-export function StockPhysicalLocations({ offers }: { offers: PhysicalOffer[] }) {
+export function StockPhysicalLocations({
+  offers,
+  placeMap = {},
+}: {
+  offers: PhysicalOffer[];
+  placeMap?: Record<string, number>;
+}) {
   const t = useT();
   const locale = useLocale();
 
@@ -95,10 +102,20 @@ export function StockPhysicalLocations({ offers }: { offers: PhysicalOffer[] }) 
           {grouped.map(({ branch, offers: branchOffers }) => (
             <div key={branch} className="rounded-lg border border-border bg-bg-elev/50 p-2">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-white">
-                  <MapPin className="h-3 w-3 text-accent" aria-hidden />
-                  {branch}
-                </span>
+                {placeMap[branch] != null ? (
+                  <Link
+                    href={`/places/${placeMap[branch]}`}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline"
+                  >
+                    <MapPin className="h-3 w-3" aria-hidden />
+                    {branch}
+                  </Link>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-white">
+                    <MapPin className="h-3 w-3 text-accent" aria-hidden />
+                    {branch}
+                  </span>
+                )}
                 {branchOffers.length > 1 && (
                   <span className="rounded bg-bg px-1.5 py-0.5 text-[10px] text-muted" aria-label={`${branchOffers.length}`}>
                     {branchOffers.length}

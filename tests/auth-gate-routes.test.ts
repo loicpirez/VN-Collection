@@ -17,7 +17,7 @@ import { GET as wishlistGET } from '@/app/api/wishlist/route';
 import { GET as activityGET } from '@/app/api/activity/route';
 import { GET as downloadStatusGET } from '@/app/api/download-status/route';
 import { GET as streamGET } from '@/app/api/download-status/stream/route';
-import { GET as placesGET } from '@/app/api/places/route';
+import { POST as placesPOST } from '@/app/api/places/route';
 import { GET as duplicatesGET } from '@/app/api/maintenance/duplicates/route';
 import { GET as staleGET } from '@/app/api/maintenance/stale/route';
 import { GET as egsSyncGET, POST as egsSyncPOST } from '@/app/api/egs/sync/route';
@@ -174,8 +174,8 @@ describe('auth gate — newly-gated routes return 403 from external origin', () 
     expect(res.status).toBe(403);
   });
 
-  it('GET /api/places', async () => {
-    const res = await placesGET(externalReq('/api/places'));
+  it('POST /api/places', async () => {
+    const res = await placesPOST(externalReq('/api/places', 'POST', { name: 'Test' }));
     expect(res.status).toBe(403);
   });
 

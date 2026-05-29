@@ -645,6 +645,27 @@ function open(): Database.Database {
       PRIMARY KEY (vn_id, place)
     );
     CREATE INDEX IF NOT EXISTS idx_collection_place_index_place ON collection_place_index(place);
+
+    CREATE TABLE IF NOT EXISTS place_registry (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT    NOT NULL,
+      name_ja    TEXT,
+      address    TEXT,
+      lat        REAL,
+      lng        REAL,
+      url        TEXT,
+      notes      TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_place_registry_name ON place_registry(name COLLATE NOCASE);
+
+    CREATE TABLE IF NOT EXISTS place_provider_link (
+      place_id       INTEGER NOT NULL REFERENCES place_registry(id) ON DELETE CASCADE,
+      provider_label TEXT    NOT NULL,
+      PRIMARY KEY (place_id, provider_label)
+    );
+    CREATE INDEX IF NOT EXISTS idx_place_provider_link_label ON place_provider_link(provider_label);
   `);
   // Remove the redundant index from older builds.
   db.exec(`DROP INDEX IF EXISTS idx_shelf_slot_item`);
@@ -7313,6 +7334,203 @@ export function listKnownPlaces(): string[] {
     `)
     .all() as { place: string }[];
   return rows.map((r) => r.place);
+}
+
+// Place registry
+
+export interface PlaceRow {
+  id: number;
+  name: string;
+  name_ja: string | null;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  url: string | null;
+  notes: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface PlaceWithLinks extends PlaceRow {
+  provider_labels: string[];
+  stock_count: number;
+}
+
+export interface PlacePayload {
+  name: string;
+  name_ja?: string | null;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  url?: string | null;
+  notes?: string | null;
+}
+
+export function listPlaces(): PlaceWithLinks[] {
+  const rows = db
+    .prepare(`
+      SELECT
+        p.*,
+        GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
+        (
+          SELECT COUNT(DISTINCT vso.vn_id)
+          FROM vn_stock_offer vso
+          JOIN place_provider_link ppl2 ON ppl2.provider_label = vso.location_branch
+          WHERE ppl2.place_id = p.id
+            AND vso.availability IN ('in_stock', 'limited')
+        ) AS stock_count
+      FROM place_registry p
+      LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
+      GROUP BY p.id
+      ORDER BY p.name COLLATE NOCASE ASC
+    `)
+    .all() as (PlaceRow & { labels_concat: string | null; stock_count: number })[];
+  return rows.map((r) => ({
+    ...r,
+    provider_labels: r.labels_concat ? r.labels_concat.split('|||') : [],
+  }));
+}
+
+export function getPlace(id: number): PlaceWithLinks | null {
+  const row = db
+    .prepare(`
+      SELECT
+        p.*,
+        GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
+        (
+          SELECT COUNT(DISTINCT vso.vn_id)
+          FROM vn_stock_offer vso
+          JOIN place_provider_link ppl2 ON ppl2.provider_label = vso.location_branch
+          WHERE ppl2.place_id = p.id
+            AND vso.availability IN ('in_stock', 'limited')
+        ) AS stock_count
+      FROM place_registry p
+      LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
+      WHERE p.id = ?
+      GROUP BY p.id
+    `)
+    .get(id) as (PlaceRow & { labels_concat: string | null; stock_count: number }) | undefined;
+  if (!row) return null;
+  return { ...row, provider_labels: row.labels_concat ? row.labels_concat.split('|||') : [] };
+}
+
+export function createPlace(payload: PlacePayload): number {
+  const now = Date.now();
+  const result = db
+    .prepare(`
+      INSERT INTO place_registry (name, name_ja, address, lat, lng, url, notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .run(
+      payload.name,
+      payload.name_ja ?? null,
+      payload.address ?? null,
+      payload.lat ?? null,
+      payload.lng ?? null,
+      payload.url ?? null,
+      payload.notes ?? null,
+      now,
+      now,
+    );
+  return result.lastInsertRowid as number;
+}
+
+export function updatePlace(id: number, patch: Partial<PlacePayload>): void {
+  const fields = Object.keys(patch) as (keyof PlacePayload)[];
+  if (fields.length === 0) return;
+  const sets = fields.map((f) => `${f} = ?`);
+  sets.push('updated_at = ?');
+  const vals: unknown[] = fields.map((f) => patch[f] ?? null);
+  vals.push(Date.now());
+  vals.push(id);
+  db.prepare(`UPDATE place_registry SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+}
+
+export function deletePlace(id: number): void {
+  db.prepare('DELETE FROM place_registry WHERE id = ?').run(id);
+}
+
+export function linkProviderToPlace(placeId: number, providerLabel: string): void {
+  db.prepare(
+    'INSERT OR IGNORE INTO place_provider_link (place_id, provider_label) VALUES (?, ?)',
+  ).run(placeId, providerLabel);
+}
+
+export function unlinkProviderFromPlace(placeId: number, providerLabel: string): void {
+  db.prepare(
+    'DELETE FROM place_provider_link WHERE place_id = ? AND provider_label = ?',
+  ).run(placeId, providerLabel);
+}
+
+/**
+ * Returns a mapping of provider_label → place_id for every linked branch.
+ * Used server-side to decorate StockPhysicalLocations with place links.
+ */
+export function getPlaceProviderMap(): Record<string, number> {
+  const rows = db
+    .prepare('SELECT place_id, provider_label FROM place_provider_link')
+    .all() as { place_id: number; provider_label: string }[];
+  return Object.fromEntries(rows.map((r) => [r.provider_label, r.place_id]));
+}
+
+/**
+ * Distinct location_branch values in vn_stock_offer that are not yet
+ * assigned to any place_registry entry.
+ */
+export function listUnassignedBranches(): string[] {
+  const rows = db
+    .prepare(`
+      SELECT DISTINCT vso.location_branch AS branch
+      FROM vn_stock_offer vso
+      WHERE vso.location_branch IS NOT NULL
+        AND vso.location_branch != ''
+        AND NOT EXISTS (
+          SELECT 1 FROM place_provider_link ppl
+          WHERE ppl.provider_label = vso.location_branch
+        )
+      ORDER BY vso.location_branch COLLATE NOCASE ASC
+    `)
+    .all() as { branch: string }[];
+  return rows.map((r) => r.branch);
+}
+
+/** VNs in stock at a place (via linked provider labels). */
+export function listVnsAtPlace(placeId: number): {
+  vn_id: string;
+  title: string;
+  alttitle: string | null;
+  image_url: string | null;
+  local_image: string | null;
+  min_price: number | null;
+  offer_count: number;
+}[] {
+  return db
+    .prepare(`
+      SELECT
+        v.id AS vn_id,
+        v.title,
+        v.alttitle,
+        v.image_url,
+        v.local_image,
+        MIN(vso.price) AS min_price,
+        COUNT(*) AS offer_count
+      FROM vn_stock_offer vso
+      JOIN place_provider_link ppl ON ppl.provider_label = vso.location_branch
+      JOIN vn v ON v.id = vso.vn_id
+      WHERE ppl.place_id = ?
+        AND vso.availability IN ('in_stock', 'limited')
+      GROUP BY v.id
+      ORDER BY v.title COLLATE NOCASE ASC
+    `)
+    .all(placeId) as {
+      vn_id: string;
+      title: string;
+      alttitle: string | null;
+      image_url: string | null;
+      local_image: string | null;
+      min_price: number | null;
+      offer_count: number;
+    }[];
 }
 
 // Producer

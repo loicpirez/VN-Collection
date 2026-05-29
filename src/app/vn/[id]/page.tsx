@@ -85,6 +85,7 @@ import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/l
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
+import { getPlaceProviderMap } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 function combinedScore(vndb: number | null, egs: number | null): number | null {
@@ -914,6 +915,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               vndbAliases={(vn.aliases ?? []) as string[]}
               initialSnapshot={getStockForVn(vn.id)}
               showErogePrice={false}
+              placeMap={getPlaceProviderMap()}
             />
           </StockPanelBoundary>
         );

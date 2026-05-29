@@ -138,6 +138,7 @@ export function StockPanel({
   dense = false,
   initialSnapshot,
   showErogePrice = true,
+  placeMap = {},
 }: {
   vnId: string;
   title?: string;
@@ -146,6 +147,7 @@ export function StockPanel({
   dense?: boolean;
   initialSnapshot?: StockSnapshot;
   showErogePrice?: boolean;
+  placeMap?: Record<string, number>;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -1091,7 +1093,7 @@ export function StockPanel({
       )}
 
       {!loading && confirmedPhysicalIds.size > 0 && (
-        <StockPhysicalLocations offers={physicalOffers} />
+        <StockPhysicalLocations offers={physicalOffers} placeMap={placeMap} />
       )}
 
       {/* R12-EROGEPRICE-UI: render the full Eroge Price bundle —
