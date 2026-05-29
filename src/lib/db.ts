@@ -3709,8 +3709,13 @@ export interface ListOptions {
    * `has_anime`, `image_violence`) is omitted. The row mapper
    * gracefully treats missing columns as the empty default
    * thanks to `safeJsonParse(undefined, …)`.
+   *
+   * `'full-no-raw'` selects every column `rowToItem` reads (the
+   * full `CollectionItem` shape) but drops the heavy `raw` blob,
+   * which `rowToItem` never reads — for callers that need rich
+   * detail yet pay nothing for the largest column on the row.
    */
-  _projection?: 'full' | 'cards';
+  _projection?: 'full' | 'full-no-raw' | 'cards';
   sort?:
     | 'updated_at'
     | 'added_at'
@@ -3747,6 +3752,24 @@ const CARDS_VN_COLUMNS =
   'v.local_image, v.local_image_thumb, v.custom_cover, v.banner_image, ' +
   'v.banner_position, v.cover_rotation, v.banner_rotation, ' +
   'v.fetched_at';
+
+/**
+ * P-051 — every `vn` column `rowToItem` consumes EXCEPT the heavy
+ * `raw` blob. Mirrors the `DbRow` field set (`id` … `fetched_at`),
+ * so the `'full-no-raw'` projection returns the complete
+ * `CollectionItem` shape without paying for the largest column.
+ * `rowToItem` never reads `row.raw`, so dropping it is invisible to
+ * callers.
+ */
+const FULL_NO_RAW_VN_COLUMNS =
+  'v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual, ' +
+  'v.image_violence, v.released, v.olang, v.languages, v.platforms, ' +
+  'v.length_minutes, v.length, v.rating, v.votecount, v.description, ' +
+  'v.developers, v.publishers, v.tags, v.screenshots, v.release_images, ' +
+  'v.local_image, v.local_image_thumb, v.custom_cover, v.banner_image, ' +
+  'v.banner_position, v.cover_rotation, v.banner_rotation, v.relations, ' +
+  'v.aliases, v.extlinks, v.length_votes, v.average, v.has_anime, ' +
+  'v.devstatus, v.titles, v.editions, v.staff, v.va, v.fetched_at';
 
 /**
  * Canonical collection listing — applies filters (status, producer,
@@ -3981,7 +4004,12 @@ export function listCollection({
     join += 'LEFT JOIN egs_game e ON e.vn_id = v.id ';
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const vnProjection = _projection === 'cards' ? CARDS_VN_COLUMNS : 'v.*';
+  const vnProjection =
+    _projection === 'cards'
+      ? CARDS_VN_COLUMNS
+      : _projection === 'full-no-raw'
+        ? FULL_NO_RAW_VN_COLUMNS
+        : 'v.*';
   const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10_000;
   params.push(safeLimit);
   const rows = db
@@ -5485,13 +5513,8 @@ export interface ShelfEntry extends OwnedReleaseRow {
 }
 
 function parseJsonArrayField(raw: string | null | undefined): string[] {
-  if (!raw) return [];
-  try {
-    const v = JSON.parse(raw);
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-  } catch {
-    return [];
-  }
+  const v = safeJsonParse<unknown>(raw, null);
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
 }
 
 function pickReleaseCover(raw: string | null | undefined, releaseId: string): {
@@ -5523,20 +5546,15 @@ function pickReleaseCover(raw: string | null | undefined, releaseId: string): {
  * only needs the lang codes.
  */
 function parseLanguagesField(raw: string | null | undefined): string[] {
-  if (!raw) return [];
-  try {
-    const v = JSON.parse(raw);
-    if (!Array.isArray(v)) return [];
-    const out: string[] = [];
-    for (const entry of v) {
-      if (entry && typeof entry === 'object' && typeof (entry as { lang?: unknown }).lang === 'string') {
-        out.push((entry as { lang: string }).lang);
-      }
+  const v = safeJsonParse<unknown>(raw, null);
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const entry of v) {
+    if (entry && typeof entry === 'object' && typeof (entry as { lang?: unknown }).lang === 'string') {
+      out.push((entry as { lang: string }).lang);
     }
-    return out;
-  } catch {
-    return [];
   }
+  return out;
 }
 
 /**
@@ -6766,25 +6784,21 @@ export function deriveVnAspectKey(vnId: string): AspectKey {
     .prepare('SELECT screenshots FROM vn WHERE id = ?')
     .get(vnId) as { screenshots: string | null } | undefined;
   if (vnRow?.screenshots) {
-    try {
-      const shots = JSON.parse(vnRow.screenshots) as Array<{ dims?: [number, number] }>;
-      const tally = new Map<AspectKey, number>();
-      for (const s of shots) {
-        if (!Array.isArray(s.dims)) continue;
-        const [w, h] = s.dims;
-        if (typeof w !== 'number' || typeof h !== 'number' || w <= 0 || h <= 0) continue;
-        const key = aspectKeyForResolution(w, h);
-        if (key === 'unknown') continue;
-        tally.set(key, (tally.get(key) ?? 0) + 1);
-      }
-      let best: { key: AspectKey; n: number } | null = null;
-      for (const [key, n] of tally) {
-        if (!best || n > best.n) best = { key, n };
-      }
-      if (best) return best.key;
-    } catch {
-      // ignore — malformed JSON column, treat as unknown
+    const shots = safeJsonParse<Array<{ dims?: [number, number] }>>(vnRow.screenshots, []);
+    const tally = new Map<AspectKey, number>();
+    for (const s of shots) {
+      if (!Array.isArray(s.dims)) continue;
+      const [w, h] = s.dims;
+      if (typeof w !== 'number' || typeof h !== 'number' || w <= 0 || h <= 0) continue;
+      const key = aspectKeyForResolution(w, h);
+      if (key === 'unknown') continue;
+      tally.set(key, (tally.get(key) ?? 0) + 1);
     }
+    let best: { key: AspectKey; n: number } | null = null;
+    for (const [key, n] of tally) {
+      if (!best || n > best.n) best = { key, n };
+    }
+    if (best) return best.key;
   }
   return 'unknown';
 }
@@ -10154,43 +10168,47 @@ export function batchVnStockSummaries(
   vnIds: string[],
 ): Map<string, { available: number; best_price: number | null }> {
   if (vnIds.length === 0) return new Map();
-  const ph = vnIds.map(() => '?').join(',');
+  const CHUNK = 500;
   type Row = { vn_id: string; available: number; best_price: number | null };
-  const rows = db
-    .prepare(
-      `WITH eligible AS (
-         SELECT vn_id,
-                price,
-                CASE
-                  WHEN source IN ('direct','manual','alicesoft_kobe') THEN 0
-                  WHEN jan IS NOT NULL AND jan <> '' THEN 1
-                  WHEN product_id IS NOT NULL AND product_id <> '' THEN 2
-                  WHEN match_confidence IN ('exact','high') THEN 3
-                  WHEN match_confidence = 'medium' THEN 4
-                  ELSE 5
-                END AS priority
-         FROM vn_stock_offer
-         WHERE vn_id IN (${ph})
-           AND availability IN ('in_stock','limited')
-           AND (content_kind IS NULL OR content_kind IN ('game_package','digital_download'))
-           AND (match_confidence IS NULL OR match_confidence IN ('exact','high'))
-           AND (series_relation IS NULL OR series_relation IN ('exact_game','same_game_different_edition','same_game_different_platform'))
-       ),
-       ranked AS (
-         SELECT vn_id, MIN(priority) AS best_priority
-         FROM eligible
-         GROUP BY vn_id
-       )
-       SELECT e.vn_id,
-              COUNT(*) AS available,
-              MIN(CASE WHEN e.priority = r.best_priority AND e.price IS NOT NULL THEN e.price END) AS best_price
-       FROM eligible e
-       JOIN ranked r ON r.vn_id = e.vn_id
-       GROUP BY e.vn_id`,
-    )
-    .all(...vnIds) as Row[];
   const out = new Map<string, { available: number; best_price: number | null }>();
-  for (const r of rows) out.set(r.vn_id, { available: r.available, best_price: r.best_price });
+  for (let i = 0; i < vnIds.length; i += CHUNK) {
+    const chunk = vnIds.slice(i, i + CHUNK);
+    const ph = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(
+        `WITH eligible AS (
+           SELECT vn_id,
+                  price,
+                  CASE
+                    WHEN source IN ('direct','manual','alicesoft_kobe') THEN 0
+                    WHEN jan IS NOT NULL AND jan <> '' THEN 1
+                    WHEN product_id IS NOT NULL AND product_id <> '' THEN 2
+                    WHEN match_confidence IN ('exact','high') THEN 3
+                    WHEN match_confidence = 'medium' THEN 4
+                    ELSE 5
+                  END AS priority
+           FROM vn_stock_offer
+           WHERE vn_id IN (${ph})
+             AND availability IN ('in_stock','limited')
+             AND (content_kind IS NULL OR content_kind IN ('game_package','digital_download'))
+             AND (match_confidence IS NULL OR match_confidence IN ('exact','high'))
+             AND (series_relation IS NULL OR series_relation IN ('exact_game','same_game_different_edition','same_game_different_platform'))
+         ),
+         ranked AS (
+           SELECT vn_id, MIN(priority) AS best_priority
+           FROM eligible
+           GROUP BY vn_id
+         )
+         SELECT e.vn_id,
+                COUNT(*) AS available,
+                MIN(CASE WHEN e.priority = r.best_priority AND e.price IS NOT NULL THEN e.price END) AS best_price
+         FROM eligible e
+         JOIN ranked r ON r.vn_id = e.vn_id
+         GROUP BY e.vn_id`,
+      )
+      .all(...chunk) as Row[];
+    for (const r of rows) out.set(r.vn_id, { available: r.available, best_price: r.best_price });
+  }
 
   // Eroge Price source-of-truth fallback. The bulk-resolve script
   // (and a fresh stock refresh that's still queued) populates
@@ -10201,13 +10219,19 @@ export function batchVnStockSummaries(
   // `currentPrice` across every retailer in the selected candidate.
   const fallbackIds = vnIds.filter((id) => !out.has(id));
   if (fallbackIds.length === 0) return out;
-  const fbPh = fallbackIds.map(() => '?').join(',');
-  const fbRows = db
-    .prepare(
-      `SELECT vn_id, extras_json FROM vn_stock_provider_status
-       WHERE provider = 'eroge_price' AND vn_id IN (${fbPh}) AND extras_json IS NOT NULL`,
-    )
-    .all(...fallbackIds) as { vn_id: string; extras_json: string }[];
+  const fbRows: { vn_id: string; extras_json: string }[] = [];
+  for (let i = 0; i < fallbackIds.length; i += CHUNK) {
+    const chunk = fallbackIds.slice(i, i + CHUNK);
+    const fbPh = chunk.map(() => '?').join(',');
+    fbRows.push(
+      ...(db
+        .prepare(
+          `SELECT vn_id, extras_json FROM vn_stock_provider_status
+           WHERE provider = 'eroge_price' AND vn_id IN (${fbPh}) AND extras_json IS NOT NULL`,
+        )
+        .all(...chunk) as { vn_id: string; extras_json: string }[]),
+    );
+  }
   for (const row of fbRows) {
     try {
       const decoded = JSON.parse(row.extras_json) as {
