@@ -113,6 +113,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
           maxLength={8000}
           placeholder={t.customSynopsis.placeholder}
           aria-label={label}
+          disabled={saving}
           className="w-full rounded-md border border-border bg-bg-elev/40 p-3 text-sm leading-relaxed text-white focus:border-accent focus:outline-none"
         />
         <p className="mt-1 text-[10px] text-muted">
