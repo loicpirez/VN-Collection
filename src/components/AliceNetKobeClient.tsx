@@ -25,6 +25,7 @@ import { useDialogA11y } from './Dialog';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { SafeImage } from './SafeImage';
+import { SkeletonBlock } from './Skeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -953,8 +954,8 @@ export function AliceNetKobeClient() {
         {showStatsSkeleton ? (
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-xl border border-border bg-bg-card p-4 text-center">
-              <div className="mx-auto mb-3 h-3 w-20 animate-pulse rounded bg-bg-elev" />
-              <div className="mx-auto h-8 w-14 animate-pulse rounded bg-bg-elev/80" />
+              <SkeletonBlock className="mx-auto mb-3 h-3 w-20" />
+              <SkeletonBlock className="mx-auto h-8 w-14" />
             </div>
           ))
         ) : (
@@ -1316,7 +1317,7 @@ export function AliceNetKobeClient() {
         >
           <span className="sr-only">{t.common.loading}</span>
           {Array.from({ length: view === 'cards' ? 12 : 10 }).map((_, i) => (
-            <div key={i} className={`${view === 'cards' ? 'h-96' : 'h-24'} animate-pulse rounded-xl bg-bg-elev/40`} aria-hidden />
+            <SkeletonBlock key={i} className={`${view === 'cards' ? 'h-96' : 'h-24'} rounded-xl`} />
           ))}
         </div>
       ) : sorted.length === 0 ? (

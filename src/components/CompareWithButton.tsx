@@ -5,6 +5,7 @@ import { Check, GitCompare, Loader2, Search, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { yearOnly } from '@/lib/locale-number';
 import { Dialog } from './Dialog';
+import { SkeletonBlock } from './Skeleton';
 
 interface CollectionRow {
   id: string;
@@ -135,7 +136,7 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
           {loading ? (
             <ul className="p-3" aria-busy="true">
               {Array.from({ length: 6 }).map((_, i) => (
-                <li key={i} className="mb-1 h-6 animate-pulse rounded bg-bg-elev/40" />
+                <li key={i} className="mb-1"><SkeletonBlock className="h-6" /></li>
               ))}
             </ul>
           ) : filtered.length === 0 ? (
@@ -150,7 +151,7 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
                       type="button"
                       onClick={() => toggle(r.id)}
                       aria-pressed={isPicked}
-                      className={`tap-target flex w-full items-center gap-2 border-b border-border px-3 py-1.5 text-left text-xs ${
+                      className={`tap-target flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-xs ${
                         isPicked ? 'bg-accent/10' : 'hover:bg-bg-elev/50'
                       }`}
                     >
