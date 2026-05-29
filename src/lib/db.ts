@@ -7557,8 +7557,31 @@ export function moveProviderLink(fromPlaceId: number, toPlaceId: number, provide
   })();
 }
 
-/** VNs in stock at a place (via linked provider labels). Matches on both location_branch and location_label. */
-export function listVnsAtPlace(placeId: number): {
+export interface PlaceOfferRow {
+  vn_id: string;
+  provider: string;
+  availability: string;
+  price: number | null;
+  currency: string | null;
+  url: string | null;
+  location_branch: string | null;
+  location_label: string | null;
+  updated_at: number;
+}
+
+type PlaceAvailFilter = 'in_stock' | 'all' | 'out_of_stock';
+
+function availSql(avail: PlaceAvailFilter): string {
+  if (avail === 'all') return '';
+  if (avail === 'out_of_stock') return "AND vso.availability = 'out_of_stock'";
+  return "AND vso.availability IN ('in_stock', 'limited')";
+}
+
+/** VNs at a place (aggregated). Matches on both location_branch and location_label. */
+export function listVnsAtPlace(
+  placeId: number,
+  avail: PlaceAvailFilter = 'in_stock',
+): {
   vn_id: string;
   title: string;
   alttitle: string | null;
@@ -7586,7 +7609,7 @@ export function listVnsAtPlace(placeId: number): {
       )
       JOIN vn v ON v.id = vso.vn_id
       WHERE ppl.place_id = ?
-        AND vso.availability IN ('in_stock', 'limited')
+        ${availSql(avail)}
       GROUP BY v.id
       ORDER BY v.title COLLATE NOCASE ASC
     `)
@@ -7600,6 +7623,35 @@ export function listVnsAtPlace(placeId: number): {
       offer_count: number;
       max_updated_at: number;
     }[];
+}
+
+/** Individual offer rows at a place (one row per offer). */
+export function listOffersAtPlace(
+  placeId: number,
+  avail: PlaceAvailFilter = 'in_stock',
+): PlaceOfferRow[] {
+  return db
+    .prepare(`
+      SELECT
+        vso.vn_id,
+        vso.provider,
+        vso.availability,
+        vso.price,
+        vso.currency,
+        vso.url,
+        vso.location_branch,
+        vso.location_label,
+        vso.updated_at
+      FROM vn_stock_offer vso
+      JOIN place_provider_link ppl ON (
+        ppl.provider_label = vso.location_branch
+        OR ppl.provider_label = vso.location_label
+      )
+      WHERE ppl.place_id = ?
+        ${availSql(avail)}
+      ORDER BY vso.vn_id ASC, vso.updated_at DESC
+    `)
+    .all(placeId) as PlaceOfferRow[];
 }
 
 // Producer
