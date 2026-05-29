@@ -192,7 +192,8 @@ export default async function SimilarPage({
               src={seedImageUrl}
               sexual={seed.image_sexual ?? null}
               alt={seed.title}
-              className="h-28 w-[74px] rounded-lg object-cover shadow-sm"
+              className="aspect-[2/3] rounded-lg object-cover shadow-sm"
+              style={{ width: 'calc(var(--card-density-px, 220px) / 3)' }}
             />
           </Link>
           <div className="min-w-0 flex-1">

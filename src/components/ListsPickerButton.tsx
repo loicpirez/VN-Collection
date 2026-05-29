@@ -157,7 +157,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
   const triggerClass =
     variant === 'inline'
       ? `inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white`
-      : `absolute right-2 top-11 z-10 inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[10px] font-bold uppercase tracking-wider shadow-card backdrop-blur transition-opacity hover:bg-bg-card ${
+      : `tap-target absolute right-2 top-11 z-10 inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[10px] font-bold uppercase tracking-wider shadow-card backdrop-blur transition-opacity hover:bg-bg-card ${
           hasMembership
             ? 'bg-accent text-bg !opacity-100'
             : `bg-bg-card/85 text-white can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100${open ? ' !opacity-100' : ''}`

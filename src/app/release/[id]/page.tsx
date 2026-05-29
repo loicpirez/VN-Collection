@@ -224,13 +224,13 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           {release.gtin && (
             <div>
               <dt className="text-[10px] uppercase tracking-wider text-muted">{t.releases.gtin}</dt>
-              <dd className="font-mono text-xs font-semibold">{release.gtin}</dd>
+              <dd className="break-all font-mono text-xs font-semibold">{release.gtin}</dd>
             </div>
           )}
           {release.catalog && (
             <div>
               <dt className="text-[10px] uppercase tracking-wider text-muted">{t.releases.catalog}</dt>
-              <dd className="font-mono text-xs font-semibold">{release.catalog}</dd>
+              <dd className="break-all font-mono text-xs font-semibold">{release.catalog}</dd>
             </div>
           )}
         </dl>
