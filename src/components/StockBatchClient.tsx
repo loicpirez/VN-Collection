@@ -71,7 +71,7 @@ export function StockBatchClient() {
       const r = await fetch(`/api/stock/queue?scope=${scope}`, { cache: 'no-store' });
       if (!r.ok) {
         const data = (await r.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? String(r.status));
+        throw new Error(data.error ?? t.common.httpStatus.replace('{status}', String(r.status)));
       }
       const data = (await r.json()) as {
         ids?: string[];
@@ -112,7 +112,7 @@ export function StockBatchClient() {
       });
       if (!r.ok) {
         const data = (await r.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? String(r.status));
+        throw new Error(data.error ?? t.common.httpStatus.replace('{status}', String(r.status)));
       }
       const data = (await r.json()) as { jobId: string; queued: number };
       setJobId(data.jobId);
