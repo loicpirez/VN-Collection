@@ -6,10 +6,13 @@ import { useDialogA11y } from './Dialog';
 import { useT } from '@/lib/i18n/client';
 import type { PlaceWithLinks } from '@/lib/db';
 
+type PlaceKind = 'shop' | 'chain' | 'storage';
+
 interface Props {
   place: PlaceWithLinks | null;
+  initialBranch?: string | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (newId?: number) => void;
 }
 
 interface NominatimResult {
@@ -18,35 +21,47 @@ interface NominatimResult {
   lon: string;
 }
 
-export function AddEditPlaceModal({ place, onClose, onSaved }: Props) {
+export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Props) {
   const t = useT();
   const panelRef = useRef<HTMLDivElement | null>(null);
   useDialogA11y({ open: true, onClose, panelRef });
 
-  const [name, setName] = useState(place?.name ?? '');
+  const [name, setName] = useState(place?.name ?? initialBranch ?? '');
   const [nameJa, setNameJa] = useState(place?.name_ja ?? '');
+  const [kind, setKind] = useState<PlaceKind>(place?.kind ?? 'shop');
   const [address, setAddress] = useState(place?.address ?? '');
   const [lat, setLat] = useState(place?.lat != null ? String(place.lat) : '');
   const [lng, setLng] = useState(place?.lng != null ? String(place.lng) : '');
   const [url, setUrl] = useState(place?.url ?? '');
   const [notes, setNotes] = useState(place?.notes ?? '');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [geocodeQ, setGeocodeQ] = useState('');
   const [geocodeResults, setGeocodeResults] = useState<NominatimResult[]>([]);
   const [geocoding, setGeocoding] = useState(false);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!name && initialBranch) setName(initialBranch);
+  }, [initialBranch]);
 
   async function geocode() {
     if (!geocodeQ.trim()) return;
     setGeocoding(true);
     setGeocodeResults([]);
+    setGeocodeError(null);
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(geocodeQ)}&format=jsonv2&limit=5`,
         { headers: { 'Accept-Language': 'ja,en' } },
       );
+      if (!res.ok) throw new Error(`${res.status}`);
       const data = (await res.json()) as NominatimResult[];
-      setGeocodeResults(data);
-    } catch {}
+      if (data.length === 0) setGeocodeError(t.places.geocodeEmpty as string);
+      else setGeocodeResults(data);
+    } catch {
+      setGeocodeError(t.places.geocodeError as string);
+    }
     setGeocoding(false);
   }
 
@@ -56,38 +71,54 @@ export function AddEditPlaceModal({ place, onClose, onSaved }: Props) {
     if (!address) setAddress(r.display_name);
     setGeocodeResults([]);
     setGeocodeQ('');
+    setGeocodeError(null);
+  }
+
+  function clearCoords() {
+    setLat('');
+    setLng('');
   }
 
   async function handleSave() {
     if (!name.trim()) return;
     setSaving(true);
+    setError(null);
     const body = {
       name: name.trim(),
       name_ja: nameJa.trim() || null,
+      kind,
       address: address.trim() || null,
-      lat: lat !== '' ? Number(lat) : null,
-      lng: lng !== '' ? Number(lng) : null,
+      lat: lat !== '' && !Number.isNaN(Number(lat)) ? Number(lat) : null,
+      lng: lng !== '' && !Number.isNaN(Number(lng)) ? Number(lng) : null,
       url: url.trim() || null,
       notes: notes.trim() || null,
     };
     try {
       if (place) {
-        await fetch(`/api/places/${place.id}`, {
+        const res = await fetch(`/api/places/${place.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
+        if (!res.ok) throw new Error(`${res.status}`);
+        onSaved();
       } else {
-        await fetch('/api/places', {
+        const res = await fetch('/api/places', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
+        if (!res.ok) throw new Error(`${res.status}`);
+        const data = (await res.json()) as { id?: number };
+        onSaved(data.id);
       }
-      onSaved();
-    } catch {}
+    } catch {
+      setError(t.common.error as string);
+    }
     setSaving(false);
   }
+
+  const KINDS: PlaceKind[] = ['shop', 'chain', 'storage'];
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -103,6 +134,9 @@ export function AddEditPlaceModal({ place, onClose, onSaved }: Props) {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-white">
             {place ? (t.places.editPlace as string) : (t.places.addPlace as string)}
+            {initialBranch && !place && (
+              <span className="ml-2 text-[11px] font-normal text-muted">{initialBranch}</span>
+            )}
           </h2>
           <button
             type="button"
@@ -134,6 +168,23 @@ export function AddEditPlaceModal({ place, onClose, onSaved }: Props) {
               placeholder={t.places.nameJaPlaceholder as string}
             />
           </div>
+
+          <div>
+            <label className="label text-xs">{t.places.kindLabel as string}</label>
+            <div className="mt-1 flex gap-1">
+              {KINDS.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setKind(k)}
+                  className={`chip tap-target ${kind === k ? 'chip-active' : 'text-muted hover:text-white'}`}
+                >
+                  {(t.places as Record<string, unknown>)[`kind${k.charAt(0).toUpperCase()}${k.slice(1)}`] as string}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="label text-xs">{t.places.addressPlaceholder as string}</label>
             <input
@@ -163,6 +214,9 @@ export function AddEditPlaceModal({ place, onClose, onSaved }: Props) {
                 <Search className="h-3.5 w-3.5" aria-hidden />
               </button>
             </div>
+            {geocodeError && (
+              <p className="text-[11px] text-status-dropped">{geocodeError}</p>
+            )}
             {geocodeResults.length > 0 && (
               <ul className="space-y-1">
                 {geocodeResults.map((r, i) => (
@@ -206,6 +260,15 @@ export function AddEditPlaceModal({ place, onClose, onSaved }: Props) {
               />
             </div>
           </div>
+          {(lat !== '' || lng !== '') && (
+            <button
+              type="button"
+              onClick={clearCoords}
+              className="text-[11px] text-muted hover:text-status-dropped"
+            >
+              {t.places.clearCoords as string}
+            </button>
+          )}
 
           <div>
             <label className="label text-xs">{t.places.urlPlaceholder as string}</label>
@@ -228,6 +291,10 @@ export function AddEditPlaceModal({ place, onClose, onSaved }: Props) {
             />
           </div>
         </div>
+
+        {error && (
+          <p role="alert" className="mt-3 text-xs text-status-dropped">{error}</p>
+        )}
 
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="btn btn-sm text-muted">

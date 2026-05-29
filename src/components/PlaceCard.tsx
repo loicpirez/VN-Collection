@@ -5,6 +5,9 @@ import { MapPin, Globe, Edit2, Trash2, Link2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import type { PlaceWithLinks } from '@/lib/db';
 
+const STALE_DAYS = 7;
+const MS_PER_DAY = 86_400_000;
+
 interface Props {
   place: PlaceWithLinks;
   onEdit: (place: PlaceWithLinks) => void;
@@ -12,9 +15,30 @@ interface Props {
   onAssign: (place: PlaceWithLinks) => void;
 }
 
+function freshnessLabel(t: ReturnType<typeof useT>, updatedAt: number): { label: string; stale: boolean } {
+  const daysDiff = Math.floor((Date.now() - updatedAt) / MS_PER_DAY);
+  if (daysDiff === 0) return { label: t.places.freshUpdatedToday as string, stale: false };
+  if (daysDiff < STALE_DAYS) {
+    return {
+      label: (t.places.freshUpdatedDaysAgo as string).replace('{n}', String(daysDiff)),
+      stale: false,
+    };
+  }
+  return {
+    label: (t.places.freshStale as string).replace('{n}', String(daysDiff)),
+    stale: true,
+  };
+}
+
+function kindLabel(t: ReturnType<typeof useT>, kind: PlaceWithLinks['kind']): string {
+  const key = `kind${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
+  return (t.places as Record<string, unknown>)[key] as string ?? kind;
+}
+
 export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
   const t = useT();
   const [deleting, setDeleting] = useState(false);
+  const freshness = freshnessLabel(t, place.updated_at);
 
   function handleDelete() {
     if (!window.confirm(t.places.deleteConfirm as string)) return;
@@ -25,7 +49,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
   }
 
   return (
-    <div className="relative flex flex-col rounded-xl border border-border bg-bg-card p-4 gap-3">
+    <div className={`relative flex flex-col rounded-xl border bg-bg-card p-4 gap-3 ${freshness.stale && place.provider_labels.length > 0 ? 'border-status-on_hold/30 opacity-80' : 'border-border'}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-bold text-white">{place.name}</p>
@@ -73,6 +97,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
       )}
 
       <div className="flex flex-wrap items-center gap-2 text-[11px]">
+        <span className="chip text-muted">{kindLabel(t, place.kind)}</span>
         <span className={`chip ${place.provider_labels.length > 0 ? 'bg-accent/15 text-accent' : 'text-muted'}`}>
           {place.provider_labels.length > 0
             ? (t.places.linkedBranches as string).replace('{n}', String(place.provider_labels.length))
@@ -83,6 +108,11 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
             ? (t.places.stockCount as string).replace('{n}', String(place.stock_count))
             : (t.places.noStock as string)}
         </span>
+        {place.provider_labels.length > 0 && (
+          <span className={`chip ${freshness.stale ? 'bg-status-on_hold/10 text-status-on_hold' : 'text-muted'}`}>
+            {freshness.label}
+          </span>
+        )}
         {place.lat != null && place.lng != null ? (
           <span className="chip text-muted" title={`${place.lat}, ${place.lng}`}>
             GPS
@@ -110,7 +140,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
         )}
         {place.lat != null && place.lng != null && (
           <Link
-            href={`/map?lat=${place.lat}&lng=${place.lng}&id=${place.id}`}
+            href={`/map?place=${place.id}`}
             className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-accent"
           >
             <MapPin className="h-3 w-3" aria-hidden />
