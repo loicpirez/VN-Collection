@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { searchTags } from '@/lib/vndb';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { clampQuery } from '@/lib/api-query';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,11 +15,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const sp = req.nextUrl.searchParams;
-  const q = (sp.get('q') ?? '').slice(0, Q_MAX);
+  const q = clampQuery(sp.get('q'), Q_MAX);
   // Clamp the optional category filter so a hostile caller can't smuggle
   // an arbitrarily long string into the VNDB filter tuple.
-  const catRaw = sp.get('category');
-  const cat = catRaw ? catRaw.slice(0, CAT_MAX) : undefined;
+  const cat = clampQuery(sp.get('category'), CAT_MAX) || undefined;
   // Clamp the results count so a malformed `?results=99999` doesn't burn
   // the VNDB throttle budget on a huge response we'll never render.
   const resultsRaw = Number(sp.get('results') ?? '50');

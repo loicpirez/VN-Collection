@@ -3,6 +3,7 @@ import { upstreamError } from '@/lib/api-error';
 import { searchVn } from '@/lib/vndb';
 import { isInCollectionMany } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { clampQuery } from '@/lib/api-query';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,7 @@ const Q_MAX = 200;
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const q = (req.nextUrl.searchParams.get('q') ?? '').slice(0, Q_MAX).trim();
+  const q = clampQuery(req.nextUrl.searchParams.get('q'), Q_MAX);
   if (!q) return NextResponse.json({ results: [], more: false });
   try {
     const data = await searchVn(q, { results: 30 });

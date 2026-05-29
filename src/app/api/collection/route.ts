@@ -14,6 +14,7 @@ import {
   type ListOptions,
 } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
+import { clampQuery } from '@/lib/api-query';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
@@ -48,13 +49,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // patterns. 300 chars matches the cap on `/api/search/textual`
   // and the longest reasonable advanced-search payloads.
   const FILTER_MAX = 300;
-  const clip = (v: string): string => v.slice(0, FILTER_MAX);
-  const q = clip(sp.get('q') ?? '');
-  const producer = clip(sp.get('producer') ?? '');
-  const publisher = clip(sp.get('publisher') ?? '');
-  const tag = clip(sp.get('tag') ?? '');
-  const place = clip(sp.get('place') ?? '');
-  const edition = clip(sp.get('edition') ?? '');
+  const q = clampQuery(sp.get('q'), FILTER_MAX);
+  const producer = clampQuery(sp.get('producer'), FILTER_MAX);
+  const publisher = clampQuery(sp.get('publisher'), FILTER_MAX);
+  const tag = clampQuery(sp.get('tag'), FILTER_MAX);
+  const place = clampQuery(sp.get('place'), FILTER_MAX);
+  const edition = clampQuery(sp.get('edition'), FILTER_MAX);
   const seriesRaw = sp.get('series');
   const yearMinRaw = sp.get('yearMin');
   const yearMaxRaw = sp.get('yearMax');

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { EgsUnreachable, searchEgsCandidates } from '@/lib/erogamescape';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { clampQuery } from '@/lib/api-query';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -15,7 +16,7 @@ const Q_MAX = 200;
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const q = (req.nextUrl.searchParams.get('q') ?? '').slice(0, Q_MAX).trim();
+  const q = clampQuery(req.nextUrl.searchParams.get('q'), Q_MAX);
   const limitRaw = req.nextUrl.searchParams.get('limit');
   const limit = limitRaw ? Math.min(50, Math.max(1, Number(limitRaw) || 20)) : 20;
   if (!q) {
