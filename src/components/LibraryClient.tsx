@@ -321,7 +321,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     setSelectMode(false);
   }
 
+  const facetsFetchedRef = useRef(false);
   useEffect(() => {
+    if (facetsFetchedRef.current) return;
+    facetsFetchedRef.current = true;
     const ctrl = new AbortController();
     const opts: RequestInit = { signal: ctrl.signal, cache: 'no-store' };
     fetch('/api/producers', opts)
@@ -1547,6 +1550,18 @@ function Grid({
   const cls = dense ? 'grid gap-4' : 'grid gap-3';
   const densityMul = dense ? 0.72 : 1;
   const gapPx = dense ? 16 : 12;
+  /**
+   * Density-aware virtualization threshold. Smaller cards (lower
+   * `densityMul`) pack more columns per row, so more rows fit in the
+   * viewport and the cost of rendering every item climbs sooner, so
+   * the threshold scales down with `densityMul` to engage
+   * virtualization earlier at higher density. Floored so small
+   * collections still skip virtualization regardless of density.
+   */
+  const virtualThreshold = Math.max(
+    Math.round(VIRTUAL_GRID_THRESHOLD / 2),
+    Math.round(VIRTUAL_GRID_THRESHOLD * densityMul),
+  );
   const gridStyle: React.CSSProperties = useMemo(
     () => ({
       gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${densityMul})), 1fr))`,
@@ -1574,7 +1589,7 @@ function Grid({
     });
   }, []);
   useEffect(() => {
-    if (items.length <= VIRTUAL_GRID_THRESHOLD) return;
+    if (items.length <= virtualThreshold) return;
     const el = containerRef.current;
     if (!el) return;
     measureGrid();
@@ -1591,7 +1606,7 @@ function Grid({
         measureFrameRef.current = null;
       }
     };
-  }, [items.length, measureGrid]);
+  }, [items.length, measureGrid, virtualThreshold]);
   const virtual = useMemo(
     () => calculateVirtualGridWindow({
       itemCount: items.length,
@@ -1602,8 +1617,9 @@ function Grid({
       densityPx: measurements.densityPx,
       densityMultiplier: densityMul,
       gapPx,
+      threshold: virtualThreshold,
     }),
-    [densityMul, gapPx, items.length, measurements],
+    [densityMul, gapPx, items.length, measurements, virtualThreshold],
   );
   const renderedItems = useMemo(
     () => (virtual.enabled ? items.slice(virtual.startIndex, virtual.endIndex) : items),
