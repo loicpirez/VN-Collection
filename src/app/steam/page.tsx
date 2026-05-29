@@ -7,6 +7,7 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { useToast } from '@/components/ToastProvider';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { SkeletonRows } from '@/components/Skeleton';
+import { ErrorAlert } from '@/components/ErrorAlert';
 import { formatMinutes } from '@/lib/format';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -199,18 +200,18 @@ export default function SteamSyncPage() {
       </header>
 
       {suggestionsError && (
-        <div className="mb-4 rounded-xl border border-status-on_hold/40 bg-status-on_hold/10 p-4 text-sm">
-          <p className="font-semibold text-status-on_hold">{suggestionsError}</p>
-          {/* I-016: compare against the stable code, not the locale-
-              sensitive message string. */}
-          {suggestionsErrorCode === 'steam_not_configured' && (
-            <p className="mt-2 text-xs text-muted">
-              {t.steam.howToConfigure}{' '}
-              <Link href="/data" className="inline-flex items-center gap-1 font-bold text-accent hover:underline">
-                {t.nav.data} <Settings2 className="h-3 w-3" aria-hidden />
-              </Link>
-            </p>
-          )}
+        <div className="mb-4">
+          <ErrorAlert title={t.common.error}>
+            <p>{suggestionsError}</p>
+            {suggestionsErrorCode === 'steam_not_configured' && (
+              <p className="mt-2">
+                {t.steam.howToConfigure}{' '}
+                <Link href="/data" className="inline-flex items-center gap-1 font-bold text-accent hover:underline">
+                  {t.nav.data} <Settings2 className="h-3 w-3" aria-hidden />
+                </Link>
+              </p>
+            )}
+          </ErrorAlert>
         </div>
       )}
 
