@@ -730,18 +730,22 @@ export function AliceNetKobeClient() {
   };
 
   const activeFilterCount =
+    (filter !== 'all' ? 1 : 0) +
     (producerFilter ? 1 : 0) +
     (yearMin ? 1 : 0) +
     (yearMax ? 1 : 0) +
     (priceMin ? 1 : 0) +
-    (priceMax ? 1 : 0);
+    (priceMax ? 1 : 0) +
+    (searchInput ? 1 : 0);
 
   function resetFilters() {
+    setFilter('all');
     setProducerFilter('');
     setYearMin('');
     setYearMax('');
     setPriceMin('');
     setPriceMax('');
+    setSearchInput('');
   }
 
   function statusBadge(item: KobeItem) {
