@@ -18,6 +18,13 @@ import {
  * Replaces the CSS-only `.scroll-fade-right` class on surfaces where
  * content may or may not overflow (e.g. `VaTimeline`, `ActivityHeatmap`).
  *
+ * The scroll container is `tabIndex={0}` so keyboard-only users can focus
+ * it and scroll with the arrow keys; it defaults to `role="group"`. Both
+ * defaults sit before the prop spread, so a consumer that supplies its own
+ * `role`/`aria-label`/`tabIndex` (e.g. `VaTimeline`, `ActivityHeatmap` pass
+ * `role="img"` + a label) overrides them, keeping exactly one labeled
+ * focusable scroll region per instance.
+ *
  * @param children  Content to place in the scrollable viewport.
  * @param className Extra classes forwarded to the scroll container (do
  *                  NOT include `overflow-x-auto` — the component sets it).
@@ -53,6 +60,8 @@ export function ScrollFadeRight({
   return (
     <div
       ref={ref}
+      tabIndex={0}
+      role="group"
       className={`relative overflow-x-auto${className ? ` ${className}` : ''}`}
       {...rest}
     >
