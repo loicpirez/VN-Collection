@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Check, GitBranch, Loader2, Pencil, Plus, StickyNote, Trash2, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -18,6 +18,215 @@ interface Props {
 
 const ROLE_PRIORITY: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
 
+interface RouteRowProps {
+  r: RouteRow;
+  isFirst: boolean;
+  isLast: boolean;
+  busy: boolean;
+  editing: boolean;
+  editingName: string;
+  notesOpen: boolean;
+  notesDraft: string;
+  locale: ReturnType<typeof useLocale>;
+  t: ReturnType<typeof useT>;
+  onToggleComplete: (r: RouteRow) => void;
+  onStartEdit: (r: RouteRow) => void;
+  onEditNameChange: (value: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onMoveUp: (id: number) => void;
+  onMoveDown: (id: number) => void;
+  onToggleNotes: (r: RouteRow) => void;
+  onNotesDraftChange: (value: string) => void;
+  onCancelNotes: () => void;
+  onSaveNotes: (r: RouteRow) => void;
+  onRemove: (id: number) => void;
+}
+
+/**
+ * Single route entry. Memoized with a primitive prop signature and
+ * stable parent callbacks so editing, reordering, or busy toggles only
+ * re-render the affected rows instead of the whole list.
+ */
+const RouteRowItem = memo(function RouteRowItem({
+  r,
+  isFirst,
+  isLast,
+  busy,
+  editing,
+  editingName,
+  notesOpen,
+  notesDraft,
+  locale,
+  t,
+  onToggleComplete,
+  onStartEdit,
+  onEditNameChange,
+  onSaveEdit,
+  onCancelEdit,
+  onMoveUp,
+  onMoveDown,
+  onToggleNotes,
+  onNotesDraftChange,
+  onCancelNotes,
+  onSaveNotes,
+  onRemove,
+}: RouteRowProps) {
+  return (
+    <li
+      className={`group rounded-lg border transition-colors ${
+        r.completed ? 'border-status-completed/50 bg-status-completed/5' : 'border-border bg-bg-elev/30'
+      }`}
+    >
+      <div className="flex items-center gap-2 px-3 py-2">
+      <button
+        type="button"
+        onClick={() => onToggleComplete(r)}
+        disabled={busy}
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+          r.completed
+            ? 'border-status-completed bg-status-completed text-bg'
+            : 'border-border hover:border-accent'
+        }`}
+        title={r.completed ? t.routes.markIncomplete : t.routes.markComplete}
+      >
+        {r.completed && <Check className="h-3 w-3" />}
+      </button>
+
+      {editing ? (
+        <input
+          className="input flex-1"
+          value={editingName}
+          aria-label={t.routes.addPlaceholder}
+          onChange={(e) => onEditNameChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSaveEdit();
+            else if (e.key === 'Escape') onCancelEdit();
+          }}
+          onBlur={onSaveEdit}
+          autoFocus
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => onStartEdit(r)}
+          className={`flex-1 truncate text-left text-sm transition-colors ${
+            r.completed ? 'line-through decoration-status-completed/60 text-muted' : 'text-white hover:text-accent'
+          }`}
+          title={r.name}
+        >
+          {r.name}
+        </button>
+      )}
+
+      {r.completed_date && (
+        <span className="text-[10px] text-muted tabular-nums">
+          {formatIsoDateString(r.completed_date, locale)}
+        </span>
+      )}
+
+      <div className="flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => onMoveUp(r.id)}
+          disabled={busy || isFirst}
+          className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
+          aria-label={t.routes.moveUp}
+        >
+          <ArrowUp className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onMoveDown(r.id)}
+          disabled={busy || isLast}
+          className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
+          aria-label={t.routes.moveDown}
+        >
+          <ArrowDown className="h-3 w-3" />
+        </button>
+        {editing ? (
+          <button
+            type="button"
+            onClick={onCancelEdit}
+            className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
+            aria-label={t.common.cancel}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onStartEdit(r)}
+            className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
+            aria-label={t.common.edit}
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onToggleNotes(r)}
+          className={`tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded ${
+            r.notes ? 'text-accent' : 'text-muted hover:text-white'
+          }`}
+          aria-label={t.routes.notesToggle}
+          title={r.notes ? t.routes.notesEdit : t.routes.notesAdd}
+        >
+          <StickyNote className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onRemove(r.id)}
+          disabled={busy}
+          className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
+          aria-label={t.common.delete}
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+      </div>
+      {notesOpen && (
+        <div className="border-t border-border bg-bg-elev/20 px-3 py-2">
+          <textarea
+            value={notesDraft}
+            onChange={(e) => onNotesDraftChange(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder={t.routes.notesPlaceholder}
+            aria-label={t.routes.notesPlaceholder}
+            className="w-full rounded-md border border-border bg-bg-card/60 p-2 text-xs leading-relaxed text-white/85 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
+          />
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px]">
+            <span className="text-muted">{notesDraft.length} / 2000</span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={onCancelNotes}
+                className="rounded-md border border-border px-2 py-0.5 text-muted hover:text-white"
+              >
+                {t.common.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={() => onSaveNotes(r)}
+                disabled={busy}
+                className="rounded-md bg-accent px-2 py-0.5 font-bold text-bg disabled:opacity-50"
+              >
+                {t.common.save}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {!notesOpen && r.notes && (
+        <p className="border-t border-border bg-bg-elev/10 px-3 py-2 text-[11px] italic text-muted whitespace-pre-wrap">
+          {r.notes}
+        </p>
+      )}
+    </li>
+  );
+});
+
 export function RoutesSection({ vnId, inCollection }: Props) {
   const t = useT();
   const locale = useLocale();
@@ -34,6 +243,16 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [characters, setCharacters] = useState<VndbCharacter[]>([]);
   const [, startTransition] = useTransition();
+  const routesRef = useRef<RouteRow[]>(routes);
+  routesRef.current = routes;
+  const editingNameRef = useRef(editingName);
+  editingNameRef.current = editingName;
+  const editingIdRef = useRef(editingId);
+  editingIdRef.current = editingId;
+  const notesDraftRef = useRef(notesDraft);
+  notesDraftRef.current = notesDraft;
+  const notesOpenRef = useRef(notesOpen);
+  notesOpenRef.current = notesOpen;
 
   const reload = useCallback(async (signal?: AbortSignal) => {
     if (!inCollection) return;
@@ -120,7 +339,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     }
   }
 
-  async function patch(id: number, fields: Partial<RouteRow>) {
+  const patch = useCallback(async (id: number, fields: Partial<RouteRow>) => {
     setBusy(true);
     setError(null);
     try {
@@ -137,9 +356,9 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     } finally {
       setBusy(false);
     }
-  }
+  }, [reload, router, t.common.error]);
 
-  async function remove(id: number) {
+  const remove = useCallback(async (id: number) => {
     const ok = await confirm({ message: t.routes.removeConfirm, tone: 'danger' });
     if (!ok) return;
     setBusy(true);
@@ -154,13 +373,14 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     } finally {
       setBusy(false);
     }
-  }
+  }, [confirm, reload, router, t.common.error, t.routes.removeConfirm]);
 
-  async function move(id: number, direction: -1 | 1) {
-    const idx = routes.findIndex((r) => r.id === id);
+  const move = useCallback(async (id: number, direction: -1 | 1) => {
+    const current = routesRef.current;
+    const idx = current.findIndex((r) => r.id === id);
     const target = idx + direction;
-    if (idx === -1 || target < 0 || target >= routes.length) return;
-    const next = [...routes];
+    if (idx === -1 || target < 0 || target >= current.length) return;
+    const next = [...current];
     [next[idx], next[target]] = [next[target], next[idx]];
     setRoutes(next);
     setBusy(true);
@@ -179,23 +399,55 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     } finally {
       setBusy(false);
     }
-  }
+  }, [reload, vnId, t.common.error]);
 
-  function startEdit(r: RouteRow) {
+  const startEdit = useCallback((r: RouteRow) => {
     setEditingId(r.id);
     setEditingName(r.name);
-  }
+  }, []);
 
-  async function saveEdit() {
-    if (editingId == null) return;
-    const next = editingName.trim();
+  const saveEdit = useCallback(async () => {
+    const id = editingIdRef.current;
+    if (id == null) return;
+    const next = editingNameRef.current.trim();
     if (!next) {
       setEditingId(null);
       return;
     }
-    await patch(editingId, { name: next });
+    await patch(id, { name: next });
     setEditingId(null);
-  }
+  }, [patch]);
+
+  const cancelEdit = useCallback(() => setEditingId(null), []);
+
+  const editNameChange = useCallback((value: string) => {
+    setError(null);
+    setEditingName(value);
+  }, []);
+
+  const toggleComplete = useCallback(
+    (r: RouteRow) => patch(r.id, { completed: !r.completed }),
+    [patch],
+  );
+
+  const toggleNotes = useCallback((r: RouteRow) => {
+    if (notesOpenRef.current === r.id) {
+      setNotesOpen(null);
+      return;
+    }
+    setNotesOpen(r.id);
+    setNotesDraft(r.notes ?? '');
+  }, []);
+
+  const cancelNotes = useCallback(() => setNotesOpen(null), []);
+
+  const saveNotes = useCallback(async (r: RouteRow) => {
+    await patch(r.id, { notes: notesDraftRef.current.trim() || null });
+    setNotesOpen(null);
+  }, [patch]);
+
+  const moveUp = useCallback((id: number) => move(id, -1), [move]);
+  const moveDown = useCallback((id: number) => move(id, 1), [move]);
 
   const completed = routes.filter((r) => r.completed).length;
   const total = routes.length;
@@ -242,165 +494,31 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       {routes.length > 0 && (
         <ul className="mb-4 space-y-2">
           {routes.map((r, i) => (
-            <li
+            <RouteRowItem
               key={r.id}
-              className={`group rounded-lg border transition-colors ${
-                r.completed ? 'border-status-completed/50 bg-status-completed/5' : 'border-border bg-bg-elev/30'
-              }`}
-            >
-              <div className="flex items-center gap-2 px-3 py-2">
-              <button
-                type="button"
-                onClick={() => patch(r.id, { completed: !r.completed })}
-                disabled={busy}
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                  r.completed
-                    ? 'border-status-completed bg-status-completed text-bg'
-                    : 'border-border hover:border-accent'
-                }`}
-                title={r.completed ? t.routes.markIncomplete : t.routes.markComplete}
-              >
-                {r.completed && <Check className="h-3 w-3" />}
-              </button>
-
-              {editingId === r.id ? (
-                <input
-                  className="input flex-1"
-                  value={editingName}
-                  aria-label={t.routes.addPlaceholder}
-                  onChange={(e) => setEditingName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') saveEdit();
-                    else if (e.key === 'Escape') setEditingId(null);
-                  }}
-                  onBlur={saveEdit}
-                  autoFocus
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => startEdit(r)}
-                  className={`flex-1 truncate text-left text-sm transition-colors ${
-                    r.completed ? 'line-through decoration-status-completed/60 text-muted' : 'text-white hover:text-accent'
-                  }`}
-                  title={r.name}
-                >
-                  {r.name}
-                </button>
-              )}
-
-              {r.completed_date && (
-                <span className="text-[10px] text-muted tabular-nums">
-                  {formatIsoDateString(r.completed_date, locale)}
-                </span>
-              )}
-
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => move(r.id, -1)}
-                  disabled={busy || i === 0}
-                  className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
-                  aria-label={t.routes.moveUp}
-                >
-                  <ArrowUp className="h-3 w-3" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => move(r.id, 1)}
-                  disabled={busy || i === routes.length - 1}
-                  className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
-                  aria-label={t.routes.moveDown}
-                >
-                  <ArrowDown className="h-3 w-3" />
-                </button>
-                {editingId === r.id ? (
-                  <button
-                    type="button"
-                    onClick={() => setEditingId(null)}
-                    className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
-                    aria-label={t.common.cancel}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => startEdit(r)}
-                    className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
-                    aria-label={t.common.edit}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (notesOpen === r.id) { setNotesOpen(null); return; }
-                    setNotesOpen(r.id);
-                    setNotesDraft(r.notes ?? '');
-                  }}
-                  className={`tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded ${
-                    r.notes ? 'text-accent' : 'text-muted hover:text-white'
-                  }`}
-                  aria-label={t.routes.notesToggle}
-                  title={r.notes ? t.routes.notesEdit : t.routes.notesAdd}
-                >
-                  <StickyNote className="h-3 w-3" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => remove(r.id)}
-                  disabled={busy}
-                  className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
-                  aria-label={t.common.delete}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-              </div>
-              {notesOpen === r.id && (
-                <div className="border-t border-border bg-bg-elev/20 px-3 py-2">
-                  <textarea
-                    value={notesDraft}
-                    onChange={(e) => setNotesDraft(e.target.value)}
-                    rows={3}
-                    maxLength={2000}
-                    placeholder={t.routes.notesPlaceholder}
-                    aria-label={t.routes.notesPlaceholder}
-                    className="w-full rounded-md border border-border bg-bg-card/60 p-2 text-xs leading-relaxed text-white/85 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
-                  />
-                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px]">
-                    <span className="text-muted">{notesDraft.length} / 2000</span>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setNotesOpen(null)}
-                        className="rounded-md border border-border px-2 py-0.5 text-muted hover:text-white"
-                      >
-                        {t.common.cancel}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await patch(r.id, { notes: notesDraft.trim() || null });
-                          setNotesOpen(null);
-                        }}
-                        disabled={busy}
-                        className="rounded-md bg-accent px-2 py-0.5 font-bold text-bg disabled:opacity-50"
-                      >
-                        {t.common.save}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {notesOpen !== r.id && r.notes && (
-                <p className="border-t border-border bg-bg-elev/10 px-3 py-2 text-[11px] italic text-muted whitespace-pre-wrap">
-                  {r.notes}
-                </p>
-              )}
-            </li>
+              r={r}
+              isFirst={i === 0}
+              isLast={i === routes.length - 1}
+              busy={busy}
+              editing={editingId === r.id}
+              editingName={editingName}
+              notesOpen={notesOpen === r.id}
+              notesDraft={notesDraft}
+              locale={locale}
+              t={t}
+              onToggleComplete={toggleComplete}
+              onStartEdit={startEdit}
+              onEditNameChange={editNameChange}
+              onSaveEdit={saveEdit}
+              onCancelEdit={cancelEdit}
+              onMoveUp={moveUp}
+              onMoveDown={moveDown}
+              onToggleNotes={toggleNotes}
+              onNotesDraftChange={setNotesDraft}
+              onCancelNotes={cancelNotes}
+              onSaveNotes={saveNotes}
+              onRemove={remove}
+            />
           ))}
         </ul>
       )}
@@ -411,7 +529,10 @@ export function RoutesSection({ vnId, inCollection }: Props) {
           placeholder={t.routes.addPlaceholder}
           aria-label={t.routes.addPlaceholder}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            if (error) setError(null);
+            setDraft(e.target.value);
+          }}
           list={`routes-${vnId}-suggest`}
           maxLength={200}
         />
