@@ -197,7 +197,7 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
                 type="button"
                 onClick={resetAll}
                 disabled={busy}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/30 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                className="btn btn-xs"
                 title={t.homeLayout.reset}
               >
                 <RotateCcw className="h-3 w-3" aria-hidden />
