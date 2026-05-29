@@ -650,6 +650,7 @@ function open(): Database.Database {
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       name       TEXT    NOT NULL,
       name_ja    TEXT,
+      kind       TEXT    NOT NULL DEFAULT 'shop',
       address    TEXT,
       lat        REAL,
       lng        REAL,
@@ -1202,6 +1203,7 @@ function open(): Database.Database {
   ensureColumn(db, 'vn_stock_provider_status', 'extras_json', 'TEXT');
   ensureColumn(db, 'vn_stock_source', 'release_id', 'TEXT');
   ensureColumn(db, 'vn_stock_source', 'product_id', 'TEXT');
+  ensureColumn(db, 'place_registry', 'kind', "TEXT NOT NULL DEFAULT 'shop'");
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_unmatched
@@ -7342,6 +7344,7 @@ export interface PlaceRow {
   id: number;
   name: string;
   name_ja: string | null;
+  kind: 'shop' | 'chain' | 'storage';
   address: string | null;
   lat: number | null;
   lng: number | null;
@@ -7359,6 +7362,7 @@ export interface PlaceWithLinks extends PlaceRow {
 export interface PlacePayload {
   name: string;
   name_ja?: string | null;
+  kind?: 'shop' | 'chain' | 'storage';
   address?: string | null;
   lat?: number | null;
   lng?: number | null;
@@ -7375,7 +7379,10 @@ export function listPlaces(): PlaceWithLinks[] {
         (
           SELECT COUNT(DISTINCT vso.vn_id)
           FROM vn_stock_offer vso
-          JOIN place_provider_link ppl2 ON ppl2.provider_label = vso.location_branch
+          JOIN place_provider_link ppl2 ON (
+            ppl2.provider_label = vso.location_branch
+            OR ppl2.provider_label = vso.location_label
+          )
           WHERE ppl2.place_id = p.id
             AND vso.availability IN ('in_stock', 'limited')
         ) AS stock_count
@@ -7387,6 +7394,7 @@ export function listPlaces(): PlaceWithLinks[] {
     .all() as (PlaceRow & { labels_concat: string | null; stock_count: number })[];
   return rows.map((r) => ({
     ...r,
+    kind: (r.kind ?? 'shop') as PlaceRow['kind'],
     provider_labels: r.labels_concat ? r.labels_concat.split('|||') : [],
   }));
 }
@@ -7400,7 +7408,10 @@ export function getPlace(id: number): PlaceWithLinks | null {
         (
           SELECT COUNT(DISTINCT vso.vn_id)
           FROM vn_stock_offer vso
-          JOIN place_provider_link ppl2 ON ppl2.provider_label = vso.location_branch
+          JOIN place_provider_link ppl2 ON (
+            ppl2.provider_label = vso.location_branch
+            OR ppl2.provider_label = vso.location_label
+          )
           WHERE ppl2.place_id = p.id
             AND vso.availability IN ('in_stock', 'limited')
         ) AS stock_count
@@ -7411,19 +7422,24 @@ export function getPlace(id: number): PlaceWithLinks | null {
     `)
     .get(id) as (PlaceRow & { labels_concat: string | null; stock_count: number }) | undefined;
   if (!row) return null;
-  return { ...row, provider_labels: row.labels_concat ? row.labels_concat.split('|||') : [] };
+  return {
+    ...row,
+    kind: (row.kind ?? 'shop') as PlaceRow['kind'],
+    provider_labels: row.labels_concat ? row.labels_concat.split('|||') : [],
+  };
 }
 
 export function createPlace(payload: PlacePayload): number {
   const now = Date.now();
   const result = db
     .prepare(`
-      INSERT INTO place_registry (name, name_ja, address, lat, lng, url, notes, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO place_registry (name, name_ja, kind, address, lat, lng, url, notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(
       payload.name,
       payload.name_ja ?? null,
+      payload.kind ?? 'shop',
       payload.address ?? null,
       payload.lat ?? null,
       payload.lng ?? null,
@@ -7474,27 +7490,74 @@ export function getPlaceProviderMap(): Record<string, number> {
 }
 
 /**
- * Distinct location_branch values in vn_stock_offer that are not yet
- * assigned to any place_registry entry.
+ * Distinct location_branch and location_label values in vn_stock_offer
+ * that are not yet assigned to any place_registry entry. The online
+ * stock sentinel is excluded; it is not a real physical location.
  */
 export function listUnassignedBranches(): string[] {
   const rows = db
     .prepare(`
-      SELECT DISTINCT vso.location_branch AS branch
-      FROM vn_stock_offer vso
-      WHERE vso.location_branch IS NOT NULL
-        AND vso.location_branch != ''
-        AND NOT EXISTS (
-          SELECT 1 FROM place_provider_link ppl
-          WHERE ppl.provider_label = vso.location_branch
-        )
-      ORDER BY vso.location_branch COLLATE NOCASE ASC
+      SELECT DISTINCT label
+      FROM (
+        SELECT location_branch AS label
+        FROM vn_stock_offer
+        WHERE location_branch IS NOT NULL
+          AND location_branch != ''
+        UNION
+        SELECT location_label AS label
+        FROM vn_stock_offer
+        WHERE location_label IS NOT NULL
+          AND location_label != ''
+          AND location_label != '__online_stock__'
+      )
+      WHERE NOT EXISTS (
+        SELECT 1 FROM place_provider_link ppl
+        WHERE ppl.provider_label = label
+      )
+      ORDER BY label COLLATE NOCASE ASC
     `)
-    .all() as { branch: string }[];
-  return rows.map((r) => r.branch);
+    .all() as { label: string }[];
+  return rows.map((r) => r.label);
 }
 
-/** VNs in stock at a place (via linked provider labels). */
+/**
+ * All provider labels linked to any place OTHER than the given one,
+ * with the place metadata they currently belong to. Powers the
+ * "move a branch here from another place" affordance in
+ * AssignProviderDialog.
+ */
+export function listBranchesAtOtherPlaces(excludePlaceId: number): {
+  provider_label: string;
+  place_id: number;
+  place_name: string;
+}[] {
+  return db
+    .prepare(`
+      SELECT
+        ppl.provider_label AS provider_label,
+        ppl.place_id       AS place_id,
+        p.name             AS place_name
+      FROM place_provider_link ppl
+      JOIN place_registry p ON p.id = ppl.place_id
+      WHERE ppl.place_id != ?
+      ORDER BY p.name COLLATE NOCASE ASC, ppl.provider_label COLLATE NOCASE ASC
+    `)
+    .all(excludePlaceId) as { provider_label: string; place_id: number; place_name: string }[];
+}
+
+/** Move a provider link from one place to another atomically. */
+export function moveProviderLink(fromPlaceId: number, toPlaceId: number, providerLabel: string): void {
+  db.transaction(() => {
+    db.prepare(
+      'DELETE FROM place_provider_link WHERE place_id = ? AND provider_label = ?',
+    ).run(fromPlaceId, providerLabel);
+    db.prepare(
+      'INSERT OR IGNORE INTO place_provider_link (place_id, provider_label) VALUES (?, ?)',
+    ).run(toPlaceId, providerLabel);
+  })();
+}
+
+/** VNs in stock at a place (via linked provider labels). Matches on both location_branch and location_label. */
 export function listVnsAtPlace(placeId: number): {
   vn_id: string;
   title: string;
@@ -7503,6 +7566,7 @@ export function listVnsAtPlace(placeId: number): {
   local_image: string | null;
   min_price: number | null;
   offer_count: number;
+  max_updated_at: number;
 }[] {
   return db
     .prepare(`
@@ -7513,9 +7577,13 @@ export function listVnsAtPlace(placeId: number): {
         v.image_url,
         v.local_image,
         MIN(vso.price) AS min_price,
-        COUNT(*) AS offer_count
+        COUNT(*) AS offer_count,
+        MAX(vso.updated_at) AS max_updated_at
       FROM vn_stock_offer vso
-      JOIN place_provider_link ppl ON ppl.provider_label = vso.location_branch
+      JOIN place_provider_link ppl ON (
+        ppl.provider_label = vso.location_branch
+        OR ppl.provider_label = vso.location_label
+      )
       JOIN vn v ON v.id = vso.vn_id
       WHERE ppl.place_id = ?
         AND vso.availability IN ('in_stock', 'limited')
@@ -7530,6 +7598,7 @@ export function listVnsAtPlace(placeId: number): {
       local_image: string | null;
       min_price: number | null;
       offer_count: number;
+      max_updated_at: number;
     }[];
 }
 

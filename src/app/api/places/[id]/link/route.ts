@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPlace, linkProviderToPlace, unlinkProviderFromPlace } from '@/lib/db';
+import { getPlace, linkProviderToPlace, moveProviderLink, unlinkProviderFromPlace } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 import { readJsonObject } from '@/lib/api-body';
@@ -22,11 +22,17 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const id = parseId(raw);
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
     if (!getPlace(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    const body = (await readJsonObject(req)) as { provider_label?: unknown };
+    const body = (await readJsonObject(req)) as { provider_label?: unknown; from_place_id?: unknown };
     if (typeof body.provider_label !== 'string' || !body.provider_label.trim()) {
       return NextResponse.json({ error: 'provider_label required' }, { status: 400 });
     }
-    linkProviderToPlace(id, body.provider_label.trim());
+    const label = body.provider_label.trim();
+    if (typeof body.from_place_id === 'number' && Number.isInteger(body.from_place_id) && body.from_place_id > 0 && body.from_place_id !== id) {
+      if (!getPlace(body.from_place_id)) return NextResponse.json({ error: 'from_place not found' }, { status: 404 });
+      moveProviderLink(body.from_place_id, id, label);
+      return NextResponse.json({ ok: true, moved: true });
+    }
+    linkProviderToPlace(id, label);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return internalError('places.[id].link.POST', err);

@@ -16,6 +16,13 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
+const VALID_KINDS = ['shop', 'chain', 'storage'] as const;
+type PlaceKind = (typeof VALID_KINDS)[number];
+
+function parseKind(raw: unknown): PlaceKind {
+  return VALID_KINDS.includes(raw as PlaceKind) ? (raw as PlaceKind) : 'shop';
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
@@ -23,6 +30,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const body = (await readJsonObject(req)) as {
       name?: unknown;
       name_ja?: unknown;
+      kind?: unknown;
       address?: unknown;
       lat?: unknown;
       lng?: unknown;
@@ -35,6 +43,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const id = createPlace({
       name: body.name.trim(),
       name_ja: typeof body.name_ja === 'string' ? body.name_ja.trim() || null : null,
+      kind: parseKind(body.kind),
       address: typeof body.address === 'string' ? body.address.trim() || null : null,
       lat: typeof body.lat === 'number' ? body.lat : null,
       lng: typeof body.lng === 'number' ? body.lng : null,

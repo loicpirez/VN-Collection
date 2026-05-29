@@ -37,9 +37,11 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
     if (!getPlace(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
     const body = (await readJsonObject(req)) as Record<string, unknown>;
+    const VALID_KINDS = ['shop', 'chain', 'storage'];
     const patch: Record<string, unknown> = {};
     if ('name' in body && typeof body.name === 'string') patch.name = body.name.trim();
     if ('name_ja' in body) patch.name_ja = typeof body.name_ja === 'string' ? body.name_ja.trim() || null : null;
+    if ('kind' in body && typeof body.kind === 'string' && VALID_KINDS.includes(body.kind)) patch.kind = body.kind;
     if ('address' in body) patch.address = typeof body.address === 'string' ? body.address.trim() || null : null;
     if ('lat' in body) patch.lat = typeof body.lat === 'number' ? body.lat : null;
     if ('lng' in body) patch.lng = typeof body.lng === 'number' ? body.lng : null;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPlace, listVnsAtPlace } from '@/lib/db';
+import { getPlace, listBranchesAtOtherPlaces } from '@/lib/db';
 import { internalError } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
@@ -19,9 +19,9 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const id = parseId(raw);
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
     if (!getPlace(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    const vns = listVnsAtPlace(id);
-    return NextResponse.json({ vns });
+    const branches = listBranchesAtOtherPlaces(id);
+    return NextResponse.json({ branches });
   } catch (err) {
-    return internalError('places.[id].stock.GET', err);
+    return internalError('places.[id].other-branches.GET', err);
   }
 }
