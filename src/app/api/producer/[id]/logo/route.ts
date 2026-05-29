@@ -15,6 +15,8 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+  const tooLarge = precheckContentLength(req, MAX_LOGO_BYTES);
+  if (tooLarge) return tooLarge;
   const { id } = await ctx.params;
   if (!/^p\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
 
@@ -28,8 +30,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
   }
 
-  const tooLarge = precheckContentLength(req, MAX_LOGO_BYTES);
-  if (tooLarge) return tooLarge;
   const fd = await req.formData().catch(() => null);
   if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
   const file = fd.get('file');

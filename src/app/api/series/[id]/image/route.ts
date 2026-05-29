@@ -22,6 +22,8 @@ const MAX_SERIES_IMAGE_BYTES = 15 * 1024 * 1024;
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+  const tooLarge = precheckContentLength(req, MAX_SERIES_IMAGE_BYTES);
+  if (tooLarge) return tooLarge;
   const { id } = await ctx.params;
   const sid = Number(id);
   if (!Number.isInteger(sid) || sid <= 0) {
@@ -34,8 +36,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!ct.startsWith('multipart/form-data')) {
     return NextResponse.json({ error: 'expected multipart/form-data' }, { status: 400 });
   }
-  const tooLarge = precheckContentLength(req, MAX_SERIES_IMAGE_BYTES);
-  if (tooLarge) return tooLarge;
   const fd = await req.formData().catch(() => null);
   if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
   const file = fd.get('file');
