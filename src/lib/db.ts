@@ -8407,7 +8407,8 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
         upsertVn({ ...raw, id: vn.id, title: vn.title || raw.title || vn.id });
         summary.vns_upserted++;
       } catch (e) {
-        summary.errors.push(`vn ${vn.id}: ${(e as Error).message}`);
+        console.error(`[importData] vn ${vn.id} failed:`, (e as Error).message);
+        summary.errors.push(`vn ${vn.id}: import failed`);
       }
     }
     for (const c of payload.collection ?? []) {
@@ -8443,7 +8444,8 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
         }
         summary.collection_upserted++;
       } catch (e) {
-        summary.errors.push(`collection ${c.vn_id}: ${(e as Error).message}`);
+        console.error(`[importData] collection ${c.vn_id} failed:`, (e as Error).message);
+        summary.errors.push(`collection ${c.vn_id}: import failed`);
       }
     }
     // Series — by name (id mapping must be remapped, since destination ids may differ)
@@ -8459,7 +8461,8 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
           summary.series_created++;
         }
       } catch (e) {
-        summary.errors.push(`series ${s.name}: ${(e as Error).message}`);
+        console.error(`[importData] series ${s.name} failed:`, (e as Error).message);
+        summary.errors.push(`series ${s.name}: import failed`);
       }
     }
     for (const link of payload.series_vn ?? []) {
@@ -8469,7 +8472,8 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
         addVnToSeries(newSid, link.vn_id, link.order_index ?? 0);
         summary.series_links++;
       } catch (e) {
-        summary.errors.push(`series_vn ${link.series_id}/${link.vn_id}: ${(e as Error).message}`);
+        console.error(`[importData] series_vn ${link.series_id}/${link.vn_id} failed:`, (e as Error).message);
+        summary.errors.push(`series_vn ${link.series_id}/${link.vn_id}: import failed`);
       }
     }
   });

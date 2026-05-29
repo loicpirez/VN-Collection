@@ -25,17 +25,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const ids = listKobeVnidsToDownload(batch);
   let processed = 0;
-  for (const vnId of ids) {
-    try {
+  try {
+    for (const vnId of ids) {
       const vn = await getVn(vnId);
       if (!vn) throw new Error(`VNDB returned no data for ${vnId}`);
       upsertVn(vn);
       processed++;
-    } catch (err) {
-      // Stop the run on VNDB/provider errors; otherwise the client keeps
-      // polling the same first id and reports progress that cannot advance.
-      throw err;
     }
+  } catch (err) {
+    // Sanitize: log details server-side, return a generic JSON error so
+    // upstream network/proxy messages don't surface in the response body.
+    console.error('[alicesoft-kobe/download-vndb] upstream error:', (err as Error).message);
+    return NextResponse.json({ error: 'upstream error', processed }, { status: 502 });
   }
 
   const { vndb_pending } = countKobeDownloadPending();

@@ -26,8 +26,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const items = listKobeItemsForEgsResolve(batch);
   let processed = 0;
-  for (const item of items) {
-    try {
+  try {
+    for (const item of items) {
       const result = await resolveEgsForVn(item.vn_id, { allowSearch: true });
       if (result.game) {
         setKobeEgsLink(item.code, result.game.id, 'auto', {
@@ -41,11 +41,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         setKobeEgsLink(item.code, null, 'auto');
       }
       processed++;
-    } catch (err) {
-      // Stop the run on provider/network errors; otherwise the client keeps
-      // polling the same first row and shows progress that cannot advance.
-      throw err;
     }
+  } catch (err) {
+    // Sanitize: log details server-side, return a generic JSON error so
+    // upstream network/proxy messages don't surface in the response body.
+    console.error('[alicesoft-kobe/resolve-egs] upstream error:', (err as Error).message);
+    return NextResponse.json({ error: 'upstream error', processed }, { status: 502 });
   }
 
   const { egs_pending } = countKobeDownloadPending();
