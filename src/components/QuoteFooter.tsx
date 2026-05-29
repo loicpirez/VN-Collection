@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { MessageSquareQuote, RefreshCcw, Loader2 } from 'lucide-react';
 import { SkeletonBlock } from './Skeleton';
 import { QuoteAvatar } from './QuoteAvatar';
+import { ErrorAlert } from './ErrorAlert';
 import { useT } from '@/lib/i18n/client';
 import type { VndbQuote } from '@/lib/vndb-types';
 
@@ -98,7 +99,7 @@ export function QuoteFooter() {
               hovered ? 'opacity-100 delay-75' : 'opacity-0'
             }`}
           >
-            {error && <p role="alert" className="text-[11px] text-status-dropped">{error}</p>}
+            {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
             {!error && !quote && loading && (
               <div className="space-y-1.5">
                 <SkeletonBlock className="h-3 w-5/6" />
