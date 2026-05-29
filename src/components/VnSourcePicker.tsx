@@ -96,6 +96,7 @@ export function VnSourcePicker({
             .catch((e: unknown) => {
               if ((e as Error).name === 'AbortError') return;
               console.error('[VnSourcePicker] library search failed:', e);
+              if (!ctrl.signal.aborted) setError(t.common.error as string);
             })
             .finally(() => { if (!ctrl.signal.aborted) setLoading((p) => ({ ...p, library: false })); }),
         );
@@ -108,6 +109,7 @@ export function VnSourcePicker({
             .catch((e: unknown) => {
               if ((e as Error).name === 'AbortError') return;
               console.error('[VnSourcePicker] VNDB search failed:', e);
+              if (!ctrl.signal.aborted) setError(t.common.error as string);
             })
             .finally(() => { if (!ctrl.signal.aborted) setLoading((p) => ({ ...p, vndb: false })); }),
         );
@@ -120,6 +122,7 @@ export function VnSourcePicker({
             .catch((e: unknown) => {
               if ((e as Error).name === 'AbortError') return;
               console.error('[VnSourcePicker] EGS search failed:', e);
+              if (!ctrl.signal.aborted) setError(t.common.error as string);
             })
             .finally(() => { if (!ctrl.signal.aborted) setLoading((p) => ({ ...p, egs: false })); }),
         );
