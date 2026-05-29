@@ -11,6 +11,7 @@ import {
   dispatchBannerChanged,
 } from '@/lib/cover-banner-events';
 import { buildRotationStyle } from './SafeImage';
+import { ErrorAlert } from './ErrorAlert';
 
 interface Props {
   vnId: string;
@@ -533,7 +534,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
             </>
           )}
           {error && (
-            <span role="alert" className="rounded-md bg-status-dropped/90 px-2 py-1 text-[10px] text-white">{error}</span>
+            <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
           )}
         </div>
       )}
