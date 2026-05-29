@@ -238,7 +238,10 @@ export function StockPanel({
     fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, { cache: 'no-store', signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : { aliases: [] }))
       .then((data: { aliases: string[] }) => { if (!ctrl.signal.aborted) setAliases(data.aliases ?? []); })
-      .catch((e) => { if ((e as Error).name !== 'AbortError') {/* swallow */} });
+      .catch((e: unknown) => {
+        if ((e as Error).name === 'AbortError') return;
+        console.error('[StockPanel] alias fetch failed:', e);
+      });
     return () => ctrl.abort();
   }, [vnId]);
 
