@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   CircleAlert,
@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
-import { useDialogA11y } from './Dialog';
+import { Dialog } from './Dialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { useDebouncedCallback } from '@/lib/hooks';
 import { formatVndbDateString } from '@/lib/locale-number';
@@ -68,10 +68,6 @@ export function MapEgsToVndbButton({
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState<string | 'reset' | 'none' | null>(null);
   const [link, setLink] = useState<ManualLink | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const titleId = useId();
-
-  useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
 
   // Pull current mapping state when the modal opens.
   useEffect(() => {
@@ -187,23 +183,17 @@ export function MapEgsToVndbButton({
   return (
     <>
       {trigger}
-      {open && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center"
-          onClick={() => setOpen(false)}
-        >
-          <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
-          <div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
-          >
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t.mapEgs.title}
+        hideTitleVisually
+        panelClassName="w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto p-4 sm:p-5"
+      >
+        <div>
             <header className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <h2 id={titleId} className="text-base font-bold">{t.mapEgs.title}</h2>
+                <h2 className="text-base font-bold">{t.mapEgs.title}</h2>
                 <p className="mt-0.5 text-[11px] text-muted">{t.mapEgs.hint}</p>
                 <p className="mt-1 truncate text-[11px]" title={`EGS · #${egsId} · ${gamename}`}>
                   <span className="text-muted">EGS · </span>
@@ -342,9 +332,8 @@ export function MapEgsToVndbButton({
                 {t.mapEgs.pinNoVndb}
               </button>
             </footer>
-          </div>
         </div>
-      )}
+      </Dialog>
     </>
   );
 }
