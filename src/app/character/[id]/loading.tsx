@@ -2,7 +2,7 @@ import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
 
 export default function CharacterLoading() {
   return (
-    <div className="space-y-6">
+    <div role="status" aria-busy="true" aria-live="polite" className="space-y-6">
       <SkeletonBlock className="h-6 w-32" />
       <div className="grid gap-6 sm:grid-cols-[200px_1fr]">
         <SkeletonBlock className="aspect-[3/4] w-full rounded-2xl" />

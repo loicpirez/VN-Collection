@@ -2,7 +2,7 @@ import { SkeletonBlock, SkeletonCardGrid } from '@/components/Skeleton';
 
 export default function YearLoading() {
   return (
-    <div className="w-full space-y-4">
+    <div role="status" aria-busy="true" aria-live="polite" className="w-full space-y-4">
       <SkeletonBlock className="h-7 w-40" />
       <SkeletonBlock className="h-28 w-full rounded-2xl" />
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

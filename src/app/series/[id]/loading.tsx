@@ -2,7 +2,7 @@ import { SkeletonCardGrid } from '@/components/Skeleton';
 
 export default function Loading() {
   return (
-    <div className="space-y-4">
+    <div role="status" aria-busy="true" aria-live="polite" className="space-y-4">
       <div className="h-9 w-72 animate-pulse rounded bg-bg-elev/60" />
       <div className="h-4 w-1/3 animate-pulse rounded bg-bg-elev/40" />
       <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
