@@ -32,7 +32,17 @@ const mod = createSectionLayoutModule<StaffSectionId>({
 
 export const defaultStaffDetailLayoutV1 = mod.defaultLayout;
 export const validateStaffDetailLayoutV1 = mod.validate;
-export const parseStaffDetailLayoutV1 = mod.parse;
 export const STAFF_DETAIL_LAYOUT_EVENT = mod.LAYOUT_EVENT;
 export const STAFF_DETAIL_SETTINGS_KEY = mod.SETTINGS_KEY;
 export type StaffDetailLayoutV1 = ReturnType<typeof defaultStaffDetailLayoutV1>;
+
+let lastStaffDetailRaw: string | null = null;
+let lastStaffDetailResult: StaffDetailLayoutV1 | null = null;
+
+export function parseStaffDetailLayoutV1(raw: string | null): StaffDetailLayoutV1 {
+  if (raw === lastStaffDetailRaw && lastStaffDetailResult !== null) return lastStaffDetailResult;
+  const parsed = mod.parse(raw);
+  lastStaffDetailRaw = raw;
+  lastStaffDetailResult = parsed;
+  return parsed;
+}

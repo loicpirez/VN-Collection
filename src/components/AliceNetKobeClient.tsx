@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   BookHeart,
   Building2,
@@ -282,6 +282,47 @@ interface PendingCounts { vndb_pending: number; egs_pending: number }
 interface RunTotals { processed: number; matched: number }
 
 /**
+ * Toolbar search field. Owns its own draft and debounces upward so a
+ * keystroke re-renders only this input, not the whole Kobe client
+ * (stats grid, toolbar, every card). The committed `value` flows back
+ * down so an external reset (Reset filters) clears the draft.
+ */
+const KobeSearchInput = memo(function KobeSearchInput({
+  value,
+  placeholder,
+  onCommit,
+  debounceMs,
+}: {
+  value: string;
+  placeholder: string;
+  onCommit: (next: string) => void;
+  debounceMs: number;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+  useEffect(() => {
+    if (draft === value) return;
+    const handle = setTimeout(() => onCommit(draft), debounceMs);
+    return () => clearTimeout(handle);
+  }, [draft, value, onCommit, debounceMs]);
+  return (
+    <div className="relative">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+      <input
+        type="search"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        className="input min-h-[44px] w-full pl-9 text-sm"
+      />
+    </div>
+  );
+});
+
+/**
  * Client-side page for the Alice Kobe second-hand stock browser.
  *
  * Download sequence (manual or via "Download all"):
@@ -360,12 +401,8 @@ export function AliceNetKobeClient() {
   const [yearMax, setYearMax] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
-  const [searchInput, setSearchInput] = useState(() => urlSearch?.get('q') ?? '');
   const [search, setSearch] = useState(() => urlSearch?.get('q') ?? '');
-  useEffect(() => {
-    const handle = setTimeout(() => setSearch(searchInput), 250);
-    return () => clearTimeout(handle);
-  }, [searchInput]);
+  const commitSearch = useCallback((next: string) => setSearch(next), []);
   const [linkTarget, setLinkTarget] = useState<KobeItem | null>(null);
   const stopRef = useRef(false);
 
@@ -738,7 +775,7 @@ export function AliceNetKobeClient() {
     (yearMax ? 1 : 0) +
     (priceMin ? 1 : 0) +
     (priceMax ? 1 : 0) +
-    (searchInput ? 1 : 0);
+    (search ? 1 : 0);
 
   function resetFilters() {
     setFilter('all');
@@ -747,7 +784,7 @@ export function AliceNetKobeClient() {
     setYearMax('');
     setPriceMin('');
     setPriceMax('');
-    setSearchInput('');
+    setSearch('');
   }
 
   function statusBadge(item: KobeItem) {
@@ -1176,17 +1213,12 @@ export function AliceNetKobeClient() {
           </div>
 
           <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_12rem_12rem_auto] lg:items-end">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
-              <input
-                type="search"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={t.kobe.kobeSearchPlaceholder}
-                aria-label={t.kobe.kobeSearchPlaceholder}
-                className="input min-h-[44px] w-full pl-9 text-sm"
-              />
-            </div>
+            <KobeSearchInput
+              value={search}
+              placeholder={t.kobe.kobeSearchPlaceholder}
+              onCommit={commitSearch}
+              debounceMs={250}
+            />
 
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
               {t.kobe.kobeSortLabel}

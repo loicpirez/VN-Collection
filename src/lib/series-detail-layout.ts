@@ -106,13 +106,24 @@ export function validateSeriesDetailLayoutV1(input: unknown): SeriesDetailLayout
   return { order, sections };
 }
 
+let lastSeriesDetailRaw: string | null = null;
+let lastSeriesDetailResult: SeriesDetailLayoutV1 | null = null;
+
 export function parseSeriesDetailLayoutV1(raw: string | null): SeriesDetailLayoutV1 {
-  if (!raw) return defaultSeriesDetailLayoutV1();
-  try {
-    return validateSeriesDetailLayoutV1(JSON.parse(raw));
-  } catch {
-    return defaultSeriesDetailLayoutV1();
+  if (raw === lastSeriesDetailRaw && lastSeriesDetailResult !== null) return lastSeriesDetailResult;
+  let parsed: SeriesDetailLayoutV1;
+  if (!raw) {
+    parsed = defaultSeriesDetailLayoutV1();
+  } else {
+    try {
+      parsed = validateSeriesDetailLayoutV1(JSON.parse(raw));
+    } catch {
+      parsed = defaultSeriesDetailLayoutV1();
+    }
   }
+  lastSeriesDetailRaw = raw;
+  lastSeriesDetailResult = parsed;
+  return parsed;
 }
 
 /**

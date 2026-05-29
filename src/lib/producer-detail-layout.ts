@@ -27,7 +27,17 @@ const mod = createSectionLayoutModule<ProducerSectionId>({
 
 export const defaultProducerDetailLayoutV1 = mod.defaultLayout;
 export const validateProducerDetailLayoutV1 = mod.validate;
-export const parseProducerDetailLayoutV1 = mod.parse;
 export const PRODUCER_DETAIL_LAYOUT_EVENT = mod.LAYOUT_EVENT;
 export const PRODUCER_DETAIL_SETTINGS_KEY = mod.SETTINGS_KEY;
 export type ProducerDetailLayoutV1 = ReturnType<typeof defaultProducerDetailLayoutV1>;
+
+let lastProducerDetailRaw: string | null = null;
+let lastProducerDetailResult: ProducerDetailLayoutV1 | null = null;
+
+export function parseProducerDetailLayoutV1(raw: string | null): ProducerDetailLayoutV1 {
+  if (raw === lastProducerDetailRaw && lastProducerDetailResult !== null) return lastProducerDetailResult;
+  const parsed = mod.parse(raw);
+  lastProducerDetailRaw = raw;
+  lastProducerDetailResult = parsed;
+  return parsed;
+}

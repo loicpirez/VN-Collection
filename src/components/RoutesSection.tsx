@@ -227,6 +227,75 @@ const RouteRowItem = memo(function RouteRowItem({
   );
 });
 
+interface RouteAddFormProps {
+  vnId: string;
+  busy: boolean;
+  hasError: boolean;
+  prefill: string;
+  prefillNonce: number;
+  suggestions: (VndbCharacter & { role: string })[];
+  t: ReturnType<typeof useT>;
+  onAdd: (name: string) => Promise<boolean>;
+  onClearError: () => void;
+}
+
+/**
+ * Add-route input + submit button. Owns its own `draft` state so a
+ * keystroke re-renders only this form, not the whole section (which
+ * holds the route list). The parent prefills the field from a
+ * suggestion chip via the `prefill` / `prefillNonce` pair, and clears
+ * its own draft on a successful add.
+ */
+const RouteAddForm = memo(function RouteAddForm({
+  vnId,
+  busy,
+  hasError,
+  prefill,
+  prefillNonce,
+  suggestions,
+  t,
+  onAdd,
+  onClearError,
+}: RouteAddFormProps) {
+  const [draft, setDraft] = useState('');
+  useEffect(() => {
+    if (prefill) setDraft(prefill);
+  }, [prefill, prefillNonce]);
+
+  async function submit(e?: React.FormEvent) {
+    e?.preventDefault();
+    const name = draft.trim();
+    if (!name) return;
+    if (await onAdd(name)) setDraft('');
+  }
+
+  return (
+    <form onSubmit={submit} className="flex gap-2">
+      <input
+        className="input flex-1"
+        placeholder={t.routes.addPlaceholder}
+        aria-label={t.routes.addPlaceholder}
+        value={draft}
+        onChange={(e) => {
+          if (hasError) onClearError();
+          setDraft(e.target.value);
+        }}
+        list={`routes-${vnId}-suggest`}
+        maxLength={200}
+      />
+      <datalist id={`routes-${vnId}-suggest`}>
+        {suggestions.map((c) => (
+          <option key={c.id} value={c.name} label={c.original && c.original !== c.name ? c.original : undefined} />
+        ))}
+      </datalist>
+      <button type="submit" className="btn btn-primary" disabled={!draft.trim() || busy}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" />}
+        {t.routes.add}
+      </button>
+    </form>
+  );
+});
+
 export function RoutesSection({ vnId, inCollection }: Props) {
   const t = useT();
   const locale = useLocale();
@@ -234,7 +303,8 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const router = useRouter();
   const [routes, setRoutes] = useState<RouteRow[]>([]);
   const [loadedRoutes, setLoadedRoutes] = useState(false);
-  const [draft, setDraft] = useState('');
+  const [prefill, setPrefill] = useState('');
+  const [prefillNonce, setPrefillNonce] = useState(0);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
   const [notesOpen, setNotesOpen] = useState<number | null>(null);
@@ -315,10 +385,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
 
   if (!inCollection) return null;
 
-  async function add(e?: React.FormEvent) {
-    e?.preventDefault();
-    const name = draft.trim();
-    if (!name) return;
+  const add = useCallback(async (name: string): Promise<boolean> => {
     setBusy(true);
     setError(null);
     try {
@@ -330,14 +397,22 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = (await r.json()) as { routes: RouteRow[] };
       setRoutes(d.routes);
-      setDraft('');
       startTransition(() => router.refresh());
+      return true;
     } catch (err) {
       setError((err as Error).message);
+      return false;
     } finally {
       setBusy(false);
     }
-  }
+  }, [vnId, router, t.common.error]);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  const prefillDraft = useCallback((name: string) => {
+    setPrefill(name);
+    setPrefillNonce((n) => n + 1);
+  }, []);
 
   const patch = useCallback(async (id: number, fields: Partial<RouteRow>) => {
     setBusy(true);
@@ -523,29 +598,17 @@ export function RoutesSection({ vnId, inCollection }: Props) {
         </ul>
       )}
 
-      <form onSubmit={add} className="flex gap-2">
-        <input
-          className="input flex-1"
-          placeholder={t.routes.addPlaceholder}
-          aria-label={t.routes.addPlaceholder}
-          value={draft}
-          onChange={(e) => {
-            if (error) setError(null);
-            setDraft(e.target.value);
-          }}
-          list={`routes-${vnId}-suggest`}
-          maxLength={200}
-        />
-        <datalist id={`routes-${vnId}-suggest`}>
-          {suggestions.map((c) => (
-            <option key={c.id} value={c.name} label={c.original && c.original !== c.name ? c.original : undefined} />
-          ))}
-        </datalist>
-        <button type="submit" className="btn btn-primary" disabled={!draft.trim() || busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" />}
-          {t.routes.add}
-        </button>
-      </form>
+      <RouteAddForm
+        vnId={vnId}
+        busy={busy}
+        hasError={error !== null}
+        prefill={prefill}
+        prefillNonce={prefillNonce}
+        suggestions={suggestions}
+        t={t}
+        onAdd={add}
+        onClearError={clearError}
+      />
 
       {suggestions.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -556,9 +619,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
             <button
               key={c.id}
               type="button"
-              onClick={() => {
-                setDraft(c.name);
-              }}
+              onClick={() => prefillDraft(c.name)}
               className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent"
               title={c.original && c.original !== c.name ? `${c.name} · ${c.original}` : c.name}
             >

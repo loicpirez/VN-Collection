@@ -26,7 +26,17 @@ const mod = createSectionLayoutModule<CharacterSectionId>({
 
 export const defaultCharacterDetailLayoutV1 = mod.defaultLayout;
 export const validateCharacterDetailLayoutV1 = mod.validate;
-export const parseCharacterDetailLayoutV1 = mod.parse;
 export const CHARACTER_DETAIL_LAYOUT_EVENT = mod.LAYOUT_EVENT;
 export const CHARACTER_DETAIL_SETTINGS_KEY = mod.SETTINGS_KEY;
 export type CharacterDetailLayoutV1 = ReturnType<typeof defaultCharacterDetailLayoutV1>;
+
+let lastCharacterDetailRaw: string | null = null;
+let lastCharacterDetailResult: CharacterDetailLayoutV1 | null = null;
+
+export function parseCharacterDetailLayoutV1(raw: string | null): CharacterDetailLayoutV1 {
+  if (raw === lastCharacterDetailRaw && lastCharacterDetailResult !== null) return lastCharacterDetailResult;
+  const parsed = mod.parse(raw);
+  lastCharacterDetailRaw = raw;
+  lastCharacterDetailResult = parsed;
+  return parsed;
+}
