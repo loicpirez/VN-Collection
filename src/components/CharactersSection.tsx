@@ -1,5 +1,5 @@
 'use client';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { SafeImage } from './SafeImage';
@@ -124,15 +124,19 @@ export function CharactersSection({
   const [chars, setChars] = useState<VnCharacterRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fetchedForRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!open || chars !== null) return;
+    if (!open || fetchedForRef.current === vnId) return;
+    fetchedForRef.current = vnId;
     // AbortController instead of an `alive` flag — cancels the
     // pending fetch when the user navigates away mid-load instead of
     // letting the response complete and accumulate ghost state on
     // unmounted components (the "opening many VN pages crashes"
     // pattern).
     const ac = new AbortController();
+    let settled = false;
+    setChars(null);
     setLoading(true);
     setError(null);
     fetchVnCharacters(vnId, ac.signal)
@@ -144,10 +148,14 @@ export function CharactersSection({
         setError(e.message);
       })
       .finally(() => {
+        settled = true;
         if (!ac.signal.aborted) setLoading(false);
       });
-    return () => ac.abort();
-  }, [open, vnId, chars, t.common.error]);
+    return () => {
+      ac.abort();
+      if (!settled) fetchedForRef.current = null;
+    };
+  }, [open, vnId, t.common.error]);
 
   const sorted = useMemo(
     () =>
