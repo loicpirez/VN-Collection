@@ -119,6 +119,7 @@ export function MapVnToEgsButton({
       const d = (await r.json()) as { candidates?: EgsCandidate[] };
       if (ac.signal.aborted) return;
       setCandidates(d.candidates ?? []);
+      if (searchAbortRef.current === ac) searchAbortRef.current = null;
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') return;
     } finally {
