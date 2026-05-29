@@ -363,7 +363,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
                     maxLength={2000}
                     placeholder={t.routes.notesPlaceholder}
                     aria-label={t.routes.notesPlaceholder}
-                    className="w-full rounded-md border border-border bg-bg-card/60 p-2 text-xs leading-relaxed text-white/85 focus:border-accent focus:outline-none"
+                    className="w-full rounded-md border border-border bg-bg-card/60 p-2 text-xs leading-relaxed text-white/85 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
                   />
                   <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px]">
                     <span className="text-muted">{notesDraft.length} / 2000</span>

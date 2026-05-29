@@ -959,7 +959,7 @@ export function StockPanel({
             aria-invalid={aliasError ? true : undefined}
             aria-describedby={aliasError ? 'stock-alias-error' : undefined}
             maxLength={100}
-            className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none"
+            className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
           />
           <button
             type="submit"
@@ -1025,7 +1025,7 @@ export function StockPanel({
             aria-invalid={sourceError ? true : undefined}
             aria-describedby={sourceError ? 'stock-source-error' : undefined}
             maxLength={1024}
-            className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none"
+            className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
           />
           <button
             type="submit"

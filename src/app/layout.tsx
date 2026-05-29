@@ -140,7 +140,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   // status bar.
                   className="pb-16 pt-4 sm:pt-5"
                   tabIndex={-1}
-                  aria-label={dict.app.title}
                 >
                   <PageSpaceFrame>{children}</PageSpaceFrame>
                 </main>

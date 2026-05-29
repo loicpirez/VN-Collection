@@ -114,7 +114,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
           placeholder={t.customSynopsis.placeholder}
           aria-label={label}
           disabled={saving}
-          className="w-full rounded-md border border-border bg-bg-elev/40 p-3 text-sm leading-relaxed text-white focus:border-accent focus:outline-none"
+          className="w-full rounded-md border border-border bg-bg-elev/40 p-3 text-sm leading-relaxed text-white focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
         />
         <p className="mt-1 text-[10px] text-muted">
           {text.length} / 8000 · {t.customSynopsis.hint}
