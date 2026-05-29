@@ -9493,9 +9493,20 @@ export function listKobeStock(): (KobeStockRow & { in_collection: number; vn_dev
   `).all() as (KobeStockRow & { in_collection: number; vn_developers: string | null })[];
 }
 
-/** Read one AliceNet Kobe stock row by code, or `null` when unknown. */
+/**
+ * Read one AliceNet Kobe stock row by code, or `null` when unknown. The
+ * heavy `vn_candidates` JSON blob is excluded; the sole single-row
+ * consumer reads only `code` + `title` and never the candidate list.
+ */
 export function getKobeStockItem(code: string): KobeStockRow | null {
-  return (db.prepare(`SELECT * FROM alicesoft_kobe_stock WHERE code = ?`).get(code) as KobeStockRow | undefined) ?? null;
+  return (db.prepare(`
+    SELECT code, title, jan, release_date, list_price, sale_price,
+           vn_id, vn_match_source, search_title, egs_id, egs_match_source,
+           egs_title, egs_brand, egs_release_date, egs_image_url, egs_vndb_raw,
+           last_matched_at, fetched_at, updated_at
+    FROM alicesoft_kobe_stock
+    WHERE code = ?
+  `).get(code) as KobeStockRow | undefined) ?? null;
 }
 
 function retryWindowClause(retryBefore?: number): { sql: string; params: number[] } {
@@ -10260,7 +10271,7 @@ export interface VnStockAliasRow {
 /** Search aliases the operator added for one VN — used by the stock providers to widen queries. */
 export function listStockAliases(vnId: string): VnStockAliasRow[] {
   return db
-    .prepare(`SELECT * FROM vn_stock_alias WHERE vn_id = ? ORDER BY created_at ASC`)
+    .prepare(`SELECT vn_id, alias_term, created_at FROM vn_stock_alias WHERE vn_id = ? ORDER BY created_at ASC`)
     .all(vnId) as VnStockAliasRow[];
 }
 
@@ -10293,7 +10304,7 @@ export interface VnStockSourceRow {
 /** User-pinned stock source URLs for one VN (manual overrides for the auto-discovered URLs). */
 export function listStockSources(vnId: string): VnStockSourceRow[] {
   return db
-    .prepare(`SELECT * FROM vn_stock_source WHERE vn_id = ? ORDER BY created_at ASC, id ASC`)
+    .prepare(`SELECT id, vn_id, release_id, provider, url, product_id, created_at, updated_at FROM vn_stock_source WHERE vn_id = ? ORDER BY created_at ASC, id ASC`)
     .all(vnId) as VnStockSourceRow[];
 }
 
