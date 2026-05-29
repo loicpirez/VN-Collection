@@ -1,10 +1,15 @@
 'use client';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, Circle, Database, FileText, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
-import { TextualSearchPanel } from './TextualSearchPanel';
+
+const TextualSearchPanel = dynamic(() => import('./TextualSearchPanel').then((m) => m.TextualSearchPanel), {
+  ssr: false,
+  loading: () => <SkeletonRows count={4} />,
+});
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { ErrorAlert } from './ErrorAlert';
@@ -140,7 +145,8 @@ export function SearchClient() {
   const [q, setQ] = useState(initialQ);
   const [results, setResults] = useState<VndbSearchHit[]>([]);
   const [egsResults, setEgsResults] = useState<EgsCandidate[]>([]);
-  const [loading, setLoading] = useState(!!initialQ || isAdvActive(initialAdv));
+  const [vndbLoading, setVndbLoading] = useState(initialSource !== 'egs' && (!!initialQ || isAdvActive(initialAdv)));
+  const [egsLoading, setEgsLoading] = useState(initialSource === 'egs' && !!initialQ);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(!!initialQ || isAdvActive(initialAdv));
   const [advOpen, setAdvOpen] = useState(isAdvActive(initialAdv));
@@ -159,14 +165,14 @@ export function SearchClient() {
 
   // Auto-run on first mount when arriving with advanced filters in the URL.
   const advAutoRunRef = useRef(false);
+  const runAdvancedRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (advAutoRunRef.current) return;
     if (isAdvActive(initialAdv)) {
       advAutoRunRef.current = true;
-      runAdvanced();
+      runAdvancedRef.current();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialAdv]);
 
   // Sync state → URL (debounced for q, immediate for adv toggles).
   const syncUrl = useCallback(
@@ -210,7 +216,7 @@ export function SearchClient() {
       return;
     }
     setTouched(true);
-    setLoading(true);
+    setVndbLoading(true);
     setError(null);
     const ctrl = new AbortController();
     const handle = setTimeout(async () => {
@@ -228,7 +234,7 @@ export function SearchClient() {
         setError(e instanceof Error && e.message ? e.message : t.search.errorPrefix);
         setResults([]);
       } finally {
-        if (!ctrl.signal.aborted) setLoading(false);
+        if (!ctrl.signal.aborted) setVndbLoading(false);
       }
     }, 350);
     return () => {
@@ -246,7 +252,7 @@ export function SearchClient() {
       return;
     }
     setTouched(true);
-    setLoading(true);
+    setEgsLoading(true);
     setError(null);
     const ctrl = new AbortController();
     const handle = setTimeout(async () => {
@@ -267,7 +273,7 @@ export function SearchClient() {
         setError(e instanceof Error && e.message ? e.message : t.search.errorPrefix);
         setEgsResults([]);
       } finally {
-        if (!ctrl.signal.aborted) setLoading(false);
+        if (!ctrl.signal.aborted) setEgsLoading(false);
       }
     }, 350);
     return () => {
@@ -300,7 +306,7 @@ export function SearchClient() {
 
   async function runAdvanced() {
     setTouched(true);
-    setLoading(true);
+    setVndbLoading(true);
     setError(null);
     try {
       const body = {
@@ -329,9 +335,13 @@ export function SearchClient() {
       setError(e instanceof Error && e.message ? e.message : t.search.errorPrefix);
       setResults([]);
     } finally {
-      setLoading(false);
+      setVndbLoading(false);
     }
   }
+
+  runAdvancedRef.current = runAdvanced;
+
+  const onQueryEnter = useCallback(() => runAdvancedRef.current(), []);
 
   function toggle(arr: string[], value: string): string[] {
     return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
@@ -401,41 +411,21 @@ export function SearchClient() {
           {t.search.tabLocal}
         </button>
       </div>
-      <div className="relative mb-3">
-        {source === 'egs' ? (
-          <Sparkles className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-accent" aria-hidden />
-        ) : (
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
-        )}
-        <input
-          ref={inputRef}
-          className="input pl-9"
-          placeholder={
-            // Three-way placeholder — the previous fall-through
-            // showed the VNDB hint while the user had the Local tab
-            // active, which incorrectly suggested the input would
-            // hit VNDB. Local mode now points at the operator's
-            // own collection; EGS mode is unchanged.
-            source === 'egs'
-              ? t.search.egsPlaceholder
-              : source === 'local'
-                ? t.search.localPlaceholder
-                : t.search.placeholder
-          }
-          aria-label={
-            source === 'egs'
-              ? t.search.egsPlaceholder
-              : source === 'local'
-                ? t.search.localPlaceholder
-                : t.search.placeholder
-          }
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && source === 'vndb' && advActive) runAdvanced();
-          }}
-        />
-      </div>
+      <SearchInput
+        inputRef={inputRef}
+        value={q}
+        onChange={setQ}
+        placeholder={
+          source === 'egs'
+            ? t.search.egsPlaceholder
+            : source === 'local'
+              ? t.search.localPlaceholder
+              : t.search.placeholder
+        }
+        egs={source === 'egs'}
+        enterRunsAdvanced={source === 'vndb' && advActive}
+        onEnter={onQueryEnter}
+      />
 
       {source === 'vndb' && (
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -634,19 +624,15 @@ export function SearchClient() {
       >
       {source === 'local' ? (
         <TextualSearchPanel query={q} mode="standalone" />
-      ) : loading ? (
-        source === 'egs' ? <SkeletonRows count={6} /> : <SkeletonCardGrid count={18} />
-      ) : !touched && !results.length && !egsResults.length ? (
-        <div className="py-20 text-center">
-          <h2 className="mb-2 text-xl font-bold">
-            {source === 'egs' ? t.search.heroTitleEgs : t.search.heroTitle}
-          </h2>
-          <p className="text-muted">
-            {source === 'egs' ? t.search.heroSubtitleEgs : t.search.heroSubtitle}
-          </p>
-        </div>
       ) : source === 'egs' ? (
-        egsResults.length === 0 ? (
+        egsLoading ? (
+          <SkeletonRows count={6} />
+        ) : !touched && !egsResults.length ? (
+          <div className="py-20 text-center">
+            <h2 className="mb-2 text-xl font-bold">{t.search.heroTitleEgs}</h2>
+            <p className="text-muted">{t.search.heroSubtitleEgs}</p>
+          </div>
+        ) : egsResults.length === 0 ? (
           <div className="py-20 text-center text-muted">{t.search.noResults}</div>
         ) : (
           <ul className="divide-y divide-border rounded-xl border border-border bg-bg-card">
@@ -684,6 +670,13 @@ export function SearchClient() {
             })}
           </ul>
         )
+      ) : vndbLoading ? (
+        <SkeletonCardGrid count={18} />
+      ) : !touched && !results.length ? (
+        <div className="py-20 text-center">
+          <h2 className="mb-2 text-xl font-bold">{t.search.heroTitle}</h2>
+          <p className="text-muted">{t.search.heroSubtitle}</p>
+        </div>
       ) : results.length === 0 ? (
         <div className="py-20 text-center text-muted">{t.search.noResults}</div>
       ) : (
@@ -703,6 +696,53 @@ export function SearchClient() {
     </DensityScopeProvider>
   );
 }
+
+/**
+ * Controlled search input, split out and memoized so the surrounding
+ * tab bar, advanced panel, and results grid are not part of the
+ * input's own render path. The parent still owns `q` (the debounced
+ * URL sync and both quick-search effects key off it), so a keystroke
+ * still updates parent state; extraction keeps that wiring untouched
+ * while isolating the field's markup behind a stable prop boundary.
+ */
+const SearchInput = memo(function SearchInput({
+  inputRef,
+  value,
+  onChange,
+  placeholder,
+  egs,
+  enterRunsAdvanced,
+  onEnter,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  egs: boolean;
+  enterRunsAdvanced: boolean;
+  onEnter: () => void;
+}) {
+  return (
+    <div className="relative mb-3">
+      {egs ? (
+        <Sparkles className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-accent" aria-hidden />
+      ) : (
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+      )}
+      <input
+        ref={inputRef}
+        className="input pl-9"
+        placeholder={placeholder}
+        aria-label={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && enterRunsAdvanced) onEnter();
+        }}
+      />
+    </div>
+  );
+});
 
 /**
  * Density-aware grid for /search VN cards. Mirrors the pattern used
