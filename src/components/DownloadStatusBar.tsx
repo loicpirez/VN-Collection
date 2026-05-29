@@ -144,6 +144,7 @@ export function DownloadStatusBar() {
     };
   }, [open]);
   const [dismissedFinished, setDismissedFinished] = useState<Set<string>>(new Set());
+  const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Server-Sent Events stream gives us push-style updates within
@@ -481,25 +482,48 @@ export function DownloadStatusBar() {
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  {j.errors.length > 0 && (
-                    <ul className="mt-1.5 space-y-0.5 text-[10px] text-status-dropped">
-                      {j.errors.slice(0, 3).map((e, i) => (
-                        <li key={`${j.id}-err-${i}`} className="truncate" title={`${e.item}: ${e.message}`}>
-                          <AlertTriangle className="mr-1 inline-block h-2.5 w-2.5" />
-                          <span className="font-bold">
-                            {idToHref(e.item) ? (
-                              <EntityLink id={e.item} />
-                            ) : (
-                              e.item
-                            )}
-                          </span>: {e.message}
-                        </li>
-                      ))}
-                      {j.errors.length > 3 && (
-                        <li className="opacity-70">+{j.errors.length - 3}</li>
-                      )}
-                    </ul>
-                  )}
+                  {j.errors.length > 0 && (() => {
+                    const errorsExpanded = expandedErrors.has(j.id);
+                    const shownErrors = finished && errorsExpanded ? j.errors : j.errors.slice(0, 3);
+                    const hiddenErrors = j.errors.length - shownErrors.length;
+                    return (
+                      <ul className="mt-1.5 space-y-0.5 text-[10px] text-status-dropped">
+                        {shownErrors.map((e, i) => (
+                          <li key={`${j.id}-err-${i}`} className="truncate" title={`${e.item}: ${e.message}`}>
+                            <AlertTriangle className="mr-1 inline-block h-2.5 w-2.5" />
+                            <span className="font-bold">
+                              {idToHref(e.item) ? (
+                                <EntityLink id={e.item} />
+                              ) : (
+                                e.item
+                              )}
+                            </span>: {e.message}
+                          </li>
+                        ))}
+                        {finished && j.errors.length > 3 ? (
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedErrors((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(j.id)) next.delete(j.id);
+                                  else next.add(j.id);
+                                  return next;
+                                })
+                              }
+                              aria-expanded={errorsExpanded}
+                              className="tap-target rounded text-[10px] font-semibold text-status-dropped underline-offset-2 hover:underline"
+                            >
+                              {errorsExpanded ? t.common.close : `+${hiddenErrors}`}
+                            </button>
+                          </li>
+                        ) : hiddenErrors > 0 ? (
+                          <li className="opacity-70">+{hiddenErrors}</li>
+                        ) : null}
+                      </ul>
+                    );
+                  })()}
                   {finished && (
                     <button
                       type="button"

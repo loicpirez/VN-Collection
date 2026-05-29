@@ -124,6 +124,40 @@ function RetailerRow({ r, label }: { r: EpApiRetailer; label: string }) {
   );
 }
 
+const RETAILER_PAGE_SIZE = 8;
+
+/**
+ * Renders a retailer list capped at `RETAILER_PAGE_SIZE` rows with a
+ * reveal control for the remainder. Keeps a long DOWNLOAD / PACKAGE
+ * retailer list from flooding the panel while still letting the
+ * operator expand to the full set on demand.
+ */
+function RetailerList({ retailers, label, edition }: { retailers: EpApiRetailer[]; label: string; edition: 'dl' | 'pkg' }) {
+  const t = useT();
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? retailers : retailers.slice(0, RETAILER_PAGE_SIZE);
+  const hidden = retailers.length - visible.length;
+  return (
+    <ul className="rounded-lg border border-border bg-bg-elev/30 px-3 py-2">
+      {visible.map((r) => (
+        <RetailerRow key={`${edition}-${r.retailerId}`} r={r} label={label} />
+      ))}
+      {hidden > 0 && (
+        <li className="border-t border-border/60 pt-2 first:border-t-0">
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            aria-label={`${t.erogePrice.retailers} +${hidden}`}
+            className="tap-target rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent"
+          >
+            +{hidden}
+          </button>
+        </li>
+      )}
+    </ul>
+  );
+}
+
 function StaffBlock({ staff }: { staff: EpApiStaff }) {
   const t = useT();
   const rows: { label: string; icon: React.ReactNode; names: string[] }[] = [
@@ -510,11 +544,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
               <p className="mb-1 text-[10px] font-semibold uppercase text-muted/70">
                 {t.erogePrice.editions.download}
               </p>
-              <ul className="rounded-lg border border-border bg-bg-elev/30 px-3 py-2">
-                {d.downloadRetailers.map((r) => (
-                  <RetailerRow key={`dl-${r.retailerId}`} r={r} label={t.erogePrice.editions.dlShort} />
-                ))}
-              </ul>
+              <RetailerList retailers={d.downloadRetailers} label={t.erogePrice.editions.dlShort} edition="dl" />
             </div>
           )}
           {d.packageRetailers.length > 0 && (
@@ -522,11 +552,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
               <p className="mb-1 text-[10px] font-semibold uppercase text-muted/70">
                 {t.erogePrice.editions.package}
               </p>
-              <ul className="rounded-lg border border-border bg-bg-elev/30 px-3 py-2">
-                {d.packageRetailers.map((r) => (
-                  <RetailerRow key={`pkg-${r.retailerId}`} r={r} label={t.erogePrice.editions.pkgShort} />
-                ))}
-              </ul>
+              <RetailerList retailers={d.packageRetailers} label={t.erogePrice.editions.pkgShort} edition="pkg" />
             </div>
           )}
         </section>

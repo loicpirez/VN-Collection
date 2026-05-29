@@ -34,6 +34,7 @@ const ErogePricePanel = dynamic(() => import('./ErogePricePanel').then((m) => m.
 import { SkeletonRows } from './Skeleton';
 import { useDialogA11y } from './Dialog';
 import { useConfirm } from './ConfirmDialog';
+import { ErrorAlert } from './ErrorAlert';
 
 interface StockOffer {
   vn_id: string;
@@ -1055,8 +1056,8 @@ export function StockPanel({
       </details>
 
       {error && (
-        <div role="alert" className="mt-3 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-3 text-sm text-status-dropped">
-          {error}
+        <div className="mt-3">
+          <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
         </div>
       )}
 
