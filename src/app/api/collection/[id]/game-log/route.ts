@@ -44,6 +44,10 @@ export const runtime = 'nodejs';
  * POST   { note, logged_at?, session_minutes? } → { entry }
  * PATCH  { id, note?, logged_at?, session_minutes? } → { entry }
  * DELETE ?entry=<id> → { ok: true }
+ *
+ * `logged_at` is expressed as UTC milliseconds since the Unix epoch
+ * (Date.now()-style). Clients should NOT send local-time milliseconds;
+ * convert to UTC server-side or via Date.prototype.getTime() first.
  */
 // intentionally public — single-user self-hosted app; game log entries
 // reference the operator's own VNs only. Mutating handlers below gated.
