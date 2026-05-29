@@ -6,6 +6,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useDialogA11y } from './Dialog';
 import { SkeletonBlock } from './Skeleton';
+import { ErrorAlert } from './ErrorAlert';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
@@ -192,7 +193,7 @@ export function EgsPanel({
             </div>
           </div>
           <p className="text-xs text-muted">{t.egs.noMatch}</p>
-          {error && <p role="alert" className="mt-1 text-[11px] text-status-dropped">{error}</p>}
+          {error && <div className="mt-1"><ErrorAlert title={t.common.error}>{error}</ErrorAlert></div>}
         </section>
         {pickerOpen && (
           <EgsPicker

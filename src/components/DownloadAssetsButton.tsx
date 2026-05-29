@@ -3,6 +3,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CloudDownload, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { ErrorAlert } from './ErrorAlert';
 
 type EgsWarningKind = 'network' | 'server' | 'throttled' | 'blocked';
 
@@ -126,7 +127,7 @@ export function DownloadAssetsButton({ vnId, dataState = 'complete', variant = '
           {mode === 'full' ? t.assets.downloading : t.assets.downloadFull}
         </button>
       )}
-      {error && <span role="alert" className="text-xs text-status-dropped">{error}</span>}
+      {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
       {info && <span role="status" className="text-xs text-status-completed">{info}</span>}
       {egsWarning && (
         <span className="inline-flex items-center gap-1 rounded-md border border-status-on_hold/40 bg-status-on_hold/10 px-2 py-1 text-[11px] text-status-on_hold">

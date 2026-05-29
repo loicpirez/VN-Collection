@@ -7,6 +7,7 @@ import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
 import { TextualSearchPanel } from './TextualSearchPanel';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
+import { ErrorAlert } from './ErrorAlert';
 import { useToast } from './ToastProvider';
 import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
 import { platformLabel } from '@/lib/platform-label';
@@ -606,8 +607,8 @@ export function SearchClient() {
       )}
 
       {error && (
-        <div role="alert" className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
-          {error}
+        <div className="mb-4">
+          <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
         </div>
       )}
 

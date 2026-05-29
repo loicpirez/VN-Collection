@@ -4,6 +4,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { CheckSquare, CloudDownload, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { Dialog } from './Dialog';
+import { ErrorAlert } from './ErrorAlert';
 import { SelectiveFullDownload, type SelectiveDownloadFilters } from './SelectiveFullDownload';
 import { CollapsibleSummary } from './CollapsibleSummary';
 
@@ -357,7 +358,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
               style={{ width: `${pct}%` }}
             />
           </div>
-          {error && <p role="alert" className="mt-2 text-xs text-status-dropped">{error}</p>}
+          {error && <div className="mt-2"><ErrorAlert title={t.common.error}>{error}</ErrorAlert></div>}
           {egsWarnings.length > 0 && (
             <div className="mt-2 rounded-md border border-status-on_hold/30 bg-status-on_hold/10 p-2 text-[10px] text-status-on_hold">
               {egsWarnings.map((w) => (

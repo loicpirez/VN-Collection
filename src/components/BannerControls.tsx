@@ -3,6 +3,7 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImageMinus, ImagePlus, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { ErrorAlert } from './ErrorAlert';
 import { useToast } from './ToastProvider';
 
 interface Props {
@@ -101,7 +102,7 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
             </button>
           )}
         </div>
-        {error && <p role="alert" className="text-[10px] text-status-dropped">{error}</p>}
+        {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
       </div>
     );
   }
@@ -122,7 +123,7 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
           </button>
         )}
       </div>
-      {error && <p role="alert" className="mt-2 text-sm text-status-dropped">{error}</p>}
+      {error && <div className="mt-2"><ErrorAlert title={t.common.error}>{error}</ErrorAlert></div>}
     </div>
   );
 }
