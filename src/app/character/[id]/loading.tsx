@@ -1,8 +1,10 @@
-import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonRows, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function CharacterLoading() {
+export default async function CharacterLoading() {
+  const t = await getDict();
   return (
-    <div role="status" aria-busy="true" aria-live="polite" className="space-y-6">
+    <SkeletonBoundary label={t.common.loading} className="space-y-6">
       <SkeletonBlock className="h-6 w-32" />
       <div className="grid gap-6 sm:grid-cols-[200px_1fr]">
         <SkeletonBlock className="aspect-[3/4] w-full rounded-2xl" />
@@ -14,6 +16,6 @@ export default function CharacterLoading() {
       </div>
       <SkeletonBlock className="h-6 w-40" />
       <SkeletonRows count={4} />
-    </div>
+    </SkeletonBoundary>
   );
 }

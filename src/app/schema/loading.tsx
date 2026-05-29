@@ -1,12 +1,14 @@
-import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonRows, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function SchemaLoading() {
+export default async function SchemaLoading() {
+  const t = await getDict();
   return (
-    <div role="status" aria-busy="true" aria-live="polite" className="w-full space-y-4">
+    <SkeletonBoundary label={t.common.loading} className="w-full space-y-4">
       <SkeletonBlock className="h-4 w-24" />
       <SkeletonBlock className="h-24 w-full rounded-2xl" />
       <SkeletonBlock className="h-9 w-full rounded-lg" />
       <SkeletonRows count={6} withThumb={false} />
-    </div>
+    </SkeletonBoundary>
   );
 }

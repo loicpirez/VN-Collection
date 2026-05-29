@@ -1,4 +1,5 @@
-import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonRows, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
 export default function LoadingStockPage() {
   return (

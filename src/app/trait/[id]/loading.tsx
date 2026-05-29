@@ -1,12 +1,14 @@
-import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonRows, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function TraitLoading() {
+export default async function TraitLoading() {
+  const t = await getDict();
   return (
-    <div role="status" aria-busy="true" aria-live="polite" className="space-y-4">
+    <SkeletonBoundary label={t.common.loading} className="space-y-4">
       <SkeletonBlock className="h-6 w-32" />
       <SkeletonBlock className="h-8 w-3/4" />
       <SkeletonBlock className="h-24 w-full" />
       <SkeletonRows count={6} />
-    </div>
+    </SkeletonBoundary>
   );
 }

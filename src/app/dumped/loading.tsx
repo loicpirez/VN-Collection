@@ -1,11 +1,13 @@
-import { SkeletonBlock, SkeletonCardGrid } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonCardGrid, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function DumpedLoading() {
+export default async function DumpedLoading() {
+  const t = await getDict();
   return (
-    <div role="status" aria-busy="true" aria-live="polite" className="w-full space-y-4">
+    <SkeletonBoundary label={t.common.loading} className="w-full space-y-4">
       <SkeletonBlock className="h-4 w-24" />
       <SkeletonBlock className="h-40 w-full rounded-2xl" />
       <SkeletonCardGrid count={9} />
-    </div>
+    </SkeletonBoundary>
   );
 }

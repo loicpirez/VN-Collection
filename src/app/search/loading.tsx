@@ -1,4 +1,5 @@
-import { SkeletonCardGrid } from '@/components/Skeleton';
+import { SkeletonCardGrid, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
 /**
  * Next.js auto-renders this file during navigation to /search and while the
@@ -6,11 +7,12 @@ import { SkeletonCardGrid } from '@/components/Skeleton';
  * /vn/[id], which leaks "Personal notes" copy) stays visible until the
  * search page hydrates.
  */
-export default function Loading() {
+export default async function Loading() {
+  const t = await getDict();
   return (
-    <div role="status" aria-busy="true" aria-live="polite">
+    <SkeletonBoundary label={t.common.loading}>
       <div className="mb-3 h-10 w-full animate-pulse rounded-md bg-bg-elev/60" />
       <SkeletonCardGrid count={18} />
-    </div>
+    </SkeletonBoundary>
   );
 }

@@ -1,8 +1,10 @@
-import { SkeletonCardGrid } from '@/components/Skeleton';
+import { SkeletonCardGrid, SkeletonBoundary } from '@/components/Skeleton';
+import { getDict } from '@/lib/i18n/server';
 
-export default function Loading() {
+export default async function Loading() {
+  const t = await getDict();
   return (
-    <div role="status" aria-busy="true" aria-live="polite" className="space-y-4">
+    <SkeletonBoundary label={t.common.loading} className="space-y-4">
       <div className="h-9 w-72 animate-pulse rounded bg-bg-elev/60" />
       <div className="h-4 w-1/3 animate-pulse rounded bg-bg-elev/40" />
       <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
@@ -14,6 +16,6 @@ export default function Loading() {
         </div>
       </div>
       <SkeletonCardGrid />
-    </div>
+    </SkeletonBoundary>
   );
 }
