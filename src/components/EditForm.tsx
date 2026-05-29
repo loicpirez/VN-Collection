@@ -322,6 +322,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
             <input
               className="input"
               type="text"
+              autoComplete="off"
               placeholder={t.form.editionLabelPlaceholder}
               value={editionLabel}
               onChange={(e) => setEditionLabel(e.target.value)}
@@ -345,6 +346,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
               className="input"
               type="url"
               inputMode="url"
+              autoComplete="off"
               placeholder={t.form.downloadUrlPlaceholder}
               value={downloadUrl}
               onChange={(e) => setDownloadUrl(e.target.value)}
