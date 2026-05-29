@@ -39,40 +39,7 @@ function readGroupFromUrl(value: string | null, fallback: WishlistGroup): Wishli
 const SORT_KEYS: WishlistSort[] = ['added_desc', 'added_asc', 'title', 'rating_desc', 'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc'];
 const GROUP_KEYS: WishlistGroup[] = ['none', 'year', 'developer', 'language', 'platform', 'status'];
 
-const PREFS_STORAGE_KEY = 'wishlist_defaults_v1';
-
-interface WishlistPrefs {
-  sort: WishlistSort;
-  group: WishlistGroup;
-  hideOwned: boolean;
-}
-
-function loadPrefs(): WishlistPrefs {
-  if (typeof window === 'undefined') {
-    return { sort: 'added_desc', group: 'none', hideOwned: true };
-  }
-  try {
-    const raw = localStorage.getItem(PREFS_STORAGE_KEY);
-    if (!raw) return { sort: 'added_desc', group: 'none', hideOwned: true };
-    const parsed = JSON.parse(raw) as Partial<WishlistPrefs>;
-    return {
-      sort: SORT_KEYS.includes(parsed.sort as WishlistSort) ? (parsed.sort as WishlistSort) : 'added_desc',
-      group: GROUP_KEYS.includes(parsed.group as WishlistGroup) ? (parsed.group as WishlistGroup) : 'none',
-      hideOwned: typeof parsed.hideOwned === 'boolean' ? parsed.hideOwned : true,
-    };
-  } catch {
-    return { sort: 'added_desc', group: 'none', hideOwned: true };
-  }
-}
-
-function persistPrefs(prefs: WishlistPrefs): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs));
-  } catch {
-    // localStorage may be full / unavailable; swallow.
-  }
-}
+const Q_DEBOUNCE_MS = 300;
 
 interface WishlistItem {
   id: string;
@@ -151,6 +118,40 @@ const MemoWishlistCard = memo(function MemoWishlistCard({
   );
 });
 
+const WishlistSearchInput = memo(function WishlistSearchInput({
+  urlValue,
+  placeholder,
+  onCommit,
+  debounceMs,
+}: {
+  urlValue: string;
+  placeholder: string;
+  onCommit: (next: string) => void;
+  debounceMs: number;
+}) {
+  const [draft, setDraft] = useState(urlValue);
+  useEffect(() => {
+    setDraft(urlValue);
+  }, [urlValue]);
+  useEffect(() => {
+    if (draft === urlValue) return;
+    const handle = setTimeout(() => onCommit(draft.trim()), debounceMs);
+    return () => clearTimeout(handle);
+  }, [draft, urlValue, onCommit, debounceMs]);
+  return (
+    <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+      <input
+        className="input pl-9"
+        placeholder={placeholder}
+        aria-label={placeholder}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+    </div>
+  );
+});
+
 function wishlistCardData(it: WishlistItem): CardData {
   const cached = wishlistCache.get(it);
   if (cached) return cached;
@@ -185,13 +186,50 @@ export function WishlistClient() {
   const search = useSearchParams();
   const router = useRouter();
   const density = resolveScopedDensity(settings, 'wishlist', search?.get('density') ?? null);
-  const urlSort = search?.get('sort') ?? null;
-  const urlGroup = search?.get('group') ?? null;
-  const urlHideOwned = search?.get('hideOwned');
   const wishlistGridStyle: React.CSSProperties = useMemo(
     () => ({ gridTemplateColumns: cardGridColumns(density) }),
     [density],
   );
+
+  const replaceParams = useCallback(
+    (mutator: (sp: URLSearchParams) => void) => {
+      const next = new URLSearchParams(search?.toString() ?? '');
+      mutator(next);
+      const qs = next.toString();
+      router.replace(qs ? `/wishlist?${qs}` : '/wishlist', { scroll: false });
+    },
+    [router, search],
+  );
+
+  const setParam = useCallback(
+    (key: string, value: string | null) => {
+      replaceParams((sp) => {
+        if (value) sp.set(key, value);
+        else sp.delete(key);
+      });
+    },
+    [replaceParams],
+  );
+
+  const commitSearch = useCallback(
+    (next: string) => setParam('q', next || null),
+    [setParam],
+  );
+
+  const q = search?.get('q') ?? '';
+  const filterLang = search?.get('lang') ?? '';
+  const filterPlatform = search?.get('platform') ?? '';
+  const filterRatingMin = search?.get('ratingMin') ?? '';
+  const filterRatingMax = search?.get('ratingMax') ?? '';
+  const filterYearMin = search?.get('yearMin') ?? '';
+  const filterYearMax = search?.get('yearMax') ?? '';
+  const urlSort = search?.get('sort') ?? null;
+  const urlGroup = search?.get('group') ?? null;
+  const urlHideOwned = search?.get('hideOwned');
+  const sort = readSortFromUrl(urlSort, 'added_desc');
+  const group = readGroupFromUrl(urlGroup, 'none');
+  const hideOwned = urlHideOwned != null ? urlHideOwned !== '0' : true;
+
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   // Gate the empty-state copy so it never renders before the first successful
@@ -201,55 +239,23 @@ export function WishlistClient() {
   const [refreshing, setRefreshing] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [q, setQ] = useState('');
-  const [filterLang, setFilterLang] = useState('');
-  const [filterPlatform, setFilterPlatform] = useState('');
-  const [filterRatingMin, setFilterRatingMin] = useState('');
-  const [filterRatingMax, setFilterRatingMax] = useState('');
-  const [filterYearMin, setFilterYearMin] = useState('');
-  const [filterYearMax, setFilterYearMax] = useState('');
-  // Seed `hideOwned`, `sort`, and `group` from localStorage so the
-  const [hideOwned, setHideOwned] = useState<boolean>(() =>
-    urlHideOwned != null ? urlHideOwned === '1' : loadPrefs().hideOwned,
-  );
+  const [ratingMinInput, setRatingMinInput] = useState(filterRatingMin);
+  const [ratingMaxInput, setRatingMaxInput] = useState(filterRatingMax);
+  const [yearMinInput, setYearMinInput] = useState(filterYearMin);
+  const [yearMaxInput, setYearMaxInput] = useState(filterYearMax);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
-  const [sort, setSort] = useState<WishlistSort>(() => readSortFromUrl(urlSort, loadPrefs().sort));
-  const [group, setGroup] = useState<WishlistGroup>(() => readGroupFromUrl(urlGroup, loadPrefs().group));
   const [removingId, setRemovingId] = useState<string | null>(null);
 
-  // Mirror durable prefs (sort, group, hideOwned) to localStorage on
-  // every change. `q`, `selectMode`, and `selected` stay session-only
-  // because they're transient search / multi-select state, not
-  // preferences.
   useEffect(() => {
-    persistPrefs({ sort, group, hideOwned });
-  }, [sort, group, hideOwned]);
-
+    setRatingMinInput(filterRatingMin);
+    setRatingMaxInput(filterRatingMax);
+  }, [filterRatingMin, filterRatingMax]);
   useEffect(() => {
-    const params = new URLSearchParams(search?.toString() ?? '');
-    let dirty = false;
-    if (sort === 'added_desc') {
-      if (params.get('sort')) { params.delete('sort'); dirty = true; }
-    } else if (params.get('sort') !== sort) {
-      params.set('sort', sort); dirty = true;
-    }
-    if (group === 'none') {
-      if (params.get('group')) { params.delete('group'); dirty = true; }
-    } else if (params.get('group') !== group) {
-      params.set('group', group); dirty = true;
-    }
-    if (hideOwned) {
-      if (params.get('hideOwned') !== '1') { params.set('hideOwned', '1'); dirty = true; }
-    } else if (params.get('hideOwned') != null) {
-      params.delete('hideOwned'); dirty = true;
-    }
-    if (dirty) {
-      const next = params.toString();
-      router.replace(`/wishlist${next ? `?${next}` : ''}`, { scroll: false });
-    }
-  }, [sort, group, hideOwned, search, router]);
+    setYearMinInput(filterYearMin);
+    setYearMaxInput(filterYearMax);
+  }, [filterYearMin, filterYearMax]);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -367,12 +373,18 @@ export function WishlistClient() {
     (filterYearMax ? 1 : 0);
 
   function resetFilters() {
-    setFilterLang('');
-    setFilterPlatform('');
-    setFilterRatingMin('');
-    setFilterRatingMax('');
-    setFilterYearMin('');
-    setFilterYearMax('');
+    setRatingMinInput('');
+    setRatingMaxInput('');
+    setYearMinInput('');
+    setYearMaxInput('');
+    replaceParams((sp) => {
+      sp.delete('lang');
+      sp.delete('platform');
+      sp.delete('ratingMin');
+      sp.delete('ratingMax');
+      sp.delete('yearMin');
+      sp.delete('yearMax');
+    });
   }
 
   const filtered = useMemo(() => {
@@ -515,19 +527,15 @@ export function WishlistClient() {
       ) : (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
-              <input
-                className="input pl-9"
-                placeholder={t.wishlist.searchPlaceholder}
-                aria-label={t.wishlist.searchPlaceholder}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-              />
-            </div>
+            <WishlistSearchInput
+              urlValue={q}
+              placeholder={t.wishlist.searchPlaceholder}
+              onCommit={commitSearch}
+              debounceMs={Q_DEBOUNCE_MS}
+            />
             <select
               value={sort}
-              onChange={(e) => setSort(e.target.value as WishlistSort)}
+              onChange={(e) => setParam('sort', e.target.value === 'added_desc' ? null : e.target.value)}
               className="input min-h-[44px] py-0 text-xs"
               title={t.wishlist.sortLabel}
               aria-label={t.wishlist.sortLabel}
@@ -538,7 +546,7 @@ export function WishlistClient() {
             </select>
             <select
               value={group}
-              onChange={(e) => setGroup(e.target.value as WishlistGroup)}
+              onChange={(e) => setParam('group', e.target.value === 'none' ? null : e.target.value)}
               className="input min-h-[44px] py-0 text-xs"
               title={t.wishlist.groupLabel}
               aria-label={t.wishlist.groupLabel}
@@ -551,7 +559,7 @@ export function WishlistClient() {
               <input
                 type="checkbox"
                 checked={hideOwned}
-                onChange={(e) => setHideOwned(e.target.checked)}
+                onChange={(e) => setParam('hideOwned', e.target.checked ? null : '0')}
               />
               {t.wishlist.hideOwned}
             </label>
@@ -617,7 +625,7 @@ export function WishlistClient() {
               {availableLanguages.length > 0 && (
                 <select
                   value={filterLang}
-                  onChange={(e) => setFilterLang(e.target.value)}
+                  onChange={(e) => setParam('lang', e.target.value || null)}
                   className="input min-h-[44px] py-0 text-xs"
                   aria-label={t.wishlist.filterByLanguage}
                 >
@@ -630,7 +638,7 @@ export function WishlistClient() {
               {availablePlatforms.length > 0 && (
                 <select
                   value={filterPlatform}
-                  onChange={(e) => setFilterPlatform(e.target.value)}
+                  onChange={(e) => setParam('platform', e.target.value || null)}
                   className="input min-h-[44px] py-0 text-xs"
                   aria-label={t.wishlist.filterByPlatform}
                 >
@@ -646,10 +654,14 @@ export function WishlistClient() {
                   inputMode="numeric"
                   className="input min-h-[44px] w-20 py-0 text-xs"
                   placeholder={t.wishlist.filterRatingMin}
-                  value={filterRatingMin}
+                  value={ratingMinInput}
                   min={0}
                   max={100}
-                  onChange={(e) => setFilterRatingMin(e.target.value)}
+                  onChange={(e) => setRatingMinInput(e.target.value)}
+                  onBlur={() => setParam('ratingMin', ratingMinInput.trim() || null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setParam('ratingMin', ratingMinInput.trim() || null);
+                  }}
                   aria-label={t.wishlist.filterRatingMin}
                 />
                 <span className="text-xs text-muted">–</span>
@@ -658,10 +670,14 @@ export function WishlistClient() {
                   inputMode="numeric"
                   className="input min-h-[44px] w-20 py-0 text-xs"
                   placeholder={t.wishlist.filterRatingMax}
-                  value={filterRatingMax}
+                  value={ratingMaxInput}
                   min={0}
                   max={100}
-                  onChange={(e) => setFilterRatingMax(e.target.value)}
+                  onChange={(e) => setRatingMaxInput(e.target.value)}
+                  onBlur={() => setParam('ratingMax', ratingMaxInput.trim() || null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setParam('ratingMax', ratingMaxInput.trim() || null);
+                  }}
                   aria-label={t.wishlist.filterRatingMax}
                 />
               </div>
@@ -671,10 +687,14 @@ export function WishlistClient() {
                   inputMode="numeric"
                   className="input min-h-[44px] w-20 py-0 text-xs"
                   placeholder={t.wishlist.filterYearMin}
-                  value={filterYearMin}
+                  value={yearMinInput}
                   min={1980}
                   max={2040}
-                  onChange={(e) => setFilterYearMin(e.target.value)}
+                  onChange={(e) => setYearMinInput(e.target.value)}
+                  onBlur={() => setParam('yearMin', yearMinInput.trim() || null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setParam('yearMin', yearMinInput.trim() || null);
+                  }}
                   aria-label={t.wishlist.filterYearMin}
                 />
                 <span className="text-xs text-muted">–</span>
@@ -683,10 +703,14 @@ export function WishlistClient() {
                   inputMode="numeric"
                   className="input min-h-[44px] w-20 py-0 text-xs"
                   placeholder={t.wishlist.filterYearMax}
-                  value={filterYearMax}
+                  value={yearMaxInput}
                   min={1980}
                   max={2040}
-                  onChange={(e) => setFilterYearMax(e.target.value)}
+                  onChange={(e) => setYearMaxInput(e.target.value)}
+                  onBlur={() => setParam('yearMax', yearMaxInput.trim() || null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setParam('yearMax', yearMaxInput.trim() || null);
+                  }}
                   aria-label={t.wishlist.filterYearMax}
                 />
               </div>
