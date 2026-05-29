@@ -2,7 +2,10 @@ import { listPlaces } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { MapPageClient } from '@/components/MapPageClient';
 
-type Props = { searchParams: Promise<{ lat?: string; lng?: string; id?: string }> };
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+type Props = { searchParams: Promise<{ lat?: string; lng?: string; id?: string; place?: string }> };
 
 export async function generateMetadata() {
   const t = await getDict();
@@ -14,6 +17,8 @@ export default async function MapPage({ searchParams }: Props) {
   const places = listPlaces();
   const focusLat = params.lat ? Number(params.lat) : null;
   const focusLng = params.lng ? Number(params.lng) : null;
+  const rawId = params.place ?? params.id;
+  const focusId = rawId ? Number(rawId) : null;
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -21,6 +26,7 @@ export default async function MapPage({ searchParams }: Props) {
         places={places}
         focusLat={focusLat}
         focusLng={focusLng}
+        focusId={Number.isFinite(focusId) && focusId != null && focusId > 0 ? focusId : null}
       />
     </main>
   );
