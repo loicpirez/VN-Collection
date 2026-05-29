@@ -15,11 +15,22 @@ function parseVnIds(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === 'string' && /^(v\d+|egs_\d+)$/i.test(v)).slice(0, MAX_BATCH);
 }
 
-function parseProviders(value: unknown): StockProviderId[] {
-  if (!Array.isArray(value)) return [...STOCK_PROVIDER_IDS];
+interface ProviderParse {
+  providers: StockProviderId[];
+  unknown: string[];
+}
+
+function parseProviders(value: unknown): ProviderParse {
+  if (!Array.isArray(value)) return { providers: [...STOCK_PROVIDER_IDS], unknown: [] };
   const allowed = new Set<string>(STOCK_PROVIDER_IDS);
-  const providers = value.filter((item): item is StockProviderId => typeof item === 'string' && allowed.has(item));
-  return providers.length > 0 ? providers : [...STOCK_PROVIDER_IDS];
+  const providers: StockProviderId[] = [];
+  const unknown: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    if (allowed.has(item)) providers.push(item as StockProviderId);
+    else unknown.push(item.slice(0, 80));
+  }
+  return { providers, unknown };
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -28,7 +39,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const body = await readJsonObject(req);
   const vnIds = parseVnIds(body.vnIds);
   if (vnIds.length === 0) return NextResponse.json({ error: 'no valid vnIds' }, { status: 400 });
-  const providers = parseProviders(body.providers);
+  const parsed = parseProviders(body.providers);
+  if (Array.isArray(body.providers) && parsed.unknown.length > 0 && parsed.providers.length === 0) {
+    return NextResponse.json(
+      { error: 'no valid providers', unknown: parsed.unknown },
+      { status: 400 },
+    );
+  }
+  const providers = parsed.providers.length > 0 ? parsed.providers : [...STOCK_PROVIDER_IDS];
 
   const job = startJob('stock-batch', `Stock refresh × ${vnIds.length}`, vnIds.length, null);
 
