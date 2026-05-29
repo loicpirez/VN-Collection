@@ -157,7 +157,7 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
             aria-modal="true"
             aria-labelledby={titleId}
             onClick={(e) => e.stopPropagation()}
-            className="w-[min(92vw,520px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
+            className="w-[min(calc(100vw-1rem),520px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
           >
             <header className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
