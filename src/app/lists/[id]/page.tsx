@@ -166,9 +166,9 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           {t.lists.detailEmpty}
         </div>
       ) : (
-        // Density-aware grid (was hard breakpoint-only grid-cols-N).
-        <div
+        <ul
           className="grid gap-5"
+          aria-label={list.name}
           style={{
             gridTemplateColumns:
               'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
@@ -179,17 +179,17 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             const developers = parseDevelopers(row?.developers ?? null);
             const publishers = parseDevelopers(row?.publishers ?? null);
             return (
-              <div key={it.vn_id} className="group relative">
+              <li key={it.vn_id} className="group relative">
                 <ListRemoveVn listId={list.id} vnId={it.vn_id} />
                 {row ? (
                   <VnCard data={listCardData(row, developers, publishers, listCounts.get(it.vn_id) ?? 0)} />
                 ) : (
                   <StubCard vnId={it.vn_id} />
                 )}
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
     </DensityScopeProvider>
   );
