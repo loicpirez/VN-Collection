@@ -418,7 +418,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             </div>
           </div>
 
-          <div className="z-10 flex flex-col gap-3 pt-6 md:pt-44">
+          <div className="z-10 flex min-w-0 flex-col gap-3 pt-6 md:pt-44">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <MatchBadges egsOnly={vn.id.startsWith('egs_')} egs={egsRow} t={t} />
@@ -833,7 +833,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
 
         {(vn.screenshots.length > 0 || vn.release_images.length > 0) && (
           <div className="border-t border-border px-3 py-4 sm:px-6 sm:py-6 md:px-8">
-            <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.media.section}</h2>
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-widest text-muted">{t.media.section}</h2>
             <MediaGallery vnId={vn.id} screenshots={vn.screenshots} releaseImages={vn.release_images} />
           </div>
         )}
@@ -969,7 +969,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
+                  <h2 className="text-sm font-bold uppercase tracking-widest text-muted">
                     {t.similar.sectionTitle}
                   </h2>
                   <p className="mt-1 text-xs text-muted/80">{t.similar.sectionHint}</p>
