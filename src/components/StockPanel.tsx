@@ -1,7 +1,7 @@
 'use client';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
 import {
@@ -163,7 +163,6 @@ export function StockPanel({
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
   const [aliases, setAliases] = useState<string[]>([]);
-  const [aliasInput, setAliasInput] = useState('');
   const [aliasLoading, setAliasLoading] = useState(false);
   const [aliasError, setAliasError] = useState<string | null>(null);
 
@@ -185,7 +184,6 @@ export function StockPanel({
     }
     return out;
   }, [aliases, altTitle, vndbAliases]);
-  const [sourceInput, setSourceInput] = useState('');
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [hideStale, setHideStale] = useState(false);
@@ -305,32 +303,35 @@ export function StockPanel({
    * lineup. Same wire shape as the bulk refresh, just constrained to
    * one provider.
    */
-  async function refreshOnlyProvider(provider: string) {
-    abortRef.current?.abort();
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    setRefreshing(true);
-    setError(null);
-    setProgress({ done: 0, total: 1 });
-    setCurrentProvider(provider);
-    try {
-      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ providers: [provider] }),
-        signal: ctrl.signal,
-      });
-      if (r.ok) setSnapshot((await r.json()) as StockSnapshot);
-    } catch (e) {
-      if ((e as Error).name !== 'AbortError') setError(e instanceof Error && e.message ? e.message : t.common.error);
-    }
-    setProgress({ done: 1, total: 1 });
-    setCurrentProvider(null);
-    if (abortRef.current === ctrl) abortRef.current = null;
-    setRefreshing(false);
-    setLoading(false);
-    router.refresh();
-  }
+  const refreshOnlyProvider = useCallback(
+    async (provider: string) => {
+      abortRef.current?.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+      setRefreshing(true);
+      setError(null);
+      setProgress({ done: 0, total: 1 });
+      setCurrentProvider(provider);
+      try {
+        const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providers: [provider] }),
+          signal: ctrl.signal,
+        });
+        if (r.ok) setSnapshot((await r.json()) as StockSnapshot);
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') setError(e instanceof Error && e.message ? e.message : t.common.error);
+      }
+      setProgress({ done: 1, total: 1 });
+      setCurrentProvider(null);
+      if (abortRef.current === ctrl) abortRef.current = null;
+      setRefreshing(false);
+      setLoading(false);
+      router.refresh();
+    },
+    [vnId, t.common.error, router],
+  );
 
   function stop() {
     abortRef.current?.abort();
@@ -338,32 +339,33 @@ export function StockPanel({
     setRefreshing(false);
   }
 
-  async function handleAddAlias(e: React.FormEvent) {
-    e.preventDefault();
-    const term = aliasInput.trim();
-    if (!term || aliasLoading) return;
-    setAliasLoading(true);
-    setAliasError(null);
-    try {
-      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ term, action: 'add' }),
-      });
-      const data = (await r.json()) as { aliases?: string[]; error?: string };
-      if (r.ok) {
-        setAliases(data.aliases ?? []);
-        setAliasInput('');
-      } else {
+  const handleAddAlias = useCallback(
+    async (term: string): Promise<boolean> => {
+      setAliasLoading(true);
+      setAliasError(null);
+      try {
+        const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ term, action: 'add' }),
+        });
+        const data = (await r.json()) as { aliases?: string[]; error?: string };
+        if (r.ok) {
+          setAliases(data.aliases ?? []);
+          return true;
+        }
         if (Array.isArray(data.aliases)) setAliases(data.aliases);
         setAliasError(data.error ?? t.common.error);
+        return false;
+      } catch (e) {
+        setAliasError(e instanceof Error && e.message ? e.message : t.common.error);
+        return false;
+      } finally {
+        setAliasLoading(false);
       }
-    } catch (e) {
-      setAliasError(e instanceof Error && e.message ? e.message : t.common.error);
-    } finally {
-      setAliasLoading(false);
-    }
-  }
+    },
+    [vnId, t.common.error],
+  );
 
   async function removeAlias(term: string) {
     const ok = await confirm({
@@ -391,27 +393,28 @@ export function StockPanel({
     }
   }
 
-  async function handleAddSource(e: React.FormEvent) {
-    e.preventDefault();
-    const url = sourceInput.trim();
-    if (!url || sourceLoading) return;
-    setSourceLoading(true);
-    setSourceError(null);
-    try {
-      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/sources`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      if (!r.ok) throw new Error(await readApiError(r, t.stock.manualSourceUnsupported));
-      setSnapshot((await r.json()) as StockSnapshot);
-      setSourceInput('');
-    } catch (e) {
-      setSourceError(e instanceof Error && e.message ? e.message : t.common.error);
-    } finally {
-      setSourceLoading(false);
-    }
-  }
+  const handleAddSource = useCallback(
+    async (url: string): Promise<boolean> => {
+      setSourceLoading(true);
+      setSourceError(null);
+      try {
+        const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/sources`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        if (!r.ok) throw new Error(await readApiError(r, t.stock.manualSourceUnsupported));
+        setSnapshot((await r.json()) as StockSnapshot);
+        return true;
+      } catch (e) {
+        setSourceError(e instanceof Error && e.message ? e.message : t.common.error);
+        return false;
+      } finally {
+        setSourceLoading(false);
+      }
+    },
+    [vnId, t.common.error, t.stock.manualSourceUnsupported],
+  );
 
   async function removeSource(id: number) {
     const ok = await confirm({
@@ -479,8 +482,9 @@ export function StockPanel({
     () => (hideStale ? allOffers.filter((o) => !staleProviderIds.has(o.provider)) : allOffers),
     [hideStale, allOffers, staleProviderIds],
   );
-  const refreshableProviders = providers.filter((p) => p.kind !== 'cached' && !p.disabled);
-  const selectedProviderIds = selectedProviders ?? refreshableProviders.map((p) => p.id);
+  const refreshableProviders = useMemo(() => providers.filter((p) => p.kind !== 'cached' && !p.disabled), [providers]);
+  const refreshableProviderIds = useMemo(() => refreshableProviders.map((p) => p.id), [refreshableProviders]);
+  const selectedProviderIds = selectedProviders ?? refreshableProviderIds;
   const selectedProviderSet = useMemo(() => new Set(selectedProviderIds), [selectedProviderIds]);
   const statusByProvider = useMemo(
     () => new Map((snapshot?.statuses ?? []).map((s) => [s.provider, s])),
@@ -559,15 +563,6 @@ export function StockPanel({
   [offers, confirmedPhysicalIds]);
 
   const providerById = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers]);
-  const detectedSourceProvider = useMemo(() => {
-    const raw = sourceInput.trim();
-    if (!raw || providers.length === 0) return null;
-    let host = '';
-    try { host = new URL(raw).hostname.toLowerCase(); } catch { return null; }
-    if (!host) return null;
-    const match = providers.find((p) => providerHostMatches(p.id, host));
-    return match?.label ?? null;
-  }, [sourceInput, providers]);
 
   const blockedProviderCount = useMemo(() => {
     const blockedGroups = new Set<ProviderDiagnosticGroup>(['blocked', 'attention']);
@@ -615,15 +610,19 @@ export function StockPanel({
     if (ids.length > 0) setSelectedProviders(ids);
   }
 
-  function toggleProvider(id: string) {
-    const next = new Set(selectedProviders ?? refreshableProviders.map((p) => p.id));
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    if (next.size === 0) return;
-    const allIds = refreshableProviders.map((p) => p.id);
-    const values = allIds.filter((pid) => next.has(pid));
-    setSelectedProviders(values.length === allIds.length ? null : values);
-  }
+  const toggleProvider = useCallback(
+    (id: string) => {
+      setSelectedProviders((prev) => {
+        const next = new Set(prev ?? refreshableProviderIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        if (next.size === 0) return prev;
+        const values = refreshableProviderIds.filter((pid) => next.has(pid));
+        return values.length === refreshableProviderIds.length ? null : values;
+      });
+    },
+    [refreshableProviderIds],
+  );
 
   const checkButtonLabel = refreshing
     ? t.stock.checkingProviders.replace(
@@ -776,101 +775,24 @@ export function StockPanel({
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3" role="group" aria-label={t.stock.providers}>
             {providers.map((provider) => {
-              const status = statusByProvider.get(provider.id);
-              const count = offerCountByProvider.get(provider.id) ?? status?.offer_count ?? 0;
-              const diagnostic = diagnosticByProvider.get(provider.id);
               const selectable = provider.kind !== 'cached' && !provider.disabled;
-              const selected = selectable ? selectedProviderSet.has(provider.id) : false;
-              const badgeLabel = diagnostic ? providerDiagnosticText(t, diagnostic.badgeKey) : null;
-              const lastChecked = status?.fetched_at
-                ? timeAgo(status.fetched_at, t)
-                : null;
-              const lastCheckedFull = status?.fetched_at
-                ? new Date(status.fetched_at).toLocaleString(locale)
-                : null;
-              const ariaLabel = `${provider.label} — ${badgeLabel ?? (selectable ? t.stock.providerNotChecked : t.stock.providerCached)}${count > 0 ? ` (${count})` : ''}`;
-              const diagnosticMessage = diagnostic ? providerDiagnosticText(t, diagnostic.messageKey) : null;
-              const tooltipParts: string[] = [];
-              if (diagnosticMessage && diagnostic?.kind !== 'ok') tooltipParts.push(diagnosticMessage);
-              if (lastCheckedFull) tooltipParts.push((t.stock.lastChecked as string).replace('{date}', lastCheckedFull));
-              const isRefreshingThis = refreshing && currentProvider === provider.id;
+              const status = statusByProvider.get(provider.id);
               return (
-                <div
+                <ProviderTile
                   key={provider.id}
-                  className={`group relative min-h-[44px] rounded-lg border px-3 py-2 text-left transition-colors ${
-                    provider.disabled
-                      ? 'border-border bg-bg/30 text-muted/40 opacity-60'
-                      : selected
-                        ? 'border-accent bg-accent/10 text-white'
-                        : selectable
-                          ? 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
-                          : 'border-border bg-bg/60 text-muted opacity-80'
-                  }`}
-                  title={provider.disabled ? (t.stock.providerDisabledHint as string) : (tooltipParts.length > 0 ? tooltipParts.join('\n') : undefined)}
-                >
-                  <button
-                    type="button"
-                    onClick={() => selectable && toggleProvider(provider.id)}
-                    disabled={refreshing || !selectable}
-                    aria-pressed={selected}
-                    aria-label={ariaLabel}
-                    className="block w-full min-w-0 text-left"
-                  >
-                    <span className="flex items-start justify-between gap-2">
-                      <span className="min-w-0">
-                        <span className="block truncate text-xs font-bold">{provider.label}</span>
-                        <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-muted">
-                          {provider.kind === 'cached'
-                            ? t.stock.providerCached
-                            : provider.kind === 'aggregate'
-                              ? t.stock.providersAggregate
-                              : provider.confirmedPhysicalUsable
-                                ? t.stock.groupPhysical
-                                : provider.physical
-                                  ? t.stock.physicalCapable
-                                  : t.stock.providersDirect}
-                        </span>
-                        {lastChecked && (
-                          <span className="mt-0.5 block text-[10px] text-muted/70">
-                            {(t.stock.lastCheckedShort as string).replace('{time}', lastChecked)}
-                          </span>
-                        )}
-                      </span>
-                      {provider.disabled ? (
-                        <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted/60">
-                          {t.stock.providerDisabled as string}
-                        </span>
-                      ) : (
-                        <ProviderStatusBadge
-                          t={t}
-                          diagnostic={diagnostic}
-                          count={count}
-                          cached={provider.kind === 'cached'}
-                          loading={isRefreshingThis}
-                        />
-                      )}
-                    </span>
-                  </button>
-                  {selectable && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        refreshOnlyProvider(provider.id);
-                      }}
-                      disabled={refreshing}
-                      aria-label={(t.stock.refreshOnlyProvider as string).replace('{provider}', provider.label)}
-                      title={(t.stock.refreshOnlyProvider as string).replace('{provider}', provider.label)}
-                      className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-accent hover:text-accent focus:flex group-hover:flex group-focus-within:flex disabled:opacity-40"
-                    >
-                      {isRefreshingThis ? (
-                        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                      ) : (
-                        <RefreshCw className="h-3 w-3" aria-hidden />
-                      )}
-                    </button>
-                  )}
-                </div>
+                  provider={provider}
+                  status={status}
+                  count={offerCountByProvider.get(provider.id) ?? status?.offer_count ?? 0}
+                  diagnostic={diagnosticByProvider.get(provider.id)}
+                  selectable={selectable}
+                  selected={selectable ? selectedProviderSet.has(provider.id) : false}
+                  refreshing={refreshing}
+                  isRefreshingThis={refreshing && currentProvider === provider.id}
+                  locale={locale}
+                  t={t}
+                  onToggle={toggleProvider}
+                  onRefreshOnly={refreshOnlyProvider}
+                />
               );
             })}
           </div>
@@ -956,30 +878,13 @@ export function StockPanel({
             </div>
           </div>
         )}
-        <form onSubmit={handleAddAlias} className="mt-2 flex gap-2">
-          <input
-            type="text"
-            value={aliasInput}
-            onChange={(e) => { setAliasInput(e.target.value); if (aliasError) setAliasError(null); }}
-            placeholder={t.stock.aliasPlaceholder}
-            aria-label={t.stock.aliasPlaceholder}
-            aria-invalid={aliasError ? true : undefined}
-            aria-describedby={aliasError ? 'stock-alias-error' : undefined}
-            maxLength={100}
-            className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
-          />
-          <button
-            type="submit"
-            disabled={!aliasInput.trim() || aliasLoading}
-            className="btn btn-primary text-xs"
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden />
-            {t.stock.aliasAdd}
-          </button>
-        </form>
-        {aliasError && (
-          <p id="stock-alias-error" role="alert" className="mt-2 text-xs text-status-dropped">{aliasError}</p>
-        )}
+        <AliasAddForm
+          t={t}
+          loading={aliasLoading}
+          error={aliasError}
+          onSubmit={handleAddAlias}
+          onClearError={() => setAliasError(null)}
+        />
         </div>
         <div>
         <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-muted">
@@ -1021,36 +926,14 @@ export function StockPanel({
             ))}
           </ul>
         )}
-        <form onSubmit={handleAddSource} className="mt-2 flex gap-2">
-          <input
-            type="url"
-            inputMode="url"
-            value={sourceInput}
-            onChange={(e) => { setSourceInput(e.target.value); if (sourceError) setSourceError(null); }}
-            placeholder={t.stock.manualSourcePlaceholder}
-            aria-label={t.stock.manualSourcePlaceholder}
-            aria-invalid={sourceError ? true : undefined}
-            aria-describedby={sourceError ? 'stock-source-error' : undefined}
-            maxLength={1024}
-            className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
-          />
-          <button
-            type="submit"
-            disabled={!sourceInput.trim() || sourceLoading}
-            className="btn btn-primary text-xs"
-          >
-            {sourceLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Plus className="h-3.5 w-3.5" aria-hidden />}
-            {t.stock.manualSourceAdd}
-          </button>
-        </form>
-        {detectedSourceProvider && (
-          <p className="mt-1 text-[10px] text-muted">
-            {(t.stock.manualSourceDetected as string).replace('{provider}', detectedSourceProvider)}
-          </p>
-        )}
-        {sourceError && (
-          <p id="stock-source-error" role="alert" className="mt-2 text-xs text-status-dropped">{sourceError}</p>
-        )}
+        <SourceAddForm
+          t={t}
+          providers={providers}
+          loading={sourceLoading}
+          error={sourceError}
+          onSubmit={handleAddSource}
+          onClearError={() => setSourceError(null)}
+        />
         </div>
         </div>
       </details>
@@ -1170,6 +1053,137 @@ function ClearCacheModal({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Owns its own input state so keystrokes re-render only this form, not the
+ * whole StockPanel. Submits the trimmed term to the parent and clears the
+ * field once the parent confirms the add succeeded.
+ */
+function AliasAddForm({
+  t,
+  loading,
+  error,
+  onSubmit,
+  onClearError,
+}: {
+  t: TDict;
+  loading: boolean;
+  error: string | null;
+  onSubmit: (term: string) => Promise<boolean>;
+  onClearError: () => void;
+}) {
+  const [value, setValue] = useState('');
+  return (
+    <>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const term = value.trim();
+          if (!term || loading) return;
+          if (await onSubmit(term)) setValue('');
+        }}
+        className="mt-2 flex gap-2"
+      >
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => { setValue(e.target.value); if (error) onClearError(); }}
+          placeholder={t.stock.aliasPlaceholder}
+          aria-label={t.stock.aliasPlaceholder}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? 'stock-alias-error' : undefined}
+          maxLength={100}
+          className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
+        />
+        <button
+          type="submit"
+          disabled={!value.trim() || loading}
+          className="btn btn-primary text-xs"
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden />
+          {t.stock.aliasAdd}
+        </button>
+      </form>
+      {error && (
+        <p id="stock-alias-error" role="alert" className="mt-2 text-xs text-status-dropped">{error}</p>
+      )}
+    </>
+  );
+}
+
+/**
+ * Owns its own input state and live-previews the detected provider from the
+ * typed URL. Submits the trimmed URL to the parent and clears the field once
+ * the parent confirms the add succeeded.
+ */
+function SourceAddForm({
+  t,
+  providers,
+  loading,
+  error,
+  onSubmit,
+  onClearError,
+}: {
+  t: TDict;
+  providers: StockProvider[];
+  loading: boolean;
+  error: string | null;
+  onSubmit: (url: string) => Promise<boolean>;
+  onClearError: () => void;
+}) {
+  const [value, setValue] = useState('');
+  const detectedProvider = useMemo(() => {
+    const raw = value.trim();
+    if (!raw || providers.length === 0) return null;
+    let host = '';
+    try { host = new URL(raw).hostname.toLowerCase(); } catch { return null; }
+    if (!host) return null;
+    const match = providers.find((p) => providerHostMatches(p.id, host));
+    return match?.label ?? null;
+  }, [value, providers]);
+  return (
+    <>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const url = value.trim();
+          if (!url || loading) return;
+          if (await onSubmit(url)) setValue('');
+        }}
+        className="mt-2 flex gap-2"
+      >
+        <input
+          type="url"
+          inputMode="url"
+          value={value}
+          onChange={(e) => { setValue(e.target.value); if (error) onClearError(); }}
+          placeholder={t.stock.manualSourcePlaceholder}
+          aria-label={t.stock.manualSourcePlaceholder}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? 'stock-source-error' : undefined}
+          maxLength={1024}
+          className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
+        />
+        <button
+          type="submit"
+          disabled={!value.trim() || loading}
+          className="btn btn-primary text-xs"
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Plus className="h-3.5 w-3.5" aria-hidden />}
+          {t.stock.manualSourceAdd}
+        </button>
+      </form>
+      {detectedProvider && (
+        <p className="mt-1 text-[10px] text-muted">
+          {(t.stock.manualSourceDetected as string).replace('{provider}', detectedProvider)}
+        </p>
+      )}
+      {error && (
+        <p id="stock-source-error" role="alert" className="mt-2 text-xs text-status-dropped">{error}</p>
+      )}
+    </>
   );
 }
 
@@ -1330,6 +1344,120 @@ function providerHostMatches(providerId: string, host: string): boolean {
   const entry = CLIENT_PROVIDER_HOST_PATTERNS.find(([id]) => id === providerId);
   return entry ? entry[1].test(host) : false;
 }
+
+const ProviderTile = memo(function ProviderTile({
+  provider,
+  status,
+  count,
+  diagnostic,
+  selectable,
+  selected,
+  refreshing,
+  isRefreshingThis,
+  locale,
+  t,
+  onToggle,
+  onRefreshOnly,
+}: {
+  provider: StockProvider;
+  status: StockStatus | undefined;
+  count: number;
+  diagnostic: NormalizedProviderDiagnostic | undefined;
+  selectable: boolean;
+  selected: boolean;
+  refreshing: boolean;
+  isRefreshingThis: boolean;
+  locale: string;
+  t: TDict;
+  onToggle: (id: string) => void;
+  onRefreshOnly: (id: string) => void;
+}) {
+  const badgeLabel = diagnostic ? providerDiagnosticText(t, diagnostic.badgeKey) : null;
+  const lastChecked = status?.fetched_at ? timeAgo(status.fetched_at, t) : null;
+  const lastCheckedFull = status?.fetched_at ? new Date(status.fetched_at).toLocaleString(locale) : null;
+  const ariaLabel = `${provider.label} — ${badgeLabel ?? (selectable ? t.stock.providerNotChecked : t.stock.providerCached)}${count > 0 ? ` (${count})` : ''}`;
+  const diagnosticMessage = diagnostic ? providerDiagnosticText(t, diagnostic.messageKey) : null;
+  const tooltipParts: string[] = [];
+  if (diagnosticMessage && diagnostic?.kind !== 'ok') tooltipParts.push(diagnosticMessage);
+  if (lastCheckedFull) tooltipParts.push((t.stock.lastChecked as string).replace('{date}', lastCheckedFull));
+  return (
+    <div
+      className={`group relative min-h-[44px] rounded-lg border px-3 py-2 text-left transition-colors ${
+        provider.disabled
+          ? 'border-border bg-bg/30 text-muted/40 opacity-60'
+          : selected
+            ? 'border-accent bg-accent/10 text-white'
+            : selectable
+              ? 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
+              : 'border-border bg-bg/60 text-muted opacity-80'
+      }`}
+      title={provider.disabled ? (t.stock.providerDisabledHint as string) : (tooltipParts.length > 0 ? tooltipParts.join('\n') : undefined)}
+    >
+      <button
+        type="button"
+        onClick={() => selectable && onToggle(provider.id)}
+        disabled={refreshing || !selectable}
+        aria-pressed={selected}
+        aria-label={ariaLabel}
+        className="block w-full min-w-0 text-left"
+      >
+        <span className="flex items-start justify-between gap-2">
+          <span className="min-w-0">
+            <span className="block truncate text-xs font-bold">{provider.label}</span>
+            <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-muted">
+              {provider.kind === 'cached'
+                ? t.stock.providerCached
+                : provider.kind === 'aggregate'
+                  ? t.stock.providersAggregate
+                  : provider.confirmedPhysicalUsable
+                    ? t.stock.groupPhysical
+                    : provider.physical
+                      ? t.stock.physicalCapable
+                      : t.stock.providersDirect}
+            </span>
+            {lastChecked && (
+              <span className="mt-0.5 block text-[10px] text-muted/70">
+                {(t.stock.lastCheckedShort as string).replace('{time}', lastChecked)}
+              </span>
+            )}
+          </span>
+          {provider.disabled ? (
+            <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted/60">
+              {t.stock.providerDisabled as string}
+            </span>
+          ) : (
+            <ProviderStatusBadge
+              t={t}
+              diagnostic={diagnostic}
+              count={count}
+              cached={provider.kind === 'cached'}
+              loading={isRefreshingThis}
+            />
+          )}
+        </span>
+      </button>
+      {selectable && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRefreshOnly(provider.id);
+          }}
+          disabled={refreshing}
+          aria-label={(t.stock.refreshOnlyProvider as string).replace('{provider}', provider.label)}
+          title={(t.stock.refreshOnlyProvider as string).replace('{provider}', provider.label)}
+          className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-accent hover:text-accent focus:flex group-hover:flex group-focus-within:flex disabled:opacity-40"
+        >
+          {isRefreshingThis ? (
+            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+          ) : (
+            <RefreshCw className="h-3 w-3" aria-hidden />
+          )}
+        </button>
+      )}
+    </div>
+  );
+});
 
 function ProviderStatusBadge({
   t,
@@ -1536,7 +1664,7 @@ function notCountedReason(t: TDict, offer: StockOffer): string | null {
   return reasons.notEligible;
 }
 
-function OfferCard({
+const OfferCard = memo(function OfferCard({
   offer,
   best,
   currency,
@@ -1677,7 +1805,7 @@ function OfferCard({
       </div>
     </li>
   );
-}
+});
 
 function OfferGroup({
   label,
