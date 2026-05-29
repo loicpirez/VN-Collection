@@ -828,6 +828,11 @@ export function parseSofmapList(html: string, target: StockTarget): ParsedOffer[
     const storeBlock = /<dl\b[^>]*used_link[^>]*>([\s\S]*?)<\/dl>/i.exec(block)?.[1] ?? '';
     const storeAnchor = /<a\s+href=["'][^"']*tenpo[^"']*["'][^>]*>([\s\S]*?)<\/a>/i.exec(storeBlock)?.[1];
     const location = storeAnchor ? stripTags(storeAnchor).trim() : null;
+    const itemJan =
+      /new_jan=(\d{8,13})/.exec(block)?.[1] ??
+      /\/product\/[a-z]+\/(\d{8,13})\.jpg/i.exec(block)?.[1] ??
+      /\bnewitem(\d{8,13})/.exec(block)?.[1] ??
+      null;
     offers.push({
       provider_offer_id: sku,
       title,
@@ -840,7 +845,7 @@ export function parseSofmapList(html: string, target: StockTarget): ParsedOffer[
       location_label: location ?? ONLINE_STOCK_SENTINEL,
       location_branch: location ?? null,
       source_release_id: target.releaseId,
-      jan: target.jan,
+      jan: target.jan ?? itemJan,
     });
   }
   return offers;
@@ -882,14 +887,41 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
     aliases,
   };
   const targets = allTargetsForProvider(releases, 'sofmap', vn, discovered, aliases);
+  const usedJansFetched = new Set<string>();
   for (const target of targets.slice(0, 12)) {
     const url = withSofmapAdultBypass(target.url);
     const html = await fetchShopText(url, { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
     const pathname = new URL(url).pathname.toLowerCase();
     if (/product_list_parts/i.test(pathname)) {
+      const usedJanInUrl = /[?&]new_jan=(\d{8,13})/.exec(url)?.[1] ?? null;
+      if (usedJanInUrl) usedJansFetched.add(usedJanInUrl);
+      const janFollowUps: string[] = [];
       for (const offer of parseSofmapList(html, target)) {
         const cl = classifyOffer(offer.title, offer.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: 'sofmap' });
         offers.push(offerInput(vnId, 'sofmap', target.releaseId ? 'direct' : 'search', now, { ...offer, ...classificationToFields(cl) }));
+        // An online keyword hit that carries a JAN but no per-store branch:
+        // follow that JAN to its USED listing, which exposes the physical
+        // shops (取扱店舗) Sofmap stocks the same SKU at.
+        if (
+          !usedJanInUrl && offer.jan && !offer.location_branch &&
+          !usedJansFetched.has(offer.jan) &&
+          cl.contentKind === 'game_package' &&
+          (cl.matchConfidence === 'exact' || cl.matchConfidence === 'high')
+        ) {
+          usedJansFetched.add(offer.jan);
+          janFollowUps.push(offer.jan);
+        }
+      }
+      for (const jan of janFollowUps) {
+        try {
+          const usedUrl = withSofmapAdultBypass(`https://a.sofmap.com/product_list_parts.aspx?product_type=USED&gid=002210010010&new_jan=${encodeURIComponent(jan)}`);
+          const usedHtml = await fetchShopText(usedUrl, { encoding: 'shift_jis', headers: { cookie: 'UCAA=on' }, signal });
+          const usedTarget: StockTarget = { url: usedUrl, releaseId: target.releaseId, jan, source: 'direct' };
+          for (const usedOffer of parseSofmapList(usedHtml, usedTarget)) {
+            const ucl = classifyOffer(usedOffer.title, usedOffer.category ?? null, classifyTarget, { source: 'direct', provider: 'sofmap' });
+            offers.push(offerInput(vnId, 'sofmap', 'direct', now, { ...usedOffer, ...classificationToFields(ucl) }));
+          }
+        } catch { /* USED follow-up is best-effort */ }
       }
       continue;
     }

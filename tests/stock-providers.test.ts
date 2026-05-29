@@ -169,6 +169,21 @@ describe('stock provider parsers', () => {
     expect(offers[1]).toMatchObject({ provider_offer_id: '100000004', location_label: 'AKIBA アミューズメント館', location_branch: 'AKIBA アミューズメント館' });
   });
 
+  it('extracts the per-item JAN from an online listing (image / used-link) for USED follow-up', () => {
+    const html = `<ul id="change_style_list" class="product_list">
+      <li><div class="mainbox">
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=100000005" class="itemimg"><img src="https://image.sofmap.com/images/product/large/4900000000000.jpg" alt="x"></a>
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=100000005" class="product_name">サンプルゲーム 【sof000】</a>
+        <span class="price"><strong>&yen;5,280<i>(税込)</i></strong></span>
+        <!-- stock_disp_id : IN_STOCK --><span class="ic stock">在庫あり</span>
+        <div class="used_box txt newitem4900000000000"><a href="/search_result.aspx?product_type=USED&new_jan=4900000000000">中古商品が計5点あります</a></div>
+      </div></li>
+    </ul>`;
+    const offers = parseSofmapList(html, { ...target, query: 'サンプルゲーム', releaseId: null, jan: null });
+    expect(offers).toHaveLength(1);
+    expect(offers[0]).toMatchObject({ provider_offer_id: '100000005', jan: '4900000000000', location_label: ONLINE_STOCK_SENTINEL });
+  });
+
   it('parses Sofmap detail price and limited stock', () => {
     const offer = parseSofmapDetail(
       `<h1>Sample Title</h1>
