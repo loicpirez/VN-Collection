@@ -57,7 +57,7 @@ export function SetBannerButton({ vnId, value, source = 'path', className = '' }
       type="button"
       onClick={set}
       disabled={busy || pending}
-      className={`inline-flex items-center gap-1 rounded-md bg-black/70 px-2 py-1 text-[11px] font-semibold text-white shadow backdrop-blur-sm transition-opacity hover:bg-accent hover:text-bg ${className}`}
+      className={`tap-target inline-flex items-center gap-1 rounded-md bg-black/70 px-2 py-1 text-[11px] font-semibold text-white shadow backdrop-blur-sm transition-opacity hover:bg-accent hover:text-bg ${className}`}
       title={error ?? t.banner.setAs}
     >
       {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ImageUp className="h-3 w-3" />}
