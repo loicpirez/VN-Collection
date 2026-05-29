@@ -2,8 +2,37 @@ import 'server-only';
 import { type Agent } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { request as httpRequest } from 'node:http';
+import zlib from 'node:zlib';
 import type { ProviderId, ProxyConfig } from './proxy-config';
 import { buildProxyUrl, resolveProxyConfig, resolveStockProviderProxy } from './proxy-config';
+
+/**
+ * Decompress a proxied HTTP body per its `Content-Encoding`. Node's raw
+ * `http`/`https` request API never auto-decompresses (unlike the WHATWG
+ * `fetch`), so a gzip / brotli / zstd / deflate response arrives as
+ * compressed bytes. Returns the decoded bytes so the caller can apply the
+ * correct charset itself (Shift_JIS, EUC-JP, …). Never force UTF-8 here —
+ * that corrupts every non-UTF-8 shop page (Sofmap, GEO, Suruga-ya, Kobe).
+ */
+function decodeProxyBody(raw: Buffer, contentEncoding: string): ArrayBuffer {
+  const enc = contentEncoding.toLowerCase().trim();
+  let out = raw;
+  try {
+    if (enc === 'gzip' || enc === 'x-gzip') out = zlib.gunzipSync(raw);
+    else if (enc === 'br') out = zlib.brotliDecompressSync(raw);
+    else if (enc === 'zstd' && typeof zlib.zstdDecompressSync === 'function') out = zlib.zstdDecompressSync(raw);
+    else if (enc === 'deflate') {
+      try {
+        out = zlib.inflateSync(raw);
+      } catch {
+        out = zlib.inflateRawSync(raw);
+      }
+    }
+  } catch {
+    out = raw;
+  }
+  return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer;
+}
 
 /**
  * Execute an HTTP/HTTPS request through a Node.js HTTP agent (proxy agent),
@@ -58,15 +87,16 @@ async function nodeAgentFetch(
         });
         res.on('end', () => {
           if (aborted) return;
-          const body = Buffer.concat(chunks).toString('utf8');
+          const body = decodeProxyBody(Buffer.concat(chunks), String(res.headers['content-encoding'] ?? ''));
           const responseHeaders = new Headers();
           for (const [key, val] of Object.entries(res.headers)) {
-            if (val != null) {
-              if (Array.isArray(val)) {
-                for (const v of val) responseHeaders.append(key, v);
-              } else {
-                responseHeaders.set(key, val);
-              }
+            if (val == null) continue;
+            const lowerKey = key.toLowerCase();
+            if (lowerKey === 'content-encoding' || lowerKey === 'content-length') continue;
+            if (Array.isArray(val)) {
+              for (const v of val) responseHeaders.append(key, v);
+            } else {
+              responseHeaders.set(key, val);
             }
           }
           resolve(

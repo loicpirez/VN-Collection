@@ -817,6 +817,7 @@ export function parseSofmapList(html: string, target: StockTarget): ParsedOffer[
     const stockSpan = /<span[^>]*\bstock\b[^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
     const stockText = stripTags(stockSpan);
     const availability: VnStockAvailability =
+      /LIMIT/i.test(stockCommentId) ? 'limited' :
       /(OUT|SOLD)/i.test(stockCommentId) ? 'out_of_stock' :
       /IN_STOCK/i.test(stockCommentId) ? 'in_stock' :
       availabilityFromText(stockText);

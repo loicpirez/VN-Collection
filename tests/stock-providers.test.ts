@@ -125,6 +125,27 @@ describe('stock provider parsers', () => {
     expect(offers).toEqual([]);
   });
 
+  it('treats OUT_OF_LIMIT_STOCK as limited (available), not out_of_stock', () => {
+    const html = `<ul id="change_style_list" class="product_list">
+      <li><div class="mainbox">
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=100000001" class="itemimg"><img alt="x"></a>
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=100000001" class="product_name">サンプルゲーム 【sof000】</a>
+        <span class="price"><strong>&yen;5,280<i>(税込)</i></strong></span>
+        <!-- stock_disp_id : OUT_OF_LIMIT_STOCK --><span class="ic stock limited">数量限定</span>
+      </div></li>
+      <li class='soldout'><div class="mainbox">
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=100000002" class="itemimg"><img alt="x"></a>
+        <a href="https://a.sofmap.com/product_detail.aspx?sku=100000002" class="product_name">サンプルゲーム 抱き枕カバー</a>
+        <span class="price"><strong>&yen;17,600<i>(税込)</i></strong></span>
+        <!-- stock_disp_id : OUT_OF_STOCK --><span class="ic stock closed">在庫数終了</span>
+      </div></li>
+    </ul>`;
+    const offers = parseSofmapList(html, { ...target, query: 'サンプルゲーム', releaseId: null, jan: null });
+    expect(offers).toHaveLength(2);
+    expect(offers[0]).toMatchObject({ provider_offer_id: '100000001', availability: 'limited' });
+    expect(offers[1]).toMatchObject({ provider_offer_id: '100000002', availability: 'out_of_stock' });
+  });
+
   it('parses Sofmap detail price and limited stock', () => {
     const offer = parseSofmapDetail(
       `<h1>Sample Title</h1>
