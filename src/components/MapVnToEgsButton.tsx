@@ -135,7 +135,10 @@ export function MapVnToEgsButton({
 
   // Cancel any in-flight search when the dialog unmounts.
   useEffect(() => () => {
-    if (searchAbortRef.current) searchAbortRef.current.abort();
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+      searchAbortRef.current = null;
+    }
   }, []);
 
   async function pin(action: { egsId: number } | 'none' | 'reset', label: number | 'reset' | 'none') {

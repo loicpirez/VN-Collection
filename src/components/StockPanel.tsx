@@ -273,10 +273,15 @@ export function StockPanel({
           body: JSON.stringify({ providers: [provider] }),
           signal: ctrl.signal,
         });
-        if (r.ok) setSnapshot((await r.json()) as StockSnapshot);
+        if (r.ok) {
+          const data = (await r.json()) as StockSnapshot;
+          if (ctrl.signal.aborted) break;
+          setSnapshot(data);
+        }
       } catch (e) {
         if ((e as Error).name === 'AbortError') break;
       }
+      if (ctrl.signal.aborted) break;
       setProgress({ done: i + 1, total: toCheck.length });
     }
 
@@ -659,7 +664,7 @@ export function StockPanel({
             )}
             {lastRefresh && (
               <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-1">
-                {t.stock.lastChecked.replace('{date}', new Date(lastRefresh).toLocaleString(locale))}
+                {t.stock.lastChecked.replace('{date}', timeAgo(lastRefresh, t))}
               </span>
             )}
           </div>

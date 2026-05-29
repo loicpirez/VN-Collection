@@ -15,19 +15,23 @@ export function QuoteFooter() {
   const [error, setError] = useState<string | null>(null);
   const [hovered, setHovered] = useState(false);
   const fetchedRef = useRef(false);
+  const requestIdRef = useRef(0);
 
   const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     try {
       const r = await fetch('/api/vndb/quote/random', { cache: 'no-store' });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = await r.json();
+      if (requestId !== requestIdRef.current) return;
       setQuote(d.quote);
     } catch (e) {
+      if (requestId !== requestIdRef.current) return;
       setError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, [t.common.error]);
 

@@ -251,7 +251,7 @@ export function SearchClient() {
       try {
         const r = await fetch(
           `/api/egs/search?q=${encodeURIComponent(q.trim())}&limit=40`,
-          { signal: ctrl.signal },
+          { signal: ctrl.signal, cache: 'no-store' },
         );
         if (!r.ok) {
           const err = await r.json().catch(() => ({}));

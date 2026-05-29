@@ -153,8 +153,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
       }
     }, isLocal ? 0 : 300);
     return () => { alive = false; ctrl.abort(); clearTimeout(handle); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, category, mode, refreshNonce, t.common.error]);
+  }, [q, category, mode, refreshNonce, initialTree, t.common.error]);
 
   useEffect(() => {
     const params = new URLSearchParams(search?.toString() ?? '');
