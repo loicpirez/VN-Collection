@@ -6,6 +6,7 @@ import { getAuthInfo, getGlobalStats, type VndbStatsGlobal } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
+import { formatMinutes } from '@/lib/format';
 import { platformLabel } from '@/lib/platform-label';
 import { statusHex } from '@/lib/status-palette';
 
@@ -58,7 +59,7 @@ export default async function StatsPage() {
   }
   const auth = await getAuthInfo();
 
-  const myH = Math.round(my.playtime_minutes / 60);
+  const myPlaytime = formatMinutes(my.playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '—' });
   const myAvg = my.avg_user_rating != null ? fmtNum(my.avg_user_rating / 10, locale, 1) : '—';
 
   // Each donut slice doubles as a deep-link into the Library
@@ -105,7 +106,7 @@ export default async function StatsPage() {
             <p className="mb-4 text-xs text-muted">{t.stats.mySubtitle}</p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat label={t.stats.total} value={my.total} locale={locale} />
-              <Stat label={t.stats.playtimeHours} value={`${fmtNum(myH, locale)}${t.year.hoursUnit}`} locale={locale} />
+              <Stat label={t.stats.playtimeHours} value={myPlaytime} locale={locale} />
               <Stat label={t.stats.avgRating} value={myAvg} locale={locale} />
               <Stat label={t.stats.favorites} value={my.favorites} locale={locale} />
             </div>
@@ -138,12 +139,12 @@ export default async function StatsPage() {
             />
             <Stat
               label={t.stats.egsSumPlaytime}
-              value={`${fmtNum(Math.round(agg.egs.sum_playtime_minutes / 60), locale)}${t.year.hoursUnit}`}
+              value={formatMinutes(agg.egs.sum_playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '—' })}
               locale={locale}
             />
             <Stat
               label={t.stats.egsTotalPlaytime}
-              value={`${fmtNum(Math.round((my.playtime_minutes + agg.egs.sum_playtime_minutes) / 60), locale)}${t.year.hoursUnit}`}
+              value={formatMinutes(my.playtime_minutes + agg.egs.sum_playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '—' })}
               locale={locale}
             />
           </div>

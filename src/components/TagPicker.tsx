@@ -119,7 +119,6 @@ export function TagPicker({
           <span
             key={tag.id}
             className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] text-accent"
-            title={tag.id}
           >
             <span>{tag.name}</span>
             <button
