@@ -1,7 +1,9 @@
 'use client';
+import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import type { ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
-import { ErogePricePanel } from './ErogePricePanel';
+
+const ErogePricePanel = dynamic(() => import('./ErogePricePanel').then((m) => m.ErogePricePanel), { ssr: false });
 
 interface StockSnapshot {
   statuses?: Array<{ provider: string; extras_json?: string | null }>;

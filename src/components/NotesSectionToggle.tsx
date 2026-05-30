@@ -1,7 +1,9 @@
 'use client';
+import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { MarkdownView } from './MarkdownView';
+
+const MarkdownView = dynamic(() => import('./MarkdownView').then((m) => m.MarkdownView), { ssr: false });
 
 interface Props {
   notes: string | null | undefined;
