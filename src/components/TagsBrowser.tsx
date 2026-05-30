@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, SearchX, Tags } from 'lucide-react';
@@ -25,6 +25,42 @@ const CATEGORIES: { key: 'cont' | 'ero' | 'tech'; tkey: 'cat_cont' | 'cat_ero' |
   { key: 'ero', tkey: 'cat_ero' },
   { key: 'tech', tkey: 'cat_tech' },
 ];
+
+const Q_DEBOUNCE_MS = 300;
+
+const TagsSearchInput = memo(function TagsSearchInput({
+  committedValue,
+  placeholder,
+  onCommit,
+  debounceMs,
+}: {
+  committedValue: string;
+  placeholder: string;
+  onCommit: (next: string) => void;
+  debounceMs: number;
+}) {
+  const [draft, setDraft] = useState(committedValue);
+  useEffect(() => {
+    setDraft(committedValue);
+  }, [committedValue]);
+  useEffect(() => {
+    if (draft === committedValue) return;
+    const handle = setTimeout(() => onCommit(draft), debounceMs);
+    return () => clearTimeout(handle);
+  }, [draft, committedValue, onCommit, debounceMs]);
+  return (
+    <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+      <input
+        className="input pl-9"
+        aria-label={placeholder}
+        placeholder={placeholder}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+    </div>
+  );
+});
 
 interface TagsBrowserProps {
   lastUpdatedAt?: number | null;
@@ -184,6 +220,8 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
     }
   };
 
+  const commitQ = useCallback((next: string) => setQ(next), []);
+
   return (
     <div>
       <header className="mb-6 flex flex-wrap items-start gap-3">
@@ -228,18 +266,14 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
       </div>
 
       <div className="mb-6 flex flex-wrap gap-2">
-        <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
-          <input
-            className="input pl-9"
-            aria-label={t.tags.searchPlaceholder}
-            placeholder={t.tags.searchPlaceholder}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
+        <TagsSearchInput
+          committedValue={q}
+          placeholder={t.tags.searchPlaceholder}
+          onCommit={commitQ}
+          debounceMs={Q_DEBOUNCE_MS}
+        />
         <select
-          className="input max-w-[220px]"
+          className="input w-full sm:w-auto sm:max-w-[220px]"
           aria-label={t.tags.categoryFilter}
           value={category}
           onChange={(e) => setCategory(e.target.value as 'cont' | 'ero' | 'tech' | '')}
