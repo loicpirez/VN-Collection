@@ -199,10 +199,6 @@ export function CoverSourcePicker({
         body: JSON.stringify({ image: 'egs' }),
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      // Don't know the resolved EGS URL here (the EGS resolver is
-      // server-side) so just nudge listeners; the router.refresh
-      // pickup will deliver the right src on the next render.
-      dispatchCoverChanged({ vnId, newSrc: null, newLocal: null });
       toast.success(t.toast.coverSaved);
       setOpen(false);
       startTransition(() => router.refresh());

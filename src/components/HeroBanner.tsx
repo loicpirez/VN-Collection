@@ -303,21 +303,21 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                   type="button"
                   onClick={() => rotateBy(-90)}
                   disabled={busy}
-                  className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
                   title={t.coverActions.rotateLeft}
                   aria-label={t.coverActions.rotateLeft}
                 >
-                  <RotateCcw className="h-3 w-3" aria-hidden />
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
                 </button>
                 <button
                   type="button"
                   onClick={() => rotateBy(90)}
                   disabled={busy}
-                  className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
                   title={t.coverActions.rotateRight}
                   aria-label={t.coverActions.rotateRight}
                 >
-                  <RotateCw className="h-3 w-3" aria-hidden />
+                  <RotateCw className="h-3.5 w-3.5" aria-hidden />
                 </button>
               </>
             )}
