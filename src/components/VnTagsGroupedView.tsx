@@ -164,9 +164,9 @@ function TagSection({
   const effectiveLevel = Math.max(settings.spoilerLevel, sectionLevel) as 0 | 1 | 2;
   return (
     <div>
-      <h4 className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted">
+      <h2 className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted">
         {title}
-      </h4>
+      </h2>
       <div className="flex flex-wrap gap-1.5">
         {tags.map((tag) => {
           const links = tagLinks(tag.id);
