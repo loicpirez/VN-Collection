@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Library, Search, SearchX, Sparkles } from 'lucide-react'
@@ -11,16 +11,73 @@ import { stripVndbMarkup } from './VndbMarkup';
 import type { VndbTrait } from '@/lib/vndb-types';
 
 import { readApiError } from '@/lib/api-error-read';
+
+const Q_DEBOUNCE_MS = 300;
+
+/**
+ * Memoized controlled search field for the traits browser. Mirrors the
+ * `WishlistSearchInput` pattern: keeps a local `draft` so a keystroke
+ * re-renders only this input, debounces the committed value into URL
+ * state via `onCommit`, and resyncs from `urlValue` on external clears
+ * or navigation.
+ */
+const TraitsSearchInput = memo(function TraitsSearchInput({
+  urlValue,
+  placeholder,
+  onCommit,
+  debounceMs,
+}: {
+  urlValue: string;
+  placeholder: string;
+  onCommit: (next: string) => void;
+  debounceMs: number;
+}) {
+  const [draft, setDraft] = useState(urlValue);
+  useEffect(() => {
+    setDraft(urlValue);
+  }, [urlValue]);
+  useEffect(() => {
+    if (draft === urlValue) return;
+    const handle = setTimeout(() => onCommit(draft.trim()), debounceMs);
+    return () => clearTimeout(handle);
+  }, [draft, urlValue, onCommit, debounceMs]);
+  return (
+    <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+      <input
+        className="input pl-9"
+        aria-label={placeholder}
+        placeholder={placeholder}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+    </div>
+  );
+});
+
 export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null } = {}) {
   const t = useT();
   const locale = useLocale();
   const search = useSearchParams();
   const router = useRouter();
-  const [q, setQ] = useState(() => search?.get('q') ?? '');
-  const [onlyMine, setOnlyMine] = useState(() => search?.get('mine') === '1');
+  const q = search?.get('q') ?? '';
+  const onlyMine = search?.get('mine') === '1';
   const [results, setResults] = useState<VndbTrait[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const setParam = useCallback(
+    (key: string, value: string | null) => {
+      const next = new URLSearchParams(search?.toString() ?? '');
+      if (value) next.set(key, value);
+      else next.delete(key);
+      const qs = next.toString();
+      router.replace(`/traits${qs ? `?${qs}` : ''}`, { scroll: false });
+    },
+    [router, search],
+  );
+
+  const commitSearch = useCallback((next: string) => setParam('q', next || null), [setParam]);
 
   useEffect(() => {
     let alive = true;
@@ -51,32 +108,13 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
       } finally {
         if (alive) setLoading(false);
       }
-    }, onlyMine ? 0 : 300);
+    }, 0);
     return () => {
       alive = false;
       ctrl.abort();
       clearTimeout(handle);
     };
   }, [q, onlyMine, t.common.error]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(search?.toString() ?? '');
-    let dirty = false;
-    if (q.trim()) {
-      if (params.get('q') !== q) { params.set('q', q); dirty = true; }
-    } else if (params.get('q') != null) {
-      params.delete('q'); dirty = true;
-    }
-    if (onlyMine) {
-      if (params.get('mine') !== '1') { params.set('mine', '1'); dirty = true; }
-    } else if (params.get('mine') != null) {
-      params.delete('mine'); dirty = true;
-    }
-    if (dirty) {
-      const next = params.toString();
-      router.replace(`/traits${next ? `?${next}` : ''}`, { scroll: false });
-    }
-  }, [q, onlyMine, search, router]);
 
   return (
     <div>
@@ -90,19 +128,15 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">
-        <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
-          <input
-            className="input pl-9"
-            aria-label={t.traits.searchPlaceholder}
-            placeholder={t.traits.searchPlaceholder}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
+        <TraitsSearchInput
+          urlValue={q}
+          placeholder={t.traits.searchPlaceholder}
+          onCommit={commitSearch}
+          debounceMs={Q_DEBOUNCE_MS}
+        />
         <button
           type="button"
-          onClick={() => setOnlyMine((v) => !v)}
+          onClick={() => setParam('mine', onlyMine ? null : '1')}
           className={`btn ${onlyMine ? 'btn-primary' : ''}`}
           title={t.library.filterMineHint}
         >
