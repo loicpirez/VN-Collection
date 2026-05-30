@@ -4,6 +4,7 @@ import {
   BookHeart,
   Building2,
   CheckCircle2,
+  CheckSquare,
   Database,
   ExternalLink,
   Filter,
@@ -18,6 +19,8 @@ import {
   Search,
   SlidersHorizontal,
   ShoppingBag,
+  Square,
+  Trash2,
   X,
   Zap,
 } from 'lucide-react';
@@ -29,7 +32,14 @@ import { SkeletonBlock } from './Skeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { formatVndbDateString } from '@/lib/locale-number';
+import { BCP47, formatVndbDateString } from '@/lib/locale-number';
+import {
+  calculateVirtualGridWindow,
+  parseCssPixelValue,
+  VIRTUAL_GRID_DEFAULT_VIEWPORT_HEIGHT,
+  VIRTUAL_GRID_DEFAULT_WIDTH,
+  VIRTUAL_GRID_THRESHOLD,
+} from '@/lib/virtual-grid';
 import { timeAgo } from '@/lib/time-ago';
 import { readApiError } from '@/lib/api-error-read';
 import { CardDensitySlider } from './CardDensitySlider';
@@ -51,12 +61,29 @@ import {
   parseKobePrice as parsePrice,
   comparableKobeDate as comparableDate,
   formatKobeDate,
-  formatKobePrice,
   parseKobeDevs as parseDevs,
   kobeMatchKind as matchKind,
   displayKobeTitle as displayTitle,
   displayKobeProducer as displayProducer,
 } from './kobe-types';
+
+/**
+ * Format a raw kobe price string ("¥4,270", "4,270円") as locale-native
+ * JPY currency. Passes the canonical BCP-47 tag (not the bare `Locale`
+ * enum) to `Intl.NumberFormat` so the grouping/symbol render per the
+ * active locale. Falls back to the raw string when no positive integer
+ * yen value can be parsed.
+ */
+function formatPriceJpy(value: string | null, locale: Locale): string {
+  if (!value) return '';
+  const n = parsePrice(value);
+  if (n == null) return value;
+  return new Intl.NumberFormat(BCP47[locale], {
+    style: 'currency',
+    currency: 'JPY',
+    maximumFractionDigits: 0,
+  }).format(n);
+}
 
 interface LinkDialogProps {
   item: KobeItem;
@@ -380,7 +407,6 @@ export function AliceNetKobeClient() {
     const v = urlSearch?.get('filter') ?? null;
     return isFilterTab(v) ? v : 'all';
   });
-  const [producerFilter, setProducerFilter] = useState('');
   const [sort, setSort] = useState<KobeSort>(() => {
     const v = urlSearch?.get('sort') ?? null;
     if (isKobeSort(v)) return v;
@@ -397,14 +423,34 @@ export function AliceNetKobeClient() {
     return loadKobePrefs().view ?? 'cards';
   });
   const [showFilters, setShowFilters] = useState(() => urlSearch?.get('filters') !== '0');
-  const [yearMin, setYearMin] = useState('');
-  const [yearMax, setYearMax] = useState('');
-  const [priceMin, setPriceMin] = useState('');
-  const [priceMax, setPriceMax] = useState('');
+  const [producerFilter, setProducerFilter] = useState(() => urlSearch?.get('producer') ?? '');
+  const [yearMin, setYearMin] = useState(() => urlSearch?.get('yearMin') ?? '');
+  const [yearMax, setYearMax] = useState(() => urlSearch?.get('yearMax') ?? '');
+  const [priceMin, setPriceMin] = useState(() => urlSearch?.get('priceMin') ?? '');
+  const [priceMax, setPriceMax] = useState(() => urlSearch?.get('priceMax') ?? '');
   const [search, setSearch] = useState(() => urlSearch?.get('q') ?? '');
   const commitSearch = useCallback((next: string) => setSearch(next), []);
   const [linkTarget, setLinkTarget] = useState<KobeItem | null>(null);
   const stopRef = useRef(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, current: '' });
+  const bulkStopRef = useRef(false);
+
+  const toggleSelected = useCallback((code: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelected(new Set());
+    setSelectMode(false);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -455,12 +501,17 @@ export function AliceNetKobeClient() {
     setOrDelete('group', group, 'none');
     setOrDelete('view', view, 'cards');
     setOrDelete('q', search, '');
+    setOrDelete('producer', producerFilter, '');
+    setOrDelete('yearMin', yearMin, '');
+    setOrDelete('yearMax', yearMax, '');
+    setOrDelete('priceMin', priceMin, '');
+    setOrDelete('priceMax', priceMax, '');
     setOrDelete('filters', showFilters ? '1' : '0', '1');
     if (dirty) {
       const next = params.toString();
       router.replace(`/alicesoft_kobe${next ? `?${next}` : ''}`, { scroll: false });
     }
-  }, [filter, sort, group, view, search, showFilters, urlSearch, router]);
+  }, [filter, sort, group, view, search, producerFilter, yearMin, yearMax, priceMin, priceMax, showFilters, urlSearch, router]);
 
   async function downloadStock() {
     const r = await fetch('/api/alicesoft-kobe/fetch', { method: 'POST' });
@@ -787,6 +838,50 @@ export function AliceNetKobeClient() {
     setSearch('');
   }
 
+  function selectAllVisible() {
+    setSelectMode(true);
+    setSelected(new Set(sorted.map((i) => i.code)));
+  }
+
+  function selectMatchedVisible() {
+    setSelectMode(true);
+    setSelected(new Set(sorted.filter((i) => i.vn_id !== null).map((i) => i.code)));
+  }
+
+  async function bulkClearLinks() {
+    const codes = sorted.filter((i) => i.vn_id !== null && selected.has(i.code)).map((i) => i.code);
+    if (codes.length === 0) return;
+    const ok = await confirm({
+      message: t.kobe.kobeBulkClearLinkConfirm.replace('{n}', String(codes.length)),
+      tone: 'danger',
+      requireTyping: codes.length >= 5 ? 'DELETE' : undefined,
+    });
+    if (!ok) return;
+    bulkStopRef.current = false;
+    setBulkBusy(true);
+    setBulkProgress({ done: 0, total: codes.length, current: '' });
+    let done = 0;
+    try {
+      for (const code of codes) {
+        if (bulkStopRef.current) break;
+        setBulkProgress({ done, total: codes.length, current: code });
+        const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE' });
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        done += 1;
+        setBulkProgress({ done, total: codes.length, current: code });
+      }
+      if (bulkStopRef.current) toast.warning(t.bulk.abortedTitle);
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+      await load();
+    } finally {
+      setBulkBusy(false);
+      setBulkProgress({ done: 0, total: 0, current: '' });
+      clearSelection();
+    }
+  }
+
   function statusBadge(item: KobeItem) {
     const kind = matchKind(item);
     if (kind === 'vndb') {
@@ -848,8 +943,9 @@ export function AliceNetKobeClient() {
     const producer = displayProducer(item);
     const image = item.vn_image_url || item.egs_image_url;
     const date = item.release_date || item.egs_release_date;
+    const isSelected = selected.has(item.code);
     return (
-      <article key={item.code} role="listitem" className="group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card">
+      <article key={item.code} role="listitem" className={`group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border bg-bg-card transition-all hover:-translate-y-0.5 hover:shadow-card ${isSelected ? 'border-accent ring-2 ring-accent' : 'border-border hover:border-accent'}`}>
         <div className="relative aspect-[2/3] bg-bg-elev">
           <SafeImage
             src={image}
@@ -859,6 +955,17 @@ export function AliceNetKobeClient() {
             className="h-full w-full"
             fit="cover"
           />
+          {selectMode && (
+            <button
+              type="button"
+              onClick={() => toggleSelected(item.code)}
+              aria-pressed={isSelected}
+              aria-label={t.kobe.kobeSelectItem.replace('{title}', displayTitle(item))}
+              className={`absolute right-2 top-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border backdrop-blur transition-colors ${isSelected ? 'border-accent bg-accent text-bg' : 'border-border bg-bg/80 text-muted hover:border-accent hover:text-accent'}`}
+            >
+              {isSelected ? <CheckSquare className="h-5 w-5" aria-hidden /> : <Square className="h-5 w-5" aria-hidden />}
+            </button>
+          )}
           <div className="absolute left-2 top-2 flex flex-wrap gap-1">{statusBadge(item)}</div>
           <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
             {item.in_wishlist === 1 && (
@@ -881,11 +988,7 @@ export function AliceNetKobeClient() {
             )}
           </div>
           <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted">
-            {/* U-239: format the raw kobe price ('¥4,270') through
-                  Intl.NumberFormat so the user sees the locale-native
-                  presentation instead of the raw scraped string. */}
-            {item.sale_price && <span className="font-semibold text-white">{formatKobePrice(item.sale_price, locale)}</span>}
-            {/* U-238: format the raw kobe date through formatVndbDateString. */}
+            {item.sale_price && <span className="font-semibold text-white">{formatPriceJpy(item.sale_price, locale)}</span>}
             {date && <span>{formatKobeDate(date, locale)}</span>}
             <span className="font-mono opacity-70">{item.code}</span>
           </div>
@@ -935,9 +1038,21 @@ export function AliceNetKobeClient() {
   function renderKobeRow(item: KobeItem) {
     const producer = displayProducer(item);
     const date = item.release_date || item.egs_release_date;
+    const isSelected = selected.has(item.code);
     return (
-      <li key={item.code} className="rounded-xl border border-border bg-bg-card p-3 transition-shadow hover:shadow-card">
+      <li key={item.code} className={`rounded-xl border bg-bg-card p-3 transition-shadow hover:shadow-card ${isSelected ? 'border-accent ring-2 ring-accent' : 'border-border'}`}>
         <div className="flex gap-3">
+          {selectMode && (
+            <button
+              type="button"
+              onClick={() => toggleSelected(item.code)}
+              aria-pressed={isSelected}
+              aria-label={t.kobe.kobeSelectItem.replace('{title}', displayTitle(item))}
+              className={`inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center self-start rounded-md border transition-colors ${isSelected ? 'border-accent bg-accent text-bg' : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'}`}
+            >
+              {isSelected ? <CheckSquare className="h-5 w-5" aria-hidden /> : <Square className="h-5 w-5" aria-hidden />}
+            </button>
+          )}
           <SafeImage
             src={item.vn_image_url || item.egs_image_url}
             localSrc={item.vn_local_image}
@@ -951,8 +1066,7 @@ export function AliceNetKobeClient() {
               <div className="min-w-0">
                 <p className="truncate font-semibold leading-tight" title={item.title}>{displayTitle(item)}</p>
                 <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted">
-                  {/* U-239 / U-238: locale-aware reformatting. */}
-                  {item.sale_price && <span className="font-semibold text-white">{formatKobePrice(item.sale_price, locale)}</span>}
+                  {item.sale_price && <span className="font-semibold text-white">{formatPriceJpy(item.sale_price, locale)}</span>}
                   {date && <span>{formatKobeDate(date, locale)}</span>}
                   <span className="font-mono opacity-60">{item.code}</span>
                   {producer && <span>{producer}</span>}
@@ -1047,13 +1161,13 @@ export function AliceNetKobeClient() {
       </div>
 
       {/* Toolbar */}
-      <div className="mb-5 rounded-xl border border-border bg-bg-card p-3">
+      <div className={`mb-5 rounded-xl border border-border bg-bg-card p-3 ${isBusy ? 'sticky top-2 z-30 shadow-card' : ''}`}>
         {isBusy ? (
           <div className="flex flex-wrap items-start gap-3">
             <button
               type="button"
               onClick={() => { stopRef.current = true; }}
-              className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
+              className="min-h-[44px] shrink-0 rounded-md border border-border px-3 py-1 text-[11px] font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
             >
               {t.kobe.kobeStopMatch}
             </button>
@@ -1264,6 +1378,17 @@ export function AliceNetKobeClient() {
                 {t.kobe.kobeFilters}
                 {activeFilterCount > 0 && <span className="rounded bg-accent/15 px-1 text-[10px] text-accent">{activeFilterCount}</span>}
               </button>
+              {stats.total > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { if (selectMode) clearSelection(); else setSelectMode(true); }}
+                  className={`btn btn-sm ${selectMode ? 'btn-primary' : ''}`}
+                  aria-pressed={selectMode}
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  {selectMode ? t.kobe.kobeSelectExit : t.kobe.kobeSelect}
+                </button>
+              )}
               <CardDensitySlider scope="alicesoftKobe" className="min-w-[14rem] max-w-full flex-1 lg:flex-none" />
             </div>
           </div>
@@ -1305,6 +1430,26 @@ export function AliceNetKobeClient() {
           </div>
         )}
       </div>
+
+      {selectMode && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-accent/30 bg-accent/5 p-3">
+          <span className="text-sm font-semibold text-white">
+            {t.kobe.kobeSelectedCount.replace('{n}', String(selected.size))}
+          </span>
+          <button type="button" onClick={selectAllVisible} className="btn btn-sm">
+            <CheckSquare className="h-3.5 w-3.5" />
+            {t.kobe.kobeSelectAll}
+          </button>
+          <button type="button" onClick={selectMatchedVisible} className="btn btn-sm">
+            <Link2 className="h-3.5 w-3.5" />
+            {t.kobe.kobeSelectMatched}
+          </button>
+          <button type="button" onClick={clearSelection} className="btn btn-sm">
+            <X className="h-3.5 w-3.5" />
+            {t.kobe.kobeClearSelection}
+          </button>
+        </div>
+      )}
 
       {lastRun && (
         <div className={`mb-4 rounded-lg border p-3 text-sm ${
@@ -1368,6 +1513,11 @@ export function AliceNetKobeClient() {
         </div>
       ) : (
         <div className="space-y-5">
+          {view === 'cards' && sorted.length > VIRTUAL_GRID_THRESHOLD && (
+            <p className="text-right text-[11px] text-muted">
+              {t.kobe.kobeVirtualScrollNotice.replace('{n}', new Intl.NumberFormat(BCP47[locale]).format(sorted.length))}
+            </p>
+          )}
           {grouped.map((section) => (
             <section key={section.key || 'all'} className="space-y-2">
               {group !== 'none' && (
@@ -1377,20 +1527,68 @@ export function AliceNetKobeClient() {
                 </div>
               )}
               {view === 'cards' ? (
-                <div
-                  role="list"
-                  className="grid gap-3"
-                  style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
-                >
-                  {section.items.map(renderKobeCard)}
-                </div>
+                <KobeCardGrid items={section.items} renderCard={renderKobeCard} />
               ) : (
-                <ul className="space-y-2">
-                  {section.items.map(renderKobeRow)}
-                </ul>
+                <KobeRowList items={section.items} renderRow={renderKobeRow} />
               )}
             </section>
           ))}
+        </div>
+      )}
+
+      {selectMode && selected.size > 0 && (
+        <div
+          className="fixed bottom-16 left-1/2 z-50 w-[min(96vw,720px)] -translate-x-1/2 rounded-xl border border-border bg-bg-card p-2 shadow-card backdrop-blur sm:bottom-4 sm:p-3"
+          style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="text-sm font-bold">
+              {t.kobe.kobeSelectedCount.replace('{n}', String(selected.size))}
+            </span>
+            <button type="button" className="btn" onClick={clearSelection} disabled={bulkBusy}>
+              <X className="h-4 w-4" /> {t.kobe.kobeClearSelection}
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={bulkClearLinks}
+              disabled={bulkBusy}
+            >
+              <Trash2 className="h-4 w-4" /> {t.kobe.kobeBulkClearLink}
+            </button>
+          </div>
+          {bulkBusy && (
+            <div className="mt-2" role="status" aria-live="polite">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                <span className="font-semibold text-white">{t.kobe.kobeBulkClearLink}</span>
+                {bulkProgress.current && (
+                  <span className="font-mono">{t.kobe.kobeCurrentItem.replace('{item}', bulkProgress.current)}</span>
+                )}
+                <span className="tabular-nums">{bulkProgress.done}/{bulkProgress.total}</span>
+                <button
+                  type="button"
+                  className="ml-auto inline-flex min-h-[44px] items-center justify-center rounded-md border border-border bg-bg-elev/40 px-3 py-1 text-xs font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
+                  onClick={() => { bulkStopRef.current = true; }}
+                >
+                  {t.kobe.kobeStopMatch}
+                </button>
+              </div>
+              <div
+                role="progressbar"
+                aria-valuenow={bulkProgress.total > 0 ? Math.round((bulkProgress.done / bulkProgress.total) * 100) : 0}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={t.kobe.kobeBulkClearLink}
+                className="mt-1 h-1 w-full overflow-hidden rounded-full bg-bg-elev"
+              >
+                <div
+                  className="h-full bg-accent transition-[width] duration-150"
+                  style={{ width: `${bulkProgress.total > 0 ? Math.round((bulkProgress.done / bulkProgress.total) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1398,5 +1596,185 @@ export function AliceNetKobeClient() {
         <LinkDialog item={linkTarget} onClose={() => setLinkTarget(null)} onLinked={load} />
       )}
     </DensityScopeProvider>
+  );
+}
+
+interface KobeGridMeasurements {
+  width: number;
+  scrollY: number;
+  viewportHeight: number;
+  containerTop: number;
+  densityPx: number;
+}
+
+const KOBE_DEFAULT_MEASUREMENTS: KobeGridMeasurements = {
+  width: VIRTUAL_GRID_DEFAULT_WIDTH,
+  scrollY: 0,
+  viewportHeight: VIRTUAL_GRID_DEFAULT_VIEWPORT_HEIGHT,
+  containerTop: 0,
+  densityPx: 220,
+};
+
+function sameKobeMeasurements(a: KobeGridMeasurements, b: KobeGridMeasurements): boolean {
+  return a.width === b.width &&
+    a.scrollY === b.scrollY &&
+    a.viewportHeight === b.viewportHeight &&
+    a.containerTop === b.containerTop &&
+    a.densityPx === b.densityPx;
+}
+
+const KOBE_GRID_GAP_PX = 12;
+
+/**
+ * Window-renders the kobe card grid so a large unmatched-stock list
+ * stays responsive. Mirrors the LibraryClient `Grid` approach: measure
+ * the auto-fill grid on scroll/resize, compute the visible row slice
+ * via `calculateVirtualGridWindow`, and render top/bottom spacers so
+ * every item remains scroll-reachable. Below the threshold every item
+ * renders directly with no measurement cost.
+ */
+function KobeCardGrid({ items, renderCard }: { items: KobeItem[]; renderCard: (item: KobeItem) => React.ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const measureFrameRef = useRef<number | null>(null);
+  const [measurements, setMeasurements] = useState<KobeGridMeasurements>(KOBE_DEFAULT_MEASUREMENTS);
+  const measureGrid = useCallback(() => {
+    if (measureFrameRef.current !== null) return;
+    measureFrameRef.current = window.requestAnimationFrame(() => {
+      measureFrameRef.current = null;
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const next: KobeGridMeasurements = {
+        width: Math.max(0, Math.round(rect.width)),
+        scrollY: Math.max(0, Math.round(window.scrollY)),
+        viewportHeight: Math.max(0, Math.round(window.innerHeight)),
+        containerTop: Math.round(rect.top + window.scrollY),
+        densityPx: parseCssPixelValue(getComputedStyle(el).getPropertyValue('--card-density-px'), 220),
+      };
+      setMeasurements((prev) => (sameKobeMeasurements(prev, next) ? prev : next));
+    });
+  }, []);
+  useEffect(() => {
+    if (items.length <= VIRTUAL_GRID_THRESHOLD) return;
+    const el = containerRef.current;
+    if (!el) return;
+    measureGrid();
+    window.addEventListener('scroll', measureGrid, { passive: true });
+    window.addEventListener('resize', measureGrid);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureGrid);
+    observer?.observe(el);
+    return () => {
+      window.removeEventListener('scroll', measureGrid);
+      window.removeEventListener('resize', measureGrid);
+      observer?.disconnect();
+      if (measureFrameRef.current !== null) {
+        window.cancelAnimationFrame(measureFrameRef.current);
+        measureFrameRef.current = null;
+      }
+    };
+  }, [items.length, measureGrid]);
+  const virtual = useMemo(
+    () => calculateVirtualGridWindow({
+      itemCount: items.length,
+      width: measurements.width,
+      scrollY: measurements.scrollY,
+      viewportHeight: measurements.viewportHeight,
+      containerTop: measurements.containerTop,
+      densityPx: measurements.densityPx,
+      densityMultiplier: 1,
+      gapPx: KOBE_GRID_GAP_PX,
+    }),
+    [items.length, measurements],
+  );
+  const renderedItems = useMemo(
+    () => (virtual.enabled ? items.slice(virtual.startIndex, virtual.endIndex) : items),
+    [items, virtual.enabled, virtual.endIndex, virtual.startIndex],
+  );
+  return (
+    <div
+      ref={containerRef}
+      role="list"
+      className="grid gap-3"
+      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+      data-virtualized-kobe-grid={virtual.enabled ? true : undefined}
+      aria-rowcount={virtual.enabled ? virtual.totalRows : undefined}
+    >
+      {virtual.enabled && virtual.topSpacer > 0 && (
+        <div aria-hidden style={{ gridColumn: '1 / -1', height: virtual.topSpacer }} />
+      )}
+      {renderedItems.map(renderCard)}
+      {virtual.enabled && virtual.bottomSpacer > 0 && (
+        <div aria-hidden style={{ gridColumn: '1 / -1', height: virtual.bottomSpacer }} />
+      )}
+    </div>
+  );
+}
+
+const KOBE_ROW_HEIGHT_PX = 104;
+const KOBE_ROW_GAP_PX = 8;
+const KOBE_ROW_OVERSCAN = 6;
+
+/**
+ * Window-renders the kobe list view by row. Rows have a near-uniform
+ * height, so a fixed-height estimate plus overscan keeps scrolling
+ * smooth without per-row measurement. Top/bottom spacers preserve the
+ * scrollbar so nothing is silently dropped; below the threshold every
+ * row renders directly.
+ */
+function KobeRowList({ items, renderRow }: { items: KobeItem[]; renderRow: (item: KobeItem) => React.ReactNode }) {
+  const containerRef = useRef<HTMLUListElement>(null);
+  const frameRef = useRef<number | null>(null);
+  const [range, setRange] = useState({ start: 0, end: items.length });
+  const measure = useCallback(() => {
+    if (frameRef.current !== null) return;
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null;
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const containerTop = rect.top + window.scrollY;
+      const rowStride = KOBE_ROW_HEIGHT_PX + KOBE_ROW_GAP_PX;
+      const viewportTop = Math.max(0, window.scrollY - containerTop);
+      const viewportBottom = viewportTop + window.innerHeight;
+      const start = Math.max(0, Math.floor(viewportTop / rowStride) - KOBE_ROW_OVERSCAN);
+      const end = Math.min(items.length, Math.ceil(viewportBottom / rowStride) + KOBE_ROW_OVERSCAN);
+      setRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
+    });
+  }, [items.length]);
+  useEffect(() => {
+    if (items.length <= VIRTUAL_GRID_THRESHOLD) {
+      setRange({ start: 0, end: items.length });
+      return;
+    }
+    const el = containerRef.current;
+    if (!el) return;
+    measure();
+    window.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(el);
+    return () => {
+      window.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+      observer?.disconnect();
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+    };
+  }, [items.length, measure]);
+  const enabled = items.length > VIRTUAL_GRID_THRESHOLD;
+  const start = enabled ? range.start : 0;
+  const end = enabled ? range.end : items.length;
+  const rowStride = KOBE_ROW_HEIGHT_PX + KOBE_ROW_GAP_PX;
+  const topSpacer = enabled ? start * rowStride : 0;
+  const bottomSpacer = enabled ? Math.max(0, (items.length - end) * rowStride) : 0;
+  const rendered = enabled ? items.slice(start, end) : items;
+  return (
+    <ul ref={containerRef} className="space-y-2">
+      {topSpacer > 0 && <li aria-hidden style={{ height: topSpacer }} />}
+      {rendered.map(renderRow)}
+      {bottomSpacer > 0 && <li aria-hidden style={{ height: bottomSpacer }} />}
+    </ul>
   );
 }
