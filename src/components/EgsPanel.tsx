@@ -1,6 +1,7 @@
 'use client';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Clock, ExternalLink, Link2, Loader2, RefreshCw, Search, Sparkles, Star, Trash2, Users, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -94,6 +95,8 @@ export function EgsPanel({
   const t = useT();
   const locale = useLocale();
   const toast = useToast();
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const { confirm } = useConfirm();
   // Hydrate from the server payload so first paint already shows the match.
   // We skip the fetch-on-mount when initialGame is provided (the server just
@@ -142,6 +145,7 @@ export function EgsPanel({
     try {
       await load(true);
       toast.success(t.toast.saved);
+      startTransition(() => router.refresh());
     } finally {
       setRefreshing(false);
     }
@@ -154,6 +158,7 @@ export function EgsPanel({
       await fetch(`/api/vn/${vnId}/erogamescape`, { method: 'DELETE' });
       setFetchState((prev) => ({ ...prev, game: null, source: null }));
       toast.success(t.toast.removed);
+      startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -162,6 +167,7 @@ export function EgsPanel({
   function onPicked(picked: EgsGame, pickedSource: Source) {
     setFetchState((prev) => ({ ...prev, game: picked, source: pickedSource }));
     setPickerOpen(false);
+    startTransition(() => router.refresh());
   }
 
   if (loading) {
