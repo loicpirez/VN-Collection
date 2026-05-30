@@ -1653,6 +1653,12 @@ const OfferCard = memo(function OfferCard({
             </span>
             <AvailabilityChip availability={offer.availability} label={availabilityLabel(t, offer, locale)} />
             <ConfidenceChip mc={offer.match_confidence} t={t} />
+            {isBest && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-accent/60 bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+                <CircleDollarSign className="h-3 w-3 shrink-0" aria-hidden />
+                {t.stock.bestPriceBadge as string}
+              </span>
+            )}
           </div>
           <h3 className="mt-2 line-clamp-2 break-words text-sm font-bold text-white">{offer.title}</h3>
         </div>
