@@ -5,8 +5,8 @@ import { fmtNum } from '@/lib/locale-number';
 interface Props {
   data: { label: string; value: number; href?: string; sublabel?: string }[];
   formatValue?: (v: number) => string;
-  /** BCP47 locale used when `formatValue` is not provided. */
-  locale?: Locale;
+  /** Active UI locale; drives value formatting when `formatValue` is not provided. */
+  locale: Locale;
   /** Percentage width for the longest bar (default 100). Use lower for visual padding. */
   maxWidthPct?: number;
   emptyMessage?: string;
@@ -38,7 +38,7 @@ export function HBarChart({ data, formatValue, locale, maxWidthPct = 100, emptyM
               />
             </div>
             <span className="tabular-nums font-bold">
-              {formatValue ? formatValue(d.value) : locale ? fmtNum(d.value, locale) : d.value.toLocaleString(locale)}
+              {formatValue ? formatValue(d.value) : fmtNum(d.value, locale)}
               {d.sublabel && <span className="ml-1 font-normal text-muted">{d.sublabel}</span>}
             </span>
           </div>
@@ -78,8 +78,8 @@ export function VBarChart({
   data: VBarPoint[];
   height?: number;
   formatValue?: (v: number) => string;
-  /** BCP47 locale used when `formatValue` is not provided. */
-  locale?: Locale;
+  /** Active UI locale; drives value formatting when `formatValue` is not provided. */
+  locale: Locale;
   /** Tailwind class applied to each bar div. */
   barClassName?: string;
   emptyMessage?: string;
@@ -98,7 +98,7 @@ export function VBarChart({
     >
       {data.map((d, i) => {
         const h = max > 0 ? (d.value / max) * height : 0;
-        const formatted = formatValue ? formatValue(d.value) : locale ? fmtNum(d.value, locale) : d.value.toLocaleString(locale);
+        const formatted = formatValue ? formatValue(d.value) : fmtNum(d.value, locale);
         const tooltip = d.tooltip ?? `${d.label} · ${formatted}`;
         const inner = (
           <div

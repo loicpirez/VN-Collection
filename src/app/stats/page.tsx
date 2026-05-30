@@ -153,7 +153,7 @@ export default async function StatsPage() {
 
       {finishedSeries.some((d) => d.value > 0) && (
         <Card title={t.charts.finishedByMonth} icon={<BarChart3 className="h-5 w-5 text-accent" />}>
-          <VBarChart data={finishedSeries} height={120} />
+          <VBarChart data={finishedSeries} height={120} locale={locale} />
         </Card>
       )}
 
@@ -162,6 +162,7 @@ export default async function StatsPage() {
           <VBarChart
             data={agg.ratingDistribution.map((d) => ({ label: `${d.bucket}`, value: d.count }))}
             height={120}
+            locale={locale}
           />
           <p className="mt-2 text-[11px] text-muted">{t.charts.ratingHint}</p>
         </Card>
@@ -179,11 +180,12 @@ export default async function StatsPage() {
               href: `/?tag=${encodeURIComponent(tag.id)}`,
             }))}
             barClassName="bg-accent"
+            locale={locale}
           />
         </Card>
       )}
 
-      <ProducerRankCards t={t} />
+      <ProducerRankCards t={t} locale={locale} />
 
       <div className="grid gap-6 md:grid-cols-2">
         {agg.byLanguage.length > 0 && (
@@ -198,6 +200,7 @@ export default async function StatsPage() {
                 value: d.count,
                 href: `/search?langs=${encodeURIComponent(d.lang)}`,
               }))}
+              locale={locale}
             />
           </Card>
         )}
@@ -213,6 +216,7 @@ export default async function StatsPage() {
                 value: d.count,
                 href: `/search?platforms=${encodeURIComponent(d.platform)}`,
               }))}
+              locale={locale}
             />
           </Card>
         )}
@@ -231,6 +235,7 @@ export default async function StatsPage() {
                     ? undefined
                     : `/?place=${encodeURIComponent(d.location)}`,
               }))}
+              locale={locale}
             />
           </Card>
         )}
@@ -249,6 +254,7 @@ export default async function StatsPage() {
                     ? undefined
                     : `/?edition=${encodeURIComponent(d.edition)}`,
               }))}
+              locale={locale}
             />
           </Card>
         )}
@@ -270,6 +276,7 @@ export default async function StatsPage() {
             })}
             height={140}
             barClassName="bg-accent"
+            locale={locale}
           />
           <p className="mt-2 text-[11px] text-muted">{t.charts.yearChartHint}</p>
         </Card>
@@ -350,7 +357,7 @@ export default async function StatsPage() {
  * publisher-only studio appears under publishers without polluting
  * the developer side, matching VNDB's release-level role model.
  */
-function ProducerRankCards({ t }: { t: Awaited<ReturnType<typeof getDict>> }) {
+function ProducerRankCards({ t, locale }: { t: Awaited<ReturnType<typeof getDict>>; locale: Locale }) {
   const devs = listProducerStats().slice(0, 10);
   const pubs = listPublisherStats().slice(0, 10);
   if (devs.length === 0 && pubs.length === 0) return null;
@@ -361,6 +368,7 @@ function ProducerRankCards({ t }: { t: Awaited<ReturnType<typeof getDict>> }) {
           <HBarChart
             data={devs.map((p) => ({ label: p.name, value: p.vn_count, href: `/producer/${p.id}` }))}
             barClassName="bg-accent"
+            locale={locale}
           />
         </Card>
       )}
@@ -369,6 +377,7 @@ function ProducerRankCards({ t }: { t: Awaited<ReturnType<typeof getDict>> }) {
           <HBarChart
             data={pubs.map((p) => ({ label: p.name, value: p.vn_count, href: `/producer/${p.id}` }))}
             barClassName="bg-accent-blue"
+            locale={locale}
           />
         </Card>
       )}

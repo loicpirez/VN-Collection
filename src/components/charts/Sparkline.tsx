@@ -27,6 +27,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { BCP47 } from '@/lib/locale-number';
 
 export interface SparklinePoint {
   /** Timestamp in ms epoch. */
@@ -46,6 +48,8 @@ export interface SparklineSeries {
 
 interface Props {
   series: SparklineSeries[];
+  /** Active UI locale; drives axis-tick and tooltip date formatting. */
+  locale: Locale;
   /** Visible chart bounding box. Default ≈ 800×220 with legend reserved. */
   width?: number;
   height?: number;
@@ -91,6 +95,7 @@ function buildRows(series: SparklineSeries[]): Record<string, number | null>[] {
 
 export function PriceHistoryChart({
   series,
+  locale,
   width: _width,
   height = 240,
   guides = [],
@@ -98,6 +103,7 @@ export function PriceHistoryChart({
   formatYen = (y) => `¥${y.toLocaleString('ja-JP')}`,
   hideLegend = false,
 }: Props): ReactNode {
+  const formatDate = new Intl.DateTimeFormat(BCP47[locale], { dateStyle: 'medium' });
   const nonEmpty = series.filter((s) => s.points.length > 0);
   if (nonEmpty.length === 0) {
     return (
@@ -124,7 +130,7 @@ export function PriceHistoryChart({
             type="number"
             domain={['dataMin', 'dataMax']}
             tick={{ fontSize: 10, fill: 'rgb(148, 163, 184)' }}
-            tickFormatter={(v: number) => new Date(v).toLocaleDateString()}
+            tickFormatter={(v: number) => formatDate.format(new Date(v))}
             stroke="rgb(71, 85, 105)"
           />
           <YAxis
@@ -142,7 +148,7 @@ export function PriceHistoryChart({
               fontSize: 11,
             }}
             labelFormatter={(v) =>
-              typeof v === 'number' ? new Date(v).toLocaleDateString() : String(v ?? '')
+              typeof v === 'number' ? formatDate.format(new Date(v)) : String(v ?? '')
             }
             formatter={(value, name) => {
               const v = typeof value === 'number' ? formatYen(value) : (value as string);
