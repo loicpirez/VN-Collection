@@ -274,6 +274,12 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     const [xRaw, yRaw] = activePos.split(' ');
     return { xPct: parseFloat(xRaw), yPct: parseFloat(yRaw) };
   }, [activePos]);
+  const focalAnnouncement = useMemo(() => {
+    if (!Number.isFinite(xPct) || !Number.isFinite(yPct)) return '';
+    return t.banner.focalPointPosition
+      .replace('{x}', String(Math.round(xPct)))
+      .replace('{y}', String(Math.round(yPct)));
+  }, [xPct, yPct, t.banner.focalPointPosition]);
   const rotatedStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null);
 
   if (settings.hideImages && !editing) {
@@ -338,6 +344,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
       tabIndex={editing ? 0 : -1}
       role={editing ? 'application' : undefined}
       aria-label={editing ? t.banner.focalPointLabel : undefined}
+      aria-describedby={editing ? `${vnId}-focal-pos` : undefined}
       aria-keyshortcuts={editing ? 'ArrowLeft ArrowRight ArrowUp ArrowDown PageUp PageDown Home End' : undefined}
       className={`group relative h-64 w-full overflow-hidden ${
         editing ? 'cursor-crosshair touch-none focus:outline focus:outline-2 focus:outline-accent' : ''
@@ -433,6 +440,12 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
             style={{ left: `${xPct}%`, top: `${yPct}%` }}
           />
         </>
+      )}
+
+      {editing && (
+        <p id={`${vnId}-focal-pos`} className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {focalAnnouncement}
+        </p>
       )}
 
       {liveSrc && (

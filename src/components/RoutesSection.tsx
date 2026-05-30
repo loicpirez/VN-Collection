@@ -127,12 +127,12 @@ const RouteRowItem = memo(function RouteRowItem({
         </span>
       )}
 
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => onMoveUp(r.id)}
           disabled={busy || isFirst}
-          className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
+          className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
           aria-label={t.routes.moveUp}
         >
           <ArrowUp className="h-3 w-3" />
@@ -141,7 +141,7 @@ const RouteRowItem = memo(function RouteRowItem({
           type="button"
           onClick={() => onMoveDown(r.id)}
           disabled={busy || isLast}
-          className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
+          className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
           aria-label={t.routes.moveDown}
         >
           <ArrowDown className="h-3 w-3" />
@@ -150,7 +150,7 @@ const RouteRowItem = memo(function RouteRowItem({
           <button
             type="button"
             onClick={onCancelEdit}
-            className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
+            className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
             aria-label={t.common.cancel}
           >
             <X className="h-3 w-3" />
@@ -159,7 +159,7 @@ const RouteRowItem = memo(function RouteRowItem({
           <button
             type="button"
             onClick={() => onStartEdit(r)}
-            className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
+            className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
             aria-label={t.common.edit}
           >
             <Pencil className="h-3 w-3" />
@@ -168,7 +168,7 @@ const RouteRowItem = memo(function RouteRowItem({
         <button
           type="button"
           onClick={() => onToggleNotes(r)}
-          className={`tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded ${
+          className={`tap-target inline-flex h-6 w-6 items-center justify-center rounded ${
             r.notes ? 'text-accent' : 'text-muted hover:text-white'
           }`}
           aria-label={t.routes.notesToggle}
@@ -180,7 +180,7 @@ const RouteRowItem = memo(function RouteRowItem({
           type="button"
           onClick={() => onRemove(r.id)}
           disabled={busy}
-          className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
+          className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
           aria-label={t.common.delete}
         >
           <Trash2 className="h-3 w-3" />
