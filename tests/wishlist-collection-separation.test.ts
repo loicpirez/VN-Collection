@@ -8,6 +8,11 @@ import {
 } from '@/lib/db';
 import { addToVndbWishlist, removeFromVndbWishlist } from '@/lib/vndb';
 
+vi.mock('@/lib/safe-fetch', () => ({ safeFetch: vi.fn() }));
+
+import { safeFetch } from '@/lib/safe-fetch';
+const mockSafeFetch = vi.mocked(safeFetch);
+
 /**
  * Regression test for the dangerous data-loss bug where CoverQuickActions
  * conflated "local status === 'planning'" with "VNDB wishlist" and called
@@ -38,12 +43,12 @@ const FAKE_TEST_TOKEN = 'fake-test-token-not-a-real-vndb-credential';
 beforeAll(() => {
   process.env.VNDB_TOKEN = FAKE_TEST_TOKEN;
 
-  // throttledFetch (lib/vndb-throttle.ts) calls the global `fetch`. Stub it
-  // so the test process can NEVER reach api.vndb.org — any real network
-  // attempt fails the assertion loudly instead of silently leaking the
-  // (fake or real) auth header.
-  vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === 'string' ? input : input.toString();
+  // throttledFetch (lib/vndb-throttle.ts) reaches the network through
+  // providerFetch, which on the no-proxy path delegates to `safeFetch`
+  // (lib/safe-fetch.ts). Stub `safeFetch` so the test process can NEVER
+  // reach api.vndb.org — any real network attempt fails the assertion
+  // loudly instead of silently leaking the (fake or real) auth header.
+  mockSafeFetch.mockImplementation(async (url: string, init?: RequestInit) => {
     fetchLog.push({ url, init });
     if (!url.startsWith('https://api.vndb.org/kana/ulist/')) {
       throw new Error(`unexpected outbound URL in test: ${url}`);
@@ -55,7 +60,7 @@ beforeAll(() => {
 afterAll(() => {
   if (ORIGINAL_TOKEN === undefined) delete process.env.VNDB_TOKEN;
   else process.env.VNDB_TOKEN = ORIGINAL_TOKEN;
-  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 afterEach(() => {

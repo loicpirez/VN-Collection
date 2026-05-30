@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/lib/db';
 
+vi.mock('@/lib/safe-fetch', () => ({ safeFetch: vi.fn() }));
+
+import { safeFetch } from '@/lib/safe-fetch';
+const mockSafeFetch = vi.mocked(safeFetch);
+
 const FAKE_HTML = '<html><body>test page</body></html>';
 const VNDB_PATH = '/p99999-test-slug';
 const CACHE_KEY = `scrape:${VNDB_PATH}`;
@@ -12,6 +17,7 @@ function clearCache(): void {
 
 beforeEach(() => {
   clearCache();
+  mockSafeFetch.mockReset();
   vi.useFakeTimers();
 });
 
@@ -28,12 +34,11 @@ describe('fetchVndbWebHtml', () => {
        VALUES (?, ?, NULL, NULL, ?, ?)`,
     ).run(CACHE_KEY, FAKE_HTML, Date.now(), FAR_FUTURE);
 
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const { fetchVndbWebHtml } = await import('@/lib/vndb-scrape');
     const result = await fetchVndbWebHtml(VNDB_PATH);
 
     expect(result).toBe(FAKE_HTML);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mockSafeFetch).not.toHaveBeenCalled();
   });
 
   it('re-fetches when the cached entry is stale (expires_at in the past)', async () => {
@@ -43,9 +48,7 @@ describe('fetchVndbWebHtml', () => {
        VALUES (?, ?, NULL, NULL, ?, ?)`,
     ).run(CACHE_KEY, 'stale-html', Date.now() - 86_400_000, PAST);
 
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(FAKE_HTML, { status: 200 }),
-    );
+    mockSafeFetch.mockResolvedValueOnce(new Response(FAKE_HTML, { status: 200 }));
 
     const { fetchVndbWebHtml } = await import('@/lib/vndb-scrape');
     const resultPromise = fetchVndbWebHtml(VNDB_PATH);
@@ -56,9 +59,7 @@ describe('fetchVndbWebHtml', () => {
   });
 
   it('stores fetched HTML in the cache on success', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(FAKE_HTML, { status: 200 }),
-    );
+    mockSafeFetch.mockResolvedValueOnce(new Response(FAKE_HTML, { status: 200 }));
 
     const { fetchVndbWebHtml } = await import('@/lib/vndb-scrape');
     const resultPromise = fetchVndbWebHtml(VNDB_PATH, { force: true });
@@ -73,7 +74,7 @@ describe('fetchVndbWebHtml', () => {
   });
 
   it('returns null after all retries fail with network error', async () => {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network error'));
+    mockSafeFetch.mockRejectedValue(new Error('network error'));
 
     const { fetchVndbWebHtml } = await import('@/lib/vndb-scrape');
     const resultPromise = fetchVndbWebHtml(VNDB_PATH, { force: true });
@@ -84,9 +85,7 @@ describe('fetchVndbWebHtml', () => {
   });
 
   it('returns null after all retries fail with non-ok response', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('Not Found', { status: 404 }),
-    );
+    mockSafeFetch.mockResolvedValue(new Response('Not Found', { status: 404 }));
 
     const { fetchVndbWebHtml } = await import('@/lib/vndb-scrape');
     const resultPromise = fetchVndbWebHtml(VNDB_PATH, { force: true });
@@ -97,7 +96,7 @@ describe('fetchVndbWebHtml', () => {
   });
 
   it('processes a second request after a fetch failure', async () => {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('always fails'));
+    mockSafeFetch.mockRejectedValue(new Error('always fails'));
 
     const { fetchVndbWebHtml } = await import('@/lib/vndb-scrape');
 
@@ -106,7 +105,7 @@ describe('fetchVndbWebHtml', () => {
     const firstResult = await first;
     expect(firstResult).toBeNull();
 
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(FAKE_HTML, { status: 200 }));
+    mockSafeFetch.mockResolvedValue(new Response(FAKE_HTML, { status: 200 }));
 
     const second = fetchVndbWebHtml(VNDB_PATH, { force: true });
     await vi.runAllTimersAsync();

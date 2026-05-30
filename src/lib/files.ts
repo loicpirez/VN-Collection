@@ -3,6 +3,7 @@ import { mkdir, writeFile, stat, readFile } from 'node:fs/promises';
 import { extname, basename, normalize } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
+import { safeFetch } from '@/lib/safe-fetch';
 
 // String-concat instead of `path.resolve(process.cwd(), …)` so
 // Turbopack's NFT (Node File Tracing) static analyzer doesn't drag
@@ -158,7 +159,7 @@ export async function downloadToBucket(
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(url, { signal: ctrl.signal });
+    res = await safeFetch(url, { signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
   }

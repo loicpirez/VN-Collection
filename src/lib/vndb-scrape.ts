@@ -1,6 +1,7 @@
 import 'server-only';
 import { db } from './db';
 import { isAllowedHttpTarget } from './url-allowlist';
+import { safeFetch } from './safe-fetch';
 
 /**
  * Lightweight HTML scraper for vndb.org pages, covering fields the
@@ -100,7 +101,7 @@ export async function fetchVndbWebHtml(path: string, opts: { force?: boolean } =
     }
     await nextSlot();
     try {
-      const res = await fetch(target, {
+      const res = await safeFetch(target, {
         headers: { 'User-Agent': 'vn-collection (local cache builder)' },
       });
       if (!res.ok) continue;

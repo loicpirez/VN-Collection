@@ -137,14 +137,24 @@ describe('isPrivateIpv4', () => {
     expect(isPrivateIpv4('1.1.1.1')).toBe(false);
     expect(isPrivateIpv4('8.8.8.8')).toBe(false);
     expect(isPrivateIpv4('93.184.216.34')).toBe(false);
-    expect(isPrivateIpv4('203.0.113.1')).toBe(false);
   });
 
-  it('returns false for malformed input', () => {
-    expect(isPrivateIpv4('not-an-ip')).toBe(false);
-    expect(isPrivateIpv4('256.0.0.1')).toBe(false);
-    expect(isPrivateIpv4('1.2.3')).toBe(false);
-    expect(isPrivateIpv4('')).toBe(false);
+  it('returns true for reserved / non-global ranges (TEST-NET, CGNAT, multicast, this-host)', () => {
+    expect(isPrivateIpv4('0.0.0.0')).toBe(true);
+    expect(isPrivateIpv4('100.64.0.1')).toBe(true);
+    expect(isPrivateIpv4('192.0.2.1')).toBe(true);
+    expect(isPrivateIpv4('198.51.100.1')).toBe(true);
+    expect(isPrivateIpv4('203.0.113.1')).toBe(true);
+    expect(isPrivateIpv4('198.18.0.1')).toBe(true);
+    expect(isPrivateIpv4('224.0.0.1')).toBe(true);
+    expect(isPrivateIpv4('255.255.255.255')).toBe(true);
+  });
+
+  it('returns true for malformed input (fail-closed so a caller never pins an unparsable target)', () => {
+    expect(isPrivateIpv4('not-an-ip')).toBe(true);
+    expect(isPrivateIpv4('256.0.0.1')).toBe(true);
+    expect(isPrivateIpv4('1.2.3')).toBe(true);
+    expect(isPrivateIpv4('')).toBe(true);
   });
 });
 

@@ -6,6 +6,7 @@ import zlib from 'node:zlib';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ProviderId, ProxyConfig } from './proxy-config';
 import { buildProxyUrl, resolveProxyConfig, resolveStockProviderProxy } from './proxy-config';
+import { safeFetch } from './safe-fetch';
 
 const directFetchStore = new AsyncLocalStorage<boolean>();
 
@@ -65,6 +66,7 @@ function performProxyRequest(
   bodyStr: string | null,
   agent: Agent,
   signal: AbortSignal | null | undefined,
+  servername?: string,
 ): Promise<RawProxyResponse> {
   const parsed = new URL(url);
   const isHttps = parsed.protocol === 'https:';
@@ -78,6 +80,7 @@ function performProxyRequest(
         method,
         headers: headerMap,
         agent,
+        ...(servername && isHttps ? { servername } : {}),
       },
       (res) => {
         const MAX_BYTES = 50 * 1024 * 1024;
@@ -130,16 +133,31 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const MAX_PROXY_REDIRECTS = 20;
 
 /**
+ * Resolves the connection details for one hop of {@link nodeAgentFetch}. The
+ * implementation MUST validate `hopUrl` (allowlist + private-IP guard) and
+ * throw to reject it; on success it returns the Node agent the socket should
+ * use plus the TLS `servername` for SNI / certificate verification. Used by
+ * `safeFetch` to re-resolve and re-pin every redirect hop to a validated IP.
+ */
+export type HopResolver = (hopUrl: string) => Promise<{ agent: Agent; servername?: string }>;
+
+/**
  * Execute an HTTP/HTTPS request through a Node.js HTTP agent (proxy agent),
  * returning a Web-compatible Response. Follows redirects (the WHATWG `fetch`
  * default) since the raw `http`/`https` API never does, decompresses the body
  * per `Content-Encoding`, and preserves the original bytes for the caller to
  * decode. Handles AbortSignal and string bodies.
+ *
+ * When `resolveHop` is supplied the static `agent` is ignored and each hop is
+ * resolved through the callback instead, which lets `safeFetch` validate and
+ * IP-pin the redirect target rather than reusing the original hop's pinned
+ * socket against a new host.
  */
-async function nodeAgentFetch(
+export async function nodeAgentFetch(
   url: string,
   init: RequestInit,
-  agent: Agent,
+  agent: Agent | undefined,
+  resolveHop?: HopResolver,
 ): Promise<Response> {
   const headerMap: Record<string, string> = {};
   if (init.headers) {
@@ -158,7 +176,15 @@ async function nodeAgentFetch(
   let method = (init.method ?? 'GET').toUpperCase();
 
   for (let hop = 0; ; hop++) {
-    const res = await performProxyRequest(currentUrl, method, headerMap, bodyStr, agent, init.signal as AbortSignal | null | undefined);
+    let hopAgent = agent;
+    let hopServername: string | undefined;
+    if (resolveHop) {
+      const resolved = await resolveHop(currentUrl);
+      hopAgent = resolved.agent;
+      hopServername = resolved.servername;
+    }
+    if (!hopAgent) throw new Error('nodeAgentFetch: no agent resolved for hop');
+    const res = await performProxyRequest(currentUrl, method, headerMap, bodyStr, hopAgent, init.signal as AbortSignal | null | undefined, hopServername);
     const locationRaw = res.headers['location'];
     const location = Array.isArray(locationRaw) ? locationRaw[0] : locationRaw;
     if (redirectMode === 'follow' && REDIRECT_STATUSES.has(res.statusCode) && location && hop < MAX_PROXY_REDIRECTS) {
@@ -191,7 +217,8 @@ async function nodeAgentFetch(
 /**
  * Provider-scoped fetch wrapper. When a proxy is configured for the provider
  * (via env vars or DB settings), the request is tunnelled through it.
- * Falls back to native fetch() when no proxy is configured.
+ * Falls back to `safeFetch` (allowlist + private-IP reject + IP-pinned socket)
+ * when no proxy is configured.
  *
  * Apply only to outbound requests for the named provider — never globally.
  */
@@ -223,7 +250,7 @@ export async function providerFetch(
   provider: ProviderId,
 ): Promise<Response> {
   const config = resolveProxyConfig(provider);
-  if (!config) return fetch(url, init);
+  if (!config) return safeFetch(url, init);
   const agent = await buildAgent(config);
   return nodeAgentFetch(url, init, agent);
 }
@@ -238,9 +265,9 @@ export async function stockProviderFetch(
   init: RequestInit,
   providerId: string,
 ): Promise<Response> {
-  if (directFetchStore.getStore() === true) return fetch(url, init);
+  if (directFetchStore.getStore() === true) return safeFetch(url, init);
   const config = resolveStockProviderProxy(providerId);
-  if (!config) return fetch(url, init);
+  if (!config) return safeFetch(url, init);
   const agent = await buildAgent(config);
   return nodeAgentFetch(url, init, agent);
 }

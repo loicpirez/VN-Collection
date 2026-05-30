@@ -1,6 +1,7 @@
 import 'server-only';
 import { getAppSetting } from './db';
 import { isAllowedHttpTarget } from './url-allowlist';
+import { safeFetch } from './safe-fetch';
 
 /**
  * Steam playtime sync — scaffolded. The runtime hits the public WebAPI
@@ -62,7 +63,7 @@ export async function fetchOwnedGames(): Promise<SteamPlaytime[]> {
   }
   let res: Response;
   try {
-    res = await fetch(url, { cache: 'no-store' });
+    res = await safeFetch(url, { cache: 'no-store' });
   } catch (e) {
     // Strip the URL from network-level errors so the key never lands
     // in a stack trace.

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { fetchEgsGame } from '@/lib/erogamescape';
 import { isAllowedHttpTarget as isAllowedTarget } from '@/lib/url-allowlist';
+import { safeFetch } from '@/lib/safe-fetch';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
@@ -67,13 +68,15 @@ function writeCached(key: string, url: string | null, ttl: number): void {
 /**
  * Follow up to 3 hops manually, re-checking the allowlist on every
  * `Location:` header so a friendly CDN can't 302 us to a private IP
- * or unrelated host.
+ * or unrelated host. Each hop goes through `safeFetch`, which resolves the
+ * host and pins the socket to a validated public IP so a rebind cannot swap
+ * in a private address between the allowlist check and the connection.
  */
 async function fetchWithSafeRedirects(initial: string, signal: AbortSignal, extraHeaders: Record<string, string> = {}): Promise<Response | null> {
   let url = initial;
   for (let hop = 0; hop < 4; hop++) {
     if (!isAllowedTarget(url)) return null;
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       method: 'GET',
       signal,
       redirect: 'manual',
