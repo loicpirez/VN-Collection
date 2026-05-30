@@ -214,6 +214,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           if (unmountedRef.current) return;
           if (dumpedJustEnabled) toast.success(t.toast.markedDumped);
           if (favoriteChanged) toast.success(favorite ? t.toast.favoriteAdded : t.toast.favoriteRemoved);
+          if (!dumpedJustEnabled && !favoriteChanged) toast.success(t.toast.saved);
           setSaveStatus('saved');
           startTransition(() => router.refresh());
           if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
