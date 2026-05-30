@@ -453,6 +453,7 @@ export const dictionaries = {
         vnMedia: 'Médias',
         shelf: 'Étagère',
         tagPage: 'Page tag',
+        traitsList: 'Traits',
       },
     },
     tagPicker: {
@@ -3714,6 +3715,7 @@ export const dictionaries = {
         vnMedia: 'Media',
         shelf: 'Shelf',
         tagPage: 'Tag page',
+        traitsList: 'Traits',
       },
     },
     tagPicker: {
@@ -6972,6 +6974,7 @@ export const dictionaries = {
         vnMedia: 'メディア',
         shelf: '本棚',
         tagPage: 'タグページ',
+        traitsList: 'トレイト',
       },
     },
     tagPicker: {

@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Library, Search, SearchX, Sparkles } from 'lucide-react'
 import { RefreshScopeButton } from './RefreshScopeButton';
+import { CardDensitySlider } from './CardDensitySlider';
+import { DensityScopeProvider } from './DensityScopeProvider';
 import { SkeletonRows } from './Skeleton';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum } from '@/lib/locale-number';
@@ -117,7 +119,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
   }, [q, onlyMine, t.common.error]);
 
   return (
-    <div>
+    <DensityScopeProvider scope="traitsList">
       <header className="mb-6 flex flex-wrap items-start gap-3">
         <Sparkles className="h-7 w-7 text-accent" aria-hidden />
         <div className="min-w-0 flex-1">
@@ -143,6 +145,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
           <Library className="h-4 w-4" />
           {t.library.filterMine}
         </button>
+        <CardDensitySlider scope="traitsList" />
       </div>
 
       {error && <div role="alert" className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">{error}</div>}
@@ -190,6 +193,6 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
           ))}
         </div>
       )}
-    </div>
+    </DensityScopeProvider>
   );
 }

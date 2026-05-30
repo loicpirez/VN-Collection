@@ -34,6 +34,7 @@ export const DENSITY_SCOPES = [
   'vnMedia',
   'shelf',
   'tagPage',
+  'traitsList',
 ] as const;
 
 export type DensityScope = (typeof DENSITY_SCOPES)[number];
