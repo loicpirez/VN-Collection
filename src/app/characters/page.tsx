@@ -189,7 +189,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
             defaultValue={query}
             placeholder={t.charactersSearch.searchPlaceholder}
             aria-label={t.charactersSearch.searchPlaceholder}
-            className="input flex-1 min-w-[160px] sm:min-w-[200px]"
+            className="input flex-1 min-w-[140px] sm:min-w-[200px]"
           />
           {tab !== 'local' && <input type="hidden" name="tab" value={tab} />}
           {forwardChip('role', params.role)}

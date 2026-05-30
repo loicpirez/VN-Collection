@@ -231,7 +231,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
         </h1>
         <p className="mt-1 text-sm text-muted">{t.userActivity.subtitle}</p>
         <form method="get" className="mt-4 flex flex-wrap items-end gap-2">
-          <label className="min-w-[160px] sm:min-w-[220px] flex-1 text-xs text-muted">
+          <label className="min-w-[140px] sm:min-w-[220px] flex-1 text-xs text-muted">
             <span className="mb-1 inline-flex items-center gap-1">
               <Search className="h-3 w-3" aria-hidden /> {t.userActivity.search}
             </span>

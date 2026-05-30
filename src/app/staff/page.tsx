@@ -171,7 +171,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
             defaultValue={query}
             placeholder={t.staffSearch.searchPlaceholder}
             aria-label={t.staffSearch.searchPlaceholder}
-            className="input flex-1 min-w-[160px] sm:min-w-[200px]"
+            className="input flex-1 min-w-[140px] sm:min-w-[200px]"
           />
           {tab === 'vndb' && <input type="hidden" name="tab" value="vndb" />}
           {role && <input type="hidden" name="role" value={role} />}
