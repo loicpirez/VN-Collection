@@ -282,7 +282,7 @@ export function ReleasesSection({
     const ac = new AbortController();
     setLoading(true);
     setError(null);
-    fetch(`/api/vn/${vnId}/releases`, { signal: ac.signal })
+    fetch(`/api/vn/${vnId}/releases`, { cache: 'no-store', signal: ac.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         return r.json();
@@ -303,7 +303,7 @@ export function ReleasesSection({
   const refreshOwned = useCallback(async (signal?: AbortSignal) => {
     if (!inCollection) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/owned-releases`, { signal });
+      const r = await fetch(`/api/collection/${vnId}/owned-releases`, { cache: 'no-store', signal });
       if (!r.ok) return;
       const d = (await r.json()) as { owned: OwnedEntry[] };
       if (signal?.aborted) return;

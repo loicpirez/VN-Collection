@@ -64,8 +64,8 @@ export function PlaceBrowser() {
 
   const reload = useCallback(async () => {
     const [pRes, uRes] = await Promise.all([
-      fetch('/api/places'),
-      fetch('/api/places/unassigned'),
+      fetch('/api/places', { cache: 'no-store' }),
+      fetch('/api/places/unassigned', { cache: 'no-store' }),
     ]);
     const [pd, ud] = await Promise.all([pRes.json(), uRes.json()]);
     setPlaces(pd.places ?? []);

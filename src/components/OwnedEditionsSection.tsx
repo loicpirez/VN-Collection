@@ -138,7 +138,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
     try {
       const [o, r] = await Promise.all([
         fetch(`/api/collection/${vnId}/owned-releases`, { cache: 'no-store', signal }).then((x) => x.json()),
-        fetch(`/api/vn/${vnId}/releases`, { signal }).then((x) => x.json()),
+        fetch(`/api/vn/${vnId}/releases`, { cache: 'no-store', signal }).then((x) => x.json()),
       ]);
       if (signal?.aborted) return;
       setOwned((o.owned ?? []) as OwnedEdition[]);
@@ -169,7 +169,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
     reload(ctrl.signal).finally(() => {
       if (!ctrl.signal.aborted) setLoading(false);
     });
-    fetch('/api/places', { signal: ctrl.signal })
+    fetch('/api/places', { cache: 'no-store', signal: ctrl.signal })
       .then((r) => r.json())
       .then((d) => {
         if (!ctrl.signal.aborted) setKnownPlaces(d.places ?? []);

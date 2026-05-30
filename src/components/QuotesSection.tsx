@@ -31,7 +31,7 @@ export function QuotesSection({
     const ac = new AbortController();
     setLoading(true);
     setError(null);
-    fetch(`/api/vn/${vnId}/quotes`, { signal: ac.signal })
+    fetch(`/api/vn/${vnId}/quotes`, { cache: 'no-store', signal: ac.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         return r.json();

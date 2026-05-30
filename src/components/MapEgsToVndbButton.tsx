@@ -75,7 +75,7 @@ export function MapEgsToVndbButton({
     const ac = new AbortController();
     (async () => {
       try {
-        const r = await fetch(`/api/egs/${egsId}/vndb`, { signal: ac.signal });
+        const r = await fetch(`/api/egs/${egsId}/vndb`, { cache: 'no-store', signal: ac.signal });
         if (!r.ok) return;
         const d = (await r.json()) as { link: ManualLink | null };
         setLink(d.link);

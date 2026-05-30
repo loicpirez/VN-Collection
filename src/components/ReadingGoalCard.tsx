@@ -32,7 +32,7 @@ export function ReadingGoalCard({ year }: Props) {
   useEffect(() => {
     const ac = new AbortController();
     setLoaded(false);
-    fetch(`/api/reading-goal?year=${year}`, { signal: ac.signal })
+    fetch(`/api/reading-goal?year=${year}`, { cache: 'no-store', signal: ac.signal })
       .then((r) => r.json())
       .then((d: { goal?: { target: number } | null; finished?: number }) => {
         setTarget(d.goal?.target ?? null);

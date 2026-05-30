@@ -77,8 +77,8 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
     setLoading(true);
     try {
       const [r1, r2] = await Promise.all([
-        fetch('/api/lists').then((r) => r.json()),
-        fetch(`/api/vn/${vnId}/lists`).then((r) => r.json()),
+        fetch('/api/lists', { cache: 'no-store' }).then((r) => r.json()),
+        fetch(`/api/vn/${vnId}/lists`, { cache: 'no-store' }).then((r) => r.json()),
       ]);
       setLists((r1.lists as UserList[]) ?? []);
       const set = new Set<number>((r2.lists as UserList[] | undefined)?.map((l) => l.id) ?? []);

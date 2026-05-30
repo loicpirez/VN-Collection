@@ -35,8 +35,8 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
     setLoading(true);
     try {
       const [uRes, oRes] = await Promise.all([
-        fetch('/api/places/unassigned'),
-        fetch(`/api/places/${place.id}/other-branches`),
+        fetch('/api/places/unassigned', { cache: 'no-store' }),
+        fetch(`/api/places/${place.id}/other-branches`, { cache: 'no-store' }),
       ]);
       const [uData, oData] = await Promise.all([uRes.json(), oRes.json()]);
       setUnassigned(uData.branches ?? []);

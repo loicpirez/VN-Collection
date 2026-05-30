@@ -125,7 +125,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         let list: VndbTag[] = [];
         let tree: VndbTagHomeTree | null = null;
         if (isLocal) {
-          const res = await fetch('/api/collection/tags', { signal: ctrl.signal });
+          const res = await fetch('/api/collection/tags', { cache: 'no-store', signal: ctrl.signal });
           if (!res.ok) throw new Error(await readApiError(res, t.common.error));
           const d = await res.json();
           list = d.tags ?? [];
@@ -137,7 +137,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         } else if (isVndbBrowse) {
           if (skipTreeFetch) {
             // Re-use SSR hierarchy — only fetch local counts.
-            const localRes = await fetch('/api/collection/tags', { signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] });
+            const localRes = await fetch('/api/collection/tags', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] });
             const counts = new Map<string, number>();
             for (const tag of (localRes.tags ?? []) as Array<{ id: string; vn_count: number }>) {
               counts.set(tag.id, tag.vn_count);
@@ -151,8 +151,8 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
             return;
           }
           const [treeRes, localRes] = await Promise.all([
-            fetch(`/api/tags/web-tree${refreshNonce ? '?force=1' : ''}`, { signal: ctrl.signal }),
-            fetch('/api/collection/tags', { signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] }),
+            fetch(`/api/tags/web-tree${refreshNonce ? '?force=1' : ''}`, { cache: 'no-store', signal: ctrl.signal }),
+            fetch('/api/collection/tags', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] }),
           ]);
           const d = await treeRes.json().catch(() => ({}));
           if (!treeRes.ok) throw new Error(d.error || t.common.error);
@@ -165,8 +165,8 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           if (alive && d.warning) setStaleWarning(String(d.warning));
         } else {
           const [tagRes, localRes] = await Promise.all([
-            fetch(`/api/tags?results=100${category ? `&category=${category}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`, { signal: ctrl.signal }),
-            fetch('/api/collection/tags', { signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] }),
+            fetch(`/api/tags?results=100${category ? `&category=${category}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`, { cache: 'no-store', signal: ctrl.signal }),
+            fetch('/api/collection/tags', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] }),
           ]);
           const d = await tagRes.json().catch(() => ({}));
           if (!tagRes.ok) throw new Error(d.error || t.common.error);

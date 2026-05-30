@@ -91,7 +91,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
         const url = onlyMine
           ? '/api/collection/traits'
           : `/api/traits?${new URLSearchParams({ q, results: '60' })}`;
-        const r = await fetch(url, { signal: ctrl.signal });
+        const r = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         const d = await r.json();
         let list: VndbTrait[] = d.traits;

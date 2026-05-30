@@ -667,7 +667,7 @@ function EgsCandidateGrid({
     const ctrl = new AbortController();
     setCandidates(null);
     setError(null);
-    fetch(`/api/egs-cover/${egsId}/candidates`, { signal: ctrl.signal })
+    fetch(`/api/egs-cover/${egsId}/candidates`, { cache: 'no-store', signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { candidates: EgsCandidate[] }) => setCandidates(d.candidates))
       .catch((e: Error) => {

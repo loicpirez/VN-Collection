@@ -83,9 +83,9 @@ export default function SteamSyncPage() {
     setUnlinkedLoading(true);
     try {
       const [sync, lib, ls] = await Promise.all([
-        fetch('/api/steam/sync').then((r) => r.json()),
-        fetch('/api/steam/library').then((r) => r.json()),
-        fetch('/api/steam/link').then((r) => r.json()),
+        fetch('/api/steam/sync', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/steam/library', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/steam/link', { cache: 'no-store' }).then((r) => r.json()),
       ]);
       if (sync.ok) {
         const sugg: Suggestion[] = sync.suggestions ?? [];

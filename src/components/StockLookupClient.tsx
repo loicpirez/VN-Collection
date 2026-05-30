@@ -15,7 +15,7 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
   const [placeMap, setPlaceMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    fetch('/api/places/provider-map')
+    fetch('/api/places/provider-map', { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => setPlaceMap(d.map ?? {}))
       .catch(() => {});
