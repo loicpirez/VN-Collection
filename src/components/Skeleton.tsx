@@ -160,6 +160,21 @@ export function SkeletonRows({
   );
 }
 
+/**
+ * A horizontal row of tab-shaped placeholders — for a tab bar / segmented
+ * control while its labels resolve. Each tab is a wide rounded bar; combine
+ * with the content skeleton below it.
+ */
+export function SkeletonTabRow({ count = 3, className }: { count?: number; className?: string }) {
+  return (
+    <div className={cx('flex flex-wrap gap-2', className)}>
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonBlock key={i} className="h-8 w-24 rounded-full" />
+      ))}
+    </div>
+  );
+}
+
 /** A few stacked text lines — for paragraph / detail-panel placeholders. */
 export function SkeletonText({ lines = 3, className }: { lines?: number; className?: string }) {
   return (

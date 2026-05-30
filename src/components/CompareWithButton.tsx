@@ -134,9 +134,13 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
         </div>
         <div className="max-h-[60vh] overflow-y-auto">
           {loading ? (
-            <ul className="p-3" aria-busy="true">
+            <ul aria-busy="true" aria-live="polite" role="status">
               {Array.from({ length: 6 }).map((_, i) => (
-                <li key={i} className="mb-1"><SkeletonBlock className="h-6" /></li>
+                <li key={i} className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+                  <SkeletonBlock className="h-4 w-4 shrink-0 rounded" />
+                  <SkeletonBlock className="h-3 min-w-0 flex-1" />
+                  <SkeletonBlock className="h-2.5 w-10 shrink-0" />
+                </li>
               ))}
             </ul>
           ) : filtered.length === 0 ? (
