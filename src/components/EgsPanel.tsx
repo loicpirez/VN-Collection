@@ -187,9 +187,9 @@ export function EgsPanel({
       <>
         <div className="p-4 sm:p-5">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+            <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
               <Sparkles className="h-4 w-4 text-accent" /> {t.egs.section}
-            </h3>
+            </h2>
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -238,7 +238,7 @@ export function EgsPanel({
     <>
       <div className="p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+          <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Sparkles className="h-4 w-4 text-accent" /> {t.egs.section}
             {source === 'search' && (
               <span className="rounded bg-bg-elev/60 px-1.5 py-0.5 text-[10px] font-normal text-muted">
@@ -250,7 +250,7 @@ export function EgsPanel({
                 {t.egs.manualMatch}
               </span>
             )}
-          </h3>
+          </h2>
           <div className="flex items-center gap-1">
             <a
               href={game.url}

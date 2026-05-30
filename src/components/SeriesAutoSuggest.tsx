@@ -85,9 +85,9 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
   return (
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-xs">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 font-bold uppercase tracking-widest text-accent">
+        <h2 className="inline-flex items-center gap-2 font-bold uppercase tracking-widest text-accent">
           <Bookmark className="h-4 w-4" /> {t.seriesAutoSuggest.title}
-        </span>
+        </h2>
         <button
           type="button"
           onClick={() => setDismissed(true)}

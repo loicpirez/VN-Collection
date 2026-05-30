@@ -191,7 +191,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
           Sits outside the dnd context so its buttons never become
           drag targets themselves. */}
       <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
           {t.vnLayout.sectionsHeading}
         </h2>
         {editMode ? (

@@ -107,9 +107,9 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   if (state.needsAuth) {
     return (
       <div className="p-4 sm:p-5">
-        <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+        <h2 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <KeyRound className="h-4 w-4 text-accent" /> {t.vndbStatus.section}
-        </h3>
+        </h2>
         <p className="text-xs text-muted">{t.vndbStatus.needsToken}</p>
       </div>
     );
@@ -163,9 +163,9 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   return (
     <div className="p-4 sm:p-5">
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+        <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <CheckCircle2 className="h-4 w-4 text-accent" /> {t.vndbStatus.section}
-        </h3>
+        </h2>
         <div className="flex items-center gap-1">
           <a
             href={`https://vndb.org/${vnId}`}

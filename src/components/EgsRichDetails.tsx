@@ -127,9 +127,9 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
 
   return (
     <div className="p-4 sm:p-5">
-      <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+      <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
         <Sparkles className="h-4 w-4 text-accent" /> {t.egsRich.title}
-      </h3>
+      </h2>
 
       {links.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-1.5">
