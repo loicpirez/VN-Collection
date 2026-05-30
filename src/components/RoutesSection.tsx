@@ -5,7 +5,9 @@ import { ArrowDown, ArrowUp, Check, GitBranch, Loader2, Pencil, Plus, StickyNote
 import { useLocale, useT } from '@/lib/i18n/client';
 import { formatIsoDateString } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
+import { useToast } from './ToastProvider';
 import { ErrorAlert } from './ErrorAlert';
+import { SkeletonRows } from './Skeleton';
 import type { RouteRow } from '@/lib/types';
 import type { VndbCharacter } from '@/lib/vndb-types';
 import { fetchVnCharacters } from '@/lib/vn-characters-cache';
@@ -300,9 +302,11 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const t = useT();
   const locale = useLocale();
   const { confirm } = useConfirm();
+  const toast = useToast();
   const router = useRouter();
   const [routes, setRoutes] = useState<RouteRow[]>([]);
-  const [loadedRoutes, setLoadedRoutes] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [prefill, setPrefill] = useState('');
   const [prefillNonce, setPrefillNonce] = useState(0);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -328,21 +332,23 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     if (!inCollection) return;
     try {
       const r = await fetch(`/api/collection/${vnId}/routes`, { signal, cache: 'no-store' });
-      if (!r.ok) return;
+      if (!r.ok) throw new Error(await readApiError(r, t.routes.loadError));
       const d = (await r.json()) as { routes: RouteRow[] };
       if (signal?.aborted) return;
       setRoutes(d.routes);
+      setLoadError(false);
     } catch (e) {
       if ((e as Error).name === 'AbortError' || signal?.aborted) return;
-      console.error('[RoutesSection] routes reload failed:', e);
-    } finally {
-      if (!signal?.aborted) setLoadedRoutes(true);
+      setLoadError(true);
     }
-  }, [vnId, inCollection]);
+  }, [vnId, inCollection, t.routes.loadError]);
 
   useEffect(() => {
     const ctrl = new AbortController();
-    reload(ctrl.signal);
+    setLoading(true);
+    reload(ctrl.signal).finally(() => {
+      if (!ctrl.signal.aborted) setLoading(false);
+    });
     return () => ctrl.abort();
   }, [reload]);
 
@@ -398,14 +404,16 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       const d = (await r.json()) as { routes: RouteRow[] };
       setRoutes(d.routes);
       startTransition(() => router.refresh());
+      toast.success(t.routes.added);
       return true;
     } catch (err) {
       setError((err as Error).message);
+      toast.error((err as Error).message);
       return false;
     } finally {
       setBusy(false);
     }
-  }, [vnId, router, t.common.error]);
+  }, [vnId, router, toast, t.common.error, t.routes.added]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -426,12 +434,14 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await reload();
       startTransition(() => router.refresh());
+      toast.success(t.routes.updated);
     } catch (err) {
       setError((err as Error).message);
+      toast.error((err as Error).message);
     } finally {
       setBusy(false);
     }
-  }, [reload, router, t.common.error]);
+  }, [reload, router, toast, t.common.error, t.routes.updated]);
 
   const remove = useCallback(async (id: number) => {
     const ok = await confirm({ message: t.routes.removeConfirm, tone: 'danger' });
@@ -443,12 +453,14 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await reload();
       startTransition(() => router.refresh());
+      toast.success(t.routes.removed);
     } catch (err) {
       setError((err as Error).message);
+      toast.error((err as Error).message);
     } finally {
       setBusy(false);
     }
-  }, [confirm, reload, router, t.common.error, t.routes.removeConfirm]);
+  }, [confirm, reload, router, toast, t.common.error, t.routes.removed, t.routes.removeConfirm]);
 
   const move = useCallback(async (id: number, direction: -1 | 1) => {
     const current = routesRef.current;
@@ -468,13 +480,15 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await reload();
+      toast.success(t.routes.reordered);
     } catch (err) {
       setError((err as Error).message);
+      toast.error((err as Error).message);
       await reload();
     } finally {
       setBusy(false);
     }
-  }, [reload, vnId, t.common.error]);
+  }, [reload, vnId, toast, t.common.error, t.routes.reordered]);
 
   const startEdit = useCallback((r: RouteRow) => {
     setEditingId(r.id);
@@ -562,8 +576,16 @@ export function RoutesSection({ vnId, inCollection }: Props) {
         </div>
       )}
 
-      {loadedRoutes && routes.length === 0 && (
-        <p className="mb-3 text-xs text-muted">{t.routes.empty}</p>
+      {loading && routes.length === 0 ? (
+        <div className="mb-4">
+          <SkeletonRows count={3} withThumb={false} label={t.common.loading} />
+        </div>
+      ) : loadError ? (
+        <div className="mb-3">
+          <ErrorAlert title={t.common.error}>{t.routes.loadError}</ErrorAlert>
+        </div>
+      ) : (
+        routes.length === 0 && <p className="mb-3 text-xs text-muted">{t.routes.empty}</p>
       )}
 
       {routes.length > 0 && (
