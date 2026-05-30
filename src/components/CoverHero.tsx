@@ -41,6 +41,15 @@ interface Props {
  * kebab menu, the source picker, an upload from CoverUploader) flips
  * this hero immediately. router.refresh() runs in parallel as a
  * defensive fallback so server components also see the new state.
+ *
+ * Source-resolution fallback: the server hands down a single resolved
+ * source (custom > vndb > egs priority), but its remote URL can still
+ * 404 at render time (a dead EGS cover proxy, a stale custom URL). When
+ * the remote fails AND a mirrored `local` copy exists, the remote is
+ * dropped so `SafeImage` renders the local bytes rather than its
+ * no-image placeholder. The placeholder is reserved for the genuine
+ * "no usable source anywhere" case, never shown while another image is
+ * available.
  */
 export function CoverHero({
   vnId,
@@ -55,10 +64,12 @@ export function CoverHero({
   const [remote, setRemote] = useState<string | null>(initialRemote);
   const [local, setLocal] = useState<string | null>(initialLocal);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
+  const [remoteFailed, setRemoteFailed] = useState(false);
   // Keep client state synced with server-rendered props on refresh.
   useEffect(() => setRemote(initialRemote), [initialRemote]);
   useEffect(() => setLocal(initialLocal), [initialLocal]);
   useEffect(() => setRotation(initialRotation), [initialRotation]);
+  useEffect(() => setRemoteFailed(false), [remote, local]);
 
   // The mutate-on-error-revert pattern needs a stable snapshot of the
   // previous values so an error toast can roll the UI back. Using a
@@ -94,16 +105,20 @@ export function CoverHero({
     return () => window.removeEventListener(VN_COVER_CHANGED_EVENT, onChanged as EventListener);
   }, [vnId]);
 
+  const effectiveRemote = remoteFailed ? null : remote;
   return (
     <div className="group relative">
       <SafeImage
-        src={remote}
+        src={effectiveRemote}
         localSrc={local}
         alt={alt}
         sexual={sexual}
         rotation={rotation}
         className={className}
         priority
+        onLoadError={() => {
+          if (!remoteFailed && local) setRemoteFailed(true);
+        }}
       />
       {inCollection && <CoverEditOverlay vnId={vnId} />}
       {/*

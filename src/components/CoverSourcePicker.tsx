@@ -413,6 +413,7 @@ export function CoverSourcePicker({
                 active={tab === 'egs'}
                 onClick={() => setTab('egs')}
                 disabled={!egsId}
+                title={!egsId ? t.coverPicker.egsDisabledNoImage : undefined}
                 id={egsTabId}
                 controls={egsPanelId}
               >
@@ -567,6 +568,7 @@ function TabButton({
   active,
   onClick,
   disabled,
+  title,
   id,
   controls,
   children,
@@ -574,6 +576,7 @@ function TabButton({
   active: boolean;
   onClick: () => void;
   disabled?: boolean;
+  title?: string;
   id?: string;
   controls?: string;
   children: React.ReactNode;
@@ -583,6 +586,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={title}
       role="tab"
       id={id}
       aria-controls={controls}
