@@ -15,16 +15,22 @@ export interface StockSummaryEntry {
 
 type Listener = (entry: StockSummaryEntry | null) => void;
 
+interface CacheRecord {
+  entry: StockSummaryEntry | null;
+  at: number;
+}
+
 const COALESCE_MS = 60;
 const CACHE_MAX = 500;
-const cache = new Map<string, StockSummaryEntry | null>();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const cache = new Map<string, CacheRecord>();
 const listeners = new Map<string, Set<Listener>>();
 let queue = new Set<string>();
 let queueTimer: ReturnType<typeof setTimeout> | null = null;
 
 function cachePut(vnId: string, entry: StockSummaryEntry | null) {
   if (cache.has(vnId)) cache.delete(vnId);
-  cache.set(vnId, entry);
+  cache.set(vnId, { entry, at: Date.now() });
   while (cache.size > CACHE_MAX) {
     const oldest = cache.keys().next().value;
     if (oldest === undefined) break;
@@ -32,9 +38,19 @@ function cachePut(vnId: string, entry: StockSummaryEntry | null) {
   }
 }
 
-function cacheTouch(vnId: string, entry: StockSummaryEntry | null) {
+function cacheTouch(vnId: string, record: CacheRecord) {
   cache.delete(vnId);
-  cache.set(vnId, entry);
+  cache.set(vnId, record);
+}
+
+function cacheGet(vnId: string): CacheRecord | undefined {
+  const record = cache.get(vnId);
+  if (record === undefined) return undefined;
+  if (Date.now() - record.at > CACHE_TTL_MS) {
+    cache.delete(vnId);
+    return undefined;
+  }
+  return record;
 }
 
 function notify(vnId: string, entry: StockSummaryEntry | null) {
@@ -73,12 +89,11 @@ export function subscribeStockSummary(vnId: string, listener: Listener): () => v
   set.add(listener);
   listeners.set(vnId, set);
   let alive = true;
-  const cached = cache.get(vnId);
+  const cached = cacheGet(vnId);
   if (cached !== undefined) {
-    // Promote to MRU so an active subscriber's entry doesn't get
-    // evicted by unrelated cache churn.
+    const entry = cached.entry;
     cacheTouch(vnId, cached);
-    queueMicrotask(() => { if (alive) listener(cached); });
+    queueMicrotask(() => { if (alive) listener(entry); });
   } else {
     queue.add(vnId);
     if (!queueTimer) queueTimer = setTimeout(flushQueue, COALESCE_MS);
