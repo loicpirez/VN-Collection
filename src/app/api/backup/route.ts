@@ -18,12 +18,6 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const dir = await mkdtemp(join(tmpdir(), 'vndb-backup-'));
   const tmpPath = join(dir, 'snapshot.db');
-  // Helper: blow away the whole tmp directory. Use this on every exit
-  // path so a backup() failure or a Readable.toWeb() throw doesn't
-  // leave the directory behind (the file alone would be unlinked by
-  // the `close` listener, but the *directory* never was — a long-
-  // running process would accumulate empty dirs in /tmp under
-  // repeated backup pulls).
   const cleanupDir = (): void => {
     rm(dir, { recursive: true, force: true }).catch(() => undefined);
   };
@@ -53,8 +47,6 @@ export async function GET(req: Request): Promise<NextResponse> {
   });
 
   const nodeStream = createReadStream(tmpPath);
-  // Unlink the file then the directory once the read stream closes.
-  // Also handle stream error so a failed pipe doesn't leak.
   const cleanup = (): void => {
     unlink(tmpPath).catch(() => undefined).finally(() => cleanupDir());
   };
@@ -73,8 +65,10 @@ export async function GET(req: Request): Promise<NextResponse> {
       },
     });
   } catch (e) {
+    nodeStream.off('close', cleanup);
+    nodeStream.off('error', cleanup);
     nodeStream.destroy();
-    cleanupDir();
+    cleanup();
     console.error('[backup] stream conversion failed:', (e as Error).message);
     return NextResponse.json({ error: 'backup failed' }, { status: 500 });
   }

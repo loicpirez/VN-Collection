@@ -9,11 +9,9 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * AliceNet Kobe stock code shape — `###-######-###` (3-6-3 digits).
- * Validating up-front means `recordActivity` (which stores `code` in
- * `user_activity.entity_id` + `label`) never persists attacker-shaped
- * input. Defence-in-depth — the underlying DB helpers are no-ops for
- * unknown codes, but the audit row would still leak.
+ * Canonical Alice Kobe stock code shape: three digits, dash, six digits,
+ * dash, three digits (`000-000000-000`). Mirrors the row filter in
+ * `parseAliceKobeHtml` (`lib/alicesoft-kobe.ts`), the source of every code.
  */
 const KOBE_CODE_RE = /^\d{3}-\d{6}-\d{3}$/;
 
