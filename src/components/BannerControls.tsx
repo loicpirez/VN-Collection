@@ -52,7 +52,9 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
       toast.success(t.toast.bannerReset);
       startTransition(() => router.refresh());
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }

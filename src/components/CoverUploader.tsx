@@ -56,7 +56,9 @@ export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
       toast.success(t.toast.coverReset);
       startTransition(() => router.refresh());
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
