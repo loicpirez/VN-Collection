@@ -230,8 +230,8 @@ if [ -n "$VN_HTML" ]; then
   # catch the regression where one group disappears entirely.
   assert_at_least "dropdown triggers (aria-haspopup=\"menu\")" \
     "$VN_HTML" 'aria-haspopup="menu"' 5
-  assert_at_least "right-anchored danger button (btn-danger)" \
-    "$VN_HTML" 'class="[^"]*btn-danger' 1
+  assert_at_least "remove-from-collection danger button (any locale)" \
+    "$VN_HTML" 'title="(Retirer de la collection|Remove from collection|コレクションから削除)"' 1
   # Inline primary buttons. The rendered class string varies (`btn`,
   # `btn-sm`, `favorite`, `wishlist`, `queue`, `lists`), but the
   # primary cluster is rendered inside a single nav region with
