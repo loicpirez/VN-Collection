@@ -100,11 +100,11 @@ export function RelationsSection({ relations }: Props) {
         const label = t.relations.types[relation as keyof typeof t.relations.types] ?? relation;
         return (
           <section key={relation}>
-            <h4 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted">
+            <h3 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted">
               <GitMerge className="h-3 w-3 text-accent" aria-hidden />
               {label}
               <span className="opacity-70">· {rels.length}</span>
-            </h4>
+            </h3>
             <div
               className="grid gap-4"
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}

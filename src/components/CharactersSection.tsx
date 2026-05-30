@@ -59,7 +59,7 @@ const CharacterCard = memo(function CharacterCard({
             title={c.name}
             className="truncate text-sm font-bold hover:text-accent"
           >
-            <h4 className="truncate">{c.name}</h4>
+            <h3 className="truncate">{c.name}</h3>
           </Link>
           <span className="rounded-md bg-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">
             {roleLabel}
@@ -104,9 +104,20 @@ function ageString(ch: VndbCharacter, t: ReturnType<typeof useT>): string[] {
   return out;
 }
 
-export function CharactersSection({ vnId }: { vnId: string }) {
+/**
+ * Character grid for a VN detail page.
+ *
+ * @param vnId - VN whose characters are fetched and rendered.
+ * @param spoilOverride - Optional `?spoil=` deep-link level (0/1/2). When
+ *   provided it seeds the initial trait-spoiler reveal in place of the
+ *   global `settings.spoilerLevel`, so a `?spoil=2` link surfaces every
+ *   character-trait spoiler. `null`/`undefined` leaves behavior unchanged.
+ *   The per-chip Hide/Show toggle stays independent of this value.
+ */
+export function CharactersSection({ vnId, spoilOverride }: { vnId: string; spoilOverride?: 0 | 1 | 2 | null }) {
   const t = useT();
   const { settings } = useDisplaySettings();
+  const effectiveSpoilerLevel = spoilOverride ?? settings.spoilerLevel;
   const [chars, setChars] = useState<VnCharacterRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -167,7 +178,7 @@ export function CharactersSection({ vnId }: { vnId: string }) {
               key={c.id}
               c={c}
               t={t}
-              spoilerLevel={settings.spoilerLevel}
+              spoilerLevel={effectiveSpoilerLevel}
               showSexual={settings.showSexualTraits}
             />
           ))}

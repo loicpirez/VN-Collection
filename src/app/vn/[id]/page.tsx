@@ -866,7 +866,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
 
         {(vn.screenshots.length > 0 || vn.release_images.length > 0) && (
           <div className="border-t border-border px-3 py-4 sm:px-6 sm:py-6 md:px-8">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.media.section}</h3>
+            <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.media.section}</h2>
             <MediaGallery vnId={vn.id} screenshots={vn.screenshots} releaseImages={vn.release_images} />
           </div>
         )}
@@ -994,7 +994,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         if (egsRow) {
           sectionNodes['egs-details'] = <EgsRichDetails vnId={vn.id} />;
         }
-        sectionNodes['characters'] = <CharactersSection vnId={vn.id} />;
+        sectionNodes['characters'] = <CharactersSection vnId={vn.id} spoilOverride={spoilOverride} />;
         if ((vn.va ?? []).length > 0) {
           sectionNodes['cast'] = <CastSection va={vn.va ?? []} />;
         }
