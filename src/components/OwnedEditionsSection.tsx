@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -156,9 +156,12 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
   // pencil icon themselves — the popover's "Choisir la plateforme"
   // action would feel half-done.
   const searchParams = useSearchParams();
+  const appliedDeepLinkRef = useRef<string | null>(null);
   useEffect(() => {
     const editRel = searchParams.get('edit_release');
-    if (editRel && owned.some((o) => o.release_id === editRel)) {
+    if (!editRel || appliedDeepLinkRef.current === editRel) return;
+    if (owned.some((o) => o.release_id === editRel)) {
+      appliedDeepLinkRef.current = editRel;
       setEditingId(editRel);
     }
   }, [searchParams, owned]);
@@ -299,12 +302,12 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
   return (
     <div>
       <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6">
-        <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+        <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <Package className="h-4 w-4 text-accent" /> {t.inventory.section}
           {owned.length > 0 && (
             <span className="text-[11px] font-normal text-muted">· {owned.length}</span>
           )}
-        </h3>
+        </h2>
         <button
           type="button"
           onClick={() => setAdderOpen((v) => !v)}

@@ -389,8 +389,6 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       });
   }, [characters, usedNames, vnId]);
 
-  if (!inCollection) return null;
-
   const add = useCallback(async (name: string): Promise<boolean> => {
     setBusy(true);
     setError(null);
@@ -537,6 +535,8 @@ export function RoutesSection({ vnId, inCollection }: Props) {
 
   const moveUp = useCallback((id: number) => move(id, -1), [move]);
   const moveDown = useCallback((id: number) => move(id, 1), [move]);
+
+  if (!inCollection) return null;
 
   const completed = routes.filter((r) => r.completed).length;
   const total = routes.length;

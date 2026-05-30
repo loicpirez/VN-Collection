@@ -805,7 +805,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 Summary-vs-All + spoiler-mode toggle. The original
                 <VnTagChips> stays available as the compact card
                 fallback (see SearchClient.tsx / VnCard.tsx). */}
-            <VnTagsGroupedView tags={vn.tags ?? []} />
+            <VnTagsGroupedView tags={vn.tags ?? []} spoilOverride={spoilOverride} />
 
             {/*
               The detail-page action bar used to be a flat `flex-wrap`

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
 import { useT, useLocale } from '@/lib/i18n/client';
@@ -18,6 +18,21 @@ import {
 
 interface Props {
   tags: RawVnTag[];
+  /**
+   * Initial spoiler-mode seed sourced from the `?spoil=` deep link
+   * (0/1/2). When provided it wins over the global spoiler setting on
+   * mount so a `?spoil=2` link reveals every spoiler without flipping
+   * the user's saved preference. `null`/`undefined` leaves the
+   * settings-derived behavior unchanged. The session-local toggle
+   * chips still override it once the operator clicks one.
+   */
+  spoilOverride?: 0 | 1 | 2 | null;
+}
+
+function levelToSpoilerMode(level: number): TagSpoilerMode {
+  if (level === 2) return 'all';
+  if (level === 1) return 'minor';
+  return 'none';
 }
 
 /**
@@ -40,7 +55,7 @@ interface Props {
  * `tags{…}` — only the per-VN rating/spoiler/lie/category triple.
  * See `lib/vndb.ts:TAG_FULL_SUB` for the exact subselection.
  */
-export function VnTagsGroupedView({ tags }: Props) {
+export function VnTagsGroupedView({ tags, spoilOverride }: Props) {
   const t = useT();
   const { settings } = useDisplaySettings();
   // Local UI state — neither the view mode nor the spoiler mode is
@@ -48,15 +63,16 @@ export function VnTagsGroupedView({ tags }: Props) {
   // operator makes while reading. The global spoiler setting still
   // governs sexual / lie gating via SpoilerChip.
   const [view, setView] = useState<TagViewMode>('summary');
-  const [spoilerMode, setSpoilerMode] = useState<TagSpoilerMode>(() => {
-    if (settings.spoilerLevel === 2) return 'all';
-    if (settings.spoilerLevel === 1) return 'minor';
-    return 'none';
-  });
+  const [spoilerMode, setSpoilerMode] = useState<TagSpoilerMode>(() =>
+    levelToSpoilerMode(spoilOverride ?? settings.spoilerLevel),
+  );
+  const deepLinkSeededRef = useRef(spoilOverride != null);
   useEffect(() => {
-    if (settings.spoilerLevel === 2) setSpoilerMode('all');
-    else if (settings.spoilerLevel === 1) setSpoilerMode('minor');
-    else setSpoilerMode('none');
+    if (deepLinkSeededRef.current) {
+      deepLinkSeededRef.current = false;
+      return;
+    }
+    setSpoilerMode(levelToSpoilerMode(settings.spoilerLevel));
   }, [settings.spoilerLevel]);
 
   if (!tags || tags.length === 0) return null;
