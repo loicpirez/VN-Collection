@@ -8,6 +8,7 @@ import { DateInput } from './DateInput';
 import { SkeletonBlock } from './Skeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { CollapsibleSummary } from './CollapsibleSummary';
+import { ErrorAlert } from './ErrorAlert';
 import { fmtNum } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -47,6 +48,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [state, setState] = useState<State | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingLabel, setPendingLabel] = useState<number | null>(null);
   const [pendingClear, setPendingClear] = useState(false);
@@ -58,9 +60,10 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
       const d = (await r.json()) as State & { needsAuth?: boolean };
       if (signal?.aborted) return;
       setState({ entry: d.entry, labels: d.labels ?? [], needsAuth: !!d.needsAuth });
+      setError(null);
     } catch (e) {
       if ((e as Error).name === 'AbortError' || signal?.aborted) return;
-      // Silent — panel just hides itself if VNDB is unreachable.
+      setError((e as Error).message || t.common.error);
     }
   }, [vnId, t.common.error]);
 
@@ -73,12 +76,30 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     return () => ctrl.abort();
   }, [load]);
 
+  const reload = useCallback(() => {
+    setLoading(true);
+    load().finally(() => setLoading(false));
+  }, [load]);
+
   if (loading) {
     return (
       <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
         <SkeletonBlock className="mb-3 h-4 w-32" />
         <SkeletonBlock className="mb-2 h-3 w-full" />
         <SkeletonBlock className="h-3 w-3/4" />
+      </section>
+    );
+  }
+  if (error) {
+    return (
+      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+        <ErrorAlert title={t.common.error}>
+          {error}
+          <button type="button" onClick={reload} className="btn btn-sm mt-2">
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            {t.common.retry}
+          </button>
+        </ErrorAlert>
       </section>
     );
   }
