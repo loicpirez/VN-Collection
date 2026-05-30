@@ -2,7 +2,8 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Loader2, X } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { isoCalendarDay } from '@/lib/locale-number';
 import { useToast } from './ToastProvider';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -21,6 +22,7 @@ interface Props {
  */
 export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinutes }: Props) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
@@ -40,7 +42,7 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
       const r = await fetch(`/api/collection/${vnId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed', finished_date: new Date().toISOString().slice(0, 10) }),
+        body: JSON.stringify({ status: 'completed', finished_date: isoCalendarDay(new Date(), locale) }),
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.toast.saved);

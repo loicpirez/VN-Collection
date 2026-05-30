@@ -24,6 +24,24 @@ export function fmtDate(d: Date, locale: Locale, opts?: Intl.DateTimeFormatOptio
   return d.toLocaleString(BCP47[locale], opts);
 }
 
+/**
+ * Render a `Date` as the `YYYY-MM-DD` calendar day in the user's active
+ * locale/zone, for storage fields the API validates as an ISO date.
+ * Unlike `Date#toISOString().slice(0, 10)` this reads the day in the
+ * locale's own time zone, so a "today" captured just before local
+ * midnight no longer drifts a day forward into UTC.
+ */
+export function isoCalendarDay(date: Date, locale: Locale): string {
+  const parts = new Intl.DateTimeFormat(BCP47[locale], {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
 /** Format a VNDB partial date without inventing missing precision. */
 export function formatVndbDateString(raw: string | null | undefined, locale: Locale): string {
   const value = raw?.trim();
