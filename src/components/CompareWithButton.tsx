@@ -125,6 +125,7 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
           <input
             ref={filterRef}
             type="text"
+            inputMode="search"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder={t.compareWith.searchPlaceholder}

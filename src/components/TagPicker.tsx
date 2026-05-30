@@ -147,6 +147,7 @@ export function TagPicker({
         <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted" aria-hidden />
         <input
           type="text"
+          inputMode="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t.tagPicker.searchPlaceholder}

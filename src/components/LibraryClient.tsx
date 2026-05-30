@@ -163,6 +163,7 @@ const SearchInput = memo(function SearchInput({
     <div className="relative min-w-[180px] flex-1">
       <input
         data-vn-search
+        inputMode="search"
         className="input w-full pr-8"
         placeholder={placeholder}
         aria-label={placeholder}

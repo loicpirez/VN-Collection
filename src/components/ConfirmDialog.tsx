@@ -217,6 +217,7 @@ function ConfirmDialog({
       <div
         ref={dialogRef}
         className="w-full max-w-md rounded-t-2xl border border-border bg-bg-card shadow-card sm:rounded-2xl"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
@@ -369,6 +370,7 @@ function PromptDialog({
       <div
         ref={dialogRef}
         className="w-full max-w-md rounded-t-2xl border border-border bg-bg-card shadow-card sm:rounded-2xl"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">

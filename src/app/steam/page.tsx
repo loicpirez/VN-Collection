@@ -372,6 +372,7 @@ export default function SteamSyncPage() {
                     <Search className="h-3 w-3 text-muted" />
                     <input
                       type="search"
+                      inputMode="search"
                       value={query}
                       onChange={(e) => searchAssign(g.appid, e.target.value)}
                       placeholder={t.steam.assignPlaceholder}

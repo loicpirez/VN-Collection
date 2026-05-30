@@ -56,6 +56,7 @@ export function SchemaBrowser({ schema }: Props) {
         <span className="sr-only">{t.schemaPage.filterPlaceholder}</span>
         <input
           type="search"
+          inputMode="search"
           value={rawQuery}
           onChange={(e) => setRawQuery(e.target.value)}
           placeholder={t.schemaPage.filterPlaceholder}

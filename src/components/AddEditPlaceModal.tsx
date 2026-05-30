@@ -209,6 +209,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
                 type="button"
                 onClick={geocode}
                 disabled={geocoding}
+                aria-label={t.places.geocodeButton as string}
                 className="btn btn-sm bg-bg-elev text-muted hover:text-white"
               >
                 <Search className="h-3.5 w-3.5" aria-hidden />

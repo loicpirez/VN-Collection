@@ -1000,6 +1000,7 @@ function EditionPicker({
         <div className="mb-3 space-y-2">
           <input
             type="search"
+            inputMode="search"
             className="input w-full text-xs"
             placeholder={t.inventory.pickerSearchPlaceholder}
             value={search}

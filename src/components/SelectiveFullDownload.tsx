@@ -269,6 +269,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted" aria-hidden />
           <input
             type="text"
+            inputMode="search"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             aria-label={t.selectiveFullDownload.searchPlaceholder}

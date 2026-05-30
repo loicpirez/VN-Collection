@@ -289,8 +289,9 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
               className="btn btn-primary"
               disabled={!seriesPickerId}
               onClick={() => seriesPickerId && addSeries(Number(seriesPickerId))}
+              aria-label={t.detail.addToSeries}
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4" aria-hidden />
             </button>
           </div>
         )}

@@ -731,6 +731,8 @@ const SearchInput = memo(function SearchInput({
       )}
       <input
         ref={inputRef}
+        type="search"
+        inputMode="search"
         className="input pl-9"
         placeholder={placeholder}
         aria-label={placeholder}

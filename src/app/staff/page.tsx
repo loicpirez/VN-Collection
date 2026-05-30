@@ -167,6 +167,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
         <form method="get" className="mt-4 flex flex-wrap items-center gap-2">
           <input
             type="search"
+            inputMode="search"
             name="q"
             defaultValue={query}
             placeholder={t.staffSearch.searchPlaceholder}

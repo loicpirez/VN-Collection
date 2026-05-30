@@ -49,6 +49,8 @@ export default async function QuotesPage({
         <form action="/quotes" className="mt-3 flex max-w-md items-center gap-2">
           <Search className="h-4 w-4 text-muted" aria-hidden />
           <input
+            type="search"
+            inputMode="search"
             name="q"
             defaultValue={q ?? ''}
             placeholder={t.quotesPage.searchPlaceholder}

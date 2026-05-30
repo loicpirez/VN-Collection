@@ -236,6 +236,8 @@ export default async function ActivityPage({ searchParams }: PageProps) {
               <Search className="h-3 w-3" aria-hidden /> {t.userActivity.search}
             </span>
             <input
+              type="search"
+              inputMode="search"
               name="q"
               defaultValue={q}
               className="input w-full"

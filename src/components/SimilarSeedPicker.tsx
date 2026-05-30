@@ -243,6 +243,7 @@ export function SimilarSeedPicker({
               ref={inputRef}
               id={inputId}
               type="text"
+              inputMode="search"
               role="combobox"
               aria-expanded={open && hits.length > 0}
               aria-autocomplete="list"
