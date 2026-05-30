@@ -37,6 +37,7 @@ const ClearCacheModal = dynamic(() => import('./stock/ClearCacheModal').then((m)
 });
 import { SkeletonRows } from './Skeleton';
 import { useConfirm } from './ConfirmDialog';
+import { useToast } from './ToastProvider';
 import { ErrorAlert } from './ErrorAlert';
 
 interface StockOffer {
@@ -158,6 +159,7 @@ export function StockPanel({
   const locale = useLocale();
   const router = useRouter();
   const { confirm } = useConfirm();
+  const toast = useToast();
   const [snapshot, setSnapshot] = useState<StockSnapshot | null>(initialSnapshot ?? null);
   const [loading, setLoading] = useState(!initialSnapshot);
   const [refreshing, setRefreshing] = useState(false);
@@ -355,19 +357,23 @@ export function StockPanel({
         const data = (await r.json()) as { aliases?: string[]; error?: string };
         if (r.ok) {
           setAliases(data.aliases ?? []);
+          toast.success(t.stock.aliasAddedToast);
           return true;
         }
         if (Array.isArray(data.aliases)) setAliases(data.aliases);
         setAliasError(data.error ?? t.common.error);
+        toast.error(data.error ?? t.common.error);
         return false;
       } catch (e) {
-        setAliasError(e instanceof Error && e.message ? e.message : t.common.error);
+        const message = e instanceof Error && e.message ? e.message : t.common.error;
+        setAliasError(message);
+        toast.error(message);
         return false;
       } finally {
         setAliasLoading(false);
       }
     },
-    [vnId, t.common.error],
+    [vnId, t.common.error, t.stock.aliasAddedToast, toast],
   );
 
   async function removeAlias(term: string) {
@@ -386,11 +392,16 @@ export function StockPanel({
       if (r.ok) {
         const data = (await r.json()) as { aliases: string[] };
         setAliases(data.aliases ?? []);
+        toast.success(t.stock.aliasRemovedToast);
       } else {
-        setAliasError(await readApiError(r, t.common.error));
+        const message = await readApiError(r, t.common.error);
+        setAliasError(message);
+        toast.error(message);
       }
     } catch (e) {
-      setAliasError(e instanceof Error && e.message ? e.message : t.common.error);
+      const message = e instanceof Error && e.message ? e.message : t.common.error;
+      setAliasError(message);
+      toast.error(message);
     } finally {
       setAliasLoading(false);
     }
@@ -408,15 +419,18 @@ export function StockPanel({
         });
         if (!r.ok) throw new Error(await readApiError(r, t.stock.manualSourceUnsupported));
         setSnapshot((await r.json()) as StockSnapshot);
+        toast.success(t.stock.manualSourceAddedToast);
         return true;
       } catch (e) {
-        setSourceError(e instanceof Error && e.message ? e.message : t.common.error);
+        const message = e instanceof Error && e.message ? e.message : t.common.error;
+        setSourceError(message);
+        toast.error(message);
         return false;
       } finally {
         setSourceLoading(false);
       }
     },
-    [vnId, t.common.error, t.stock.manualSourceUnsupported],
+    [vnId, t.common.error, t.stock.manualSourceUnsupported, t.stock.manualSourceAddedToast, toast],
   );
 
   async function removeSource(id: number) {
@@ -435,8 +449,11 @@ export function StockPanel({
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       setSnapshot((await r.json()) as StockSnapshot);
+      toast.success(t.stock.manualSourceDeletedToast);
     } catch (e) {
-      setSourceError(e instanceof Error && e.message ? e.message : t.common.error);
+      const message = e instanceof Error && e.message ? e.message : t.common.error;
+      setSourceError(message);
+      toast.error(message);
     } finally {
       setSourceLoading(false);
     }
@@ -461,11 +478,16 @@ export function StockPanel({
           setSnapshot(null);
           await load();
         }
+        toast.success(t.stock.cacheClearedToast);
       } else {
-        setError(await readApiError(r, t.common.error));
+        const message = await readApiError(r, t.common.error);
+        setError(message);
+        toast.error(message);
       }
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : t.common.error);
+      const message = e instanceof Error && e.message ? e.message : t.common.error;
+      setError(message);
+      toast.error(message);
     } finally {
       setClearingCache(false);
     }
