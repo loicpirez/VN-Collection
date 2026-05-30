@@ -579,11 +579,7 @@ export function WishlistClient() {
             <button
               type="button"
               onClick={() => (selectMode ? clearSelection() : setSelectMode(true))}
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
-                selectMode
-                  ? 'border-accent bg-accent/10 text-accent'
-                  : 'border-border bg-bg-elev/50 text-muted hover:border-accent hover:text-accent'
-              }`}
+              className={`btn btn-xs ${selectMode ? 'btn-primary' : ''}`}
               title={t.wishlist.selectMode}
             >
               <CheckSquare className="h-3 w-3" aria-hidden />
@@ -621,7 +617,7 @@ export function WishlistClient() {
                 </button>
               )}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {availableLanguages.length > 0 && (
                 <select
                   value={filterLang}
