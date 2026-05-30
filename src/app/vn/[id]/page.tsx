@@ -273,12 +273,13 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   }
   const inCol = isInCollection(id);
   const displayTitle = displayTitleForVn(vn);
-  const displayAltTitle =
+  const resolvedAltTitle =
     vn.alttitle && vn.alttitle !== displayTitle
       ? vn.alttitle
       : displayTitle !== vn.title
         ? vn.title
         : vn.alttitle;
+  const displayAltTitle = resolvedAltTitle !== displayTitle ? resolvedAltTitle : undefined;
   const allSeries = listSeries();
   const listsForThisVn = listListsForVn(id);
   if (isVndbVnId(vn.id)) {
@@ -661,8 +662,9 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                     <dd className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <a
                         href="#section-aspect-override"
-                        className={`font-semibold transition-colors hover:text-accent ${isUnknown ? 'text-muted' : 'text-white'}`}
+                        className={`font-semibold transition-colors hover:text-accent ${isUnknown ? 'text-muted' : 'text-white underline decoration-dotted underline-offset-2'}`}
                         title={t.detail.aspectScrollHint}
+                        aria-label={t.detail.aspectScrollHint}
                       >
                         {allAspects}
                       </a>
@@ -862,7 +864,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
 
         {(vn.screenshots.length > 0 || vn.release_images.length > 0) && (
           <div className="border-t border-border px-3 py-4 sm:px-6 sm:py-6 md:px-8">
-            <h2 className="mb-3 text-base font-bold uppercase tracking-widest text-muted">{t.media.section}</h2>
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.media.section}</h3>
             <MediaGallery vnId={vn.id} screenshots={vn.screenshots} releaseImages={vn.release_images} />
           </div>
         )}
@@ -897,8 +899,8 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               notes={vn.notes}
               emptyLabel={t.form.notesEmpty}
               titleLabel={t.form.personalNotes}
-              showLabel={t.detail.scoreShowBreakdown}
-              hideLabel={t.detail.scoreHideBreakdown}
+              showLabel={t.vnLayout.expand}
+              hideLabel={t.vnLayout.collapse}
             />
           );
         }
@@ -999,9 +1001,9 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-bold uppercase tracking-widest text-muted">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-muted">
                     {t.similar.sectionTitle}
-                  </h2>
+                  </h3>
                   <p className="mt-1 text-xs text-muted/80">{t.similar.sectionHint}</p>
                 </div>
                 <Link
