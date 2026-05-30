@@ -118,8 +118,9 @@ export function TutorialTour() {
       role="dialog"
       aria-modal="false"
       aria-labelledby={titleId}
+      tabIndex={-1}
       style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
-      className="fixed bottom-16 right-4 z-50 w-[min(92vw,420px)] rounded-2xl border border-accent/40 bg-bg-card p-5 shadow-card sm:bottom-4"
+      className="fixed bottom-16 right-4 z-50 w-[min(92vw,420px)] rounded-2xl border border-accent/40 bg-bg-card p-5 shadow-card outline-none sm:bottom-4"
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span id={titleId} className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
