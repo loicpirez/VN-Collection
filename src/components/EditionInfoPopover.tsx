@@ -237,7 +237,7 @@ export function EditionInfoTrigger({
           aria-label={ariaLabel}
           onPointerDown={stop}
           onMouseDown={stop}
-          className={`absolute z-30 w-max min-w-[180px] max-w-[calc(100vw-2rem)] sm:max-w-[280px] rounded-lg border border-border bg-bg-card p-2 text-[11px] shadow-card ${
+          className={`absolute z-30 w-max min-w-[150px] sm:min-w-[180px] max-w-[calc(100vw-2rem)] sm:max-w-[280px] rounded-lg border border-border bg-bg-card p-2 text-[11px] shadow-card ${
             placement.vertical === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'
           } ${placement.horizontal === 'right' ? 'right-0' : 'left-0'} ${
             placed ? 'visible opacity-100' : 'invisible opacity-0'

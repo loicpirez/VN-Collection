@@ -133,6 +133,8 @@
     width: 100%;
     max-width: var(--page-space-max-width, 80rem);
     margin-inline: auto;
+    min-width: 0;
+    overflow-x: clip;
     padding-left: max(var(--page-space-gutter-base, 0.75rem), env(safe-area-inset-left));
     padding-right: max(var(--page-space-gutter-base, 0.75rem), env(safe-area-inset-right));
   }
