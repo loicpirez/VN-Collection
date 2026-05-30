@@ -100,7 +100,7 @@ export function KobeLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
             <h2 id={titleId} className="text-base font-bold">{t.kobe.kobeFindMatch}</h2>
             <p className="mt-1 truncate text-[11px] text-muted" title={item.title}>{item.title}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label={t.common.close} className="text-muted hover:text-white">
+          <button type="button" onClick={onClose} aria-label={t.common.close} className="tap-target rounded-md p-1 text-muted hover:bg-bg-elev hover:text-white">
             <X className="h-4 w-4" />
           </button>
         </header>
