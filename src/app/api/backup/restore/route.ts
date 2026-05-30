@@ -3,6 +3,7 @@ import { restoreFromSqliteFile } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
+import { reparseWithLimit, PayloadTooLargeError } from '@/lib/read-limited-body';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -25,7 +26,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
   const tooLarge = precheckContentLength(req, MAX_UPLOAD_BYTES);
   if (tooLarge) return tooLarge;
-  const fd = await req.formData();
+  let bounded: Request;
+  try {
+    bounded = await reparseWithLimit(req, MAX_UPLOAD_BYTES);
+  } catch (e) {
+    if (e instanceof PayloadTooLargeError) {
+      return NextResponse.json(
+        { error: `file too large (max ${MAX_UPLOAD_BYTES} bytes)` },
+        { status: 413 },
+      );
+    }
+    throw e;
+  }
+  const fd = await bounded.formData();
   const file = fd.get('file');
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'missing file' }, { status: 400 });

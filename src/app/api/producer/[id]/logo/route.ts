@@ -5,6 +5,7 @@ import { getProducer as fetchProducer } from '@/lib/vndb';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
+import { reparseWithLimit, PayloadTooLargeError } from '@/lib/read-limited-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +31,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
   }
 
-  const fd = await req.formData().catch(() => null);
+  let bounded: Request;
+  try {
+    bounded = await reparseWithLimit(req, MAX_LOGO_BYTES);
+  } catch (e) {
+    if (e instanceof PayloadTooLargeError) {
+      return NextResponse.json({ error: 'file too large (max 5MB)' }, { status: 413 });
+    }
+    throw e;
+  }
+  const fd = await bounded.formData().catch(() => null);
   if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
   const file = fd.get('file');
   if (!(file instanceof File)) return NextResponse.json({ error: 'missing file' }, { status: 400 });

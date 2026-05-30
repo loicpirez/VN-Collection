@@ -3,6 +3,7 @@ import { getSeries, updateSeries } from '@/lib/db';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
+import { reparseWithLimit, PayloadTooLargeError } from '@/lib/read-limited-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const runtime = 'nodejs';
@@ -36,7 +37,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!ct.startsWith('multipart/form-data')) {
     return NextResponse.json({ error: 'expected multipart/form-data' }, { status: 400 });
   }
-  const fd = await req.formData().catch(() => null);
+  let bounded: Request;
+  try {
+    bounded = await reparseWithLimit(req, MAX_SERIES_IMAGE_BYTES);
+  } catch (e) {
+    if (e instanceof PayloadTooLargeError) {
+      return NextResponse.json({ error: 'file too large (max 15MB)' }, { status: 413 });
+    }
+    throw e;
+  }
+  const fd = await bounded.formData().catch(() => null);
   if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
   const file = fd.get('file');
   const kindRaw = fd.get('kind');
