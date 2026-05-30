@@ -439,7 +439,7 @@ export default async function ComparePage({
 
 function CellHead({ label }: { label: string }) {
   return (
-    <div className="sticky left-0 bg-bg-elev/60 p-3 text-[10px] font-bold uppercase tracking-wider text-muted">
+    <div className="sticky left-0 z-10 bg-bg-elev p-3 text-[10px] font-bold uppercase tracking-wider text-muted">
       {label}
     </div>
   );

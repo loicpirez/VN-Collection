@@ -125,57 +125,128 @@ function ProducerTable({
 }) {
   const roleHeader = role === 'publisher' ? t.detail.publishers : t.detail.developers;
   return (
-    <div className="scroll-fade-right overflow-x-auto rounded-2xl border border-border bg-bg-card">
-      <table className="w-full min-w-[640px] text-sm" aria-label={roleHeader}>
-        <thead className="bg-bg-elev/60 text-left text-xs uppercase tracking-wider text-muted">
-          <tr>
-            <th scope="col" className="w-12 px-3 py-3 sm:px-4">#</th>
-            <th scope="col" className="px-3 py-3 sm:px-4">{roleHeader}</th>
-            <th scope="col" className="px-3 py-3 text-right sm:px-4">{t.producers.vnCount}</th>
-            <th scope="col" className="px-3 py-3 text-right sm:px-4">{t.producers.avgUserRating}</th>
-            <th scope="col" className="px-3 py-3 text-right sm:px-4">{t.producers.avgRating}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {producers.map((p, i) => {
-            const displayUserAvg = p.avg_user_rating != null ? fmtNum(p.avg_user_rating / 10, locale, 1) : '—';
-            const displayAvg = p.avg_rating != null ? fmtNum(p.avg_rating / 10, locale, 1) : '—';
-            return (
-              <tr key={p.id} className="border-t border-border hover:bg-bg-elev/30">
-                <td className="px-3 py-3 align-middle sm:px-4">
-                  {i === 0 ? (
-                    <Crown className="h-5 w-5 text-accent" aria-hidden />
-                  ) : (
-                    <span
-                      className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold ${
-                        i < 3 ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
-                      }`}
-                    >
-                      {i + 1}
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-3 align-middle sm:px-4">
-                  <Link href={`/producer/${p.id}`} className="flex items-center gap-3 hover:text-accent">
-                    <ProducerLogo producer={p} size={36} />
-                    <div className="min-w-0">
-                      <div className="font-semibold">{p.name}</div>
-                      {p.original && p.original !== p.name && (
-                        <div className="text-xs text-muted">{p.original}</div>
-                      )}
-                    </div>
-                  </Link>
-                </td>
-                <td className="px-3 py-3 text-right align-middle font-bold tabular-nums sm:px-4">{p.vn_count}</td>
-                <td className="px-3 py-3 text-right align-middle text-accent tabular-nums sm:px-4">
-                  {displayUserAvg}
-                </td>
-                <td className="px-3 py-3 text-right align-middle tabular-nums sm:px-4">{displayAvg}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <ul className="space-y-2 sm:hidden">
+        {producers.map((p, i) => (
+          <ProducerCard key={p.id} p={p} rank={i} t={t} locale={locale} />
+        ))}
+      </ul>
+      <div className="scroll-fade-right hidden overflow-x-auto rounded-2xl border border-border bg-bg-card sm:block">
+        <table className="w-full min-w-[640px] text-sm" aria-label={roleHeader}>
+          <thead className="bg-bg-elev/60 text-left text-xs uppercase tracking-wider text-muted">
+            <tr>
+              <th scope="col" className="w-12 px-3 py-3 sm:px-4">#</th>
+              <th scope="col" className="px-3 py-3 sm:px-4">{roleHeader}</th>
+              <th scope="col" className="px-3 py-3 text-right sm:px-4">{t.producers.vnCount}</th>
+              <th scope="col" className="px-3 py-3 text-right sm:px-4">{t.producers.avgUserRating}</th>
+              <th scope="col" className="px-3 py-3 text-right sm:px-4">{t.producers.avgRating}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {producers.map((p, i) => {
+              const displayUserAvg = p.avg_user_rating != null ? fmtNum(p.avg_user_rating / 10, locale, 1) : '—';
+              const displayAvg = p.avg_rating != null ? fmtNum(p.avg_rating / 10, locale, 1) : '—';
+              return (
+                <tr key={p.id} className="border-t border-border hover:bg-bg-elev/30">
+                  <td className="px-3 py-3 align-middle sm:px-4">
+                    {i === 0 ? (
+                      <Crown className="h-5 w-5 text-accent" aria-hidden />
+                    ) : (
+                      <span
+                        className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold ${
+                          i < 3 ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
+                        }`}
+                      >
+                        {i + 1}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 align-middle sm:px-4">
+                    <Link href={`/producer/${p.id}`} className="flex items-center gap-3 hover:text-accent">
+                      <ProducerLogo producer={p} size={36} />
+                      <div className="min-w-0">
+                        <div className="font-semibold">{p.name}</div>
+                        {p.original && p.original !== p.name && (
+                          <div className="text-xs text-muted">{p.original}</div>
+                        )}
+                      </div>
+                    </Link>
+                  </td>
+                  <td className="px-3 py-3 text-right align-middle font-bold tabular-nums sm:px-4">{p.vn_count}</td>
+                  <td className="px-3 py-3 text-right align-middle text-accent tabular-nums sm:px-4">
+                    {displayUserAvg}
+                  </td>
+                  <td className="px-3 py-3 text-right align-middle tabular-nums sm:px-4">{displayAvg}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Mobile (below `sm`) stacked card for one producer ranking row.
+ * Mirrors every datum the desktop table column shows (rank, logo,
+ * name plus original, VN count, and both average-rating figures) so no
+ * column is hidden on phones. The wide table is only mounted from `sm`
+ * upward.
+ */
+function ProducerCard({
+  p,
+  rank,
+  t,
+  locale,
+}: {
+  p: ProducerStat;
+  rank: number;
+  t: Awaited<ReturnType<typeof getDict>>;
+  locale: Awaited<ReturnType<typeof getLocale>>;
+}) {
+  const displayUserAvg = p.avg_user_rating != null ? fmtNum(p.avg_user_rating / 10, locale, 1) : '—';
+  const displayAvg = p.avg_rating != null ? fmtNum(p.avg_rating / 10, locale, 1) : '—';
+  return (
+    <li className="rounded-xl border border-border bg-bg-card p-3">
+      <div className="flex items-center gap-3">
+        <span className="shrink-0">
+          {rank === 0 ? (
+            <Crown className="h-5 w-5 text-accent" aria-hidden />
+          ) : (
+            <span
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold ${
+                rank < 3 ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
+              }`}
+            >
+              {rank + 1}
+            </span>
+          )}
+        </span>
+        <Link href={`/producer/${p.id}`} className="flex min-w-0 flex-1 items-center gap-3 hover:text-accent">
+          <ProducerLogo producer={p} size={36} />
+          <div className="min-w-0">
+            <div className="truncate font-semibold">{p.name}</div>
+            {p.original && p.original !== p.name && (
+              <div className="truncate text-xs text-muted">{p.original}</div>
+            )}
+          </div>
+        </Link>
+      </div>
+      <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-center text-xs">
+        <div>
+          <dt className="text-[10px] uppercase tracking-wider text-muted">{t.producers.vnCount}</dt>
+          <dd className="mt-0.5 font-bold tabular-nums">{p.vn_count}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] uppercase tracking-wider text-muted">{t.producers.avgUserRating}</dt>
+          <dd className="mt-0.5 font-bold tabular-nums text-accent">{displayUserAvg}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] uppercase tracking-wider text-muted">{t.producers.avgRating}</dt>
+          <dd className="mt-0.5 font-bold tabular-nums">{displayAvg}</dd>
+        </div>
+      </dl>
+    </li>
   );
 }

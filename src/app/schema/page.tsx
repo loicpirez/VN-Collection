@@ -85,7 +85,9 @@ export default async function SchemaPage() {
               {error}
             </p>
           ) : (
-            <SchemaBrowser schema={schema} />
+            <div className="overflow-x-auto">
+              <SchemaBrowser schema={schema} />
+            </div>
           )}
         </div>
       </section>
