@@ -11,6 +11,7 @@ import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
+import { reparseWithLimit, PayloadTooLargeError } from '@/lib/read-limited-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
@@ -47,7 +48,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (ct.startsWith('multipart/form-data')) {
     const tooLarge = precheckContentLength(req, MAX_BANNER_BYTES);
     if (tooLarge) return tooLarge;
-    const fd = await req.formData().catch(() => null);
+    let bounded: Request;
+    try {
+      bounded = await reparseWithLimit(req, MAX_BANNER_BYTES);
+    } catch (e) {
+      if (e instanceof PayloadTooLargeError) {
+        return NextResponse.json({ error: 'file too large (max 15MB)' }, { status: 413 });
+      }
+      throw e;
+    }
+    const fd = await bounded.formData().catch(() => null);
     if (!fd) return NextResponse.json({ error: 'invalid form data' }, { status: 400 });
     const file = fd.get('file');
     if (!(file instanceof File)) return NextResponse.json({ error: 'missing file' }, { status: 400 });
