@@ -69,7 +69,6 @@ export function MapVnToEgsButton({
 
   useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
 
-  // Pull current mapping state when the modal opens.
   useEffect(() => {
     if (!open) return;
     const ac = new AbortController();
@@ -87,15 +86,12 @@ export function MapVnToEgsButton({
           source: d.source,
         });
       } catch {
-        // Aborted on close; ignore.
+        return;
       }
     })();
     return () => ac.abort();
   }, [open, vnId]);
 
-  // Abort the in-flight EGS search when the user types again or the
-  // dialog closes; an older, slower response otherwise overwrites the
-  // candidate list with stale results.
   const searchAbortRef = useRef<AbortController | null>(null);
   const search = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -127,14 +123,13 @@ export function MapVnToEgsButton({
     }
   }, []);
 
-  const debouncedSearch = useDebouncedCallback((q: string) => search(q), 300);
+  const debouncedSearch = useDebouncedCallback((q: string) => void search(q), 300);
 
   useEffect(() => {
     if (!open) return;
     debouncedSearch(query);
   }, [open, query, debouncedSearch]);
 
-  // Cancel any in-flight search when the dialog unmounts.
   useEffect(() => () => {
     if (searchAbortRef.current) {
       searchAbortRef.current.abort();
