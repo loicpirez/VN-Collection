@@ -228,13 +228,16 @@ export function saveProxyConfig(
   }
 
   if ('protocol' in patch) {
-    if (!VALID_PROTOCOLS.has(patch.protocol as string))
+    if (typeof patch.protocol !== 'string') return 'protocol must be a string';
+    if (!VALID_PROTOCOLS.has(patch.protocol))
       return `protocol must be one of: ${[...VALID_PROTOCOLS].join(', ')}`;
-    next.protocol = patch.protocol as string;
+    next.protocol = patch.protocol;
   }
 
   if ('host' in patch) {
-    const h = ((patch.host as string) ?? '').trim();
+    if (patch.host != null && typeof patch.host !== 'string') return 'host must be a string';
+    if (typeof patch.host === 'string' && patch.host.length > 255) return 'host too long (max 255)';
+    const h = (typeof patch.host === 'string' ? patch.host : '').trim();
     if (h) {
       if (!/^[a-zA-Z0-9]([a-zA-Z0-9.\-]*[a-zA-Z0-9])?$/.test(h))
         return 'host must be a valid hostname';
@@ -266,7 +269,7 @@ export function saveProxyConfig(
   if ('password' in patch) {
     const pw = patch.password;
     if (pw != null && typeof pw !== 'string') return 'password must be a string';
-    if (typeof pw === 'string' && pw.length > 512) return 'password too long (max 512)';
+    if (typeof pw === 'string' && pw.length > 256) return 'password too long (max 256)';
     // Three intents resolve cleanly:
     // 1. `pw === null` → explicit clear (the "Clear" button in
     //    the Integrations UI). Drop the stored password.
@@ -307,13 +310,16 @@ export function saveStockProviderProxyConfig(
   }
 
   if ('protocol' in patch) {
-    if (!VALID_PROTOCOLS.has(patch.protocol as string))
+    if (typeof patch.protocol !== 'string') return 'protocol must be a string';
+    if (!VALID_PROTOCOLS.has(patch.protocol))
       return `protocol must be one of: ${[...VALID_PROTOCOLS].join(', ')}`;
-    next.protocol = patch.protocol as string;
+    next.protocol = patch.protocol;
   }
 
   if ('host' in patch) {
-    const h = ((patch.host as string) ?? '').trim();
+    if (patch.host != null && typeof patch.host !== 'string') return 'host must be a string';
+    if (typeof patch.host === 'string' && patch.host.length > 255) return 'host too long (max 255)';
+    const h = (typeof patch.host === 'string' ? patch.host : '').trim();
     if (h) {
       if (!/^[a-zA-Z0-9]([a-zA-Z0-9.\-]*[a-zA-Z0-9])?$/.test(h))
         return 'host must be a valid hostname';
@@ -345,7 +351,7 @@ export function saveStockProviderProxyConfig(
   if ('password' in patch) {
     const pw = patch.password;
     if (pw != null && typeof pw !== 'string') return 'password must be a string';
-    if (typeof pw === 'string' && pw.length > 512) return 'password too long (max 512)';
+    if (typeof pw === 'string' && pw.length > 256) return 'password too long (max 256)';
     // `pw === null` → explicit clear (Clear button). Empty string
     // / mask = no-op (form blur or echo). Anything else = new
     // password.
