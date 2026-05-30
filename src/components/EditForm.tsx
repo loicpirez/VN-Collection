@@ -213,7 +213,13 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-        <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-muted">{t.form.myTracking}</h3>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-muted">{t.form.myTracking}</h3>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev px-2.5 py-1 text-[10px] font-medium text-muted">
+            <Check className="h-3 w-3 text-status-completed" aria-hidden />
+            {t.form.autoSaveBadge}
+          </span>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1">
             <span className="label">{t.form.status}</span>
