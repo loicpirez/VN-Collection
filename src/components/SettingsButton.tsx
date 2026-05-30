@@ -75,7 +75,6 @@ const SORT_KEYS: SortKey[] = [
 ];
 
 type GroupKey = 'none' | 'status' | 'producer' | 'publisher' | 'tag' | 'series' | 'aspect';
-const GROUP_KEYS: GroupKey[] = ['none', 'status', 'producer', 'publisher', 'tag', 'series', 'aspect'];
 
 export interface ProxyDisplayConfig {
   enabled: boolean;
