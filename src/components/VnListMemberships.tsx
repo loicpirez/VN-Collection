@@ -48,7 +48,7 @@ export function VnListMemberships({ vnId, lists }: { vnId: string; lists: ListCh
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
       <ListChecks className="h-3.5 w-3.5 text-muted" aria-hidden />
-      <span className="font-bold uppercase tracking-wider text-muted">{t.lists.cardChip}</span>
+      <span className="text-xs font-bold uppercase tracking-widest text-muted">{t.lists.cardChip}</span>
       {lists.map((l) => (
         <span
           key={l.id}

@@ -82,7 +82,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
     return (
       <div>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[11px] uppercase tracking-wider text-muted">
+          <span className="text-xs font-bold uppercase tracking-widest text-muted">
             {label} · {t.customSynopsis.editing}
           </span>
           <div className="flex gap-1">
@@ -144,7 +144,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted">
+        <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           {label}
           <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold text-accent">
             {t.customSynopsis.badge}

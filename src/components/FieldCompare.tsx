@@ -99,7 +99,7 @@ export function FieldCompare({
     return (
       <div>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[11px] uppercase tracking-wider text-muted">
+          <span className="text-xs font-bold uppercase tracking-widest text-muted">
             {label}
             {resolved.used && resolved.used !== activeTab && (
               <span className="ml-2 inline-flex items-center gap-1 rounded bg-bg-elev/60 px-1.5 py-0.5 align-middle text-[9px] normal-case tracking-normal text-muted">
@@ -199,7 +199,7 @@ export function FieldCompare({
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[11px] uppercase tracking-wider text-muted">
+        <span className="text-xs font-bold uppercase tracking-widest text-muted">
           {label} · {t.compare.compareLabel}
         </span>
         <button
