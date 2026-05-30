@@ -150,10 +150,10 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
         role="group"
         aria-label={t.detail.actions.groupTracking}
       >
-        <TrackingAnchor href="#section-series" label={t.detail.seriesSection} />
-        <TrackingAnchor href="#section-edit" label={t.form.myTracking} />
+        <TrackingAnchor href="#section-edit-form" label={t.detail.seriesSection} />
+        <TrackingAnchor href="#section-edit-form" label={t.form.myTracking} />
         <TrackingAnchor href="#section-notes" label={t.form.personalNotes} />
-        <TrackingAnchor href="#section-owned" label={t.inventory.section} />
+        <TrackingAnchor href="#section-my-editions" label={t.inventory.section} />
       </div>
     </ActionMenu>
   ) : null;

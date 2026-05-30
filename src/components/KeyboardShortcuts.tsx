@@ -27,7 +27,7 @@ import { Dialog } from './Dialog';
  *
  *   /vn/* :
  *     f → click [data-shortcut="vn-favorite"]
- *     e → scroll to #section-edit
+ *     e → scroll to #section-edit-form
  *     n → scroll to #section-notes
  *
  *   / (library home) :
@@ -111,7 +111,7 @@ export function KeyboardShortcuts() {
         }
         if (e.key === 'e') {
           e.preventDefault();
-          scrollToAnchor('section-edit');
+          scrollToAnchor('section-edit-form');
           return;
         }
         if (e.key === 'n') {

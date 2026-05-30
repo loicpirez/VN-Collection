@@ -114,6 +114,20 @@ export function DetailSectionFrame({
     if (!persisted) setMounted(true);
   }, [id, defaultCollapsed]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const target = `#section-${id}`;
+    const reveal = () => {
+      if (window.location.hash === target) {
+        setCollapsed(false);
+        setMounted(true);
+      }
+    };
+    reveal();
+    window.addEventListener('hashchange', reveal);
+    return () => window.removeEventListener('hashchange', reveal);
+  }, [id]);
+
   const toggle = useCallback(() => {
     setCollapsed((prev) => {
       const next = !prev;
