@@ -3,6 +3,7 @@ import { upstreamError } from '@/lib/api-error';
 import { searchTags } from '@/lib/vndb';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { clampQuery } from '@/lib/api-query';
+import { tooManyRequests } from '@/lib/rate-limit-response';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,8 @@ const RESULTS_MAX = 200;
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+  const limited = tooManyRequests(req, 'tags', { limit: 30, windowMs: 10_000 });
+  if (limited) return limited;
   const sp = req.nextUrl.searchParams;
   const q = clampQuery(sp.get('q'), Q_MAX);
   // Clamp the optional category filter so a hostile caller can't smuggle

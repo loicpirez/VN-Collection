@@ -4,6 +4,7 @@ import { fetchEgsGame } from '@/lib/erogamescape';
 import { isAllowedHttpTarget as isAllowedTarget } from '@/lib/url-allowlist';
 import { safeFetch } from '@/lib/safe-fetch';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { tooManyRequests } from '@/lib/rate-limit-response';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
@@ -264,6 +265,8 @@ async function proxyImage(target: string, origin: string): Promise<Response> {
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+  const limited = tooManyRequests(req, 'egs-cover', { limit: 30, windowMs: 10_000 });
+  if (limited) return limited;
   const { id } = await ctx.params;
   const egsId = Number(id);
   if (!Number.isInteger(egsId) || egsId <= 0) {

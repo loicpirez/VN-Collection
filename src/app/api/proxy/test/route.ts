@@ -9,6 +9,7 @@ import {
 } from '@/lib/proxy-config';
 import { STOCK_PROVIDER_IDS, type StockProviderId } from '@/lib/stock-provider-constants';
 import { sanitizeUnknownError } from '@/lib/error-sanitize';
+import { tooManyRequests } from '@/lib/rate-limit-response';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -61,6 +62,8 @@ const STOCK_PROVIDERS = new Set<string>(STOCK_PROVIDER_IDS);
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+  const limited = tooManyRequests(req, 'proxy/test', { limit: 30, windowMs: 10_000 });
+  if (limited) return limited;
 
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const { provider } = body;

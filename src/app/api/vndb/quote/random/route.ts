@@ -3,6 +3,7 @@ import { upstreamError } from '@/lib/api-error';
 import { getAppSetting, getCharacterImage, getRandomLocalQuote, getVnCover } from '@/lib/db';
 import { getRandomQuote } from '@/lib/vndb';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { tooManyRequests } from '@/lib/rate-limit-response';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -10,6 +11,8 @@ export const runtime = 'nodejs';
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+  const limited = tooManyRequests(req, 'vndb/quote/random', { limit: 30, windowMs: 10_000 });
+  if (limited) return limited;
   try {
     const source = getAppSetting('random_quote_source') ?? 'all';
     if (source === 'mine') {
