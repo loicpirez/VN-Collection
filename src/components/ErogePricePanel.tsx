@@ -663,9 +663,11 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setPinState('idle');
+      toast.success(t.erogePrice.manualMatch.saved);
     } catch {
       setExtras((s) => ({ ...s, selectedEpId: previous })); // rollback
       setPinState('error');
+      toast.error(t.erogePrice.manualMatch.error);
     }
   };
 
@@ -674,6 +676,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
     if (!Number.isFinite(id) || !Number.isInteger(id) || id <= 0) {
       setAddError(t.erogePrice.manualMatch.invalidEpId);
       setAddState('error');
+      toast.error(t.erogePrice.manualMatch.invalidEpId);
       return;
     }
     setAddState('saving');
@@ -711,9 +714,12 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
       setAddInput('');
       setAddOpen(false);
       setAddState('idle');
+      toast.success(t.erogePrice.manualMatch.addSuccess);
     } catch (e) {
-      setAddError((e as Error).message);
+      const message = (e as Error).message;
+      setAddError(message);
       setAddState('error');
+      toast.error(message || t.erogePrice.manualMatch.addError);
     }
   };
 
