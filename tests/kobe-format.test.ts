@@ -1,36 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   comparableKobeDate as comparableDate,
-  formatKobePrice,
   kobeMatchKind,
   displayKobeTitle,
   displayKobeProducer,
   parseKobeDevs,
   type KobeItem,
 } from '@/components/kobe-types';
-
-describe('kobe price formatter (U-239)', () => {
-  it('parses ¥4,270 and reformats per locale', () => {
-    // JA produces ￥4,270 (full-width yen); EN produces ¥4,270; FR
-    // produces "4 270 JPY". We just assert the digits survive and
-    // the locale-specific JPY indicator is present.
-    expect(formatKobePrice('¥4,270', 'ja')).toContain('4,270');
-    expect(formatKobePrice('¥4,270', 'en')).toContain('4,270');
-    expect(formatKobePrice('¥4,270', 'fr')).toContain('270');
-  });
-
-  it('parses "4,270円" with trailing kanji', () => {
-    expect(formatKobePrice('4,270円', 'ja')).toContain('4,270');
-  });
-
-  it('returns empty string for null', () => {
-    expect(formatKobePrice(null, 'ja')).toBe('');
-  });
-
-  it('falls back to raw when the digit run is empty', () => {
-    expect(formatKobePrice('—', 'ja')).toBe('—');
-  });
-});
 
 describe('kobe comparableDate (U-238 sorter)', () => {
   it('canonicalises YYYY/M/D to YYYY-MM-DD', () => {

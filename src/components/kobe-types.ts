@@ -113,18 +113,6 @@ export function formatKobeDate(value: string | null, locale: Locale): string {
   return value;
 }
 
-/** Locale-format a kobe price for display via Intl.NumberFormat (JPY). */
-export function formatKobePrice(value: string | null, locale: Locale): string {
-  if (!value) return '';
-  const n = parseKobePrice(value);
-  if (n == null) return value;
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: 'JPY',
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
 export function parseKobeDevs(json: string | null): { id: string; name: string }[] {
   if (!json) return [];
   try { return JSON.parse(json) as { id: string; name: string }[]; } catch { return []; }
