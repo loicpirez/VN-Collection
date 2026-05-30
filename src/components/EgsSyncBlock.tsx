@@ -82,9 +82,6 @@ export function EgsSyncBlock() {
   }
 
   async function compute() {
-    if (usernameDirty) {
-      await saveUsername();
-    }
     setComputing(true);
     try {
       const r = await fetch('/api/egs/sync', { cache: 'no-store' });
@@ -177,6 +174,11 @@ export function EgsSyncBlock() {
           </button>
         )}
       </div>
+      {usernameDirty && (
+        <p role="alert" className="rounded-md border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-xs">
+          {t.egsSync.unsavedWarning}
+        </p>
+      )}
       {needsConfig && (
         <p className="rounded-md border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-xs">
           {t.egsSync.needsConfig}
