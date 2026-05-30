@@ -187,15 +187,25 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
       const res = await fetch(`/api/series/${seriesId}/vn/${vn.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       if (!res.ok) throw new Error(await readApiError(res, t.common.error));
       setSeriesPickerId('');
+      toast.success(t.seriesAutoSuggest.added);
       startTransition(() => router.refresh());
     } catch (e) {
       setError((e as Error).message);
+      toast.error((e as Error).message);
     }
   }
 
   async function removeSeries(seriesId: number) {
-    await fetch(`/api/series/${seriesId}/vn/${vn.id}`, { method: 'DELETE' });
-    startTransition(() => router.refresh());
+    setError(null);
+    try {
+      const res = await fetch(`/api/series/${seriesId}/vn/${vn.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      toast.success(t.toast.removed);
+      startTransition(() => router.refresh());
+    } catch (e) {
+      setError((e as Error).message);
+      toast.error((e as Error).message);
+    }
   }
 
   if (!inCollection) {
