@@ -145,27 +145,6 @@ export async function throttledFetch(url: string, init?: RequestInit, provider: 
   }
 }
 
-/**
- * Cheap probe to confirm VNDB is responsive again before resuming.
- *
- * Intentionally bypasses `throttledFetch`: the probe is called only after a
- * 429/5xx has already triggered a back-off, so issuing it outside the 1 req/s
- * queue avoids a deadlock where the queue is paused waiting for the probe but
- * the probe is queued behind other requests that are also paused.
- */
-export async function probeVndbHealthy(): Promise<boolean> {
-  try {
-    const r = await providerFetch(
-      'https://api.vndb.org/kana/schema',
-      { method: 'GET', headers: { 'User-Agent': 'vndb-collection/1.0' } },
-      'vndb',
-    );
-    return r.status < 500 && r.status !== 429;
-  } catch {
-    return false;
-  }
-}
-
 /** Live counters surfaced on the home page / data page. */
 export function getVndbThrottleStats(): {
   active: number;

@@ -611,28 +611,6 @@ export async function searchAndFetchAll(
   };
 }
 
-/**
- * Convenience: when the operator HAS a pinned eroge-price game id
- * (NOT an ErogameScape id), fetch just that one game's bundle and
- * wrap it in the schema-v1 envelope so the UI layer can read both
- * code paths uniformly.
- */
-export async function fetchPinnedExtras(
-  epId: number,
-  fetcher: JsonFetcher,
-  signal?: AbortSignal,
-): Promise<ErogePriceExtrasV1 | null> {
-  const bundle = await fetchErogePriceBundle(epId, fetcher, signal);
-  if (!bundle) return null;
-  return {
-    schemaVersion: 1,
-    candidates: [bundle],
-    selectedEpId: epId,
-    searchQuery: null,
-    refreshedAt: Date.now(),
-  };
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // Backward-compatible reader for persisted `extras_json`.
 //
