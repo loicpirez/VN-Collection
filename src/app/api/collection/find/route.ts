@@ -3,6 +3,7 @@ import { searchCollectionByTitle } from '@/lib/steam';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 /**
  * Lightweight title lookup against the in-collection VNs. Used by the

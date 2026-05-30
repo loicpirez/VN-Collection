@@ -6,6 +6,7 @@ import { clampQuery } from '@/lib/api-query';
 import { tooManyRequests } from '@/lib/rate-limit-response';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const Q_MAX = 200;
 const CAT_MAX = 32;

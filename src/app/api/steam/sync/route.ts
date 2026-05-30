@@ -40,8 +40,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .replace(/steamid=\d+/gi, 'steamid=***')
       .slice(0, 500);
     console.error('steam sync failed:', safe);
-    const code = /Steam not configured/i.test(raw) ? 'steam_not_configured' : 'steam_sync_failed';
-    return NextResponse.json({ ok: false, error: 'Steam sync failed', code }, { status: 400 });
+    const notConfigured = /Steam not configured/i.test(raw);
+    const code = notConfigured ? 'steam_not_configured' : 'steam_sync_failed';
+    return NextResponse.json(
+      { ok: false, error: 'Steam sync failed', code },
+      { status: notConfigured ? 400 : 502 },
+    );
   }
 }
 

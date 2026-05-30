@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { readStored } from '@/lib/files';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 function safeAttachmentFilename(raw: string | undefined): string {
   if (!raw) return 'asset.svg';

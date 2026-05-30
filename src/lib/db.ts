@@ -3432,8 +3432,14 @@ export function addGameLogEntry(
   };
 }
 
-/** Edit one game-log entry. Re-validates the note length on every update. */
+/**
+ * Edit one game-log entry that belongs to `vnId`. Re-validates the note
+ * length on every update. Returns `null` when no row with that id exists
+ * OR when the row belongs to a different VN, so a caller can never edit an
+ * entry outside the VN it scoped the request to.
+ */
 export function updateGameLogEntry(
+  vnId: string,
   id: number,
   patch: { note?: string; logged_at?: number; session_minutes?: number | null },
 ): GameLogEntry | null {
@@ -3441,7 +3447,7 @@ export function updateGameLogEntry(
     const current = db
       .prepare('SELECT id, vn_id, note, logged_at, session_minutes, created_at, updated_at FROM vn_game_log WHERE id = ?')
       .get(id) as GameLogEntry | undefined;
-    if (!current) return null;
+    if (!current || current.vn_id !== vnId) return null;
     const next: GameLogEntry = {
       ...current,
       note: patch.note != null ? patch.note.trim().slice(0, GAME_LOG_NOTE_MAX) : current.note,
@@ -3462,9 +3468,13 @@ export function updateGameLogEntry(
   })();
 }
 
-/** Remove one game-log entry by id. Returns `false` when the id wasn't found. */
-export function deleteGameLogEntry(id: number): boolean {
-  const info = db.prepare('DELETE FROM vn_game_log WHERE id = ?').run(id);
+/**
+ * Remove one game-log entry that belongs to `vnId`. Returns `false` when no
+ * row with that id exists OR when the row belongs to a different VN, so a
+ * caller can never delete an entry outside the VN it scoped the request to.
+ */
+export function deleteGameLogEntry(vnId: string, id: number): boolean {
+  const info = db.prepare('DELETE FROM vn_game_log WHERE id = ? AND vn_id = ?').run(id, vnId);
   return info.changes > 0;
 }
 
@@ -5258,9 +5268,9 @@ export function searchLocalStaff({
   const needle = q?.trim().toLowerCase() ?? '';
   if (needle) {
     where.push(
-      "(sc.name LIKE ? COLLATE NOCASE OR COALESCE(sc.original, '') LIKE ? COLLATE NOCASE OR sc.sid LIKE ?)",
+      "(sc.name LIKE ? COLLATE NOCASE ESCAPE '\\' OR COALESCE(sc.original, '') LIKE ? COLLATE NOCASE ESCAPE '\\' OR sc.sid LIKE ? ESCAPE '\\')",
     );
-    const like = `%${needle}%`;
+    const like = `%${needle.replace(/[\\%_]/g, '\\$&')}%`;
     args.push(like, like, like);
   }
   if (role) {

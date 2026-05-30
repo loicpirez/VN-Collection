@@ -4,6 +4,7 @@ import { searchStaff } from '@/lib/vndb';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 // Mirrors the cap applied to /api/search and /api/search/advanced. VNDB
 // staff search has the same 1 req/s throttle and the same vulnerability

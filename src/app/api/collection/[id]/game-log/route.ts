@@ -127,7 +127,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     patch.session_minutes = body.session_minutes > 0 ? Math.min(Math.floor(body.session_minutes), 100_000) : null;
   }
   try {
-    const entry = updateGameLogEntry(eid, patch);
+    const entry = updateGameLogEntry(id, eid, patch);
     if (!entry) return NextResponse.json({ error: 'entry not found' }, { status: 404 });
     const minutes =
       patch.session_minutes === undefined
@@ -153,7 +153,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (!Number.isInteger(eid) || eid <= 0) {
     return NextResponse.json({ error: 'entry required' }, { status: 400 });
   }
-  const ok = deleteGameLogEntry(eid);
+  const ok = deleteGameLogEntry(id, eid);
   if (!ok) return NextResponse.json({ error: 'entry not found' }, { status: 404 });
   logGameLogActivity('collection.game-log-delete', id, 'Deleted game-log entry', null, false);
   return NextResponse.json({ ok: true });

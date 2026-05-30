@@ -3,6 +3,8 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { db, getCachedTitleResolution, setCachedTitleResolution } from '@/lib/db';
 import { searchVn } from '@/lib/vndb';
 import { searchEgsByName } from '@/lib/erogamescape';
+import { clampQuery } from '@/lib/api-query';
+import { tooManyRequests } from '@/lib/rate-limit-response';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -42,13 +44,15 @@ async function resolveTitle(trimmed: string): Promise<{ vnId: string; title: str
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+  const limited = tooManyRequests(req, 'stock/resolve-titles', { limit: 30, windowMs: 10_000 });
+  if (limited) return limited;
 
   const raw = req.nextUrl.searchParams.getAll('q').slice(0, MAX_TITLES);
   if (raw.length === 0) return NextResponse.json({});
 
   const entries = await Promise.all(
     raw.map(async (q) => {
-      const trimmed = q.trim();
+      const trimmed = clampQuery(q, 200);
       if (!trimmed) return [q, null] as [string, null];
       const resolved = await resolveTitle(trimmed);
       return [q, resolved] as [string, { vnId: string; title: string } | null];
