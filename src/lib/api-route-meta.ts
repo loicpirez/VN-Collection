@@ -10,10 +10,26 @@
  *
  * This app runs single-user and self-hosted. Read-only GET handlers
  * that return the operator's own collection metadata (lists, series,
- * shelves, places, per-VN routes / game-log / owned-release rows, the
- * library view, etc.) are reachable without the localhost/token gate
- * so the UI can render on first paint and so a bookmarked LAN URL
- * keeps working. The data they expose carries no PII or secrets.
+ * shelves, saved filters, the reading goal, places, per-VN routes /
+ * game-log / owned-release rows, the library view, etc.) are reachable
+ * without the localhost/token gate so the UI can render on first paint
+ * and so a bookmarked LAN URL keeps working.
+ *
+ * DATA EXPOSURE (read before adding or relying on this marker). These
+ * GET routes return the single operator's personal collection data
+ * (titles read, ratings, notes, shelves, saved filters, reading goals,
+ * ownership records, etc.) WITHOUT authentication. That trade-off is
+ * acceptable ONLY because the documented deployment model is a
+ * single-user, self-hosted instance bound to localhost or a trusted
+ * LAN. Exposing the app to an untrusted network (the public internet,
+ * a shared/hostile Wi-Fi, a reverse proxy without its own auth) would
+ * disclose all of this personal collection data to anyone who can
+ * reach the port. Do NOT host this app on an untrusted network while
+ * these reads remain ungated; if such a deployment is ever required,
+ * gate these handlers behind `requireLocalhostOrToken` (or an
+ * equivalent upstream auth layer) first. This ESDoc documents the
+ * exposure as a deliberate, scoped decision; it does not make the
+ * data non-sensitive.
  *
  * Importing this constant into a route module and reading it at the
  * top level is the canonical signal that the GET handler's lack of a

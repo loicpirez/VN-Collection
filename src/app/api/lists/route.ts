@@ -4,6 +4,7 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { validateText } from '@/lib/input-validators';
 export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -21,11 +22,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     color?: unknown;
     icon?: unknown;
   };
-  if (typeof body.name !== 'string' || body.name.trim().length === 0) {
-    return NextResponse.json({ error: 'name required' }, { status: 400 });
-  }
-  if (body.name.length > 200) {
-    return NextResponse.json({ error: 'name too long (max 200)' }, { status: 400 });
+  const nameResult = validateText(body.name, { field: 'name', max: 500 });
+  if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
+  if (typeof body.description === 'string') {
+    const descResult = validateText(body.description, { field: 'description', max: 20000, allowEmpty: true });
+    if (!descResult.ok) return NextResponse.json({ error: descResult.error }, { status: 400 });
   }
   const COLOR_RE = /^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,32})$/;
   const ICON_RE = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
   try {
     const list = createUserList({
-      name: body.name.slice(0, 200),
+      name: typeof body.name === 'string' ? body.name.slice(0, 200) : '',
       description: typeof body.description === 'string' ? body.description.slice(0, 2000) : null,
       color,
       icon,

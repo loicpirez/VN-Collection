@@ -3,6 +3,7 @@ import { countFinishedInYear, getReadingGoal, setReadingGoal } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
+import { validateSafeInt } from '@/lib/input-validators';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -35,9 +36,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (deny) return deny;
   const body = (await readJsonObject(req)) as { year?: unknown; target?: unknown };
   const year = clampYear(body.year);
-  const rawTarget = typeof body.target === 'number' ? body.target : NaN;
-  if (!Number.isFinite(rawTarget)) return NextResponse.json({ error: 'target required' }, { status: 400 });
-  const target = Math.min(Math.max(0, Math.floor(rawTarget)), 10_000);
+  if (body.target == null) return NextResponse.json({ error: 'target required' }, { status: 400 });
+  const targetResult = validateSafeInt(body.target, { field: 'target', min: 0, max: 100_000 });
+  if (!targetResult.ok) return NextResponse.json({ error: targetResult.error }, { status: 400 });
+  const target = targetResult.value;
   const goal = setReadingGoal(year, target);
   try {
     recordActivity({

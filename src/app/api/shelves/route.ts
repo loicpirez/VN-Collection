@@ -7,6 +7,7 @@ import {
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { validateText } from '@/lib/input-validators';
 
 import { readJsonObject } from '@/lib/api-body';
 export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
@@ -29,10 +30,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     cols?: unknown;
     rows?: unknown;
   };
-  if (typeof body.name !== 'string' || body.name.trim().length === 0) {
-    return NextResponse.json({ error: 'name required' }, { status: 400 });
-  }
-  const name = body.name.trim().slice(0, 100);
+  const nameResult = validateText(body.name, { field: 'name', max: 200 });
+  if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
+  const name = nameResult.value.slice(0, 100);
   try {
     const shelf = createShelf({
       name,

@@ -8,6 +8,7 @@ import {
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
+import { validateIsoDate } from '@/lib/input-validators';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
@@ -77,10 +78,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const LOGGED_AT_MAX = Date.now() + 365 * 86_400_000;
-  const at = typeof body.logged_at === 'number' && body.logged_at > 0 && body.logged_at <= LOGGED_AT_MAX
-    ? Math.floor(body.logged_at)
-    : undefined;
+  let at: number | undefined;
+  if (body.logged_at != null) {
+    const loggedAt = validateIsoDate(body.logged_at);
+    if (!loggedAt.ok) return NextResponse.json({ error: loggedAt.error }, { status: 400 });
+    at = loggedAt.value;
+  }
   const minutes =
     typeof body.session_minutes === 'number' && body.session_minutes > 0
       ? Math.min(Math.floor(body.session_minutes), 100_000)
@@ -114,9 +117,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   const patch: { note?: string; logged_at?: number; session_minutes?: number | null } = {};
   if (typeof body.note === 'string') patch.note = body.note.slice(0, 10000);
-  const LOGGED_AT_MAX_PATCH = Date.now() + 365 * 86_400_000;
-  if (typeof body.logged_at === 'number' && body.logged_at > 0 && body.logged_at <= LOGGED_AT_MAX_PATCH) {
-    patch.logged_at = Math.floor(body.logged_at);
+  if (body.logged_at != null) {
+    const loggedAt = validateIsoDate(body.logged_at);
+    if (!loggedAt.ok) return NextResponse.json({ error: loggedAt.error }, { status: 400 });
+    patch.logged_at = loggedAt.value;
   }
   if (body.session_minutes === null) patch.session_minutes = null;
   else if (typeof body.session_minutes === 'number' && body.session_minutes >= 0) {

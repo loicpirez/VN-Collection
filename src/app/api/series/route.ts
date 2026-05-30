@@ -4,6 +4,7 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { validateText } from '@/lib/input-validators';
 
 export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
@@ -17,20 +18,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { name?: unknown; description?: unknown };
-  if (typeof body.name !== 'string') {
-    return NextResponse.json({ error: 'name must be a string' }, { status: 400 });
-  }
-  const name = body.name.trim().slice(0, 200);
-  if (!name) return NextResponse.json({ error: 'missing name' }, { status: 400 });
+  const nameResult = validateText(body.name, { field: 'name', max: 500 });
+  if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
+  const name = nameResult.value.slice(0, 200);
   let description: string | null = null;
   if (body.description != null) {
-    if (typeof body.description !== 'string') {
-      return NextResponse.json({ error: 'description must be a string or null' }, { status: 400 });
-    }
-    if (body.description.length > 5000) {
-      return NextResponse.json({ error: 'description too long (max 5000)' }, { status: 400 });
-    }
-    description = body.description;
+    const descResult = validateText(body.description, { field: 'description', max: 20000, allowEmpty: true });
+    if (!descResult.ok) return NextResponse.json({ error: descResult.error }, { status: 400 });
+    description = typeof body.description === 'string' ? body.description : null;
   }
   try {
     const created = createSeries(name, description);

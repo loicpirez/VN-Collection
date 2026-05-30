@@ -4,6 +4,7 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { validateText } from '@/lib/input-validators';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -55,23 +56,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     banner_path?: string | null;
   } = {};
   if ('name' in body) {
-    if (typeof body.name !== 'string') {
-      return NextResponse.json({ error: 'name must be a string' }, { status: 400 });
-    }
-    const trimmed = body.name.trim().slice(0, 200);
-    if (!trimmed) return NextResponse.json({ error: 'name cannot be empty' }, { status: 400 });
-    patch.name = trimmed;
+    const nameResult = validateText(body.name, { field: 'name', max: 500 });
+    if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
+    patch.name = nameResult.value.slice(0, 200);
   }
   if ('description' in body) {
     if (body.description == null) {
       patch.description = null;
-    } else if (typeof body.description === 'string') {
-      if (body.description.length > 5000) {
-        return NextResponse.json({ error: 'description too long (max 5000)' }, { status: 400 });
-      }
-      patch.description = body.description;
     } else {
-      return NextResponse.json({ error: 'description must be a string or null' }, { status: 400 });
+      const descResult = validateText(body.description, { field: 'description', max: 20000, allowEmpty: true });
+      if (!descResult.ok) return NextResponse.json({ error: descResult.error }, { status: 400 });
+      patch.description = typeof body.description === 'string' ? body.description : null;
     }
   }
   if ('cover_path' in body) {

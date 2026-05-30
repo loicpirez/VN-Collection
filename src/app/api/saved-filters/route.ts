@@ -4,6 +4,7 @@ import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { internalError } from '@/lib/api-error';
+import { validateText } from '@/lib/input-validators';
 
 export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
@@ -22,19 +23,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   try {
     const body = (await readJsonObject(req)) as { name?: unknown; params?: unknown };
-    if (typeof body.name !== 'string' || !body.name.trim()) {
-      return NextResponse.json({ error: 'name required' }, { status: 400 });
-    }
-    if (body.name.length > 200) {
-      return NextResponse.json({ error: 'name too long (max 200)' }, { status: 400 });
-    }
-    if (typeof body.params !== 'string') {
-      return NextResponse.json({ error: 'params required' }, { status: 400 });
-    }
-    if (body.params.length > 4000) {
-      return NextResponse.json({ error: 'params too long (max 4000)' }, { status: 400 });
-    }
-    const created = createSavedFilter(body.name.trim().slice(0, 200), body.params);
+    const nameResult = validateText(body.name, { field: 'name', max: 200 });
+    if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
+    const paramsResult = validateText(body.params, { field: 'params', max: 4000, allowEmpty: true });
+    if (!paramsResult.ok) return NextResponse.json({ error: paramsResult.error }, { status: 400 });
+    const created = createSavedFilter(nameResult.value.slice(0, 200), body.params as string);
     recordActivity({
       kind: 'saved_filter.create',
       entity: 'saved_filter',

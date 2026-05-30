@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRoute, isInCollection, listRoutesForVn, reorderRoutes } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { validateVnIdOr400 } from '@/lib/vn-id';
+import { validateText } from '@/lib/input-validators';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 
@@ -24,10 +25,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(id);
   if (bad) return bad;
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const body = (await readJsonObject(req)) as { name?: string };
-  const name = (body.name ?? '').trim().slice(0, 200);
-  if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 });
-  const created = createRoute(id, name);
+  const body = (await readJsonObject(req)) as { name?: unknown };
+  const nameResult = validateText(body.name, { field: 'name', max: 500 });
+  if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
+  const created = createRoute(id, nameResult.value);
   try {
     recordActivity({
       kind: 'collection.route-add',
