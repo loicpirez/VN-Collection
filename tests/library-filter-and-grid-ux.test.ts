@@ -11,7 +11,8 @@ describe('library filters and grid UX', () => {
     const src = source('src/components/LibraryClient.tsx');
     expect(src).toContain("const urlInList = searchParams.get('in_list')");
     expect(src).toContain("!ternaryMatches(urlInList, (it.list_count ?? 0) > 0)");
-    expect(src).toContain("{ key: 'in_list', label: t.nav.lists }");
+    const moreFilters = source('src/components/library/MoreFilters.tsx');
+    expect(src + moreFilters).toContain("{ key: 'in_list', label: t.nav.lists }");
   });
 
   it('standardizes search and wishlist card grid gaps to the library rhythm', () => {
