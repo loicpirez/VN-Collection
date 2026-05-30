@@ -1212,6 +1212,18 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_no_vndb
       ON alicesoft_kobe_stock(last_matched_at, code)
       WHERE vn_match_source = 'none' AND vn_id IS NULL;
+    -- R5-PERF-017: listKobeStock orders the whole table by title
+    -- (ORDER BY k.title, binary collation). Without this the page
+    -- list does a full scan + sort on every load.
+    CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_title
+      ON alicesoft_kobe_stock(title);
+    -- R5-PERF-018: listKobeItemsForEgsResolve filters the EGS-resolve
+    -- queue on (vn_id NOT NULL, egs_id NULL, egs_match_source NULL)
+    -- and orders by code. The vn_id index can't serve the egs match-
+    -- source predicate; this partial index keeps the queue lean.
+    CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_egs_resolve
+      ON alicesoft_kobe_stock(code)
+      WHERE vn_id IS NOT NULL AND egs_id IS NULL AND egs_match_source IS NULL;
   `);
 
   // Migration: rewrite EGS cover URLs to point at the resolver endpoint
@@ -1258,24 +1270,16 @@ function open(): Database.Database {
       for (const r of rows) {
         delStaff.run(r.id);
         delVa.run(r.id);
-        let staff: StaffEntry[] = [];
-        let va: VaEntry[] = [];
         // Surface parse failures during the one-shot migration so a
         // corrupt JSON column doesn't silently zero out a row's
         // credits — without this every row with bad JSON quietly
         // dropped all its staff / VA links.
-        try {
-          staff = r.staff ? (JSON.parse(r.staff) as StaffEntry[]) : [];
-        } catch (e) {
-          console.warn(`[migrate] vn ${r.id} has malformed staff JSON: ${(e as Error).message}`);
-          staff = [];
-        }
-        try {
-          va = r.va ? (JSON.parse(r.va) as VaEntry[]) : [];
-        } catch (e) {
-          console.warn(`[migrate] vn ${r.id} has malformed va JSON: ${(e as Error).message}`);
-          va = [];
-        }
+        const staff = safeJsonParse<StaffEntry[]>(r.staff, [], undefined, (e) =>
+          console.warn(`[migrate] vn ${r.id} has malformed staff JSON: ${(e as Error).message}`),
+        );
+        const va = safeJsonParse<VaEntry[]>(r.va, [], undefined, (e) =>
+          console.warn(`[migrate] vn ${r.id} has malformed va JSON: ${(e as Error).message}`),
+        );
         for (const s of staff) {
           if (!s?.id || !s.name) continue;
           insStaff.run(r.id, s.id, s.aid ?? null, s.eid ?? null, s.role ?? '', s.note ?? null, s.name, s.original ?? null, s.lang ?? null);
@@ -1321,12 +1325,11 @@ function open(): Database.Database {
     db.transaction(() => {
       for (const r of rows) {
         const sid = r.cache_key.replace('staff_full:', '');
-        let payload: StaffFullBody;
-        try {
-          payload = JSON.parse(r.body) as StaffFullBody;
-        } catch {
-          continue;
-        }
+        let parseFailed = false;
+        const payload = safeJsonParse<StaffFullBody>(r.body, {}, undefined, () => {
+          parseFailed = true;
+        });
+        if (parseFailed) continue;
         del.run(sid);
         for (const c of payload.productionCredits ?? []) {
           if (c.id) ins.run(sid, c.id, 0);
@@ -1361,9 +1364,16 @@ function open(): Database.Database {
         delDev.run(r.id);
         delPub.run(r.id);
         // Surface parse failures so a single corrupt row doesn't
-        // silently zero out an entire index.
+        // silently zero out an entire index. The surrounding try
+        // still guards a parseable-but-non-iterable body; safeJsonParse
+        // reports the parse-error path with the same message.
         try {
-          const tags = r.tags ? (JSON.parse(r.tags) as Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }>) : [];
+          const tags = safeJsonParse<Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }>>(
+            r.tags,
+            [],
+            undefined,
+            (e) => console.warn(`[migrate] vn ${r.id} has malformed tags JSON: ${(e as Error).message}`),
+          );
           for (const t of tags) {
             const id = typeof t?.id === 'string' ? t.id : null;
             if (!id) continue;
@@ -1376,7 +1386,12 @@ function open(): Database.Database {
           console.warn(`[migrate] vn ${r.id} has malformed tags JSON: ${(e as Error).message}`);
         }
         try {
-          const devs = r.developers ? (JSON.parse(r.developers) as Array<{ id?: unknown }>) : [];
+          const devs = safeJsonParse<Array<{ id?: unknown }>>(
+            r.developers,
+            [],
+            undefined,
+            (e) => console.warn(`[migrate] vn ${r.id} has malformed developers JSON: ${(e as Error).message}`),
+          );
           for (const d of devs) {
             const id = typeof d?.id === 'string' ? d.id : null;
             if (id) insDev.run(r.id, id);
@@ -1385,7 +1400,12 @@ function open(): Database.Database {
           console.warn(`[migrate] vn ${r.id} has malformed developers JSON: ${(e as Error).message}`);
         }
         try {
-          const pubs = r.publishers ? (JSON.parse(r.publishers) as Array<{ id?: unknown }>) : [];
+          const pubs = safeJsonParse<Array<{ id?: unknown }>>(
+            r.publishers,
+            [],
+            undefined,
+            (e) => console.warn(`[migrate] vn ${r.id} has malformed publishers JSON: ${(e as Error).message}`),
+          );
           for (const p of pubs) {
             const id = typeof p?.id === 'string' ? p.id : null;
             if (id) insPub.run(r.id, id);
@@ -1412,8 +1432,21 @@ function open(): Database.Database {
     );
     db.transaction(() => {
       for (const r of rows) {
+        // delTag runs only when the parse itself succeeds (it sits
+        // after the parse in the original), so a parse failure skips
+        // the row outright instead of clearing its tag index.
+        let parseFailed = false;
+        const tags = safeJsonParse<Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }>>(
+          r.tags,
+          [],
+          undefined,
+          (e) => {
+            parseFailed = true;
+            console.warn(`[migrate] vn ${r.id} has malformed tags JSON: ${(e as Error).message}`);
+          },
+        );
+        if (parseFailed) continue;
         try {
-          const tags = r.tags ? (JSON.parse(r.tags) as Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }>) : [];
           delTag.run(r.id);
           for (const t of tags) {
             const id = typeof t?.id === 'string' ? t.id : null;
@@ -1447,7 +1480,12 @@ function open(): Database.Database {
         delLang.run(r.id);
         delPlat.run(r.id);
         try {
-          const langs = r.languages ? (JSON.parse(r.languages) as unknown[]) : [];
+          const langs = safeJsonParse<unknown[]>(
+            r.languages,
+            [],
+            undefined,
+            (e) => console.warn(`[migrate] vn ${r.id} has malformed languages JSON: ${(e as Error).message}`),
+          );
           for (const lang of langs) {
             if (typeof lang === 'string' && lang.length > 0) insLang.run(r.id, lang);
           }
@@ -1455,7 +1493,12 @@ function open(): Database.Database {
           console.warn(`[migrate] vn ${r.id} has malformed languages JSON: ${(e as Error).message}`);
         }
         try {
-          const plats = r.platforms ? (JSON.parse(r.platforms) as unknown[]) : [];
+          const plats = safeJsonParse<unknown[]>(
+            r.platforms,
+            [],
+            undefined,
+            (e) => console.warn(`[migrate] vn ${r.id} has malformed platforms JSON: ${(e as Error).message}`),
+          );
           for (const plat of plats) {
             if (typeof plat === 'string' && plat.length > 0) insPlat.run(r.id, plat);
           }
@@ -3584,84 +3627,118 @@ interface DbRow {
  * returns false, the fallback is used. Without a validator, the
  * helper only protects against parse errors; downstream code still
  * has to trust the row shape.
+ *
+ * `onError` fires only on a genuine `JSON.parse` throw (never on a
+ * falsy `raw` or a failed `validate`), so migration callers can keep
+ * surfacing malformed-row diagnostics that the silent fallback would
+ * otherwise hide.
  */
 function safeJsonParse<T>(
   raw: string | null | undefined,
   fallback: T,
   validate?: (v: unknown) => v is T,
+  onError?: (err: unknown) => void,
 ): T {
   if (!raw) return fallback;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    onError?.(err);
     return fallback;
   }
   if (validate && !validate(parsed)) return fallback;
   return parsed as T;
 }
 
+/**
+ * P-182 — define an enumerable, lazily-parsed JSON property on `obj`
+ * whose `safeJsonParse` cost is paid only on first read. On first
+ * access the getter redefines the slot as a plain writable data
+ * property holding the parsed value, so every later read returns the
+ * SAME reference (matching the eager mapper's single-parse identity)
+ * and the property is byte-indistinguishable from a literal field for
+ * `Object.keys`, spread, and `JSON.stringify`. A `set` is provided so
+ * assignment before first read behaves like a normal property. Defined
+ * in the source order of the original object literal so enumeration
+ * order — and therefore `JSON.stringify` output — is unchanged.
+ */
+function defineLazyJson<T>(obj: object, key: string, raw: string | null | undefined, fallback: T): void {
+  Object.defineProperty(obj, key, {
+    configurable: true,
+    enumerable: true,
+    get(): T {
+      const value = safeJsonParse<T>(raw, fallback);
+      Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true });
+      return value;
+    },
+    set(value: T) {
+      Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true });
+    },
+  });
+}
+
 function rowToItem(row: DbRow | undefined): CollectionItem | null {
   if (!row) return null;
-  return {
-    id: row.id,
-    title: row.title,
-    alttitle: row.alttitle,
-    image_url: row.image_url,
-    image_thumb: row.image_thumb,
-    image_sexual: row.image_sexual,
-    image_violence: row.image_violence,
-    released: row.released,
-    olang: row.olang,
-    languages: safeJsonParse(row.languages, [] as string[]),
-    platforms: safeJsonParse(row.platforms, [] as string[]),
-    length_minutes: row.length_minutes,
-    length: row.length,
-    rating: row.rating,
-    votecount: row.votecount,
-    description: row.description,
-    developers: safeJsonParse(row.developers, [] as { id: string; name: string }[]),
-    publishers: safeJsonParse(row.publishers, [] as { id: string; name: string }[]),
-    tags: safeJsonParse(row.tags, [] as CollectionItem['tags']),
-    screenshots: safeJsonParse(row.screenshots, [] as CollectionItem['screenshots']),
-    release_images: safeJsonParse(row.release_images, [] as CollectionItem['release_images']),
-    local_image: row.local_image,
-    local_image_thumb: row.local_image_thumb,
-    custom_cover: row.custom_cover,
-    banner_image: row.banner_image,
-    banner_position: row.banner_position,
-    cover_rotation: normalizeRotation(row.cover_rotation),
-    banner_rotation: normalizeRotation(row.banner_rotation),
-    relations: safeJsonParse(row.relations, [] as CollectionItem['relations']),
-    aliases: safeJsonParse(row.aliases, [] as string[]),
-    extlinks: safeJsonParse(row.extlinks, [] as CollectionItem['extlinks']),
-    length_votes: row.length_votes ?? null,
-    average: row.average ?? null,
-    has_anime: row.has_anime == null ? null : !!row.has_anime,
-    devstatus: row.devstatus == null ? null : (row.devstatus as 0 | 1 | 2),
-    titles: safeJsonParse(row.titles, [] as CollectionItem['titles']),
-    editions: safeJsonParse(row.editions, [] as CollectionItem['editions']),
-    staff: safeJsonParse(row.staff, [] as CollectionItem['staff']),
-    va: safeJsonParse(row.va, [] as CollectionItem['va']),
-    fetched_at: row.fetched_at,
-    status: row.status as Status | undefined,
-    user_rating: row.user_rating ?? null,
-    playtime_minutes: row.playtime_minutes ?? 0,
-    started_date: row.started_date ?? null,
-    finished_date: row.finished_date ?? null,
-    notes: row.notes ?? null,
-    favorite: !!row.favorite,
-    location: (row.location as Location | undefined) ?? 'unknown',
-    edition_type: (row.edition_type as EditionType | undefined) ?? 'none',
-    edition_label: row.edition_label ?? null,
-    physical_location: parsePlaces(row.physical_location),
-    box_type: (row.box_type as BoxType | undefined) ?? 'none',
-    download_url: row.download_url ?? null,
-    dumped: !!row.dumped,
-    custom_description: row.custom_description ?? null,
-    added_at: row.added_at,
-    updated_at: row.updated_at,
-  };
+  const item = {} as CollectionItem;
+  item.id = row.id;
+  item.title = row.title;
+  item.alttitle = row.alttitle;
+  item.image_url = row.image_url;
+  item.image_thumb = row.image_thumb;
+  item.image_sexual = row.image_sexual;
+  item.image_violence = row.image_violence;
+  item.released = row.released;
+  item.olang = row.olang;
+  defineLazyJson(item, 'languages', row.languages, [] as string[]);
+  defineLazyJson(item, 'platforms', row.platforms, [] as string[]);
+  item.length_minutes = row.length_minutes;
+  item.length = row.length;
+  item.rating = row.rating;
+  item.votecount = row.votecount;
+  item.description = row.description;
+  defineLazyJson(item, 'developers', row.developers, [] as { id: string; name: string }[]);
+  defineLazyJson(item, 'publishers', row.publishers, [] as { id: string; name: string }[]);
+  defineLazyJson(item, 'tags', row.tags, [] as CollectionItem['tags']);
+  defineLazyJson(item, 'screenshots', row.screenshots, [] as CollectionItem['screenshots']);
+  defineLazyJson(item, 'release_images', row.release_images, [] as CollectionItem['release_images']);
+  item.local_image = row.local_image;
+  item.local_image_thumb = row.local_image_thumb;
+  item.custom_cover = row.custom_cover;
+  item.banner_image = row.banner_image;
+  item.banner_position = row.banner_position;
+  item.cover_rotation = normalizeRotation(row.cover_rotation);
+  item.banner_rotation = normalizeRotation(row.banner_rotation);
+  defineLazyJson(item, 'relations', row.relations, [] as CollectionItem['relations']);
+  defineLazyJson(item, 'aliases', row.aliases, [] as string[]);
+  defineLazyJson(item, 'extlinks', row.extlinks, [] as CollectionItem['extlinks']);
+  item.length_votes = row.length_votes ?? null;
+  item.average = row.average ?? null;
+  item.has_anime = row.has_anime == null ? null : !!row.has_anime;
+  item.devstatus = row.devstatus == null ? null : (row.devstatus as 0 | 1 | 2);
+  defineLazyJson(item, 'titles', row.titles, [] as CollectionItem['titles']);
+  defineLazyJson(item, 'editions', row.editions, [] as CollectionItem['editions']);
+  defineLazyJson(item, 'staff', row.staff, [] as CollectionItem['staff']);
+  defineLazyJson(item, 'va', row.va, [] as CollectionItem['va']);
+  item.fetched_at = row.fetched_at;
+  item.status = row.status as Status | undefined;
+  item.user_rating = row.user_rating ?? null;
+  item.playtime_minutes = row.playtime_minutes ?? 0;
+  item.started_date = row.started_date ?? null;
+  item.finished_date = row.finished_date ?? null;
+  item.notes = row.notes ?? null;
+  item.favorite = !!row.favorite;
+  item.location = (row.location as Location | undefined) ?? 'unknown';
+  item.edition_type = (row.edition_type as EditionType | undefined) ?? 'none';
+  item.edition_label = row.edition_label ?? null;
+  item.physical_location = parsePlaces(row.physical_location);
+  item.box_type = (row.box_type as BoxType | undefined) ?? 'none';
+  item.download_url = row.download_url ?? null;
+  item.dumped = !!row.dumped;
+  item.custom_description = row.custom_description ?? null;
+  item.added_at = row.added_at;
+  item.updated_at = row.updated_at;
+  return item;
 }
 
 export interface ListOptions {
@@ -4198,6 +4275,35 @@ function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {
  * The lazy ReleasesSection will populate the cache on first fetch
  * and a subsequent page render will pick it up.
  */
+
+/**
+ * P-184 — content-keyed parse memo for the `POST /release|%` cache
+ * bodies. The four `materializeRelease*` helpers each scan the same
+ * cache rows and `JSON.parse` every body; within one request they are
+ * frequently called back-to-back (aspects + meta, per-VN and bulk),
+ * re-parsing identical bodies. The key embeds the full body string, so
+ * a mutated body yields a different key and re-parses — a stale entry
+ * for a changed key can never be returned. Bounded by clearing the map
+ * once it grows past `RELEASE_PARSE_MEMO_CAP`, which only costs a
+ * re-parse and never returns wrong data.
+ */
+const releaseBodyParseMemo = new Map<string, { results?: unknown[] } | null>();
+const RELEASE_PARSE_MEMO_CAP = 4096;
+function parseReleaseCacheBody(cacheKey: string, body: string): { results?: unknown[] } | null {
+  const memoKey = String(cacheKey.length) + ':' + cacheKey + body;
+  const hit = releaseBodyParseMemo.get(memoKey);
+  if (hit !== undefined) return hit;
+  let parsed: { results?: unknown[] } | null;
+  try {
+    parsed = JSON.parse(body) as { results?: unknown[] };
+  } catch {
+    parsed = null;
+  }
+  if (releaseBodyParseMemo.size >= RELEASE_PARSE_MEMO_CAP) releaseBodyParseMemo.clear();
+  releaseBodyParseMemo.set(memoKey, parsed);
+  return parsed;
+}
+
 /**
  * Walk every cached release for one VN and write its aspect bucket into
  * `release_resolution_cache`. Lets the library aspect filter match a VN
@@ -4214,16 +4320,11 @@ export function materializeReleaseAspectsForVn(vnId: string): void {
     .get(vnId);
   if (existing) return;
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
-    .all() as Array<{ body: string }>;
+    .prepare(`SELECT cache_key, body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
+    .all() as Array<{ cache_key: string; body: string }>;
   let wrote = 0;
   for (const row of rows) {
-    let parsed: { results?: unknown[] } | null = null;
-    try {
-      parsed = JSON.parse(row.body) as { results?: unknown[] };
-    } catch {
-      continue;
-    }
+    const parsed = parseReleaseCacheBody(row.cache_key, row.body);
     if (!parsed?.results || !Array.isArray(parsed.results)) continue;
     for (const r of parsed.results) {
       if (!r || typeof r !== 'object') continue;
@@ -4294,17 +4395,12 @@ export function materializeReleaseAspectsForCollectionVns(vnIds: string[]): void
   if (needsWork.size === 0) return;
 
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
-    .all() as Array<{ body: string }>;
+    .prepare(`SELECT cache_key, body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
+    .all() as Array<{ cache_key: string; body: string }>;
 
   const tx = db.transaction(() => {
     for (const row of rows) {
-      let parsed: { results?: unknown[] } | null = null;
-      try {
-        parsed = JSON.parse(row.body) as { results?: unknown[] };
-      } catch {
-        continue;
-      }
+      const parsed = parseReleaseCacheBody(row.cache_key, row.body);
       if (!parsed?.results || !Array.isArray(parsed.results)) continue;
       for (const r of parsed.results) {
         if (!r || typeof r !== 'object') continue;
@@ -4425,8 +4521,8 @@ export function materializeReleaseMetaForVn(vnId: string): void {
     .get() as { latest: number | null };
   if (vnNewest?.latest && cacheNewest?.latest && vnNewest.latest >= cacheNewest.latest) return;
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
-    .all() as Array<{ body: string }>;
+    .prepare(`SELECT cache_key, body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
+    .all() as Array<{ cache_key: string; body: string }>;
   const now = Date.now();
   const upsert = db.prepare(`
     INSERT INTO release_meta_cache (
@@ -4465,12 +4561,7 @@ export function materializeReleaseMetaForVn(vnId: string): void {
       fetched_at = excluded.fetched_at
   `);
   for (const row of rows) {
-    let parsed: { results?: unknown[] } | null = null;
-    try {
-      parsed = JSON.parse(row.body) as { results?: unknown[] };
-    } catch {
-      continue;
-    }
+    const parsed = parseReleaseCacheBody(row.cache_key, row.body);
     if (!parsed?.results || !Array.isArray(parsed.results)) continue;
     for (const r of parsed.results) {
       if (!r || typeof r !== 'object') continue;
@@ -4566,8 +4657,8 @@ export function materializeReleaseMetaForCollectionVns(vnIds: string[]): number 
   if (vnIds.length === 0) return 0;
   const ownedSet = new Set(vnIds);
   const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
-    .all() as Array<{ body: string }>;
+    .prepare(`SELECT cache_key, body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
+    .all() as Array<{ cache_key: string; body: string }>;
   const now = Date.now();
   const upsert = db.prepare(`
     INSERT INTO release_meta_cache (
@@ -4608,12 +4699,7 @@ export function materializeReleaseMetaForCollectionVns(vnIds: string[]): number 
   let upserts = 0;
   const tx = db.transaction(() => {
     for (const row of rows) {
-      let parsed: { results?: unknown[] } | null = null;
-      try {
-        parsed = JSON.parse(row.body) as { results?: unknown[] };
-      } catch {
-        continue;
-      }
+      const parsed = parseReleaseCacheBody(row.cache_key, row.body);
       if (!parsed?.results || !Array.isArray(parsed.results)) continue;
       for (const r of parsed.results) {
         if (!r || typeof r !== 'object') continue;
