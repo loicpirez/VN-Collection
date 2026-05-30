@@ -16,8 +16,10 @@ interface Props {
   vnId: string;
   /** VNDB's default image URL — clicking "use VNDB" clears any override. */
   vndbImage: string | null;
-  /** EGS numeric id — when set, the EGS tab is enabled and points to /api/egs-cover/<id>. */
+  /** EGS numeric id — when set, the EGS tab points to /api/egs-cover/<id>. */
   egsId: number | null;
+  /** Whether the resolved EGS poster actually carries an image. The EGS tab stays disabled when an egsId is present but no image resolved. */
+  egsHasImage: boolean;
   /** Current custom cover string (path / URL) — drives the "current" visual marker. */
   currentCustomCover: string | null;
   /**
@@ -55,6 +57,7 @@ export function CoverSourcePicker({
   vnId,
   vndbImage,
   egsId,
+  egsHasImage,
   currentCustomCover,
   currentRotation = 0,
   screenshots,
@@ -268,6 +271,8 @@ export function CoverSourcePicker({
     }
   }
 
+  const egsTabDisabled = !egsId || !egsHasImage;
+
   const galleryItems = [
     ...screenshots.map((s, i) => ({
       key: `sc-${i}`,
@@ -412,8 +417,8 @@ export function CoverSourcePicker({
               <TabButton
                 active={tab === 'egs'}
                 onClick={() => setTab('egs')}
-                disabled={!egsId}
-                title={!egsId ? t.coverPicker.egsDisabledNoImage : undefined}
+                disabled={egsTabDisabled}
+                title={egsTabDisabled ? t.coverPicker.egsDisabledNoImage : undefined}
                 id={egsTabId}
                 controls={egsPanelId}
               >

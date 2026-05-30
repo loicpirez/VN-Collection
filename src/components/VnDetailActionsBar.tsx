@@ -49,6 +49,8 @@ interface Props {
   inCollection: boolean;
   /** Resolved EGS row (if any). Drives the View-on-EGS anchor + cover picker. */
   egsRow: { egs_id: number | null; image_url?: string | null } | null;
+  /** Whether the resolved EGS poster actually carries an image (remote or local). Gates the EGS cover tab. */
+  egsHasImage: boolean;
   /** Whether the VN has a custom banner set (gates the banner reset button). */
   hasCustomBanner: boolean;
 }
@@ -90,7 +92,7 @@ const PRIMARY_ROW_CLASSES =
 const ACTION_BUTTON_CLASSES =
   'inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
 
-export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBanner }: Props) {
+export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage, hasCustomBanner }: Props) {
   const t = await getDict();
   const isEgsOnly = vn.id.startsWith('egs_');
   const screenshots: Screenshot[] = vn.screenshots ?? [];
@@ -221,6 +223,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, hasCustomBa
           vnId={vn.id}
           vndbImage={vn.image_url}
           egsId={egsRow?.egs_id ?? null}
+          egsHasImage={egsHasImage}
           currentCustomCover={vn.custom_cover ?? null}
           currentRotation={
             ((vn.cover_rotation ?? 0) as 0 | 90 | 180 | 270)

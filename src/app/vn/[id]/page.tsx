@@ -4,7 +4,7 @@ import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { after } from 'next/server';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Box, ChevronRight, Disc3, ExternalLink, HardDriveDownload, Home, MapPin, Package, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, Box, ChevronRight, Disc3, ExternalLink, HardDriveDownload, Home, MapPin, Package, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import {
   deriveVnAspectDisplay,
   deriveVnAspectKey,
@@ -662,10 +662,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                     <dd className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <a
                         href="#section-aspect-override"
-                        className={`font-semibold transition-colors hover:text-accent ${isUnknown ? 'text-muted' : 'text-white underline decoration-dotted underline-offset-2'}`}
+                        className={`inline-flex items-center gap-1 rounded font-semibold underline decoration-dotted underline-offset-2 transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${isUnknown ? 'text-muted' : 'text-white'}`}
                         title={t.detail.aspectScrollHint}
                         aria-label={t.detail.aspectScrollHint}
                       >
+                        <SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />
                         {allAspects}
                       </a>
                       {aspectDisplay.width != null && aspectDisplay.height != null && (
@@ -817,7 +818,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               themselves stay implicit to avoid doubling the row
               height.
             */}
-            <VnDetailActionsBar vn={vn} inCollection={inCol} egsRow={egsRow} hasCustomBanner={customBanner} />
+            <VnDetailActionsBar vn={vn} inCollection={inCol} egsRow={egsRow} egsHasImage={egsPosterHas} hasCustomBanner={customBanner} />
             {inCol && (
               <SmartStatusHint
                 vnId={vn.id}
