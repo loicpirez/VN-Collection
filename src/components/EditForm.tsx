@@ -62,31 +62,132 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const myseries = useMemo(() => vn.series ?? [], [vn.series]);
 
-  const buildPayload = useCallback(() => ({
-    status,
-    user_rating: userRating === '' ? null : Number(userRating),
-    playtime_minutes: Number(playtime),
-    started_date: started || null,
-    finished_date: finished || null,
-    notes: notes || null,
-    favorite,
-    location,
-    edition_type: editionType,
-    edition_label: editionLabel || null,
-    physical_location: physicalLocations,
-    box_type: boxType,
-    download_url: downloadUrl.trim() || null,
-    dumped,
-  }), [status, userRating, playtime, started, finished, notes, favorite, location, editionType, editionLabel, physicalLocations, boxType, downloadUrl, dumped]);
+  const buildPayload = useCallback((override?: Partial<{
+    status: Status;
+    userRating: string;
+    playtime: string;
+    started: string;
+    finished: string;
+    favorite: boolean;
+    dumped: boolean;
+  }>) => {
+    const s = override?.status ?? status;
+    const ur = override?.userRating ?? userRating;
+    const pt = override?.playtime ?? playtime;
+    const sd = override?.started ?? started;
+    const fd = override?.finished ?? finished;
+    const fav = override?.favorite ?? favorite;
+    const dmp = override?.dumped ?? dumped;
+    return {
+      status: s,
+      user_rating: ur === '' ? null : Number(ur),
+      playtime_minutes: Number(pt),
+      started_date: sd || null,
+      finished_date: fd || null,
+      notes: notes || null,
+      favorite: fav,
+      location,
+      edition_type: editionType,
+      edition_label: editionLabel || null,
+      physical_location: physicalLocations,
+      box_type: boxType,
+      download_url: downloadUrl.trim() || null,
+      dumped: dmp,
+    };
+  }, [status, userRating, playtime, started, finished, notes, favorite, location, editionType, editionLabel, physicalLocations, boxType, downloadUrl, dumped]);
 
   const lastSavedRef = useRef<string | null>(null);
   const prevDumpedRef = useRef<boolean>(!!vn.dumped);
+  const prevFavoriteRef = useRef<boolean>(!!vn.favorite);
   const mountedRef = useRef(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
+
+  const seededRef = useRef({
+    status: (vn.status as Status) ?? 'planning',
+    userRating: vn.user_rating != null ? String(vn.user_rating) : '',
+    playtime: String(vn.playtime_minutes ?? 0),
+    started: vn.started_date ?? '',
+    finished: vn.finished_date ?? '',
+    favorite: !!vn.favorite,
+    dumped: !!vn.dumped,
+  });
+
+  const pendingCommitRef = useRef<(() => void) | null>(null);
+
+  /**
+   * Re-sync server-owned fields from the incoming `vn` prop when a sibling
+   * surface (SmartStatusHint, PomodoroTimer, FavoriteToggleButton, game-log
+   * sessions, …) mutates them and `router.refresh()` delivers a fresh prop.
+   * Each field is re-seeded only when its prop value changed since the last
+   * seed AND the local state still matches that prior seed (i.e. the user has
+   * no unsaved edit in flight); a dirty field keeps the user's value. After
+   * re-seeding, `lastSavedRef` is re-primed to the payload the committed state
+   * will produce so the debounced auto-save does not PATCH the server value
+   * straight back, and `prevDumpedRef` follows the server `dumped` so no
+   * spurious dumped toast fires.
+   */
+  useEffect(() => {
+    const incoming = {
+      status: (vn.status as Status) ?? 'planning',
+      userRating: vn.user_rating != null ? String(vn.user_rating) : '',
+      playtime: String(vn.playtime_minutes ?? 0),
+      started: vn.started_date ?? '',
+      finished: vn.finished_date ?? '',
+      favorite: !!vn.favorite,
+      dumped: !!vn.dumped,
+    };
+    const seeded = seededRef.current;
+    const next = { status, userRating, playtime, started, finished, favorite, dumped };
+    let reseeded = false;
+    if (incoming.status !== seeded.status) {
+      if (status === seeded.status) { setStatus(incoming.status); next.status = incoming.status; reseeded = true; }
+      seeded.status = incoming.status;
+    }
+    if (incoming.userRating !== seeded.userRating) {
+      if (userRating === seeded.userRating) { setUserRating(incoming.userRating); next.userRating = incoming.userRating; reseeded = true; }
+      seeded.userRating = incoming.userRating;
+    }
+    if (incoming.playtime !== seeded.playtime) {
+      if (playtime === seeded.playtime) { setPlaytime(incoming.playtime); next.playtime = incoming.playtime; reseeded = true; }
+      seeded.playtime = incoming.playtime;
+    }
+    if (incoming.started !== seeded.started) {
+      if (started === seeded.started) { setStarted(incoming.started); next.started = incoming.started; reseeded = true; }
+      seeded.started = incoming.started;
+    }
+    if (incoming.finished !== seeded.finished) {
+      if (finished === seeded.finished) { setFinished(incoming.finished); next.finished = incoming.finished; reseeded = true; }
+      seeded.finished = incoming.finished;
+    }
+    if (incoming.favorite !== seeded.favorite) {
+      if (favorite === seeded.favorite) { setFavorite(incoming.favorite); next.favorite = incoming.favorite; reseeded = true; }
+      seeded.favorite = incoming.favorite;
+      prevFavoriteRef.current = next.favorite;
+    }
+    if (incoming.dumped !== seeded.dumped) {
+      if (dumped === seeded.dumped) { setDumped(incoming.dumped); next.dumped = incoming.dumped; reseeded = true; }
+      seeded.dumped = incoming.dumped;
+      prevDumpedRef.current = next.dumped;
+    }
+    if (reseeded) {
+      lastSavedRef.current = JSON.stringify(buildPayload(next));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vn.status, vn.user_rating, vn.playtime_minutes, vn.started_date, vn.finished_date, vn.favorite, vn.dumped]);
+
+  /**
+   * Flush a pending debounced save when the VN identity changes underneath the
+   * form, so the last edit for the previous VN is not dropped on navigation.
+   */
+  useEffect(() => () => {
+    pendingCommitRef.current?.();
+  }, [vn.id]);
+
   useEffect(() => () => {
     unmountedRef.current = true;
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    pendingCommitRef.current?.();
   }, []);
 
   useEffect(() => {
@@ -101,14 +202,18 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     const serialized = JSON.stringify(payload);
     if (serialized === lastSavedRef.current) return;
     const dumpedJustEnabled = dumped && !prevDumpedRef.current;
+    const favoriteChanged = favorite !== prevFavoriteRef.current;
     setSaveStatus('saving');
-    const timer = setTimeout(() => {
-      lastSavedRef.current = serialized;
+    const commit = () => {
+      pendingCommitRef.current = null;
       call('PATCH', payload)
         .then(() => {
+          lastSavedRef.current = serialized;
           prevDumpedRef.current = dumped;
+          prevFavoriteRef.current = favorite;
           if (unmountedRef.current) return;
           if (dumpedJustEnabled) toast.success(t.toast.markedDumped);
+          if (favoriteChanged) toast.success(favorite ? t.toast.favoriteAdded : t.toast.favoriteRemoved);
           setSaveStatus('saved');
           startTransition(() => router.refresh());
           if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -123,7 +228,12 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           setError(e.message);
           toast.error(e.message);
         });
-    }, 800);
+    };
+    const timer = setTimeout(commit, 800);
+    pendingCommitRef.current = () => {
+      clearTimeout(timer);
+      commit();
+    };
     return () => {
       clearTimeout(timer);
     };
@@ -200,7 +310,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     try {
       const res = await fetch(`/api/series/${seriesId}/vn/${vn.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await readApiError(res, t.common.error));
-      toast.success(t.toast.removed);
+      toast.success(t.toast.removedFromSeries);
       startTransition(() => router.refresh());
     } catch (e) {
       setError((e as Error).message);
