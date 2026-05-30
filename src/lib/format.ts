@@ -11,7 +11,8 @@
  * happy and stops drift from creeping back.
  */
 import type { Locale } from './i18n/dictionaries';
- // Note: Server-only helper, but we pass dictionaries.
+
+let missingDictWarned = false;
 
 /**
  * Format minutes into a short "Xh Ym" / "Xh" / "Ym" string. Pass `t` for
@@ -19,12 +20,11 @@ import type { Locale } from './i18n/dictionaries';
  * and `emptyValue: 'allow_zero'` when `0` is a meaningful value (e.g. a
  * playtime of "started but not yet played").
  *
- * I-025: when `t` is omitted, falls back to English `h`/`m`. This is
- * `graceful degradation` but means a forgotten `t.year` silently produces
- * the wrong locale. A dev-mode `console.warn` flags the omission so
- * regressions are caught during local testing without breaking
- * production callers (e.g. server contexts that legitimately have no
- * dict in hand).
+ * When `t` is omitted the function still produces output using English
+ * `h`/`m` suffixes so production callers never crash, but a forgotten
+ * dictionary is a localisation bug. To stop it passing unnoticed, the
+ * first such call in a non-production build emits a single
+ * `console.error`; production stays silent and non-crashing.
  */
 export function formatMinutes(
   m: number | null | undefined,
@@ -38,9 +38,10 @@ export function formatMinutes(
   const total = Math.round(m);
   const h = Math.floor(total / 60);
   const mn = total % 60;
-  if (!t && process.env.NODE_ENV !== 'production' && typeof console !== 'undefined') {
-    console.warn(
-      '[formatMinutes] called without `t` — falling back to English h/m suffixes. Pass `t.year` for localised output.',
+  if (!t && !missingDictWarned && process.env.NODE_ENV !== 'production' && typeof console !== 'undefined') {
+    missingDictWarned = true;
+    console.error(
+      '[formatMinutes] called without `t` — falling back to English h/m suffixes. Pass `t.year` for localised output to fix the missing localisation.',
     );
   }
   const hu = t?.hoursUnit ?? 'h';
