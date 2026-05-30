@@ -31,8 +31,11 @@ import { classifyOfferGroup, isEligibleGameStockOffer, type OfferGroup } from '@
 import { ONLINE_STOCK_SENTINEL } from '@/lib/stock-provider-constants';
 import { StockPhysicalLocations, type PhysicalOffer } from './StockPhysicalLocations';
 const ErogePricePanel = dynamic(() => import('./ErogePricePanel').then((m) => m.ErogePricePanel), { ssr: false });
+const ClearCacheModal = dynamic(() => import('./stock/ClearCacheModal').then((m) => m.ClearCacheModal), {
+  ssr: false,
+  loading: () => <SkeletonRows count={2} withThumb={false} />,
+});
 import { SkeletonRows } from './Skeleton';
-import { useDialogA11y } from './Dialog';
 import { useConfirm } from './ConfirmDialog';
 import { ErrorAlert } from './ErrorAlert';
 
@@ -1002,57 +1005,6 @@ export function StockPanel({
         />
       )}
     </section>
-  );
-}
-
-function ClearCacheModal({
-  t,
-  onCancel,
-  onConfirm,
-}: {
-  t: TDict;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const titleId = useId();
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  useDialogA11y({ open: true, onClose: onCancel, panelRef });
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
-    >
-      <div className="absolute inset-0 bg-black/60" aria-hidden />
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="relative w-full max-w-sm rounded-xl border border-border bg-bg-card p-4 shadow-xl outline-none"
-      >
-        <h2 id={titleId} className="text-sm font-bold text-white">
-          {t.stock.clearCache as string}
-        </h2>
-        <p className="mt-2 text-xs text-muted">{t.stock.clearCacheConfirm as string}</p>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="min-h-[44px] rounded-md border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            {t.common.cancel as string}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="min-h-[44px] rounded-md border border-status-dropped/50 bg-status-dropped/15 px-3 py-1.5 text-xs font-bold text-status-dropped hover:bg-status-dropped/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped"
-          >
-            {t.stock.clearCache as string}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
