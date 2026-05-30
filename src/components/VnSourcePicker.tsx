@@ -193,7 +193,7 @@ export function VnSourcePicker({
       </div>
 
       {query.trim() && sources.length > 1 && (
-        <div className="mt-2 flex flex-wrap gap-1.5" role="tablist" aria-label={t.stock.batchSourceFilter as string}>
+        <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label={t.stock.batchSourceFilter as string}>
           <SourceTab active={showAll} onClick={() => setActiveSource('all')} label={`${t.stock.batchSourceAll as string} (${totalHits})`} />
           {sources.map((src) => (
             enabled(src) && (
@@ -253,8 +253,7 @@ function SourceTab({ active, onClick, label }: { active: boolean; onClick: () =>
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={active}
+      aria-pressed={active}
       onClick={onClick}
       className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
         active

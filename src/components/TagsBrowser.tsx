@@ -1,5 +1,5 @@
 'use client';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, SearchX, Tags } from 'lucide-react';
@@ -213,11 +213,27 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
     }
   }, [q, category, mode, search, router]);
 
+  const localTabId = useId();
+  const vndbTabId = useId();
+  const tabIds: Record<TagsPageMode, string> = { local: localTabId, vndb: vndbTabId };
+  const activeTabId = tabIds[mode];
+
   const switchMode = (next: TagsPageMode) => {
     setMode(next);
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', tagsPageHref(next));
     }
+  };
+
+  const onTablistKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+    e.preventDefault();
+    const next: TagsPageMode =
+      e.key === 'Home' ? 'local'
+      : e.key === 'End' ? 'vndb'
+      : mode === 'local' ? 'vndb' : 'local';
+    switchMode(next);
+    document.getElementById(tabIds[next])?.focus();
   };
 
   const commitQ = useCallback((next: string) => setQ(next), []);
@@ -240,12 +256,14 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         <RefreshScopeButton scope="tags-list" lastUpdatedAt={lastUpdatedAt} />
       </header>
 
-      <div role="tablist" aria-label={t.tags.modeSwitcherLabel} className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
+      <div role="tablist" aria-label={t.tags.modeSwitcherLabel} onKeyDown={onTablistKeyDown} className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
         <Link
           href={tagsPageHref('local')}
+          id={localTabId}
           role="tab"
           aria-selected={mode === 'local'}
           aria-controls="tags-results-panel"
+          tabIndex={mode === 'local' ? 0 : -1}
           data-shortcut="tags-tab-local"
           onClick={() => switchMode('local')}
           className={`rounded px-2.5 py-1 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
@@ -254,9 +272,11 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         </Link>
         <Link
           href={tagsPageHref('vndb')}
+          id={vndbTabId}
           role="tab"
           aria-selected={mode === 'vndb'}
           aria-controls="tags-results-panel"
+          tabIndex={mode === 'vndb' ? 0 : -1}
           data-shortcut="tags-tab-vndb"
           onClick={() => switchMode('vndb')}
           className={`rounded px-2.5 py-1 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
@@ -296,7 +316,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         </div>
       )}
 
-      <div id="tags-results-panel" role="tabpanel">
+      <div id="tags-results-panel" role="tabpanel" aria-labelledby={activeTabId}>
         {loading ? (
           mode === 'vndb' && !q && !category ? <VndbTreeSkeleton /> : <SkeletonRows count={12} withThumb={false} />
         ) : results.length === 0 ? (

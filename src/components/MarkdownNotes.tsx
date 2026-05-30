@@ -39,13 +39,25 @@ export function MarkdownNotes({ value, onChange, placeholder }: Props) {
 
   return (
     <div className="rounded-lg border border-border bg-bg overflow-hidden">
-      <div role="tablist" className="flex items-center gap-1 border-b border-border bg-bg-elev/60 px-2 py-1">
+      <div
+        role="tablist"
+        aria-label={t.markdown.viewLabel}
+        className="flex items-center gap-1 border-b border-border bg-bg-elev/60 px-2 py-1"
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          e.preventDefault();
+          const next = tab === 'edit' ? 'preview' : 'edit';
+          setTab(next);
+          document.getElementById(next === 'edit' ? editTabId : previewTabId)?.focus();
+        }}
+      >
         <button
           type="button"
           id={editTabId}
           role="tab"
           aria-selected={tab === 'edit'}
           aria-controls={editPanelId}
+          tabIndex={tab === 'edit' ? 0 : -1}
           className={`btn btn-xs ${tab === 'edit' ? 'btn-primary' : 'text-muted hover:text-white'}`}
           onClick={() => setTab('edit')}
         >
@@ -57,6 +69,7 @@ export function MarkdownNotes({ value, onChange, placeholder }: Props) {
           role="tab"
           aria-selected={tab === 'preview'}
           aria-controls={previewPanelId}
+          tabIndex={tab === 'preview' ? 0 : -1}
           className={`btn btn-xs ${tab === 'preview' ? 'btn-primary' : 'text-muted hover:text-white'}`}
           onClick={() => setTab('preview')}
         >
