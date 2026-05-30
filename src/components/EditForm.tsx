@@ -6,11 +6,10 @@ import { ArrowRight, Bookmark, Check, Loader2, Plus, Trash2 } from 'lucide-react
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
-import { StatusIcon } from './StatusIcon';
-import { MarkdownNotes } from './MarkdownNotes';
-import { DateInput } from './DateInput';
-import { TagInput } from './TagInput';
-import { BOX_TYPES, EDITION_TYPES, LOCATIONS, STATUSES, type BoxType, type EditionType, type Location, type Status } from '@/lib/types';
+import { TrackingFields } from './edit-form/TrackingFields';
+import { OwnedEditions } from './edit-form/OwnedEditions';
+import { NotesEditor } from './edit-form/NotesEditor';
+import type { BoxType, EditionType, Location, Status } from '@/lib/types';
 import type { CollectionItem, SeriesRow } from '@/lib/types';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -81,6 +80,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   }), [status, userRating, playtime, started, finished, notes, favorite, location, editionType, editionLabel, physicalLocations, boxType, downloadUrl, dumped]);
 
   const lastSavedRef = useRef<string | null>(null);
+  const prevDumpedRef = useRef<boolean>(!!vn.dumped);
   const mountedRef = useRef(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
@@ -100,12 +100,15 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     const payload = buildPayload();
     const serialized = JSON.stringify(payload);
     if (serialized === lastSavedRef.current) return;
+    const dumpedJustEnabled = dumped && !prevDumpedRef.current;
     setSaveStatus('saving');
     const timer = setTimeout(() => {
       lastSavedRef.current = serialized;
       call('PATCH', payload)
         .then(() => {
+          prevDumpedRef.current = dumped;
           if (unmountedRef.current) return;
+          if (dumpedJustEnabled) toast.success(t.toast.markedDumped);
           setSaveStatus('saved');
           startTransition(() => router.refresh());
           if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -212,174 +215,42 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-muted">{t.form.myTracking}</h3>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev px-2.5 py-1 text-[10px] font-medium text-muted">
-            <Check className="h-3 w-3 text-status-completed" aria-hidden />
-            {t.form.autoSaveBadge}
-          </span>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="label">{t.form.status}</span>
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-                <StatusIcon status={status} className="h-4 w-4" />
-              </span>
-              <select className="input pl-9" value={status} onChange={(e) => setStatus(e.target.value as Status)}>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>{t.status[s]}</option>
-                ))}
-              </select>
-            </div>
-          </label>
+      <TrackingFields
+        status={status}
+        onStatusChange={setStatus}
+        userRating={userRating}
+        userRatingInvalid={userRatingInvalid}
+        onUserRatingChange={setUserRating}
+        playtime={playtime}
+        playtimeInvalid={playtimeInvalid}
+        onPlaytimeChange={setPlaytime}
+        favorite={favorite}
+        onFavoriteChange={setFavorite}
+        started={started}
+        onStartedChange={setStarted}
+        finished={finished}
+        onFinishedChange={setFinished}
+      />
 
-          <label className="flex flex-col gap-1">
-            <span className="label">{t.form.myRating}</span>
-            <input
-              className={`input ${userRatingInvalid ? 'border-status-dropped ring-1 ring-status-dropped' : ''}`}
-              type="number"
-              inputMode="numeric"
-              min={10}
-              max={100}
-              step={1}
-              value={userRating}
-              aria-invalid={userRatingInvalid || undefined}
-              aria-describedby={userRatingInvalid ? 'edit-rating-error' : undefined}
-              onChange={(e) => setUserRating(e.target.value)}
-            />
-            {userRatingInvalid && (
-              <span id="edit-rating-error" className="text-[11px] text-status-dropped">
-                {t.form.errors.ratingRange}
-              </span>
-            )}
-          </label>
+      <OwnedEditions
+        location={location}
+        onLocationChange={setLocation}
+        editionType={editionType}
+        onEditionTypeChange={setEditionType}
+        boxType={boxType}
+        onBoxTypeChange={setBoxType}
+        editionLabel={editionLabel}
+        onEditionLabelChange={setEditionLabel}
+        physicalLocations={physicalLocations}
+        onPhysicalLocationsChange={setPhysicalLocations}
+        knownPlaces={knownPlaces}
+        downloadUrl={downloadUrl}
+        onDownloadUrlChange={setDownloadUrl}
+        dumped={dumped}
+        onDumpedChange={setDumped}
+      />
 
-          <label className="flex flex-col gap-1">
-            <span className="label">{t.form.playtimeMinutes}</span>
-            <input
-              className={`input ${playtimeInvalid ? 'border-status-dropped ring-1 ring-status-dropped' : ''}`}
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step={1}
-              value={playtime}
-              aria-invalid={playtimeInvalid || undefined}
-              aria-describedby={playtimeInvalid ? 'edit-playtime-error' : undefined}
-              onChange={(e) => setPlaytime(e.target.value)}
-            />
-            {playtimeInvalid && (
-              <span id="edit-playtime-error" className="text-[11px] text-status-dropped">
-                {t.form.errors.playtimeInvalid}
-              </span>
-            )}
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="label">{t.form.favorite}</span>
-            <select className="input" value={favorite ? '1' : '0'} onChange={(e) => setFavorite(e.target.value === '1')}>
-              <option value="0">{t.common.no}</option>
-              <option value="1">{t.form.favoriteYes}</option>
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="label">{t.form.startedDate}</span>
-            <DateInput value={started} onChange={setStarted} ariaLabel={t.form.startedDate} />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="label">{t.form.finishedDate}</span>
-            <DateInput value={finished} onChange={setFinished} ariaLabel={t.form.finishedDate} />
-          </label>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-        <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-muted">{t.form.inventoryTitle}</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="label">{t.form.location}</span>
-            <select className="input" value={location} onChange={(e) => setLocation(e.target.value as Location)}>
-              {LOCATIONS.map((l) => (
-                <option key={l} value={l}>{t.locations[l]}</option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="label">{t.form.editionType}</span>
-            <select className="input" value={editionType} onChange={(e) => setEditionType(e.target.value as EditionType)}>
-              {EDITION_TYPES.map((e) => (
-                <option key={e} value={e}>{t.editions[e]}</option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="label">{t.form.boxType}</span>
-            <select className="input" value={boxType} onChange={(e) => setBoxType(e.target.value as BoxType)}>
-              {BOX_TYPES.map((b) => (
-                <option key={b} value={b}>{t.boxTypes[b]}</option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 sm:col-span-2">
-            <span className="label">{t.form.editionLabel}</span>
-            <input
-              className="input"
-              type="text"
-              autoComplete="off"
-              placeholder={t.form.editionLabelPlaceholder}
-              value={editionLabel}
-              onChange={(e) => setEditionLabel(e.target.value)}
-            />
-          </label>
-          <div className="flex flex-col gap-1 sm:col-span-2">
-            <span className="label">{t.form.physicalLocation}</span>
-            <TagInput
-              values={physicalLocations}
-              onChange={setPhysicalLocations}
-              placeholder={t.form.physicalLocationPlaceholder}
-              suggestions={knownPlaces}
-              maxLength={200}
-              maxValues={32}
-            />
-            <span className="text-[10px] text-muted/70">{t.form.physicalLocationHint}</span>
-          </div>
-          <label className="flex flex-col gap-1 sm:col-span-2">
-            <span className="label">{t.form.downloadUrl}</span>
-            <input
-              className="input"
-              type="url"
-              inputMode="url"
-              autoComplete="off"
-              placeholder={t.form.downloadUrlPlaceholder}
-              value={downloadUrl}
-              onChange={(e) => setDownloadUrl(e.target.value)}
-              maxLength={2000}
-              aria-label={t.form.downloadUrl}
-            />
-            <span className="text-[10px] text-muted/70">{t.form.downloadUrlHint}</span>
-          </label>
-          <label className="flex items-start gap-2 sm:col-span-2">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-accent"
-              checked={dumped}
-              onChange={(e) => setDumped(e.target.checked)}
-            />
-            <div className="flex flex-col gap-0.5">
-              <span className="label">{t.form.dumped}</span>
-              <span className="text-[10px] text-muted/70">{t.form.dumpedHint}</span>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-        <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-muted">{t.form.personalNotes}</h3>
-        <MarkdownNotes value={notes} onChange={setNotes} />
-      </div>
+      <NotesEditor notes={notes} onNotesChange={setNotes} />
 
       <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
