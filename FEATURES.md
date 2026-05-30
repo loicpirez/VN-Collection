@@ -13,9 +13,9 @@ Pair with:
 > Status legend: ✅ shipped · 🧪 scaffolded (works but minimal) · 🚧 planned.
 
 > Tip: the in-app guided tour auto-opens on first visit and walks you
-> through every major surface (15 steps: library, search, lists,
+> through every major surface (14 steps: library, search, lists,
 > recommend, upcoming, quotes, year, stats, shelf, shelf layout,
-> steam, EGS, dumped, data, VN detail). The tour body copy mentions
+> steam, EGS, dumped, data). The tour body copy mentions
 > the scoped density slider, VNDB tags grouped view, cover/banner
 > rotation, recommendation modes, and the SpoilerReveal hover toggle
 > so the operator hits the recent surfaces without leaving the tour.
@@ -1009,9 +1009,9 @@ Drop a `.json` or `.db` file anywhere on `/data` to trigger the import.
 ### Grouped responsive navbar ✅
 The top nav has three always-visible primary links (Library / Wishlist /
 Search) plus three category dropdowns:
-  - **Discover** — Upcoming, Top-ranked, For you, Quotes, Lists
-  - **Browse** — Producers, Series, Tags, Traits, Characters, Staff, Year, Labels
-  - **Data & Stats** — Stats, Shelf, Dumped, Activity, Steam, EGS, Schema, Data
+  - **Discover** — Upcoming, Top-ranked, For you, Similar, Compare, Quotes, Lists
+  - **Browse** — Producers, Series, Tags, Traits, Characters, Staff
+  - **Data & Stats** — Brand overlap, Stats, Shelf, Year, Labels, Dumped, Activity, Steam, EGS, Stock, Places, Map, Schema, Data
 
 The right edge carries the closed-eye content-controls hub, the
 language switcher and the settings gear — all three remain visible
@@ -1020,10 +1020,10 @@ nav collapses into a single hamburger sheet that lists every
 destination grouped by category.
 
 ### Tutorial tour ✅
-First-time visitors get a 15-step guided pass over the major surfaces:
+First-time visitors get a 14-step guided pass over the major surfaces:
 library, search, lists, recommendations, upcoming, quotes, year,
-stats, shelf, shelf layout, steam, EGS, dumped, data hub, and the VN
-detail page. Re-runnable from `/data → Tour`.
+stats, shelf, shelf layout, steam, EGS, dumped, and the data hub.
+Re-runnable from `/data → Tour`.
 
 ### Skeleton loading states ✅
 Every async section renders a layout-matching skeleton while loading —

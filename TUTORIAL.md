@@ -216,7 +216,7 @@ Default sections:
   chips to fall back to auto-derivation. Each result card carries
   **owned** / **wishlist** indicator chips when the row matches
   your local collection or VNDB wishlist.
-- `/top-ranked` (`g k`) — two tabs of community-ranked games:
+- `/top-ranked` (`g o`) — two tabs of community-ranked games:
     1. **VNDB top** — highest-rated VNs across VNDB by user score,
        filtered by minimum vote count. The score chip carries a
        tooltip naming the ranking method (`VNDB rating (Bayesian-
@@ -462,13 +462,13 @@ Tabbed-style sections:
 
 ## 14. Navbar layout
 
-The top nav has four always-visible primary links plus three category
+The top nav has three always-visible primary links plus three category
 dropdowns:
 
 - **Primary** — Library, Wishlist, Search
-- **Discover** — Upcoming, Top-ranked, For you, Quotes, Lists
-- **Browse** — Producers, Series, Tags, Traits, Characters, Staff, Year, Labels
-- **Data & Stats** — Stats, Shelf, Dumped, Activity, Steam, EGS, Schema, Data
+- **Discover** — Upcoming, Top-ranked, For you, Similar, Compare, Quotes, Lists
+- **Browse** — Producers, Series, Tags, Traits, Characters, Staff
+- **Data & Stats** — Brand overlap, Stats, Shelf, Year, Labels, Dumped, Activity, Steam, EGS, Stock, Places, Map, Schema, Data
 
 On phones / narrow windows the whole nav collapses into a single
 hamburger sheet. The **closed-eye icon** (content-controls hub),
