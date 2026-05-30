@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Search } from 'lucide-react';
+import { Loader2, X, Search } from 'lucide-react';
 import { useDialogA11y } from './Dialog';
 import { useT } from '@/lib/i18n/client';
+import { useConfirm } from './ConfirmDialog';
 import type { PlaceWithLinks } from '@/lib/db';
 
 type PlaceKind = 'shop' | 'chain' | 'storage';
@@ -23,23 +24,61 @@ interface NominatimResult {
 
 export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Props) {
   const t = useT();
+  const { confirm } = useConfirm();
   const panelRef = useRef<HTMLDivElement | null>(null);
-  useDialogA11y({ open: true, onClose, panelRef });
 
-  const [name, setName] = useState(place?.name ?? initialBranch ?? '');
-  const [nameJa, setNameJa] = useState(place?.name_ja ?? '');
-  const [kind, setKind] = useState<PlaceKind>(place?.kind ?? 'shop');
-  const [address, setAddress] = useState(place?.address ?? '');
-  const [lat, setLat] = useState(place?.lat != null ? String(place.lat) : '');
-  const [lng, setLng] = useState(place?.lng != null ? String(place.lng) : '');
-  const [url, setUrl] = useState(place?.url ?? '');
-  const [notes, setNotes] = useState(place?.notes ?? '');
+  const initial = {
+    name: place?.name ?? initialBranch ?? '',
+    nameJa: place?.name_ja ?? '',
+    kind: (place?.kind ?? 'shop') as PlaceKind,
+    address: place?.address ?? '',
+    lat: place?.lat != null ? String(place.lat) : '',
+    lng: place?.lng != null ? String(place.lng) : '',
+    url: place?.url ?? '',
+    notes: place?.notes ?? '',
+  };
+
+  const [name, setName] = useState(initial.name);
+  const [nameJa, setNameJa] = useState(initial.nameJa);
+  const [kind, setKind] = useState<PlaceKind>(initial.kind);
+  const [address, setAddress] = useState(initial.address);
+  const [lat, setLat] = useState(initial.lat);
+  const [lng, setLng] = useState(initial.lng);
+  const [url, setUrl] = useState(initial.url);
+  const [notes, setNotes] = useState(initial.notes);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [geocodeQ, setGeocodeQ] = useState('');
   const [geocodeResults, setGeocodeResults] = useState<NominatimResult[]>([]);
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
+
+  const dirty =
+    name !== initial.name ||
+    nameJa !== initial.nameJa ||
+    kind !== initial.kind ||
+    address !== initial.address ||
+    lat !== initial.lat ||
+    lng !== initial.lng ||
+    url !== initial.url ||
+    notes !== initial.notes;
+
+  /**
+   * Close guard for the backdrop / Esc / Cancel affordances. When the
+   * form holds unsaved edits, confirm before discarding so a stray
+   * click or keypress can't lose the operator's input. While saving,
+   * the dialog is locked shut.
+   */
+  const requestClose = useCallback(async () => {
+    if (saving) return;
+    if (dirty) {
+      const ok = await confirm({ message: t.places.discardConfirm as string, tone: 'danger' });
+      if (!ok) return;
+    }
+    onClose();
+  }, [saving, dirty, confirm, t, onClose]);
+
+  useDialogA11y({ open: true, onClose: requestClose, panelRef });
 
   useEffect(() => {
     if (!name && initialBranch) setName(initialBranch);
@@ -122,7 +161,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-bg/80 backdrop-blur" onClick={onClose} aria-hidden />
+      <div className="absolute inset-0 bg-bg/80 backdrop-blur" onClick={requestClose} aria-hidden />
       <div
         ref={panelRef}
         role="dialog"
@@ -140,7 +179,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="icon-btn tap-target text-muted hover:text-white"
             aria-label={t.common.close as string}
           >
@@ -298,15 +337,16 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
         )}
 
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="btn btn-sm text-muted">
+          <button type="button" onClick={requestClose} className="btn btn-sm text-muted">
             {t.places.cancel as string}
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving || !name.trim()}
-            className="btn btn-sm bg-accent text-bg hover:bg-accent/80"
+            className="btn btn-sm btn-primary"
           >
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
             {t.places.saveChanges as string}
           </button>
         </div>

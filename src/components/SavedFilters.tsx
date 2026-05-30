@@ -169,8 +169,11 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
   async function remove(id: number) {
     setBusy(`del-${id}`);
     try {
-      await fetch(`/api/saved-filters?id=${id}`, { method: 'DELETE' });
+      const r = await fetch(`/api/saved-filters?id=${id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       load();
+    } catch (e) {
+      toast.error((e as Error).message);
     } finally {
       setBusy(null);
     }

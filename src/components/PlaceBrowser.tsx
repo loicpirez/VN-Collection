@@ -3,10 +3,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AlertCircle, Clock, Edit2, Filter, Globe, Grid3X3, Link2, Link2Off, List, MapPin, PackageCheck, Plus, RotateCcw, Search } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useToast } from './ToastProvider';
+import { readApiError } from '@/lib/api-error-read';
 import type { PlaceWithLinks } from '@/lib/db';
 import { PlaceCard } from './PlaceCard';
 import { AddEditPlaceModal } from './AddEditPlaceModal';
 import { AssignProviderDialog } from './AssignProviderDialog';
+import { ErrorAlert } from './ErrorAlert';
 import { SkeletonBlock } from './Skeleton';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
@@ -47,9 +50,11 @@ function freshnessStale(updatedAt: number): boolean {
 
 export function PlaceBrowser() {
   const t = useT();
+  const toast = useToast();
   const [places, setPlaces] = useState<PlaceWithLinks[]>([]);
   const [unassigned, setUnassigned] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('all');
   const [sort, setSort] = useState<SortKey>(() => loadPrefs().sort ?? 'name');
   const [view, setView] = useState<ViewMode>(() => loadPrefs().view ?? 'cards');
@@ -63,15 +68,23 @@ export function PlaceBrowser() {
   const [assignBranchTarget, setAssignBranchTarget] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const [pRes, uRes] = await Promise.all([
-      fetch('/api/places', { cache: 'no-store' }),
-      fetch('/api/places/unassigned', { cache: 'no-store' }),
-    ]);
-    const [pd, ud] = await Promise.all([pRes.json(), uRes.json()]);
-    setPlaces(pd.places ?? []);
-    setUnassigned(ud.branches ?? []);
-    setLoading(false);
-  }, []);
+    setLoadError(null);
+    try {
+      const [pRes, uRes] = await Promise.all([
+        fetch('/api/places', { cache: 'no-store' }),
+        fetch('/api/places/unassigned', { cache: 'no-store' }),
+      ]);
+      if (!pRes.ok) throw new Error(await readApiError(pRes, t.common.error as string));
+      if (!uRes.ok) throw new Error(await readApiError(uRes, t.common.error as string));
+      const [pd, ud] = await Promise.all([pRes.json(), uRes.json()]);
+      setPlaces(pd.places ?? []);
+      setUnassigned(ud.branches ?? []);
+    } catch (e) {
+      setLoadError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -496,6 +509,17 @@ export function PlaceBrowser() {
             <SkeletonBlock key={i} className={`${view === 'cards' ? 'h-52' : 'h-20'} rounded-xl`} />
           ))}
         </div>
+      ) : loadError ? (
+        <ErrorAlert title={loadError}>
+          <button
+            type="button"
+            onClick={() => { setLoading(true); reload(); }}
+            className="btn btn-sm mt-2"
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+            {t.common.retry as string}
+          </button>
+        </ErrorAlert>
       ) : tab === 'unassigned' ? (
         filteredUnassigned.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted">
@@ -568,11 +592,16 @@ export function PlaceBrowser() {
           onClose={() => setAssignBranchTarget(null)}
           onSaved={async (newId) => {
             if (newId != null) {
-              await fetch(`/api/places/${newId}/link`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ provider_label: assignBranchTarget }),
-              });
+              try {
+                const r = await fetch(`/api/places/${newId}/link`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ provider_label: assignBranchTarget }),
+                });
+                if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
+              } catch (e) {
+                toast.error((e as Error).message);
+              }
             }
             setAssignBranchTarget(null);
             reload();

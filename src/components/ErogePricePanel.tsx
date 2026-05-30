@@ -35,6 +35,7 @@ import type {
 } from '@/lib/erogeprice-meta';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { fmtNum } from '@/lib/locale-number';
+import { useToast } from './ToastProvider';
 import { SafeImage } from './SafeImage';
 import { DEFAULT_PALETTE, PriceHistoryChart, type SparklineSeries } from './charts/Sparkline';
 
@@ -529,6 +530,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
         )}
         <PriceHistoryChart
           series={series}
+          locale={locale}
           guides={guides}
           ariaLabel={`${t.erogePrice.priceHistory} — ${d.title}`}
           formatYen={(y) => fmtYen(y, locale)}
@@ -610,6 +612,7 @@ function Stat({
 
 export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
   const t = useT();
+  const toast = useToast();
   const [extras, setExtras] = useState<ErogePriceExtrasV1>(initialExtras);
   const [activeId, setActiveId] = useState<number>(
     initialExtras.selectedEpId ?? initialExtras.candidates[0]?.epId ?? 0,
@@ -734,8 +737,8 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
       );
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
     } catch {
-      // rollback
       setExtras(prev);
+      toast.error(t.erogePrice.manualMatch.removeError);
     }
   };
 
@@ -777,7 +780,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
               inputMode="numeric"
               value={addInput}
               onChange={(e) => setAddInput(e.target.value)}
-              placeholder="e.g. 3676"
+              placeholder={t.erogePrice.manualMatch.addCandidatePlaceholder}
               className="w-32 rounded-md border border-border bg-bg px-2 py-1 text-white"
             />
           </label>
@@ -799,11 +802,14 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
         </div>
       )}
 
-      {/* Multi-candidate tabs — operator demand: integrate them all.
-          Each tab gets a hover-revealed delete affordance so the
+      {/* Multi-candidate selector — operator demand: integrate them all.
+          A single-selection chip group (`role="group"` + `aria-pressed`)
+          rather than a tablist, since selecting a candidate doesn't swap
+          tabpanels; the same panel re-renders for the active candidate.
+          Each chip gets a hover-revealed delete affordance so the
           operator can prune the panel without leaving it. */}
       {extras.candidates.length > 1 && (
-        <div className="mb-3 flex flex-wrap gap-1.5" role="tablist" aria-label={t.erogePrice.candidates}>
+        <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label={t.erogePrice.candidates}>
           {extras.candidates.map((c) => {
             const isActive = c.epId === activeId;
             const isPrimary = c.epId === primaryId;
@@ -811,8 +817,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
               <div key={c.epId} className="group relative inline-flex">
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={isActive}
+                  aria-pressed={isActive}
                   onClick={() => setActiveId(c.epId)}
                   className={`tap-target rounded-lg border px-3 py-1.5 text-xs ${
                     isActive

@@ -13,6 +13,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useConfirm } from './ConfirmDialog';
+import { useToast } from './ToastProvider';
+import { readApiError } from '@/lib/api-error-read';
 import type { PlaceWithLinks } from '@/lib/db';
 import { AddEditPlaceModal } from './AddEditPlaceModal';
 import { AssignProviderDialog } from './AssignProviderDialog';
@@ -30,6 +33,8 @@ function kindLabel(t: ReturnType<typeof useT>, kind: PlaceWithLinks['kind']): st
 export function PlaceDetailClient({ place }: Props) {
   const t = useT();
   const router = useRouter();
+  const { confirm } = useConfirm();
+  const toast = useToast();
   const [showEdit, setShowEdit] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -37,13 +42,16 @@ export function PlaceDetailClient({ place }: Props) {
   const hasGps = place.lat != null && place.lng != null;
 
   async function handleDelete() {
-    if (!window.confirm(t.places.deleteConfirm as string)) return;
+    const ok = await confirm({ message: t.places.deleteConfirm as string, tone: 'danger' });
+    if (!ok) return;
     setDeleting(true);
     try {
       const r = await fetch(`/api/places/${place.id}`, { method: 'DELETE' });
-      if (!r.ok) throw new Error(`${r.status}`);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
+      toast.success(t.places.deleteSuccess as string);
       router.push('/places');
-    } catch {
+    } catch (e) {
+      toast.error((e as Error).message);
       setDeleting(false);
     }
   }

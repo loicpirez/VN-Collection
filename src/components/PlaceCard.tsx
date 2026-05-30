@@ -3,6 +3,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Clock, Globe, Edit2, Link2, MapPin, PackageCheck, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useConfirm } from './ConfirmDialog';
+import { useToast } from './ToastProvider';
+import { readApiError } from '@/lib/api-error-read';
 import type { PlaceWithLinks } from '@/lib/db';
 
 const STALE_DAYS = 7;
@@ -29,16 +32,25 @@ function kindLabel(t: ReturnType<typeof useT>, kind: PlaceWithLinks['kind']): st
 
 export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
   const t = useT();
+  const { confirm } = useConfirm();
+  const toast = useToast();
   const [deleting, setDeleting] = useState(false);
   const { stale, label: staleDays } = freshnessInfo(place.updated_at);
   const hasGps = place.lat != null && place.lng != null;
 
-  function handleDelete() {
-    if (!window.confirm(t.places.deleteConfirm as string)) return;
+  async function handleDelete() {
+    const ok = await confirm({ message: t.places.deleteConfirm as string, tone: 'danger' });
+    if (!ok) return;
     setDeleting(true);
-    fetch(`/api/places/${place.id}`, { method: 'DELETE' })
-      .then(() => onDelete(place))
-      .catch(() => setDeleting(false));
+    try {
+      const r = await fetch(`/api/places/${place.id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
+      toast.success(t.places.deleteSuccess as string);
+      onDelete(place);
+    } catch (e) {
+      toast.error((e as Error).message);
+      setDeleting(false);
+    }
   }
 
   return (

@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom';
 import { X, Link2, Unlink, Search, ArrowRightLeft } from 'lucide-react';
 import { useDialogA11y } from './Dialog';
 import { useT } from '@/lib/i18n/client';
+import { useConfirm } from './ConfirmDialog';
+import { SkeletonRows } from './Skeleton';
 import type { PlaceWithLinks } from '@/lib/db';
 
 interface Props {
@@ -20,6 +22,7 @@ interface OtherBranch {
 
 export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
   const t = useT();
+  const { confirm } = useConfirm();
   const panelRef = useRef<HTMLDivElement | null>(null);
   useDialogA11y({ open: true, onClose, panelRef });
 
@@ -91,12 +94,13 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
   }
 
   async function moveFromOther(branch: OtherBranch) {
-    const ok = window.confirm(
-      (t.places.moveConfirm as string)
+    const ok = await confirm({
+      message: (t.places.moveConfirm as string)
         .replace('{label}', branch.provider_label)
         .replace('{from}', branch.place_name)
         .replace('{to}', place.name),
-    );
+      tone: 'danger',
+    });
     if (!ok) return;
     setBusy(branch.provider_label);
     setError(null);
@@ -208,7 +212,7 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
             {(t.places.tabUnassigned as string)} ({filteredUnassigned.length})
           </p>
           {loading ? (
-            <p className="text-[11px] text-muted">{t.app.loading as string}</p>
+            <SkeletonRows count={4} withThumb={false} label={t.app.loading as string} />
           ) : filteredUnassigned.length === 0 ? (
             <p className="text-[11px] text-muted">{q ? (t.places.searchNoMatch as string) : (t.places.unassignedEmpty as string)}</p>
           ) : (
