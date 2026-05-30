@@ -145,6 +145,7 @@ export function StockPanel({
   initialSnapshot,
   showErogePrice = true,
   placeMap = {},
+  bare = false,
 }: {
   vnId: string;
   title?: string;
@@ -154,6 +155,12 @@ export function StockPanel({
   initialSnapshot?: StockSnapshot;
   showErogePrice?: boolean;
   placeMap?: Record<string, number>;
+  /**
+   * Drop the outer card chrome (border / background / rounding) so the
+   * panel sits flush inside a host that already provides a card — e.g.
+   * the VN-detail `DetailSectionFrame`. Internal padding is kept.
+   */
+  bare?: boolean;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -659,7 +666,7 @@ export function StockPanel({
       : t.stock.check;
 
   return (
-    <section className={`overflow-hidden rounded-xl border border-border bg-bg-card ${dense ? 'p-4' : 'p-4 sm:p-5'}`}>
+    <section className={`${bare ? '' : 'overflow-hidden rounded-xl border border-border bg-bg-card'} ${dense ? 'p-4' : 'p-4 sm:p-5'}`}>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 max-w-full flex-1">
           <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">

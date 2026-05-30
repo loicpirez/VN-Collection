@@ -1,8 +1,9 @@
 'use client';
-import { memo, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, GitMerge } from 'lucide-react';
+import { memo, useMemo } from 'react';
+import { GitMerge } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { useT } from '@/lib/i18n/client';
+import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import type { VnRelation } from '@/lib/types';
 
 const RELATION_ORDER: Record<string, number> = {
@@ -76,10 +77,6 @@ interface Props {
 
 export function RelationsSection({ relations }: Props) {
   const t = useT();
-  // Default to open — the relation graph is the primary reason to visit
-  // the section, hiding it behind a click was friction. Users can still
-  // collapse it manually.
-  const [open, setOpen] = useState(true);
 
   const grouped = useMemo(() => {
     const map = new Map<string, EnrichedRelation[]>();
@@ -93,48 +90,37 @@ export function RelationsSection({ relations }: Props) {
     );
   }, [relations]);
 
+  useSectionCount(relations.length > 0 ? relations.length : null);
+
   if (relations.length === 0) return null;
 
   return (
-    <details
-      className="group rounded-xl border border-border bg-bg-card"
-      open={open}
-      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-    >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-6 py-4 hover:bg-bg-elev/50">
-        <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <GitMerge className="h-4 w-4 text-accent" /> {t.relations.section}
-          <span className="text-[11px] font-normal text-muted">· {relations.length}</span>
-        </span>
-        {open ? <ChevronDown className="h-4 w-4 text-muted" /> : <ChevronRight className="h-4 w-4 text-muted" />}
-      </summary>
-      <div className="space-y-6 border-t border-border px-6 py-5">
-        {grouped.map(([relation, rels]) => {
-          const label = t.relations.types[relation as keyof typeof t.relations.types] ?? relation;
-          return (
-            <section key={relation}>
-              <h4 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted">
-                <GitMerge className="h-3 w-3 text-accent" aria-hidden />
-                {label}
-                <span className="opacity-70">· {rels.length}</span>
-              </h4>
-              <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
-              >
-                {rels.map((r) => (
-                  <RelationCard
-                    key={`${r.id}-${r.relation}`}
-                    r={r}
-                    label={label}
-                    unofficial={t.relations.unofficial}
-                  />
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-    </details>
+    <div className="space-y-6 px-6 py-5">
+      {grouped.map(([relation, rels]) => {
+        const label = t.relations.types[relation as keyof typeof t.relations.types] ?? relation;
+        return (
+          <section key={relation}>
+            <h4 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted">
+              <GitMerge className="h-3 w-3 text-accent" aria-hidden />
+              {label}
+              <span className="opacity-70">· {rels.length}</span>
+            </h4>
+            <div
+              className="grid gap-4"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+            >
+              {rels.map((r) => (
+                <RelationCard
+                  key={`${r.id}-${r.relation}`}
+                  r={r}
+                  label={label}
+                  unofficial={t.relations.unofficial}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
 }

@@ -1,6 +1,5 @@
 import Link from 'next/link';
-import { Network } from 'lucide-react';
-import { getCoOccurringTags } from '@/lib/db';
+import type { CoOccurringTag } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 
 const CATEGORY_TONE: Record<string, string> = {
@@ -12,20 +11,16 @@ const CATEGORY_TONE: Record<string, string> = {
 /**
  * Tags from other VNs in the collection that share at least one tag with
  * the seed VN. Bars are sized relative to the top entry's share count so
- * the dominant cluster pops visually. Renders nothing when the collection
- * is too small to produce co-occurrence signal (fewer than 2 results).
+ * the dominant cluster pops visually. The VN page only mounts this when
+ * `rows` has co-occurrence signal (2+ entries), so the enclosing section
+ * frame is never rendered empty.
  */
-export async function TagCoOccurrence({ vnId }: { vnId: string }) {
+export async function TagCoOccurrence({ rows }: { rows: CoOccurringTag[] }) {
   const t = await getDict();
-  const rows = getCoOccurringTags(vnId, 18);
-  if (rows.length < 2) return null;
   const max = rows[0].shared;
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-      <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-        <Network className="h-4 w-4 text-accent" /> {t.tags.cooccurrence.title}
-      </h3>
+    <section className="p-4 sm:p-6">
       <p className="mb-4 text-[11px] text-muted">{t.tags.cooccurrence.hint}</p>
       <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         {rows.map((r) => {

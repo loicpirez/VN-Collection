@@ -1,13 +1,13 @@
 'use client';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { SkeletonBlock } from './Skeleton';
 import { SpoilerChip } from './SpoilerChip';
 import { ErrorAlert } from './ErrorAlert';
 import { useT } from '@/lib/i18n/client';
 import { useDisplaySettings } from '@/lib/settings/client';
+import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import type { VndbCharacter } from '@/lib/vndb-types';
 import { fetchVnCharacters, type VnCharacterRow } from '@/lib/vn-characters-cache';
 
@@ -104,30 +104,16 @@ function ageString(ch: VndbCharacter, t: ReturnType<typeof useT>): string[] {
   return out;
 }
 
-export function CharactersSection({
-  vnId,
-  initialOpen = false,
-}: {
-  vnId: string;
-  /**
-   * Initial open/closed state. The VN-detail layout host passes
-   * `!collapsedByDefault` so the user's "collapsed by default"
-   * preference actually flips the section's first paint. Falls
-   * back to closed so the heavy character fetch stays lazy when
-   * the prop is omitted.
-   */
-  initialOpen?: boolean;
-}) {
+export function CharactersSection({ vnId }: { vnId: string }) {
   const t = useT();
   const { settings } = useDisplaySettings();
-  const [open, setOpen] = useState(initialOpen);
   const [chars, setChars] = useState<VnCharacterRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fetchedForRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!open || fetchedForRef.current === vnId) return;
+    if (fetchedForRef.current === vnId) return;
     fetchedForRef.current = vnId;
     // AbortController instead of an `alive` flag — cancels the
     // pending fetch when the user navigates away mid-load instead of
@@ -155,7 +141,7 @@ export function CharactersSection({
       ac.abort();
       if (!settled) fetchedForRef.current = null;
     };
-  }, [open, vnId, t.common.error]);
+  }, [vnId, t.common.error]);
 
   const sorted = useMemo(
     () =>
@@ -167,39 +153,27 @@ export function CharactersSection({
     [chars, vnId],
   );
 
+  useSectionCount(chars ? chars.length : null);
+
   return (
-    <details
-      className="group rounded-xl border border-border bg-bg-card"
-      open={open}
-      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      aria-busy={loading || undefined}
-    >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-6 py-4 hover:bg-bg-elev/50">
-        <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <Users className="h-4 w-4 text-accent" /> {t.characters.section}
-          {chars && <span className="text-[11px] font-normal text-muted">· {chars.length}</span>}
-        </span>
-        {open ? <ChevronDown className="h-4 w-4 text-muted" /> : <ChevronRight className="h-4 w-4 text-muted" />}
-      </summary>
-      <div className="border-t border-border px-6 py-5">
-        {loading && <CharactersSkeleton />}
-        {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
-        {!loading && chars && chars.length === 0 && <p className="text-sm text-muted">{t.characters.empty}</p>}
-        {sorted.length > 0 && (
-          <div role="list" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sorted.map((c) => (
-              <CharacterCard
-                key={c.id}
-                c={c}
-                t={t}
-                spoilerLevel={settings.spoilerLevel}
-                showSexual={settings.showSexualTraits}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </details>
+    <div className="px-6 py-5" aria-busy={loading || undefined}>
+      {loading && <CharactersSkeleton />}
+      {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
+      {!loading && chars && chars.length === 0 && <p className="text-sm text-muted">{t.characters.empty}</p>}
+      {sorted.length > 0 && (
+        <div role="list" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {sorted.map((c) => (
+            <CharacterCard
+              key={c.id}
+              c={c}
+              t={t}
+              spoilerLevel={settings.spoilerLevel}
+              showSexual={settings.showSexualTraits}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

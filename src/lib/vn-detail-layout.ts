@@ -36,7 +36,6 @@ export const VN_SECTION_IDS = [
   'my-editions',
   'releases',
   'quotes',
-  'cover-banner-tools',
   'edit-form',
 ] as const;
 

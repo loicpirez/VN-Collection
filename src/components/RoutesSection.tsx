@@ -1,7 +1,7 @@
 'use client';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowDown, ArrowUp, Check, GitBranch, Loader2, Pencil, Plus, StickyNote, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Loader2, Pencil, Plus, StickyNote, Trash2, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { formatIsoDateString } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
@@ -543,17 +543,12 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const pct = total > 0 ? (completed / total) * 100 : 0;
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <GitBranch className="h-4 w-4 text-accent" /> {t.routes.section}
-          {total > 0 && (
-            <span className="text-[11px] font-normal text-muted">
-              · {completed}/{total} {t.routes.completedCount}
-            </span>
-          )}
-        </h3>
-        {total > 0 && (
+    <section className="p-4 sm:p-6">
+      {total > 0 && (
+        <div className="mb-4 flex items-center justify-end gap-3">
+          <span className="text-[11px] font-normal text-muted">
+            {completed}/{total} {t.routes.completedCount}
+          </span>
           <div
             role="progressbar"
             aria-valuenow={pct}
@@ -567,8 +562,8 @@ export function RoutesSection({ vnId, inCollection }: Props) {
               style={{ width: `${pct}%` }}
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {error && (
         <div className="mb-3">

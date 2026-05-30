@@ -18,7 +18,7 @@ interface StockSnapshot {
  */
 function StockPricesSkeleton() {
   return (
-    <SkeletonBoundary className="rounded-2xl border border-border bg-bg-card p-4">
+    <SkeletonBoundary className="p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <SkeletonBlock className="h-4 w-32" />
         <SkeletonBlock className="h-6 w-28 rounded-md" />
@@ -67,7 +67,11 @@ export function StockPricesSection({ vnId }: { vnId: string }) {
   }, [vnId]);
 
   if (loading) return <StockPricesSkeleton />;
-  if (error) return <ErrorAlert title={error} className="mt-2" />;
+  if (error) return <div className="p-4"><ErrorAlert title={error} /></div>;
   if (!extras) return null;
-  return <ErogePricePanel vnId={vnId} extras={extras} />;
+  return (
+    <div className="p-4 sm:p-5">
+      <ErogePricePanel vnId={vnId} extras={extras} />
+    </div>
+  );
 }

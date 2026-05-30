@@ -10,6 +10,7 @@ import {
   deriveVnAspectKey,
   getAppSetting,
   getCollectionItem,
+  getCoOccurringTags,
   getEgsForVn,
   getSourcePref,
   getVnAspectOverride,
@@ -884,32 +885,27 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         appear in the host's `sections` map and are skipped.
       */}
       {(() => {
-        // Read the layout once so we can both pass the canonical
-        // config to the host AND thread `collapsedByDefault` into the
-        // three sections that own their own `<details>` chevron. Without
-        // this, unticking "collapsed by default" had no effect on
-        // Characters / Releases / Quotes — they hard-coded
-        // useState(false).
+        // Read the layout once so the host renders sections in the
+        // user's saved order / visibility. Collapse state is owned by
+        // each section's `DetailSectionFrame` (seeded from
+        // `collapsedByDefault`, persisted per section in localStorage).
         const layout = parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1'));
-        const sectionOpens = (id: keyof typeof layout.sections): boolean =>
-          !layout.sections[id].collapsedByDefault;
         const sectionNodes: Partial<Record<VnSectionId, React.ReactNode>> = {};
         if (inCol) {
-          sectionNodes['notes'] = (
-            <NotesSectionToggle
-              notes={vn.notes}
-              emptyLabel={t.form.notesEmpty}
-              titleLabel={t.form.personalNotes}
-              showLabel={t.vnLayout.expand}
-              hideLabel={t.vnLayout.collapse}
-            />
-          );
+          sectionNodes['notes'] = <NotesSectionToggle notes={vn.notes} emptyLabel={t.form.notesEmpty} />;
         }
         if (inCol) {
-          sectionNodes['series-suggest'] = <SeriesAutoSuggest vnId={vn.id} suggestion={detectSeriesForVn(vn.id)} />;
+          // Only mount the suggestion section when the detector has
+          // something to offer — otherwise the section frame would
+          // render an empty collapsible card for a card that used to
+          // vanish entirely.
+          const seriesSuggestion = detectSeriesForVn(vn.id);
+          if (seriesSuggestion && (seriesSuggestion.existing.length > 0 || seriesSuggestion.suggestedName)) {
+            sectionNodes['series-suggest'] = <SeriesAutoSuggest vnId={vn.id} suggestion={seriesSuggestion} />;
+          }
           sectionNodes['routes'] = <RoutesSection vnId={vn.id} inCollection={inCol} />;
           sectionNodes['session-activity'] = (
-            <div className="space-y-4">
+            <div className="space-y-4 p-4 sm:p-6">
               <SessionPanel
                 vnId={vn.id}
                 currentMinutes={vn.playtime_minutes ?? 0}
@@ -933,6 +929,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         if (!vn.id.startsWith('egs_')) {
           sectionNodes['vndb-status'] = <VndbStatusPanel vnId={vn.id} />;
         }
+        const stockSnapshot = getStockForVn(vn.id);
         sectionNodes['stock'] = (
           <StockPanelBoundary
             title={t.stock.title}
@@ -944,13 +941,27 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               title={displayTitle}
               altTitle={vn.alttitle ?? null}
               vndbAliases={(vn.aliases ?? []) as string[]}
-              initialSnapshot={getStockForVn(vn.id)}
+              initialSnapshot={stockSnapshot}
               showErogePrice={false}
               placeMap={getPlaceProviderMap()}
+              bare
             />
           </StockPanelBoundary>
         );
-        sectionNodes['stock-prices'] = <StockPricesSection vnId={vn.id} />;
+        // StockPricesSection hides itself unless the eroge_price
+        // provider returned a v1 extras blob; gate on that so a VN
+        // without price history doesn't get an empty section frame.
+        const hasErogePriceExtras = stockSnapshot.statuses.some((s) => {
+          if (s.provider !== 'eroge_price' || !s.extras_json) return false;
+          try {
+            return (JSON.parse(s.extras_json) as { schemaVersion?: number }).schemaVersion === 1;
+          } catch {
+            return false;
+          }
+        });
+        if (hasErogePriceExtras) {
+          sectionNodes['stock-prices'] = <StockPricesSection vnId={vn.id} />;
+        }
         sectionNodes['egs-panel'] = (
           <EgsPanel
             vnId={vn.id}
@@ -977,8 +988,13 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             initialSource={egsRow?.source ?? null}
           />
         );
-        sectionNodes['egs-details'] = <EgsRichDetails vnId={vn.id} />;
-        sectionNodes['characters'] = <CharactersSection vnId={vn.id} initialOpen={sectionOpens('characters')} />;
+        // EgsRichDetails hides itself when the VN has no EGS match;
+        // gate on the linked EGS row so a non-linked VN doesn't get an
+        // empty section frame.
+        if (egsRow) {
+          sectionNodes['egs-details'] = <EgsRichDetails vnId={vn.id} />;
+        }
+        sectionNodes['characters'] = <CharactersSection vnId={vn.id} />;
         if ((vn.va ?? []).length > 0) {
           sectionNodes['cast'] = <CastSection va={vn.va ?? []} />;
         }
@@ -997,23 +1013,23 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           );
         }
         if (inCol) {
-          sectionNodes['tag-overlap'] = <TagCoOccurrence vnId={vn.id} />;
+          // The tag-overlap panel only renders with co-occurrence
+          // signal (2+ shared-tag rows); computing it here lets the
+          // host skip the section entirely below that threshold so the
+          // frame is never empty.
+          const cooccurringTags = getCoOccurringTags(vn.id, 18);
+          if (cooccurringTags.length >= 2) {
+            sectionNodes['tag-overlap'] = <TagCoOccurrence rows={cooccurringTags} />;
+          }
           sectionNodes['similar'] = (
-            <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-muted">
-                    {t.similar.sectionTitle}
-                  </h3>
-                  <p className="mt-1 text-xs text-muted/80">{t.similar.sectionHint}</p>
-                </div>
-                <Link
-                  href={`/similar?vn=${vn.id}`}
-                  className="inline-flex h-9 items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-bold text-muted hover:border-accent hover:text-accent"
-                >
-                  <Sparkles className="h-3 w-3" aria-hidden /> {t.similar.moreLink}
-                </Link>
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
+              <p className="text-xs text-muted/80">{t.similar.sectionHint}</p>
+              <Link
+                href={`/similar?vn=${vn.id}`}
+                className="inline-flex h-9 items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-bold text-muted hover:border-accent hover:text-accent"
+              >
+                <Sparkles className="h-3 w-3" aria-hidden /> {t.similar.moreLink}
+              </Link>
             </div>
           );
           sectionNodes['my-editions'] = (
@@ -1028,14 +1044,8 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             />
           );
         }
-        sectionNodes['releases'] = (
-          <ReleasesSection
-            vnId={vn.id}
-            inCollection={inCol}
-            initialOpen={sectionOpens('releases')}
-          />
-        );
-        sectionNodes['quotes'] = <QuotesSection vnId={vn.id} initialOpen={sectionOpens('quotes')} />;
+        sectionNodes['releases'] = <ReleasesSection vnId={vn.id} inCollection={inCol} />;
+        sectionNodes['quotes'] = <QuotesSection vnId={vn.id} />;
         sectionNodes['edit-form'] = <EditForm vn={vn} inCollection={inCol} allSeries={allSeries} />;
         return (
           <VnDetailLayout

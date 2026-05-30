@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useId, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -20,8 +20,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  ChevronDown,
-  ChevronRight,
   Eye,
   EyeOff,
   GripVertical,
@@ -31,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
+import { DetailSectionFrame } from './vn-detail/DetailSectionFrame';
 import {
   VN_LAYOUT_EVENT,
   VN_SECTION_IDS,
@@ -60,11 +59,10 @@ interface Props {
  * in here — those live above the host on /vn/[id]/page.tsx and are
  * intentionally not user-reorderable.
  *
- * The "collapsed by default" toggle only governs the initial open
- * state of each section's local collapse — sections that already use
- * their own `<details>` (Characters, Releases, Quotes) keep that
- * native behavior, while non-`<details>` sections get a layout-owned
- * wrapper with a chevron.
+ * Every visible section renders inside a shared `DetailSectionFrame`
+ * that owns a single collapse chevron and persists the collapsed
+ * state per section in localStorage. The "collapsed by default"
+ * toggle seeds that state on first visit.
  */
 export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
   const t = useT();
@@ -264,16 +262,20 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
             const node = sectionMap.get(id);
             if (!node) return null;
             const state = active.sections[id];
+            // `id="section-<id>"` lets the identity metadata row link
+            // to each section (e.g. "#section-aspect-override").
             return (
-              <SectionWrapper
-                key={id}
-                id={id}
-                node={node}
-                state={state}
-                label={t.vnLayout.sectionLabels[id]}
-                expandLabel={t.vnLayout.expand}
-                collapseLabel={t.vnLayout.collapse}
-              />
+              <section key={id} id={`section-${id}`} className="scroll-mt-24">
+                <DetailSectionFrame
+                  id={id}
+                  title={HEADERLESS_SECTIONS.has(id) ? '' : t.vnLayout.sectionLabels[id]}
+                  defaultCollapsed={state.collapsedByDefault}
+                  expandLabel={t.vnLayout.expand}
+                  collapseLabel={t.vnLayout.collapse}
+                >
+                  {node}
+                </DetailSectionFrame>
+              </section>
             );
           })}
         </div>
@@ -283,89 +285,26 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
 }
 
 /**
- * Section as rendered in normal (non-edit) mode. If the layout marks
- * the section as collapsed-by-default the body starts hidden behind a
- * lightweight `<details>` wrapper; sections that already own their
- * own collapse (Characters, Releases, Quotes) ignore this and rely
- * on the inner component's native chevron.
+ * Sections that keep their own internal header (because its controls
+ * or multi-state render branches are too entangled to lift into the
+ * frame safely, and that header already states the section name).
+ * They render inside a headerless frame — the frame supplies the
+ * single collapse chevron, the section supplies its own title and
+ * controls, so there is no duplicate header.
+ *
+ * Composite sections without a single matching header (session +
+ * activity, the edit form, the price-history card) are NOT listed —
+ * they take the frame title, and their distinct sub-card headings do
+ * not duplicate it.
  */
-function SectionWrapper({
-  id,
-  node,
-  state,
-  label,
-  expandLabel,
-  collapseLabel,
-}: {
-  id: VnSectionId;
-  node: React.ReactNode;
-  state: VnSectionState;
-  label: string;
-  expandLabel: string;
-  collapseLabel: string;
-}) {
-  // Sections that already use a native `<details>` (those that lazy-load
-  // on open) handle their own collapse — wrapping them again would
-  // create a second chevron and either UX is fine to leave to the inner
-  // component. List kept in sync with the actual section implementations.
-  const HAS_INTERNAL_COLLAPSE: ReadonlySet<VnSectionId> = new Set<VnSectionId>([
-    'characters',
-    'releases',
-    'quotes',
-  ]);
-
-  if (HAS_INTERNAL_COLLAPSE.has(id) || !state.collapsedByDefault) {
-    // `id="section-<id>"` lets the identity metadata row link to
-    // each section (e.g. "#section-aspect-override").
-    return (
-      <section id={`section-${id}`} className="scroll-mt-24">
-        {node}
-      </section>
-    );
-  }
-  // Wrap non-internal-collapse sections so the user-saved "collapsed
-  // by default" preference takes effect.
-  return (
-    <section id={`section-${id}`} className="scroll-mt-24">
-      <CollapsibleSection label={label} expandLabel={expandLabel} collapseLabel={collapseLabel}>
-        {node}
-      </CollapsibleSection>
-    </section>
-  );
-}
-
-function CollapsibleSection({
-  label,
-  expandLabel,
-  collapseLabel,
-  children,
-}: {
-  label: string;
-  expandLabel: string;
-  collapseLabel: string;
-  children: React.ReactNode;
-}) {
-  const panelId = useId();
-  const [open, setOpen] = useState(false);
-  return (
-    <section className="rounded-xl border border-border bg-bg-card">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-controls={panelId}
-        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-bg-elev/40"
-        title={open ? collapseLabel : expandLabel}
-      >
-        <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          {open ? <ChevronDown className="h-3.5 w-3.5" aria-hidden /> : <ChevronRight className="h-3.5 w-3.5" aria-hidden />}
-          {label}
-        </span>
-      </button>
-      {open && <div id={panelId} className="border-t border-border">{children}</div>}
-    </section>
-  );
-}
+const HEADERLESS_SECTIONS: ReadonlySet<VnSectionId> = new Set<VnSectionId>([
+  'series-suggest',
+  'vndb-status',
+  'stock',
+  'egs-panel',
+  'egs-details',
+  'my-editions',
+]);
 
 function EditableRow({
   id,

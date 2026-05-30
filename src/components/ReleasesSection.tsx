@@ -2,10 +2,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Boxes,
   Check,
-  ChevronDown,
-  ChevronRight,
   ExternalLink,
   Globe,
   Info,
@@ -16,6 +13,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
+import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import { platformLabel } from '@/lib/platform-label';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { SkeletonRows } from './Skeleton';
@@ -258,18 +256,12 @@ const ReleaseRow = memo(function ReleaseRow({
 export function ReleasesSection({
   vnId,
   inCollection = false,
-  initialOpen = false,
 }: {
   vnId: string;
   inCollection?: boolean;
-  /** First-paint open state — driven by the VN layout's
-   *  `collapsedByDefault` so the user's preference actually flips
-   *  the chevron on initial render. */
-  initialOpen?: boolean;
 }) {
   const t = useT();
   const locale = useLocale();
-  const [open, setOpen] = useState(initialOpen);
   const [releases, setReleases] = useState<VndbRelease[] | null>(null);
   const [owned, setOwned] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -278,7 +270,7 @@ export function ReleasesSection({
   const pendingRef = useRef(false);
 
   useEffect(() => {
-    if (!open || releases !== null) return;
+    if (releases !== null) return;
     const ac = new AbortController();
     setLoading(true);
     setError(null);
@@ -298,7 +290,7 @@ export function ReleasesSection({
         if (!ac.signal.aborted) setLoading(false);
       });
     return () => ac.abort();
-  }, [open, vnId, releases, t.common.error]);
+  }, [vnId, releases, t.common.error]);
 
   const refreshOwned = useCallback(async (signal?: AbortSignal) => {
     if (!inCollection) return;
@@ -315,11 +307,10 @@ export function ReleasesSection({
   }, [vnId, inCollection]);
 
   useEffect(() => {
-    if (!open) return undefined;
     const ctrl = new AbortController();
     refreshOwned(ctrl.signal);
     return () => ctrl.abort();
-  }, [open, refreshOwned]);
+  }, [refreshOwned]);
 
   // Keep the local "owned" set in sync with mutations coming from
   // elsewhere — primarily OwnedEditionsSection removing a tile, or the
@@ -371,42 +362,30 @@ export function ReleasesSection({
     }
   }, [inCollection, vnId, t.common.error]);
 
+  useSectionCount(releases ? releases.length : null);
+
   return (
-    <details
-      className="group rounded-xl border border-border bg-bg-card"
-      open={open}
-      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      aria-busy={loading || undefined}
-    >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-6 py-4 hover:bg-bg-elev/50">
-        <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <Boxes className="h-4 w-4 text-accent" /> {t.releases.section}
-          {releases && <span className="text-[11px] font-normal text-muted">· {releases.length}</span>}
-        </span>
-        {open ? <ChevronDown className="h-4 w-4 text-muted" /> : <ChevronRight className="h-4 w-4 text-muted" />}
-      </summary>
-      <div className="border-t border-border px-6 py-5">
-        {loading && <SkeletonRows count={4} withThumb={false} />}
-        {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
-        {!loading && releases && releases.length === 0 && <p className="text-sm text-muted">{t.releases.empty}</p>}
-        {releases && releases.length > 0 && (
-          <ul className="space-y-3">
-            {releases.map((r) => (
-              <ReleaseRow
-                key={r.id}
-                r={r}
-                vnId={vnId}
-                locale={locale}
-                t={t}
-                inCollection={inCollection}
-                isOwned={owned.has(r.id)}
-                pending={pendingId === r.id}
-                onToggle={toggleOwned}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
-    </details>
+    <div className="px-6 py-5" aria-busy={loading || undefined}>
+      {loading && <SkeletonRows count={4} withThumb={false} />}
+      {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
+      {!loading && releases && releases.length === 0 && <p className="text-sm text-muted">{t.releases.empty}</p>}
+      {releases && releases.length > 0 && (
+        <ul className="space-y-3">
+          {releases.map((r) => (
+            <ReleaseRow
+              key={r.id}
+              r={r}
+              vnId={vnId}
+              locale={locale}
+              t={t}
+              inCollection={inCollection}
+              isOwned={owned.has(r.id)}
+              pending={pendingId === r.id}
+              onToggle={toggleOwned}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

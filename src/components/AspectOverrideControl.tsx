@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Monitor, Loader2, X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
@@ -91,32 +91,29 @@ export function AspectOverrideControl({
 
   if (loading) {
     return (
-      <section
+      <div
         role="status"
         aria-live="polite"
         aria-busy
-        className="rounded-xl border border-border bg-bg-card p-3 text-xs text-muted"
+        className="p-3 text-xs text-muted"
       >
         <Loader2 className="inline h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
-      </section>
+      </div>
     );
   }
 
   const activeKey = override?.aspect_key ?? derived;
   const isManual = !!override;
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-3 sm:p-4">
-      <header className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <Monitor className="h-3.5 w-3.5 text-accent" aria-hidden /> {t.aspectOverride.title}
-        </h3>
-        <span className="text-[10px] text-muted">
+    <div className="p-3 sm:p-4">
+      <p className="mb-2 flex flex-wrap items-baseline justify-between gap-2 text-[11px] text-muted">
+        <span>{t.aspectOverride.description}</span>
+        <span className="text-[10px]">
           {isManual ? t.aspectOverride.sourceManual : t.aspectOverride.sourceDerived}
           {' · '}
           <span className="font-mono text-accent">{activeKey}</span>
         </span>
-      </header>
-      <p className="mb-2 text-[11px] text-muted">{t.aspectOverride.description}</p>
+      </p>
       <div className="flex flex-wrap gap-1.5">
         {ASPECT_KEYS.filter((k) => k !== 'unknown').map((k) => {
           const active = override?.aspect_key === k;
@@ -157,6 +154,6 @@ export function AspectOverrideControl({
       {derived === 'unknown' && !override && (
         <p className="mt-2 text-[10px] text-muted">{t.aspectOverride.noDataHint}</p>
       )}
-    </section>
+    </div>
   );
 }

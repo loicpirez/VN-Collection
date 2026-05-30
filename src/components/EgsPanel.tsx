@@ -172,12 +172,12 @@ export function EgsPanel({
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+      <div className="p-4 sm:p-5">
         <SkeletonBlock className="mb-3 h-4 w-32" />
         <SkeletonBlock className="mb-2 h-3 w-1/2" />
         <SkeletonBlock className="mb-2 h-3 w-2/3" />
         <SkeletonBlock className="h-3 w-1/3" />
-      </section>
+      </div>
     );
   }
 
@@ -185,7 +185,7 @@ export function EgsPanel({
   if (!game) {
     return (
       <>
-        <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+        <div className="p-4 sm:p-5">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
               <Sparkles className="h-4 w-4 text-accent" /> {t.egs.section}
@@ -213,7 +213,7 @@ export function EgsPanel({
           </div>
           <p className="text-xs text-muted">{t.egs.noMatch}</p>
           {error && <div className="mt-1"><ErrorAlert title={t.common.error}>{error}</ErrorAlert></div>}
-        </section>
+        </div>
         {pickerOpen && (
           <EgsPicker
             vnId={vnId}
@@ -236,7 +236,7 @@ export function EgsPanel({
 
   return (
     <>
-      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+      <div className="p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Sparkles className="h-4 w-4 text-accent" /> {t.egs.section}
@@ -395,7 +395,7 @@ export function EgsPanel({
             </div>
           </div>
         )}
-      </section>
+      </div>
       {pickerOpen && (
         <EgsPicker
           vnId={vnId}

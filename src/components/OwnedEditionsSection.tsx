@@ -290,14 +290,14 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+      <div className="p-4 sm:p-6">
         <SkeletonRows count={2} />
-      </section>
+      </div>
     );
   }
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card">
+    <div>
       <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6">
         <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <Package className="h-4 w-4 text-accent" /> {t.inventory.section}
@@ -440,7 +440,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
           })}
         </ul>
       )}
-    </section>
+    </div>
   );
 }
 

@@ -1,33 +1,23 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, MessageSquareQuote } from 'lucide-react';
 import { SkeletonBlock } from './Skeleton';
 import { ErrorAlert } from './ErrorAlert';
 import { QuoteAvatar } from './QuoteAvatar';
 import { VndbMarkup } from './VndbMarkup';
 import { useT } from '@/lib/i18n/client';
+import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import type { VndbQuote } from '@/lib/vndb-types';
 
 import { readApiError } from '@/lib/api-error-read';
-export function QuotesSection({
-  vnId,
-  initialOpen = false,
-}: {
-  vnId: string;
-  /** First-paint open state — wired to the VN layout host's
-   *  `collapsedByDefault` so unticking the setting actually opens
-   *  the section on initial render. */
-  initialOpen?: boolean;
-}) {
+export function QuotesSection({ vnId }: { vnId: string }) {
   const t = useT();
-  const [open, setOpen] = useState(initialOpen);
   const [quotes, setQuotes] = useState<VndbQuote[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || quotes !== null) return;
+    if (quotes !== null) return;
     const ac = new AbortController();
     setLoading(true);
     setError(null);
@@ -47,23 +37,12 @@ export function QuotesSection({
         if (!ac.signal.aborted) setLoading(false);
       });
     return () => ac.abort();
-  }, [open, vnId, quotes, t.common.error]);
+  }, [vnId, quotes, t.common.error]);
+
+  useSectionCount(quotes ? quotes.length : null);
 
   return (
-    <details
-      className="group rounded-xl border border-border bg-bg-card"
-      open={open}
-      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      aria-busy={loading || undefined}
-    >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-6 py-4 hover:bg-bg-elev/50">
-        <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <MessageSquareQuote className="h-4 w-4 text-accent" /> {t.quotes.section}
-          {quotes && <span className="text-[11px] font-normal text-muted">· {quotes.length}</span>}
-        </span>
-        {open ? <ChevronDown className="h-4 w-4 text-muted" /> : <ChevronRight className="h-4 w-4 text-muted" />}
-      </summary>
-      <div className="border-t border-border px-6 py-5">
+    <div className="px-6 py-5" aria-busy={loading || undefined}>
         {loading && (
           <ul className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -124,7 +103,6 @@ export function QuotesSection({
             ))}
           </ul>
         )}
-      </div>
-    </details>
+    </div>
   );
 }

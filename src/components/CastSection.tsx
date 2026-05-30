@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import { Mic2 } from 'lucide-react';
 import { getDict } from '@/lib/i18n/server';
 import { getCharacterImages } from '@/lib/db';
 import { SafeImage } from './SafeImage';
+import { SectionCountReport } from './vn-detail/DetailSectionFrame';
 
 interface VaEntry {
   note?: string | null;
@@ -28,11 +28,8 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
   const localImages = getCharacterImages(charIds);
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-      <h3 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-        <Mic2 className="h-4 w-4 text-accent" /> {t.staff.cast}
-        <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {va.length}</span>
-      </h3>
+    <section className="p-4 sm:p-6">
+      <SectionCountReport count={va.length} />
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {va.map((v, i) => {
           const c = v.character;

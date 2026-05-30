@@ -320,7 +320,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   if (!inCollection) {
     return (
-      <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+      <div className="p-4 sm:p-6">
         <p className="mb-4 text-muted">{t.form.notInCollection}</p>
         <button type="button" className="btn btn-primary" onClick={handleAdd} disabled={pending}>
           <Plus className="h-4 w-4" />
@@ -334,7 +334,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const seriesNotIn = allSeries.filter((s) => !myseries.some((ms) => ms.id === s.id));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <TrackingFields
         status={status}
         onStatusChange={setStatus}

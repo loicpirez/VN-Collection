@@ -83,16 +83,16 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+      <div className="p-4 sm:p-5">
         <SkeletonBlock className="mb-3 h-4 w-32" />
         <SkeletonBlock className="mb-2 h-3 w-full" />
         <SkeletonBlock className="h-3 w-3/4" />
-      </section>
+      </div>
     );
   }
   if (error) {
     return (
-      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+      <div className="p-4 sm:p-5">
         <ErrorAlert title={t.common.error}>
           {error}
           <button type="button" onClick={reload} className="btn btn-sm mt-2">
@@ -100,18 +100,18 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
             {t.common.retry}
           </button>
         </ErrorAlert>
-      </section>
+      </div>
     );
   }
   if (!state) return null;
   if (state.needsAuth) {
     return (
-      <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+      <div className="p-4 sm:p-5">
         <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <KeyRound className="h-4 w-4 text-accent" /> {t.vndbStatus.section}
         </h3>
         <p className="text-xs text-muted">{t.vndbStatus.needsToken}</p>
-      </section>
+      </div>
     );
   }
 
@@ -161,7 +161,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   }
 
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+    <div className="p-4 sm:p-5">
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
           <CheckCircle2 className="h-4 w-4 text-accent" /> {t.vndbStatus.section}
@@ -238,7 +238,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
           );
         })}
       </div>
-    </section>
+    </div>
   );
 }
 
