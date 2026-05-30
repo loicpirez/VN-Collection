@@ -9,6 +9,7 @@ import { SkeletonBlock } from './Skeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { CollapsibleSummary } from './CollapsibleSummary';
 import { ErrorAlert } from './ErrorAlert';
+import { EGS_CHANGED_EVENT, type EgsChangedDetail } from './EgsPanel';
 import { fmtNum } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -76,6 +77,16 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     return () => ctrl.abort();
   }, [load]);
 
+  useEffect(() => {
+    function onEgsChanged(e: Event) {
+      const detail = (e as CustomEvent<EgsChangedDetail>).detail;
+      if (detail && detail.vnId !== vnId) return;
+      void load();
+    }
+    window.addEventListener(EGS_CHANGED_EVENT, onEgsChanged);
+    return () => window.removeEventListener(EGS_CHANGED_EVENT, onEgsChanged);
+  }, [load, vnId]);
+
   const reload = useCallback(() => {
     setLoading(true);
     load().finally(() => setLoading(false));
@@ -107,10 +118,9 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   if (state.needsAuth) {
     return (
       <div className="p-4 sm:p-5">
-        <h2 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <KeyRound className="h-4 w-4 text-accent" /> {t.vndbStatus.section}
-        </h2>
-        <p className="text-xs text-muted">{t.vndbStatus.needsToken}</p>
+        <p className="inline-flex items-center gap-2 text-xs text-muted">
+          <KeyRound className="h-4 w-4 text-accent" aria-hidden /> {t.vndbStatus.needsToken}
+        </p>
       </div>
     );
   }
@@ -162,10 +172,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
 
   return (
     <div className="p-4 sm:p-5">
-      <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <CheckCircle2 className="h-4 w-4 text-accent" /> {t.vndbStatus.section}
-        </h2>
+      <header className="mb-3 flex flex-wrap items-center justify-end gap-2">
         <div className="flex items-center gap-1">
           <a
             href={`https://vndb.org/${vnId}`}

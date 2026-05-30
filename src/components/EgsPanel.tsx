@@ -44,6 +44,18 @@ interface EgsCandidate {
 type Source = 'extlink' | 'search' | 'manual' | null;
 
 /**
+ * Broadcast after the EGS link for a VN changes (refresh / relink /
+ * unlink). The client-island VNDB status panel listens for this to
+ * refetch, since it otherwise only fetches on mount and would
+ * otherwise show stale data when the underlying EGS match moves.
+ */
+export const EGS_CHANGED_EVENT = 'vn:egs-changed';
+
+export interface EgsChangedDetail {
+  vnId: string;
+}
+
+/**
  * Single source of truth for the EGS lookup result. Folding the
  * loading / game / source trio into one object updated atomically
  * keeps the panel out of impossible intermediate states (e.g.
@@ -145,6 +157,7 @@ export function EgsPanel({
     try {
       await load(true);
       toast.success(t.toast.saved);
+      window.dispatchEvent(new CustomEvent<EgsChangedDetail>(EGS_CHANGED_EVENT, { detail: { vnId } }));
       startTransition(() => router.refresh());
     } finally {
       setRefreshing(false);
@@ -158,6 +171,7 @@ export function EgsPanel({
       await fetch(`/api/vn/${vnId}/erogamescape`, { method: 'DELETE' });
       setFetchState((prev) => ({ ...prev, game: null, source: null }));
       toast.success(t.toast.removed);
+      window.dispatchEvent(new CustomEvent<EgsChangedDetail>(EGS_CHANGED_EVENT, { detail: { vnId } }));
       startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);
@@ -167,6 +181,7 @@ export function EgsPanel({
   function onPicked(picked: EgsGame, pickedSource: Source) {
     setFetchState((prev) => ({ ...prev, game: picked, source: pickedSource }));
     setPickerOpen(false);
+    window.dispatchEvent(new CustomEvent<EgsChangedDetail>(EGS_CHANGED_EVENT, { detail: { vnId } }));
     startTransition(() => router.refresh());
   }
 
@@ -186,10 +201,7 @@ export function EgsPanel({
     return (
       <>
         <div className="p-4 sm:p-5">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-              <Sparkles className="h-4 w-4 text-accent" /> {t.egs.section}
-            </h2>
+          <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -238,8 +250,7 @@ export function EgsPanel({
     <>
       <div className="p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            <Sparkles className="h-4 w-4 text-accent" /> {t.egs.section}
+          <div className="flex flex-wrap items-center gap-1.5">
             {source === 'search' && (
               <span className="rounded bg-bg-elev/60 px-1.5 py-0.5 text-[10px] font-normal text-muted">
                 {t.egs.fuzzyMatch}
@@ -250,7 +261,7 @@ export function EgsPanel({
                 {t.egs.manualMatch}
               </span>
             )}
-          </h2>
+          </div>
           <div className="flex items-center gap-1">
             <a
               href={game.url}

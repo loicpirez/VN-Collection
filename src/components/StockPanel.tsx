@@ -669,11 +669,13 @@ export function StockPanel({
     <section className={`${bare ? '' : 'overflow-hidden rounded-xl border border-border bg-bg-card'} ${dense ? 'p-4' : 'p-4 sm:p-5'}`}>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 max-w-full flex-1">
-          <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            <ShoppingBag className="h-4 w-4 text-accent" aria-hidden />
-            {t.stock.title}
-          </h2>
-          {title && <p className="mt-1 break-words text-sm font-semibold text-white">{title}</p>}
+          {!bare && (
+            <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+              <ShoppingBag className="h-4 w-4 text-accent" aria-hidden />
+              {t.stock.title}
+            </h2>
+          )}
+          {title && <p className={`${bare ? '' : 'mt-1 '}break-words text-sm font-semibold text-white`}>{title}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
             <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1">
               <PackageSearch className="h-3 w-3" aria-hidden />

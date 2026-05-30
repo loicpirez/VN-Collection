@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ExternalLink, Film, Gamepad2, ShoppingBag, Sparkles, Twitter, Users } from 'lucide-react';
+import { ExternalLink, Film, Gamepad2, ShoppingBag, Twitter, Users } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum } from '@/lib/locale-number';
 import { formatMinutes } from '@/lib/format';
@@ -127,10 +127,6 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
 
   return (
     <div className="p-4 sm:p-5">
-      <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-        <Sparkles className="h-4 w-4 text-accent" /> {t.egsRich.title}
-      </h2>
-
       {links.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-1.5">
           {links.map((l) => (

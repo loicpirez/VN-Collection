@@ -30,6 +30,7 @@ import {
   OWNED_EDITIONS_EVENT,
   type OwnedEditionsChangedDetail,
 } from './ReleaseOwnedToggle';
+import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString, formatVndbDateString } from '@/lib/locale-number';
 import { derivePlatformDisplay } from '@/lib/platform-display';
@@ -133,6 +134,8 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adderOpen, setAdderOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  useSectionCount(loading ? null : owned.length);
 
   const reload = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -301,13 +304,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
 
   return (
     <div>
-      <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6">
-        <h2 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <Package className="h-4 w-4 text-accent" /> {t.inventory.section}
-          {owned.length > 0 && (
-            <span className="text-[11px] font-normal text-muted">· {owned.length}</span>
-          )}
-        </h2>
+      <header className="flex flex-wrap items-center justify-end gap-2 px-4 py-4 sm:px-6">
         <button
           type="button"
           onClick={() => setAdderOpen((v) => !v)}

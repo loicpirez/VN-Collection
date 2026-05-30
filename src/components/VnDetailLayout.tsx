@@ -268,7 +268,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
               <section key={id} id={`section-${id}`} className="scroll-mt-24">
                 <DetailSectionFrame
                   id={id}
-                  title={HEADERLESS_SECTIONS.has(id) ? '' : t.vnLayout.sectionLabels[id]}
+                  title={t.vnLayout.sectionLabels[id]}
                   defaultCollapsed={state.collapsedByDefault}
                   expandLabel={t.vnLayout.expand}
                   collapseLabel={t.vnLayout.collapse}
@@ -283,28 +283,6 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
     </>
   );
 }
-
-/**
- * Sections that keep their own internal header (because its controls
- * or multi-state render branches are too entangled to lift into the
- * frame safely, and that header already states the section name).
- * They render inside a headerless frame — the frame supplies the
- * single collapse chevron, the section supplies its own title and
- * controls, so there is no duplicate header.
- *
- * Composite sections without a single matching header (session +
- * activity, the edit form, the price-history card) are NOT listed —
- * they take the frame title, and their distinct sub-card headings do
- * not duplicate it.
- */
-const HEADERLESS_SECTIONS: ReadonlySet<VnSectionId> = new Set<VnSectionId>([
-  'series-suggest',
-  'vndb-status',
-  'stock',
-  'egs-panel',
-  'egs-details',
-  'my-editions',
-]);
 
 function EditableRow({
   id,
