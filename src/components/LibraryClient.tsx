@@ -2,7 +2,7 @@
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, Check, CheckSquare, ChevronDown, Circle, Clock, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, Star, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, Check, CheckSquare, ChevronDown, Circle, Clock, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, SlidersHorizontal, Star, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { toCardData } from './cardData';
 import { SkeletonCardGrid } from './Skeleton';
@@ -656,6 +656,146 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     [visibleItems],
   );
 
+  /**
+   * Single source of truth for the sort / group / order / custom-sort
+   * controls and the density / select / random / bulk-download
+   * cluster. Rendered inline on `sm:` and up (the unchanged desktop
+   * toolbar row) and inside the mobile `LibraryToolbarDrawer` panel
+   * below `sm`, so every control stays reachable on phones without
+   * duplicating its markup. `orientation` only governs how the
+   * right-hand cluster aligns: pushed right with `ml-auto` on the
+   * desktop row, stacked full-width inside the mobile panel.
+   */
+  const renderToolbarControls = (orientation: 'row' | 'column') => (
+    <>
+      <label className="flex items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.sortLabel}</span>
+        <select
+          className="input w-auto"
+          value={sort}
+          onChange={(e) => setParam('sort', e.target.value)}
+          aria-label={t.library.sortLabel}
+        >
+          {SORT_KEYS.map((k) => (
+            <option key={k} value={k}>{t.library.sort[k]}</option>
+          ))}
+        </select>
+      </label>
+      {group !== 'none' && (
+        <label className="flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupSortLabel}</span>
+          <select
+            className="input w-auto"
+            value={groupSort}
+            onChange={(e) => setParam('groupSort', e.target.value)}
+            aria-label={t.library.groupSortLabel}
+          >
+            <option value="count">{t.library.groupSortCount}</option>
+            <option value="name">{t.library.groupSortName}</option>
+            <option value="released">{t.library.groupSortReleased}</option>
+          </select>
+        </label>
+      )}
+      <button
+        type="button"
+        className="btn"
+        onClick={() => setParam('order', order === 'asc' ? 'desc' : 'asc')}
+        aria-label={order === 'asc' ? t.library.sortAsc : t.library.sortDesc}
+      >
+        {order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+      </button>
+      <button
+        type="button"
+        className={`btn inline-flex items-center gap-1 ${sort === 'custom' ? 'btn-primary' : ''}`}
+        onClick={() => setParam('sort', sort === 'custom' ? null : 'custom')}
+        aria-label={sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
+        title={t.library.customSortHint}
+      >
+        <GripVertical className="h-4 w-4" />
+        <span>
+          {sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
+        </span>
+      </button>
+      <label className="flex items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupBy}</span>
+        <select
+          className="input w-auto"
+          value={group}
+          onChange={(e) => setParam('group', e.target.value === 'none' ? null : e.target.value)}
+          aria-label={t.library.groupBy}
+        >
+          {GROUP_KEYS.map((g) => (
+            <option key={g} value={g}>
+              {g === 'none'
+                ? t.library.groupNone
+                : g === 'tag'
+                ? t.library.groupTag
+                : g === 'producer'
+                ? t.library.groupDeveloper
+                : g === 'publisher'
+                ? t.library.groupPublisher
+                : g === 'series'
+                ? t.library.groupSeries
+                : g === 'aspect'
+                ? t.library.groupAspect
+                : g === 'year'
+                ? t.library.groupYear
+                : g === 'place'
+                ? t.library.groupPlace
+                : g === 'edition'
+                ? t.library.groupEdition
+                : t.library.groupStatus}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className={`flex flex-wrap items-center gap-3 ${orientation === 'row' ? 'ml-auto' : ''}`}>
+        <CardDensitySlider scope="library" />
+        <button
+          type="button"
+          onClick={() => set('denseLibrary', !settings.denseLibrary)}
+          className={`btn ${settings.denseLibrary ? 'btn-primary' : ''}`}
+          aria-label={settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
+          title={t.library.denseToggle}
+        >
+          <LayoutGrid className="h-4 w-4" />
+          <span>
+            {settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
+          </span>
+        </button>
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex gap-6 text-sm text-muted"
+        >
+          <span><b className="text-white">{stats.total}</b> {t.library.stats.vnCount}</span>
+          <span><b className="text-white">{totalPlaytime}</b> {t.library.stats.playedHours}</span>
+        </div>
+        {stats.total > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              if (selectMode) clearSelection();
+              else setSelectMode(true);
+            }}
+            className={`btn ${selectMode ? 'btn-primary' : ''}`}
+            aria-label={selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
+            title={t.bulkEdit.toggleSelectMode}
+          >
+            <CheckSquare className="h-4 w-4" />
+            <span>
+              {selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
+            </span>
+          </button>
+        )}
+        {visibleItems.length > 0 && (
+          <RandomPickButton candidates={randomPickCandidates} />
+        )}
+        {stats.total > 0 && <BulkDownloadButton onItemDone={onBulkItemDone} />}
+      </div>
+    </>
+  );
+
   return (
     <DensityScopeProvider scope="library">
       {showControls && (
@@ -1141,136 +1281,18 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         </div>
       )}
 
-      <div className="mb-6 flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
-        <label className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.sortLabel}</span>
-          <select
-            className="input w-auto"
-            value={sort}
-            onChange={(e) => setParam('sort', e.target.value)}
-            aria-label={t.library.sortLabel}
-          >
-            {SORT_KEYS.map((k) => (
-              <option key={k} value={k}>{t.library.sort[k]}</option>
-            ))}
-          </select>
-        </label>
-        {group !== 'none' && (
-          <label className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupSortLabel}</span>
-            <select
-              className="input w-auto"
-              value={groupSort}
-              onChange={(e) => setParam('groupSort', e.target.value)}
-              aria-label={t.library.groupSortLabel}
-            >
-              <option value="count">{t.library.groupSortCount}</option>
-              <option value="name">{t.library.groupSortName}</option>
-              <option value="released">{t.library.groupSortReleased}</option>
-            </select>
-          </label>
-        )}
-        <button
-          type="button"
-          className="btn"
-          onClick={() => setParam('order', order === 'asc' ? 'desc' : 'asc')}
-          aria-label={order === 'asc' ? t.library.sortAsc : t.library.sortDesc}
-        >
-          {order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-        </button>
-        {/* Quick toggle into / out of drag-reorder mode. Sets sort=custom which
-            unlocks the SortableGrid; clicking again drops back to the prior
-            sort (preserved via the default-sort setting). */}
-        <button
-          type="button"
-          className={`btn inline-flex items-center gap-1 ${sort === 'custom' ? 'btn-primary' : ''}`}
-          onClick={() => setParam('sort', sort === 'custom' ? null : 'custom')}
-          aria-label={sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
-          title={t.library.customSortHint}
-        >
-          <GripVertical className="h-4 w-4" />
-          <span>
-            {sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
-          </span>
-        </button>
-        <label className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupBy}</span>
-          <select
-            className="input w-auto"
-            value={group}
-            onChange={(e) => setParam('group', e.target.value === 'none' ? null : e.target.value)}
-            aria-label={t.library.groupBy}
-          >
-            {GROUP_KEYS.map((g) => (
-              <option key={g} value={g}>
-                {g === 'none'
-                  ? t.library.groupNone
-                  : g === 'tag'
-                  ? t.library.groupTag
-                  : g === 'producer'
-                  ? t.library.groupDeveloper
-                  : g === 'publisher'
-                  ? t.library.groupPublisher
-                  : g === 'series'
-                  ? t.library.groupSeries
-                  : g === 'aspect'
-                  ? t.library.groupAspect
-                  : g === 'year'
-                  ? t.library.groupYear
-                  : g === 'place'
-                  ? t.library.groupPlace
-                  : g === 'edition'
-                  ? t.library.groupEdition
-                  : t.library.groupStatus}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="ml-auto flex flex-wrap items-center gap-3">
-          <CardDensitySlider scope="library" />
-          <button
-            type="button"
-            onClick={() => set('denseLibrary', !settings.denseLibrary)}
-            className={`btn ${settings.denseLibrary ? 'btn-primary' : ''}`}
-            aria-label={settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
-            title={t.library.denseToggle}
-          >
-            <LayoutGrid className="h-4 w-4" />
-            <span>
-              {settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
-            </span>
-          </button>
-          <div
-            aria-live="polite"
-            aria-atomic="true"
-            className="flex gap-6 text-sm text-muted"
-          >
-            <span><b className="text-white">{stats.total}</b> {t.library.stats.vnCount}</span>
-            <span><b className="text-white">{totalPlaytime}</b> {t.library.stats.playedHours}</span>
-          </div>
-          {stats.total > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                if (selectMode) clearSelection();
-                else setSelectMode(true);
-              }}
-              className={`btn ${selectMode ? 'btn-primary' : ''}`}
-              aria-label={selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
-              title={t.bulkEdit.toggleSelectMode}
-            >
-              <CheckSquare className="h-4 w-4" />
-              <span>
-                {selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
-              </span>
-            </button>
-          )}
-          {visibleItems.length > 0 && (
-            <RandomPickButton candidates={randomPickCandidates} />
-          )}
-          {stats.total > 0 && <BulkDownloadButton onItemDone={onBulkItemDone} />}
-        </div>
+      {/*
+        Desktop toolbar (sm and up): unchanged single wrapping row.
+        Hidden below sm, where the same controls live inside the
+        LibraryToolbarDrawer panel so the cramped phone layout
+        collapses behind one trigger without losing any control.
+      */}
+      <div className="mb-6 hidden flex-wrap items-center gap-3 border-t border-border/60 pt-4 sm:flex">
+        {renderToolbarControls('row')}
       </div>
+      <LibraryToolbarDrawer t={t}>
+        {renderToolbarControls('column')}
+      </LibraryToolbarDrawer>
         </>
       )}
 
@@ -2111,5 +2133,73 @@ function LibraryActionsMenuItem({
       <span className="text-muted">{icon}</span>
       <span className="flex-1 truncate" title={label}>{label}</span>
     </button>
+  );
+}
+
+/**
+ * Mobile-only expandable panel for the sort / group / order /
+ * custom-sort / density / select / random / bulk-download controls.
+ * Rendered below `sm`; the desktop toolbar row owns the same
+ * controls at `sm:` and up. Closed by default so the cramped phone
+ * layout collapses behind one trigger. Follows the same
+ * toggle-panel idiom as `AdvancedFiltersDrawer` — the trigger is
+ * focusable, Escape closes the panel and returns focus to the
+ * trigger, and the controls stack full-width so none is hidden or
+ * shrunk away on a phone.
+ */
+function LibraryToolbarDrawer({
+  t,
+  children,
+}: {
+  t: ReturnType<typeof useT>;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function key(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      triggerRef.current?.focus({ preventScroll: true });
+    }
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [open]);
+  return (
+    <div className="mb-6 border-t border-border/60 pt-4 sm:hidden">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className={`inline-flex w-full items-center justify-between gap-1.5 rounded-md border px-2.5 py-2 text-xs transition-colors ${
+          open
+            ? 'border-accent bg-accent/10 text-accent'
+            : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+        }`}
+      >
+        <span className="inline-flex items-center gap-1.5">
+          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+          <span>{t.library.sortAndViewOptions}</span>
+        </span>
+        <ChevronDown
+          className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <div
+          id={panelId}
+          role="group"
+          aria-label={t.library.sortAndViewOptionsLabel}
+          className="mt-2 flex flex-col items-stretch gap-3 rounded-lg border border-border bg-bg-card/60 p-3"
+        >
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
