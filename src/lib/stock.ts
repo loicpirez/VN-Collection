@@ -1,6 +1,6 @@
 import 'server-only';
 import iconv from 'iconv-lite';
-import { db, getCollectionItem, getDisabledStockProviders, getErogePriceStockExtras, getEgsForVn, getStockRetryWithoutProxy, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
+import { db, getCollectionItem, getDisabledStockProviders, getErogePriceStockExtras, getEgsForVn, getStockRetryWithoutProxy, listAliceNetStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
@@ -562,7 +562,7 @@ function stockTargetSource(target: StockTarget): 'direct' | 'search' | 'manual' 
 }
 
 function offerPriorityRank(offer: Pick<VnStockOfferRow, 'source' | 'jan' | 'product_id' | 'match_confidence'>): number {
-  if (offer.source === 'direct' || offer.source === 'manual' || offer.source === 'alicesoft_kobe') return 0;
+  if (offer.source === 'direct' || offer.source === 'manual' || offer.source === 'alicenet') return 0;
   if (offer.jan) return 1;
   if (offer.product_id) return 2;
   if (offer.match_confidence === 'exact' || offer.match_confidence === 'high') return 3;
@@ -2432,7 +2432,7 @@ function dedupeProviderOffers(rows: VnStockOfferInput[]): VnStockOfferInput[] {
   if (rows.length <= 1) return rows;
   const byKey = new Map<string, VnStockOfferInput>();
   const sourceRank = (src: string): number =>
-    src === 'direct' || src === 'manual' || src === 'alicesoft_kobe' ? 0 : 1;
+    src === 'direct' || src === 'manual' || src === 'alicenet' ? 0 : 1;
   const confRank = (c: string | null | undefined): number => {
     if (c === 'exact') return 0;
     if (c === 'high') return 1;
@@ -2667,27 +2667,27 @@ export function getStockForVn(vnId: string): StockSnapshot {
     ...offer,
     provider_label: providerLabel(offer.provider),
   }));
-  const kobeOffers: StockOffer[] = listKobeStockForVn(vnId).map((row) => ({
+  const alicenetOffers: StockOffer[] = listAliceNetStockForVn(vnId).map((row) => ({
     vn_id: vnId,
-    provider: 'alicesoft_kobe',
+    provider: 'alicenet',
     provider_offer_id: row.code,
-    source: 'alicesoft_kobe',
+    source: 'alicenet',
     title: row.title,
     url: 'https://www.alice-kobe.com/html/page4.html',
     price: parsePriceYen(row.sale_price ?? row.list_price ?? ''),
     currency: 'JPY',
     availability: 'in_stock' as VnStockAvailability,
-    availability_label: 'alicesoft_kobe_stock',
+    availability_label: 'alicenet_stock',
     condition: 'used',
     edition_label: null,
-    location_label: 'AliceNet Kobe',
-    location_branch: 'AliceNet Kobe',
+    location_label: 'AliceNet',
+    location_branch: 'AliceNet',
     source_release_id: null,
     jan: row.jan,
     fetched_at: row.fetched_at,
     updated_at: row.updated_at,
     error: null,
-    provider_label: providerLabel('alicesoft_kobe'),
+    provider_label: providerLabel('alicenet'),
     content_kind: 'game_package',
     platform: null,
     edition_kind: null,
@@ -2703,7 +2703,7 @@ export function getStockForVn(vnId: string): StockSnapshot {
     product_id: null,
     page_kind: null,
   }));
-  const offers = [...directOffers, ...kobeOffers].sort((a, b) => {
+  const offers = [...directOffers, ...alicenetOffers].sort((a, b) => {
     const rank = (v: VnStockAvailability) => (v === 'in_stock' ? 0 : v === 'limited' ? 1 : v === 'unknown' ? 2 : v === 'out_of_stock' ? 3 : 4);
     return rank(a.availability) - rank(b.availability) ||
       offerPriorityRank(a) - offerPriorityRank(b) ||

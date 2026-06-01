@@ -596,8 +596,8 @@ describe('PHYSICAL_CAPABLE_PROVIDER_IDS', () => {
     }
   });
 
-  it('does not contain alicesoft_kobe (cached provider)', () => {
-    expect(PHYSICAL_CAPABLE_PROVIDER_IDS).not.toContain('alicesoft_kobe');
+  it('does not contain alicenet (cached provider)', () => {
+    expect(PHYSICAL_CAPABLE_PROVIDER_IDS).not.toContain('alicenet');
   });
 });
 
@@ -619,8 +619,8 @@ describe('CONFIRMED_PHYSICAL_PROVIDER_IDS', () => {
     expect(CONFIRMED_PHYSICAL_PROVIDER_IDS).not.toContain('mandarake');
   });
 
-  it('does not contain alicesoft_kobe (cached provider, not StockProviderId)', () => {
-    expect(CONFIRMED_PHYSICAL_PROVIDER_IDS).not.toContain('alicesoft_kobe');
+  it('does not contain alicenet (cached provider, not StockProviderId)', () => {
+    expect(CONFIRMED_PHYSICAL_PROVIDER_IDS).not.toContain('alicenet');
   });
 });
 
@@ -662,8 +662,8 @@ describe('getProviderMeta', () => {
     expect(m?.confirmedPhysicalUsable).toBe(true);
   });
 
-  it('returns metadata for alicesoft_kobe (cached)', () => {
-    const m = getProviderMeta('alicesoft_kobe');
+  it('returns metadata for alicenet (cached)', () => {
+    const m = getProviderMeta('alicenet');
     expect(m?.physicalStockMode).toBe('exact_cached');
     expect(m?.confirmedPhysicalUsable).toBe(true);
   });
@@ -705,8 +705,8 @@ describe('canProduceConfirmedPhysicalStock', () => {
     expect(canProduceConfirmedPhysicalStock('hgame1')).toBe(true);
   });
 
-  it('true for alicesoft_kobe', () => {
-    expect(canProduceConfirmedPhysicalStock('alicesoft_kobe')).toBe(true);
+  it('true for alicenet', () => {
+    expect(canProduceConfirmedPhysicalStock('alicenet')).toBe(true);
   });
 
   it('false for wondergoo, trader, surugaya, mandarake', () => {

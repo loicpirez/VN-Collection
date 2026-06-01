@@ -9,7 +9,7 @@ function source(path: string): string {
 
 describe('stock provider capability contract', () => {
   it('describes every live provider and the cached inventory provider', () => {
-    for (const id of [...STOCK_PROVIDER_IDS, 'alicesoft_kobe'] as const) {
+    for (const id of [...STOCK_PROVIDER_IDS, 'alicenet'] as const) {
       const meta = getProviderMeta(id);
       expect(meta?.lookupCapabilities.length, id).toBeGreaterThan(0);
       expect(meta?.resultCapability, id).toBeTruthy();
@@ -25,7 +25,7 @@ describe('stock provider capability contract', () => {
     });
     expect(getProviderMeta('sofmap')?.lookupCapabilities).toContain('jan_lookup');
     expect(getProviderMeta('hgame1')?.lookupCapabilities).toContain('jan_lookup');
-    expect(getProviderMeta('alicesoft_kobe')).toMatchObject({
+    expect(getProviderMeta('alicenet')).toMatchObject({
       lookupCapabilities: ['cached_inventory'],
       resultCapability: 'cached_offers',
       supportLevel: 'supported',

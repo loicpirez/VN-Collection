@@ -1357,7 +1357,7 @@ function stockSourceLabel(t: ReturnType<typeof useT>, source: string): string {
   if (source === 'direct') return t.stock.sourceLabels.direct;
   if (source === 'search') return t.stock.sourceLabels.search;
   if (source === 'manual') return t.stock.sourceLabels.manual;
-  if (source === 'alicesoft_kobe') return t.stock.sourceLabels.cached;
+  if (source === 'alicenet') return t.stock.sourceLabels.cached;
   return source;
 }
 
@@ -1407,7 +1407,7 @@ const LEGACY_CONDITION_MAP: Record<string, string> = {
 const LEGACY_AVAILABILITY_LABEL_MAP: Record<string, string> = {
   'Sold out': 'sold_out',
   'Several': 'several',
-  'AliceNet Kobe stock': 'alicesoft_kobe_stock',
+  'AliceNet stock': 'alicenet_stock',
 };
 
 function stockEditionLabel(t: ReturnType<typeof useT>, raw: string): string {

@@ -13,10 +13,10 @@ describe('stock persisted presentation values', () => {
     expect(stockSource).toContain("edition_label: /特典|限定|limited|set|box/i.test(title + html.slice(0, 2000)) ? 'store_bonus' : null");
   });
 
-  it('stores generated marketplace and AliceNet Kobe availability as stable values', () => {
+  it('stores generated marketplace and AliceNet availability as stable values', () => {
     expect(stockSource).not.toContain('Marketplace: ¥');
-    expect(stockSource).not.toContain("availability_label: 'AliceNet Kobe stock'");
+    expect(stockSource).not.toContain("availability_label: 'AliceNet stock'");
     expect(stockSource).toContain('availLabel = `marketplace:${card.marketplacePrice}`');
-    expect(stockSource).toContain("availability_label: 'alicesoft_kobe_stock'");
+    expect(stockSource).toContain("availability_label: 'alicenet_stock'");
   });
 });

@@ -35,7 +35,7 @@ export type StockResultCapability =
 export type StockSupportLevel = 'supported' | 'limited' | 'manual_only';
 
 export interface StockProviderMeta {
-  id: StockProviderId | 'alicesoft_kobe';
+  id: StockProviderId | 'alicenet';
   label: string;
   kind: 'direct' | 'aggregate' | 'cached';
   /** Input strategies supported by the current provider integration. */
@@ -100,21 +100,21 @@ export const STOCK_PROVIDERS: readonly StockProviderMeta[] = [
   { id: 'neowing',            label: 'Neowing',            kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'search_leads',      supportLevel: 'manual_only', physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'yodobashi',          label: 'Yodobashi',          kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'bikkuri_takarajima', label: 'Bikkuri Takarajima', kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'alicesoft_kobe',     label: 'AliceNet Kobe',      kind: 'cached',    lookupCapabilities: ['cached_inventory'],                                  resultCapability: 'cached_offers',     supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_cached',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
+  { id: 'alicenet',     label: 'AliceNet',      kind: 'cached',    lookupCapabilities: ['cached_inventory'],                                  resultCapability: 'cached_offers',     supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_cached',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
 ];
 
 /** Look up one stock provider's metadata row. */
-export function getProviderMeta(id: StockProviderId | 'alicesoft_kobe'): StockProviderMeta | undefined {
+export function getProviderMeta(id: StockProviderId | 'alicenet'): StockProviderMeta | undefined {
   return STOCK_PROVIDERS.find((provider) => provider.id === id);
 }
 
 /** Whether provider data can show a confirmed physical SKU. */
-export function canProduceConfirmedPhysicalStock(id: StockProviderId | 'alicesoft_kobe'): boolean {
+export function canProduceConfirmedPhysicalStock(id: StockProviderId | 'alicenet'): boolean {
   return !!getProviderMeta(id)?.confirmedPhysicalUsable;
 }
 
 /** Whether a provider can surface a potentially useful physical-stock lead. */
-export function canProducePotentialPhysicalLead(id: StockProviderId | 'alicesoft_kobe'): boolean {
+export function canProducePotentialPhysicalLead(id: StockProviderId | 'alicenet'): boolean {
   const meta = getProviderMeta(id);
   if (!meta?.physical) return false;
   const potentialModes: ReadonlyArray<PhysicalStockMode> = [
@@ -133,14 +133,14 @@ interface StockPhysicalOffer {
 
 /** Whether one offer belongs in confirmed physical-location results. */
 export function shouldShowInConfirmedPhysicalResults(offer: StockPhysicalOffer): boolean {
-  if (!canProduceConfirmedPhysicalStock(offer.provider as StockProviderId | 'alicesoft_kobe')) return false;
+  if (!canProduceConfirmedPhysicalStock(offer.provider as StockProviderId | 'alicenet')) return false;
   if (offer.availability !== 'in_stock' && offer.availability !== 'limited') return false;
   return !!offer.location_label && offer.location_label !== ONLINE_STOCK_SENTINEL;
 }
 
 /** Whether one offer belongs in potential physical-location leads. */
 export function shouldShowAsPhysicalLead(offer: StockPhysicalOffer): boolean {
-  const meta = getProviderMeta(offer.provider as StockProviderId | 'alicesoft_kobe');
+  const meta = getProviderMeta(offer.provider as StockProviderId | 'alicenet');
   if (!meta?.physical) return false;
   return offer.availability !== 'out_of_stock';
 }
