@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   bumpStatus,
+  cancelJob,
   finishJob,
   listJobs,
   recordError,
@@ -54,6 +55,17 @@ describe('download-status pub/sub', () => {
     finishJob(job.id);
     await flushMicrotasks();
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('does not report cancelled work as complete during finalization', () => {
+    const job = startJob('stock-batch', 'cancelled batch', 5);
+    tickJob(job.id);
+    cancelJob(job.id);
+    finishJob(job.id, { complete: false });
+    const current = listJobs().find((entry) => entry.id === job.id);
+    expect(current?.done).toBe(1);
+    expect(current?.cancelled).toBe(true);
+    expect(current?.finished_at).not.toBeNull();
   });
 
   it('a throwing listener does not break the producer chain', async () => {

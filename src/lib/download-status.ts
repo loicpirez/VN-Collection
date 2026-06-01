@@ -43,6 +43,8 @@ export interface DownloadJob {
   errors: { item: string; message: string }[];
   started_at: number;
   finished_at: number | null;
+  cancelled?: boolean;
+  interrupted?: boolean;
 }
 
 const jobs = new Map<string, DownloadJob>();
@@ -147,7 +149,7 @@ function gc(): void {
  */
 export function startJob(kind: JobKind, label: string, total: number, vnId: string | null = null): DownloadJob {
   gc();
-  const id = `${kind}:${nextSeq++}`;
+  const id = `${kind}:${Date.now()}:${nextSeq++}`;
   const job: DownloadJob = {
     id,
     kind,
@@ -159,6 +161,8 @@ export function startJob(kind: JobKind, label: string, total: number, vnId: stri
     errors: [],
     started_at: Date.now(),
     finished_at: null,
+    cancelled: false,
+    interrupted: false,
   };
   jobs.set(id, job);
   emit();
@@ -211,16 +215,17 @@ export function recordError(jobId: string, item: string, message: string): void 
 }
 
 /**
- * Mark a job as complete: sets `finished_at`, clears `current_item`, and
+ * Finalize a job: sets `finished_at`, clears `current_item`, and optionally
  * advances `done` to `total` if some ticks were skipped.
  *
  * @param jobId The job identifier returned by `startJob`.
+ * @param options Set `complete` to `false` for cancelled or interrupted work.
  */
-export function finishJob(jobId: string): void {
+export function finishJob(jobId: string, options: { complete?: boolean } = {}): void {
   const j = jobs.get(jobId);
   if (!j) return;
   j.finished_at = Date.now();
-  if (j.done < j.total) j.done = j.total;
+  if (options.complete !== false && j.done < j.total) j.done = j.total;
   j.current_item = null;
   cancelledJobs.delete(jobId);
   emit();
@@ -232,6 +237,7 @@ export function cancelJob(jobId: string): void {
   if (j) {
     j.finished_at = Date.now();
     j.current_item = null;
+    j.cancelled = true;
     emit();
   }
 }
@@ -249,4 +255,14 @@ export function isJobCancelled(jobId: string): boolean {
  */
 export function listJobs(): DownloadJob[] {
   return Array.from(jobs.values()).sort((a, b) => b.started_at - a.started_at);
+}
+
+/**
+ * Return one tracked job by id.
+ *
+ * @param jobId Identifier returned by `startJob`.
+ * @returns The current in-memory snapshot or `null` when it no longer exists.
+ */
+export function getJob(jobId: string): DownloadJob | null {
+  return jobs.get(jobId) ?? null;
 }

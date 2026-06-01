@@ -33,6 +33,8 @@ interface Job {
   errors: JobError[];
   started_at: number;
   finished_at: number | null;
+  cancelled?: boolean;
+  interrupted?: boolean;
 }
 
 interface Snapshot {
@@ -426,9 +428,10 @@ export function DownloadStatusBar() {
 	            {visibleJobs.map((j) => {
               const pct = j.total === 0 ? 0 : Math.round((j.done / j.total) * 100);
               const finished = j.finished_at != null;
+              const failed = j.errors.length > 0 || j.cancelled === true;
               const stateIcon = finished
-                ? j.errors.length > 0
-                  ? <AlertTriangle className="h-3 w-3 shrink-0 text-status-dropped" aria-label={t.downloadStatus.kindError} />
+                ? failed
+                  ? <AlertTriangle className="h-3 w-3 shrink-0 text-status-dropped" aria-label={j.cancelled ? t.downloadStatus.kindCancelled : t.downloadStatus.kindError} />
                   : <CheckCircle2 className="h-3 w-3 shrink-0 text-status-completed" aria-label={t.downloadStatus.kindDone} />
                 : <CloudDownload className="h-3 w-3 shrink-0 animate-pulse text-accent" aria-label={t.downloadStatus.kindRunning} />;
               return (
@@ -456,6 +459,11 @@ export function DownloadStatusBar() {
                     <span className="shrink-0 text-[10px] text-muted">
                       {j.done}/{j.total}
                     </span>
+                    {j.cancelled && (
+                      <span className="shrink-0 text-[10px] font-semibold text-status-dropped">
+                        {t.downloadStatus.kindCancelled}
+                      </span>
+                    )}
                   </div>
                   {!finished && j.current_item && (
                     <div className="mt-0.5 truncate text-[10px] text-muted/90" title={`${labelKind(j.kind)} · ${j.label}`}>
@@ -474,7 +482,7 @@ export function DownloadStatusBar() {
                     <div
                       className={`h-full transition-[width] ${
                         finished
-                          ? j.errors.length > 0
+                          ? failed
                             ? 'bg-status-dropped'
                             : 'bg-status-completed'
                           : 'bg-accent'
