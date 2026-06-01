@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from '
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, CheckSquare, ChevronDown, Clock, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, SlidersHorizontal, Star, Tags as TagsIcon, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Clock, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, SlidersHorizontal, Star, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { toCardData } from './cardData';
 import { SkeletonBlock, SkeletonCardGrid } from './Skeleton';
@@ -34,6 +34,7 @@ import {
   VIRTUAL_GRID_DEFAULT_WIDTH,
   VIRTUAL_GRID_THRESHOLD,
 } from '@/lib/virtual-grid';
+import type { CollectionPage } from '@/lib/collection-api-client';
 
 /**
  * Tri-state flag panel for the long tail of boolean library filters.
@@ -90,6 +91,7 @@ const Q_DEBOUNCE_MS = 300;
 interface CollectionResponse {
   items: CollectionItem[];
   stats: Stats;
+  pagination: CollectionPage;
 }
 
 interface PendingCollectionRequest {
@@ -272,6 +274,19 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const urlPlaytimeMin = searchParams.get('playtimeMin') ?? '';
   const urlPlaytimeMax = searchParams.get('playtimeMax') ?? '';
   const urlDumped = searchParams.get('dumped') ?? '';
+  const urlOnlyEgsOnly = searchParams.get('only_egs_only');
+  const urlMatchVndb = searchParams.get('match_vndb');
+  const urlMatchEgs = searchParams.get('match_egs');
+  const urlFanDisc = searchParams.get('fan_disc');
+  const urlHasNotes = searchParams.get('has_notes');
+  const urlHasCustomCover = searchParams.get('has_custom_cover');
+  const urlHasBanner = searchParams.get('has_banner');
+  const urlIsFavorite = searchParams.get('is_favorite');
+  const urlHasReleased = searchParams.get('has_released');
+  const urlIsNsfw = searchParams.get('is_nsfw');
+  const urlIsNukige = searchParams.get('is_nukige');
+  const urlInReadingQueue = searchParams.get('in_reading_queue');
+  const urlInList = searchParams.get('in_list');
   // Multi-select aspect. URL state encoded as comma-separated:
   // `?aspect=4:3,16:9`. Back-compat with the prior single-value URL.
   const urlAspectRaw = searchParams.get('aspect');
@@ -282,6 +297,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   // Single-aspect convenience for chip rendering + old-style callers.
   const urlAspect: AspectKey | '' = urlAspectSet[0] ?? '';
   const urlQ = searchParams.get('q') ?? '';
+  const urlPageRaw = searchParams.get('page');
+  const urlPage = urlPageRaw && /^\d+$/.test(urlPageRaw) && Number(urlPageRaw) > 0
+    ? Number(urlPageRaw)
+    : 1;
   // Default sort, order, and grouping are configurable in Settings; we
   // load them once and use them as fallbacks when the URL has no
   // matching param. URL params ALWAYS win — these defaults only apply
@@ -344,6 +363,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       replaceParams((sp) => {
         if (value) sp.set(key, value);
         else sp.delete(key);
+        if (key !== 'page') sp.delete('page');
       });
     },
     [replaceParams],
@@ -357,6 +377,12 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const { settings, set } = useDisplaySettings();
   const [items, setItems] = useState<CollectionItem[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, byStatus: [], playtime_minutes: 0 });
+  const [pagination, setPagination] = useState<CollectionPage>({
+    page: urlPage,
+    page_size: 240,
+    returned: 0,
+    has_more: false,
+  });
   const [producers, setProducers] = useState<ProducerStat[]>([]);
   const [publishers, setPublishers] = useState<ProducerStat[]>([]);
   const [series, setSeries] = useState<SeriesRow[]>([]);
@@ -480,14 +506,39 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     if (urlDumped === '1' || urlDumped === '0') params.set('dumped', urlDumped);
     if (urlAspectSet.length > 0) params.set('aspect', urlAspectSet.join(','));
     if (urlQ) params.set('q', urlQ);
+    if (urlRatingMin) params.set('ratingMin', urlRatingMin);
+    if (urlRatingMax) params.set('ratingMax', urlRatingMax);
+    if (urlPlaytimeMin) params.set('playtimeMin', urlPlaytimeMin);
+    if (urlPlaytimeMax) params.set('playtimeMax', urlPlaytimeMax);
+    for (const [key, value] of [
+      ['only_egs_only', urlOnlyEgsOnly],
+      ['match_vndb', urlMatchVndb],
+      ['match_egs', urlMatchEgs],
+      ['fan_disc', urlFanDisc],
+      ['has_notes', urlHasNotes],
+      ['has_custom_cover', urlHasCustomCover],
+      ['has_banner', urlHasBanner],
+      ['is_favorite', urlIsFavorite],
+      ['has_released', urlHasReleased],
+      ['is_nsfw', urlIsNsfw],
+      ['is_nukige', urlIsNukige],
+      ['in_reading_queue', urlInReadingQueue],
+      ['in_list', urlInList],
+    ] as const) {
+      if (value === '1' || value === '0') params.set(key, value);
+    }
+    if (settings.hideSexual) params.set('exclude_nsfw', '1');
+    if (settings.hideSexual || urlIsNsfw) params.set('nsfwThreshold', String(settings.nsfwThreshold));
     params.set('sort', sort);
     params.set('order', order);
+    params.set('page', String(urlPage));
     const request = requestCollection(`/api/collection?${params}`, t.common.error);
     request.promise
       .then((data) => {
         if (!alive) return;
         setItems(data.items);
         setStats(data.stats);
+        setPagination(data.pagination);
         setHasLoadedOnce(true);
       })
       .catch((e: Error) => {
@@ -502,7 +553,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     };
     // join the multi-select aspect set for a stable string identity
     // so changing 4:3 ↔ 16:9 re-fetches.
-  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlEdition, urlYearMin, urlYearMax, urlDumped, urlAspectSet.join(','), urlQ, sort, order, refreshKey, t.common.error]);
+  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlEdition, urlYearMin, urlYearMax, urlDumped, urlAspectSet.join(','), urlQ, urlRatingMin, urlRatingMax, urlPlaytimeMin, urlPlaytimeMax, urlOnlyEgsOnly, urlMatchVndb, urlMatchEgs, urlFanDisc, urlHasNotes, urlHasCustomCover, urlHasBanner, urlIsFavorite, urlHasReleased, urlIsNsfw, urlIsNukige, urlInReadingQueue, urlInList, settings.hideSexual, settings.nsfwThreshold, urlPage, sort, order, refreshKey, t.common.error]);
 
   function clearAll() {
     // SearchInput re-syncs draft from urlQ on URL change, so clearing
@@ -533,6 +584,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     const sp = new URLSearchParams(searchParams.toString());
     sp.delete('yearMin');
     sp.delete('yearMax');
+    sp.delete('page');
     const qs = sp.toString();
     router.replace(qs ? `/?${qs}` : '/', { scroll: false });
   }
@@ -543,6 +595,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     replaceParams((sp) => {
       sp.delete(minKey);
       sp.delete(maxKey);
+      sp.delete('page');
     });
   }
 
@@ -558,23 +611,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     setPlaytimeMinInput(urlPlaytimeMin);
     setPlaytimeMaxInput(urlPlaytimeMax);
   }, [urlPlaytimeMin, urlPlaytimeMax]);
-
-  // URL-driven checkbox filters. Each value is `'1'` (only-matching),
-  // `'0'` (only-NOT-matching), or absent (no filter). Names map to keys of
-  // `boolFilter` below. URL-persisted so they survive navigation.
-  const urlOnlyEgsOnly = searchParams.get('only_egs_only');
-  const urlMatchVndb = searchParams.get('match_vndb');
-  const urlMatchEgs = searchParams.get('match_egs');
-  const urlFanDisc = searchParams.get('fan_disc');
-  const urlHasNotes = searchParams.get('has_notes');
-  const urlHasCustomCover = searchParams.get('has_custom_cover');
-  const urlHasBanner = searchParams.get('has_banner');
-  const urlIsFavorite = searchParams.get('is_favorite');
-  const urlHasReleased = searchParams.get('has_released');
-  const urlIsNsfw = searchParams.get('is_nsfw');
-  const urlIsNukige = searchParams.get('is_nukige');
-  const urlInReadingQueue = searchParams.get('in_reading_queue');
-  const urlInList = searchParams.get('in_list');
 
   // Count of filters that live inside the Advanced drawer (used for
   // the chip-badge on the drawer toggle so the user knows the drawer
@@ -1191,6 +1227,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               ];
               replaceParams((sp) => {
                 for (const k of keys) sp.delete(k);
+                sp.delete('page');
               });
             }}
             t={t}
@@ -1356,10 +1393,18 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       ) : items.length === 0 ? (
         <div className="py-20 text-center">
           <h2 className="mb-2 text-xl font-bold">{t.library.empty.title}</h2>
-          <p className="mb-4 text-muted">{hasFilters ? t.library.empty.descriptionFiltered : t.library.empty.description}</p>
-          <Link href="/search" className="btn btn-primary">
-            <Search className="h-4 w-4" /> {t.library.empty.cta}
-          </Link>
+          <p className="mb-4 text-muted">
+            {pagination.page > 1
+              ? t.library.pageEmpty
+              : hasFilters
+                ? t.library.empty.descriptionFiltered
+                : t.library.empty.description}
+          </p>
+          {pagination.page === 1 && (
+            <Link href="/search" className="btn btn-primary">
+              <Search className="h-4 w-4" /> {t.library.empty.cta}
+            </Link>
+          )}
         </div>
       ) : (
         <>
@@ -1458,6 +1503,39 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         </>
       )}
       </div>
+      )}
+
+      {showGrid && (pagination.page > 1 || pagination.has_more) && (
+        <nav
+          className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-4"
+          aria-label={t.library.paginationLabel}
+        >
+          <button
+            type="button"
+            className="btn min-h-[44px]"
+            disabled={pagination.page <= 1}
+            onClick={() => setParam('page', pagination.page > 2 ? String(pagination.page - 1) : null)}
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden />
+            {t.library.previousPage}
+          </button>
+          <span className="text-xs text-muted">
+            {pagination.returned > 0
+              ? t.library.pageRange
+                .replace('{start}', String((pagination.page - 1) * pagination.page_size + 1))
+                .replace('{end}', String((pagination.page - 1) * pagination.page_size + pagination.returned))
+              : t.library.pageEmpty}
+          </span>
+          <button
+            type="button"
+            className="btn min-h-[44px]"
+            disabled={!pagination.has_more}
+            onClick={() => setParam('page', String(pagination.page + 1))}
+          >
+            {t.library.nextPage}
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </button>
+        </nav>
       )}
 
       {showGrid && selectMode && selected.size > 0 && (
