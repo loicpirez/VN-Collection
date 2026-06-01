@@ -70,7 +70,7 @@ interface NavItem {
  * screen readers and the visual layer agree. The "More" catch-all bin
  * is gone — every item lives in a named category.
  */
-export function GroupedNav({ kobeEnabled = false }: { kobeEnabled?: boolean }) {
+export function GroupedNav({ alicenetEnabled = false }: { alicenetEnabled?: boolean }) {
   const t = useT();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -131,7 +131,7 @@ export function GroupedNav({ kobeEnabled = false }: { kobeEnabled?: boolean }) {
     { href: '/map', label: t.nav.map, icon: Map },
     { href: '/schema', label: t.nav.schema, icon: FileCode2 },
     { href: '/data', label: t.nav.data, icon: Database },
-    ...(kobeEnabled ? [{ href: '/alicesoft_kobe', label: t.nav.alicesoft_kobe, icon: ShoppingBag }] : []),
+    ...(alicenetEnabled ? [{ href: '/alicenet', label: t.nav.alicenet, icon: ShoppingBag }] : []),
   ];
 
   // Active when any item in the group matches the current route — the

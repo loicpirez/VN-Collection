@@ -1,49 +1,80 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+const ROOT = process.cwd();
+const LEGACY_IDENTIFIER_RE = /alicesoft[_-]kobe|alice_kobe|ALICESOFT_KOBE|ALICE_KOBE|\bkobe\b|\bKobe\b/;
+const UPSTREAM_HOST = 'alice-kobe.com';
+const LEGACY_MIGRATION_INPUTS = [
+  'alicesoft_kobe_stock',
+  'alice_kobe_stock',
+  'alicesoft_kobe_proxy_config',
+  'alice_kobe_proxy_config',
+  'alicesoft_kobe_last_fetch',
+  'alice_kobe_last_fetch',
+  'alicesoft_kobe',
+  'alice_kobe',
+  'kobe.link',
+];
+
 function source(path: string): string {
-  return readFileSync(join(process.cwd(), path), 'utf8');
+  return readFileSync(join(ROOT, path), 'utf8');
 }
 
-describe('AliceNet Kobe branding', () => {
-  const canonicalSurfaces = [
-    'README.md',
-    'FEATURES.md',
-    'CLAUDE.md',
-    'src/lib/alicesoft-kobe.ts',
-    'src/lib/i18n/dictionaries.ts',
-    'src/components/AliceNetKobeClient.tsx',
-    'src/components/kobe/KobeLinkDialog.tsx',
-    'src/app/alicesoft_kobe/loading.tsx',
-    'src/app/api/alicesoft-kobe/[code]/link/route.ts',
-  ];
+function filesUnder(path: string): string[] {
+  return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
+    const child = join(path, entry.name);
+    return entry.isDirectory() ? filesUnder(child) : [child];
+  });
+}
 
-  it('uses one user-facing label across canonical surfaces', () => {
-    for (const path of canonicalSurfaces) {
-      const text = source(path);
-      expect(text, path).not.toContain('AliceSoft Kobe');
-      expect(text, path).not.toContain('Alice Kobe');
-      expect(text, path).not.toContain('AliceNET Kobe');
-      expect(text, path).not.toContain('AliceNET神戸');
+function withoutAllowedHost(text: string): string {
+  return text.replaceAll(UPSTREAM_HOST, 'upstream.example');
+}
+
+describe('AliceNet branding', () => {
+  it('uses canonical filenames for stock-browser source and tests', () => {
+    const files = [...filesUnder(join(ROOT, 'src')), ...filesUnder(join(ROOT, 'tests'))]
+      .map((path) => relative(ROOT, path))
+      .filter((path) => LEGACY_IDENTIFIER_RE.test(path));
+    expect(files).toEqual([]);
+    expect(existsSync(join(ROOT, 'src/app/alicenet/page.tsx'))).toBe(true);
+    expect(existsSync(join(ROOT, 'src/components/AliceNetClient.tsx'))).toBe(true);
+    expect(existsSync(join(ROOT, 'src/lib/alicenet.ts'))).toBe(true);
+  });
+
+  it('keeps runtime source and canonical docs free of legacy identifiers', () => {
+    const files = [
+      ...filesUnder(join(ROOT, 'src')).filter((path) => relative(ROOT, path) !== 'src/lib/db.ts'),
+      join(ROOT, 'README.md'),
+      join(ROOT, 'FEATURES.md'),
+      join(ROOT, 'CLAUDE.md'),
+    ];
+    for (const path of files) {
+      expect(withoutAllowedHost(readFileSync(path, 'utf8')), relative(ROOT, path)).not.toMatch(LEGACY_IDENTIFIER_RE);
     }
   });
 
-  it('documents stable compatibility identifiers', () => {
+  it('isolates prior persisted identifiers to the forward migration', () => {
+    let dbSource = source('src/lib/db.ts');
+    for (const identifier of LEGACY_MIGRATION_INPUTS) {
+      expect(dbSource).toContain(identifier);
+      dbSource = dbSource.replaceAll(identifier, '');
+    }
+    expect(dbSource).not.toMatch(LEGACY_IDENTIFIER_RE);
+  });
+
+  it('documents and configures canonical identifiers', () => {
     for (const path of ['README.md', 'FEATURES.md', 'CLAUDE.md']) {
       const text = source(path);
-      expect(text, path).toContain('AliceNet Kobe');
-      expect(text, path).toContain('ALICESOFT_KOBE_ENABLED');
-      expect(text, path).toContain('ALICE_KOBE_PROXY_*');
-      expect(text, path).toContain('/alicesoft_kobe');
-      expect(text, path).toContain('/api/alicesoft-kobe/*');
-      expect(text, path).toContain('alicesoft_kobe_*');
+      expect(text, path).toContain('AliceNet');
+      expect(text, path).toContain('ALICENET_ENABLED');
+      expect(text, path).toContain('/alicenet');
+      expect(text, path).toContain('/api/alicenet/*');
+      expect(text, path).toContain('alicenet_*');
     }
-  });
-
-  it('keeps the legacy proxy prefix mapped to the compatibility provider id', () => {
     const proxyConfig = source('src/lib/proxy-config.ts');
-    expect(proxyConfig).toContain("alicesoft_kobe: 'ALICE_KOBE'");
-    expect(proxyConfig).toContain("alicesoft_kobe: 'alicesoft_kobe_proxy_config'");
+    expect(proxyConfig).toContain("alicenet: 'ALICENET'");
+    expect(proxyConfig).toContain("alicenet: 'alicenet_proxy_config'");
   });
 });

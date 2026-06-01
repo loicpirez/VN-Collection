@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  decodeKobeClientSnapshot,
-  decodeKobeLoopResult,
-  decodeKobeStockSyncResult,
-} from '@/lib/kobe-client-shape';
+  decodeAliceNetClientSnapshot,
+  decodeAliceNetLoopResult,
+  decodeAliceNetStockSyncResult,
+} from '@/lib/alicenet-client-shape';
 
 const item = {
   code: '123-456789-012',
@@ -46,9 +46,9 @@ const stats = {
   in_wishlist: 0,
 };
 
-describe('AliceNet Kobe client response adapters', () => {
+describe('AliceNet client response adapters', () => {
   it('decodes the browser snapshot and canonicalizes VN ids', () => {
-    const result = decodeKobeClientSnapshot({
+    const result = decodeAliceNetClientSnapshot({
       items: [item],
       stats,
       pending: { vndb_pending: 0, egs_pending: 1 },
@@ -59,14 +59,14 @@ describe('AliceNet Kobe client response adapters', () => {
   });
 
   it('decodes stock-sync and loop results', () => {
-    expect(decodeKobeStockSyncResult({
+    expect(decodeAliceNetStockSyncResult({
       count: 4,
       added: 1,
       updated: 2,
       removed: 1,
       fetched_at: 1,
     })?.removed).toBe(1);
-    expect(decodeKobeLoopResult({ processed: 2, matched: 1, remaining: 3 })).toEqual({
+    expect(decodeAliceNetLoopResult({ processed: 2, matched: 1, remaining: 3 })).toEqual({
       processed: 2,
       matched: 1,
       remaining: 3,
@@ -74,13 +74,13 @@ describe('AliceNet Kobe client response adapters', () => {
   });
 
   it('rejects malformed nested rows and counters', () => {
-    expect(decodeKobeClientSnapshot({
+    expect(decodeAliceNetClientSnapshot({
       items: [{ ...item, in_collection: 2 }],
       stats,
       pending: { vndb_pending: 0, egs_pending: 0 },
       last_fetch: null,
     })).toBeNull();
-    expect(decodeKobeStockSyncResult({ count: -1, added: 0, updated: 0, removed: 0, fetched_at: 1 })).toBeNull();
-    expect(decodeKobeLoopResult({ processed: 1, remaining: Number.NaN })).toBeNull();
+    expect(decodeAliceNetStockSyncResult({ count: -1, added: 0, updated: 0, removed: 0, fetched_at: 1 })).toBeNull();
+    expect(decodeAliceNetLoopResult({ processed: 1, remaining: Number.NaN })).toBeNull();
   });
 });

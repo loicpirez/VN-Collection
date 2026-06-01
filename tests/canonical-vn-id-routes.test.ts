@@ -5,23 +5,23 @@ import { NextRequest } from 'next/server';
 import { DELETE as deleteReadingQueue, POST as postReadingQueue } from '@/app/api/reading-queue/route';
 import { POST as postEgsVndbLink } from '@/app/api/egs/[id]/vndb/route';
 import { DELETE as deleteSeriesVn, POST as postSeriesVn } from '@/app/api/series/[id]/vn/[vnId]/route';
-import { POST as postKobeLink } from '@/app/api/alicesoft-kobe/[code]/link/route';
+import { POST as postAliceNetLink } from '@/app/api/alicenet/[code]/link/route';
 import {
   addToCollection,
   addToReadingQueue,
   addVnToSeries,
   clearEgsVnLink,
-  clearKobeVnLink,
+  clearAliceNetVnLink,
   clearVnEgsLink,
   createSeries,
   db,
   getEgsVnLink,
-  getKobeStockItem,
+  getAliceNetStockItem,
   getVnEgsLink,
   listReadingQueue,
   removeFromReadingQueue,
   setEgsVnLink,
-  setKobeVnLink,
+  setAliceNetVnLink,
   setVnEgsLink,
   upsertVn,
 } from '@/lib/db';
@@ -29,7 +29,7 @@ import {
 const ROOT = join(__dirname, '..');
 const VN_ID = 'v99874';
 const EGS_ID = 99874;
-const KOBE_CODE = '998-998740-998';
+const ALICENET_CODE = '998-998740-998';
 
 function jsonRequest(path: string, method: string, body: unknown): NextRequest {
   return new NextRequest(`http://127.0.0.1${path}`, {
@@ -44,14 +44,14 @@ beforeEach(() => {
   db.prepare('DELETE FROM series_vn WHERE vn_id = ?').run(VN_ID);
   clearVnEgsLink(VN_ID);
   clearEgsVnLink(EGS_ID);
-  db.prepare('DELETE FROM alicesoft_kobe_stock WHERE code = ?').run(KOBE_CODE);
+  db.prepare('DELETE FROM alicenet_stock WHERE code = ?').run(ALICENET_CODE);
   db.prepare('DELETE FROM collection WHERE vn_id = ?').run(VN_ID);
   db.prepare('DELETE FROM vn WHERE id = ?').run(VN_ID);
   upsertVn({ id: VN_ID, title: 'Canonical id fixture' });
   addToCollection(VN_ID);
   db.prepare(
-    'INSERT INTO alicesoft_kobe_stock (code, title, fetched_at, updated_at) VALUES (?, ?, ?, ?)',
-  ).run(KOBE_CODE, 'Canonical id stock fixture', Date.now(), Date.now());
+    'INSERT INTO alicenet_stock (code, title, fetched_at, updated_at) VALUES (?, ?, ?, ?)',
+  ).run(ALICENET_CODE, 'Canonical id stock fixture', Date.now(), Date.now());
 });
 
 describe('canonical VN id persistence helpers', () => {
@@ -68,16 +68,16 @@ describe('canonical VN id persistence helpers', () => {
     expect(getEgsVnLink(EGS_ID)?.vn_id).toBe(VN_ID);
   });
 
-  it('normalizes series and AliceNet Kobe links', () => {
+  it('normalizes series and AliceNet links', () => {
     const series = createSeries(`Canonical helper fixture ${Date.now()}`);
     addVnToSeries(series.id, VN_ID.toUpperCase());
     const linked = db
       .prepare('SELECT vn_id FROM series_vn WHERE series_id = ?')
       .get(series.id) as { vn_id: string };
     expect(linked.vn_id).toBe(VN_ID);
-    setKobeVnLink(KOBE_CODE, VN_ID.toUpperCase(), 'manual');
-    expect(getKobeStockItem(KOBE_CODE)?.vn_id).toBe(VN_ID);
-    clearKobeVnLink(KOBE_CODE);
+    setAliceNetVnLink(ALICENET_CODE, VN_ID.toUpperCase(), 'manual');
+    expect(getAliceNetStockItem(ALICENET_CODE)?.vn_id).toBe(VN_ID);
+    clearAliceNetVnLink(ALICENET_CODE);
   });
 });
 
@@ -95,7 +95,7 @@ describe('canonical VN id route boundaries', () => {
     expect(removeResponse.status).toBe(200);
   });
 
-  it('normalizes manual EGS and AliceNet Kobe pins', async () => {
+  it('normalizes manual EGS and AliceNet pins', async () => {
     const egsResponse = await postEgsVndbLink(
       jsonRequest(`/api/egs/${EGS_ID}/vndb`, 'POST', { vndb_id: VN_ID.toUpperCase() }),
       { params: Promise.resolve({ id: String(EGS_ID) }) },
@@ -103,12 +103,12 @@ describe('canonical VN id route boundaries', () => {
     expect(egsResponse.status).toBe(200);
     expect(getEgsVnLink(EGS_ID)?.vn_id).toBe(VN_ID);
 
-    const kobeResponse = await postKobeLink(
-      jsonRequest(`/api/alicesoft-kobe/${KOBE_CODE}/link`, 'POST', { vn_id: VN_ID.toUpperCase() }),
-      { params: Promise.resolve({ code: KOBE_CODE }) },
+    const alicenetResponse = await postAliceNetLink(
+      jsonRequest(`/api/alicenet/${ALICENET_CODE}/link`, 'POST', { vn_id: VN_ID.toUpperCase() }),
+      { params: Promise.resolve({ code: ALICENET_CODE }) },
     );
-    expect(kobeResponse.status).toBe(200);
-    expect(getKobeStockItem(KOBE_CODE)?.vn_id).toBe(VN_ID);
+    expect(alicenetResponse.status).toBe(200);
+    expect(getAliceNetStockItem(ALICENET_CODE)?.vn_id).toBe(VN_ID);
   });
 
   it('normalizes series add and remove ids', async () => {

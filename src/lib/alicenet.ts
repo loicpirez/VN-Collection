@@ -3,17 +3,17 @@ import { searchVn } from './vndb';
 import { fetchEgsGame, searchEgsByName, searchEgsCandidates, type EgsCandidate, type EgsGame } from './erogamescape';
 import { providerFetch } from './proxy-fetch';
 import { isVndbVnId } from './vn-id-shape';
-import { countKobeNoVndbResult, countKobeNoVndbNoEgs, countKobeNoVndbWithEgs, countKobeUnmatchedQueue, listKobeNoVndbWithEgs, listKobeNoVndbNoEgs, listKobeNoVndbResult, listKobeUnmatched, resetKobeAutoMatches as dbResetKobeAutoMatches, setKobeEgsLink, setKobeVnLink, upsertKobeStock, type KobeStockRow } from './db'
+import { countAliceNetNoVndbResult, countAliceNetNoVndbNoEgs, countAliceNetNoVndbWithEgs, countAliceNetUnmatchedQueue, listAliceNetNoVndbWithEgs, listAliceNetNoVndbNoEgs, listAliceNetNoVndbResult, listAliceNetUnmatched, resetAliceNetAutoMatches as dbResetAliceNetAutoMatches, setAliceNetEgsLink, setAliceNetVnLink, upsertAliceNetStock, type AliceNetStockRow } from './db'
 
-const ALICENET_KOBE_URL = 'https://www.alice-kobe.com/html/page4.html';
+const ALICENET_URL = 'https://www.alice-kobe.com/html/page4.html';
 const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
 const CELL_RE = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
 const TAG_RE = /<[^>]+>/g;
-const MAX_KOBE_QUERY_VARIANTS = 64;
-const MAX_KOBE_VNDB_AUTO_QUERIES = 24;
-const MAX_KOBE_EGS_AUTO_QUERIES = 16;
+const MAX_ALICENET_QUERY_VARIANTS = 64;
+const MAX_ALICENET_VNDB_AUTO_QUERIES = 24;
+const MAX_ALICENET_EGS_AUTO_QUERIES = 16;
 
-export interface KobeCandidate {
+export interface AliceNetCandidate {
   id: string;
   title: string;
   alttitle: string | null;
@@ -325,7 +325,7 @@ function progressiveTrimVariants(value: string): string[] {
 }
 
 /**
- * Normalize a raw Kobe title for use as a VNDB/EGS search query.
+ * Normalize a raw AliceNet title for use as a VNDB/EGS search query.
  * Strips used-goods markers, edition/platform labels, age-rating tags,
  * and converts full-width ASCII to half-width so the search engine
  * receives the cleanest possible game title.
@@ -338,7 +338,7 @@ export function normalizeTitle(rawTitle: string): string {
     .trim();
 }
 
-export { normalizeTitle as getKobeTitleForSearch };
+export { normalizeTitle as getAliceNetTitleForSearch };
 
 /**
  * Aggressive title normalization for the "retry without edition" pass.
@@ -367,12 +367,12 @@ export function normalizeTitleAggressive(rawTitle: string): string {
 }
 
 /**
- * VNDB's search is good, but not magic: AliceNet Kobe titles often append shop
+ * VNDB's search is good, but not magic: AliceNet titles often append shop
  * descriptors, media labels, roman subtitles, or fandisc packaging text that
  * makes the exact query miss. Try a small, ordered set of increasingly plain
  * queries, keeping the original first for precise titles.
  */
-export function buildKobeTitleSearchQueries(rawTitle: string): string[] {
+export function buildAliceNetTitleSearchQueries(rawTitle: string): string[] {
   const base = normalizeTitle(rawTitle);
   const aggressive = normalizeTitleAggressive(rawTitle);
   const variants: string[] = [base, aggressive];
@@ -407,7 +407,7 @@ export function buildKobeTitleSearchQueries(rawTitle: string): string[] {
 
   return uniq(variants.map(tidySpaces))
     .filter((q) => q.length >= 2 && !/^\d$/.test(q))
-    .slice(0, MAX_KOBE_QUERY_VARIANTS);
+    .slice(0, MAX_ALICENET_QUERY_VARIANTS);
 }
 
 function normalizeReleaseDate(value: string | null): string | null {
@@ -439,7 +439,7 @@ function comparableTitle(value: string | null | undefined): string {
     .replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
-function candidateTextValues(candidate: KobeCandidate): string[] {
+function candidateTextValues(candidate: AliceNetCandidate): string[] {
   return [
     candidate.title,
     candidate.alttitle,
@@ -447,7 +447,7 @@ function candidateTextValues(candidate: KobeCandidate): string[] {
   ].filter((value): value is string => Boolean(value));
 }
 
-function candidateScore(candidate: KobeCandidate, query: string, releaseDate: string | null, index: number): number {
+function candidateScore(candidate: AliceNetCandidate, query: string, releaseDate: string | null, index: number): number {
   const texts = candidateTextValues(candidate).map(comparableTitle).filter(Boolean);
   const q = comparableTitle(query);
   let score = Math.max(0, 20 - index);
@@ -468,11 +468,11 @@ function candidateScore(candidate: KobeCandidate, query: string, releaseDate: st
   return score;
 }
 
-function pickBestCandidate(candidates: KobeCandidate[], query: string, releaseDate: string | null): {
-  candidate: KobeCandidate;
+function pickBestCandidate(candidates: AliceNetCandidate[], query: string, releaseDate: string | null): {
+  candidate: AliceNetCandidate;
   score: number;
 } | null {
-  let best: { candidate: KobeCandidate; score: number } | null = null;
+  let best: { candidate: AliceNetCandidate; score: number } | null = null;
   for (let index = 0; index < candidates.length; index++) {
     const candidate = candidates[index]!;
     const score = candidateScore(candidate, query, releaseDate, index);
@@ -481,19 +481,19 @@ function pickBestCandidate(candidates: KobeCandidate[], query: string, releaseDa
   return best;
 }
 
-function hasCandidateTextMatch(candidate: KobeCandidate, query: string): boolean {
+function hasCandidateTextMatch(candidate: AliceNetCandidate, query: string): boolean {
   const texts = candidateTextValues(candidate).map(comparableTitle).filter(Boolean);
   const q = comparableTitle(query);
   return Boolean(q && texts.some((text) => text.includes(q) || q.includes(text)));
 }
 
 function isSafeAutoCandidate(
-  candidate: KobeCandidate | null,
+  candidate: AliceNetCandidate | null,
   score: number,
   query: string,
   releaseDate: string | null,
   primaryQuery: string,
-): candidate is KobeCandidate {
+): candidate is AliceNetCandidate {
   if (!candidate) return false;
   const q = comparableTitle(query);
   const primary = comparableTitle(primaryQuery);
@@ -521,7 +521,7 @@ function isSafeAutoCandidate(
   return closeRelease || exactTitle || score >= 55;
 }
 
-function egsMeta(game: EgsGame | null | undefined): Parameters<typeof setKobeEgsLink>[3] | undefined {
+function egsMeta(game: EgsGame | null | undefined): Parameters<typeof setAliceNetEgsLink>[3] | undefined {
   if (!game) return undefined;
   return {
     title: game.gamename,
@@ -567,8 +567,8 @@ function isSafeEgsCandidate(candidate: EgsCandidate | null, score: number, query
   return exactRelease || exactTitle || score >= 60;
 }
 
-async function searchKobeEgsCandidate(item: KobeStockRow): Promise<{ game: EgsGame | null; query: string | null }> {
-  const queries = buildKobeTitleSearchQueries(item.title).slice(0, MAX_KOBE_EGS_AUTO_QUERIES);
+async function searchAliceNetEgsCandidate(item: AliceNetStockRow): Promise<{ game: EgsGame | null; query: string | null }> {
+  const queries = buildAliceNetTitleSearchQueries(item.title).slice(0, MAX_ALICENET_EGS_AUTO_QUERIES);
   const releaseDate = normalizeReleaseDate(item.release_date);
   let lastQuery = queries[0] ?? null;
 
@@ -602,12 +602,12 @@ async function searchKobeEgsCandidate(item: KobeStockRow): Promise<{ game: EgsGa
   return { game: null, query: lastQuery };
 }
 
-async function searchKobeVndbCandidates(item: KobeStockRow): Promise<{
-  top: KobeCandidate | null;
+async function searchAliceNetVndbCandidates(item: AliceNetStockRow): Promise<{
+  top: AliceNetCandidate | null;
   candidatesJson: string | null;
   query: string | null;
 }> {
-  const queries = buildKobeTitleSearchQueries(item.title).slice(0, MAX_KOBE_VNDB_AUTO_QUERIES);
+  const queries = buildAliceNetTitleSearchQueries(item.title).slice(0, MAX_ALICENET_VNDB_AUTO_QUERIES);
   const releaseDate = normalizeReleaseDate(item.release_date);
   if (queries.length === 0) return { top: null, candidatesJson: null, query: null };
 
@@ -615,7 +615,7 @@ async function searchKobeVndbCandidates(item: KobeStockRow): Promise<{
   for (const query of queries) {
     lastQuery = query;
     const vnResult = await searchVn(query, { results: 5 });
-    const candidates: KobeCandidate[] = (vnResult.results ?? []).slice(0, 5).map((v) => ({
+    const candidates: AliceNetCandidate[] = (vnResult.results ?? []).slice(0, 5).map((v) => ({
       id: v.id,
       title: v.title,
       alttitle: v.alttitle,
@@ -642,13 +642,13 @@ async function searchKobeVndbCandidates(item: KobeStockRow): Promise<{
 }
 
 /**
- * Parse the AliceNet Kobe HTML page into structured stock rows.
+ * Parse the AliceNet HTML page into structured stock rows.
  * Skips the header row and any rows without the expected code format.
  */
-export function parseAliceKobeHtml(
+export function parseAliceNetHtml(
   html: string,
-): Pick<KobeStockRow, 'code' | 'title' | 'jan' | 'release_date' | 'list_price' | 'sale_price'>[] {
-  const results: Pick<KobeStockRow, 'code' | 'title' | 'jan' | 'release_date' | 'list_price' | 'sale_price'>[] = [];
+): Pick<AliceNetStockRow, 'code' | 'title' | 'jan' | 'release_date' | 'list_price' | 'sale_price'>[] {
+  const results: Pick<AliceNetStockRow, 'code' | 'title' | 'jan' | 'release_date' | 'list_price' | 'sale_price'>[] = [];
   ROW_RE.lastIndex = 0;
   let rm: RegExpExecArray | null;
   let isFirst = true;
@@ -679,28 +679,28 @@ export function parseAliceKobeHtml(
 }
 
 /**
- * Fetch the AliceNet Kobe stock page, decoding EUC-JP to UTF-8.
+ * Fetch the AliceNet stock page, decoding EUC-JP to UTF-8.
  * Only called on explicit user action — never auto-fetched on page load.
  */
-export async function fetchAliceKobeHtml(): Promise<string> {
+export async function fetchAliceNetHtml(): Promise<string> {
   const res = await providerFetch(
-    ALICENET_KOBE_URL,
+    ALICENET_URL,
     { headers: { 'User-Agent': 'vndb-collection/1.0 (personal use)' } },
-    'alicesoft_kobe',
+    'alicenet',
   );
-  if (!res.ok) throw new Error(`AliceNet Kobe fetch failed: HTTP ${res.status}`);
-  // Cap buffered response. The AliceNet Kobe stock page is ~500 KB; even a
+  if (!res.ok) throw new Error(`AliceNet fetch failed: HTTP ${res.status}`);
+  // Cap buffered response. The AliceNet stock page is ~500 KB; even a
   // catastrophic-growth scenario shouldn't approach 8 MiB. A lying or
   // missing Content-Length would otherwise let a hostile mirror OOM the
   // process via `res.arrayBuffer()` (it buffers everything before any
   // check fires).
-  const MAX_KOBE_BYTES = 8 * 1024 * 1024;
+  const MAX_ALICENET_BYTES = 8 * 1024 * 1024;
   const cl = res.headers.get('content-length');
-  if (cl && parseInt(cl, 10) > MAX_KOBE_BYTES) {
-    throw new Error(`AliceNet Kobe response too large (${cl} bytes)`);
+  if (cl && parseInt(cl, 10) > MAX_ALICENET_BYTES) {
+    throw new Error(`AliceNet response too large (${cl} bytes)`);
   }
   const reader = res.body?.getReader();
-  if (!reader) throw new Error('AliceNet Kobe empty body');
+  if (!reader) throw new Error('AliceNet empty body');
   const chunks: Uint8Array[] = [];
   let total = 0;
   while (true) {
@@ -708,9 +708,9 @@ export async function fetchAliceKobeHtml(): Promise<string> {
     if (done) break;
     if (!value) continue;
     total += value.byteLength;
-    if (total > MAX_KOBE_BYTES) {
+    if (total > MAX_ALICENET_BYTES) {
       await reader.cancel('cap exceeded').catch(() => undefined);
-      throw new Error(`AliceNet Kobe response exceeded ${MAX_KOBE_BYTES} bytes`);
+      throw new Error(`AliceNet response exceeded ${MAX_ALICENET_BYTES} bytes`);
     }
     chunks.push(value);
   }
@@ -720,19 +720,19 @@ export async function fetchAliceKobeHtml(): Promise<string> {
 }
 
 /**
- * Download the latest stock from AliceNet Kobe and persist it to the DB.
+ * Download the latest stock from AliceNet and persist it to the DB.
  * Triggered only by the Download button — never called automatically.
  */
-export async function refreshKobeStock(): Promise<{
+export async function refreshAliceNetStock(): Promise<{
   count: number;
   added: number;
   updated: number;
   removed: number;
   fetched_at: number;
 }> {
-  const html = await fetchAliceKobeHtml();
-  const rows = parseAliceKobeHtml(html);
-  const { added, updated, removed } = upsertKobeStock(rows);
+  const html = await fetchAliceNetHtml();
+  const rows = parseAliceNetHtml(html);
+  const { added, updated, removed } = upsertAliceNetStock(rows);
   return { count: rows.length, added, updated, removed, fetched_at: Date.now() };
 }
 
@@ -741,12 +741,12 @@ export async function refreshKobeStock(): Promise<{
  * Manual links (source='manual') are preserved.
  * Returns the number of rows cleared.
  */
-export function resetKobeAutoMatches(): number {
-  return dbResetKobeAutoMatches();
+export function resetAliceNetAutoMatches(): number {
+  return dbResetAliceNetAutoMatches();
 }
 
 /**
- * Auto-match a batch of unlinked Kobe items against VNDB and EGS.
+ * Auto-match a batch of unlinked AliceNet items against VNDB and EGS.
  *
  * Rate-limiting strategy:
  *   - Fresh rows: VNDB and EGS run concurrently, then both caches make repeats cheap.
@@ -760,24 +760,24 @@ export function resetKobeAutoMatches(): number {
  * @param batchSize  Number of items to process (clamped 1–100)
  * @param retryNone  When true, also retries items previously marked 'none'
  */
-export async function matchNextKobeItems(
+export async function matchNextAliceNetItems(
   batchSize: number,
   retryNone = false,
   retryStartedAt?: number,
 ): Promise<{ processed: number; matched: number; remaining: number }> {
   const safe = Math.min(100, Math.max(1, Math.floor(batchSize)));
-  const items = listKobeUnmatched(safe, retryNone, retryStartedAt);
+  const items = listAliceNetUnmatched(safe, retryNone, retryStartedAt);
   let matched = 0;
   for (const item of items) {
-    const primaryQuery = buildKobeTitleSearchQueries(item.title)[0] ?? normalizeTitle(item.title);
+    const primaryQuery = buildAliceNetTitleSearchQueries(item.title)[0] ?? normalizeTitle(item.title);
     if (!primaryQuery) {
-      setKobeVnLink(item.code, null, 'none', null, item.title);
+      setAliceNetVnLink(item.code, null, 'none', null, item.title);
       continue;
     }
     if (retryNone) {
-      const vnResult = await searchKobeVndbCandidates(item);
+      const vnResult = await searchAliceNetVndbCandidates(item);
       if (vnResult.top) {
-        setKobeVnLink(
+        setAliceNetVnLink(
           item.code,
           vnResult.top.id,
           'auto',
@@ -788,27 +788,27 @@ export async function matchNextKobeItems(
         continue;
       }
 
-      const egsResult = await searchKobeEgsCandidate(item);
+      const egsResult = await searchAliceNetEgsCandidate(item);
       if (egsResult.game) {
-        setKobeEgsLink(item.code, egsResult.game.id, 'auto', egsMeta(egsResult.game));
+        setAliceNetEgsLink(item.code, egsResult.game.id, 'auto', egsMeta(egsResult.game));
         matched++;
         const vndbRaw = egsResult.game.raw?.vndb?.trim() ?? '';
         if (isVndbVnId(vndbRaw)) {
-          setKobeVnLink(item.code, vndbRaw, 'auto', null, egsResult.query ?? primaryQuery);
+          setAliceNetVnLink(item.code, vndbRaw, 'auto', null, egsResult.query ?? primaryQuery);
         } else {
-          setKobeVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query ?? egsResult.query ?? primaryQuery);
+          setAliceNetVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query ?? egsResult.query ?? primaryQuery);
         }
         continue;
       }
-      setKobeVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query ?? egsResult.query ?? primaryQuery);
+      setAliceNetVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query ?? egsResult.query ?? primaryQuery);
       continue;
     }
     let itemMatched = false;
     const [vndbResult, egsResult] = await Promise.allSettled([
-      searchKobeVndbCandidates(item)
+      searchAliceNetVndbCandidates(item)
         .then((vnResult) => {
           if (vnResult.top) itemMatched = true;
-          setKobeVnLink(
+          setAliceNetVnLink(
             item.code,
             vnResult.top?.id ?? null,
             vnResult.top ? 'auto' : 'none',
@@ -816,11 +816,11 @@ export async function matchNextKobeItems(
             vnResult.query ?? primaryQuery,
           );
         }),
-      searchKobeEgsCandidate(item)
+      searchAliceNetEgsCandidate(item)
         .then((r) => {
           if (r.game) {
             itemMatched = true;
-            setKobeEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
+            setAliceNetEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
           }
         })
         .catch(() => {}),
@@ -832,19 +832,19 @@ export async function matchNextKobeItems(
   return {
     processed: items.length,
     matched,
-    remaining: countKobeUnmatchedQueue(retryNone, retryStartedAt),
+    remaining: countAliceNetUnmatchedQueue(retryNone, retryStartedAt),
   };
 }
 
 /**
  * Resolve VNDB ids for items in the "No VNDB result" tab via ErogameScape.
  *
- * Walks every kobe row where `vn_match_source = 'none' AND vn_id IS NULL`
+ * Walks every alicenet row where `vn_match_source = 'none' AND vn_id IS NULL`
  *  1. If we don't yet have an `egs_id`, run a fresh `searchEgsByName` and
  *     persist whatever it finds.
  *  2. If we now have an `egs_id`, call `fetchEgsGame` (24h cached) and read
  *     the curated `vndb` column. Valid VN ids are written back via
- *     `setKobeVnLink`.
+ *     `setAliceNetVnLink`.
  *
  * Failures (EGS unreachable, no matching EGS row, EGS row with empty `vndb`)
  * stay in the 'none' queue for a later retry or manual link. The returned
@@ -853,12 +853,12 @@ export async function matchNextKobeItems(
  *
  * @param batchSize  Max number of rows to process this call (clamped 1–500)
  */
-export async function matchVndbFromEgsForKobe(
+export async function matchVndbFromEgsForAliceNet(
   batchSize: number,
   retryStartedAt?: number,
 ): Promise<{ processed: number; matched: number; remaining: number }> {
   const safe = Math.min(500, Math.max(1, Math.floor(batchSize)));
-  const items = listKobeNoVndbWithEgs(safe, retryStartedAt);
+  const items = listAliceNetNoVndbWithEgs(safe, retryStartedAt);
   let matched = 0;
   for (const item of items) {
     let egsId = item.egs_id;
@@ -867,23 +867,23 @@ export async function matchVndbFromEgsForKobe(
     try {
       const game = await fetchEgsGame(egsId);
       const vndbRaw = game?.raw?.vndb?.trim() ?? '';
-      if (game) setKobeEgsLink(item.code, egsId, item.egs_match_source ?? 'auto', egsMeta(game));
+      if (game) setAliceNetEgsLink(item.code, egsId, item.egs_match_source ?? 'auto', egsMeta(game));
       if (game && isVndbVnId(vndbRaw)) {
-        setKobeVnLink(item.code, vndbRaw, 'auto', null, item.search_title ?? item.title);
+        setAliceNetVnLink(item.code, vndbRaw, 'auto', null, item.search_title ?? item.title);
         matched++;
       } else {
-        setKobeVnLink(item.code, null, 'none', item.vn_candidates, item.search_title ?? normalizeTitle(item.title));
+        setAliceNetVnLink(item.code, null, 'none', item.vn_candidates, item.search_title ?? normalizeTitle(item.title));
       }
     } catch {
       // EGS unreachable for this id — leave row as 'none', user can retry.
     }
   }
-  return { processed: items.length, matched, remaining: countKobeNoVndbWithEgs(retryStartedAt) };
+  return { processed: items.length, matched, remaining: countAliceNetNoVndbWithEgs(retryStartedAt) };
 }
 
 /**
  * Retry VNDB search for "No VNDB result" items using an aggressively cleaned
- * title. The original `matchNextKobeItems` failed because titles like
+ * title. The original `matchNextAliceNetItems` failed because titles like
  *   "ぱらだいすおーしゃん　完全限定生産版"
  *   "いますぐお兄ちゃんに・・・　完全生産限定版"
  *   "ましろ色シンフォニー　サナエディション"
@@ -893,7 +893,7 @@ export async function matchVndbFromEgsForKobe(
  *   2) same title with all whitespace removed (catches "ｔａｎ．タンジェント" vs
  *      "ｔａｎ． －タンジェント－")
  *
- * On hit, `setKobeVnLink` writes the new vn_id and the candidates JSON so the
+ * On hit, `setAliceNetVnLink` writes the new vn_id and the candidates JSON so the
  * UI's quick-pick chips still work. On miss we refresh the row's last attempt
  * timestamp so the current run continues to the next item instead of retrying
  * the same miss forever.
@@ -901,34 +901,34 @@ export async function matchVndbFromEgsForKobe(
  * @param batchSize  Max rows processed this call (clamped 1–500). The endpoint
  *                   returns `remaining: 0` so the UI loop exits after one pass.
  */
-export async function retryVndbForKobeAggressive(
+export async function retryVndbForAliceNetAggressive(
   batchSize: number,
   retryStartedAt?: number,
 ): Promise<{ processed: number; matched: number; remaining: number }> {
   const safe = Math.min(500, Math.max(1, Math.floor(batchSize)));
-  // listKobeNoVndbResult already returns vn_match_source='none' AND vn_id IS NULL.
-  const items = listKobeNoVndbResult(safe, retryStartedAt);
+  // listAliceNetNoVndbResult already returns vn_match_source='none' AND vn_id IS NULL.
+  const items = listAliceNetNoVndbResult(safe, retryStartedAt);
   let matched = 0;
   for (const item of items) {
     try {
-      const result = await searchKobeVndbCandidates(item);
+      const result = await searchAliceNetVndbCandidates(item);
       if (result.top) {
-        setKobeVnLink(item.code, result.top.id, 'auto', result.candidatesJson, result.query);
+        setAliceNetVnLink(item.code, result.top.id, 'auto', result.candidatesJson, result.query);
         matched++;
       } else {
-        setKobeVnLink(item.code, null, 'none', result.candidatesJson, result.query ?? normalizeTitleAggressive(item.title));
+        setAliceNetVnLink(item.code, null, 'none', result.candidatesJson, result.query ?? normalizeTitleAggressive(item.title));
       }
     } catch (err) {
       // Stop the batch instead of spinning over the same first rows forever.
       throw err;
     }
   }
-  return { processed: items.length, matched, remaining: countKobeNoVndbResult(retryStartedAt) };
+  return { processed: items.length, matched, remaining: countAliceNetNoVndbResult(retryStartedAt) };
 }
 
 /**
  * Fresh EGS title search for "No VNDB result" items that also lack an
- * `egs_id`. The original `matchNextKobeItems` already runs `searchEgsByName`,
+ * `egs_id`. The original `matchNextAliceNetItems` already runs `searchEgsByName`,
  * but only once and only with the standard normalization. This entry point
  * lets the user re-run it on demand, optionally with the more aggressive
  * cleanup that strips edition / 版 suffixes and (when used as a second pass)
@@ -942,13 +942,13 @@ export async function retryVndbForKobeAggressive(
  * @param aggressive When true, uses `normalizeTitleAggressive` and additionally
  *                   tries a whitespace-collapsed variant.
  */
-export async function searchEgsForKobeNoVndb(
+export async function searchEgsForAliceNetNoVndb(
   batchSize: number,
   aggressive: boolean,
   retryStartedAt?: number,
 ): Promise<{ processed: number; matched: number; remaining: number }> {
   const safe = Math.min(500, Math.max(1, Math.floor(batchSize)));
-  const items = listKobeNoVndbNoEgs(safe, retryStartedAt);
+  const items = listAliceNetNoVndbNoEgs(safe, retryStartedAt);
   let matched = 0;
   for (const item of items) {
     const primary = aggressive ? normalizeTitleAggressive(item.title) : normalizeTitle(item.title);
@@ -957,9 +957,9 @@ export async function searchEgsForKobeNoVndb(
     let found = false;
     try {
       if (aggressive) {
-        const r = await searchKobeEgsCandidate(item);
+        const r = await searchAliceNetEgsCandidate(item);
         if (r.game) {
-          setKobeEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
+          setAliceNetEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
           matched++;
           found = true;
         }
@@ -972,7 +972,7 @@ export async function searchEgsForKobeNoVndb(
       try {
         const r = await searchEgsByName(q);
         if (r) {
-          setKobeEgsLink(item.code, r.id, 'auto', egsMeta(r));
+          setAliceNetEgsLink(item.code, r.id, 'auto', egsMeta(r));
           matched++;
           found = true;
           break;
@@ -982,7 +982,7 @@ export async function searchEgsForKobeNoVndb(
         throw err;
       }
     }
-    if (!found) setKobeVnLink(item.code, null, 'none', item.vn_candidates, item.search_title ?? primary);
+    if (!found) setAliceNetVnLink(item.code, null, 'none', item.vn_candidates, item.search_title ?? primary);
   }
-  return { processed: items.length, matched, remaining: countKobeNoVndbNoEgs(retryStartedAt) };
+  return { processed: items.length, matched, remaining: countAliceNetNoVndbNoEgs(retryStartedAt) };
 }

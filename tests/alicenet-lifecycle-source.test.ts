@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const CLIENT = readFileSync('src/components/AliceNetKobeClient.tsx', 'utf8');
-const DIALOG = readFileSync('src/components/kobe/KobeLinkDialog.tsx', 'utf8');
+const CLIENT = readFileSync('src/components/AliceNetClient.tsx', 'utf8');
+const DIALOG = readFileSync('src/components/alicenet/AliceNetLinkDialog.tsx', 'utf8');
 
-describe('AliceNet Kobe lifecycle', () => {
+describe('AliceNet lifecycle', () => {
   it('owns page reloads and aborts every active channel on teardown', () => {
     expect(CLIENT).toContain('const loadAbortRef = useRef<AbortController | null>(null)');
     expect(CLIENT).toContain('loadAbortRef.current?.abort()');

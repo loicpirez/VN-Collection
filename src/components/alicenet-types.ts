@@ -1,8 +1,8 @@
 /**
- * Shared kobe types — extracted from AliceNetKobeClient.tsx during the
+ * Shared alicenet types — extracted from AliceNetClient.tsx during the
  * U-234 file split. Lives in a sibling `.ts` so both the main client
- * and the extracted sub-components (`KobeLinkDialog`,
- * `KobeCandidateChips`) can import without cycles.
+ * and the extracted sub-components (`AliceNetLinkDialog`,
+ * `AliceNetCandidateChips`) can import without cycles.
  */
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { formatVndbDateString } from '@/lib/locale-number';
@@ -11,44 +11,44 @@ import {
   parseVndbCandidateRows,
   type VndbCandidateRow,
 } from '@/lib/client-persisted-shape';
-import type { KobeClientItem, KobeClientStats } from '@/lib/kobe-client-shape';
+import type { AliceNetClientItem, AliceNetClientStats } from '@/lib/alicenet-client-shape';
 
-/** Candidate VNDB row persisted for AliceNet Kobe remapping. */
-export type KobeCandidate = VndbCandidateRow;
+/** Candidate VNDB row persisted for AliceNet remapping. */
+export type AliceNetCandidate = VndbCandidateRow;
 
-/** AliceNet Kobe stock row rendered by card and list views. */
-export type KobeItem = KobeClientItem;
+/** AliceNet stock row rendered by card and list views. */
+export type AliceNetItem = AliceNetClientItem;
 
-/** AliceNet Kobe header counters rendered by the browser. */
-export type KobeStats = KobeClientStats;
+/** AliceNet header counters rendered by the browser. */
+export type AliceNetStats = AliceNetClientStats;
 
-export interface KobeSearchHit {
+export interface AliceNetSearchHit {
   id: string;
   title: string;
   released: string | null;
   developers?: { id: string; name: string }[];
 }
 
-export type KobeFilterTab =
+export type AliceNetFilterTab =
   | 'all' | 'matched' | 'vndb' | 'egs_only' | 'unmatched'
   | 'none_found' | 'collection' | 'wishlist';
-export type KobeSort =
+export type AliceNetSort =
   | 'title' | 'release_desc' | 'release_asc' | 'price_asc' | 'price_desc'
   | 'match_status' | 'updated_desc';
-export type KobeGroup = 'none' | 'match' | 'producer' | 'year';
-export type KobeView = 'cards' | 'list';
+export type AliceNetGroup = 'none' | 'match' | 'producer' | 'year';
+export type AliceNetView = 'cards' | 'list';
 
-export const KOBE_SORTS: KobeSort[] = [
+export const ALICENET_SORTS: AliceNetSort[] = [
   'match_status', 'release_desc', 'release_asc',
   'price_asc', 'price_desc', 'title', 'updated_desc',
 ];
-export const KOBE_GROUPS: KobeGroup[] = ['none', 'match', 'producer', 'year'];
+export const ALICENET_GROUPS: AliceNetGroup[] = ['none', 'match', 'producer', 'year'];
 
 /**
- * Parse a raw kobe price string ("¥4,270", "4,270円") to its integer
+ * Parse a raw alicenet price string ("¥4,270", "4,270円") to its integer
  * yen value. Returns null when there are no digits or the value is ≤ 0.
  */
-export function parseKobePrice(value: string | null): number | null {
+export function parseAliceNetPrice(value: string | null): number | null {
   if (!value) return null;
   const n = Number(value.replace(/[^\d]/g, ''));
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -59,17 +59,17 @@ export function parseKobePrice(value: string | null): number | null {
  * ISO `YYYY-MM-DD` form used by sort comparisons. Returns '' for null,
  * and passes through unrecognised formats verbatim.
  */
-export function comparableKobeDate(value: string | null): string {
+export function comparableAliceNetDate(value: string | null): string {
   if (!value) return '';
   const m = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(value);
   if (!m) return value;
   return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
 }
 
-/** Locale-format a kobe date for display. */
-export function formatKobeDate(value: string | null, locale: Locale): string {
+/** Locale-format a alicenet date for display. */
+export function formatAliceNetDate(value: string | null, locale: Locale): string {
   if (!value) return '';
-  const iso = comparableKobeDate(value);
+  const iso = comparableAliceNetDate(value);
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatVndbDateString(iso, locale);
   const m = /^(\d{4})年(?:(\d{1,2})月(?:(\d{1,2})日)?)?$/.exec(value);
   if (m) {
@@ -80,28 +80,28 @@ export function formatKobeDate(value: string | null, locale: Locale): string {
   return value;
 }
 
-/** Parse persisted developer rows used by AliceNet Kobe cards. */
-export function parseKobeDevs(json: string | null): { id: string; name: string }[] {
+/** Parse persisted developer rows used by AliceNet cards. */
+export function parseAliceNetDevs(json: string | null): { id: string; name: string }[] {
   return parseNamedIdRows(json);
 }
 
-/** Parse persisted VNDB candidates used by AliceNet Kobe remapping controls. */
-export function parseKobeCandidates(json: string | null): KobeCandidate[] {
+/** Parse persisted VNDB candidates used by AliceNet remapping controls. */
+export function parseAliceNetCandidates(json: string | null): AliceNetCandidate[] {
   return parseVndbCandidateRows(json);
 }
 
-export function kobeMatchKind(item: KobeItem): 'vndb' | 'egs' | 'unresolved' | 'new' {
+export function alicenetMatchKind(item: AliceNetItem): 'vndb' | 'egs' | 'unresolved' | 'new' {
   if (item.vn_id) return 'vndb';
   if (item.egs_id) return 'egs';
   if (item.vn_match_source === 'none') return 'unresolved';
   return 'new';
 }
 
-export function displayKobeTitle(item: KobeItem): string {
+export function displayAliceNetTitle(item: AliceNetItem): string {
   return item.egs_title || item.title;
 }
 
-export function displayKobeProducer(item: KobeItem): string {
-  const dev = parseKobeDevs(item.vn_developers)[0]?.name;
+export function displayAliceNetProducer(item: AliceNetItem): string {
+  const dev = parseAliceNetDevs(item.vn_developers)[0]?.name;
   return dev || item.egs_brand || '';
 }

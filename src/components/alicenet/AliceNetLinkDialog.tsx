@@ -7,15 +7,15 @@ import { useT, useLocale } from '@/lib/i18n/client';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { readApiError } from '@/lib/api-error-read';
 import { decodeVndbPickerResults, type VndbPickerHit } from '@/lib/search-client-shape';
-import type { KobeItem } from '../kobe-types';
+import type { AliceNetItem } from '../alicenet-types';
 
 interface LinkDialogProps {
-  item: KobeItem;
+  item: AliceNetItem;
   onClose: () => void;
   onLinked: () => void;
 }
 
-function initialQuery(item: KobeItem): string {
+function initialQuery(item: AliceNetItem): string {
   return item.search_title ??
     item.title
       .replace(/[【〔\[（(][^\]】〕)）]*中古[^\]】〕)）]*[\]】〕)）]/g, '')
@@ -28,12 +28,12 @@ function initialQuery(item: KobeItem): string {
 }
 
 /**
- * Match/remap modal for a single AliceNet Kobe stock row. Debounces a VNDB
+ * Match/remap modal for a single AliceNet stock row. Debounces a VNDB
  * title search, lists hits, and links the chosen VN (or "no match") via
- * the kobe link API. Rendered only while a target item is selected, so it
- * is lazy-loaded by `AliceNetKobeClient` and kept out of the initial chunk.
+ * the alicenet link API. Rendered only while a target item is selected, so it
+ * is lazy-loaded by `AliceNetClient` and kept out of the initial chunk.
  */
-export function KobeLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
+export function AliceNetLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
   const t = useT();
   const locale = useLocale();
   const toast = useToast();
@@ -117,7 +117,7 @@ export function KobeLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
     const key = vnId ?? 'none';
     setBusy(key);
     try {
-      const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(item.code)}/link`, {
+      const r = await fetch(`/api/alicenet/${encodeURIComponent(item.code)}/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: vnId }),
@@ -153,7 +153,7 @@ export function KobeLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
       >
         <header className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="text-base font-bold">{t.kobe.kobeFindMatch}</h2>
+            <h2 id={titleId} className="text-base font-bold">{t.alicenet.alicenetFindMatch}</h2>
             <p className="mt-1 truncate text-[11px] text-muted" title={item.title}>{item.title}</p>
           </div>
           <button type="button" onClick={onClose} aria-label={t.common.close} className="tap-target rounded-md p-1 text-muted hover:bg-bg-elev hover:text-white">
@@ -211,7 +211,7 @@ export function KobeLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
         <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
           <button type="button" onClick={() => link(null)} disabled={busy != null} className="btn btn-danger btn-xs min-h-[44px] sm:min-h-0">
             {busy === 'none' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2Off className="h-3 w-3" />}
-            {t.kobe.kobeNoMatch}
+            {t.alicenet.alicenetNoMatch}
           </button>
         </footer>
       </div>

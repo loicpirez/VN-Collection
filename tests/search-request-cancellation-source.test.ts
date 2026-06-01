@@ -18,8 +18,8 @@ describe('mapping picker request cancellation', () => {
     expect(body).toContain('setSearching(false);');
   });
 
-  it('aborts stale AliceNet Kobe remap searches before applying results', () => {
-    const body = source('src/components/kobe/KobeLinkDialog.tsx');
+  it('aborts stale AliceNet remap searches before applying results', () => {
+    const body = source('src/components/alicenet/AliceNetLinkDialog.tsx');
     expect(body).toContain('searchAbortRef.current?.abort();');
     expect(body).toContain('signal: controller.signal');
     expect(body).toContain('controller.signal.aborted || !mountedRef.current || itemCodeRef.current !== owner || searchAbortRef.current !== controller');

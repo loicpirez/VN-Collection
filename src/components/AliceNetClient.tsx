@@ -45,36 +45,36 @@ import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 
 import type {
-  KobeCandidate,
-  KobeItem,
-  KobeStats,
-  KobeFilterTab as FilterTab,
-  KobeSort,
-  KobeGroup,
-  KobeView,
-} from './kobe-types';
+  AliceNetCandidate,
+  AliceNetItem,
+  AliceNetStats,
+  AliceNetFilterTab as FilterTab,
+  AliceNetSort,
+  AliceNetGroup,
+  AliceNetView,
+} from './alicenet-types';
 import {
-  KOBE_SORTS,
-  KOBE_GROUPS,
-  parseKobePrice as parsePrice,
-  comparableKobeDate as comparableDate,
-  formatKobeDate,
-  parseKobeDevs as parseDevs,
-  parseKobeCandidates,
-  kobeMatchKind as matchKind,
-  displayKobeTitle as displayTitle,
-  displayKobeProducer as displayProducer,
-} from './kobe-types';
+  ALICENET_SORTS,
+  ALICENET_GROUPS,
+  parseAliceNetPrice as parsePrice,
+  comparableAliceNetDate as comparableDate,
+  formatAliceNetDate,
+  parseAliceNetDevs as parseDevs,
+  parseAliceNetCandidates,
+  alicenetMatchKind as matchKind,
+  displayAliceNetTitle as displayTitle,
+  displayAliceNetProducer as displayProducer,
+} from './alicenet-types';
 import { parseClientPreferenceRecord } from '@/lib/client-persisted-shape';
 import {
-  decodeKobeClientSnapshot,
-  decodeKobeLoopResult,
-  decodeKobeStockSyncResult,
-  type KobePendingCounts,
-} from '@/lib/kobe-client-shape';
+  decodeAliceNetClientSnapshot,
+  decodeAliceNetLoopResult,
+  decodeAliceNetStockSyncResult,
+  type AliceNetPendingCounts,
+} from '@/lib/alicenet-client-shape';
 
 /**
- * Format a raw kobe price string ("¥4,270", "4,270円") as locale-native
+ * Format a raw alicenet price string ("¥4,270", "4,270円") as locale-native
  * JPY currency. Passes the canonical BCP-47 tag (not the bare `Locale`
  * enum) to `Intl.NumberFormat` so the grouping/symbol render per the
  * active locale. Falls back to the raw string when no positive integer
@@ -89,11 +89,11 @@ function formatPriceJpy(value: string | null, locale: Locale): string {
 
 /**
  * Match/remap modal, lazy-loaded so its VNDB-search pipeline and dialog
- * a11y machinery leave the initial Kobe page chunk. Mounted only while a
+ * a11y machinery leave the initial AliceNet page chunk. Mounted only while a
  * link target is selected; until then nothing of this module loads.
  */
-const KobeLinkDialog = dynamic(
-  () => import('./kobe/KobeLinkDialog').then((m) => m.KobeLinkDialog),
+const AliceNetLinkDialog = dynamic(
+  () => import('./alicenet/AliceNetLinkDialog').then((m) => m.AliceNetLinkDialog),
   {
     ssr: false,
     loading: () => (
@@ -114,7 +114,7 @@ const KobeLinkDialog = dynamic(
 );
 
 interface CandidateChipsProps {
-  candidates: KobeCandidate[];
+  candidates: AliceNetCandidate[];
   currentId: string | null;
   code: string;
   onRemapped: () => void;
@@ -153,7 +153,7 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
     mutationAbortRef.current = controller;
     setBusy(vnId);
     try {
-      const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, {
+      const r = await fetch(`/api/alicenet/${encodeURIComponent(code)}/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: vnId }),
@@ -176,7 +176,7 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1">
-      <span className="text-[10px] text-muted">{t.kobe.kobeCandidates}:</span>
+      <span className="text-[10px] text-muted">{t.alicenet.alicenetCandidates}:</span>
       {candidates.map((c) => {
         const isActive = c.id === currentId;
         return (
@@ -218,11 +218,11 @@ interface RunTotals { processed: number; matched: number }
 
 /**
  * Toolbar search field. Owns its own draft and debounces upward so a
- * keystroke re-renders only this input, not the whole Kobe client
+ * keystroke re-renders only this input, not the whole AliceNet client
  * (stats grid, toolbar, every card). The committed `value` flows back
  * down so an external reset (Reset filters) clears the draft.
  */
-const KobeSearchInput = memo(function KobeSearchInput({
+const AliceNetSearchInput = memo(function AliceNetSearchInput({
   value,
   placeholder,
   onCommit,
@@ -259,7 +259,7 @@ const KobeSearchInput = memo(function KobeSearchInput({
 });
 
 /**
- * Client-side page for the AliceNet Kobe second-hand stock browser.
+ * Client-side page for the AliceNet second-hand stock browser.
  *
  * Download sequence (manual or via "Download all"):
  *   1. Download stock from AliceNET (uses configured proxy if set)
@@ -270,7 +270,7 @@ const KobeSearchInput = memo(function KobeSearchInput({
  * All steps can be run individually or chained with "Download all".
  * Any step can be stopped with the Stop button.
  */
-export function AliceNetKobeClient() {
+export function AliceNetClient() {
   const t = useT();
   const locale = useLocale();
   const toast = useToast();
@@ -280,34 +280,34 @@ export function AliceNetKobeClient() {
   const isFilterTab = (v: string | null): v is FilterTab =>
     v === 'all' || v === 'matched' || v === 'vndb' || v === 'egs_only' ||
     v === 'unmatched' || v === 'none_found' || v === 'collection' || v === 'wishlist';
-  const isKobeSort = (v: string | null): v is KobeSort =>
-    v != null && (KOBE_SORTS as readonly string[]).includes(v);
-  const isKobeGroup = (v: string | null): v is KobeGroup =>
-    v != null && (KOBE_GROUPS as readonly string[]).includes(v);
-  const isKobeView = (v: string | null): v is KobeView => v === 'cards' || v === 'list';
+  const isAliceNetSort = (v: string | null): v is AliceNetSort =>
+    v != null && (ALICENET_SORTS as readonly string[]).includes(v);
+  const isAliceNetGroup = (v: string | null): v is AliceNetGroup =>
+    v != null && (ALICENET_GROUPS as readonly string[]).includes(v);
+  const isAliceNetView = (v: string | null): v is AliceNetView => v === 'cards' || v === 'list';
 
-  const KOBE_PREFS_KEY = 'vncoll.kobe.prefs.v1';
-  function loadKobePrefs(): { sort?: KobeSort; group?: KobeGroup; view?: KobeView } {
+  const ALICENET_PREFS_KEY = 'vncoll.alicenet.prefs.v1';
+  function loadAliceNetPrefs(): { sort?: AliceNetSort; group?: AliceNetGroup; view?: AliceNetView } {
     if (typeof window === 'undefined') return {};
     try {
-      const raw = window.localStorage.getItem(KOBE_PREFS_KEY);
+      const raw = window.localStorage.getItem(ALICENET_PREFS_KEY);
       if (!raw) return {};
       const obj = parseClientPreferenceRecord(raw);
       const savedSort = typeof obj.sort === 'string' ? obj.sort : null;
       const savedGroup = typeof obj.group === 'string' ? obj.group : null;
       const savedView = typeof obj.view === 'string' ? obj.view : null;
       return {
-        sort: isKobeSort(savedSort) ? savedSort : undefined,
-        group: isKobeGroup(savedGroup) ? savedGroup : undefined,
-        view: isKobeView(savedView) ? savedView : undefined,
+        sort: isAliceNetSort(savedSort) ? savedSort : undefined,
+        group: isAliceNetGroup(savedGroup) ? savedGroup : undefined,
+        view: isAliceNetView(savedView) ? savedView : undefined,
       };
     } catch {
       return {};
     }
   }
-  const [items, setItems] = useState<KobeItem[]>([]);
-  const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, vndb_matched: 0, egs_only: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
-  const [pending, setPending] = useState<KobePendingCounts>({ vndb_pending: 0, egs_pending: 0 });
+  const [items, setItems] = useState<AliceNetItem[]>([]);
+  const [stats, setStats] = useState<AliceNetStats>({ total: 0, matched: 0, vndb_matched: 0, egs_only: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
+  const [pending, setPending] = useState<AliceNetPendingCounts>({ vndb_pending: 0, egs_pending: 0 });
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeOp, setActiveOp] = useState<ActiveOp>('idle');
@@ -319,20 +319,20 @@ export function AliceNetKobeClient() {
     const v = urlSearch?.get('filter') ?? null;
     return isFilterTab(v) ? v : 'all';
   });
-  const [sort, setSort] = useState<KobeSort>(() => {
+  const [sort, setSort] = useState<AliceNetSort>(() => {
     const v = urlSearch?.get('sort') ?? null;
-    if (isKobeSort(v)) return v;
-    return loadKobePrefs().sort ?? 'match_status';
+    if (isAliceNetSort(v)) return v;
+    return loadAliceNetPrefs().sort ?? 'match_status';
   });
-  const [group, setGroup] = useState<KobeGroup>(() => {
+  const [group, setGroup] = useState<AliceNetGroup>(() => {
     const v = urlSearch?.get('group') ?? null;
-    if (isKobeGroup(v)) return v;
-    return loadKobePrefs().group ?? 'none';
+    if (isAliceNetGroup(v)) return v;
+    return loadAliceNetPrefs().group ?? 'none';
   });
-  const [view, setView] = useState<KobeView>(() => {
+  const [view, setView] = useState<AliceNetView>(() => {
     const v = urlSearch?.get('view') ?? null;
-    if (isKobeView(v)) return v;
-    return loadKobePrefs().view ?? 'cards';
+    if (isAliceNetView(v)) return v;
+    return loadAliceNetPrefs().view ?? 'cards';
   });
   const [showFilters, setShowFilters] = useState(() => urlSearch?.get('filters') !== '0');
   const [producerFilter, setProducerFilter] = useState(() => urlSearch?.get('producer') ?? '');
@@ -342,7 +342,7 @@ export function AliceNetKobeClient() {
   const [priceMax, setPriceMax] = useState(() => urlSearch?.get('priceMax') ?? '');
   const [search, setSearch] = useState(() => urlSearch?.get('q') ?? '');
   const commitSearch = useCallback((next: string) => setSearch(next), []);
-  const [linkTarget, setLinkTarget] = useState<KobeItem | null>(null);
+  const [linkTarget, setLinkTarget] = useState<AliceNetItem | null>(null);
   const stopRef = useRef(false);
   const mountedRef = useRef(true);
   const loadAbortRef = useRef<AbortController | null>(null);
@@ -390,9 +390,9 @@ export function AliceNetKobeClient() {
     const { signal } = controller;
     if (mountedRef.current) setLoading(true);
     try {
-      const r = await fetch('/api/alicesoft-kobe', { cache: 'no-store', signal });
+      const r = await fetch('/api/alicenet', { cache: 'no-store', signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = decodeKobeClientSnapshot(await r.json());
+      const d = decodeAliceNetClientSnapshot(await r.json());
       if (!d) throw new Error(t.common.error);
       if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
       setItems(d.items);
@@ -432,7 +432,7 @@ export function AliceNetKobeClient() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      window.localStorage.setItem(KOBE_PREFS_KEY, JSON.stringify({ sort, group, view }));
+      window.localStorage.setItem(ALICENET_PREFS_KEY, JSON.stringify({ sort, group, view }));
     } catch {
       // Quota / private-mode — ignore.
     }
@@ -462,7 +462,7 @@ export function AliceNetKobeClient() {
     setOrDelete('filters', showFilters ? '1' : '0', '1');
     if (dirty) {
       const next = params.toString();
-      router.replace(`/alicesoft_kobe${next ? `?${next}` : ''}`, { scroll: false });
+      router.replace(`/alicenet${next ? `?${next}` : ''}`, { scroll: false });
     }
   }, [filter, sort, group, view, search, producerFilter, yearMin, yearMax, priceMin, priceMax, showFilters, urlSearch, router]);
 
@@ -495,14 +495,14 @@ export function AliceNetKobeClient() {
   async function downloadStock(token: number) {
     const controller = new AbortController();
     activeOpAbortRef.current = controller;
-    const r = await fetch('/api/alicesoft-kobe/fetch', { method: 'POST', signal: controller.signal });
+    const r = await fetch('/api/alicenet/fetch', { method: 'POST', signal: controller.signal });
     if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-    const d = decodeKobeStockSyncResult(await r.json());
+    const d = decodeAliceNetStockSyncResult(await r.json());
     if (!d) throw new Error(t.common.error);
     if (!ownsOp(token) || controller.signal.aborted) return;
     if (activeOpAbortRef.current === controller) activeOpAbortRef.current = null;
     if (d.removed > 0) {
-      toast.success(t.kobe.kobeStockRemoved.replace('{n}', String(d.removed)));
+      toast.success(t.alicenet.alicenetStockRemoved.replace('{n}', String(d.removed)));
     }
   }
 
@@ -533,7 +533,7 @@ export function AliceNetKobeClient() {
         signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = decodeKobeLoopResult(await r.json());
+      const d = decodeAliceNetLoopResult(await r.json());
       if (!d) throw new Error(t.common.error);
       if (!ownsOp(token) || controller.signal.aborted) return { processed: done, matched };
       if (activeOpAbortRef.current === controller) activeOpAbortRef.current = null;
@@ -553,35 +553,35 @@ export function AliceNetKobeClient() {
     let totals: RunTotals = { processed: 0, matched: 0 };
     try {
       if (op === 'downloading') {
-        label = t.kobe.kobeDownloading;
+        label = t.alicenet.alicenetDownloading;
         setOpLabel(label);
         setOpDone(0);
         setOpTotal(0);
         await downloadStock(token);
       } else if (op === 'matching') {
-        label = t.kobe.kobeMatchVndbEgs;
-        totals = await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, label, (d) => d.remaining, token, stats.unprocessed, 5);
+        label = t.alicenet.alicenetMatchVndbEgs;
+        totals = await runLoop('/api/alicenet/match-next', { retry_none: false }, label, (d) => d.remaining, token, stats.unprocessed, 5);
       } else if (op === 'retrying') {
-        label = t.kobe.kobeRetryNone;
-        totals = await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, label, (d) => d.remaining, token, stats.none_found, 4);
+        label = t.alicenet.alicenetRetryNone;
+        totals = await runLoop('/api/alicenet/match-next', { retry_none: true }, label, (d) => d.remaining, token, stats.none_found, 4);
       } else if (op === 'vndb-from-egs') {
-        label = t.kobe.kobeMatchVndbFromEgs;
-        totals = await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, label, (d) => d.remaining, token, stats.egs_only, 10);
+        label = t.alicenet.alicenetMatchVndbFromEgs;
+        totals = await runLoop('/api/alicenet/match-vndb-from-egs', {}, label, (d) => d.remaining, token, stats.egs_only, 10);
       } else if (op === 'retry-vndb-aggressive') {
-        label = t.kobe.kobeRetryVndbAggressive;
-        totals = await runLoop('/api/alicesoft-kobe/retry-vndb-aggressive', {}, label, (d) => d.remaining, token, stats.none_found, 4);
+        label = t.alicenet.alicenetRetryVndbAggressive;
+        totals = await runLoop('/api/alicenet/retry-vndb-aggressive', {}, label, (d) => d.remaining, token, stats.none_found, 4);
       } else if (op === 'search-egs') {
-        label = t.kobe.kobeSearchEgsForNoVndb;
-        totals = await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { aggressive: false }, label, (d) => d.remaining, token, stats.none_found, 10);
+        label = t.alicenet.alicenetSearchEgsForNoVndb;
+        totals = await runLoop('/api/alicenet/search-egs-no-vndb', { aggressive: false }, label, (d) => d.remaining, token, stats.none_found, 10);
       } else if (op === 'search-egs-aggressive') {
-        label = t.kobe.kobeSearchEgsForNoVndbAggressive;
-        totals = await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { aggressive: true }, label, (d) => d.remaining, token, stats.none_found, 10);
+        label = t.alicenet.alicenetSearchEgsForNoVndbAggressive;
+        totals = await runLoop('/api/alicenet/search-egs-no-vndb', { aggressive: true }, label, (d) => d.remaining, token, stats.none_found, 10);
       } else if (op === 'download-vndb') {
-        label = t.kobe.kobeDownloadVndb;
-        totals = await runLoop('/api/alicesoft-kobe/download-vndb', {}, label, (d) => d.remaining, token, pending.vndb_pending, 10);
+        label = t.alicenet.alicenetDownloadVndb;
+        totals = await runLoop('/api/alicenet/download-vndb', {}, label, (d) => d.remaining, token, pending.vndb_pending, 10);
       } else if (op === 'resolve-egs') {
-        label = t.kobe.kobeResolveEgs;
-        totals = await runLoop('/api/alicesoft-kobe/resolve-egs', {}, label, (d) => d.remaining, token, pending.egs_pending, 10);
+        label = t.alicenet.alicenetResolveEgs;
+        totals = await runLoop('/api/alicenet/resolve-egs', {}, label, (d) => d.remaining, token, pending.egs_pending, 10);
       }
       if (!ownsOp(token) || stopRef.current) return;
       await load();
@@ -600,27 +600,27 @@ export function AliceNetKobeClient() {
   async function runDownloadAll() {
     const token = beginOp('download-all');
     if (token == null) return;
-    let label = t.kobe.kobeDownloading;
+    let label = t.alicenet.alicenetDownloading;
     try {
       setOpLabel(label);
       setOpDone(0);
       setOpTotal(0);
       await downloadStock(token);
       if (!ownsOp(token) || stopRef.current) return;
-      label = t.kobe.kobeMatchVndbEgs;
-      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, label, (d) => d.remaining, token, stats.unprocessed, 5);
+      label = t.alicenet.alicenetMatchVndbEgs;
+      await runLoop('/api/alicenet/match-next', { retry_none: false }, label, (d) => d.remaining, token, stats.unprocessed, 5);
       if (!ownsOp(token) || stopRef.current) return;
-      label = t.kobe.kobeRetryNone;
-      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, label, (d) => d.remaining, token, stats.none_found, 4);
+      label = t.alicenet.alicenetRetryNone;
+      await runLoop('/api/alicenet/match-next', { retry_none: true }, label, (d) => d.remaining, token, stats.none_found, 4);
       if (!ownsOp(token) || stopRef.current) return;
-      label = t.kobe.kobeMatchVndbFromEgs;
-      await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, label, (d) => d.remaining, token, stats.egs_only, 10);
+      label = t.alicenet.alicenetMatchVndbFromEgs;
+      await runLoop('/api/alicenet/match-vndb-from-egs', {}, label, (d) => d.remaining, token, stats.egs_only, 10);
       if (!ownsOp(token) || stopRef.current) return;
-      label = t.kobe.kobeDownloadVndb;
-      await runLoop('/api/alicesoft-kobe/download-vndb', {}, label, (d) => d.remaining, token, pending.vndb_pending, 10);
+      label = t.alicenet.alicenetDownloadVndb;
+      await runLoop('/api/alicenet/download-vndb', {}, label, (d) => d.remaining, token, pending.vndb_pending, 10);
       if (!ownsOp(token) || stopRef.current) return;
-      label = t.kobe.kobeResolveEgs;
-      await runLoop('/api/alicesoft-kobe/resolve-egs', {}, label, (d) => d.remaining, token, pending.egs_pending, 10);
+      label = t.alicenet.alicenetResolveEgs;
+      await runLoop('/api/alicenet/resolve-egs', {}, label, (d) => d.remaining, token, pending.egs_pending, 10);
       if (!ownsOp(token) || stopRef.current) return;
       await load();
     } catch (e) {
@@ -638,7 +638,7 @@ export function AliceNetKobeClient() {
     resetAbortRef.current?.abort();
     resetAbortRef.current = controller;
     setResettingMatches(true);
-    const ok = await confirm({ message: t.kobe.kobeResetConfirm, tone: 'danger' });
+    const ok = await confirm({ message: t.alicenet.alicenetResetConfirm, tone: 'danger' });
     if (!ok || controller.signal.aborted || !mountedRef.current || resetAbortRef.current !== controller) {
       if (resetAbortRef.current === controller) {
         resetAbortRef.current = null;
@@ -648,7 +648,7 @@ export function AliceNetKobeClient() {
       return;
     }
     try {
-      const r = await fetch('/api/alicesoft-kobe/reset-matches', { method: 'POST', signal: controller.signal });
+      const r = await fetch('/api/alicenet/reset-matches', { method: 'POST', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       if (controller.signal.aborted || !mountedRef.current || resetAbortRef.current !== controller) return;
       await load();
@@ -672,7 +672,7 @@ export function AliceNetKobeClient() {
     clearAbortRef.current = controller;
     setClearingCode(code);
     const ok = await confirm({
-      message: t.kobe.kobeClearMatchConfirm,
+      message: t.alicenet.alicenetClearMatchConfirm,
       tone: 'danger',
     });
     if (!ok || controller.signal.aborted || !mountedRef.current || clearAbortRef.current !== controller) {
@@ -684,7 +684,7 @@ export function AliceNetKobeClient() {
       return;
     }
     try {
-      const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE', signal: controller.signal });
+      const r = await fetch(`/api/alicenet/${encodeURIComponent(code)}/link`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       if (controller.signal.aborted || !mountedRef.current || clearAbortRef.current !== controller) return;
       await load();
@@ -806,17 +806,17 @@ export function AliceNetKobeClient() {
     return out;
   }, [filtered, sort]);
 
-  const grouped = useMemo<{ key: string; items: KobeItem[] }[]>(() => {
+  const grouped = useMemo<{ key: string; items: AliceNetItem[] }[]>(() => {
     if (group === 'none') return [{ key: '', items: sorted }];
-    const buckets = new Map<string, KobeItem[]>();
+    const buckets = new Map<string, AliceNetItem[]>();
     for (const item of sorted) {
       let key = '';
       if (group === 'match') {
         key = matchKind(item) === 'vndb'
-          ? t.kobe.kobeVndbMatched
+          ? t.alicenet.alicenetVndbMatched
           : matchKind(item) === 'egs'
-            ? t.kobe.kobeEgsOnly
-            : t.kobe.kobeNeedsMatch;
+            ? t.alicenet.alicenetEgsOnly
+            : t.alicenet.alicenetNeedsMatch;
       } else if (group === 'producer') {
         key = displayProducer(item) || t.wishlist.groupUnknown;
       } else if (group === 'year') {
@@ -829,34 +829,34 @@ export function AliceNetKobeClient() {
     return Array.from(buckets.entries())
       .sort(([a], [b]) => (group === 'year' ? b.localeCompare(a) : a.localeCompare(b)))
       .map(([key, items]) => ({ key, items }));
-  }, [sorted, group, t.kobe.kobeVndbMatched, t.kobe.kobeEgsOnly, t.kobe.kobeNeedsMatch, t.wishlist.groupUnknown]);
+  }, [sorted, group, t.alicenet.alicenetVndbMatched, t.alicenet.alicenetEgsOnly, t.alicenet.alicenetNeedsMatch, t.wishlist.groupUnknown]);
 
   const tabs: { id: FilterTab; label: string; count: number; icon?: React.ReactNode }[] = [
-    { id: 'all', label: t.kobe.kobeFilterAll, count: stats.total },
-    { id: 'matched', label: t.kobe.kobeFilterMatched, count: stats.matched },
-    { id: 'vndb', label: t.kobe.kobeVndbMatched, count: stats.vndb_matched },
-    { id: 'egs_only', label: t.kobe.kobeEgsOnly, count: stats.egs_only },
-    { id: 'unmatched', label: t.kobe.kobeFilterUnmatched, count: stats.unmatched },
-    { id: 'none_found', label: t.kobe.kobeNoneFound, count: stats.none_found },
-    { id: 'collection', label: t.kobe.kobeInCollection, count: stats.in_collection, icon: <BookHeart className="h-3 w-3 text-status-completed" aria-hidden /> },
-    { id: 'wishlist', label: t.kobe.kobeInWishlist, count: stats.in_wishlist, icon: <BookHeart className="h-3 w-3 text-status-dropped" aria-hidden /> },
+    { id: 'all', label: t.alicenet.alicenetFilterAll, count: stats.total },
+    { id: 'matched', label: t.alicenet.alicenetFilterMatched, count: stats.matched },
+    { id: 'vndb', label: t.alicenet.alicenetVndbMatched, count: stats.vndb_matched },
+    { id: 'egs_only', label: t.alicenet.alicenetEgsOnly, count: stats.egs_only },
+    { id: 'unmatched', label: t.alicenet.alicenetFilterUnmatched, count: stats.unmatched },
+    { id: 'none_found', label: t.alicenet.alicenetNoneFound, count: stats.none_found },
+    { id: 'collection', label: t.alicenet.alicenetInCollection, count: stats.in_collection, icon: <BookHeart className="h-3 w-3 text-status-completed" aria-hidden /> },
+    { id: 'wishlist', label: t.alicenet.alicenetInWishlist, count: stats.in_wishlist, icon: <BookHeart className="h-3 w-3 text-status-dropped" aria-hidden /> },
   ];
 
-  const sortLabels: Record<KobeSort, string> = {
-    match_status: t.kobe.kobeSortMatchStatus,
-    release_desc: t.kobe.kobeSortReleaseDesc,
-    release_asc: t.kobe.kobeSortReleaseAsc,
-    price_asc: t.kobe.kobeSortPriceAsc,
-    price_desc: t.kobe.kobeSortPriceDesc,
-    title: t.kobe.kobeSortTitle,
-    updated_desc: t.kobe.kobeSortUpdatedDesc,
+  const sortLabels: Record<AliceNetSort, string> = {
+    match_status: t.alicenet.alicenetSortMatchStatus,
+    release_desc: t.alicenet.alicenetSortReleaseDesc,
+    release_asc: t.alicenet.alicenetSortReleaseAsc,
+    price_asc: t.alicenet.alicenetSortPriceAsc,
+    price_desc: t.alicenet.alicenetSortPriceDesc,
+    title: t.alicenet.alicenetSortTitle,
+    updated_desc: t.alicenet.alicenetSortUpdatedDesc,
   };
 
-  const groupLabels: Record<KobeGroup, string> = {
-    none: t.kobe.kobeGroupNone,
-    match: t.kobe.kobeGroupMatch,
-    producer: t.kobe.kobeGroupProducer,
-    year: t.kobe.kobeGroupYear,
+  const groupLabels: Record<AliceNetGroup, string> = {
+    none: t.alicenet.alicenetGroupNone,
+    match: t.alicenet.alicenetGroupMatch,
+    producer: t.alicenet.alicenetGroupProducer,
+    year: t.alicenet.alicenetGroupYear,
   };
 
   const activeFilterCount =
@@ -906,7 +906,7 @@ export function AliceNetKobeClient() {
     bulkTokenRef.current = token;
     const selectionKey = [...selected].sort().join('|');
     const ok = await confirm({
-      message: t.kobe.kobeBulkClearLinkConfirm.replace('{n}', String(codes.length)),
+      message: t.alicenet.alicenetBulkClearLinkConfirm.replace('{n}', String(codes.length)),
       tone: 'danger',
       requireTyping: codes.length >= 5 ? 'DELETE' : undefined,
     });
@@ -925,7 +925,7 @@ export function AliceNetKobeClient() {
         const controller = new AbortController();
         bulkAbortRef.current = controller;
         try {
-          const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE', signal: controller.signal });
+          const r = await fetch(`/api/alicenet/${encodeURIComponent(code)}/link`, { method: 'DELETE', signal: controller.signal });
           if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         } catch (e) {
           if (controller.signal.aborted && bulkStopRef.current) break;
@@ -956,13 +956,13 @@ export function AliceNetKobeClient() {
     }
   }
 
-  function statusBadge(item: KobeItem) {
+  function statusBadge(item: AliceNetItem) {
     const kind = matchKind(item);
     if (kind === 'vndb') {
       return (
         <span className="inline-flex items-center gap-1 rounded-full border border-status-completed/25 bg-status-completed/10 px-2 py-0.5 text-[11px] font-semibold text-status-completed">
           <CheckCircle2 className="h-3 w-3" aria-hidden />
-          {t.kobe.kobeVndbMatched}
+          {t.alicenet.alicenetVndbMatched}
         </span>
       );
     }
@@ -970,19 +970,19 @@ export function AliceNetKobeClient() {
       return (
         <span className="inline-flex items-center gap-1 rounded-full border border-status-playing/25 bg-status-playing/10 px-2 py-0.5 text-[11px] font-semibold text-status-playing">
           <PackageCheck className="h-3 w-3" aria-hidden />
-          {t.kobe.kobeEgsOnly}
+          {t.alicenet.alicenetEgsOnly}
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-status-on_hold/25 bg-status-on_hold/10 px-2 py-0.5 text-[11px] font-semibold text-status-on_hold">
         <Search className="h-3 w-3" aria-hidden />
-        {kind === 'unresolved' ? t.kobe.kobeNeedsMatch : t.kobe.kobeNotYetMatched}
+        {kind === 'unresolved' ? t.alicenet.alicenetNeedsMatch : t.alicenet.alicenetNotYetMatched}
       </span>
     );
   }
 
-  function quickLinks(item: KobeItem) {
+  function quickLinks(item: AliceNetItem) {
     return (
       <div className="flex flex-wrap items-center gap-1.5">
         {item.vn_id && (
@@ -1000,7 +1000,7 @@ export function AliceNetKobeClient() {
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-[32px]"
-            title={`${t.kobe.kobeEgsId} ${item.egs_id}`}
+            title={`${t.alicenet.alicenetEgsId} ${item.egs_id}`}
           >
             <ExternalLink className="h-3 w-3" aria-hidden />
             EGS {item.egs_id}
@@ -1010,8 +1010,8 @@ export function AliceNetKobeClient() {
     );
   }
 
-  function renderKobeCard(item: KobeItem) {
-    const candidates = parseKobeCandidates(item.vn_candidates);
+  function renderAliceNetCard(item: AliceNetItem) {
+    const candidates = parseAliceNetCandidates(item.vn_candidates);
     const producer = displayProducer(item);
     const image = item.vn_image_url || item.egs_image_url;
     const date = item.release_date || item.egs_release_date;
@@ -1032,7 +1032,7 @@ export function AliceNetKobeClient() {
               type="button"
               onClick={() => toggleSelected(item.code)}
               aria-pressed={isSelected}
-              aria-label={t.kobe.kobeSelectItem.replace('{title}', displayTitle(item))}
+              aria-label={t.alicenet.alicenetSelectItem.replace('{title}', displayTitle(item))}
               className={`absolute right-2 top-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border backdrop-blur transition-colors ${isSelected ? 'border-accent bg-accent text-bg' : 'border-border bg-bg/80 text-muted hover:border-accent hover:text-accent'}`}
             >
               {isSelected ? <CheckSquare className="h-5 w-5" aria-hidden /> : <Square className="h-5 w-5" aria-hidden />}
@@ -1042,12 +1042,12 @@ export function AliceNetKobeClient() {
           <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
             {item.in_wishlist === 1 && (
               <span className="rounded-full border border-status-dropped/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-status-dropped backdrop-blur">
-                {t.kobe.kobeInWishlist}
+                {t.alicenet.alicenetInWishlist}
               </span>
             )}
             {item.in_collection === 1 && (
               <span className="rounded-full border border-status-completed/25 bg-bg/85 px-2 py-0.5 text-[10px] font-semibold text-status-completed backdrop-blur">
-                {t.kobe.kobeInCollection}
+                {t.alicenet.alicenetInCollection}
               </span>
             )}
           </div>
@@ -1061,7 +1061,7 @@ export function AliceNetKobeClient() {
           </div>
           <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted">
             {item.sale_price && <span className="font-semibold text-white">{formatPriceJpy(item.sale_price, locale)}</span>}
-            {date && <span>{formatKobeDate(date, locale)}</span>}
+            {date && <span>{formatAliceNetDate(date, locale)}</span>}
             <span className="font-mono opacity-70">{item.code}</span>
           </div>
           {producer && (
@@ -1079,7 +1079,7 @@ export function AliceNetKobeClient() {
           )}
           {item.search_title && (
             <p className="line-clamp-1 text-[10px] text-muted/70" title={item.search_title}>
-              {t.kobe.kobeSearchedAs.replace('{q}', item.search_title)}
+              {t.alicenet.alicenetSearchedAs.replace('{q}', item.search_title)}
             </p>
           )}
           {quickLinks(item)}
@@ -1089,7 +1089,7 @@ export function AliceNetKobeClient() {
           <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
             <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs min-h-[44px] sm:min-h-0">
               <Search className="h-3 w-3" />
-              {item.vn_id ? t.kobe.kobeRemap : t.kobe.kobeFindMatch}
+              {item.vn_id ? t.alicenet.alicenetRemap : t.alicenet.alicenetFindMatch}
             </button>
             {item.vn_id && (
               <button
@@ -1097,7 +1097,7 @@ export function AliceNetKobeClient() {
                 onClick={() => clearLink(item.code)}
                 disabled={clearingCode === item.code}
                 className="btn btn-xs min-h-[44px] min-w-[44px] text-muted hover:text-status-dropped disabled:opacity-50 sm:min-h-0 sm:min-w-0"
-                title={t.kobe.kobeClearMatch}
+                title={t.alicenet.alicenetClearMatch}
               >
                 {clearingCode === item.code ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" />}
               </button>
@@ -1108,7 +1108,7 @@ export function AliceNetKobeClient() {
     );
   }
 
-  function renderKobeRow(item: KobeItem) {
+  function renderAliceNetRow(item: AliceNetItem) {
     const producer = displayProducer(item);
     const date = item.release_date || item.egs_release_date;
     const isSelected = selected.has(item.code);
@@ -1120,7 +1120,7 @@ export function AliceNetKobeClient() {
               type="button"
               onClick={() => toggleSelected(item.code)}
               aria-pressed={isSelected}
-              aria-label={t.kobe.kobeSelectItem.replace('{title}', displayTitle(item))}
+              aria-label={t.alicenet.alicenetSelectItem.replace('{title}', displayTitle(item))}
               className={`inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center self-start rounded-md border transition-colors ${isSelected ? 'border-accent bg-accent text-bg' : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'}`}
             >
               {isSelected ? <CheckSquare className="h-5 w-5" aria-hidden /> : <Square className="h-5 w-5" aria-hidden />}
@@ -1140,13 +1140,13 @@ export function AliceNetKobeClient() {
                 <p className="truncate font-semibold leading-tight" title={item.title}>{displayTitle(item)}</p>
                 <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted">
                   {item.sale_price && <span className="font-semibold text-white">{formatPriceJpy(item.sale_price, locale)}</span>}
-                  {date && <span>{formatKobeDate(date, locale)}</span>}
+                  {date && <span>{formatAliceNetDate(date, locale)}</span>}
                   <span className="font-mono opacity-60">{item.code}</span>
                   {producer && <span>{producer}</span>}
                 </div>
                 {item.search_title && (
                   <p className="mt-1 text-[10px] italic text-muted/70">
-                    {t.kobe.kobeSearchedAs.replace('{q}', item.search_title)}
+                    {t.alicenet.alicenetSearchedAs.replace('{q}', item.search_title)}
                   </p>
                 )}
               </div>
@@ -1155,7 +1155,7 @@ export function AliceNetKobeClient() {
                 {quickLinks(item)}
                 <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs min-h-[44px] sm:min-h-0">
                   <Search className="h-3 w-3" />
-                  {item.vn_id ? t.kobe.kobeRemap : t.kobe.kobeFindMatch}
+                  {item.vn_id ? t.alicenet.alicenetRemap : t.alicenet.alicenetFindMatch}
                 </button>
               </div>
             </div>
@@ -1166,15 +1166,15 @@ export function AliceNetKobeClient() {
   }
 
   return (
-    <DensityScopeProvider scope="alicesoftKobe" className="page-space mx-auto max-w-screen-2xl px-4 py-6">
+    <DensityScopeProvider scope="aliceNet" className="page-space mx-auto max-w-screen-2xl px-4 py-6">
 
       {/* Header */}
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <ShoppingBag className="h-5 w-5 text-accent" aria-hidden />
-        <h1 className="text-xl font-bold">{t.kobe.kobeTitle}</h1>
+        <h1 className="text-xl font-bold">{t.alicenet.alicenetTitle}</h1>
         {lastFetch && (
           <span className="text-xs text-muted">
-            {t.kobe.kobeLastFetch.replace('{date}', timeAgo(lastFetch, t))}
+            {t.alicenet.alicenetLastFetch.replace('{date}', timeAgo(lastFetch, t))}
           </span>
         )}
       </div>
@@ -1191,41 +1191,41 @@ export function AliceNetKobeClient() {
         ) : (
           <>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
-              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterAll}</div>
+              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.alicenet.alicenetFilterAll}</div>
               <div className="text-2xl font-bold">{stats.total}</div>
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
-              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterMatched}</div>
+              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.alicenet.alicenetFilterMatched}</div>
               <div className="text-2xl font-bold text-status-completed">{stats.matched}</div>
               {stats.total > 0 && <div className="mt-0.5 text-[10px] text-muted">{matchPct}%</div>}
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
-              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeFilterUnmatched}</div>
+              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.alicenet.alicenetFilterUnmatched}</div>
               <div className="text-2xl font-bold">{stats.unmatched}</div>
               {(stats.unprocessed > 0 || stats.none_found > 0) && (
                 <div className="mt-0.5 text-[10px] text-status-on_hold/80">
-                  {t.kobe.kobeUnmatchedBreakdown
+                  {t.alicenet.alicenetUnmatchedBreakdown
                     .replace('{new}', String(stats.unprocessed))
                     .replace('{none}', String(stats.none_found))}
                 </div>
               )}
             </div>
             <div className="rounded-xl border border-status-on_hold/20 bg-status-on_hold/5 p-4 text-center">
-              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.kobe.kobeNoneFound}</div>
+              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.alicenet.alicenetNoneFound}</div>
               <div className="text-2xl font-bold text-status-on_hold">{stats.none_found}</div>
-              {stats.unprocessed > 0 && <div className="mt-0.5 text-[10px] text-muted">{stats.unprocessed} {t.kobe.kobeNotYetMatched}</div>}
+              {stats.unprocessed > 0 && <div className="mt-0.5 text-[10px] text-muted">{stats.unprocessed} {t.alicenet.alicenetNotYetMatched}</div>}
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
                 <BookHeart className="h-3 w-3 text-status-completed" aria-hidden />
-                {t.kobe.kobeInCollection}
+                {t.alicenet.alicenetInCollection}
               </div>
               <div className="text-2xl font-bold text-status-completed">{stats.in_collection}</div>
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
                 <BookHeart className="h-3 w-3 text-status-dropped" aria-hidden />
-                {t.kobe.kobeInWishlist}
+                {t.alicenet.alicenetInWishlist}
               </div>
               <div className="text-2xl font-bold text-status-dropped">{stats.in_wishlist}</div>
             </div>
@@ -1242,7 +1242,7 @@ export function AliceNetKobeClient() {
               onClick={stopActiveOp}
               className="min-h-[44px] shrink-0 rounded-md border border-border px-3 py-1 text-[11px] font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
             >
-              {t.kobe.kobeStopMatch}
+              {t.alicenet.alicenetStopMatch}
             </button>
             <div className="min-w-0 flex-1" role="status" aria-live="polite">
               <div className="flex items-center gap-2 text-xs text-muted">
@@ -1272,21 +1272,21 @@ export function AliceNetKobeClient() {
         ) : (
           <div className="grid gap-3 lg:grid-cols-[1.1fr_1.1fr_1.25fr_1.15fr_auto]">
             <section className="min-w-0">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.kobe.kobeActionPipeline}</div>
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionPipeline}</div>
               <button
                 type="button"
                 onClick={runDownloadAll}
                 className="btn btn-primary btn-sm w-full sm:w-auto"
-                title={t.kobe.kobeDownloadAllHint}
+                title={t.alicenet.alicenetDownloadAllHint}
               >
                 <Zap className="h-3.5 w-3.5" />
-                {t.kobe.kobeDownloadAll}
+                {t.alicenet.alicenetDownloadAll}
               </button>
-              <p className="mt-1 text-[11px] leading-snug text-muted">{t.kobe.kobeDownloadAllHint}</p>
+              <p className="mt-1 text-[11px] leading-snug text-muted">{t.alicenet.alicenetDownloadAllHint}</p>
             </section>
 
             <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.kobe.kobeActionStock}</div>
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionStock}</div>
               <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1294,7 +1294,7 @@ export function AliceNetKobeClient() {
                 className="btn btn-sm"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
-                {t.kobe.kobeSyncStock}
+                {t.alicenet.alicenetSyncStock}
               </button>
               <button
                 type="button"
@@ -1303,7 +1303,7 @@ export function AliceNetKobeClient() {
                 className="btn btn-sm"
               >
                 <Search className="h-3.5 w-3.5" />
-                {t.kobe.kobeMatchVndbEgs}
+                {t.alicenet.alicenetMatchVndbEgs}
                 {stats.unprocessed > 0 && (
                   <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{stats.unprocessed}</span>
                 )}
@@ -1312,7 +1312,7 @@ export function AliceNetKobeClient() {
             </section>
 
             <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.kobe.kobeActionRecovery}</div>
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionRecovery}</div>
               <button
                 type="button"
                 onClick={() => runSingleOp('retrying')}
@@ -1320,16 +1320,16 @@ export function AliceNetKobeClient() {
                 className="btn btn-sm btn-primary w-full sm:w-auto"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                {t.kobe.kobeRetryNone}
+                {t.alicenet.alicenetRetryNone}
                 {stats.none_found > 0 && (
                   <span className="ml-1 rounded bg-bg/20 px-1 text-[10px] text-bg">{stats.none_found}</span>
                 )}
               </button>
-              <p className="mt-1 text-[11px] leading-snug text-muted">{t.kobe.kobeSmartRetryHint}</p>
+              <p className="mt-1 text-[11px] leading-snug text-muted">{t.alicenet.alicenetSmartRetryHint}</p>
             </section>
 
             <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.kobe.kobeActionData}</div>
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionData}</div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -1338,7 +1338,7 @@ export function AliceNetKobeClient() {
                   className="btn btn-sm"
                 >
                   <Database className="h-3.5 w-3.5" />
-                  {t.kobe.kobeDownloadVndb}
+                  {t.alicenet.alicenetDownloadVndb}
                   {pending.vndb_pending > 0 && (
                     <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.vndb_pending}</span>
                   )}
@@ -1350,7 +1350,7 @@ export function AliceNetKobeClient() {
                 className="btn btn-sm"
               >
                 <Link2 className="h-3.5 w-3.5" />
-                {t.kobe.kobeResolveEgs}
+                {t.alicenet.alicenetResolveEgs}
                 {pending.egs_pending > 0 && (
                   <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.egs_pending}</span>
                 )}
@@ -1359,7 +1359,7 @@ export function AliceNetKobeClient() {
             </section>
 
             <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.kobe.kobeActionMaintenance}</div>
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionMaintenance}</div>
               <button
                 type="button"
                 onClick={resetAutoMatches}
@@ -1367,7 +1367,7 @@ export function AliceNetKobeClient() {
                 className="btn btn-sm text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50"
               >
                 {resettingMatches ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" />}
-                {t.kobe.kobeResetAutoMatches}
+                {t.alicenet.alicenetResetAutoMatches}
               </button>
             </section>
           </div>
@@ -1377,7 +1377,7 @@ export function AliceNetKobeClient() {
       {/* Browsing controls */}
       <div className="mb-4 rounded-xl border border-border bg-bg-card p-3">
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t.kobe.kobeFilterAll}>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t.alicenet.alicenetFilterAll}>
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -1400,34 +1400,34 @@ export function AliceNetKobeClient() {
           </div>
 
           <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_12rem_12rem_auto] lg:items-end">
-            <KobeSearchInput
+            <AliceNetSearchInput
               value={search}
-              placeholder={t.kobe.kobeSearchPlaceholder}
+              placeholder={t.alicenet.alicenetSearchPlaceholder}
               onCommit={commitSearch}
               debounceMs={250}
             />
 
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {t.kobe.kobeSortLabel}
-              <select value={sort} onChange={(e) => setSort(e.target.value as KobeSort)} className="input min-h-[44px] text-xs normal-case tracking-normal">
-                {KOBE_SORTS.map((id) => <option key={id} value={id}>{sortLabels[id]}</option>)}
+              {t.alicenet.alicenetSortLabel}
+              <select value={sort} onChange={(e) => setSort(e.target.value as AliceNetSort)} className="input min-h-[44px] text-xs normal-case tracking-normal">
+                {ALICENET_SORTS.map((id) => <option key={id} value={id}>{sortLabels[id]}</option>)}
               </select>
             </label>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {t.kobe.kobeGroupLabel}
-              <select value={group} onChange={(e) => setGroup(e.target.value as KobeGroup)} className="input min-h-[44px] text-xs normal-case tracking-normal">
-                {KOBE_GROUPS.map((id) => <option key={id} value={id}>{groupLabels[id]}</option>)}
+              {t.alicenet.alicenetGroupLabel}
+              <select value={group} onChange={(e) => setGroup(e.target.value as AliceNetGroup)} className="input min-h-[44px] text-xs normal-case tracking-normal">
+                {ALICENET_GROUPS.map((id) => <option key={id} value={id}>{groupLabels[id]}</option>)}
               </select>
             </label>
 
             <div className="flex flex-wrap items-end gap-2 lg:min-w-[24rem] lg:justify-end">
-              <div className="inline-flex rounded-md border border-border bg-bg-elev/40 p-1" role="group" aria-label={t.kobe.kobeViewLabel}>
+              <div className="inline-flex rounded-md border border-border bg-bg-elev/40 p-1" role="group" aria-label={t.alicenet.alicenetViewLabel}>
                 <button
                   type="button"
                   onClick={() => setView('cards')}
                   className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded px-2 ${view === 'cards' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
-                  aria-label={t.kobe.kobeViewCards}
-                  title={t.kobe.kobeViewCards}
+                  aria-label={t.alicenet.alicenetViewCards}
+                  title={t.alicenet.alicenetViewCards}
                 >
                   <Grid3X3 className="h-4 w-4" aria-hidden />
                 </button>
@@ -1435,8 +1435,8 @@ export function AliceNetKobeClient() {
                   type="button"
                   onClick={() => setView('list')}
                   className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded px-2 ${view === 'list' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
-                  aria-label={t.kobe.kobeViewList}
-                  title={t.kobe.kobeViewList}
+                  aria-label={t.alicenet.alicenetViewList}
+                  title={t.alicenet.alicenetViewList}
                 >
                   <List className="h-4 w-4" aria-hidden />
                 </button>
@@ -1448,7 +1448,7 @@ export function AliceNetKobeClient() {
                 aria-expanded={showFilters}
               >
                 <Filter className="h-3.5 w-3.5" />
-                {t.kobe.kobeFilters}
+                {t.alicenet.alicenetFilters}
                 {activeFilterCount > 0 && <span className="rounded bg-accent/15 px-1 text-[10px] text-accent">{activeFilterCount}</span>}
               </button>
               {stats.total > 0 && (
@@ -1459,10 +1459,10 @@ export function AliceNetKobeClient() {
                   aria-pressed={selectMode}
                 >
                   <CheckSquare className="h-3.5 w-3.5" />
-                  {selectMode ? t.kobe.kobeSelectExit : t.kobe.kobeSelect}
+                  {selectMode ? t.alicenet.alicenetSelectExit : t.alicenet.alicenetSelect}
                 </button>
               )}
-              <CardDensitySlider scope="alicesoftKobe" className="min-w-[14rem] max-w-full flex-1 lg:flex-none" />
+              <CardDensitySlider scope="aliceNet" className="min-w-[14rem] max-w-full flex-1 lg:flex-none" />
             </div>
           </div>
         </div>
@@ -1470,34 +1470,34 @@ export function AliceNetKobeClient() {
         {showFilters && (
           <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2 lg:grid-cols-5">
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted sm:col-span-2 lg:col-span-1">
-              {t.kobe.kobeFilterProducer}
+              {t.alicenet.alicenetFilterProducer}
               <select value={producerFilter} onChange={(e) => setProducerFilter(e.target.value)} className="input min-h-[44px] text-xs normal-case tracking-normal">
-                <option value="">{t.kobe.kobeFilterProducerAll}</option>
+                <option value="">{t.alicenet.alicenetFilterProducerAll}</option>
                 {producers.map((p) => (
                   <option key={p.id} value={p.id}>{p.name} ({p.count})</option>
                 ))}
               </select>
             </label>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {t.kobe.kobeYearMin}
+              {t.alicenet.alicenetYearMin}
               <input value={yearMin} onChange={(e) => setYearMin(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="1999" />
             </label>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {t.kobe.kobeYearMax}
+              {t.alicenet.alicenetYearMax}
               <input value={yearMax} onChange={(e) => setYearMax(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="2026" />
             </label>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {t.kobe.kobePriceMin}
+              {t.alicenet.alicenetPriceMin}
               <input value={priceMin} onChange={(e) => setPriceMin(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="0" />
             </label>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {t.kobe.kobePriceMax}
+              {t.alicenet.alicenetPriceMax}
               <input value={priceMax} onChange={(e) => setPriceMax(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="5000" />
             </label>
             <div className="flex items-end sm:col-span-2 lg:col-span-5">
               <button type="button" onClick={resetFilters} disabled={activeFilterCount === 0} className="btn btn-sm">
                 <RotateCcw className="h-3.5 w-3.5" />
-                {t.kobe.kobeResetFilters}
+                {t.alicenet.alicenetResetFilters}
               </button>
             </div>
           </div>
@@ -1507,19 +1507,19 @@ export function AliceNetKobeClient() {
       {selectMode && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-accent/30 bg-accent/5 p-3">
           <span className="text-sm font-semibold text-white">
-            {t.kobe.kobeSelectedCount.replace('{n}', String(selected.size))}
+            {t.alicenet.alicenetSelectedCount.replace('{n}', String(selected.size))}
           </span>
           <button type="button" onClick={selectAllVisible} className="btn btn-sm">
             <CheckSquare className="h-3.5 w-3.5" />
-            {t.kobe.kobeSelectAll}
+            {t.alicenet.alicenetSelectAll}
           </button>
           <button type="button" onClick={selectMatchedVisible} className="btn btn-sm">
             <Link2 className="h-3.5 w-3.5" />
-            {t.kobe.kobeSelectMatched}
+            {t.alicenet.alicenetSelectMatched}
           </button>
           <button type="button" onClick={clearSelection} className="btn btn-sm">
             <X className="h-3.5 w-3.5" />
-            {t.kobe.kobeClearSelection}
+            {t.alicenet.alicenetClearSelection}
           </button>
         </div>
       )}
@@ -1534,7 +1534,7 @@ export function AliceNetKobeClient() {
           <div className="mt-1 text-xs">
             {lastRun.error
               ? lastRun.error
-              : t.kobe.kobeLastRunSummary
+              : t.alicenet.alicenetLastRunSummary
                 .replace('{processed}', String(lastRun.processed))
                 .replace('{matched}', String(lastRun.matched))}
           </div>
@@ -1545,19 +1545,19 @@ export function AliceNetKobeClient() {
         <div className="mb-4 grid gap-2 rounded-xl border border-border bg-bg-card p-3 md:grid-cols-2 xl:grid-cols-4">
           <button type="button" onClick={() => runSingleOp('retrying')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
             <Search className="h-3.5 w-3.5" />
-            <span className="min-w-0 truncate">{t.kobe.kobeRetryNone}</span>
+            <span className="min-w-0 truncate">{t.alicenet.alicenetRetryNone}</span>
           </button>
           <button type="button" onClick={() => runSingleOp('vndb-from-egs')} disabled={isBusy || stats.egs_only === 0} className="btn btn-sm justify-start">
             <Link2 className="h-3.5 w-3.5" />
-            <span className="min-w-0 truncate">{t.kobe.kobeMatchVndbFromEgs}</span>
+            <span className="min-w-0 truncate">{t.alicenet.alicenetMatchVndbFromEgs}</span>
           </button>
           <button type="button" onClick={() => runSingleOp('search-egs')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
             <ExternalLink className="h-3.5 w-3.5" />
-            <span className="min-w-0 truncate">{t.kobe.kobeSearchEgsForNoVndb}</span>
+            <span className="min-w-0 truncate">{t.alicenet.alicenetSearchEgsForNoVndb}</span>
           </button>
           <button type="button" onClick={() => runSingleOp('search-egs-aggressive')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="min-w-0 truncate">{t.kobe.kobeSearchEgsForNoVndbAggressive}</span>
+            <span className="min-w-0 truncate">{t.alicenet.alicenetSearchEgsForNoVndbAggressive}</span>
           </button>
         </div>
       )}
@@ -1579,16 +1579,16 @@ export function AliceNetKobeClient() {
       ) : sorted.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted">
           {stats.total === 0 ? (
-            <p>{t.kobe.kobeEmptyNoStock ?? t.kobe.kobeUnmatched}</p>
+            <p>{t.alicenet.alicenetEmptyNoStock ?? t.alicenet.alicenetUnmatched}</p>
           ) : (
-            <p>{t.kobe.kobeEmptyForFilter ?? t.kobe.kobeUnmatched}</p>
+            <p>{t.alicenet.alicenetEmptyForFilter ?? t.alicenet.alicenetUnmatched}</p>
           )}
         </div>
       ) : (
         <div className="space-y-5">
           {view === 'cards' && sorted.length > VIRTUAL_GRID_THRESHOLD && (
             <p className="text-right text-[11px] text-muted">
-              {t.kobe.kobeVirtualScrollNotice.replace('{n}', new Intl.NumberFormat(BCP47[locale]).format(sorted.length))}
+              {t.alicenet.alicenetVirtualScrollNotice.replace('{n}', new Intl.NumberFormat(BCP47[locale]).format(sorted.length))}
             </p>
           )}
           {grouped.map((section) => (
@@ -1600,9 +1600,9 @@ export function AliceNetKobeClient() {
                 </div>
               )}
               {view === 'cards' ? (
-                <KobeCardGrid items={section.items} renderCard={renderKobeCard} />
+                <AliceNetCardGrid items={section.items} renderCard={renderAliceNetCard} />
               ) : (
-                <KobeRowList items={section.items} renderRow={renderKobeRow} />
+                <AliceNetRowList items={section.items} renderRow={renderAliceNetRow} />
               )}
             </section>
           ))}
@@ -1616,10 +1616,10 @@ export function AliceNetKobeClient() {
         >
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span className="text-sm font-bold">
-              {t.kobe.kobeSelectedCount.replace('{n}', String(selected.size))}
+              {t.alicenet.alicenetSelectedCount.replace('{n}', String(selected.size))}
             </span>
             <button type="button" className="btn" onClick={clearSelection} disabled={bulkBusy}>
-              <X className="h-4 w-4" /> {t.kobe.kobeClearSelection}
+              <X className="h-4 w-4" /> {t.alicenet.alicenetClearSelection}
             </button>
             <button
               type="button"
@@ -1627,16 +1627,16 @@ export function AliceNetKobeClient() {
               onClick={bulkClearLinks}
               disabled={bulkBusy}
             >
-              <Trash2 className="h-4 w-4" /> {t.kobe.kobeBulkClearLink}
+              <Trash2 className="h-4 w-4" /> {t.alicenet.alicenetBulkClearLink}
             </button>
           </div>
           {bulkBusy && (
             <div className="mt-2" role="status" aria-live="polite">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                <span className="font-semibold text-white">{t.kobe.kobeBulkClearLink}</span>
+                <span className="font-semibold text-white">{t.alicenet.alicenetBulkClearLink}</span>
                 {bulkProgress.current && (
-                  <span className="font-mono">{t.kobe.kobeCurrentItem.replace('{item}', bulkProgress.current)}</span>
+                  <span className="font-mono">{t.alicenet.alicenetCurrentItem.replace('{item}', bulkProgress.current)}</span>
                 )}
                 <span className="tabular-nums">{bulkProgress.done}/{bulkProgress.total}</span>
                 <button
@@ -1644,7 +1644,7 @@ export function AliceNetKobeClient() {
                   className="ml-auto inline-flex min-h-[44px] items-center justify-center rounded-md border border-border bg-bg-elev/40 px-3 py-1 text-xs font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
                   onClick={stopBulkClear}
                 >
-                  {t.kobe.kobeStopMatch}
+                  {t.alicenet.alicenetStopMatch}
                 </button>
               </div>
               <div
@@ -1652,7 +1652,7 @@ export function AliceNetKobeClient() {
                 aria-valuenow={bulkProgress.total > 0 ? Math.round((bulkProgress.done / bulkProgress.total) * 100) : 0}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label={t.kobe.kobeBulkClearLink}
+                aria-label={t.alicenet.alicenetBulkClearLink}
                 className="mt-1 h-1 w-full overflow-hidden rounded-full bg-bg-elev"
               >
                 <div
@@ -1666,13 +1666,13 @@ export function AliceNetKobeClient() {
       )}
 
       {linkTarget && (
-        <KobeLinkDialog item={linkTarget} onClose={() => setLinkTarget(null)} onLinked={load} />
+        <AliceNetLinkDialog item={linkTarget} onClose={() => setLinkTarget(null)} onLinked={load} />
       )}
     </DensityScopeProvider>
   );
 }
 
-interface KobeGridMeasurements {
+interface AliceNetGridMeasurements {
   width: number;
   scrollY: number;
   viewportHeight: number;
@@ -1680,7 +1680,7 @@ interface KobeGridMeasurements {
   densityPx: number;
 }
 
-const KOBE_DEFAULT_MEASUREMENTS: KobeGridMeasurements = {
+const ALICENET_DEFAULT_MEASUREMENTS: AliceNetGridMeasurements = {
   width: VIRTUAL_GRID_DEFAULT_WIDTH,
   scrollY: 0,
   viewportHeight: VIRTUAL_GRID_DEFAULT_VIEWPORT_HEIGHT,
@@ -1688,7 +1688,7 @@ const KOBE_DEFAULT_MEASUREMENTS: KobeGridMeasurements = {
   densityPx: 220,
 };
 
-function sameKobeMeasurements(a: KobeGridMeasurements, b: KobeGridMeasurements): boolean {
+function sameAliceNetMeasurements(a: AliceNetGridMeasurements, b: AliceNetGridMeasurements): boolean {
   return a.width === b.width &&
     a.scrollY === b.scrollY &&
     a.viewportHeight === b.viewportHeight &&
@@ -1696,20 +1696,20 @@ function sameKobeMeasurements(a: KobeGridMeasurements, b: KobeGridMeasurements):
     a.densityPx === b.densityPx;
 }
 
-const KOBE_GRID_GAP_PX = 12;
+const ALICENET_GRID_GAP_PX = 12;
 
 /**
- * Window-renders the kobe card grid so a large unmatched-stock list
+ * Window-renders the alicenet card grid so a large unmatched-stock list
  * stays responsive. Mirrors the LibraryClient `Grid` approach: measure
  * the auto-fill grid on scroll/resize, compute the visible row slice
  * via `calculateVirtualGridWindow`, and render top/bottom spacers so
  * every item remains scroll-reachable. Below the threshold every item
  * renders directly with no measurement cost.
  */
-function KobeCardGrid({ items, renderCard }: { items: KobeItem[]; renderCard: (item: KobeItem) => React.ReactNode }) {
+function AliceNetCardGrid({ items, renderCard }: { items: AliceNetItem[]; renderCard: (item: AliceNetItem) => React.ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureFrameRef = useRef<number | null>(null);
-  const [measurements, setMeasurements] = useState<KobeGridMeasurements>(KOBE_DEFAULT_MEASUREMENTS);
+  const [measurements, setMeasurements] = useState<AliceNetGridMeasurements>(ALICENET_DEFAULT_MEASUREMENTS);
   const measureGrid = useCallback(() => {
     if (measureFrameRef.current !== null) return;
     measureFrameRef.current = window.requestAnimationFrame(() => {
@@ -1717,14 +1717,14 @@ function KobeCardGrid({ items, renderCard }: { items: KobeItem[]; renderCard: (i
       const el = containerRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const next: KobeGridMeasurements = {
+      const next: AliceNetGridMeasurements = {
         width: Math.max(0, Math.round(rect.width)),
         scrollY: Math.max(0, Math.round(window.scrollY)),
         viewportHeight: Math.max(0, Math.round(window.innerHeight)),
         containerTop: Math.round(rect.top + window.scrollY),
         densityPx: parseCssPixelValue(getComputedStyle(el).getPropertyValue('--card-density-px'), 220),
       };
-      setMeasurements((prev) => (sameKobeMeasurements(prev, next) ? prev : next));
+      setMeasurements((prev) => (sameAliceNetMeasurements(prev, next) ? prev : next));
     });
   }, []);
   useEffect(() => {
@@ -1755,7 +1755,7 @@ function KobeCardGrid({ items, renderCard }: { items: KobeItem[]; renderCard: (i
       containerTop: measurements.containerTop,
       densityPx: measurements.densityPx,
       densityMultiplier: 1,
-      gapPx: KOBE_GRID_GAP_PX,
+      gapPx: ALICENET_GRID_GAP_PX,
     }),
     [items.length, measurements],
   );
@@ -1769,7 +1769,7 @@ function KobeCardGrid({ items, renderCard }: { items: KobeItem[]; renderCard: (i
       role="list"
       className="grid gap-3"
       style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
-      data-virtualized-kobe-grid={virtual.enabled ? true : undefined}
+      data-virtualized-alicenet-grid={virtual.enabled ? true : undefined}
       aria-rowcount={virtual.enabled ? virtual.totalRows : undefined}
     >
       {virtual.enabled && virtual.topSpacer > 0 && (
@@ -1783,18 +1783,18 @@ function KobeCardGrid({ items, renderCard }: { items: KobeItem[]; renderCard: (i
   );
 }
 
-const KOBE_ROW_HEIGHT_PX = 104;
-const KOBE_ROW_GAP_PX = 8;
-const KOBE_ROW_OVERSCAN = 6;
+const ALICENET_ROW_HEIGHT_PX = 104;
+const ALICENET_ROW_GAP_PX = 8;
+const ALICENET_ROW_OVERSCAN = 6;
 
 /**
- * Window-renders the kobe list view by row. Rows have a near-uniform
+ * Window-renders the alicenet list view by row. Rows have a near-uniform
  * height, so a fixed-height estimate plus overscan keeps scrolling
  * smooth without per-row measurement. Top/bottom spacers preserve the
  * scrollbar so nothing is silently dropped; below the threshold every
  * row renders directly.
  */
-function KobeRowList({ items, renderRow }: { items: KobeItem[]; renderRow: (item: KobeItem) => React.ReactNode }) {
+function AliceNetRowList({ items, renderRow }: { items: AliceNetItem[]; renderRow: (item: AliceNetItem) => React.ReactNode }) {
   const containerRef = useRef<HTMLUListElement>(null);
   const frameRef = useRef<number | null>(null);
   const [range, setRange] = useState({ start: 0, end: items.length });
@@ -1806,11 +1806,11 @@ function KobeRowList({ items, renderRow }: { items: KobeItem[]; renderRow: (item
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const containerTop = rect.top + window.scrollY;
-      const rowStride = KOBE_ROW_HEIGHT_PX + KOBE_ROW_GAP_PX;
+      const rowStride = ALICENET_ROW_HEIGHT_PX + ALICENET_ROW_GAP_PX;
       const viewportTop = Math.max(0, window.scrollY - containerTop);
       const viewportBottom = viewportTop + window.innerHeight;
-      const start = Math.max(0, Math.floor(viewportTop / rowStride) - KOBE_ROW_OVERSCAN);
-      const end = Math.min(items.length, Math.ceil(viewportBottom / rowStride) + KOBE_ROW_OVERSCAN);
+      const start = Math.max(0, Math.floor(viewportTop / rowStride) - ALICENET_ROW_OVERSCAN);
+      const end = Math.min(items.length, Math.ceil(viewportBottom / rowStride) + ALICENET_ROW_OVERSCAN);
       setRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
     });
   }, [items.length]);
@@ -1839,7 +1839,7 @@ function KobeRowList({ items, renderRow }: { items: KobeItem[]; renderRow: (item
   const enabled = items.length > VIRTUAL_GRID_THRESHOLD;
   const start = enabled ? range.start : 0;
   const end = enabled ? range.end : items.length;
-  const rowStride = KOBE_ROW_HEIGHT_PX + KOBE_ROW_GAP_PX;
+  const rowStride = ALICENET_ROW_HEIGHT_PX + ALICENET_ROW_GAP_PX;
   const topSpacer = enabled ? start * rowStride : 0;
   const bottomSpacer = enabled ? Math.max(0, (items.length - end) * rowStride) : 0;
   const rendered = enabled ? items.slice(start, end) : items;

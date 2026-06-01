@@ -1,8 +1,8 @@
 import { asJsonRecord } from './json-shape';
 import { isVndbVnId } from './vn-id-shape';
 
-/** One AliceNet Kobe stock row rendered by the client browser. */
-export interface KobeClientItem {
+/** One AliceNet stock row rendered by the client browser. */
+export interface AliceNetClientItem {
   code: string;
   title: string;
   jan: string | null;
@@ -31,8 +31,8 @@ export interface KobeClientItem {
   vn_developers: string | null;
 }
 
-/** Header counters returned with the AliceNet Kobe stock list. */
-export interface KobeClientStats {
+/** Header counters returned with the AliceNet stock list. */
+export interface AliceNetClientStats {
   total: number;
   matched: number;
   vndb_matched: number;
@@ -44,22 +44,22 @@ export interface KobeClientStats {
   in_wishlist: number;
 }
 
-/** Pending metadata download counters returned with the AliceNet Kobe stock list. */
-export interface KobePendingCounts {
+/** Pending metadata download counters returned with the AliceNet stock list. */
+export interface AliceNetPendingCounts {
   vndb_pending: number;
   egs_pending: number;
 }
 
-/** Full AliceNet Kobe stock-browser response. */
-export interface KobeClientSnapshot {
-  items: KobeClientItem[];
-  stats: KobeClientStats;
-  pending: KobePendingCounts;
+/** Full AliceNet stock-browser response. */
+export interface AliceNetClientSnapshot {
+  items: AliceNetClientItem[];
+  stats: AliceNetClientStats;
+  pending: AliceNetPendingCounts;
   last_fetch: number | null;
 }
 
-/** Result returned after synchronizing the AliceNet Kobe source page. */
-export interface KobeStockSyncResult {
+/** Result returned after synchronizing the AliceNet source page. */
+export interface AliceNetStockSyncResult {
   count: number;
   added: number;
   updated: number;
@@ -67,8 +67,8 @@ export interface KobeStockSyncResult {
   fetched_at: number;
 }
 
-/** Progress payload returned by each AliceNet Kobe processing loop. */
-export interface KobeLoopResult {
+/** Progress payload returned by each AliceNet processing loop. */
+export interface AliceNetLoopResult {
   processed: number;
   matched?: number;
   remaining: number;
@@ -105,7 +105,7 @@ function decodeArray<T>(value: unknown, decodeRow: (row: unknown) => T | null): 
   return out;
 }
 
-function decodeKobeItem(value: unknown): KobeClientItem | null {
+function decodeAliceNetItem(value: unknown): AliceNetClientItem | null {
   const record = asJsonRecord(value);
   if (
     !record ||
@@ -169,7 +169,7 @@ function decodeKobeItem(value: unknown): KobeClientItem | null {
   };
 }
 
-function decodeKobeStats(value: unknown): KobeClientStats | null {
+function decodeAliceNetStats(value: unknown): AliceNetClientStats | null {
   const record = asJsonRecord(value);
   if (
     !record ||
@@ -198,7 +198,7 @@ function decodeKobeStats(value: unknown): KobeClientStats | null {
   };
 }
 
-function decodePendingCounts(value: unknown): KobePendingCounts | null {
+function decodePendingCounts(value: unknown): AliceNetPendingCounts | null {
   const record = asJsonRecord(value);
   return record && isIntegerAtLeast(record.vndb_pending, 0) && isIntegerAtLeast(record.egs_pending, 0)
     ? { vndb_pending: record.vndb_pending, egs_pending: record.egs_pending }
@@ -206,15 +206,15 @@ function decodePendingCounts(value: unknown): KobePendingCounts | null {
 }
 
 /**
- * Decode the AliceNet Kobe stock-browser payload before replacing client state.
+ * Decode the AliceNet stock-browser payload before replacing client state.
  *
  * @param value Parsed local API payload.
  * @returns Safe browser snapshot, or `null` for malformed input.
  */
-export function decodeKobeClientSnapshot(value: unknown): KobeClientSnapshot | null {
+export function decodeAliceNetClientSnapshot(value: unknown): AliceNetClientSnapshot | null {
   const record = asJsonRecord(value);
-  const items = decodeArray(record?.items, decodeKobeItem);
-  const stats = decodeKobeStats(record?.stats);
+  const items = decodeArray(record?.items, decodeAliceNetItem);
+  const stats = decodeAliceNetStats(record?.stats);
   const pending = decodePendingCounts(record?.pending);
   return items && stats && pending && isNullableFiniteNumber(record?.last_fetch)
     ? { items, stats, pending, last_fetch: record.last_fetch }
@@ -227,7 +227,7 @@ export function decodeKobeClientSnapshot(value: unknown): KobeClientSnapshot | n
  * @param value Parsed local API payload.
  * @returns Safe synchronization counters, or `null` for malformed input.
  */
-export function decodeKobeStockSyncResult(value: unknown): KobeStockSyncResult | null {
+export function decodeAliceNetStockSyncResult(value: unknown): AliceNetStockSyncResult | null {
   const record = asJsonRecord(value);
   return (
     record &&
@@ -248,12 +248,12 @@ export function decodeKobeStockSyncResult(value: unknown): KobeStockSyncResult |
 }
 
 /**
- * Decode one AliceNet Kobe batch-loop progress payload.
+ * Decode one AliceNet batch-loop progress payload.
  *
  * @param value Parsed local API payload.
  * @returns Safe loop counters, or `null` for malformed input.
  */
-export function decodeKobeLoopResult(value: unknown): KobeLoopResult | null {
+export function decodeAliceNetLoopResult(value: unknown): AliceNetLoopResult | null {
   const record = asJsonRecord(value);
   return (
     record &&

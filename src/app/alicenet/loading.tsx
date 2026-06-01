@@ -1,7 +1,7 @@
 import { SkeletonBlock, SkeletonBoundary, SkeletonRows } from '@/components/Skeleton';
 import { getDict } from '@/lib/i18n/server';
 
-export default async function AliceNetKobeLoading() {
+export default async function AliceNetLoading() {
   const t = await getDict();
   return (
     <SkeletonBoundary label={t.common.loading} className="space-y-4">

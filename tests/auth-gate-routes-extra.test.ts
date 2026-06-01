@@ -10,16 +10,16 @@
 import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 
-// alicesoft-kobe family
-import { POST as kobeLinkPOST, DELETE as kobeLinkDELETE } from '@/app/api/alicesoft-kobe/[code]/link/route';
-import { POST as kobeDownloadVndbPOST } from '@/app/api/alicesoft-kobe/download-vndb/route';
-import { POST as kobeFetchPOST } from '@/app/api/alicesoft-kobe/fetch/route';
-import { POST as kobeMatchNextPOST } from '@/app/api/alicesoft-kobe/match-next/route';
-import { POST as kobeMatchFromEgsPOST } from '@/app/api/alicesoft-kobe/match-vndb-from-egs/route';
-import { POST as kobeResetMatchesPOST } from '@/app/api/alicesoft-kobe/reset-matches/route';
-import { POST as kobeResolveEgsPOST } from '@/app/api/alicesoft-kobe/resolve-egs/route';
-import { POST as kobeRetryVndbPOST } from '@/app/api/alicesoft-kobe/retry-vndb-aggressive/route';
-import { POST as kobeSearchEgsPOST } from '@/app/api/alicesoft-kobe/search-egs-no-vndb/route';
+// alicenet family
+import { POST as alicenetLinkPOST, DELETE as alicenetLinkDELETE } from '@/app/api/alicenet/[code]/link/route';
+import { POST as alicenetDownloadVndbPOST } from '@/app/api/alicenet/download-vndb/route';
+import { POST as alicenetFetchPOST } from '@/app/api/alicenet/fetch/route';
+import { POST as alicenetMatchNextPOST } from '@/app/api/alicenet/match-next/route';
+import { POST as alicenetMatchFromEgsPOST } from '@/app/api/alicenet/match-vndb-from-egs/route';
+import { POST as alicenetResetMatchesPOST } from '@/app/api/alicenet/reset-matches/route';
+import { POST as alicenetResolveEgsPOST } from '@/app/api/alicenet/resolve-egs/route';
+import { POST as alicenetRetryVndbPOST } from '@/app/api/alicenet/retry-vndb-aggressive/route';
+import { POST as alicenetSearchEgsPOST } from '@/app/api/alicenet/search-egs-no-vndb/route';
 
 // backup + collection + import/order
 import { POST as backupRestorePOST } from '@/app/api/backup/restore/route';
@@ -75,47 +75,47 @@ function externalReq(path: string, method = 'GET', body?: unknown): NextRequest 
   });
 }
 
-describe('auth gate — alicesoft-kobe routes return 403 from external origin', () => {
+describe('auth gate — alicenet routes return 403 from external origin', () => {
   const codeCtx = (code = '000-000000-000') => ({ params: Promise.resolve({ code }) });
 
-  it('POST /api/alicesoft-kobe/[code]/link', async () => {
-    const res = await kobeLinkPOST(externalReq('/api/alicesoft-kobe/000-000000-000/link', 'POST', { vn_id: 'v90001' }), codeCtx());
+  it('POST /api/alicenet/[code]/link', async () => {
+    const res = await alicenetLinkPOST(externalReq('/api/alicenet/000-000000-000/link', 'POST', { vn_id: 'v90001' }), codeCtx());
     expect(res.status).toBe(403);
   });
-  it('DELETE /api/alicesoft-kobe/[code]/link', async () => {
-    const res = await kobeLinkDELETE(externalReq('/api/alicesoft-kobe/000-000000-000/link', 'DELETE'), codeCtx());
+  it('DELETE /api/alicenet/[code]/link', async () => {
+    const res = await alicenetLinkDELETE(externalReq('/api/alicenet/000-000000-000/link', 'DELETE'), codeCtx());
     expect(res.status).toBe(403);
   });
-  it('POST /api/alicesoft-kobe/download-vndb', async () => {
-    const res = await kobeDownloadVndbPOST(externalReq('/api/alicesoft-kobe/download-vndb', 'POST', {}));
+  it('POST /api/alicenet/download-vndb', async () => {
+    const res = await alicenetDownloadVndbPOST(externalReq('/api/alicenet/download-vndb', 'POST', {}));
     expect(res.status).toBe(403);
   });
-  it('POST /api/alicesoft-kobe/fetch', async () => {
-    const res = await kobeFetchPOST(externalReq('/api/alicesoft-kobe/fetch', 'POST', {}));
+  it('POST /api/alicenet/fetch', async () => {
+    const res = await alicenetFetchPOST(externalReq('/api/alicenet/fetch', 'POST', {}));
     expect(res.status).toBe(403);
   });
-  it('POST /api/alicesoft-kobe/match-next', async () => {
-    const res = await kobeMatchNextPOST(externalReq('/api/alicesoft-kobe/match-next', 'POST', {}));
+  it('POST /api/alicenet/match-next', async () => {
+    const res = await alicenetMatchNextPOST(externalReq('/api/alicenet/match-next', 'POST', {}));
     expect(res.status).toBe(403);
   });
-  it('POST /api/alicesoft-kobe/match-vndb-from-egs', async () => {
-    const res = await kobeMatchFromEgsPOST(externalReq('/api/alicesoft-kobe/match-vndb-from-egs', 'POST', {}));
+  it('POST /api/alicenet/match-vndb-from-egs', async () => {
+    const res = await alicenetMatchFromEgsPOST(externalReq('/api/alicenet/match-vndb-from-egs', 'POST', {}));
     expect(res.status).toBe(403);
   });
-  it('POST /api/alicesoft-kobe/reset-matches', async () => {
-    const res = await kobeResetMatchesPOST(externalReq('/api/alicesoft-kobe/reset-matches', 'POST', {}));
+  it('POST /api/alicenet/reset-matches', async () => {
+    const res = await alicenetResetMatchesPOST(externalReq('/api/alicenet/reset-matches', 'POST', {}));
     expect(res.status).toBe(403);
   });
-  it('POST /api/alicesoft-kobe/resolve-egs', async () => {
-    const res = await kobeResolveEgsPOST(externalReq('/api/alicesoft-kobe/resolve-egs', 'POST', {}));
+  it('POST /api/alicenet/resolve-egs', async () => {
+    const res = await alicenetResolveEgsPOST(externalReq('/api/alicenet/resolve-egs', 'POST', {}));
     expect(res.status).toBe(403);
   });
-  it('POST /api/alicesoft-kobe/retry-vndb-aggressive', async () => {
-    const res = await kobeRetryVndbPOST(externalReq('/api/alicesoft-kobe/retry-vndb-aggressive', 'POST', {}));
+  it('POST /api/alicenet/retry-vndb-aggressive', async () => {
+    const res = await alicenetRetryVndbPOST(externalReq('/api/alicenet/retry-vndb-aggressive', 'POST', {}));
     expect(res.status).toBe(403);
   });
-  it('POST /api/alicesoft-kobe/search-egs-no-vndb', async () => {
-    const res = await kobeSearchEgsPOST(externalReq('/api/alicesoft-kobe/search-egs-no-vndb', 'POST', {}));
+  it('POST /api/alicenet/search-egs-no-vndb', async () => {
+    const res = await alicenetSearchEgsPOST(externalReq('/api/alicenet/search-egs-no-vndb', 'POST', {}));
     expect(res.status).toBe(403);
   });
 });

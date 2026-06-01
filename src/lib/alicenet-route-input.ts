@@ -1,14 +1,14 @@
 import { validateSafeInt, type ValidationResult } from '@/lib/input-validators';
 
 /**
- * Validate an optional AliceNet Kobe batch size.
+ * Validate an optional AliceNet batch size.
  *
  * @param value Raw JSON body field.
  * @param fallback Default batch size when the field is omitted.
  * @param max Maximum batch size supported by the route.
  * @returns A validated integer batch size or a field-scoped error.
  */
-export function parseKobeBatch(
+export function parseAliceNetBatch(
   value: unknown,
   fallback: number,
   max: number,
@@ -18,12 +18,12 @@ export function parseKobeBatch(
 }
 
 /**
- * Validate an optional AliceNet Kobe run-start timestamp.
+ * Validate an optional AliceNet run-start timestamp.
  *
  * @param value Raw JSON body field.
  * @returns A validated positive UTC-ms integer or `undefined` when omitted.
  */
-export function parseKobeRunStartedAt(
+export function parseAliceNetRunStartedAt(
   value: unknown,
 ): ValidationResult<number | undefined> {
   if (value === undefined) return { ok: true, value: undefined };
@@ -35,13 +35,13 @@ export function parseKobeRunStartedAt(
 }
 
 /**
- * Validate an optional AliceNet Kobe boolean control.
+ * Validate an optional AliceNet boolean control.
  *
  * @param value Raw JSON body field.
  * @param field Client-facing field name for errors.
  * @returns A strict boolean, or `false` when the field is omitted.
  */
-export function parseKobeBoolean(
+export function parseAliceNetBoolean(
   value: unknown,
   field: string,
 ): ValidationResult<boolean> {

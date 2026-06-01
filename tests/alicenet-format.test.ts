@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
-  comparableKobeDate as comparableDate,
-  kobeMatchKind,
-  displayKobeTitle,
-  displayKobeProducer,
-  parseKobeDevs,
-  type KobeItem,
-} from '@/components/kobe-types';
+  comparableAliceNetDate as comparableDate,
+  alicenetMatchKind,
+  displayAliceNetTitle,
+  displayAliceNetProducer,
+  parseAliceNetDevs,
+  type AliceNetItem,
+} from '@/components/alicenet-types';
 
-describe('kobe comparableDate (U-238 sorter)', () => {
+describe('alicenet comparableDate (U-238 sorter)', () => {
   it('canonicalises YYYY/M/D to YYYY-MM-DD', () => {
     expect(comparableDate('2017/1/2')).toBe('2017-01-02');
     expect(comparableDate('2017/12/22')).toBe('2017-12-22');
@@ -28,8 +28,8 @@ describe('kobe comparableDate (U-238 sorter)', () => {
   });
 });
 
-describe('kobeMatchKind (U-234 — split helpers)', () => {
-  const base: Partial<KobeItem> = {
+describe('alicenetMatchKind (U-234 — split helpers)', () => {
+  const base: Partial<AliceNetItem> = {
     code: '111-222222-333',
     title: 'sample',
     vn_id: null,
@@ -37,38 +37,38 @@ describe('kobeMatchKind (U-234 — split helpers)', () => {
     egs_id: null,
   };
   it('vndb when vn_id is set', () => {
-    expect(kobeMatchKind({ ...base, vn_id: 'v90017' } as KobeItem)).toBe('vndb');
+    expect(alicenetMatchKind({ ...base, vn_id: 'v90017' } as AliceNetItem)).toBe('vndb');
   });
   it('egs when only egs_id is set', () => {
-    expect(kobeMatchKind({ ...base, egs_id: 9500001 } as KobeItem)).toBe('egs');
+    expect(alicenetMatchKind({ ...base, egs_id: 9500001 } as AliceNetItem)).toBe('egs');
   });
   it('unresolved when vn_match_source = "none"', () => {
-    expect(kobeMatchKind({ ...base, vn_match_source: 'none' } as KobeItem)).toBe('unresolved');
+    expect(alicenetMatchKind({ ...base, vn_match_source: 'none' } as AliceNetItem)).toBe('unresolved');
   });
   it('new when nothing is set', () => {
-    expect(kobeMatchKind(base as KobeItem)).toBe('new');
+    expect(alicenetMatchKind(base as AliceNetItem)).toBe('new');
   });
 });
 
-describe('displayKobeTitle / displayKobeProducer / parseKobeDevs', () => {
+describe('displayAliceNetTitle / displayAliceNetProducer / parseAliceNetDevs', () => {
   it('prefers egs_title over title', () => {
-    const i = { title: 'raw', egs_title: 'curated' } as KobeItem;
-    expect(displayKobeTitle(i)).toBe('curated');
+    const i = { title: 'raw', egs_title: 'curated' } as AliceNetItem;
+    expect(displayAliceNetTitle(i)).toBe('curated');
   });
   it('falls back to title when egs_title is empty', () => {
-    const i = { title: 'raw', egs_title: null } as KobeItem;
-    expect(displayKobeTitle(i)).toBe('raw');
+    const i = { title: 'raw', egs_title: null } as AliceNetItem;
+    expect(displayAliceNetTitle(i)).toBe('raw');
   });
   it('producer prefers vn_developers JSON first entry', () => {
-    const i = { vn_developers: JSON.stringify([{ id: 'p1', name: 'Studio X' }]), egs_brand: 'Brand Y' } as KobeItem;
-    expect(displayKobeProducer(i)).toBe('Studio X');
+    const i = { vn_developers: JSON.stringify([{ id: 'p1', name: 'Studio X' }]), egs_brand: 'Brand Y' } as AliceNetItem;
+    expect(displayAliceNetProducer(i)).toBe('Studio X');
   });
   it('producer falls back to egs_brand when developers JSON is empty', () => {
-    const i = { vn_developers: '[]', egs_brand: 'Brand Y' } as KobeItem;
-    expect(displayKobeProducer(i)).toBe('Brand Y');
+    const i = { vn_developers: '[]', egs_brand: 'Brand Y' } as AliceNetItem;
+    expect(displayAliceNetProducer(i)).toBe('Brand Y');
   });
-  it('parseKobeDevs handles malformed JSON without throwing', () => {
-    expect(parseKobeDevs('not-json')).toEqual([]);
-    expect(parseKobeDevs(null)).toEqual([]);
+  it('parseAliceNetDevs handles malformed JSON without throwing', () => {
+    expect(parseAliceNetDevs('not-json')).toEqual([]);
+    expect(parseAliceNetDevs(null)).toEqual([]);
   });
 });

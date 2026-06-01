@@ -33,7 +33,7 @@ describe('stock-price navigation race', () => {
   });
 });
 
-describe('place and AliceNet Kobe navigation races', () => {
+describe('place and AliceNet navigation races', () => {
   it('surfaces per-place stock load failures instead of rendering an empty result', () => {
     const body = source('src/components/PlaceVnBrowser.tsx');
     expect(body).toContain("import { readApiError } from '@/lib/api-error-read'");
@@ -55,11 +55,11 @@ describe('place and AliceNet Kobe navigation races', () => {
     expect(body).toContain("error.name === 'AbortError'");
   });
 
-  it('owns every AliceNet Kobe reload and aborts it during cleanup', () => {
-    const body = source('src/components/AliceNetKobeClient.tsx');
+  it('owns every AliceNet reload and aborts it during cleanup', () => {
+    const body = source('src/components/AliceNetClient.tsx');
     expect(body).toContain('const loadAbortRef = useRef<AbortController | null>(null)');
     expect(body).toContain('loadAbortRef.current?.abort()');
-    expect(body).toContain("fetch('/api/alicesoft-kobe', { cache: 'no-store', signal })");
+    expect(body).toContain("fetch('/api/alicenet', { cache: 'no-store', signal })");
     expect(body).toContain('loadAbortRef.current !== controller');
     expect(body).toContain("error.name === 'AbortError'");
   });

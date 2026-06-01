@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { retryVndbForKobeAggressive } from '@/lib/alicesoft-kobe';
+import { retryVndbForAliceNetAggressive } from '@/lib/alicenet';
 import { readJsonObject } from '@/lib/api-body';
-import { parseKobeBatch, parseKobeRunStartedAt } from '@/lib/kobe-route-input';
+import { parseAliceNetBatch, parseAliceNetRunStartedAt } from '@/lib/alicenet-route-input';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -16,10 +16,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as Record<string, unknown>;
-  const parsedBatch = parseKobeBatch(body.batch, 4, 20);
+  const parsedBatch = parseAliceNetBatch(body.batch, 4, 20);
   if (!parsedBatch.ok) return NextResponse.json({ error: parsedBatch.error }, { status: 400 });
-  const parsedRunStartedAt = parseKobeRunStartedAt(body.run_started_at);
+  const parsedRunStartedAt = parseAliceNetRunStartedAt(body.run_started_at);
   if (!parsedRunStartedAt.ok) return NextResponse.json({ error: parsedRunStartedAt.error }, { status: 400 });
-  const result = await retryVndbForKobeAggressive(parsedBatch.value, parsedRunStartedAt.value);
+  const result = await retryVndbForAliceNetAggressive(parsedBatch.value, parsedRunStartedAt.value);
   return NextResponse.json(result);
 }

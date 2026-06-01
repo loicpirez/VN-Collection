@@ -718,22 +718,39 @@ function open(): Database.Database {
       ON vn_va_credit(vn_id, c_id, sid, COALESCE(aid, -1), COALESCE(note, ''), COALESCE(va_lang, ''));
   `);
 
-  // One-shot migration: rename alice_kobe_stock → alicesoft_kobe_stock and related setting keys.
+  // Legacy identifier migration for databases created before AliceNet became canonical.
   {
-    const migDone = (db.prepare(`SELECT value FROM app_setting WHERE key = 'migration_alicesoft_kobe_rename_v1'`).get() as { value: string } | undefined);
-    if (!migDone) {
+    const migrated = (db.prepare(`SELECT value FROM app_setting WHERE key = 'migration_alicenet_rename_v1'`).get() as { value: string } | undefined)?.value;
+    if (migrated !== '1') {
       db.transaction(() => {
-        const oldTable = db.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='alice_kobe_stock'`).get();
-        if (oldTable) db.exec(`ALTER TABLE alice_kobe_stock RENAME TO alicesoft_kobe_stock`);
-        db.prepare(`UPDATE app_setting SET key='alicesoft_kobe_proxy_config' WHERE key='alice_kobe_proxy_config'`).run();
-        db.prepare(`UPDATE app_setting SET key='alicesoft_kobe_last_fetch' WHERE key='alice_kobe_last_fetch'`).run();
-        db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('migration_alicesoft_kobe_rename_v1', '1')`).run();
+        const hasCanonicalTable = db.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='alicenet_stock'`).get();
+        if (!hasCanonicalTable) {
+          const previousTable = db.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='alicesoft_kobe_stock'`).get();
+          const oldestTable = db.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='alice_kobe_stock'`).get();
+          if (previousTable) db.exec(`ALTER TABLE alicesoft_kobe_stock RENAME TO alicenet_stock`);
+          else if (oldestTable) db.exec(`ALTER TABLE alice_kobe_stock RENAME TO alicenet_stock`);
+        }
+        const migrateSetting = db.prepare(`
+          INSERT OR IGNORE INTO app_setting (key, value)
+          SELECT ?, value FROM app_setting WHERE key = ?
+        `);
+        const deleteSetting = db.prepare(`DELETE FROM app_setting WHERE key = ?`);
+        for (const [nextKey, priorKeys] of [
+          ['alicenet_proxy_config', ['alicesoft_kobe_proxy_config', 'alice_kobe_proxy_config']],
+          ['alicenet_last_fetch', ['alicesoft_kobe_last_fetch', 'alice_kobe_last_fetch']],
+        ] as const) {
+          for (const priorKey of priorKeys) {
+            migrateSetting.run(nextKey, priorKey);
+            deleteSetting.run(priorKey);
+          }
+        }
+        db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('migration_alicenet_rename_v1', '1')`).run();
       })();
     }
   }
 
   db.exec(`
-    CREATE TABLE IF NOT EXISTS alicesoft_kobe_stock (
+    CREATE TABLE IF NOT EXISTS alicenet_stock (
       code             TEXT PRIMARY KEY,
       title            TEXT NOT NULL,
       jan              TEXT,
@@ -747,7 +764,7 @@ function open(): Database.Database {
       fetched_at       INTEGER NOT NULL DEFAULT 0,
       updated_at       INTEGER NOT NULL DEFAULT 0
     );
-    CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_vn ON alicesoft_kobe_stock(vn_id);
+    CREATE INDEX IF NOT EXISTS idx_alicenet_vn ON alicenet_stock(vn_id);
 
     CREATE TABLE IF NOT EXISTS vn_stock_offer (
       vn_id             TEXT NOT NULL,
@@ -864,6 +881,41 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_stock_batch_job_started
       ON stock_batch_job(started_at DESC);
   `);
+
+  {
+    const migrated = (db.prepare(`SELECT value FROM app_setting WHERE key = 'migration_alicenet_persisted_ids_v1'`).get() as { value: string } | undefined)?.value;
+    if (migrated !== '1') {
+      db.transaction(() => {
+        db.prepare(`
+          DELETE FROM vn_stock_offer AS legacy
+          WHERE legacy.provider IN ('alicesoft_kobe', 'alice_kobe')
+            AND EXISTS (
+              SELECT 1 FROM vn_stock_offer AS canonical
+              WHERE canonical.vn_id = legacy.vn_id
+                AND canonical.provider = 'alicenet'
+                AND canonical.provider_offer_id = legacy.provider_offer_id
+            )
+        `).run();
+        db.prepare(`UPDATE vn_stock_offer SET provider = 'alicenet' WHERE provider IN ('alicesoft_kobe', 'alice_kobe')`).run();
+        db.prepare(`UPDATE vn_stock_offer SET source = 'alicenet' WHERE source IN ('alicesoft_kobe', 'alice_kobe')`).run();
+        db.prepare(`UPDATE vn_stock_offer SET availability_label = 'alicenet_stock' WHERE availability_label IN ('alicesoft_kobe_stock', 'alice_kobe_stock')`).run();
+        db.prepare(`
+          DELETE FROM vn_stock_provider_status AS legacy
+          WHERE legacy.provider IN ('alicesoft_kobe', 'alice_kobe')
+            AND EXISTS (
+              SELECT 1 FROM vn_stock_provider_status AS canonical
+              WHERE canonical.vn_id = legacy.vn_id
+                AND canonical.provider = 'alicenet'
+            )
+        `).run();
+        db.prepare(`UPDATE vn_stock_provider_status SET provider = 'alicenet' WHERE provider IN ('alicesoft_kobe', 'alice_kobe')`).run();
+        db.prepare(`UPDATE vn_stock_source SET provider = 'alicenet' WHERE provider IN ('alicesoft_kobe', 'alice_kobe')`).run();
+        db.prepare(`UPDATE user_activity SET kind = 'alicenet.link' WHERE kind = 'kobe.link'`).run();
+        db.prepare(`UPDATE user_activity SET entity = 'alicenet_stock' WHERE entity IN ('alicesoft_kobe_stock', 'alice_kobe_stock')`).run();
+        db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('migration_alicenet_persisted_ids_v1', '1')`).run();
+      })();
+    }
+  }
 
   // The aspect-ratio filter used to require an `owned_release` row to
   // bridge release_id → vn_id. That made the filter useless for users
@@ -1223,19 +1275,19 @@ function open(): Database.Database {
   ensureColumn(db, 'series', 'banner_path', 'TEXT');
 
   // Top-3 VNDB candidates from auto-match stored as JSON for quick-pick remapping.
-  ensureColumn(db, 'alicesoft_kobe_stock', 'vn_candidates', 'TEXT');
+  ensureColumn(db, 'alicenet_stock', 'vn_candidates', 'TEXT');
   // Normalized title actually submitted to VNDB/EGS so mismatches are debuggable.
-  ensureColumn(db, 'alicesoft_kobe_stock', 'search_title', 'TEXT');
+  ensureColumn(db, 'alicenet_stock', 'search_title', 'TEXT');
   // Timestamp of the last VNDB/EGS match attempt (regardless of result).
-  ensureColumn(db, 'alicesoft_kobe_stock', 'last_matched_at', 'INTEGER');
+  ensureColumn(db, 'alicenet_stock', 'last_matched_at', 'INTEGER');
   // EGS product snapshot for rows that are real shop/game products but do not
-  // have a VNDB id. This lets AliceNet Kobe count and display EGS-only matches
+  // have a VNDB id. This lets AliceNet count and display EGS-only matches
   // instead of leaving them in the generic "no VNDB result" bucket.
-  ensureColumn(db, 'alicesoft_kobe_stock', 'egs_title', 'TEXT');
-  ensureColumn(db, 'alicesoft_kobe_stock', 'egs_brand', 'TEXT');
-  ensureColumn(db, 'alicesoft_kobe_stock', 'egs_release_date', 'TEXT');
-  ensureColumn(db, 'alicesoft_kobe_stock', 'egs_image_url', 'TEXT');
-  ensureColumn(db, 'alicesoft_kobe_stock', 'egs_vndb_raw', 'TEXT');
+  ensureColumn(db, 'alicenet_stock', 'egs_title', 'TEXT');
+  ensureColumn(db, 'alicenet_stock', 'egs_brand', 'TEXT');
+  ensureColumn(db, 'alicenet_stock', 'egs_release_date', 'TEXT');
+  ensureColumn(db, 'alicenet_stock', 'egs_image_url', 'TEXT');
+  ensureColumn(db, 'alicenet_stock', 'egs_vndb_raw', 'TEXT');
   ensureColumn(db, 'vn_stock_offer', 'location_branch', 'TEXT');
   ensureColumn(db, 'vn_stock_offer', 'content_kind', 'TEXT');
   ensureColumn(db, 'vn_stock_offer', 'platform', 'TEXT');
@@ -1264,23 +1316,23 @@ function open(): Database.Database {
   ensureColumn(db, 'place_registry', 'kind', "TEXT NOT NULL DEFAULT 'shop'");
 
   db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_unmatched
-      ON alicesoft_kobe_stock(last_matched_at, code)
+    CREATE INDEX IF NOT EXISTS idx_alicenet_unmatched
+      ON alicenet_stock(last_matched_at, code)
       WHERE vn_id IS NULL AND egs_id IS NULL AND vn_match_source IS NULL;
-    CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_no_vndb
-      ON alicesoft_kobe_stock(last_matched_at, code)
+    CREATE INDEX IF NOT EXISTS idx_alicenet_no_vndb
+      ON alicenet_stock(last_matched_at, code)
       WHERE vn_match_source = 'none' AND vn_id IS NULL;
-    -- R5-PERF-017: listKobeStock orders the whole table by title
+    -- R5-PERF-017: listAliceNetStock orders the whole table by title
     -- (ORDER BY k.title, binary collation). Without this the page
     -- list does a full scan + sort on every load.
-    CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_title
-      ON alicesoft_kobe_stock(title);
-    -- R5-PERF-018: listKobeItemsForEgsResolve filters the EGS-resolve
+    CREATE INDEX IF NOT EXISTS idx_alicenet_title
+      ON alicenet_stock(title);
+    -- R5-PERF-018: listAliceNetItemsForEgsResolve filters the EGS-resolve
     -- queue on (vn_id NOT NULL, egs_id NULL, egs_match_source NULL)
     -- and orders by code. The vn_id index can't serve the egs match-
     -- source predicate; this partial index keeps the queue lean.
-    CREATE INDEX IF NOT EXISTS idx_alicesoft_kobe_egs_resolve
-      ON alicesoft_kobe_stock(code)
+    CREATE INDEX IF NOT EXISTS idx_alicenet_egs_resolve
+      ON alicenet_stock(code)
       WHERE vn_id IS NOT NULL AND egs_id IS NULL AND egs_match_source IS NULL;
   `);
 
@@ -9684,7 +9736,7 @@ export function batchGetCharNames(ids: string[]): Map<string, string> {
   return map;
 }
 
-export interface KobeStockRow {
+export interface AliceNetStockRow {
   code: string;
   title: string;
   jan: string | null;
@@ -9714,16 +9766,16 @@ export interface KobeStockRow {
 }
 
 /**
- * Full-sync the AliceNet Kobe stock table: upsert every incoming row,
+ * Full-sync the AliceNet stock table: upsert every incoming row,
  * delete rows whose code is absent from the snapshot (sold items).
  * Returns added/updated/removed counts for the UI.
  */
-export function upsertKobeStock(
-  rows: Pick<KobeStockRow, 'code' | 'title' | 'jan' | 'release_date' | 'list_price' | 'sale_price'>[],
+export function upsertAliceNetStock(
+  rows: Pick<AliceNetStockRow, 'code' | 'title' | 'jan' | 'release_date' | 'list_price' | 'sale_price'>[],
 ): { added: number; updated: number; removed: number } {
   const now = Date.now();
   const upsertStmt = db.prepare(`
-    INSERT INTO alicesoft_kobe_stock (code, title, jan, release_date, list_price, sale_price, fetched_at, updated_at)
+    INSERT INTO alicenet_stock (code, title, jan, release_date, list_price, sale_price, fetched_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(code) DO UPDATE SET
       title        = excluded.title,
@@ -9743,7 +9795,7 @@ export function upsertKobeStock(
     const incomingCodes = new Set(items.map((r) => r.code));
 
     const existingCodes = new Set(
-      (db.prepare(`SELECT code FROM alicesoft_kobe_stock`).all() as { code: string }[]).map((r) => r.code),
+      (db.prepare(`SELECT code FROM alicenet_stock`).all() as { code: string }[]).map((r) => r.code),
     );
 
     for (const r of items) {
@@ -9760,7 +9812,7 @@ export function upsertKobeStock(
     for (let i = 0; i < toDelete.length; i += CHUNK) {
       const chunk = toDelete.slice(i, i + CHUNK);
       const placeholders = chunk.map(() => '?').join(',');
-      removed += db.prepare(`DELETE FROM alicesoft_kobe_stock WHERE code IN (${placeholders})`).run(...chunk).changes;
+      removed += db.prepare(`DELETE FROM alicenet_stock WHERE code IN (${placeholders})`).run(...chunk).changes;
     }
   });
 
@@ -9769,10 +9821,10 @@ export function upsertKobeStock(
 }
 
 /**
- * Every AliceNet Kobe stock row joined with the operator's collection
+ * Every AliceNet stock row joined with the operator's collection
  * (so the UI can flag "already owned") and VN cover data (for `SafeImage`).
  */
-export function listKobeStock(): (KobeStockRow & { in_collection: number; vn_developers: string | null })[] {
+export function listAliceNetStock(): (AliceNetStockRow & { in_collection: number; vn_developers: string | null })[] {
   return db.prepare(`
     SELECT k.*,
            CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_collection,
@@ -9780,27 +9832,27 @@ export function listKobeStock(): (KobeStockRow & { in_collection: number; vn_dev
            v.local_image      AS vn_local_image,
            v.image_sexual     AS vn_image_sexual,
            v.developers       AS vn_developers
-    FROM   alicesoft_kobe_stock k
+    FROM   alicenet_stock k
     LEFT   JOIN collection c ON c.vn_id = k.vn_id
     LEFT   JOIN vn          v ON v.id    = k.vn_id
     ORDER  BY k.title
-  `).all() as (KobeStockRow & { in_collection: number; vn_developers: string | null })[];
+  `).all() as (AliceNetStockRow & { in_collection: number; vn_developers: string | null })[];
 }
 
 /**
- * Read one AliceNet Kobe stock row by code, or `null` when unknown. The
+ * Read one AliceNet stock row by code, or `null` when unknown. The
  * heavy `vn_candidates` JSON blob is excluded; the sole single-row
  * consumer reads only `code` + `title` and never the candidate list.
  */
-export function getKobeStockItem(code: string): KobeStockRow | null {
+export function getAliceNetStockItem(code: string): AliceNetStockRow | null {
   return (db.prepare(`
     SELECT code, title, jan, release_date, list_price, sale_price,
            vn_id, vn_match_source, search_title, egs_id, egs_match_source,
            egs_title, egs_brand, egs_release_date, egs_image_url, egs_vndb_raw,
            last_matched_at, fetched_at, updated_at
-    FROM alicesoft_kobe_stock
+    FROM alicenet_stock
     WHERE code = ?
-  `).get(code) as KobeStockRow | undefined) ?? null;
+  `).get(code) as AliceNetStockRow | undefined) ?? null;
 }
 
 function retryWindowClause(retryBefore?: number): { sql: string; params: number[] } {
@@ -9812,32 +9864,32 @@ function retryWindowClause(retryBefore?: number): { sql: string; params: number[
 }
 
 /**
- * Kobe rows still missing a VN match. With `retryNone=true`, also surfaces
+ * AliceNet rows still missing a VN match. With `retryNone=true`, also surfaces
  */
-export function listKobeUnmatched(limit: number, retryNone = false, retryBefore?: number): KobeStockRow[] {
+export function listAliceNetUnmatched(limit: number, retryNone = false, retryBefore?: number): AliceNetStockRow[] {
   const retryWindow = retryNone ? retryWindowClause(retryBefore) : { sql: '', params: [] as number[] };
   const condition = retryNone
     ? `vn_id IS NULL AND egs_id IS NULL AND vn_match_source = 'none'${retryWindow.sql}`
     : `vn_id IS NULL AND egs_id IS NULL AND vn_match_source IS NULL`;
   return db
     .prepare(
-      `SELECT * FROM alicesoft_kobe_stock
+      `SELECT * FROM alicenet_stock
        WHERE ${condition}
        ORDER BY CASE WHEN vn_match_source IS NULL THEN 0 ELSE 1 END,
                 COALESCE(last_matched_at, 0),
                 code
        LIMIT ?`,
     )
-    .all(...retryWindow.params, limit) as KobeStockRow[];
+    .all(...retryWindow.params, limit) as AliceNetStockRow[];
 }
 
-/** Count of rows `listKobeUnmatched` would return — drives the queue badge. */
-export function countKobeUnmatchedQueue(retryNone = false, retryBefore?: number): number {
+/** Count of rows `listAliceNetUnmatched` would return — drives the queue badge. */
+export function countAliceNetUnmatchedQueue(retryNone = false, retryBefore?: number): number {
   const retryWindow = retryNone ? retryWindowClause(retryBefore) : { sql: '', params: [] as number[] };
   const condition = retryNone
     ? `vn_id IS NULL AND egs_id IS NULL AND vn_match_source = 'none'${retryWindow.sql}`
     : `vn_id IS NULL AND egs_id IS NULL AND vn_match_source IS NULL`;
-  const row = db.prepare(`SELECT COUNT(*) AS n FROM alicesoft_kobe_stock WHERE ${condition}`)
+  const row = db.prepare(`SELECT COUNT(*) AS n FROM alicenet_stock WHERE ${condition}`)
     .get(...retryWindow.params) as { n: number };
   return row.n ?? 0;
 }
@@ -9848,54 +9900,54 @@ export function countKobeUnmatchedQueue(retryNone = false, retryBefore?: number)
  * recover a VN id via the EGS gamelist `vndb` column.
  */
 /**
- * Kobe rows where the VNDB search returned nothing. Surfaced to the
+ * AliceNet rows where the VNDB search returned nothing. Surfaced to the
  * EGS-fallback resolver so it can try the EGS `vndb` column.
  */
-export function listKobeNoVndbResult(limit: number, retryBefore?: number): KobeStockRow[] {
+export function listAliceNetNoVndbResult(limit: number, retryBefore?: number): AliceNetStockRow[] {
   const retryWindow = retryWindowClause(retryBefore);
   return db
     .prepare(
-      `SELECT * FROM alicesoft_kobe_stock
+      `SELECT * FROM alicenet_stock
        WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NULL${retryWindow.sql}
        ORDER BY COALESCE(last_matched_at, 0), code
        LIMIT ?`,
     )
-    .all(...retryWindow.params, limit) as KobeStockRow[];
+    .all(...retryWindow.params, limit) as AliceNetStockRow[];
 }
 
-/** Count of `listKobeNoVndbResult` rows. */
-export function countKobeNoVndbResult(retryBefore?: number): number {
+/** Count of `listAliceNetNoVndbResult` rows. */
+export function countAliceNetNoVndbResult(retryBefore?: number): number {
   const retryWindow = retryWindowClause(retryBefore);
   const row = db
     .prepare(
       `SELECT COUNT(*) AS n
-       FROM alicesoft_kobe_stock
+       FROM alicenet_stock
        WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NULL${retryWindow.sql}`,
     )
     .get(...retryWindow.params) as { n: number };
   return row.n ?? 0;
 }
 
-/** Kobe rows with an EGS match but still no VNDB match — second-pass retry queue. */
-export function listKobeNoVndbWithEgs(limit: number, retryBefore?: number): KobeStockRow[] {
+/** AliceNet rows with an EGS match but still no VNDB match — second-pass retry queue. */
+export function listAliceNetNoVndbWithEgs(limit: number, retryBefore?: number): AliceNetStockRow[] {
   const retryWindow = retryWindowClause(retryBefore);
   return db
     .prepare(
-      `SELECT * FROM alicesoft_kobe_stock
+      `SELECT * FROM alicenet_stock
        WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NOT NULL${retryWindow.sql}
        ORDER BY COALESCE(last_matched_at, 0), code
        LIMIT ?`,
     )
-    .all(...retryWindow.params, limit) as KobeStockRow[];
+    .all(...retryWindow.params, limit) as AliceNetStockRow[];
 }
 
-/** Count of `listKobeNoVndbWithEgs` rows. */
-export function countKobeNoVndbWithEgs(retryBefore?: number): number {
+/** Count of `listAliceNetNoVndbWithEgs` rows. */
+export function countAliceNetNoVndbWithEgs(retryBefore?: number): number {
   const retryWindow = retryWindowClause(retryBefore);
   const row = db
     .prepare(
       `SELECT COUNT(*) AS n
-       FROM alicesoft_kobe_stock
+       FROM alicenet_stock
        WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NOT NULL${retryWindow.sql}`,
     )
     .get(...retryWindow.params) as { n: number };
@@ -9907,26 +9959,26 @@ export function countKobeNoVndbWithEgs(retryBefore?: number): number {
  * dedicated EGS-search retry button — there's no point re-searching EGS for
  * a row that already has an `egs_id`.
  */
-/** Kobe rows with neither a VNDB match nor an EGS match — surfaced by the EGS-search retry button. */
-export function listKobeNoVndbNoEgs(limit: number, retryBefore?: number): KobeStockRow[] {
+/** AliceNet rows with neither a VNDB match nor an EGS match — surfaced by the EGS-search retry button. */
+export function listAliceNetNoVndbNoEgs(limit: number, retryBefore?: number): AliceNetStockRow[] {
   const retryWindow = retryWindowClause(retryBefore);
   return db
     .prepare(
-      `SELECT * FROM alicesoft_kobe_stock
+      `SELECT * FROM alicenet_stock
        WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NULL${retryWindow.sql}
        ORDER BY COALESCE(last_matched_at, 0), code
        LIMIT ?`,
     )
-    .all(...retryWindow.params, limit) as KobeStockRow[];
+    .all(...retryWindow.params, limit) as AliceNetStockRow[];
 }
 
-/** Count of `listKobeNoVndbNoEgs` rows. */
-export function countKobeNoVndbNoEgs(retryBefore?: number): number {
+/** Count of `listAliceNetNoVndbNoEgs` rows. */
+export function countAliceNetNoVndbNoEgs(retryBefore?: number): number {
   const retryWindow = retryWindowClause(retryBefore);
   const row = db
     .prepare(
       `SELECT COUNT(*) AS n
-       FROM alicesoft_kobe_stock
+       FROM alicenet_stock
        WHERE vn_match_source = 'none' AND vn_id IS NULL AND egs_id IS NULL${retryWindow.sql}`,
     )
     .get(...retryWindow.params) as { n: number };
@@ -9934,11 +9986,11 @@ export function countKobeNoVndbNoEgs(retryBefore?: number): number {
 }
 
 /**
- * Persist a Kobe → VN match. `source` distinguishes auto-matches (overwritten
+ * Persist a AliceNet → VN match. `source` distinguishes auto-matches (overwritten
  * by reset-matches) from manual pins (sticky). `candidates` is the JSON list
  * of alternative VNDB hits for the remap chips.
  */
-export function setKobeVnLink(
+export function setAliceNetVnLink(
   code: string,
   vnId: string | null,
   source: 'manual' | 'none' | 'auto',
@@ -9947,18 +9999,18 @@ export function setKobeVnLink(
 ): void {
   const now = Date.now();
   db.prepare(
-    `UPDATE alicesoft_kobe_stock
+    `UPDATE alicenet_stock
      SET vn_id = ?, vn_match_source = ?, vn_candidates = ?, search_title = ?,
          last_matched_at = ?, updated_at = ?
      WHERE code = ?`,
   ).run(vnId?.toLowerCase() ?? null, source, candidates ?? null, searchTitle ?? null, now, now, code);
 }
 
-/** Mark a Kobe row's VN match as `'none'` (search ran, no hit) without dropping any data. */
-export function clearKobeVnLink(code: string): void {
+/** Mark a AliceNet row's VN match as `'none'` (search ran, no hit) without dropping any data. */
+export function clearAliceNetVnLink(code: string): void {
   const now = Date.now();
   db.prepare(
-    `UPDATE alicesoft_kobe_stock
+    `UPDATE alicenet_stock
      SET vn_id = NULL, vn_match_source = NULL, vn_candidates = NULL,
          search_title = NULL, last_matched_at = NULL, updated_at = ?
      WHERE code = ?`,
@@ -9966,14 +10018,14 @@ export function clearKobeVnLink(code: string): void {
 }
 
 /**
- * Clear every auto-derived Kobe → VN match so the next matching pass starts
+ * Clear every auto-derived AliceNet → VN match so the next matching pass starts
  * fresh. Manual pins (`vn_match_source = 'manual'`) are kept. Returns the
  * number of rows reset.
  */
-export function resetKobeAutoMatches(): number {
+export function resetAliceNetAutoMatches(): number {
   return db
     .prepare(
-      `UPDATE alicesoft_kobe_stock
+      `UPDATE alicenet_stock
        SET vn_id = NULL, vn_match_source = NULL, vn_candidates = NULL,
            search_title = NULL, last_matched_at = NULL, updated_at = ?
        WHERE vn_match_source = 'auto'`,
@@ -9982,11 +10034,11 @@ export function resetKobeAutoMatches(): number {
 }
 
 /**
- * Persist a Kobe → EGS match. Mirrors `setKobeVnLink` but also stores the
+ * Persist a AliceNet → EGS match. Mirrors `setAliceNetVnLink` but also stores the
  * EGS metadata cache (title / brand / image) so re-rendering doesn't need
  * a fresh EGS fetch.
  */
-export function setKobeEgsLink(
+export function setAliceNetEgsLink(
   code: string,
   egsId: number | null,
   source: 'auto' | 'manual',
@@ -10001,7 +10053,7 @@ export function setKobeEgsLink(
   const now = Date.now();
   if (egsId == null) {
     db.prepare(`
-      UPDATE alicesoft_kobe_stock
+      UPDATE alicenet_stock
       SET egs_id = NULL,
           egs_match_source = ?,
           egs_title = NULL,
@@ -10017,7 +10069,7 @@ export function setKobeEgsLink(
 
   if (!meta) {
     db.prepare(`
-      UPDATE alicesoft_kobe_stock
+      UPDATE alicenet_stock
       SET egs_id = ?,
           egs_match_source = ?,
           updated_at = ?
@@ -10027,7 +10079,7 @@ export function setKobeEgsLink(
   }
 
   db.prepare(`
-    UPDATE alicesoft_kobe_stock
+    UPDATE alicenet_stock
     SET egs_id = ?,
         egs_match_source = ?,
         egs_title = ?,
@@ -10051,10 +10103,10 @@ export function setKobeEgsLink(
 }
 
 /**
- * Aggregate match-status counts for the AliceNet Kobe page header tiles
+ * Aggregate match-status counts for the AliceNet page header tiles
  * (total / matched / unmatched / none-found / in-wishlist / pending).
  */
-export function countKobeStock(): {
+export function countAliceNetStock(): {
   total: number;
   matched: number;
   vndb_matched: number;
@@ -10074,7 +10126,7 @@ export function countKobeStock(): {
         SUM(CASE WHEN k.vn_id IS NULL AND k.egs_id IS NULL AND k.vn_match_source IS NULL THEN 1 ELSE 0 END) AS unprocessed,
         SUM(CASE WHEN k.vn_id IS NULL AND k.egs_id IS NULL AND k.vn_match_source = 'none' THEN 1 ELSE 0 END) AS none_found,
         SUM(CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END)                AS in_collection
-      FROM alicesoft_kobe_stock k
+      FROM alicenet_stock k
       LEFT JOIN collection c ON c.vn_id = k.vn_id
     `)
     .get() as {
@@ -10102,17 +10154,17 @@ export function countKobeStock(): {
 }
 
 /**
- * Returns up to `limit` VN IDs from kobe items that have a vn_id
+ * Returns up to `limit` VN IDs from alicenet items that have a vn_id
  * but whose VN row does not yet exist in the local `vn` table.
  * Used by the "Download VNDB data" step.
  */
-/** VN ids matched to Kobe rows but missing from the local `vn` table — input for the bulk-download step. */
-export function listKobeVnidsToDownload(limit: number): string[] {
+/** VN ids matched to AliceNet rows but missing from the local `vn` table — input for the bulk-download step. */
+export function listAliceNetVnidsToDownload(limit: number): string[] {
   return (
     db
       .prepare(
         `SELECT DISTINCT k.vn_id
-         FROM alicesoft_kobe_stock k
+         FROM alicenet_stock k
          LEFT JOIN vn v ON v.id = k.vn_id
          WHERE k.vn_id IS NOT NULL AND v.id IS NULL
          LIMIT ?`,
@@ -10122,17 +10174,17 @@ export function listKobeVnidsToDownload(limit: number): string[] {
 }
 
 /**
- * Returns kobe items that have a vn_id but no egs_id yet.
+ * Returns alicenet items that have a vn_id but no egs_id yet.
  * Used by the "Resolve EGS via VNDB" step.
  */
-/** Kobe rows with a VN match but no EGS match — input for the EGS-resolve fan-out. */
-export function listKobeItemsForEgsResolve(
+/** AliceNet rows with a VN match but no EGS match — input for the EGS-resolve fan-out. */
+export function listAliceNetItemsForEgsResolve(
   limit: number,
 ): { code: string; vn_id: string }[] {
   return db
     .prepare(
       `SELECT k.code, k.vn_id
-       FROM alicesoft_kobe_stock k
+       FROM alicenet_stock k
        JOIN vn v ON v.id = k.vn_id
        WHERE k.vn_id IS NOT NULL AND k.egs_id IS NULL AND k.egs_match_source IS NULL
        ORDER BY k.code
@@ -10142,18 +10194,18 @@ export function listKobeItemsForEgsResolve(
 }
 
 /**
- * Counts kobe items needing each download step.
+ * Counts alicenet items needing each download step.
  * vndb_pending: items with vn_id not yet in local vn table.
  * egs_pending:  items with local VNDB metadata ready and no EGS resolve attempt yet.
  */
-/** Two counters used by the AliceNet Kobe pending-download status pill. */
-export function countKobeDownloadPending(): { vndb_pending: number; egs_pending: number } {
+/** Two counters used by the AliceNet pending-download status pill. */
+export function countAliceNetDownloadPending(): { vndb_pending: number; egs_pending: number } {
   const row = db
     .prepare(
       `SELECT
          SUM(CASE WHEN k.vn_id IS NOT NULL AND v.id IS NULL THEN 1 ELSE 0 END) AS vndb_pending,
          SUM(CASE WHEN k.vn_id IS NOT NULL AND v.id IS NOT NULL AND k.egs_id IS NULL AND k.egs_match_source IS NULL THEN 1 ELSE 0 END) AS egs_pending
-       FROM alicesoft_kobe_stock k
+       FROM alicenet_stock k
        LEFT JOIN vn v ON v.id = k.vn_id`,
     )
     .get() as { vndb_pending: number; egs_pending: number };
@@ -10449,7 +10501,7 @@ export function batchVnStockSummaries(
            SELECT vn_id,
                   price,
                   CASE
-                    WHEN source IN ('direct','manual','alicesoft_kobe') THEN 0
+                    WHEN source IN ('direct','manual','alicenet') THEN 0
                     WHEN jan IS NOT NULL AND jan <> '' THEN 1
                     WHEN product_id IS NOT NULL AND product_id <> '' THEN 2
                     WHEN match_confidence IN ('exact','high') THEN 3
@@ -10676,15 +10728,15 @@ export function setCachedTitleResolution(query: string, vnId: string, title: str
     .run(query, vnId, title);
 }
 
-/** Kobe stock rows currently matched to one VN id (usually 0 or 1, occasionally 2+). */
-export function listKobeStockForVn(vnId: string): KobeStockRow[] {
+/** AliceNet stock rows currently matched to one VN id (usually 0 or 1, occasionally 2+). */
+export function listAliceNetStockForVn(vnId: string): AliceNetStockRow[] {
   return db.prepare(`
     SELECT k.*
-    FROM alicesoft_kobe_stock k
+    FROM alicenet_stock k
     WHERE k.vn_id = ?
     ORDER BY
       CASE WHEN k.sale_price IS NULL OR k.sale_price = '' THEN 1 ELSE 0 END,
       k.sale_price ASC,
       k.title ASC
-  `).all(vnId) as KobeStockRow[];
+  `).all(vnId) as AliceNetStockRow[];
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { countKobeStock, countKobeDownloadPending, getAppSetting, listKobeStock } from '@/lib/db';
+import { countAliceNetStock, countAliceNetDownloadPending, getAppSetting, listAliceNetStock } from '@/lib/db';
 import { fetchAuthenticatedWishlist } from '@/lib/vndb';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 /**
  * Build the set of VN ids currently on the user's VNDB wishlist (Label 5).
  * Returns null if the user is not authenticated or the call fails — in
- * either case we treat every kobe item as "not in wishlist".
+ * either case we treat every alicenet item as "not in wishlist".
  */
 async function loadVndbWishlistIds(): Promise<Set<string> | null> {
   try {
@@ -26,9 +26,9 @@ export async function GET(req: Request): Promise<NextResponse> {
   if (denied) return denied;
 
   const [rawItems, stats, pending, wishlistIds] = await Promise.all([
-    Promise.resolve(listKobeStock()),
-    Promise.resolve(countKobeStock()),
-    Promise.resolve(countKobeDownloadPending()),
+    Promise.resolve(listAliceNetStock()),
+    Promise.resolve(countAliceNetStock()),
+    Promise.resolve(countAliceNetDownloadPending()),
     loadVndbWishlistIds(),
   ]);
 
@@ -43,7 +43,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   let inWishlistCount = 0;
   for (const it of items) inWishlistCount += it.in_wishlist;
 
-  const lastFetch = getAppSetting('alicesoft_kobe_last_fetch');
+  const lastFetch = getAppSetting('alicenet_last_fetch');
   return NextResponse.json({
     items,
     stats: { ...stats, in_wishlist: inWishlistCount },

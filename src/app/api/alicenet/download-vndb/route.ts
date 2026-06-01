@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
-import { listKobeVnidsToDownload, countKobeDownloadPending, upsertVn } from '@/lib/db';
+import { listAliceNetVnidsToDownload, countAliceNetDownloadPending, upsertVn } from '@/lib/db';
 import { getVn } from '@/lib/vndb';
-import { parseKobeBatch } from '@/lib/kobe-route-input';
+import { parseAliceNetBatch } from '@/lib/alicenet-route-input';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 /**
- * Downloads VNDB metadata for kobe-matched VNs that are not yet in the
+ * Downloads VNDB metadata for alicenet-matched VNs that are not yet in the
  * local `vn` table. Must run before `resolve-egs` so resolveEgsForVn
  * can use the VN's title/alttitle and release ext-links for EGS lookup.
  *
@@ -22,11 +22,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
 
   const body = (await readJsonObject(req)) as Record<string, unknown>;
-  const parsedBatch = parseKobeBatch(body.batch, 5, 20);
+  const parsedBatch = parseAliceNetBatch(body.batch, 5, 20);
   if (!parsedBatch.ok) return NextResponse.json({ error: parsedBatch.error }, { status: 400 });
   const batch = parsedBatch.value;
 
-  const ids = listKobeVnidsToDownload(batch);
+  const ids = listAliceNetVnidsToDownload(batch);
   let processed = 0;
   try {
     for (const vnId of ids) {
@@ -38,10 +38,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (err) {
     // Sanitize: log details server-side, return a generic JSON error so
     // upstream network/proxy messages don't surface in the response body.
-    console.error('[alicesoft-kobe/download-vndb] upstream error:', (err as Error).message);
+    console.error('[alicenet/download-vndb] upstream error:', (err as Error).message);
     return NextResponse.json({ error: 'upstream error', processed }, { status: 502 });
   }
 
-  const { vndb_pending } = countKobeDownloadPending();
+  const { vndb_pending } = countAliceNetDownloadPending();
   return NextResponse.json({ processed, remaining: vndb_pending });
 }
