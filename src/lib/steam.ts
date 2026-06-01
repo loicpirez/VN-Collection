@@ -2,6 +2,7 @@ import 'server-only';
 import { getAppSetting } from './db';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { safeFetch } from './safe-fetch';
+import { decodeSteamOwnedGamesResponse } from './steam-owned-games-shape';
 
 /**
  * Steam playtime sync — scaffolded. The runtime hits the public WebAPI
@@ -70,17 +71,15 @@ export async function fetchOwnedGames(): Promise<SteamPlaytime[]> {
     throw new Error(`Steam fetch failed: ${(e as Error).message.replace(/key=[^&\s]+/g, 'key=***')}`);
   }
   if (!res.ok) throw new Error(`Steam HTTP ${res.status}`);
-  let data: { response?: { games?: { appid: number; name: string; playtime_forever: number }[] } };
+  let data: unknown;
   try {
-    data = (await res.json()) as typeof data;
+    data = await res.json();
   } catch {
     throw new Error('Steam response is not valid JSON (maintenance page?)');
   }
-  return (data.response?.games ?? []).map((g) => ({
-    appid: g.appid,
-    name: g.name,
-    minutes: g.playtime_forever,
-  }));
+  const games = decodeSteamOwnedGamesResponse(data);
+  if (!games) throw new Error('Steam response has an invalid payload shape');
+  return games;
 }
 
 /**
@@ -101,8 +100,16 @@ export interface SteamSuggestion {
 
 import { db, getSteamLinkForVn, listSteamLinks, markSteamSynced, setSteamLink } from './db';
 import { cachedFetch, TTL } from './vndb-cache';
+import { decodeSteamReleaseResults } from './vndb-feed-cache-shape';
 
 const VNDB_API = 'https://api.vndb.org/kana';
+
+/** VNDB release row used to auto-detect Steam application links. */
+export interface SteamReleaseLinkRow {
+  title: string;
+  extlinks: { url: string; name: string; id?: string | number }[];
+  vns: { id: string }[];
+}
 
 /**
  * VNDB's VN.extlinks aggregator does *not* include Steam — those links
@@ -133,7 +140,7 @@ async function fetchSteamLinksForCollection(): Promise<Map<string, { appid: numb
       fields: 'title, extlinks{url,name,id}, vns{id}',
       results: 100,
     };
-    const r = await cachedFetch<{ results: { title: string; extlinks: { url: string; name: string; id?: string | number }[]; vns: { id: string }[] }[] }>(
+    const r = await cachedFetch<{ results: SteamReleaseLinkRow[] }>(
       `${VNDB_API}/release`,
       {
         __pathTag: 'POST /release:steam',
@@ -141,7 +148,7 @@ async function fetchSteamLinksForCollection(): Promise<Map<string, { appid: numb
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       },
-      { ttlMs: TTL.releases },
+      { ttlMs: TTL.releases, decode: decodeSteamReleaseResults },
     );
     for (const rel of r.data.results) {
       const steamLink = rel.extlinks.find((l) => l.name === 'steam');
@@ -192,14 +199,21 @@ export async function computeSteamSuggestions(steamGames: SteamPlaytime[]): Prom
 
   // Pull title + current playtime for every linked VN in one query.
   const ids = links.map((l) => l.vn_id);
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = db
-    .prepare(`
-      SELECT v.id AS vn_id, v.title AS vn_title, c.playtime_minutes AS current
-      FROM collection c JOIN vn v ON v.id = c.vn_id
-      WHERE c.vn_id IN (${placeholders})
-    `)
-    .all(...ids) as Array<{ vn_id: string; vn_title: string; current: number | null }>;
+  const rows: Array<{ vn_id: string; vn_title: string; current: number | null }> = [];
+  const CHUNK = 500;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    rows.push(
+      ...(db
+        .prepare(`
+          SELECT v.id AS vn_id, v.title AS vn_title, c.playtime_minutes AS current
+          FROM collection c JOIN vn v ON v.id = c.vn_id
+          WHERE c.vn_id IN (${placeholders})
+        `)
+        .all(...chunk) as typeof rows),
+    );
+  }
   const titles = new Map(rows.map((r) => [r.vn_id, { title: r.vn_title, current: r.current ?? 0 }]));
 
   const out: SteamSuggestion[] = [];
