@@ -22,6 +22,7 @@ import {
   updateOwnedRelease,
 } from '@/lib/db';
 import { derivePlatformDisplay } from '@/lib/platform-display';
+import { vndbReleaseFixture, type VndbReleaseFixtureInput } from './fixtures/vndb-release';
 
 listShelves();
 const db = new Database(process.env.DB_PATH!);
@@ -43,12 +44,12 @@ function seedVn(id: string, platforms: string[]): void {
   ).run(id, id, JSON.stringify(platforms), JSON.stringify(['ja']), Date.now());
 }
 
-function seedReleasePayload(releases: unknown[]): void {
+function seedReleasePayload(releases: VndbReleaseFixtureInput[]): void {
   const key = `POST /release|POST|aa11${Math.random().toString(16).slice(2, 10)}`;
   db.prepare(
     `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at)
      VALUES (?, ?, ?, ?)`,
-  ).run(key, JSON.stringify({ results: releases }), Date.now(), Date.now() + 3600 * 1000);
+  ).run(key, JSON.stringify({ results: releases.map(vndbReleaseFixture) }), Date.now(), Date.now() + 3600 * 1000);
 }
 
 interface JoinedSlot {

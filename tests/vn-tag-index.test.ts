@@ -14,7 +14,7 @@
  */
 import Database from 'better-sqlite3';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { addToCollection, listCollection, listKnownPlaces, setVnPublishers, updateCollection, upsertProducer, upsertVn } from '@/lib/db';
+import { addToCollection, getCollectionItem, listCollection, listKnownPlaces, markReleaseOwned, setVnPublishers, updateCollection, upsertProducer, upsertVn } from '@/lib/db';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -168,5 +168,26 @@ describe('R5-138 — listCollection filters via derived indexes', () => {
     updateCollection('v9305', { physical_location: ['Shelf C'] });
     expect(listCollection({ place: 'Shelf A' }).map((it) => it.id)).not.toContain('v9305');
     expect(listCollection({ place: 'Shelf C' }).map((it) => it.id)).toEqual(['v9305']);
+  });
+
+  it('drops malformed persisted place values and caps rebuilt index rows', () => {
+    upsertVn({ id: 'v9311', title: 'fixture-place-corrupt' });
+    addToCollection('v9311', { status: 'planning' });
+    db.prepare('UPDATE collection SET physical_location = ? WHERE vn_id = ?').run(
+      JSON.stringify([{ bad: true }, ' Shelf A ', ...Array.from({ length: 40 }, (_, index) => `Place ${index}`), 'x'.repeat(240)]),
+      'v9311',
+    );
+    markReleaseOwned('v9311', 'synthetic:v9311');
+
+    const places = getCollectionItem('v9311')?.physical_location ?? [];
+    expect(places).toHaveLength(32);
+    expect(places[0]).toBe('Shelf A');
+    expect(places).not.toContain('[object Object]');
+    expect(places.every((place) => place.length <= 200)).toBe(true);
+    expect(
+      db.prepare('SELECT place FROM collection_place_index WHERE vn_id = ? ORDER BY place').all('v9311'),
+    ).toHaveLength(32);
+    db.prepare('UPDATE collection SET physical_location = ? WHERE vn_id = ?').run(JSON.stringify({ bad: true }), 'v9311');
+    expect(getCollectionItem('v9311')?.physical_location).toEqual([]);
   });
 });

@@ -25,6 +25,7 @@ import {
   materializeReleaseMetaForVn,
   getReleaseMeta,
 } from '@/lib/db';
+import { vndbReleaseFixture, type VndbReleaseFixtureInput } from './fixtures/vndb-release';
 
 listShelves();
 const db = new Database(process.env.DB_PATH!);
@@ -52,12 +53,12 @@ function seedOwnedRelease(vnId: string, releaseId: string): void {
   ).run(vnId, releaseId, Date.now());
 }
 
-function seedReleasePayload(vnId: string, releases: unknown[]): void {
+function seedReleasePayload(vnId: string, releases: VndbReleaseFixtureInput[]): void {
   const key = `POST /release|POST|cafe${Math.random().toString(16).slice(2, 10)}`;
   db.prepare(
     `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at)
      VALUES (?, ?, ?, ?)`,
-  ).run(key, JSON.stringify({ results: releases }), Date.now(), Date.now() + 3600 * 1000);
+  ).run(key, JSON.stringify({ results: releases.map(vndbReleaseFixture) }), Date.now(), Date.now() + 3600 * 1000);
   void vnId;
 }
 
@@ -95,11 +96,14 @@ describe('per-release metadata cache', () => {
     expect(r1).toBeDefined();
     expect(r2).toBeDefined();
     expect(r1!.platforms).toEqual(['win']);
-    expect(r1!.languages).toEqual([{ lang: 'ja', main: true }]);
+    expect(r1!.languages).toEqual([{ lang: 'ja', title: null, latin: null, mtl: false, main: true }]);
     expect(r1!.released).toBe('2024-06-15');
     expect(r1!.resolution).toBe('1920x1080');
     expect(r2!.platforms).toEqual(['psv']);
-    expect(r2!.languages).toEqual([{ lang: 'ja' }, { lang: 'en' }]);
+    expect(r2!.languages).toEqual([
+      { lang: 'ja', title: null, latin: null, mtl: false, main: false },
+      { lang: 'en', title: null, latin: null, mtl: false, main: false },
+    ]);
     expect(r2!.released).toBe('2024-09-01');
   });
 

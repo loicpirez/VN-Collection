@@ -28,6 +28,7 @@ import {
   setVnAspectOverride,
   upsertReleaseResolutionCache,
 } from '@/lib/db';
+import { vndbReleaseFixture } from './fixtures/vndb-release';
 
 // Force schema bootstrap.
 listShelves();
@@ -169,11 +170,11 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
       cacheKey,
       JSON.stringify({
         results: [
-          {
+          vndbReleaseFixture({
             id: 'r90008',
             resolution: [1280, 720],
             vns: [{ id: 'v90008' }],
-          },
+          }),
         ],
       }),
       Date.now(),
@@ -201,7 +202,7 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
        VALUES (?, ?, ?, ?)`,
     ).run(
       'POST /release|POST|9009',
-      JSON.stringify({ results: [{ id: 'r90009', resolution: [1280, 720], vns: [{ id: 'v90009' }] }] }),
+      JSON.stringify({ results: [vndbReleaseFixture({ id: 'r90009', resolution: [1280, 720], vns: [{ id: 'v90009' }] })] }),
       Date.now(),
       Date.now() + 3600 * 1000,
     );
@@ -262,7 +263,7 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
        VALUES (?, ?, ?, ?)`,
     ).run(
       'POST /release|POST|9010',
-      JSON.stringify({ results: [{ id: 'r90010-new', resolution: [800, 600], vns: [{ id: 'v90010' }] }] }),
+      JSON.stringify({ results: [vndbReleaseFixture({ id: 'r90010-new', resolution: [800, 600], vns: [{ id: 'v90010' }] })] }),
       Date.now(),
       Date.now() + 3600 * 1000,
     );
@@ -294,8 +295,8 @@ describe('aspect filter end-to-end (?aspect=…)', () => {
       'POST /release|POST|90016aspecthex',
       JSON.stringify({
         results: [
-          { id: 'r900161', resolution: [1280, 720], vns: [{ id: 'v90016' }] },
-          { id: 'r900162', resolution: [1280, 720], vns: [{ id: 'v90016' }] },
+          vndbReleaseFixture({ id: 'r900161', resolution: [1280, 720], vns: [{ id: 'v90016' }] }),
+          vndbReleaseFixture({ id: 'r900162', resolution: [1280, 720], vns: [{ id: 'v90016' }] }),
         ],
       }),
       Date.now(),

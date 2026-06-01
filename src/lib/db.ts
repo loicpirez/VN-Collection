@@ -9,6 +9,7 @@ import {
   LOCATIONS,
   BOX_TYPES,
   type BoxType,
+  type CollectionCardItem,
   type CollectionFields,
   type CollectionItem,
   type EditionType,
@@ -32,6 +33,33 @@ import {
   type AspectKey,
 } from './aspect-ratio';
 import { decodeStoredExtras, type ErogePriceExtrasV1 } from './erogeprice-meta';
+import { STOCK_PROVIDER_IDS, type StockProviderId } from './stock-provider-constants';
+import { decodeVndbCharacter } from './vndb-character-row-shape';
+import type { VndbCharacter } from './vndb';
+import { decodeVndbRelease } from './vndb-release-shape';
+import type { VndbRelease } from './vndb-types';
+import {
+  decodePersistedProducerSummaries,
+  isPersistedEditions,
+  isPersistedExtlinks,
+  isPersistedProducerSummaries,
+  isPersistedRelations,
+  isPersistedReleaseImages,
+  isPersistedScreenshots,
+  isPersistedStaff,
+  isPersistedStringArray,
+  isPersistedTags,
+  isPersistedTitles,
+  isPersistedVa,
+} from './vn-persisted-json-shape';
+import {
+  decodeMigratableProducerIds,
+  decodeMigratableStaffCredits,
+  decodeMigratableStringValues,
+  decodeMigratableTagIndexRows,
+  decodeMigratableVaCredits,
+  decodeStaffCreditIndexPayload,
+} from './vn-index-migration-shape';
 
 /**
  * Lazy resolution of the SQLite path. Both absolute and `cwd`-
@@ -820,9 +848,13 @@ function open(): Database.Database {
     CREATE TABLE IF NOT EXISTS stock_batch_job (
       id           TEXT PRIMARY KEY,
       label        TEXT NOT NULL,
+      label_code   TEXT,
+      label_params_json TEXT,
       total        INTEGER NOT NULL,
       done         INTEGER NOT NULL DEFAULT 0,
       current_item TEXT,
+      current_item_code TEXT,
+      current_item_params_json TEXT,
       errors_json  TEXT NOT NULL DEFAULT '[]',
       started_at   INTEGER NOT NULL,
       finished_at  INTEGER,
@@ -881,6 +913,7 @@ function open(): Database.Database {
   ensureColumn(db, 'collection', 'box_type', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'collection', 'download_url', 'TEXT');
   ensureColumn(db, 'collection', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'collection', 'dumped_ignored', 'INTEGER NOT NULL DEFAULT 0');
   // User-authored synopsis — overrides VNDB / EGS when non-null. Persists
   // VNDB BBCode / Markdown verbatim; the renderer strips formatting.
   ensureColumn(db, 'collection', 'custom_description', 'TEXT');
@@ -1224,6 +1257,10 @@ function open(): Database.Database {
   ensureColumn(db, 'vn_stock_provider_status', 'extras_json', 'TEXT');
   ensureColumn(db, 'vn_stock_source', 'release_id', 'TEXT');
   ensureColumn(db, 'vn_stock_source', 'product_id', 'TEXT');
+  ensureColumn(db, 'stock_batch_job', 'label_code', 'TEXT');
+  ensureColumn(db, 'stock_batch_job', 'label_params_json', 'TEXT');
+  ensureColumn(db, 'stock_batch_job', 'current_item_code', 'TEXT');
+  ensureColumn(db, 'stock_batch_job', 'current_item_params_json', 'TEXT');
   ensureColumn(db, 'place_registry', 'kind', "TEXT NOT NULL DEFAULT 'shop'");
 
   db.exec(`
@@ -1289,37 +1326,35 @@ function open(): Database.Database {
     `);
     db.transaction(() => {
       for (const r of rows) {
-        delStaff.run(r.id);
-        delVa.run(r.id);
-        // Surface parse failures during the one-shot migration so a
-        // corrupt JSON column doesn't silently zero out a row's
-        // credits — without this every row with bad JSON quietly
-        // dropped all its staff / VA links.
-        const staff = safeJsonParse<StaffEntry[]>(r.staff, [], undefined, (e) =>
-          console.warn(`[migrate] vn ${r.id} has malformed staff JSON: ${(e as Error).message}`),
-        );
-        const va = safeJsonParse<VaEntry[]>(r.va, [], undefined, (e) =>
-          console.warn(`[migrate] vn ${r.id} has malformed va JSON: ${(e as Error).message}`),
-        );
-        for (const s of staff) {
-          if (!s?.id || !s.name) continue;
-          insStaff.run(r.id, s.id, s.aid ?? null, s.eid ?? null, s.role ?? '', s.note ?? null, s.name, s.original ?? null, s.lang ?? null);
+        const staff = decodeMigratableStaffCredits(r.staff);
+        if (staff) {
+          delStaff.run(r.id);
+          for (const s of staff) {
+            insStaff.run(r.id, s.id, s.aid, s.eid, s.role, s.note, s.name, s.original, s.lang);
+          }
+        } else {
+          console.warn(`[migrate] vn ${r.id} has malformed staff JSON`);
         }
-        for (const v of va) {
-          if (!v?.staff?.id || !v.character?.id || !v.character.name || !v.staff.name) continue;
-          insVa.run(
-            r.id,
-            v.staff.id,
-            v.staff.aid ?? null,
-            v.character.id,
-            v.character.name,
-            v.character.original ?? null,
-            v.character.image?.url ?? null,
-            v.staff.name,
-            v.staff.original ?? null,
-            v.staff.lang ?? null,
-            v.note ?? null,
-          );
+        const va = decodeMigratableVaCredits(r.va);
+        if (va) {
+          delVa.run(r.id);
+          for (const v of va) {
+            insVa.run(
+              r.id,
+              v.staff.id,
+              v.staff.aid,
+              v.character.id,
+              v.character.name,
+              v.character.original,
+              v.character.imageUrl,
+              v.staff.name,
+              v.staff.original,
+              v.staff.lang,
+              v.note,
+            );
+          }
+        } else {
+          console.warn(`[migrate] vn ${r.id} has malformed va JSON`);
         }
       }
       db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('staff_va_credits_v1', '1')`).run();
@@ -1334,10 +1369,6 @@ function open(): Database.Database {
     .prepare(`SELECT value FROM app_setting WHERE key = 'staff_credit_index_v1'`)
     .get() as { value: string | null } | undefined)?.value;
   if (staffCreditIndexBackfilled !== '1') {
-    interface StaffFullBody {
-      productionCredits?: Array<{ id?: string }>;
-      vaCredits?: Array<{ id?: string }>;
-    }
     const rows = db
       .prepare(`SELECT cache_key, body FROM vndb_cache WHERE cache_key LIKE 'staff_full:%'`)
       .all() as { cache_key: string; body: string }[];
@@ -1346,17 +1377,14 @@ function open(): Database.Database {
     db.transaction(() => {
       for (const r of rows) {
         const sid = r.cache_key.replace('staff_full:', '');
-        let parseFailed = false;
-        const payload = safeJsonParse<StaffFullBody>(r.body, {}, undefined, () => {
-          parseFailed = true;
-        });
-        if (parseFailed) continue;
+        const payload = decodeStaffCreditIndexPayload(r.body);
+        if (!payload) continue;
         del.run(sid);
-        for (const c of payload.productionCredits ?? []) {
-          if (c.id) ins.run(sid, c.id, 0);
+        for (const id of payload.productionIds) {
+          ins.run(sid, id, 0);
         }
-        for (const c of payload.vaCredits ?? []) {
-          if (c.id) ins.run(sid, c.id, 1);
+        for (const id of payload.vaIds) {
+          ins.run(sid, id, 1);
         }
       }
       db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('staff_credit_index_v1', '1')`).run();
@@ -1381,58 +1409,32 @@ function open(): Database.Database {
     const insPub = db.prepare('INSERT OR IGNORE INTO vn_publisher_index (vn_id, producer_id) VALUES (?, ?)');
     db.transaction(() => {
       for (const r of rows) {
-        delTag.run(r.id);
-        delDev.run(r.id);
-        delPub.run(r.id);
-        // Surface parse failures so a single corrupt row doesn't
-        // silently zero out an entire index. The surrounding try
-        // still guards a parseable-but-non-iterable body; safeJsonParse
-        // reports the parse-error path with the same message.
-        try {
-          const tags = safeJsonParse<Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }>>(
-            r.tags,
-            [],
-            undefined,
-            (e) => console.warn(`[migrate] vn ${r.id} has malformed tags JSON: ${(e as Error).message}`),
-          );
+        const tags = decodeMigratableTagIndexRows(r.tags);
+        if (tags) {
+          delTag.run(r.id);
           for (const t of tags) {
-            const id = typeof t?.id === 'string' ? t.id : null;
-            if (!id) continue;
-            const name = typeof t.name === 'string' && t.name.trim().length > 0 ? t.name : id;
-            const spoiler = typeof t.spoiler === 'number' ? t.spoiler : 0;
-            const category = typeof t.category === 'string' ? t.category : null;
-            insTag.run(r.id, id, name, spoiler, category);
+            insTag.run(r.id, t.id, t.name, t.spoiler, t.category);
           }
-        } catch (e) {
-          console.warn(`[migrate] vn ${r.id} has malformed tags JSON: ${(e as Error).message}`);
+        } else {
+          console.warn(`[migrate] vn ${r.id} has malformed tags JSON`);
         }
-        try {
-          const devs = safeJsonParse<Array<{ id?: unknown }>>(
-            r.developers,
-            [],
-            undefined,
-            (e) => console.warn(`[migrate] vn ${r.id} has malformed developers JSON: ${(e as Error).message}`),
-          );
-          for (const d of devs) {
-            const id = typeof d?.id === 'string' ? d.id : null;
-            if (id) insDev.run(r.id, id);
+        const developers = decodeMigratableProducerIds(r.developers);
+        if (developers) {
+          delDev.run(r.id);
+          for (const id of developers) {
+            insDev.run(r.id, id);
           }
-        } catch (e) {
-          console.warn(`[migrate] vn ${r.id} has malformed developers JSON: ${(e as Error).message}`);
+        } else {
+          console.warn(`[migrate] vn ${r.id} has malformed developers JSON`);
         }
-        try {
-          const pubs = safeJsonParse<Array<{ id?: unknown }>>(
-            r.publishers,
-            [],
-            undefined,
-            (e) => console.warn(`[migrate] vn ${r.id} has malformed publishers JSON: ${(e as Error).message}`),
-          );
-          for (const p of pubs) {
-            const id = typeof p?.id === 'string' ? p.id : null;
-            if (id) insPub.run(r.id, id);
+        const publishers = decodeMigratableProducerIds(r.publishers);
+        if (publishers) {
+          delPub.run(r.id);
+          for (const id of publishers) {
+            insPub.run(r.id, id);
           }
-        } catch (e) {
-          console.warn(`[migrate] vn ${r.id} has malformed publishers JSON: ${(e as Error).message}`);
+        } else {
+          console.warn(`[migrate] vn ${r.id} has malformed publishers JSON`);
         }
       }
       db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_tag_index_v1', '1')`).run();
@@ -1453,32 +1455,14 @@ function open(): Database.Database {
     );
     db.transaction(() => {
       for (const r of rows) {
-        // delTag runs only when the parse itself succeeds (it sits
-        // after the parse in the original), so a parse failure skips
-        // the row outright instead of clearing its tag index.
-        let parseFailed = false;
-        const tags = safeJsonParse<Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }>>(
-          r.tags,
-          [],
-          undefined,
-          (e) => {
-            parseFailed = true;
-            console.warn(`[migrate] vn ${r.id} has malformed tags JSON: ${(e as Error).message}`);
-          },
-        );
-        if (parseFailed) continue;
-        try {
+        const tags = decodeMigratableTagIndexRows(r.tags);
+        if (tags) {
           delTag.run(r.id);
           for (const t of tags) {
-            const id = typeof t?.id === 'string' ? t.id : null;
-            if (!id) continue;
-            const name = typeof t.name === 'string' && t.name.trim().length > 0 ? t.name : id;
-            const spoiler = typeof t.spoiler === 'number' ? t.spoiler : 0;
-            const category = typeof t.category === 'string' ? t.category : null;
-            insTag.run(r.id, id, name, spoiler, category);
+            insTag.run(r.id, t.id, t.name, t.spoiler, t.category);
           }
-        } catch (e) {
-          console.warn(`[migrate] vn ${r.id} has malformed tags JSON: ${(e as Error).message}`);
+        } else {
+          console.warn(`[migrate] vn ${r.id} has malformed tags JSON`);
         }
       }
       db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_tag_index_tag_name_v1', '1')`).run();
@@ -1498,33 +1482,23 @@ function open(): Database.Database {
     const insPlat = db.prepare('INSERT OR IGNORE INTO vn_platform_index (vn_id, platform) VALUES (?, ?)');
     db.transaction(() => {
       for (const r of rows) {
-        delLang.run(r.id);
-        delPlat.run(r.id);
-        try {
-          const langs = safeJsonParse<unknown[]>(
-            r.languages,
-            [],
-            undefined,
-            (e) => console.warn(`[migrate] vn ${r.id} has malformed languages JSON: ${(e as Error).message}`),
-          );
-          for (const lang of langs) {
-            if (typeof lang === 'string' && lang.length > 0) insLang.run(r.id, lang);
+        const languages = decodeMigratableStringValues(r.languages);
+        if (languages) {
+          delLang.run(r.id);
+          for (const lang of languages) {
+            insLang.run(r.id, lang);
           }
-        } catch (e) {
-          console.warn(`[migrate] vn ${r.id} has malformed languages JSON: ${(e as Error).message}`);
+        } else {
+          console.warn(`[migrate] vn ${r.id} has malformed languages JSON`);
         }
-        try {
-          const plats = safeJsonParse<unknown[]>(
-            r.platforms,
-            [],
-            undefined,
-            (e) => console.warn(`[migrate] vn ${r.id} has malformed platforms JSON: ${(e as Error).message}`),
-          );
-          for (const plat of plats) {
-            if (typeof plat === 'string' && plat.length > 0) insPlat.run(r.id, plat);
+        const platforms = decodeMigratableStringValues(r.platforms);
+        if (platforms) {
+          delPlat.run(r.id);
+          for (const platform of platforms) {
+            insPlat.run(r.id, platform);
           }
-        } catch (e) {
-          console.warn(`[migrate] vn ${r.id} has malformed platforms JSON: ${(e as Error).message}`);
+        } else {
+          console.warn(`[migrate] vn ${r.id} has malformed platforms JSON`);
         }
       }
       db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_lang_platform_index_v1', '1')`).run();
@@ -1571,12 +1545,12 @@ export const db: Database.Database = new Proxy({} as Database.Database, {
 function parsePlaces(s: string | null | undefined): string[] {
   if (!s) return [];
   try {
-    const parsed = JSON.parse(s);
-    if (Array.isArray(parsed)) return parsed.filter(Boolean).map(String);
+    const parsed: unknown = JSON.parse(s);
+    return Array.isArray(parsed) ? normalizePlaces(parsed) : [];
   } catch {
     // legacy CSV
   }
-  return s.split(',').map((p) => p.trim()).filter(Boolean);
+  return normalizePlaces(s.split(','));
 }
 
 function serializePlaces(value: unknown): string | null {
@@ -1586,12 +1560,16 @@ function serializePlaces(value: unknown): string | null {
     : typeof value === 'string'
       ? value.split(',')
       : [];
-  const cleaned = arr
+  const cleaned = normalizePlaces(arr);
+  return cleaned.length ? JSON.stringify(cleaned) : null;
+}
+
+function normalizePlaces(values: unknown[]): string[] {
+  return values
     .map((v) => (typeof v === 'string' ? v.trim() : ''))
     .filter((v): v is string => v.length > 0)
     .slice(0, 32)
     .map((v) => v.slice(0, 200));
-  return cleaned.length ? JSON.stringify(cleaned) : null;
 }
 
 function rebuildVnPlaceIndex(vnId: string): void {
@@ -2163,7 +2141,8 @@ export function findCharacterSiblings(charId: string): CharacterSibling[] {
   for (const r of candidateOriginals) names.add(r.c_original);
   if (names.size === 0) return [];
 
-  const placeholders = Array.from(names).map(() => '?').join(',');
+  const nameList = Array.from(names).slice(0, 200);
+  const placeholders = nameList.map(() => '?').join(',');
   const rows = db
     .prepare(`
       SELECT va.c_id, va.c_name, va.c_original, va.c_image_url, va.vn_id, v.title AS vn_title
@@ -2174,7 +2153,7 @@ export function findCharacterSiblings(charId: string): CharacterSibling[] {
       ORDER BY v.released DESC NULLS LAST, va.c_id ASC
       LIMIT 200
     `)
-    .all(...Array.from(names), ...Array.from(names), charId) as Array<{
+    .all(...nameList, ...nameList, charId) as Array<{
       c_id: string;
       c_name: string;
       c_original: string | null;
@@ -2256,7 +2235,8 @@ export function findStaffSiblings(sid: string): StaffSibling[] {
   for (const r of vaOriginals) names.add(r.va_original);
   if (names.size === 0) return [];
 
-  const placeholders = Array.from(names).map(() => '?').join(',');
+  const nameList = Array.from(names).slice(0, 200);
+  const placeholders = nameList.map(() => '?').join(',');
   const rows = db
     .prepare(`
       SELECT sc.sid, sc.name, sc.original, sc.vn_id, v.title AS vn_title
@@ -2273,11 +2253,11 @@ export function findStaffSiblings(sid: string): StaffSibling[] {
       ORDER BY vn_title, sid
     `)
     .all(
-      ...Array.from(names),
-      ...Array.from(names),
+      ...nameList,
+      ...nameList,
       sid,
-      ...Array.from(names),
-      ...Array.from(names),
+      ...nameList,
+      ...nameList,
       sid,
     ) as Array<{ sid: string; name: string; original: string | null; vn_id: string; vn_title: string }>;
 
@@ -2423,11 +2403,15 @@ export function getCharacterImage(charId: string): CharacterImageRecord | null {
 export function getCharacterImages(charIds: string[]): Map<string, CharacterImageRecord> {
   const out = new Map<string, CharacterImageRecord>();
   if (charIds.length === 0) return out;
-  const placeholders = charIds.map(() => '?').join(',');
-  const rows = db
-    .prepare(`SELECT char_id, url, local_path, fetched_at FROM character_image WHERE char_id IN (${placeholders})`)
-    .all(...charIds) as (CharacterImageRecord & { char_id: string })[];
-  for (const r of rows) out.set(r.char_id, { url: r.url, local_path: r.local_path, fetched_at: r.fetched_at });
+  const CHUNK = 500;
+  for (let i = 0; i < charIds.length; i += CHUNK) {
+    const chunk = charIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT char_id, url, local_path, fetched_at FROM character_image WHERE char_id IN (${placeholders})`)
+      .all(...chunk) as (CharacterImageRecord & { char_id: string })[];
+    for (const r of rows) out.set(r.char_id, { url: r.url, local_path: r.local_path, fetched_at: r.fetched_at });
+  }
   return out;
 }
 
@@ -2603,6 +2587,7 @@ export interface EgsVnLink {
  */
 export function setVnEgsLink(vnId: string, egsId: number | null, note?: string | null): void {
   if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
+  const normalizedVnId = vnId.toLowerCase();
   if (egsId !== null && (!Number.isInteger(egsId) || egsId <= 0)) {
     throw new Error('invalid egs id');
   }
@@ -2613,20 +2598,20 @@ export function setVnEgsLink(vnId: string, egsId: number | null, note?: string |
        egs_id = excluded.egs_id,
        note = excluded.note,
        updated_at = excluded.updated_at`,
-  ).run(vnId, egsId, note ?? null, Date.now());
+  ).run(normalizedVnId, egsId, note ?? null, Date.now());
 }
 
 /** Read the manual VN → EGS pinning row, or `null` when unset. */
 export function getVnEgsLink(vnId: string): VnEgsLink | null {
   const row = db
     .prepare('SELECT vn_id, egs_id, note, updated_at FROM vn_egs_link WHERE vn_id = ?')
-    .get(vnId) as VnEgsLink | undefined;
+    .get(vnId.toLowerCase()) as VnEgsLink | undefined;
   return row ?? null;
 }
 
 /** Drop the manual VN → EGS pinning row so the auto-resolver gets another shot. */
 export function clearVnEgsLink(vnId: string): void {
-  db.prepare('DELETE FROM vn_egs_link WHERE vn_id = ?').run(vnId);
+  db.prepare('DELETE FROM vn_egs_link WHERE vn_id = ?').run(vnId.toLowerCase());
 }
 
 /**
@@ -2644,7 +2629,7 @@ export function setEgsVnLink(egsId: number, vnId: string | null, note?: string |
        vn_id = excluded.vn_id,
        note = excluded.note,
        updated_at = excluded.updated_at`,
-  ).run(egsId, vnId, note ?? null, Date.now());
+  ).run(egsId, vnId?.toLowerCase() ?? null, note ?? null, Date.now());
 }
 
 /** Read the manual EGS → VN pinning row for one EGS id, or `null` when unset. */
@@ -2692,13 +2677,7 @@ export function getSourcePref(vnId: string): SourcePrefMap {
     .prepare('SELECT source_pref FROM collection WHERE vn_id = ?')
     .get(vnId) as { source_pref: string | null } | undefined;
   if (!row?.source_pref) return {};
-  try {
-    const parsed = JSON.parse(row.source_pref) as unknown;
-    if (parsed && typeof parsed === 'object') return parsed as SourcePrefMap;
-  } catch {
-    // ignore — malformed JSON, treat as empty
-  }
-  return {};
+  return safeJsonParse(row.source_pref, {}, isSourcePrefMap);
 }
 
 export interface DbStatus {
@@ -3147,8 +3126,8 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
       INSERT INTO collection (vn_id, status, user_rating, playtime_minutes,
                               started_date, finished_date, notes, favorite,
                               location, edition_type, edition_label, physical_location,
-                              box_type, download_url, dumped, added_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              box_type, download_url, dumped, dumped_ignored, added_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       vnId,
       fields.status ?? 'planning',
@@ -3165,6 +3144,7 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
       fields.box_type ?? 'none',
       fields.download_url ?? null,
       fields.dumped ? 1 : 0,
+      fields.dumped_ignored ? 1 : 0,
       now,
       now,
     );
@@ -3199,6 +3179,7 @@ function buildUpdateCollectionTx(): (vnId: string, fields: CollectionPatch) => v
     box_type: (v) => v,
     download_url: (v) => v,
     dumped: (v) => (v ? 1 : 0),
+    dumped_ignored: (v) => (v ? 1 : 0),
   };
 
   // Snapshot the columns we may diff against before the UPDATE so the activity
@@ -3500,12 +3481,7 @@ export function deleteGameLogEntry(vnId: string, id: number): boolean {
 }
 
 function safeParseJson(s: string): Record<string, unknown> | null {
-  try {
-    const v = JSON.parse(s);
-    return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
-  } catch {
-    return null;
-  }
+  return safeJsonParse(s, null, isJsonRecord);
 }
 
 /**
@@ -3640,6 +3616,7 @@ interface DbRow {
   box_type?: string;
   download_url?: string | null;
   dumped?: number;
+  dumped_ignored?: number;
   custom_description?: string | null;
   added_at?: number;
   updated_at?: number;
@@ -3682,6 +3659,33 @@ function safeJsonParse<T>(
   return parsed as T;
 }
 
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length <= 5000 && value.every((entry) => typeof entry === 'string');
+}
+
+function isSourcePrefMap(value: unknown): value is SourcePrefMap {
+  if (!isJsonRecord(value)) return false;
+  const fields = new Set<SourceField>(['title', 'description', 'image', 'brand', 'rating', 'playtime']);
+  const choices = new Set<SourceChoice>(['auto', 'vndb', 'egs', 'custom']);
+  return Object.entries(value).every(([field, choice]) => fields.has(field as SourceField) && choices.has(choice as SourceChoice));
+}
+
+function isReleaseCacheBody(value: unknown): value is { results?: unknown[] } {
+  return isJsonRecord(value) && (value.results === undefined || Array.isArray(value.results));
+}
+
+function isScreenshotRows(value: unknown): value is Array<{ dims?: [number, number] }> {
+  if (!Array.isArray(value) || value.length > 5000) return false;
+  return value.every((row) => {
+    if (!isJsonRecord(row) || row.dims === undefined) return isJsonRecord(row);
+    return Array.isArray(row.dims) && row.dims.length === 2 && row.dims.every((dimension) => typeof dimension === 'number');
+  });
+}
+
 /**
  * P-182 — define an enumerable, lazily-parsed JSON property on `obj`
  * whose `safeJsonParse` cost is paid only on first read. On first
@@ -3694,12 +3698,18 @@ function safeJsonParse<T>(
  * in the source order of the original object literal so enumeration
  * order — and therefore `JSON.stringify` output — is unchanged.
  */
-function defineLazyJson<T>(obj: object, key: string, raw: string | null | undefined, fallback: T): void {
+function defineLazyJson<T>(
+  obj: object,
+  key: string,
+  raw: string | null | undefined,
+  fallback: T,
+  validate?: (value: unknown) => value is T,
+): void {
   Object.defineProperty(obj, key, {
     configurable: true,
     enumerable: true,
     get(): T {
-      const value = safeJsonParse<T>(raw, fallback);
+      const value = safeJsonParse<T>(raw, fallback, validate);
       Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true });
       return value;
     },
@@ -3721,18 +3731,18 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
   item.image_violence = row.image_violence;
   item.released = row.released;
   item.olang = row.olang;
-  defineLazyJson(item, 'languages', row.languages, [] as string[]);
-  defineLazyJson(item, 'platforms', row.platforms, [] as string[]);
+  defineLazyJson(item, 'languages', row.languages, [] as string[], isPersistedStringArray);
+  defineLazyJson(item, 'platforms', row.platforms, [] as string[], isPersistedStringArray);
   item.length_minutes = row.length_minutes;
   item.length = row.length;
   item.rating = row.rating;
   item.votecount = row.votecount;
   item.description = row.description;
-  defineLazyJson(item, 'developers', row.developers, [] as { id: string; name: string }[]);
-  defineLazyJson(item, 'publishers', row.publishers, [] as { id: string; name: string }[]);
-  defineLazyJson(item, 'tags', row.tags, [] as CollectionItem['tags']);
-  defineLazyJson(item, 'screenshots', row.screenshots, [] as CollectionItem['screenshots']);
-  defineLazyJson(item, 'release_images', row.release_images, [] as CollectionItem['release_images']);
+  defineLazyJson(item, 'developers', row.developers, [] as { id: string; name: string }[], isPersistedProducerSummaries);
+  defineLazyJson(item, 'publishers', row.publishers, [] as { id: string; name: string }[], isPersistedProducerSummaries);
+  defineLazyJson(item, 'tags', row.tags, [] as CollectionItem['tags'], isPersistedTags);
+  defineLazyJson(item, 'screenshots', row.screenshots, [] as CollectionItem['screenshots'], isPersistedScreenshots);
+  defineLazyJson(item, 'release_images', row.release_images, [] as CollectionItem['release_images'], isPersistedReleaseImages);
   item.local_image = row.local_image;
   item.local_image_thumb = row.local_image_thumb;
   item.custom_cover = row.custom_cover;
@@ -3740,17 +3750,17 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
   item.banner_position = row.banner_position;
   item.cover_rotation = normalizeRotation(row.cover_rotation);
   item.banner_rotation = normalizeRotation(row.banner_rotation);
-  defineLazyJson(item, 'relations', row.relations, [] as CollectionItem['relations']);
-  defineLazyJson(item, 'aliases', row.aliases, [] as string[]);
-  defineLazyJson(item, 'extlinks', row.extlinks, [] as CollectionItem['extlinks']);
+  defineLazyJson(item, 'relations', row.relations, [] as CollectionItem['relations'], isPersistedRelations);
+  defineLazyJson(item, 'aliases', row.aliases, [] as string[], isPersistedStringArray);
+  defineLazyJson(item, 'extlinks', row.extlinks, [] as CollectionItem['extlinks'], isPersistedExtlinks);
   item.length_votes = row.length_votes ?? null;
   item.average = row.average ?? null;
   item.has_anime = row.has_anime == null ? null : !!row.has_anime;
   item.devstatus = row.devstatus == null ? null : (row.devstatus as 0 | 1 | 2);
-  defineLazyJson(item, 'titles', row.titles, [] as CollectionItem['titles']);
-  defineLazyJson(item, 'editions', row.editions, [] as CollectionItem['editions']);
-  defineLazyJson(item, 'staff', row.staff, [] as CollectionItem['staff']);
-  defineLazyJson(item, 'va', row.va, [] as CollectionItem['va']);
+  defineLazyJson(item, 'titles', row.titles, [] as CollectionItem['titles'], isPersistedTitles);
+  defineLazyJson(item, 'editions', row.editions, [] as CollectionItem['editions'], isPersistedEditions);
+  defineLazyJson(item, 'staff', row.staff, [] as CollectionItem['staff'], isPersistedStaff);
+  defineLazyJson(item, 'va', row.va, [] as CollectionItem['va'], isPersistedVa);
   item.fetched_at = row.fetched_at;
   item.status = row.status as Status | undefined;
   item.user_rating = row.user_rating ?? null;
@@ -3766,6 +3776,7 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
   item.box_type = (row.box_type as BoxType | undefined) ?? 'none';
   item.download_url = row.download_url ?? null;
   item.dumped = !!row.dumped;
+  item.dumped_ignored = !!row.dumped_ignored;
   item.custom_description = row.custom_description ?? null;
   item.added_at = row.added_at;
   item.updated_at = row.updated_at;
@@ -4254,7 +4265,7 @@ export function listCollection({
       SELECT ${vnProjection}, c.status, c.user_rating, c.playtime_minutes, c.started_date,
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
              c.edition_label, c.physical_location, c.box_type, c.download_url,
-             c.dumped, c.custom_description, c.added_at, c.updated_at
+             c.dumped, c.dumped_ignored, c.custom_description, c.added_at, c.updated_at
       FROM collection c JOIN vn v ON v.id = c.vn_id
       ${join}
       ${whereSql}
@@ -4303,24 +4314,38 @@ export function listCollection({
  * `platforms`, `olang`, `devstatus`, `length`, `length_votes`,
  * `votecount`, `average`, `has_anime`, `image_violence`.
  *
- * The return shape is still `CollectionItem[]` so the existing
- * `cardData` / library-grid pipeline doesn't have to learn a new
- * type. The skipped fields appear as `null` / `[]` / `''` in the
- * result, which is exactly what the card renderer expects when
- * the underlying data is empty.
- *
  * Use this for any surface that ONLY renders the library /
  * shelf grid. Surfaces that need the full payload (`/lists/[id]`,
  * `/series/[id]`, `/api/export`, recommend) keep calling
  * `listCollection` directly.
  */
-/**
- * Lightweight variant of `listCollection` used by card grids: returns the
- * same `CollectionItem` shape but only projects the columns the cards need.
- * Heavier surfaces (`/series/[id]`, exports, recommend) call `listCollection`.
- */
-export function listCollectionForCards(opts: ListOptions = {}): CollectionItem[] {
-  return listCollection({ ...opts, _projection: 'cards' });
+/** Lightweight variant of `listCollection` used by card grids. */
+export function listCollectionForCards(opts: ListOptions = {}): CollectionCardItem[] {
+  return listCollection({ ...opts, _projection: 'cards' }).map((item) => {
+    const {
+      image_violence,
+      olang,
+      languages,
+      platforms,
+      length,
+      votecount,
+      description,
+      screenshots,
+      release_images,
+      aliases,
+      extlinks,
+      length_votes,
+      average,
+      has_anime,
+      devstatus,
+      titles,
+      editions,
+      staff,
+      va,
+      ...cardItem
+    } = item;
+    return cardItem;
+  });
 }
 
 function listPlacesForVnsMany(vnIds: string[]): Map<string, string[]> {
@@ -4457,18 +4482,19 @@ function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {
  * once it grows past `RELEASE_PARSE_MEMO_CAP`, which only costs a
  * re-parse and never returns wrong data.
  */
-const releaseBodyParseMemo = new Map<string, { results?: unknown[] } | null>();
+const releaseBodyParseMemo = new Map<string, { results: VndbRelease[] } | null>();
 const RELEASE_PARSE_MEMO_CAP = 4096;
-function parseReleaseCacheBody(cacheKey: string, body: string): { results?: unknown[] } | null {
+function parseReleaseCacheBody(cacheKey: string, body: string): { results: VndbRelease[] } | null {
   const memoKey = String(cacheKey.length) + ':' + cacheKey + body;
   const hit = releaseBodyParseMemo.get(memoKey);
   if (hit !== undefined) return hit;
-  let parsed: { results?: unknown[] } | null;
-  try {
-    parsed = JSON.parse(body) as { results?: unknown[] };
-  } catch {
-    parsed = null;
-  }
+  const raw = safeJsonParse(body, null, isReleaseCacheBody);
+  const parsed = raw?.results
+    ? { results: raw.results.flatMap((value) => {
+        const release = decodeVndbRelease(value);
+        return release ? [release] : [];
+      }) }
+    : null;
   if (releaseBodyParseMemo.size >= RELEASE_PARSE_MEMO_CAP) releaseBodyParseMemo.clear();
   releaseBodyParseMemo.set(memoKey, parsed);
   return parsed;
@@ -4495,18 +4521,11 @@ export function materializeReleaseAspectsForVn(vnId: string): void {
   let wrote = 0;
   for (const row of rows) {
     const parsed = parseReleaseCacheBody(row.cache_key, row.body);
-    if (!parsed?.results || !Array.isArray(parsed.results)) continue;
-    for (const r of parsed.results) {
-      if (!r || typeof r !== 'object') continue;
-      const rel = r as {
-        id?: unknown;
-        resolution?: unknown;
-        vns?: Array<{ id?: unknown }>;
-      };
-      if (typeof rel.id !== 'string' || !/^r\d+$/i.test(rel.id)) continue;
+    if (!parsed) continue;
+    for (const rel of parsed.results) {
       // Match if any vn in the release.vns array equals our vnId.
       const linkedToThisVn =
-        Array.isArray(rel.vns) && rel.vns.some((v) => v && typeof v.id === 'string' && v.id === vnId);
+        rel.vns.some((v) => v.id === vnId);
       if (!linkedToThisVn) continue;
       // The resolution field is shaped [w, h] | string | null on VNDB.
       // upsertReleaseResolutionCache normalises everything.
@@ -4571,14 +4590,9 @@ export function materializeReleaseAspectsForCollectionVns(vnIds: string[]): void
   const tx = db.transaction(() => {
     for (const row of rows) {
       const parsed = parseReleaseCacheBody(row.cache_key, row.body);
-      if (!parsed?.results || !Array.isArray(parsed.results)) continue;
-      for (const r of parsed.results) {
-        if (!r || typeof r !== 'object') continue;
-        const rel = r as { id?: unknown; resolution?: unknown; vns?: Array<{ id?: unknown }> };
-        if (typeof rel.id !== 'string' || !/^r\d+$/i.test(rel.id)) continue;
-        if (!Array.isArray(rel.vns)) continue;
+      if (!parsed) continue;
+      for (const rel of parsed.results) {
         for (const v of rel.vns) {
-          if (!v || typeof v.id !== 'string') continue;
           if (!needsWork.has(v.id)) continue;
           try {
             upsertReleaseResolutionCache({
@@ -4607,7 +4621,7 @@ export interface ReleaseMetaRow {
   title: string | null;
   alttitle: string | null;
   platforms: string[];
-  languages: Array<{ lang: string; title?: string; latin?: string | null; mtl?: boolean; main?: boolean }>;
+  languages: Array<{ lang: string; title?: string | null; latin?: string | null; mtl?: boolean; main?: boolean }>;
   released: string | null;
   minage: number | null;
   patch: boolean;
@@ -4623,14 +4637,47 @@ export interface ReleaseMetaRow {
   resolution: string | null;
 }
 
-function parseJsonField<T>(raw: string | null | undefined, fallback: T): T {
-  if (!raw) return fallback;
-  try {
-    const v = JSON.parse(raw);
-    return v as T;
-  } catch {
-    return fallback;
-  }
+function releaseResolutionText(resolution: VndbRelease['resolution']): string | null {
+  return Array.isArray(resolution) ? `${resolution[0]}x${resolution[1]}` : resolution;
+}
+
+function releaseMetaUpsertParams(release: VndbRelease, vnId: string, fetchedAt: number): Record<string, string | number | null> {
+  return {
+    release_id: release.id,
+    vn_id: vnId,
+    title: release.title,
+    alttitle: release.alttitle,
+    platforms: JSON.stringify(release.platforms),
+    languages: JSON.stringify(release.languages),
+    released: release.released,
+    minage: release.minage,
+    patch: release.patch ? 1 : 0,
+    freeware: release.freeware ? 1 : 0,
+    uncensored: release.uncensored === null ? null : release.uncensored ? 1 : 0,
+    official: release.official ? 1 : 0,
+    has_ero: release.has_ero ? 1 : 0,
+    voiced: release.voiced,
+    engine: release.engine,
+    notes: release.notes,
+    gtin: release.gtin,
+    catalog: release.catalog,
+    resolution: releaseResolutionText(release.resolution),
+    media: JSON.stringify(release.media),
+    producers: JSON.stringify(release.producers),
+    extlinks: JSON.stringify(release.extlinks),
+    fetched_at: fetchedAt,
+  };
+}
+
+function isReleaseLanguages(value: unknown): value is ReleaseMetaRow['languages'] {
+  return Array.isArray(value) && value.length <= 5000 && value.every((entry) => (
+    isJsonRecord(entry) &&
+    typeof entry.lang === 'string' &&
+    (entry.title === undefined || entry.title === null || typeof entry.title === 'string') &&
+    (entry.latin === undefined || entry.latin === null || typeof entry.latin === 'string') &&
+    (entry.mtl === undefined || typeof entry.mtl === 'boolean') &&
+    (entry.main === undefined || typeof entry.main === 'boolean')
+  ));
 }
 
 /** Read the materialised release-meta cache row for one release id, or `null`. */
@@ -4646,8 +4693,8 @@ export function getReleaseMeta(releaseId: string): ReleaseMetaRow | null {
     vn_id: (row.vn_id as string | null) ?? null,
     title: (row.title as string | null) ?? null,
     alttitle: (row.alttitle as string | null) ?? null,
-    platforms: parseJsonField<string[]>(row.platforms as string | null, []),
-    languages: parseJsonField<ReleaseMetaRow['languages']>(row.languages as string | null, []),
+    platforms: safeJsonParse(row.platforms as string | null, [], isStringArray),
+    languages: safeJsonParse(row.languages as string | null, [], isReleaseLanguages),
     released: (row.released as string | null) ?? null,
     minage: (row.minage as number | null) ?? null,
     patch: !!row.patch,
@@ -4732,52 +4779,12 @@ export function materializeReleaseMetaForVn(vnId: string): void {
   `);
   for (const row of rows) {
     const parsed = parseReleaseCacheBody(row.cache_key, row.body);
-    if (!parsed?.results || !Array.isArray(parsed.results)) continue;
-    for (const r of parsed.results) {
-      if (!r || typeof r !== 'object') continue;
-      const rel = r as Record<string, unknown>;
-      const id = rel.id;
-      if (typeof id !== 'string' || !/^r\d+$/i.test(id)) continue;
-      const vns = Array.isArray(rel.vns) ? (rel.vns as Array<{ id?: unknown }>) : [];
-      const linked = vns.some((v) => v && typeof v.id === 'string' && v.id === vnId);
+    if (!parsed) continue;
+    for (const rel of parsed.results) {
+      const linked = rel.vns.some((v) => v.id === vnId);
       if (!linked) continue;
       try {
-        const platforms = Array.isArray(rel.platforms)
-          ? (rel.platforms as unknown[]).filter((x): x is string => typeof x === 'string')
-          : [];
-        const languages = Array.isArray(rel.languages) ? rel.languages : [];
-        // Resolution is shape [w,h] | string | null on VNDB.
-        let resolution: string | null = null;
-        if (typeof rel.resolution === 'string') resolution = rel.resolution;
-        else if (Array.isArray(rel.resolution) && rel.resolution.length === 2) {
-          const [w, h] = rel.resolution as [unknown, unknown];
-          if (typeof w === 'number' && typeof h === 'number') resolution = `${w}x${h}`;
-        }
-        upsert.run({
-          release_id: id.toLowerCase(),
-          vn_id: vnId,
-          title: typeof rel.title === 'string' ? rel.title : null,
-          alttitle: typeof rel.alttitle === 'string' ? rel.alttitle : null,
-          platforms: JSON.stringify(platforms),
-          languages: JSON.stringify(languages),
-          released: typeof rel.released === 'string' ? rel.released : null,
-          minage: typeof rel.minage === 'number' ? rel.minage : null,
-          patch: rel.patch ? 1 : 0,
-          freeware: rel.freeware ? 1 : 0,
-          uncensored: rel.uncensored == null ? null : rel.uncensored ? 1 : 0,
-          official: rel.official === false ? 0 : 1,
-          has_ero: rel.has_ero ? 1 : 0,
-          voiced: typeof rel.voiced === 'number' ? rel.voiced : null,
-          engine: typeof rel.engine === 'string' ? rel.engine : null,
-          notes: typeof rel.notes === 'string' ? rel.notes : null,
-          gtin: typeof rel.gtin === 'string' ? rel.gtin : null,
-          catalog: typeof rel.catalog === 'string' ? rel.catalog : null,
-          resolution,
-          media: JSON.stringify(Array.isArray(rel.media) ? rel.media : []),
-          producers: JSON.stringify(Array.isArray(rel.producers) ? rel.producers : []),
-          extlinks: JSON.stringify(Array.isArray(rel.extlinks) ? rel.extlinks : []),
-          fetched_at: now,
-        });
+        upsert.run(releaseMetaUpsertParams(rel, vnId, now));
       } catch {
         // Schema/SQL/JSON failure — skip this row but keep scanning.
       }
@@ -4870,58 +4877,18 @@ export function materializeReleaseMetaForCollectionVns(vnIds: string[]): number 
   const tx = db.transaction(() => {
     for (const row of rows) {
       const parsed = parseReleaseCacheBody(row.cache_key, row.body);
-      if (!parsed?.results || !Array.isArray(parsed.results)) continue;
-      for (const r of parsed.results) {
-        if (!r || typeof r !== 'object') continue;
-        const rel = r as Record<string, unknown>;
-        const id = rel.id;
-        if (typeof id !== 'string' || !/^r\d+$/i.test(id)) continue;
-        const vns = Array.isArray(rel.vns) ? (rel.vns as Array<{ id?: unknown }>) : [];
+      if (!parsed) continue;
+      for (const rel of parsed.results) {
         // Dispatch this release to every owned VN it lists. A release
         // can be linked to multiple VNs (omnibus / anthology) so we
         // upsert one row per (vn_id, release_id). The previous
         // per-VN scan picked one VN at a time; the cache-wide scan
         // visits each release exactly once.
-        for (const v of vns) {
-          if (!v || typeof v.id !== 'string') continue;
+        for (const v of rel.vns) {
           const vnId = v.id;
           if (!ownedSet.has(vnId)) continue;
           try {
-            const platforms = Array.isArray(rel.platforms)
-              ? (rel.platforms as unknown[]).filter((x): x is string => typeof x === 'string')
-              : [];
-            const languages = Array.isArray(rel.languages) ? rel.languages : [];
-            let resolution: string | null = null;
-            if (typeof rel.resolution === 'string') resolution = rel.resolution;
-            else if (Array.isArray(rel.resolution) && rel.resolution.length === 2) {
-              const [w, h] = rel.resolution as [unknown, unknown];
-              if (typeof w === 'number' && typeof h === 'number') resolution = `${w}x${h}`;
-            }
-            upsert.run({
-              release_id: id.toLowerCase(),
-              vn_id: vnId,
-              title: typeof rel.title === 'string' ? rel.title : null,
-              alttitle: typeof rel.alttitle === 'string' ? rel.alttitle : null,
-              platforms: JSON.stringify(platforms),
-              languages: JSON.stringify(languages),
-              released: typeof rel.released === 'string' ? rel.released : null,
-              minage: typeof rel.minage === 'number' ? rel.minage : null,
-              patch: rel.patch ? 1 : 0,
-              freeware: rel.freeware ? 1 : 0,
-              uncensored: rel.uncensored == null ? null : rel.uncensored ? 1 : 0,
-              official: rel.official === false ? 0 : 1,
-              has_ero: rel.has_ero ? 1 : 0,
-              voiced: typeof rel.voiced === 'number' ? rel.voiced : null,
-              engine: typeof rel.engine === 'string' ? rel.engine : null,
-              notes: typeof rel.notes === 'string' ? rel.notes : null,
-              gtin: typeof rel.gtin === 'string' ? rel.gtin : null,
-              catalog: typeof rel.catalog === 'string' ? rel.catalog : null,
-              resolution,
-              media: JSON.stringify(Array.isArray(rel.media) ? rel.media : []),
-              producers: JSON.stringify(Array.isArray(rel.producers) ? rel.producers : []),
-              extlinks: JSON.stringify(Array.isArray(rel.extlinks) ? rel.extlinks : []),
-              fetched_at: now,
-            });
+            upsert.run(releaseMetaUpsertParams(rel, vnId, now));
             upserts++;
           } catch {
             // Skip this row but keep scanning.
@@ -4932,25 +4899,29 @@ export function materializeReleaseMetaForCollectionVns(vnIds: string[]): number 
     // Layer C autofill — single pass over every owned_release row
     // whose release just gained a singleton platform list, scoped
     // by the input vn id list.
-    const placeholders = vnIds.map(() => '?').join(',');
-    db.prepare(`
-      UPDATE owned_release
-      SET owned_platform = (
-        SELECT json_extract(rm.platforms, '$[0]')
-        FROM release_meta_cache rm
-        WHERE rm.release_id = owned_release.release_id
-          AND json_valid(rm.platforms)
-          AND json_array_length(rm.platforms) = 1
-      )
-      WHERE vn_id IN (${placeholders})
-        AND owned_platform IS NULL
-        AND EXISTS (
-          SELECT 1 FROM release_meta_cache rm
+    const CHUNK = 500;
+    for (let i = 0; i < vnIds.length; i += CHUNK) {
+      const chunk = vnIds.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      db.prepare(`
+        UPDATE owned_release
+        SET owned_platform = (
+          SELECT json_extract(rm.platforms, '$[0]')
+          FROM release_meta_cache rm
           WHERE rm.release_id = owned_release.release_id
             AND json_valid(rm.platforms)
             AND json_array_length(rm.platforms) = 1
         )
-    `).run(...vnIds);
+        WHERE vn_id IN (${placeholders})
+          AND owned_platform IS NULL
+          AND EXISTS (
+            SELECT 1 FROM release_meta_cache rm
+            WHERE rm.release_id = owned_release.release_id
+              AND json_valid(rm.platforms)
+              AND json_array_length(rm.platforms) = 1
+          )
+      `).run(...chunk);
+    }
   });
   tx();
   return upserts;
@@ -4966,41 +4937,49 @@ export function materializeAspectForCollectionVns(vnIds: string[]): void {
   // Only materialize VNs that don't already have an aspect signal —
   // either a manual override, an owned-release cached aspect, or a
   // vn-bound cache row with a non-unknown value.
-  const placeholders = vnIds.map(() => '?').join(',');
-  const hasSignal = new Set(
-    (
-      db
-        .prepare(
-          `SELECT v.id AS vn_id FROM vn v
-           WHERE v.id IN (${placeholders}) AND (
-             EXISTS (SELECT 1 FROM vn_aspect_override vo
-                     WHERE vo.vn_id = v.id AND vo.aspect_key <> 'unknown')
-             OR EXISTS (
-               SELECT 1 FROM owned_release o
-               LEFT JOIN owned_release_aspect_override ao
-                 ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
-               LEFT JOIN release_resolution_cache rc
-                 ON rc.release_id = o.release_id
-               WHERE o.vn_id = v.id
-                 AND COALESCE(ao.aspect_key, rc.aspect_key) IS NOT NULL
-                 AND COALESCE(ao.aspect_key, rc.aspect_key) <> 'unknown'
-             )
-             OR EXISTS (SELECT 1 FROM release_resolution_cache rc
-                        WHERE rc.vn_id = v.id AND rc.aspect_key <> 'unknown')
-           )`,
-        )
-        .all(...vnIds) as Array<{ vn_id: string }>
-    ).map((r) => r.vn_id),
-  );
+  const CHUNK = 500;
+  const hasSignal = new Set<string>();
+  for (let i = 0; i < vnIds.length; i += CHUNK) {
+    const chunk = vnIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(
+        `SELECT v.id AS vn_id FROM vn v
+         WHERE v.id IN (${placeholders}) AND (
+           EXISTS (SELECT 1 FROM vn_aspect_override vo
+                   WHERE vo.vn_id = v.id AND vo.aspect_key <> 'unknown')
+           OR EXISTS (
+             SELECT 1 FROM owned_release o
+             LEFT JOIN owned_release_aspect_override ao
+               ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+             LEFT JOIN release_resolution_cache rc
+               ON rc.release_id = o.release_id
+             WHERE o.vn_id = v.id
+               AND COALESCE(ao.aspect_key, rc.aspect_key) IS NOT NULL
+               AND COALESCE(ao.aspect_key, rc.aspect_key) <> 'unknown'
+           )
+           OR EXISTS (SELECT 1 FROM release_resolution_cache rc
+                      WHERE rc.vn_id = v.id AND rc.aspect_key <> 'unknown')
+         )`,
+      )
+      .all(...chunk) as Array<{ vn_id: string }>;
+    for (const row of rows) hasSignal.add(row.vn_id);
+  }
   const missing = vnIds.filter((id) => !hasSignal.has(id));
   if (missing.length === 0) return;
   // Pull screenshots JSON for the missing VNs in a single query.
-  const missingPlaceholders = missing.map(() => '?').join(',');
-  const screenshotRows = db
-    .prepare(
-      `SELECT id, screenshots FROM vn WHERE id IN (${missingPlaceholders}) AND screenshots IS NOT NULL`,
-    )
-    .all(...missing) as Array<{ id: string; screenshots: string }>;
+  const screenshotRows: Array<{ id: string; screenshots: string }> = [];
+  for (let i = 0; i < missing.length; i += CHUNK) {
+    const chunk = missing.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    screenshotRows.push(
+      ...(db
+        .prepare(
+          `SELECT id, screenshots FROM vn WHERE id IN (${placeholders}) AND screenshots IS NOT NULL`,
+        )
+        .all(...chunk) as Array<{ id: string; screenshots: string }>),
+    );
+  }
   const now = Date.now();
   const upsert = db.prepare(`
     INSERT INTO release_resolution_cache
@@ -5013,12 +4992,7 @@ export function materializeAspectForCollectionVns(vnIds: string[]): void {
   `);
   const tx = db.transaction(() => {
     for (const row of screenshotRows) {
-      let shots: Array<{ dims?: [number, number] }> = [];
-      try {
-        shots = JSON.parse(row.screenshots) as Array<{ dims?: [number, number] }>;
-      } catch {
-        continue;
-      }
+      const shots = safeJsonParse(row.screenshots, [], isScreenshotRows);
       const tally = new Map<AspectKey, number>();
       for (const s of shots) {
         if (!Array.isArray(s.dims)) continue;
@@ -5050,7 +5024,7 @@ export function getCollectionItem(vnId: string): CollectionItem | null {
       SELECT v.*, c.status, c.user_rating, c.playtime_minutes, c.started_date,
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
              c.edition_label, c.physical_location, c.box_type, c.download_url,
-             c.dumped, c.custom_description, c.added_at, c.updated_at
+             c.dumped, c.dumped_ignored, c.custom_description, c.added_at, c.updated_at
       FROM vn v LEFT JOIN collection c ON c.vn_id = v.id
       WHERE v.id = ?
     `)
@@ -5279,13 +5253,12 @@ export function listCollectionTags(): CollectionTagAggregate[] {
  * Local character search across `character_full:*` cache rows that
  * belong to a VN in the operator's collection. Used by `/characters`
  * + `/api/collection/characters` to back the "Local" tab. Returns the
- * raw VNDB character profile JSON with the seiyuu language list
+ * normalized VNDB character profile with the seiyuu language list
  * attached from `vn_va_credit` so the page-level filters
  * (vaLang / hasVoice) work without a follow-up fetch.
  *
- * The function is intentionally untyped — the page parses each row
- * with `VndbCharacter` and the `voice_languages` extension. Keeping
- * the return type loose dodges a circular import on `lib/vndb.ts`.
+ * Historical cache rows are decoded before they leave this boundary so
+ * malformed persisted rows are skipped instead of reaching renderers.
  */
 export interface LocalCharacterSearchOptions {
   /** Optional case-insensitive substring against id / name / aliases. */
@@ -5301,7 +5274,7 @@ export interface LocalCharacterSearchOptions {
 export function searchLocalCharacters({
   q,
   limit = 200,
-}: LocalCharacterSearchOptions = {}): Array<{ profile: Record<string, unknown>; voice_languages: string[] }> {
+}: LocalCharacterSearchOptions = {}): Array<{ profile: VndbCharacter; voice_languages: string[] }> {
   const rows = db
     .prepare(
       `SELECT vc.cache_key, vc.body
@@ -5324,27 +5297,21 @@ export function searchLocalCharacters({
     .all() as Array<{ cache_key: string; body: string }>;
   const needle = q?.trim().toLowerCase() ?? '';
   // First pass: parse the cache payloads and build the matched
-  type Match = { id: string; profile: Record<string, unknown> };
+  type Match = { id: string; profile: VndbCharacter };
   const matches: Match[] = [];
   for (const row of rows) {
-    let payload: { profile?: Record<string, unknown> | null } | null = null;
-    try {
-      payload = JSON.parse(row.body) as { profile?: Record<string, unknown> | null };
-    } catch {
-      continue;
-    }
-    const profile = payload?.profile;
-    if (!profile || typeof profile !== 'object') continue;
+    const payload = safeJsonParse(row.body, null, isJsonRecord);
+    const profile = decodeVndbCharacter(payload?.profile);
+    if (!profile) continue;
     if (needle) {
-      const idVal = typeof profile.id === 'string' ? profile.id : '';
-      const nameVal = typeof profile.name === 'string' ? profile.name : '';
-      const originalVal = typeof profile.original === 'string' ? profile.original : '';
-      const aliasesArr = Array.isArray(profile.aliases) ? profile.aliases.filter((x) => typeof x === 'string') : [];
+      const idVal = profile.id;
+      const nameVal = profile.name;
+      const originalVal = profile.original ?? '';
+      const aliasesArr = profile.aliases;
       const haystack = [idVal, nameVal, originalVal, ...aliasesArr].join('\n').toLowerCase();
       if (!haystack.includes(needle)) continue;
     }
-    const id = typeof profile.id === 'string' ? profile.id : '';
-    matches.push({ id, profile });
+    matches.push({ id: profile.id, profile });
     if (matches.length >= limit) break;
   }
   // Single batched VA-language fetch — one query (or one per 500
@@ -5382,7 +5349,7 @@ export function searchLocalCharacters({
       }
     }
   }
-  const out: Array<{ profile: Record<string, unknown>; voice_languages: string[] }> = [];
+  const out: Array<{ profile: VndbCharacter; voice_languages: string[] }> = [];
   for (const m of matches) {
     const langs = m.id ? (langByCid.get(m.id) ?? []) : [];
     out.push({ profile: m.profile, voice_languages: langs });
@@ -5769,8 +5736,7 @@ export interface ShelfEntry extends OwnedReleaseRow {
 }
 
 function parseJsonArrayField(raw: string | null | undefined): string[] {
-  const v = safeJsonParse<unknown>(raw, null);
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  return safeJsonParse(raw, [], isStringArray);
 }
 
 function pickReleaseCover(raw: string | null | undefined, releaseId: string): {
@@ -5779,7 +5745,7 @@ function pickReleaseCover(raw: string | null | undefined, releaseId: string): {
   rel_local_image_thumb: string | null;
   rel_image_sexual: number | null;
 } {
-  const images = parseJsonField<ReleaseImage[]>(raw, []);
+  const images = safeJsonParse(raw, [], isPersistedReleaseImages);
   const matches = images.filter((img) => img.release_id === releaseId);
   const chosen =
     matches.find((img) => img.type === 'pkgfront') ??
@@ -5802,15 +5768,7 @@ function pickReleaseCover(raw: string | null | undefined, releaseId: string): {
  * only needs the lang codes.
  */
 function parseLanguagesField(raw: string | null | undefined): string[] {
-  const v = safeJsonParse<unknown>(raw, null);
-  if (!Array.isArray(v)) return [];
-  const out: string[] = [];
-  for (const entry of v) {
-    if (entry && typeof entry === 'object' && typeof (entry as { lang?: unknown }).lang === 'string') {
-      out.push((entry as { lang: string }).lang);
-    }
-  }
-  return out;
+  return safeJsonParse(raw, [], isReleaseLanguages).map((entry) => entry.lang);
 }
 
 /**
@@ -5950,6 +5908,8 @@ export interface DumpStatusEntry {
   dumped_editions: number;
   /** True when collection.dumped is also flagged on the VN itself. */
   collection_dumped: boolean;
+  /** True when the VN is intentionally excluded from active dump tracking. */
+  dumped_ignored: boolean;
 }
 
 /**
@@ -5998,6 +5958,7 @@ export function listDumpStatus(): DumpStatusEntry[] {
         v.local_image_thumb AS vn_local_image_thumb,
         v.image_sexual  AS vn_image_sexual,
         c.dumped        AS coll_dumped,
+        c.dumped_ignored AS dumped_ignored,
         COALESCE(ed.total_editions, 0)   AS total_editions,
         COALESCE(ed.dumped_editions, 0)  AS dumped_editions
       FROM collection c
@@ -6020,6 +5981,7 @@ export function listDumpStatus(): DumpStatusEntry[] {
       vn_local_image_thumb: string | null;
       vn_image_sexual: number | null;
       coll_dumped: number;
+      dumped_ignored: number;
       total_editions: number;
       dumped_editions: number;
     }>;
@@ -6033,6 +5995,7 @@ export function listDumpStatus(): DumpStatusEntry[] {
     total_editions: r.total_editions,
     dumped_editions: r.dumped_editions,
     collection_dumped: !!r.coll_dumped,
+    dumped_ignored: !!r.dumped_ignored,
   }));
   // Sort: in-progress (1..N-1 of N dumped) first, untouched (0/N) next,
   // fully-done last. Alphabetical inside each bucket.
@@ -6083,11 +6046,18 @@ export function getDumpSummary(): DumpSummary {
   const totals = db
     .prepare(`
       SELECT
-        (SELECT COUNT(*) FROM collection)                      AS total_vns,
-        (SELECT COUNT(*) FROM owned_release)                   AS total_editions,
-        (SELECT COUNT(*) FROM owned_release WHERE dumped = 1)  AS dumped_editions,
+        (SELECT COUNT(*) FROM collection WHERE dumped_ignored = 0) AS total_vns,
+        (SELECT COUNT(*) FROM owned_release o
+          JOIN collection c ON c.vn_id = o.vn_id
+          WHERE c.dumped_ignored = 0
+        ) AS total_editions,
+        (SELECT COUNT(*) FROM owned_release o
+          JOIN collection c ON c.vn_id = o.vn_id
+          WHERE o.dumped = 1 AND c.dumped_ignored = 0
+        ) AS dumped_editions,
         (SELECT COUNT(*) FROM collection c
           WHERE c.dumped = 1
+            AND c.dumped_ignored = 0
             AND NOT EXISTS (
               SELECT 1 FROM owned_release o WHERE o.vn_id = c.vn_id
             )
@@ -6103,13 +6073,15 @@ export function getDumpSummary(): DumpSummary {
     .prepare(`
       SELECT COUNT(DISTINCT vn_id) AS n FROM (
         -- VNs fully covered by per-edition dumped=1
-        SELECT vn_id FROM owned_release
-        GROUP BY vn_id
-        HAVING SUM(CASE WHEN dumped = 1 THEN 0 ELSE 1 END) = 0
+        SELECT o.vn_id FROM owned_release o
+        JOIN collection c ON c.vn_id = o.vn_id
+        WHERE c.dumped_ignored = 0
+        GROUP BY o.vn_id
+        HAVING SUM(CASE WHEN o.dumped = 1 THEN 0 ELSE 1 END) = 0
         UNION
         -- VNs marked dumped at the collection level (regardless
         -- of whether they have owned editions)
-        SELECT vn_id FROM collection WHERE dumped = 1
+        SELECT vn_id FROM collection WHERE dumped = 1 AND dumped_ignored = 0
       )
     `)
     .get() as { n: number }).n;
@@ -6144,10 +6116,12 @@ export interface ShelfUnitWithCount extends ShelfUnit {
   placed_count: number;
 }
 
-const SHELF_MIN = 1;
+/** Smallest persisted shelf dimension accepted by the shelf editor. */
+export const SHELF_MIN = 1;
 // Sanity ceiling so a typo (e.g. cols=99999) doesn't blow up the
 // renderer or the DB. Plenty of headroom for any real-world bookcase.
-const SHELF_MAX = 200;
+/** Largest persisted shelf dimension accepted by the shelf editor. */
+export const SHELF_MAX = 200;
 
 function clampShelfDim(n: number, fallback: number): number {
   if (!Number.isFinite(n)) return fallback;
@@ -6403,7 +6377,7 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
     box_type: (r.box_type ?? 'none') as BoxType,
     condition: r.condition,
     owned_platform: r.owned_platform,
-    physical_location: parseJsonArrayField(r.physical_location),
+    physical_location: parsePlaces(r.physical_location),
     price_paid: r.price_paid,
     currency: r.currency,
     acquired_date: r.acquired_date,
@@ -6800,7 +6774,7 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
     box_type: (r.box_type ?? 'none') as BoxType,
     condition: r.condition,
     owned_platform: r.owned_platform,
-    physical_location: parseJsonArrayField(r.physical_location),
+    physical_location: parsePlaces(r.physical_location),
     price_paid: r.price_paid,
     currency: r.currency,
     acquired_date: r.acquired_date,
@@ -7040,7 +7014,7 @@ export function deriveVnAspectKey(vnId: string): AspectKey {
     .prepare('SELECT screenshots FROM vn WHERE id = ?')
     .get(vnId) as { screenshots: string | null } | undefined;
   if (vnRow?.screenshots) {
-    const shots = safeJsonParse<Array<{ dims?: [number, number] }>>(vnRow.screenshots, []);
+    const shots = safeJsonParse<Array<{ dims?: [number, number] }>>(vnRow.screenshots, [], isScreenshotRows);
     const tally = new Map<AspectKey, number>();
     for (const s of shots) {
       if (!Array.isArray(s.dims)) continue;
@@ -7715,8 +7689,8 @@ export function createPlace(payload: PlacePayload): number {
       payload.name_ja ?? null,
       payload.kind ?? 'shop',
       payload.address ?? null,
-      normalizeOptionalCoordinate(payload.lat),
-      normalizeOptionalCoordinate(payload.lng),
+      normalizeOptionalCoordinate(payload.lat, 'lat'),
+      normalizeOptionalCoordinate(payload.lng, 'lng'),
       payload.url ?? null,
       payload.notes ?? null,
       now,
@@ -7731,7 +7705,7 @@ export function updatePlace(id: number, patch: Partial<PlacePayload>): void {
   const sets = fields.map((f) => `${f} = ?`);
   sets.push('updated_at = ?');
   const vals: unknown[] = fields.map((f) => {
-    if (f === 'lat' || f === 'lng') return normalizeOptionalCoordinate(patch[f]);
+    if (f === 'lat' || f === 'lng') return normalizeOptionalCoordinate(patch[f], f);
     return patch[f] ?? null;
   });
   vals.push(Date.now());
@@ -8016,8 +7990,8 @@ function producerToRow(row: ProducerDbRow | undefined): ProducerRow | null {
     lang: row.lang,
     type: row.type,
     description: row.description,
-    aliases: safeJsonParse(row.aliases, []),
-    extlinks: safeJsonParse(row.extlinks, []),
+    aliases: safeJsonParse(row.aliases, [], isPersistedStringArray),
+    extlinks: safeJsonParse(row.extlinks, [], isPersistedExtlinks),
     logo_path: row.logo_path,
     fetched_at: row.fetched_at,
   };
@@ -8195,8 +8169,8 @@ export function producerOwnershipSummary(producerId: string): {
   const ownedIds = new Set(rows.map((r) => r.id));
   const sample = rows[0]
     ? {
-        developers: safeJsonParse<Array<{ id: string; name: string }>>(rows[0].developers, []),
-        publishers: safeJsonParse<Array<{ id: string; name: string }>>(rows[0].publishers, []),
+        developers: decodePersistedProducerSummaries(rows[0].developers),
+        publishers: decodePersistedProducerSummaries(rows[0].publishers),
       }
     : null;
   return { ownedIds, sample };
@@ -8284,12 +8258,12 @@ export function addVnToSeries(seriesId: number, vnId: string, orderIndex = 0): v
     INSERT INTO series_vn (series_id, vn_id, order_index)
     VALUES (?, ?, ?)
     ON CONFLICT(series_id, vn_id) DO UPDATE SET order_index = excluded.order_index
-  `).run(seriesId, vnId, orderIndex);
+  `).run(seriesId, vnId.toLowerCase(), orderIndex);
 }
 
 /** Unlink one VN from a series. The series itself is left intact. */
 export function removeVnFromSeries(seriesId: number, vnId: string): void {
-  db.prepare('DELETE FROM series_vn WHERE series_id = ? AND vn_id = ?').run(seriesId, vnId);
+  db.prepare('DELETE FROM series_vn WHERE series_id = ? AND vn_id = ?').run(seriesId, vnId.toLowerCase());
 }
 
 // Saved filters
@@ -8316,7 +8290,7 @@ export function createSavedFilter(name: string, params: string): SavedFilter {
     const nextPos = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM saved_filter').get() as { p: number }).p;
     const info = db
       .prepare('INSERT INTO saved_filter (name, params, position, created_at) VALUES (?, ?, ?, ?)')
-      .run(name.trim().slice(0, 60), params.slice(0, 2000), nextPos, now);
+      .run(name.trim(), params, nextPos, now);
     return db.prepare('SELECT id, name, params, position, created_at FROM saved_filter WHERE id = ?').get(info.lastInsertRowid) as SavedFilter;
   })();
 }
@@ -8363,27 +8337,28 @@ export function getReadingQueueVnIds(): Set<string> {
  * max + 1 so duplicates are idempotent (existing entries keep their slot).
  */
 export function addToReadingQueue(vnId: string): ReadingQueueEntry {
+  const normalizedVnId = vnId.toLowerCase();
   return db.transaction(() => {
     const next = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM reading_queue').get() as { p: number }).p;
     const now = Date.now();
     db.prepare(`
       INSERT INTO reading_queue (vn_id, position, added_at) VALUES (?, ?, ?)
       ON CONFLICT(vn_id) DO NOTHING
-    `).run(vnId, next, now);
-    return db.prepare('SELECT vn_id, position, added_at FROM reading_queue WHERE vn_id = ?').get(vnId) as ReadingQueueEntry;
+    `).run(normalizedVnId, next, now);
+    return db.prepare('SELECT vn_id, position, added_at FROM reading_queue WHERE vn_id = ?').get(normalizedVnId) as ReadingQueueEntry;
   })();
 }
 
 /** Remove one VN from the reading queue. Returns `false` when not queued. */
 export function removeFromReadingQueue(vnId: string): boolean {
-  return db.prepare('DELETE FROM reading_queue WHERE vn_id = ?').run(vnId).changes > 0;
+  return db.prepare('DELETE FROM reading_queue WHERE vn_id = ?').run(vnId.toLowerCase()).changes > 0;
 }
 
 /** Persist drag-reorder of the reading queue. */
 export function reorderReadingQueue(ids: string[]): void {
   const upd = db.prepare('UPDATE reading_queue SET position = ? WHERE vn_id = ?');
   db.transaction(() => {
-    ids.forEach((id, i) => upd.run(i + 1, id));
+    ids.forEach((id, i) => upd.run(i + 1, id.toLowerCase()));
   })();
 }
 
@@ -8906,6 +8881,26 @@ export interface CacheRow {
 /** Read one cache row by key, or `null` when the key has never been written. */
 export function getCacheRow(key: string): CacheRow | null {
   return (db.prepare('SELECT cache_key, body, etag, last_modified, fetched_at, expires_at FROM vndb_cache WHERE cache_key = ?').get(key) as CacheRow | undefined) ?? null;
+}
+
+/**
+ * Read cache rows for many keys without crossing SQLite's placeholder limit.
+ *
+ * @param keys Cache keys to hydrate.
+ * @returns Rows keyed by cache key. Missing keys are absent from the map.
+ */
+export function getCacheRows(keys: readonly string[]): Map<string, CacheRow> {
+  const rowsByKey = new Map<string, CacheRow>();
+  const CHUNK = 500;
+  for (let i = 0; i < keys.length; i += CHUNK) {
+    const chunk = keys.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT cache_key, body, etag, last_modified, fetched_at, expires_at FROM vndb_cache WHERE cache_key IN (${placeholders})`)
+      .all(...chunk) as CacheRow[];
+    for (const row of rows) rowsByKey.set(row.cache_key, row);
+  }
+  return rowsByKey;
 }
 
 /** Insert or replace one cache row. */
@@ -9595,25 +9590,35 @@ export function reorderListItems(listId: number, vnIds: string[]): void {
  */
 /** Bulk-load VN titles keyed by id. Missing ids are simply absent from the map. */
 export function batchGetVnTitles(ids: string[]): Map<string, string> {
-  if (ids.length === 0) return new Map();
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = db
-    .prepare(`SELECT id, title FROM vn WHERE id IN (${placeholders})`)
-    .all(...ids) as { id: string; title: string }[];
-  return new Map(rows.map((r) => [r.id, r.title]));
+  const map = new Map<string, string>();
+  const CHUNK = 500;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT id, title FROM vn WHERE id IN (${placeholders})`)
+      .all(...chunk) as { id: string; title: string }[];
+    for (const row of rows) map.set(row.id, row.title);
+  }
+  return map;
 }
 
 /** Bulk-load producer names keyed by id. Missing ids are simply absent. */
 export function batchGetProducerNames(ids: string[]): Map<string, string> {
-  if (ids.length === 0) return new Map();
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = db
-    .prepare(`SELECT id, name FROM producer WHERE id IN (${placeholders})`)
-    .all(...ids) as { id: string; name: string }[];
-  const map = new Map(rows.map((r) => [r.id, r.name]));
+  const CHUNK = 500;
+  const map = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT id, name FROM producer WHERE id IN (${placeholders})`)
+      .all(...chunk) as { id: string; name: string }[];
+    for (const row of rows) map.set(row.id, row.name);
+  }
   const missing = ids.filter((id) => !map.has(id));
-  if (missing.length > 0) {
-    const mp = missing.map(() => '?').join(',');
+  for (let i = 0; i < missing.length; i += CHUNK) {
+    const chunk = missing.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
     const fromVn = db
       .prepare(
         `SELECT DISTINCT di.producer_id AS id,
@@ -9621,10 +9626,10 @@ export function batchGetProducerNames(ids: string[]): Map<string, string> {
          FROM vn_developer_index di
          JOIN vn ON vn.id = di.vn_id,
          json_each(vn.developers) d
-         WHERE di.producer_id IN (${mp})
+         WHERE di.producer_id IN (${placeholders})
            AND json_extract(d.value, '$.id') = di.producer_id`,
       )
-      .all(...missing) as { id: string; name: string }[];
+      .all(...chunk) as { id: string; name: string }[];
     for (const r of fromVn) {
       if (!map.has(r.id) && r.name) map.set(r.id, r.name);
     }
@@ -9634,22 +9639,27 @@ export function batchGetProducerNames(ids: string[]): Map<string, string> {
 
 /** Bulk-load staff names keyed by id. Missing ids are simply absent. */
 export function batchGetStaffNames(ids: string[]): Map<string, string> {
-  if (ids.length === 0) return new Map();
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = db
-    .prepare(
-      `SELECT sid, name FROM vn_staff_credit WHERE sid IN (${placeholders}) GROUP BY sid`,
-    )
-    .all(...ids) as { sid: string; name: string }[];
-  const map = new Map(rows.map((r) => [r.sid, r.name]));
+  const CHUNK = 500;
+  const map = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(
+        `SELECT sid, name FROM vn_staff_credit WHERE sid IN (${placeholders}) GROUP BY sid`,
+      )
+      .all(...chunk) as { sid: string; name: string }[];
+    for (const row of rows) map.set(row.sid, row.name);
+  }
   const missing = ids.filter((id) => !map.has(id));
-  if (missing.length > 0) {
-    const vaPlaceholders = missing.map(() => '?').join(',');
+  for (let i = 0; i < missing.length; i += CHUNK) {
+    const chunk = missing.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
     const vaRows = db
       .prepare(
-        `SELECT sid, va_name AS name FROM vn_va_credit WHERE sid IN (${vaPlaceholders}) GROUP BY sid`,
+        `SELECT sid, va_name AS name FROM vn_va_credit WHERE sid IN (${placeholders}) GROUP BY sid`,
       )
-      .all(...missing) as { sid: string; name: string }[];
+      .all(...chunk) as { sid: string; name: string }[];
     for (const r of vaRows) {
       if (!map.has(r.sid) && r.name) map.set(r.sid, r.name);
     }
@@ -9659,14 +9669,19 @@ export function batchGetStaffNames(ids: string[]): Map<string, string> {
 
 /** Bulk-load character names keyed by id. Missing ids are simply absent. */
 export function batchGetCharNames(ids: string[]): Map<string, string> {
-  if (ids.length === 0) return new Map();
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = db
-    .prepare(
-      `SELECT c_id, c_name FROM vn_va_credit WHERE c_id IN (${placeholders}) GROUP BY c_id`,
-    )
-    .all(...ids) as { c_id: string; c_name: string }[];
-  return new Map(rows.map((r) => [r.c_id, r.c_name]));
+  const map = new Map<string, string>();
+  const CHUNK = 500;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(
+        `SELECT c_id, c_name FROM vn_va_credit WHERE c_id IN (${placeholders}) GROUP BY c_id`,
+      )
+      .all(...chunk) as { c_id: string; c_name: string }[];
+    for (const row of rows) map.set(row.c_id, row.c_name);
+  }
+  return map;
 }
 
 export interface KobeStockRow {
@@ -9741,9 +9756,11 @@ export function upsertKobeStock(
     }
 
     const toDelete = [...existingCodes].filter((c) => !incomingCodes.has(c));
-    if (toDelete.length > 0) {
-      const placeholders = toDelete.map(() => '?').join(',');
-      removed = db.prepare(`DELETE FROM alicesoft_kobe_stock WHERE code IN (${placeholders})`).run(...toDelete).changes;
+    const CHUNK = 500;
+    for (let i = 0; i < toDelete.length; i += CHUNK) {
+      const chunk = toDelete.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      removed += db.prepare(`DELETE FROM alicesoft_kobe_stock WHERE code IN (${placeholders})`).run(...chunk).changes;
     }
   });
 
@@ -9934,7 +9951,7 @@ export function setKobeVnLink(
      SET vn_id = ?, vn_match_source = ?, vn_candidates = ?, search_title = ?,
          last_matched_at = ?, updated_at = ?
      WHERE code = ?`,
-  ).run(vnId, source, candidates ?? null, searchTitle ?? null, now, now, code);
+  ).run(vnId?.toLowerCase() ?? null, source, candidates ?? null, searchTitle ?? null, now, now, code);
 }
 
 /** Mark a Kobe row's VN match as `'none'` (search ran, no hit) without dropping any data. */
@@ -10378,15 +10395,9 @@ export function setStockProviderExtras(vnId: string, provider: string, extras: u
       `UPDATE vn_stock_provider_status SET extras_json = ? WHERE vn_id = ? AND provider = ?`,
     ).run(payload, vnId, provider);
   } else {
-    // `status` is NOT NULL on this table — the schema models it as the
-    // last-run state. When extras land before a refresh has populated
-    // a row (e.g. unit test that seeds the JSON envelope directly, or
-    // race between providers), the column is filled with the inert
-    // 'unknown' literal so the snapshot reader still understands the
-    // row as "no live snapshot yet, but metadata is there".
     db.prepare(
       `INSERT INTO vn_stock_provider_status (vn_id, provider, status, extras_json, fetched_at) VALUES (?, ?, ?, ?, ?)`,
-    ).run(vnId, provider, 'unknown', payload, Date.now());
+    ).run(vnId, provider, 'not_checked', payload, Date.now());
   }
   return true;
 }
@@ -10631,13 +10642,11 @@ export function deleteStockSource(vnId: string, sourceId: number): boolean {
 export function getDisabledStockProviders(): Set<string> {
   const raw = getAppSetting('stock_disabled_providers');
   if (!raw) return new Set();
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((v): v is string => typeof v === 'string'));
-  } catch {
-    return new Set();
-  }
+  const validProviderIds = new Set<string>(STOCK_PROVIDER_IDS);
+  return new Set(
+    safeJsonParse(raw, [], isStringArray)
+      .filter((providerId): providerId is StockProviderId => validProviderIds.has(providerId)),
+  );
 }
 
 /**

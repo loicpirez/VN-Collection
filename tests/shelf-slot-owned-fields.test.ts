@@ -96,6 +96,65 @@ describe('listShelfSlots forwards owned-release annotations', () => {
     expect(slot.currency).toBeNull();
     expect(slot.acquired_date).toBeNull();
   });
+
+  it('drops malformed release cover rows before shelf rendering', () => {
+    seed('v90302', 'r903020', {
+      physical_location: [],
+      price_paid: null,
+      currency: null,
+      acquired_date: null,
+    });
+    db.prepare('UPDATE vn SET release_images = ? WHERE id = ?').run(
+      JSON.stringify([{
+        release_id: 'r903020',
+        release_title: 'Fixture release',
+        type: 'pkgfront',
+        url: 'https://example.invalid/full.jpg',
+        thumbnail: { bad: true },
+      }]),
+      'v90302',
+    );
+    const shelf = createShelf({ name: 'Malformed artwork shelf' });
+    placeShelfItem({ shelfId: shelf.id, row: 0, col: 0, vnId: 'v90302', releaseId: 'r903020' });
+    expect(listShelfSlots(shelf.id)[0]).toMatchObject({
+      rel_image_thumb: null,
+      rel_image_url: null,
+      rel_local_image_thumb: null,
+      rel_image_sexual: null,
+    });
+
+    db.prepare('UPDATE vn SET release_images = ? WHERE id = ?').run(
+      JSON.stringify([{
+        release_id: 'r903020',
+        release_title: 'Fixture release',
+        type: 'pkgfront',
+        url: 'https://example.invalid/full.jpg',
+        thumbnail: 'https://example.invalid/thumb.jpg',
+      }]),
+      'v90302',
+    );
+    expect(listShelfSlots(shelf.id)[0]).toMatchObject({
+      rel_image_thumb: 'https://example.invalid/thumb.jpg',
+      rel_image_url: 'https://example.invalid/full.jpg',
+    });
+  });
+
+  it('drops malformed owned-edition place containers before shelf rendering', () => {
+    seed('v90303', 'r903030', {
+      physical_location: [],
+      price_paid: null,
+      currency: null,
+      acquired_date: null,
+    });
+    db.prepare('UPDATE owned_release SET physical_location = ? WHERE vn_id = ? AND release_id = ?').run(
+      JSON.stringify({ bad: true }),
+      'v90303',
+      'r903030',
+    );
+    const shelf = createShelf({ name: 'Malformed place shelf' });
+    placeShelfItem({ shelfId: shelf.id, row: 0, col: 0, vnId: 'v90303', releaseId: 'r903030' });
+    expect(listShelfSlots(shelf.id)[0].physical_location).toEqual([]);
+  });
 });
 
 describe('listShelfDisplaySlots forwards owned-release annotations', () => {

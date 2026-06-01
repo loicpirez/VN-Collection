@@ -145,8 +145,14 @@ describe('setLocalScreenshots', () => {
 
 describe('setReleaseImages', () => {
   it('persists release images', () => {
-    setReleaseImages(VN_ID, [{ id: 'r97001', url: 'x', local_path: null } as never]);
-    expect((getVn(VN_ID)?.release_images ?? [])[0]?.id).toBe('r97001');
+    setReleaseImages(VN_ID, [{
+      id: 'cv97001',
+      release_id: 'r97001',
+      release_title: 'Fixture release',
+      type: 'pkgfront',
+      url: 'x',
+    }]);
+    expect((getVn(VN_ID)?.release_images ?? [])[0]?.id).toBe('cv97001');
   });
 });
 

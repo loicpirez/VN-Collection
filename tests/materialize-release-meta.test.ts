@@ -18,6 +18,7 @@ import {
 } from '@/lib/db';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { vndbReleaseFixture } from './fixtures/vndb-release';
 
 // Force lib/db to bootstrap.
 materializeReleaseMetaForVn('v9000');
@@ -36,7 +37,7 @@ function seedReleaseCacheRow(hash: string, ageMs: number, releases: Array<{ id: 
   const fetched = now - ageMs;
   db.prepare(`INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`).run(
     `POST /release|POST|${hash}`,
-    JSON.stringify({ results: releases }),
+    JSON.stringify({ results: releases.map(vndbReleaseFixture) }),
     fetched,
     now + 60_000,
   );

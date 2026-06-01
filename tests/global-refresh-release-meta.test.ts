@@ -32,6 +32,7 @@ import {
   listShelves,
   materializeReleaseMetaForVn,
 } from '@/lib/db';
+import { vndbReleaseFixture, type VndbReleaseFixtureInput } from './fixtures/vndb-release';
 
 listShelves();
 const db = new Database(process.env.DB_PATH!);
@@ -52,12 +53,12 @@ function seedVn(id: string): void {
   ).run(id, id, Date.now());
 }
 
-function seedReleasePayload(releases: unknown[]): void {
+function seedReleasePayload(releases: VndbReleaseFixtureInput[]): void {
   const key = `POST /release|POST|cafe${Math.random().toString(16).slice(2, 10)}`;
   db.prepare(
     `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at)
      VALUES (?, ?, ?, ?)`,
-  ).run(key, JSON.stringify({ results: releases }), Date.now(), Date.now() + 3600 * 1000);
+  ).run(key, JSON.stringify({ results: releases.map(vndbReleaseFixture) }), Date.now(), Date.now() + 3600 * 1000);
 }
 
 beforeAll(() => clear());

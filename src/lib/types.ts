@@ -21,6 +21,7 @@ export interface Screenshot {
   sexual?: number;
   violence?: number;
   dims?: [number, number];
+  release?: { id: string } | null;
   local?: string | null;
   local_thumb?: string | null;
 }
@@ -147,6 +148,8 @@ export interface CollectionFields {
   download_url: string | null;
   /** True when the game has been dumped/extracted from physical media (for personal preservation). */
   dumped: boolean;
+  /** True when the game should stay out of active dump-tracker totals and lists. */
+  dumped_ignored: boolean;
   /**
    * User-authored synopsis. When non-empty, overrides VNDB / EGS descriptions
    * — the synopsis section renders this verbatim and exposes a toggle to peek
@@ -185,6 +188,64 @@ export type CollectionItem = VnRow &
     /** Whether a personal note exists without exposing its contents in card-list responses. */
     has_notes?: boolean;
   };
+
+type CollectionCardVnFields = Pick<
+  VnRow,
+  | 'id'
+  | 'title'
+  | 'alttitle'
+  | 'image_url'
+  | 'image_thumb'
+  | 'image_sexual'
+  | 'released'
+  | 'length_minutes'
+  | 'rating'
+  | 'developers'
+  | 'publishers'
+  | 'tags'
+  | 'relations'
+  | 'local_image'
+  | 'local_image_thumb'
+  | 'custom_cover'
+  | 'banner_image'
+  | 'banner_position'
+  | 'cover_rotation'
+  | 'banner_rotation'
+  | 'fetched_at'
+>;
+
+/** Exact database projection used by lightweight collection card listings. */
+export type CollectionCardItem = CollectionCardVnFields &
+  Partial<CollectionFields> & {
+    series?: SeriesLite[];
+    egs?: EgsLite | null;
+    /** Release/game resolution aspect buckets from owned editions. */
+    aspect_keys?: Array<'4:3' | '16:9' | '16:10' | '21:9' | 'other' | 'unknown'>;
+    /** Number of personal lists containing this VN when enriched for a card surface. */
+    list_count?: number;
+    /** Whether the VN is in the reading queue when enriched for a card surface. */
+    in_reading_queue?: boolean;
+  };
+
+type PrivateCollectionCardField =
+  | 'notes'
+  | 'started_date'
+  | 'finished_date'
+  | 'location'
+  | 'edition_label'
+  | 'box_type'
+  | 'download_url'
+  | 'custom_description';
+
+/** Public card-listing payload returned by `GET /api/collection`. */
+export type CollectionCardApiItem = Omit<CollectionCardItem, PrivateCollectionCardField> & {
+  /** Whether a personal note exists without returning the note body. */
+  has_notes: boolean;
+  /** Number of personal lists containing this VN. */
+  list_count: number;
+  /** Whether the VN is currently present in the reading queue. */
+  in_reading_queue: boolean;
+};
 
 export interface VndbSearchHit {
   id: string;
