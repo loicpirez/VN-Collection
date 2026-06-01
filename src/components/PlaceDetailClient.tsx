@@ -7,6 +7,7 @@ import {
   Edit2,
   Globe,
   Link2,
+  Loader2,
   Map,
   MapPin,
   StickyNote,
@@ -144,9 +145,9 @@ export function PlaceDetailClient({ place }: Props) {
             onClick={handleDelete}
             disabled={deleting}
             aria-label={t.places.deletePlace as string}
-            className="btn btn-sm text-muted hover:border-status-dropped/40 hover:text-status-dropped"
+            className="btn btn-sm text-muted hover:border-status-dropped/40 hover:text-status-dropped disabled:opacity-50"
           >
-            <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {deleting ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />}
             <span className="ml-1">{t.places.deletePlace as string}</span>
           </button>
         </div>

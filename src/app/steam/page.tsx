@@ -77,6 +77,8 @@ export default function SteamSyncPage() {
   const [assignMatches, setAssignMatches] = useState<Record<number, CollectionMatch[]>>({});
 
   const [applying, setApplying] = useState(false);
+  const [linkingKey, setLinkingKey] = useState<string | null>(null);
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setSuggestionsLoading(true);
@@ -154,6 +156,7 @@ export default function SteamSyncPage() {
   }
 
   async function link(appid: number, name: string, vnId: string) {
+    setLinkingKey(`${appid}:${vnId}`);
     try {
       const r = await fetch('/api/steam/link', {
         method: 'POST',
@@ -165,12 +168,15 @@ export default function SteamSyncPage() {
       await refresh();
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setLinkingKey(null);
     }
   }
 
   async function unlink(vnId: string) {
     const ok = await confirm({ message: t.steam.unlinkConfirm, tone: 'danger' });
     if (!ok) return;
+    setUnlinkingId(vnId);
     try {
       const r = await fetch(`/api/steam/link?vn_id=${vnId}`, { method: 'DELETE' });
       if (!r.ok) throw new Error(t.common.error);
@@ -178,6 +184,8 @@ export default function SteamSyncPage() {
       await refresh();
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setUnlinkingId(null);
     }
   }
 
@@ -332,11 +340,12 @@ export default function SteamSyncPage() {
                 <button
                   type="button"
                   onClick={() => unlink(l.vn_id)}
-                  className="rounded text-muted hover:text-status-dropped"
+                  disabled={unlinkingId === l.vn_id}
+                  className="rounded text-muted hover:text-status-dropped disabled:opacity-50"
                   aria-label={t.steam.unlink}
                   title={t.steam.unlink}
                 >
-                  <X className="h-3 w-3" />
+                  {unlinkingId === l.vn_id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" />}
                 </button>
               </li>
             ))}
@@ -389,8 +398,10 @@ export default function SteamSyncPage() {
                         <button
                           type="button"
                           onClick={() => link(g.appid, g.name, m.id)}
-                          className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-bg-elev"
+                          disabled={linkingKey !== null}
+                          className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-bg-elev disabled:opacity-50"
                         >
+                          {linkingKey === `${g.appid}:${m.id}` && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" aria-hidden />}
                           <span className="font-bold">{m.title}</span>
                           {m.alttitle && <span className="ml-1 text-[10px] text-muted">{m.alttitle}</span>}
                           <span className="ml-1 font-mono text-[10px] text-muted">{m.id}</span>

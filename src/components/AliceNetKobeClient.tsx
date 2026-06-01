@@ -314,6 +314,8 @@ export function AliceNetKobeClient() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, current: '' });
   const bulkStopRef = useRef(false);
+  const [resettingMatches, setResettingMatches] = useState(false);
+  const [clearingCode, setClearingCode] = useState<string | null>(null);
 
   const toggleSelected = useCallback((code: string) => {
     setSelected((prev) => {
@@ -513,12 +515,15 @@ export function AliceNetKobeClient() {
   async function resetAutoMatches() {
     const ok = await confirm({ message: t.kobe.kobeResetConfirm, tone: 'danger' });
     if (!ok) return;
+    setResettingMatches(true);
     try {
       const r = await fetch('/api/alicesoft-kobe/reset-matches', { method: 'POST' });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await load();
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setResettingMatches(false);
     }
   }
 
@@ -528,12 +533,15 @@ export function AliceNetKobeClient() {
       tone: 'danger',
     });
     if (!ok) return;
+    setClearingCode(code);
     try {
       const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE' });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       await load();
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setClearingCode(null);
     }
   }
 
@@ -900,10 +908,11 @@ export function AliceNetKobeClient() {
               <button
                 type="button"
                 onClick={() => clearLink(item.code)}
-                className="btn btn-xs text-muted hover:text-status-dropped"
+                disabled={clearingCode === item.code}
+                className="btn btn-xs text-muted hover:text-status-dropped disabled:opacity-50"
                 title={t.kobe.kobeClearMatch}
               >
-                <X className="h-3 w-3" />
+                {clearingCode === item.code ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" />}
               </button>
             )}
           </div>
@@ -1167,10 +1176,10 @@ export function AliceNetKobeClient() {
               <button
                 type="button"
                 onClick={resetAutoMatches}
-                disabled={stats.matched === 0}
-                className="btn btn-sm text-muted hover:border-status-dropped hover:text-status-dropped"
+                disabled={stats.matched === 0 || resettingMatches}
+                className="btn btn-sm text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50"
               >
-                <X className="h-3.5 w-3.5" />
+                {resettingMatches ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" />}
                 {t.kobe.kobeResetAutoMatches}
               </button>
             </section>

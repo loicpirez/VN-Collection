@@ -122,6 +122,7 @@ export function EgsPanel({
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
 
   const load = useCallback(
     async (force = false, signal?: AbortSignal) => {
@@ -167,6 +168,7 @@ export function EgsPanel({
   async function onUnlink() {
     const ok = await confirm({ message: t.egs.unlinkConfirm, tone: 'danger' });
     if (!ok) return;
+    setUnlinking(true);
     try {
       await fetch(`/api/vn/${vnId}/erogamescape`, { method: 'DELETE' });
       setFetchState((prev) => ({ ...prev, game: null, source: null }));
@@ -175,6 +177,8 @@ export function EgsPanel({
       startTransition(() => router.refresh());
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setUnlinking(false);
     }
   }
 
@@ -291,10 +295,11 @@ export function EgsPanel({
             <button
               type="button"
               onClick={onUnlink}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped"
+              disabled={unlinking}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50"
               title={t.egs.unlink}
             >
-              <Trash2 className="h-3 w-3" aria-hidden />
+              {unlinking ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" aria-hidden />}
             </button>
           </div>
         </div>

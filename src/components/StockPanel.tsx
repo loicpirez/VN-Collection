@@ -176,6 +176,7 @@ export function StockPanel({
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
   const [aliases, setAliases] = useState<string[]>([]);
   const [aliasLoading, setAliasLoading] = useState(false);
+  const [aliasPendingTerm, setAliasPendingTerm] = useState<string | null>(null);
   const [aliasError, setAliasError] = useState<string | null>(null);
 
   const aliasSuggestions = useMemo(() => {
@@ -197,6 +198,7 @@ export function StockPanel({
     return out;
   }, [aliases, altTitle, vndbAliases]);
   const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourcePendingId, setSourcePendingId] = useState<number | null>(null);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [hideStale, setHideStale] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
@@ -390,6 +392,7 @@ export function StockPanel({
     });
     if (!ok) return;
     setAliasLoading(true);
+    setAliasPendingTerm(term);
     try {
       const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
         method: 'POST',
@@ -411,6 +414,7 @@ export function StockPanel({
       toast.error(message);
     } finally {
       setAliasLoading(false);
+      setAliasPendingTerm(null);
     }
   }
 
@@ -447,6 +451,7 @@ export function StockPanel({
     });
     if (!ok) return;
     setSourceLoading(true);
+    setSourcePendingId(id);
     setSourceError(null);
     try {
       const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/sources`, {
@@ -463,6 +468,7 @@ export function StockPanel({
       toast.error(message);
     } finally {
       setSourceLoading(false);
+      setSourcePendingId(null);
     }
   }
 
@@ -870,7 +876,7 @@ export function StockPanel({
                   aria-label={t.stock.aliasRemoveTerm}
                   className="tap-target rounded p-0.5 text-muted hover:text-status-dropped disabled:opacity-50"
                 >
-                  <X className="h-3 w-3" aria-hidden />
+                  {aliasPendingTerm === alias ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
                 </button>
               </span>
             ))}
@@ -887,6 +893,7 @@ export function StockPanel({
                   disabled={aliasLoading}
                   onClick={async () => {
                     setAliasLoading(true);
+                    setAliasPendingTerm(s);
                     setAliasError(null);
                     try {
                       const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
@@ -901,11 +908,12 @@ export function StockPanel({
                       setAliasError(e instanceof Error && e.message ? e.message : t.common.error);
                     } finally {
                       setAliasLoading(false);
+                      setAliasPendingTerm(null);
                     }
                   }}
                   className="inline-flex items-center gap-1 rounded-md border border-dashed border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
                 >
-                  <Plus className="h-3 w-3" aria-hidden />
+                  {aliasPendingTerm === s ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
                   <span className="inline-block max-w-[12rem] truncate align-bottom">{s}</span>
                 </button>
               ))}
@@ -954,7 +962,7 @@ export function StockPanel({
                   aria-label={`${t.stock.manualSourceDelete} — ${providerDisplayName(providers, source.provider)}`}
                   className="rounded p-0.5 text-muted hover:text-status-dropped focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped disabled:opacity-50"
                 >
-                  <X className="h-3 w-3" aria-hidden />
+                  {sourcePendingId === source.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
                 </button>
               </li>
             ))}
@@ -1085,7 +1093,7 @@ function AliasAddForm({
           disabled={!value.trim() || loading}
           className="btn btn-primary text-xs"
         >
-          <Plus className="h-3.5 w-3.5" aria-hidden />
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Plus className="h-3.5 w-3.5" aria-hidden />}
           {t.stock.aliasAdd}
         </button>
       </form>

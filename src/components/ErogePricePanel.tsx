@@ -23,7 +23,7 @@
  * `extras` prop and never re-fetched.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, BadgePercent, Crown, Pin, TrendingDown, TrendingUp, Mic2, Pencil, Music2, X } from 'lucide-react';
+import { ExternalLink, BadgePercent, Crown, Loader2, Pin, TrendingDown, TrendingUp, Mic2, Pencil, Music2, X } from 'lucide-react';
 import type {
   EpApiPricePoint,
   EpApiRelatedConnection,
@@ -794,8 +794,9 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
             type="button"
             onClick={handleAdd}
             disabled={addState === 'saving' || !addInput.trim()}
-            className="tap-target rounded-md border border-accent/60 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 disabled:cursor-progress disabled:opacity-50"
+            className="tap-target inline-flex items-center gap-1.5 rounded-md border border-accent/60 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 disabled:cursor-progress disabled:opacity-50"
           >
+            {addState === 'saving' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
             {addState === 'saving'
               ? t.erogePrice.manualMatch.saving
               : t.erogePrice.manualMatch.confirmAdd}
@@ -876,7 +877,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
               className="tap-target inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent disabled:cursor-progress disabled:opacity-50"
               title={t.erogePrice.manualMatch.setPrimaryHint}
             >
-              <Pin className="h-3 w-3" aria-hidden />
+              {pinState === 'saving' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Pin className="h-3 w-3" aria-hidden />}
               {pinState === 'saving'
                 ? t.erogePrice.manualMatch.saving
                 : t.erogePrice.manualMatch.setPrimary}

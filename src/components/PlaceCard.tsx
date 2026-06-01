@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { Clock, Globe, Edit2, Link2, MapPin, PackageCheck, Trash2 } from 'lucide-react';
+import { Clock, Globe, Edit2, Link2, Loader2, MapPin, PackageCheck, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
@@ -88,11 +88,11 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
               type="button"
               onClick={handleDelete}
               disabled={deleting}
-              className="icon-btn tap-target text-muted hover:text-status-dropped"
+              className="icon-btn tap-target text-muted hover:text-status-dropped disabled:opacity-50"
               aria-label={t.places.deletePlace as string}
               title={t.places.deletePlace as string}
             >
-              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
             </button>
           </div>
         </div>

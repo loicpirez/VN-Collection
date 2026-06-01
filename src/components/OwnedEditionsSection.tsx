@@ -9,6 +9,7 @@ import {
   HardDriveDownload,
   Home,
   Info,
+  Loader2,
   MapPin,
   Package,
   Pencil,
@@ -134,6 +135,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adderOpen, setAdderOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ releaseId: string; kind: 'add' | 'remove' | 'save' } | null>(null);
 
   useSectionCount(loading ? null : owned.length);
 
@@ -222,6 +224,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
 
   async function addEdition(releaseId: string) {
     setBusy(true);
+    setPendingAction({ releaseId, kind: 'add' });
     try {
       const r = await fetch(`/api/collection/${vnId}/owned-releases`, {
         method: 'POST',
@@ -244,6 +247,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
       toast.error((e as Error).message);
     } finally {
       setBusy(false);
+      setPendingAction(null);
     }
   }
 
@@ -251,6 +255,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
     const ok = await confirm({ message: t.inventory.removeConfirm, tone: 'danger' });
     if (!ok) return;
     setBusy(true);
+    setPendingAction({ releaseId, kind: 'remove' });
     try {
       const r = await fetch(
         `/api/collection/${vnId}/owned-releases?release_id=${encodeURIComponent(releaseId)}`,
@@ -268,6 +273,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
       toast.error((e as Error).message);
     } finally {
       setBusy(false);
+      setPendingAction(null);
     }
   }
 
@@ -276,6 +282,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
     patch: Partial<OwnedEdition> & { aspect_override?: AspectOverridePatch },
   ) {
     setBusy(true);
+    setPendingAction({ releaseId, kind: 'save' });
     try {
       const r = await fetch(`/api/collection/${vnId}/owned-releases`, {
         method: 'PATCH',
@@ -291,6 +298,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
       toast.error((e as Error).message);
     } finally {
       setBusy(false);
+      setPendingAction(null);
     }
   }
 
@@ -324,6 +332,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
           canAddSynthetic={canAddSynthetic}
           syntheticReleaseId={syntheticReleaseId}
           busy={busy}
+          pendingAddId={pendingAction?.kind === 'add' ? pendingAction.releaseId : null}
           onAdd={addEdition}
         />
       )}
@@ -417,7 +426,11 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                           className="tap-target inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-status-dropped/10 hover:text-status-dropped"
                           title={t.common.delete}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          {pendingAction?.releaseId === edition.release_id && pendingAction.kind === 'remove' ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -429,6 +442,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                         edition={edition}
                         knownPlaces={knownPlaces}
                         busy={busy}
+                        saving={pendingAction?.releaseId === edition.release_id && pendingAction.kind === 'save'}
                         onSave={(patch) => saveEdition(edition.release_id, patch)}
                         onCancel={() => setEditingId(null)}
                       />
@@ -609,12 +623,14 @@ function EditionEditor({
   edition,
   knownPlaces,
   busy,
+  saving,
   onSave,
   onCancel,
 }: {
   edition: OwnedEdition;
   knownPlaces: string[];
   busy: boolean;
+  saving: boolean;
   onSave: (patch: Partial<OwnedEdition> & { aspect_override?: AspectOverridePatch }) => void;
   onCancel: () => void;
 }) {
@@ -883,7 +899,7 @@ function EditionEditor({
           {t.common.cancel}
         </button>
         <button type="button" className="btn btn-primary" onClick={submit} disabled={busy}>
-          <Save className="h-4 w-4" /> {t.common.save}
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" />} {t.common.save}
         </button>
       </div>
     </div>
@@ -915,6 +931,7 @@ function EditionPicker({
   canAddSynthetic,
   syntheticReleaseId,
   busy,
+  pendingAddId,
   onAdd,
 }: {
   unownedReleases: VndbRelease[];
@@ -923,6 +940,7 @@ function EditionPicker({
   canAddSynthetic: boolean;
   syntheticReleaseId: string;
   busy: boolean;
+  pendingAddId: string | null;
   onAdd: (releaseId: string) => void;
 }) {
   const t = useT();
@@ -1095,7 +1113,10 @@ function EditionPicker({
               />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="line-clamp-2 font-semibold" title={t.inventory.syntheticTitle}>{t.inventory.syntheticTitle}</div>
+              <div className="line-clamp-2 inline-flex items-center gap-1.5 font-semibold" title={t.inventory.syntheticTitle}>
+                {pendingAddId === syntheticReleaseId && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />}
+                {t.inventory.syntheticTitle}
+              </div>
               <div className="text-[11px] text-muted">{t.inventory.syntheticHint}</div>
             </div>
           </button>
@@ -1142,7 +1163,10 @@ function EditionPicker({
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="line-clamp-2 text-[12px] font-semibold" title={r.title}>{r.title}</div>
+                <div className="line-clamp-2 inline-flex items-center gap-1.5 text-[12px] font-semibold" title={r.title}>
+                  {pendingAddId === r.id && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />}
+                  {r.title}
+                </div>
                 {r.alttitle && r.alttitle !== r.title && (
                   <div className="line-clamp-1 text-[10px] text-muted" title={r.alttitle}>{r.alttitle}</div>
                 )}

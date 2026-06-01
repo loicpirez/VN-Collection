@@ -25,6 +25,11 @@ interface RouteRowProps {
   isFirst: boolean;
   isLast: boolean;
   busy: boolean;
+  togglePending: boolean;
+  removePending: boolean;
+  moveUpPending: boolean;
+  moveDownPending: boolean;
+  notesPending: boolean;
   editing: boolean;
   editingName: string;
   notesOpen: boolean;
@@ -55,6 +60,11 @@ const RouteRowItem = memo(function RouteRowItem({
   isFirst,
   isLast,
   busy,
+  togglePending,
+  removePending,
+  moveUpPending,
+  moveDownPending,
+  notesPending,
   editing,
   editingName,
   notesOpen,
@@ -92,7 +102,7 @@ const RouteRowItem = memo(function RouteRowItem({
         }`}
         title={r.completed ? t.routes.markIncomplete : t.routes.markComplete}
       >
-        {r.completed && <Check className="h-3 w-3" />}
+        {togglePending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : r.completed && <Check className="h-3 w-3" />}
       </button>
 
       {editing ? (
@@ -135,7 +145,7 @@ const RouteRowItem = memo(function RouteRowItem({
           className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
           aria-label={t.routes.moveUp}
         >
-          <ArrowUp className="h-3 w-3" />
+          {moveUpPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ArrowUp className="h-3 w-3" />}
         </button>
         <button
           type="button"
@@ -144,7 +154,7 @@ const RouteRowItem = memo(function RouteRowItem({
           className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
           aria-label={t.routes.moveDown}
         >
-          <ArrowDown className="h-3 w-3" />
+          {moveDownPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ArrowDown className="h-3 w-3" />}
         </button>
         {editing ? (
           <button
@@ -183,7 +193,7 @@ const RouteRowItem = memo(function RouteRowItem({
           className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
           aria-label={t.common.delete}
         >
-          <Trash2 className="h-3 w-3" />
+          {removePending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" />}
         </button>
       </div>
       </div>
@@ -212,8 +222,9 @@ const RouteRowItem = memo(function RouteRowItem({
                 type="button"
                 onClick={() => onSaveNotes(r)}
                 disabled={busy}
-                className="rounded-md bg-accent px-2 py-0.5 font-bold text-bg disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 font-bold text-bg disabled:opacity-50"
               >
+                {notesPending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
                 {t.common.save}
               </button>
             </div>
@@ -314,6 +325,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const [notesOpen, setNotesOpen] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ id: number; kind: 'toggle' | 'remove' | 'moveUp' | 'moveDown' | 'notes' } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [characters, setCharacters] = useState<VndbCharacter[]>([]);
   const [, startTransition] = useTransition();
@@ -438,6 +450,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       toast.error((err as Error).message);
     } finally {
       setBusy(false);
+      setPendingAction(null);
     }
   }, [reload, router, toast, t.common.error, t.routes.updated]);
 
@@ -445,6 +458,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     const ok = await confirm({ message: t.routes.removeConfirm, tone: 'danger' });
     if (!ok) return;
     setBusy(true);
+    setPendingAction({ id, kind: 'remove' });
     setError(null);
     try {
       const r = await fetch(`/api/route/${id}`, { method: 'DELETE' });
@@ -457,6 +471,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       toast.error((err as Error).message);
     } finally {
       setBusy(false);
+      setPendingAction(null);
     }
   }, [confirm, reload, router, toast, t.common.error, t.routes.removed, t.routes.removeConfirm]);
 
@@ -469,6 +484,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     [next[idx], next[target]] = [next[target], next[idx]];
     setRoutes(next);
     setBusy(true);
+    setPendingAction({ id, kind: direction === -1 ? 'moveUp' : 'moveDown' });
     setError(null);
     try {
       const r = await fetch(`/api/collection/${vnId}/routes`, {
@@ -485,6 +501,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       await reload();
     } finally {
       setBusy(false);
+      setPendingAction(null);
     }
   }, [reload, vnId, toast, t.common.error, t.routes.reordered]);
 
@@ -513,7 +530,10 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   }, []);
 
   const toggleComplete = useCallback(
-    (r: RouteRow) => patch(r.id, { completed: !r.completed }),
+    (r: RouteRow) => {
+      setPendingAction({ id: r.id, kind: 'toggle' });
+      return patch(r.id, { completed: !r.completed });
+    },
     [patch],
   );
 
@@ -529,6 +549,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const cancelNotes = useCallback(() => setNotesOpen(null), []);
 
   const saveNotes = useCallback(async (r: RouteRow) => {
+    setPendingAction({ id: r.id, kind: 'notes' });
     await patch(r.id, { notes: notesDraftRef.current.trim() || null });
     setNotesOpen(null);
   }, [patch]);
@@ -592,6 +613,11 @@ export function RoutesSection({ vnId, inCollection }: Props) {
               isFirst={i === 0}
               isLast={i === routes.length - 1}
               busy={busy}
+              togglePending={pendingAction?.id === r.id && pendingAction.kind === 'toggle'}
+              removePending={pendingAction?.id === r.id && pendingAction.kind === 'remove'}
+              moveUpPending={pendingAction?.id === r.id && pendingAction.kind === 'moveUp'}
+              moveDownPending={pendingAction?.id === r.id && pendingAction.kind === 'moveDown'}
+              notesPending={pendingAction?.id === r.id && pendingAction.kind === 'notes'}
               editing={editingId === r.id}
               editingName={editingName}
               notesOpen={notesOpen === r.id}

@@ -13,6 +13,9 @@ import type { BoxType, EditionType, Location, Status } from '@/lib/types';
 import type { CollectionItem, SeriesRow } from '@/lib/types';
 
 import { readApiError } from '@/lib/api-error-read';
+
+type SaveField = 'status' | 'favorite' | 'dumped';
+
 interface Props {
   vn: CollectionItem;
   inCollection: boolean;
@@ -60,7 +63,35 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   const [seriesPickerId, setSeriesPickerId] = useState<string>('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [pendingFields, setPendingFields] = useState<ReadonlySet<SaveField>>(() => new Set<SaveField>());
+  const [addingSeries, setAddingSeries] = useState(false);
+  const [removingSeriesId, setRemovingSeriesId] = useState<number | null>(null);
+  const [removingItem, setRemovingItem] = useState(false);
   const myseries = useMemo(() => vn.series ?? [], [vn.series]);
+
+  const markPending = useCallback((field: SaveField) => {
+    setPendingFields((prev) => {
+      if (prev.has(field)) return prev;
+      const next = new Set<SaveField>(prev);
+      next.add(field);
+      return next;
+    });
+  }, []);
+
+  const handleStatusChange = useCallback((next: Status) => {
+    markPending('status');
+    setStatus(next);
+  }, [markPending]);
+
+  const handleFavoriteChange = useCallback((next: boolean) => {
+    markPending('favorite');
+    setFavorite(next);
+  }, [markPending]);
+
+  const handleDumpedChange = useCallback((next: boolean) => {
+    markPending('dumped');
+    setDumped(next);
+  }, [markPending]);
 
   const buildPayload = useCallback((override?: Partial<{
     status: Status;
@@ -197,10 +228,16 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
       return;
     }
     if (!inCollection) return;
-    if (userRatingInvalid || playtimeInvalid) return;
+    if (userRatingInvalid || playtimeInvalid) {
+      setPendingFields((prev) => (prev.size ? new Set<SaveField>() : prev));
+      return;
+    }
     const payload = buildPayload();
     const serialized = JSON.stringify(payload);
-    if (serialized === lastSavedRef.current) return;
+    if (serialized === lastSavedRef.current) {
+      setPendingFields((prev) => (prev.size ? new Set<SaveField>() : prev));
+      return;
+    }
     const dumpedJustEnabled = dumped && !prevDumpedRef.current;
     const favoriteChanged = favorite !== prevFavoriteRef.current;
     setSaveStatus('saving');
@@ -212,6 +249,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           prevDumpedRef.current = dumped;
           prevFavoriteRef.current = favorite;
           if (unmountedRef.current) return;
+          setPendingFields(new Set<SaveField>());
           if (dumpedJustEnabled) toast.success(t.toast.markedDumped);
           if (favoriteChanged) toast.success(favorite ? t.toast.favoriteAdded : t.toast.favoriteRemoved);
           if (!dumpedJustEnabled && !favoriteChanged) toast.success(t.toast.saved);
@@ -225,6 +263,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         })
         .catch((e: Error) => {
           if (unmountedRef.current) return;
+          setPendingFields(new Set<SaveField>());
           setSaveStatus('idle');
           setError(e.message);
           toast.error(e.message);
@@ -283,17 +322,27 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const playtimeNum = Number(playtime);
   const playtimeInvalid = Number.isNaN(playtimeNum) || playtimeNum < 0;
 
+  const trackingSaving = pendingFields.has('status') || pendingFields.has('favorite');
+  const dumpedSaving = pendingFields.has('dumped');
+
   async function handleRemove() {
     const ok = await confirm({ message: t.form.removeConfirm, tone: 'danger' });
     if (!ok) return;
+    setRemovingItem(true);
     withTransition(
-      () => call('DELETE').then(() => toast.success(t.toast.removed)),
+      () => call('DELETE')
+        .then(() => toast.success(t.toast.removed))
+        .catch((e: Error) => {
+          if (!unmountedRef.current) setRemovingItem(false);
+          throw e;
+        }),
       () => router.push('/'),
     );
   }
 
   async function addSeries(seriesId: number) {
     setError(null);
+    setAddingSeries(true);
     try {
       const res = await fetch(`/api/series/${seriesId}/vn/${vn.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       if (!res.ok) throw new Error(await readApiError(res, t.common.error));
@@ -303,11 +352,14 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     } catch (e) {
       setError((e as Error).message);
       toast.error((e as Error).message);
+    } finally {
+      if (!unmountedRef.current) setAddingSeries(false);
     }
   }
 
   async function removeSeries(seriesId: number) {
     setError(null);
+    setRemovingSeriesId(seriesId);
     try {
       const res = await fetch(`/api/series/${seriesId}/vn/${vn.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await readApiError(res, t.common.error));
@@ -316,6 +368,8 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     } catch (e) {
       setError((e as Error).message);
       toast.error((e as Error).message);
+    } finally {
+      if (!unmountedRef.current) setRemovingSeriesId(null);
     }
   }
 
@@ -336,40 +390,64 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
-      <TrackingFields
-        status={status}
-        onStatusChange={setStatus}
-        userRating={userRating}
-        userRatingInvalid={userRatingInvalid}
-        onUserRatingChange={setUserRating}
-        playtime={playtime}
-        playtimeInvalid={playtimeInvalid}
-        onPlaytimeChange={setPlaytime}
-        favorite={favorite}
-        onFavoriteChange={setFavorite}
-        started={started}
-        onStartedChange={setStarted}
-        finished={finished}
-        onFinishedChange={setFinished}
-      />
+      <div className="relative" aria-busy={trackingSaving || undefined}>
+        {trackingSaving && (
+          <span
+            role="status"
+            aria-label={t.form.saving}
+            title={t.form.saving}
+            className="pointer-events-none absolute right-3 top-3 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-bg-card/90 text-accent shadow-card backdrop-blur"
+          >
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          </span>
+        )}
+        <TrackingFields
+          status={status}
+          onStatusChange={handleStatusChange}
+          userRating={userRating}
+          userRatingInvalid={userRatingInvalid}
+          onUserRatingChange={setUserRating}
+          playtime={playtime}
+          playtimeInvalid={playtimeInvalid}
+          onPlaytimeChange={setPlaytime}
+          favorite={favorite}
+          onFavoriteChange={handleFavoriteChange}
+          started={started}
+          onStartedChange={setStarted}
+          finished={finished}
+          onFinishedChange={setFinished}
+        />
+      </div>
 
-      <OwnedEditions
-        location={location}
-        onLocationChange={setLocation}
-        editionType={editionType}
-        onEditionTypeChange={setEditionType}
-        boxType={boxType}
-        onBoxTypeChange={setBoxType}
-        editionLabel={editionLabel}
-        onEditionLabelChange={setEditionLabel}
-        physicalLocations={physicalLocations}
-        onPhysicalLocationsChange={setPhysicalLocations}
-        knownPlaces={knownPlaces}
-        downloadUrl={downloadUrl}
-        onDownloadUrlChange={setDownloadUrl}
-        dumped={dumped}
-        onDumpedChange={setDumped}
-      />
+      <div className="relative" aria-busy={dumpedSaving || undefined}>
+        {dumpedSaving && (
+          <span
+            role="status"
+            aria-label={t.form.saving}
+            title={t.form.saving}
+            className="pointer-events-none absolute bottom-3 right-3 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-bg-card/90 text-accent shadow-card backdrop-blur"
+          >
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          </span>
+        )}
+        <OwnedEditions
+          location={location}
+          onLocationChange={setLocation}
+          editionType={editionType}
+          onEditionTypeChange={setEditionType}
+          boxType={boxType}
+          onBoxTypeChange={setBoxType}
+          editionLabel={editionLabel}
+          onEditionLabelChange={setEditionLabel}
+          physicalLocations={physicalLocations}
+          onPhysicalLocationsChange={setPhysicalLocations}
+          knownPlaces={knownPlaces}
+          downloadUrl={downloadUrl}
+          onDownloadUrlChange={setDownloadUrl}
+          dumped={dumped}
+          onDumpedChange={handleDumpedChange}
+        />
+      </div>
 
       <NotesEditor notes={notes} onNotesChange={setNotes} />
 
@@ -384,10 +462,16 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
                 <Link href={`/series/${s.id}`} className="hover:text-accent">{s.name}</Link>
                 <button
                   type="button"
-                  className="text-muted hover:text-status-dropped"
+                  className="inline-flex items-center text-muted hover:text-status-dropped disabled:cursor-wait disabled:opacity-60"
                   onClick={() => removeSeries(s.id)}
+                  disabled={removingSeriesId === s.id}
+                  aria-busy={removingSeriesId === s.id || undefined}
                   aria-label={t.series.removeFromSeries}
-                >×</button>
+                >
+                  {removingSeriesId === s.id
+                    ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                    : <span aria-hidden>×</span>}
+                </button>
               </span>
             ))}
           </div>
@@ -407,12 +491,15 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
             </select>
             <button
               type="button"
-              className="btn btn-primary"
-              disabled={!seriesPickerId}
+              className="btn btn-primary disabled:cursor-wait"
+              disabled={!seriesPickerId || addingSeries}
               onClick={() => seriesPickerId && addSeries(Number(seriesPickerId))}
+              aria-busy={addingSeries || undefined}
               aria-label={t.detail.addToSeries}
             >
-              <Plus className="h-4 w-4" aria-hidden />
+              {addingSeries
+                ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                : <Plus className="h-4 w-4" aria-hidden />}
             </button>
           </div>
         )}
@@ -449,10 +536,13 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
         <button
           type="button"
           onClick={handleRemove}
-          disabled={pending}
-          className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-status-dropped disabled:opacity-40"
+          disabled={pending || removingItem}
+          aria-busy={removingItem || undefined}
+          className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-status-dropped disabled:opacity-40 disabled:hover:text-muted"
         >
-          <Trash2 className="h-3 w-3" aria-hidden />
+          {removingItem
+            ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            : <Trash2 className="h-3 w-3" aria-hidden />}
           {t.form.remove}
         </button>
       </div>
