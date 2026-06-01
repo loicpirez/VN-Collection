@@ -64,7 +64,19 @@ describe('readTagFullCache', () => {
   });
 
   it('lowercases the gid before lookup', () => {
-    writeCacheRow('tag_full:g90004', JSON.stringify({ tag: { id: 'g90004' }, fetched_at: NOW }));
+    writeCacheRow('tag_full:g90004', JSON.stringify({
+      tag: {
+        id: 'g90004',
+        name: 'Synthetic Tag',
+        aliases: [],
+        description: null,
+        category: 'cont',
+        searchable: true,
+        applicable: true,
+        vn_count: 0,
+      },
+      fetched_at: NOW,
+    }));
     // Uppercase input should still resolve.
     expect(readTagFullCache('G90004')).not.toBeNull();
   });
@@ -91,6 +103,7 @@ describe('readTraitFullCache', () => {
         char_count: 5,
         searchable: true,
         applicable: true,
+        sexual: false,
         group_id: null,
         group_name: null,
         aliases: [],
@@ -105,7 +118,21 @@ describe('readTraitFullCache', () => {
   });
 
   it('lowercases the iid before lookup', () => {
-    writeCacheRow('trait_full:i90004', JSON.stringify({ trait: { id: 'i90004' }, fetched_at: NOW }));
+    writeCacheRow('trait_full:i90004', JSON.stringify({
+      trait: {
+        id: 'i90004',
+        name: 'Synthetic Trait',
+        aliases: [],
+        description: null,
+        searchable: true,
+        applicable: true,
+        sexual: false,
+        group_id: null,
+        group_name: null,
+        char_count: 0,
+      },
+      fetched_at: NOW,
+    }));
     expect(readTraitFullCache('I90004')).not.toBeNull();
   });
 });

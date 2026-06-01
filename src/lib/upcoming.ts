@@ -1,6 +1,8 @@
 import 'server-only';
 import { db } from './db';
 import { cachedFetch, TTL } from './vndb-cache';
+import { decodeUpcomingReleasePage } from './vndb-feed-cache-shape';
+import { asJsonRecord, parseJsonArray } from './json-shape';
 
 const VNDB_API = 'https://api.vndb.org/kana';
 
@@ -44,12 +46,11 @@ function watchedProducerIds(): string[] {
     .all() as { developers: string | null }[];
   const set = new Set<string>();
   for (const r of rows) {
-    if (!r.developers) continue;
-    try {
-      const parsed = JSON.parse(r.developers) as { id?: string }[];
-      for (const d of parsed) if (d.id) set.add(d.id);
-    } catch {
-      // ignore malformed rows — old schema leftover
+    for (const developer of parseJsonArray(r.developers)) {
+      const id = asJsonRecord(developer)?.id;
+      if (typeof id === 'string' && /^p\d+$/i.test(id)) {
+        set.add(id.toLowerCase());
+      }
     }
   }
   return Array.from(set);
@@ -95,7 +96,7 @@ export async function fetchUpcomingForCollection(): Promise<UpcomingRelease[]> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       },
-      { ttlMs: TTL.releases },
+      { ttlMs: TTL.releases, decode: decodeUpcomingReleasePage },
     );
     for (const rel of r.data.results) {
       if (!aggregate.has(rel.id)) aggregate.set(rel.id, rel);
@@ -137,7 +138,7 @@ export async function fetchAllUpcomingFromVndb(limit = 200): Promise<UpcomingRel
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       },
-      { ttlMs: TTL.releases },
+      { ttlMs: TTL.releases, decode: decodeUpcomingReleasePage },
     );
     for (const rel of r.data.results) {
       if (!aggregate.has(rel.id)) aggregate.set(rel.id, rel);

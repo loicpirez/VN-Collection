@@ -26,6 +26,30 @@ searchLocalCharacters({ q: '' });
 const db = new Database(process.env.DB_PATH!);
 
 interface TraitRow { vn_id: string; c_id: string; va_lang: string; sid?: string }
+function characterProfile(id: string, name: string): Record<string, unknown> {
+  return {
+    id,
+    name,
+    original: null,
+    aliases: [],
+    description: null,
+    image: null,
+    blood_type: null,
+    height: null,
+    weight: null,
+    bust: null,
+    waist: null,
+    hips: null,
+    cup: null,
+    age: null,
+    birthday: null,
+    sex: null,
+    gender: null,
+    vns: [],
+    traits: [],
+  };
+}
+
 function seed(rows: TraitRow[]): void {
   const now = Date.now();
   const seenVn = new Set<string>();
@@ -47,7 +71,7 @@ function seed(rows: TraitRow[]): void {
     ).run(r.c_id, r.vn_id);
     if (!seenChar.has(r.c_id)) {
       const cacheKey = `char_full:${r.c_id}`;
-      const body = JSON.stringify({ profile: { id: r.c_id, name: `${r.c_id} display` } });
+      const body = JSON.stringify({ profile: characterProfile(r.c_id, `${r.c_id} display`) });
       db.prepare(
         `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
       ).run(cacheKey, body, now, now + 24 * 60 * 60 * 1000);

@@ -1,6 +1,10 @@
 import 'server-only';
 import { db } from './db';
-import { cachedFetch, TTL } from './vndb-cache';
+import { cachedFetch, TTL, type CachePayloadDecoder } from './vndb-cache';
+import {
+  decodeProducerAssociationReleasePage,
+  decodeProducerAssociationVnPage,
+} from './vndb-feed-cache-shape';
 
 const VNDB_API = 'https://api.vndb.org/kana';
 
@@ -40,7 +44,8 @@ export interface ProducerAssociations {
   stale: boolean;
 }
 
-interface VndbVnSummary {
+/** VNDB VN summary used while building one producer association page. */
+export interface VndbVnSummary {
   id: string;
   title: string;
   alttitle?: string | null;
@@ -49,7 +54,8 @@ interface VndbVnSummary {
   image?: { url: string; thumbnail: string; sexual?: number } | null;
 }
 
-interface VndbReleaseRow {
+/** VNDB release row used to recover publisher-side producer credits. */
+export interface VndbReleaseRow {
   id: string;
   vns: { id: string; title?: string; released?: string | null; rating?: number | null; image?: VndbVnSummary['image'] }[];
   producers: { id: string; developer: boolean; publisher: boolean; name?: string | null }[];
@@ -93,6 +99,7 @@ async function paginatePost<T>(
   baseBody: Record<string, unknown>,
   maxPages: number,
   ttlMs: number,
+  decode: CachePayloadDecoder<VndbResp<T>>,
 ): Promise<PaginateResult<T>> {
   const out: T[] = [];
   let stale = false;
@@ -106,7 +113,7 @@ async function paginatePost<T>(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       },
-      { ttlMs },
+      { ttlMs, decode },
     );
     if (r.stale) stale = true;
     out.push(...(r.data.results ?? []));
@@ -179,6 +186,7 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
       },
       3,
       TTL.vnSearch,
+      decodeProducerAssociationVnPage,
     );
     devs = r.rows;
     devsStale = r.stale;
@@ -205,6 +213,7 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
       },
       5,
       TTL.releases,
+      decodeProducerAssociationReleasePage,
     );
     releases = r.rows;
     releasesStale = r.stale;

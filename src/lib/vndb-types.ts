@@ -99,13 +99,51 @@ export interface VndbReleaseImage {
   id: string;
   url: string;
   thumbnail?: string;
+  thumbnail_dims?: [number, number];
   dims?: [number, number];
   sexual?: number;
   violence?: number;
+  votecount?: number;
   type: 'pkgfront' | 'pkgback' | 'pkgcontent' | 'pkgside' | 'pkgmed' | 'dig';
   languages?: string[] | null;
   photo?: boolean;
   vn?: string | null;
+}
+
+export interface VndbReleaseExtLink {
+  url: string;
+  label: string;
+  name: string;
+  id?: string | number | null;
+}
+
+export interface VndbReleaseProducer {
+  id: string;
+  developer: boolean;
+  publisher: boolean;
+  name: string;
+  original?: string | null;
+  aliases?: string[];
+  lang?: string | null;
+  type?: string | null;
+  description?: string | null;
+  extlinks?: VndbReleaseExtLink[];
+}
+
+export interface VndbReleaseVnImage {
+  url: string;
+  thumbnail?: string;
+  sexual?: number;
+}
+
+export interface VndbReleaseVn {
+  id: string;
+  rtype: 'trial' | 'partial' | 'complete';
+  title?: string;
+  alttitle?: string | null;
+  released?: string | null;
+  rating?: number | null;
+  image?: VndbReleaseVnImage | null;
 }
 
 export interface VndbRelease {
@@ -128,9 +166,9 @@ export interface VndbRelease {
   notes: string | null;
   gtin: string | null;
   catalog: string | null;
-  producers: { id: string; name: string; developer: boolean; publisher: boolean }[];
-  extlinks: { url: string; label: string; name: string; id?: string | number }[];
-  vns: { id: string; rtype: 'trial' | 'partial' | 'complete' }[];
+  producers: VndbReleaseProducer[];
+  extlinks: VndbReleaseExtLink[];
+  vns: VndbReleaseVn[];
   images: VndbReleaseImage[];
 }
 
@@ -138,7 +176,13 @@ export interface VndbQuote {
   id: string;
   quote: string;
   score: number;
-  vn: { id: string; title: string } | null;
+  vn: {
+    id: string;
+    title: string;
+    image_url?: string | null;
+    local_image?: string | null;
+    local_image_thumb?: string | null;
+  } | null;
   /**
    * When the local API has mirrored the character portrait, the
    * quote shape is enriched with an `image.local_path`. The field

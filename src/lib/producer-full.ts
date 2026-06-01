@@ -1,7 +1,8 @@
 import 'server-only';
 import { db, getAppSetting } from './db';
 import { fetchProducerCompletion } from './producer-completion';
-import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
+import { finishJob, jobLabel, recordError, setJobCurrent, startJob, tickJob } from './download-status';
+import { asJsonRecord, parseJsonArray } from './json-shape';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -33,14 +34,12 @@ export async function downloadFullProducerForVn(vnId: string, opts: { force?: bo
     .get(vnId) as { developers: string | null } | undefined;
   if (!row?.developers) return { scanned: 0, downloaded: 0 };
 
-  let devs: Array<{ id?: string; name?: string }> = [];
-  try {
-    devs = JSON.parse(row.developers) as Array<{ id?: string; name?: string }>;
-  } catch {
-    return { scanned: 0, downloaded: 0 };
-  }
   const pids = Array.from(
-    new Set(devs.map((d) => d.id).filter((id): id is string => !!id && /^p\d+$/i.test(id))),
+    new Set(
+      parseJsonArray(row.developers)
+        .map((value) => asJsonRecord(value)?.id)
+        .filter((id): id is string => typeof id === 'string' && /^p\d+$/i.test(id)),
+    ),
   );
 
   if (pids.length === 0) return { scanned: 0, downloaded: 0 };
@@ -50,21 +49,11 @@ export async function downloadFullProducerForVn(vnId: string, opts: { force?: bo
     : pids.filter((pid) => now - lastFetchedProducer(pid) > CACHE_FRESH_MS);
   if (stale.length === 0) return { scanned: pids.length, downloaded: 0 };
 
-  const job = startJob('producers', `Developers for ${vnId}`, stale.length, vnId);
-
-  // Pre-load producer names from the developer list we already have on
-  // the VN row so the progress bar shows the human name.
-  const nameMap = new Map<string, string>();
-  for (const d of devs) {
-    if (d?.id && d?.name && !nameMap.has(d.id)) nameMap.set(d.id, d.name);
-  }
+  const job = startJob('producers', jobLabel('developers_for_vn', `Developers for ${vnId}`, { vnId }), stale.length, vnId);
 
   let downloaded = 0;
   for (const pid of stale) {
-    // Surface the specific producer id currently in flight, with the
-    // dev's human name when we have it cached.
-    const name = nameMap.get(pid);
-    setJobCurrent(job.id, name ? `Producer — ${name} (${pid})` : `Producer — ${pid}`);
+    setJobCurrent(job.id, pid);
     try {
       await fetchProducerCompletion(pid);
       downloaded += 1;

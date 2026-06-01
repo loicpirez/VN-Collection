@@ -1,7 +1,8 @@
 import 'server-only';
 import { db } from './db';
 import { fetchVndbWebHtml, htmlToText } from './vndb-scrape';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
+import { asJsonRecord, parseJsonArray, parseJsonRecord } from './json-shape';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -34,6 +35,35 @@ export interface ScrapedTagDag {
 
 const CACHE_KEY = (gid: string) => `scrape_tag:${gid.toLowerCase()}`;
 
+function isScrapedTagDagNode(value: unknown): value is ScrapedTagDagNode {
+  const row = asJsonRecord(value);
+  return row !== null
+    && typeof row.id === 'string'
+    && /^g\d+$/i.test(row.id)
+    && typeof row.name === 'string';
+}
+
+function decodeScrapedTagDag(raw: string, fetchedAt: number): ScrapedTagDag | null {
+  const parsed = parseJsonRecord(raw);
+  if (
+    parsed === null
+    || typeof parsed.gid !== 'string'
+    || !/^g\d+$/i.test(parsed.gid)
+    || !Array.isArray(parsed.parents)
+    || !parsed.parents.every(isScrapedTagDagNode)
+    || !Array.isArray(parsed.children)
+    || !parsed.children.every(isScrapedTagDagNode)
+  ) {
+    return null;
+  }
+  return {
+    gid: parsed.gid,
+    parents: parsed.parents,
+    children: parsed.children,
+    fetched_at: fetchedAt,
+  };
+}
+
 /**
  * Read the cached parent/child DAG for a tag id, or `null` when absent or
  * unparseable. Used as a fast pre-render path so tag pages don't block on
@@ -44,12 +74,7 @@ export function readScrapedTagDag(gid: string): ScrapedTagDag | null {
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
     .get(CACHE_KEY(gid)) as { body: string; fetched_at: number } | undefined;
   if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.body) as ScrapedTagDag;
-    return { ...parsed, fetched_at: row.fetched_at };
-  } catch {
-    return null;
-  }
+  return decodeScrapedTagDag(row.body, row.fetched_at);
 }
 
 function write(gid: string, dag: ScrapedTagDag): void {
@@ -118,13 +143,12 @@ export async function scrapeTagDagForVn(
     .prepare('SELECT tags FROM vn WHERE id = ?')
     .get(vnId) as { tags: string | null } | undefined;
   if (!row?.tags) return { scanned: 0, downloaded: 0 };
-  let tags: { id: string }[] = [];
-  try {
-    tags = JSON.parse(row.tags);
-  } catch {
-    return { scanned: 0, downloaded: 0 };
-  }
-  const ids = Array.from(new Set(tags.map((t) => t.id).filter((s) => /^g\d+$/i.test(s))));
+  const ids = Array.from(new Set(
+    parseJsonArray(row.tags)
+      .map((tag) => asJsonRecord(tag)?.id)
+      .filter((id): id is string => typeof id === 'string' && /^g\d+$/i.test(id))
+      .map((id) => id.toLowerCase()),
+  ));
   if (ids.length === 0) return { scanned: 0, downloaded: 0 };
 
   const now = Date.now();
@@ -136,7 +160,7 @@ export async function scrapeTagDagForVn(
       });
   if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };
 
-  const job = startJob('vn-fetch', `Tag graph for ${vnId}`, stale.length, vnId);
+  const job = startJob('vn-fetch', jobLabel('tag_graph_for_vn', `Tag graph for ${vnId}`, { vnId }), stale.length, vnId);
   let downloaded = 0;
   for (const gid of stale) {
     try {

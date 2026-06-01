@@ -5,6 +5,7 @@ import {
   deleteCacheKey,
   getAppSetting,
   getCacheRow,
+  getCacheRows,
   putCacheRow,
   touchCacheRow,
   type CacheRow,
@@ -124,10 +125,21 @@ export interface FetchResult<T> {
   stale?: boolean;
 }
 
-export interface CachedFetchOptions {
+/**
+ * Validate and normalize one decoded cache or upstream payload.
+ *
+ * @param value Parsed JSON payload.
+ * @returns A normalized payload, or `null` when validation fails.
+ */
+export type CachePayloadDecoder<T> = (value: unknown) => T | null;
+
+/** Runtime controls for one cached upstream request. */
+export interface CachedFetchOptions<T> {
   ttlMs: number;
   /** When 0, the cache is bypassed entirely (no read, no write). */
   staleWhileError?: boolean;
+  /** Optional structural decoder applied consistently to cache and upstream payloads. */
+  decode?: CachePayloadDecoder<T>;
 }
 
 const inflight = new Map<string, Promise<FetchResult<unknown>>>();
@@ -135,7 +147,7 @@ const inflight = new Map<string, Promise<FetchResult<unknown>>>();
 export async function cachedFetch<T>(
   url: string,
   init: RequestInit & { __pathTag?: string },
-  { ttlMs, staleWhileError = true }: CachedFetchOptions,
+  { ttlMs, staleWhileError = true, decode }: CachedFetchOptions<T>,
 ): Promise<FetchResult<T>> {
   const path = init.__pathTag ?? new URL(url).pathname;
   const method = (init.method ?? 'GET').toUpperCase();
@@ -144,14 +156,14 @@ export async function cachedFetch<T>(
   const now = Date.now();
 
   if (ttlMs <= 0) {
-    return doFetch<T>(url, init, key, ttlMs);
+    return doFetch<T>(url, init, key, ttlMs, undefined, decode);
   }
 
   const cached = getCacheRow(key);
   if (cached && now < cached.expires_at) {
     let data: T | undefined;
     try {
-      data = JSON.parse(cached.body) as T;
+      data = decodePayload(JSON.parse(cached.body), decode);
     } catch (e) {
       console.warn(`[vndb-cache] corrupt body for ${key}, treating as miss: ${(e as Error).message}`);
     }
@@ -170,12 +182,12 @@ export async function cachedFetch<T>(
 
   const p = (async (): Promise<FetchResult<T>> => {
     try {
-      return await doFetch<T>(url, init, key, ttlMs, cached);
+      return await doFetch<T>(url, init, key, ttlMs, cached, decode);
     } catch (err) {
       if (cached && staleWhileError) {
         let staleData: T;
         try {
-          staleData = JSON.parse(cached.body) as T;
+          staleData = decodePayload(JSON.parse(cached.body), decode);
         } catch {
           throw err;
         }
@@ -202,6 +214,7 @@ async function doFetch<T>(
   key: string,
   ttlMs: number,
   cached?: CacheRow | null,
+  decode?: CachePayloadDecoder<T>,
 ): Promise<FetchResult<T>> {
   if (!isAllowedHttpTarget(url)) {
     throw new Error(`vndb-cache: refusing fetch to non-allowlisted URL ${url}`);
@@ -224,14 +237,14 @@ async function doFetch<T>(
   }
 
   try {
-    return await fetchOnce<T>(url, init, key, ttlMs, cached);
+    return await fetchOnce<T>(url, init, key, ttlMs, cached, decode);
   } catch (err) {
     if (!mirror) throw err;
     // Try the mirror exactly once. If it also fails we surface the original
     // error so the user sees the real reason (and so cached fallback still
     // works inside cachedFetch's outer catch).
     try {
-      return await fetchOnce<T>(mirror, init, key, ttlMs, cached);
+      return await fetchOnce<T>(mirror, init, key, ttlMs, cached, decode);
     } catch {
       throw err;
     }
@@ -244,6 +257,7 @@ async function fetchOnce<T>(
   key: string,
   ttlMs: number,
   cached?: CacheRow | null,
+  decode?: CachePayloadDecoder<T>,
 ): Promise<FetchResult<T>> {
   const headers = new Headers(init.headers);
   if (cached?.etag) headers.set('If-None-Match', cached.etag);
@@ -257,7 +271,7 @@ async function fetchOnce<T>(
     if (ttlMs > 0) touchCacheRow(key, now, now + ttlMs);
     let cachedData: T;
     try {
-      cachedData = JSON.parse(cached.body) as T;
+      cachedData = decodePayload(JSON.parse(cached.body), decode);
     } catch {
       throw new Error(`vndb-cache: corrupt cache body for key ${key} (304 path)`);
     }
@@ -285,12 +299,13 @@ async function fetchOnce<T>(
     throw new Error(`VNDB ${url} ${res.status}: ${text.slice(0, 300)}`);
   }
 
-  let data: T;
+  let parsed: unknown;
   try {
-    data = text ? (JSON.parse(text) as T) : ({} as T);
+    parsed = text ? JSON.parse(text) : {};
   } catch {
     throw new Error(`VNDB ${url}: non-JSON response (${res.status}): ${text.slice(0, 200)}`);
   }
+  const data = decodePayload(parsed, decode);
 
   if (ttlMs > 0) {
     putCacheRow({
@@ -304,6 +319,13 @@ async function fetchOnce<T>(
   }
 
   return { data, fromCache: false, status: res.status, cachedAt: now };
+}
+
+function decodePayload<T>(value: unknown, decode?: CachePayloadDecoder<T>): T {
+  if (!decode) return value as T;
+  const decoded = decode(value);
+  if (decoded === null) throw new Error('vndb-cache: invalid payload shape');
+  return decoded;
 }
 
 function safeParse(body: BodyInit): unknown {
@@ -336,13 +358,59 @@ export function invalidateKey(method: string, path: string, body?: unknown): voi
  * Read a cache entry directly without making any network request.
  * Returns null if the cache_key has never been populated.
  */
-export function readCachedJson<T>(method: string, pathTag: string, body?: unknown): T | null {
+export function readCachedJson<T>(
+  method: string,
+  pathTag: string,
+  body: unknown,
+  decode: (value: unknown) => T | null,
+): T | null {
   const key = buildKey(method.toUpperCase(), pathTag, body);
   const row = getCacheRow(key);
   if (!row) return null;
   try {
-    return JSON.parse(row.body) as T;
+    return decode(JSON.parse(row.body));
   } catch {
     return null;
   }
+}
+
+/**
+ * Description of one direct cache read in a batched lookup.
+ */
+export interface CachedJsonRead {
+  /** Caller-owned identifier used as the output-map key. */
+  id: string;
+  /** HTTP method included in the stable VNDB cache key. */
+  method: string;
+  /** Stable path tag included in the VNDB cache key. */
+  pathTag: string;
+  /** Optional request body included in the VNDB cache-key hash. */
+  body?: unknown;
+}
+
+/**
+ * Read many cached JSON responses with one chunked SQLite lookup.
+ *
+ * @param reads Cache-key descriptions paired with caller-owned identifiers.
+ * @param decode Caller-owned payload decoder.
+ * @returns Successfully decoded and validated cache payloads keyed by caller identifier.
+ */
+export function readCachedJsonMany<T>(
+  reads: readonly CachedJsonRead[],
+  decode: (value: unknown) => T | null,
+): Map<string, T> {
+  const keys = reads.map((read) => buildKey(read.method.toUpperCase(), read.pathTag, read.body));
+  const rowsByKey = getCacheRows(keys);
+  const out = new Map<string, T>();
+  reads.forEach((read, index) => {
+    const row = rowsByKey.get(keys[index]);
+    if (!row) return;
+    try {
+      const value = decode(JSON.parse(row.body));
+      if (value !== null) out.set(read.id, value);
+    } catch {
+      // A corrupt cache row behaves like a miss.
+    }
+  });
+  return out;
 }

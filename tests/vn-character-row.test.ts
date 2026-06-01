@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readVnCharacterRows } from '@/lib/vn-character-row';
+import { decodeVndbCharacterCacheResponse, readVnCharacterRows } from '@/lib/vn-character-row';
 
 describe('VN character row adapter', () => {
   it('normalizes the local API payload into the client character shape', () => {
@@ -43,5 +43,15 @@ describe('VN character row adapter', () => {
   it('drops malformed top-level rows and returns an empty list for invalid envelopes', () => {
     expect(readVnCharacterRows(null)).toEqual([]);
     expect(readVnCharacterRows({ characters: [{ id: 'c1' }, { name: 'Missing id' }] })).toEqual([]);
+  });
+
+  it('decodes direct VNDB cache envelopes and rejects malformed containers', () => {
+    expect(decodeVndbCharacterCacheResponse({
+      results: [{ id: 'c2', name: 'Cached character', traits: [] }],
+    })).toMatchObject({
+      results: [{ id: 'c2', name: 'Cached character', traits: [] }],
+    });
+    expect(decodeVndbCharacterCacheResponse({ results: {} })).toBeNull();
+    expect(decodeVndbCharacterCacheResponse(null)).toBeNull();
   });
 });

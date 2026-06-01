@@ -1,5 +1,6 @@
 import 'server-only';
 import { cachedFetch, TTL } from './vndb-cache';
+import { decodeRecommendationResults } from './vndb-feed-cache-shape';
 
 const VNDB_API = 'https://api.vndb.org/kana';
 const REC_FIELDS = [
@@ -15,7 +16,8 @@ const REC_FIELDS = [
   'developers{id,name}',
 ].join(', ');
 
-interface RecHit {
+/** VNDB VN summary returned by recommendation-only searches. */
+export interface RecHit {
   id: string;
   title: string;
   alttitle: string | null;
@@ -55,7 +57,7 @@ export async function vndbAdvancedSearchRaw(args: QueryArgs): Promise<RecHit[]> 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     },
-    { ttlMs: TTL.vnSearch },
+    { ttlMs: TTL.vnSearch, decode: decodeRecommendationResults },
   );
   return r.data.results;
 }

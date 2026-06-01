@@ -1,7 +1,8 @@
 import 'server-only';
 import { db } from './db';
 import { fetchVndbWebHtml, htmlToText } from './vndb-scrape';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
+import { asJsonRecord, parseJsonArray, parseJsonRecord } from './json-shape';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -30,6 +31,33 @@ export interface ScrapedProducerInfo {
 
 const CACHE_KEY = (pid: string) => `scrape_producer:${pid.toLowerCase()}`;
 
+function isScrapedProducerRelation(value: unknown): value is ScrapedProducerRelation {
+  const row = asJsonRecord(value);
+  return row !== null
+    && typeof row.relation === 'string'
+    && typeof row.id === 'string'
+    && /^p\d+$/i.test(row.id)
+    && typeof row.name === 'string';
+}
+
+function decodeScrapedProducerInfo(raw: string, fetchedAt: number): ScrapedProducerInfo | null {
+  const parsed = parseJsonRecord(raw);
+  if (
+    parsed === null
+    || typeof parsed.pid !== 'string'
+    || !/^p\d+$/i.test(parsed.pid)
+    || !Array.isArray(parsed.relations)
+    || !parsed.relations.every(isScrapedProducerRelation)
+  ) {
+    return null;
+  }
+  return {
+    pid: parsed.pid,
+    relations: parsed.relations,
+    fetched_at: fetchedAt,
+  };
+}
+
 /**
  * Read the cached scraped relations payload for a producer, or `null` when
  * absent / unparseable. Cache is keyed by lowercased pid and stored in
@@ -40,12 +68,7 @@ export function readScrapedProducerInfo(pid: string): ScrapedProducerInfo | null
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
     .get(CACHE_KEY(pid)) as { body: string; fetched_at: number } | undefined;
   if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.body) as ScrapedProducerInfo;
-    return { ...parsed, fetched_at: row.fetched_at };
-  } catch {
-    return null;
-  }
+  return decodeScrapedProducerInfo(row.body, row.fetched_at);
 }
 
 function writeScrapedProducerInfo(pid: string, info: ScrapedProducerInfo): void {
@@ -115,13 +138,12 @@ export async function scrapeProducersForVn(
     .prepare('SELECT developers FROM vn WHERE id = ?')
     .get(vnId) as { developers: string | null } | undefined;
   if (!row?.developers) return { scanned: 0, downloaded: 0 };
-  let devs: { id: string }[] = [];
-  try {
-    devs = JSON.parse(row.developers);
-  } catch {
-    return { scanned: 0, downloaded: 0 };
-  }
-  const ids = Array.from(new Set(devs.map((d) => d.id).filter((s) => /^p\d+$/i.test(s))));
+  const ids = Array.from(new Set(
+    parseJsonArray(row.developers)
+      .map((developer) => asJsonRecord(developer)?.id)
+      .filter((id): id is string => typeof id === 'string' && /^p\d+$/i.test(id))
+      .map((id) => id.toLowerCase()),
+  ));
   if (ids.length === 0) return { scanned: 0, downloaded: 0 };
 
   const now = Date.now();
@@ -133,7 +155,7 @@ export async function scrapeProducersForVn(
       });
   if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };
 
-  const job = startJob('vn-fetch', `Producer relations for ${vnId}`, stale.length, vnId);
+  const job = startJob('vn-fetch', jobLabel('producer_relations_for_vn', `Producer relations for ${vnId}`, { vnId }), stale.length, vnId);
   let downloaded = 0;
   for (const pid of stale) {
     try {

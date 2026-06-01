@@ -101,6 +101,12 @@ function mapCharacterRow(value: unknown): VnCharacterRow | null {
   };
 }
 
+function mapCharacterRows(value: unknown): VnCharacterRow[] | null {
+  return Array.isArray(value)
+    ? value.flatMap((character) => mapCharacterRow(character) ?? [])
+    : null;
+}
+
 /**
  * Validate and normalize the local VN characters API payload.
  *
@@ -109,5 +115,17 @@ function mapCharacterRow(value: unknown): VnCharacterRow | null {
  */
 export function readVnCharacterRows(payload: unknown): VnCharacterRow[] {
   if (!isRecord(payload) || !Array.isArray(payload.characters)) return [];
-  return payload.characters.flatMap((character) => mapCharacterRow(character) ?? []);
+  return mapCharacterRows(payload.characters) ?? [];
+}
+
+/**
+ * Validate and normalize a direct VNDB character-cache envelope.
+ *
+ * @param payload Decoded VNDB cache payload.
+ * @returns A safe character envelope, or `null` when the container is malformed.
+ */
+export function decodeVndbCharacterCacheResponse(payload: unknown): { results: VndbCharacter[] } | null {
+  if (!isRecord(payload)) return null;
+  const results = mapCharacterRows(payload.results);
+  return results ? { results } : null;
 }

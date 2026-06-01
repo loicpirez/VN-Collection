@@ -1,7 +1,9 @@
 import 'server-only';
 import { db } from './db';
 import { fetchVndbWebHtml, htmlToText } from './vndb-scrape';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
+import { asJsonRecord, parseJsonRecord } from './json-shape';
+import { isVndbVnId } from './vn-id-shape';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -46,6 +48,50 @@ export interface ScrapedCharacterInfo {
 
 const CACHE_KEY = (cid: string) => `scrape_character:${cid.toLowerCase()}`;
 
+function isScrapedCharInstance(value: unknown): value is ScrapedCharInstance {
+  const row = asJsonRecord(value);
+  return row !== null
+    && typeof row.cid === 'string'
+    && /^c\d+$/i.test(row.cid)
+    && typeof row.name === 'string'
+    && typeof row.vn_id === 'string'
+    && isVndbVnId(row.vn_id)
+    && typeof row.vn_title === 'string';
+}
+
+function isScrapedCharVoice(value: unknown): value is ScrapedCharVoice {
+  const row = asJsonRecord(value);
+  return row !== null
+    && typeof row.sid === 'string'
+    && /^s\d+$/i.test(row.sid)
+    && typeof row.staff_name === 'string'
+    && typeof row.vn_id === 'string'
+    && isVndbVnId(row.vn_id)
+    && typeof row.vn_title === 'string'
+    && (row.note === null || typeof row.note === 'string');
+}
+
+function decodeScrapedCharacterInfo(raw: string, fetchedAt: number): ScrapedCharacterInfo | null {
+  const parsed = parseJsonRecord(raw);
+  if (
+    parsed === null
+    || typeof parsed.cid !== 'string'
+    || !/^c\d+$/i.test(parsed.cid)
+    || !Array.isArray(parsed.instances)
+    || !parsed.instances.every(isScrapedCharInstance)
+    || !Array.isArray(parsed.voiced_by)
+    || !parsed.voiced_by.every(isScrapedCharVoice)
+  ) {
+    return null;
+  }
+  return {
+    cid: parsed.cid,
+    instances: parsed.instances,
+    voiced_by: parsed.voiced_by,
+    fetched_at: fetchedAt,
+  };
+}
+
 /**
  * Read the cached scraped "Instances" + "Voiced by" payload for a character,
  * or `null` on miss / parse error. Lets the character page render the cast
@@ -56,12 +102,7 @@ export function readScrapedCharacterInfo(cid: string): ScrapedCharacterInfo | nu
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
     .get(CACHE_KEY(cid)) as { body: string; fetched_at: number } | undefined;
   if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.body) as ScrapedCharacterInfo;
-    return { ...parsed, fetched_at: row.fetched_at };
-  } catch {
-    return null;
-  }
+  return decodeScrapedCharacterInfo(row.body, row.fetched_at);
 }
 
 function write(cid: string, info: ScrapedCharacterInfo): void {
@@ -164,7 +205,7 @@ export async function scrapeCharactersForVn(
       });
   if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };
 
-  const job = startJob('vn-fetch', `Character instances for ${vnId}`, stale.length, vnId);
+  const job = startJob('vn-fetch', jobLabel('character_instances_for_vn', `Character instances for ${vnId}`, { vnId }), stale.length, vnId);
   let downloaded = 0;
   for (const cid of stale) {
     try {

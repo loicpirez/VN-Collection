@@ -1,5 +1,6 @@
 import 'server-only';
 import { cachedFetch, TTL } from './vndb-cache';
+import { decodeVndbTopRankedPage } from './vndb-feed-cache-shape';
 
 const VNDB_API = 'https://api.vndb.org/kana';
 
@@ -76,7 +77,7 @@ export async function fetchVndbTopRanked(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       },
-      { ttlMs: TTL.vnSearch },
+      { ttlMs: TTL.vnSearch, decode: decodeVndbTopRankedPage },
     );
     for (const v of r.data.results) {
       if (!aggregate.has(v.id)) aggregate.set(v.id, v);
@@ -139,7 +140,7 @@ export async function fetchVndbTopRankedPage(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     },
-    { ttlMs: TTL.vnSearch },
+    { ttlMs: TTL.vnSearch, decode: decodeVndbTopRankedPage },
   );
   return {
     rows: r.data.results,

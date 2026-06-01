@@ -1,8 +1,9 @@
 import 'server-only';
 import { db } from './db';
 import { vndbAdvancedSearchRaw } from './vndb-recommend';
+import { asJsonRecord, parseJsonArray, parseJsonRecord } from './json-shape';
 
-import { isVndbVnId } from '@/lib/vn-id-shape';
+import { isValidVnId, isVndbVnId } from '@/lib/vn-id-shape';
 export type RecommendMode =
   | 'because-you-liked'
   | 'tag-based'
@@ -246,7 +247,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
   // nothing to anchor the suggestions to. Treat the missing-seed case
   // as a clean empty result (the page surfaces its own picker copy).
   if (mode === 'similar-to-vn') {
-    if (!seedVnId || !/^(v\d+|egs_\d+)$/i.test(seedVnId)) {
+    if (!seedVnId || !isValidVnId(seedVnId)) {
       return { seeds: [], results: [], mode };
     }
     const seeds = deriveSeedsFromVn(seedVnId, tagLimit, includeEro, customTagIds);
@@ -343,6 +344,30 @@ interface SeedUnion {
   counts: SignalCounts;
   studioCount: Map<string, number>;
   staffCount: Map<string, number>;
+}
+
+function readSeedTags(raw: string | null | undefined): SeedVnInfo['tags'] {
+  return parseJsonArray(raw).flatMap((value) => {
+    const tag = asJsonRecord(value);
+    if (!tag || typeof tag.id !== 'string' || typeof tag.name !== 'string') return [];
+    return [{
+      id: tag.id,
+      name: tag.name,
+      ...(typeof tag.rating === 'number' ? { rating: tag.rating } : {}),
+      ...(typeof tag.spoiler === 'number' ? { spoiler: tag.spoiler } : {}),
+      ...(typeof tag.category === 'string' || tag.category === null ? { category: tag.category } : {}),
+    }];
+  });
+}
+
+function readIdentityList(raw: string | null | undefined, includeAid: boolean): string[] {
+  return parseJsonArray(raw).flatMap((value) => {
+    const row = asJsonRecord(value);
+    if (!row) return [];
+    if (typeof row.id === 'string') return [row.id];
+    if (includeAid && (typeof row.aid === 'string' || typeof row.aid === 'number')) return [String(row.aid)];
+    return typeof row.name === 'string' ? [row.name] : [];
+  });
 }
 
 /**
@@ -461,26 +486,9 @@ function buildSeedUnion(useWishlist: boolean): SeedUnion {
     let info = vns.get(vnId);
     if (!info) {
       const row = rowsById.get(vnId);
-      let tags: SeedVnInfo['tags'] = [];
-      let developers: string[] = [];
-      let staff: string[] = [];
-      try {
-        tags = row?.tags ? JSON.parse(row.tags) : [];
-      } catch {
-        tags = [];
-      }
-      try {
-        const devs = row?.developers ? (JSON.parse(row.developers) as Array<{ id?: string; name?: string }>) : [];
-        developers = devs.map((d) => d.id ?? d.name ?? '').filter((s) => s.length > 0);
-      } catch {
-        developers = [];
-      }
-      try {
-        const staffRaw = row?.staff ? (JSON.parse(row.staff) as Array<{ id?: string; aid?: string | number; name?: string }>) : [];
-        staff = staffRaw.map((s) => s.id ?? (s.aid != null ? String(s.aid) : s.name ?? '')).filter((s) => s.length > 0);
-      } catch {
-        staff = [];
-      }
+      const tags = readSeedTags(row?.tags);
+      const developers = readIdentityList(row?.developers, false);
+      const staff = readIdentityList(row?.staff, true);
       info = {
         title: row?.title ?? null,
         rating: rating ?? 70,
@@ -666,18 +674,18 @@ function readCachedWishlistIds(): Set<string> {
       .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE '% /ulist|%' LIMIT 50`)
       .all() as Array<{ body: string }>;
     for (const row of rows) {
-      let parsed: { results?: Array<{ id?: string; labels?: Array<number | { id?: number }>; label_ids?: number[] }> } | null = null;
-      try {
-        parsed = JSON.parse(row.body) as { results?: Array<{ id?: string; labels?: Array<number | { id?: number }>; label_ids?: number[] }> };
-      } catch {
-        continue;
-      }
-      for (const entry of parsed?.results ?? []) {
+      const parsed = parseJsonRecord(row.body);
+      const results = Array.isArray(parsed?.results) ? parsed.results : [];
+      for (const value of results) {
+        const entry = asJsonRecord(value);
+        if (!entry) continue;
         const labels = [
-          ...(entry.label_ids ?? []),
-          ...(entry.labels ?? []).map((label) => (typeof label === 'number' ? label : label.id)).filter((id): id is number => typeof id === 'number'),
+          ...readLabelIds(entry.label_ids),
+          ...readLabelIds(entry.labels),
         ];
-        if (entry.id && isVndbVnId(entry.id) && labels.includes(5)) ids.add(entry.id);
+        if (typeof entry.id === 'string' && isVndbVnId(entry.id) && labels.includes(5)) {
+          ids.add(entry.id.toLowerCase());
+        }
       }
     }
   } catch {
@@ -687,19 +695,32 @@ function readCachedWishlistIds(): Set<string> {
   return ids;
 }
 
+function readLabelIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((label) => typeof label === 'number' ? label : asJsonRecord(label)?.id)
+    .filter((id): id is number => typeof id === 'number' && Number.isSafeInteger(id));
+}
+
 function buildCustomSeeds(customTagIds: string[]): RecommendationSeed[] {
   const rows = db
     .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE '% /tag|%' LIMIT 20`)
     .all() as Array<{ body: string }>;
   const nameLookup = new Map<string, string>();
   for (const row of rows) {
-    try {
-      const parsed = JSON.parse(row.body) as { results?: Array<{ id: string; name: string }> };
-      for (const tag of parsed.results ?? []) {
-        if (!nameLookup.has(tag.id) && tag.name) nameLookup.set(tag.id, tag.name);
+    const parsed = parseJsonRecord(row.body);
+    const results = Array.isArray(parsed?.results) ? parsed.results : [];
+    for (const value of results) {
+      const tag = asJsonRecord(value);
+      if (
+        tag
+        && typeof tag.id === 'string'
+        && typeof tag.name === 'string'
+        && tag.name.length > 0
+        && !nameLookup.has(tag.id)
+      ) {
+        nameLookup.set(tag.id, tag.name);
       }
-    } catch {
-      // ignore malformed cache entries
     }
   }
   return customTagIds.map((id) => ({
@@ -724,18 +745,7 @@ function deriveSeedsFromVn(
   const row = db
     .prepare(`SELECT tags AS tags_json FROM vn WHERE id = ?`)
     .get(vnId) as { tags_json: string | null } | undefined;
-  let tags: Array<{
-    id: string;
-    name: string;
-    rating?: number;
-    spoiler?: number;
-    category?: string | null;
-  }> = [];
-  try {
-    tags = row?.tags_json ? JSON.parse(row.tags_json) : [];
-  } catch {
-    tags = [];
-  }
+  const tags = readSeedTags(row?.tags_json);
   if (customTagIds && customTagIds.length > 0) {
     const byId = new Map(tags.map((t) => [t.id, t] as const));
     return customTagIds.map((id) => {

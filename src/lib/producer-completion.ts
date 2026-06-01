@@ -1,6 +1,7 @@
 import 'server-only';
 import { db } from './db';
 import { cachedFetch, TTL } from './vndb-cache';
+import { decodeProducerCompletionResults } from './vndb-feed-cache-shape';
 
 const VNDB_API = 'https://api.vndb.org/kana';
 
@@ -21,6 +22,9 @@ export interface ProducerCompletion {
   vns: ProducerCompletionRow[];
 }
 
+/** VNDB row used to build one producer-completion entry before local ownership enrichment. */
+export type ProducerCompletionSourceRow = Omit<ProducerCompletionRow, 'owned' | 'vnId'> & { id: string };
+
 /**
  * For a given producer id, query VNDB for every VN they developed and
  * cross-reference against the local `collection` table.
@@ -37,7 +41,7 @@ export async function fetchProducerCompletion(producerId: string): Promise<Produ
     reverse: true,
     results: 100,
   };
-  const r = await cachedFetch<{ results: Array<Omit<ProducerCompletionRow, 'owned' | 'vnId'> & { id: string }> }>(
+  const r = await cachedFetch<{ results: ProducerCompletionSourceRow[] }>(
     `${VNDB_API}/vn`,
     {
       __pathTag: 'POST /vn:producer',
@@ -45,7 +49,7 @@ export async function fetchProducerCompletion(producerId: string): Promise<Produ
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     },
-    { ttlMs: TTL.vnSearch },
+    { ttlMs: TTL.vnSearch, decode: decodeProducerCompletionResults },
   );
   const all = r.data.results;
   if (all.length === 0) {

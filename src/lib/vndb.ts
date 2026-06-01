@@ -1,7 +1,44 @@
 import 'server-only';
-import { cachedFetch, invalidateByPath, invalidateKey, readCachedJson, TTL } from './vndb-cache';
+import { cachedFetch, invalidateByPath, invalidateKey, readCachedJson, readCachedJsonMany, TTL } from './vndb-cache';
 import { throttledFetch } from './vndb-throttle';
 import type { Screenshot, VndbSearchHit } from './types';
+import { decodeVndbCharacterCacheResponse } from './vn-character-row';
+import { decodeVndbResultsEnvelope, type VndbResultsEnvelope } from './vndb-response-shape';
+import {
+  createVndbResultsEnvelopeDecoder,
+  decodeVndbAuthInfo,
+  decodeVndbStaffCreditListRow,
+  decodeVndbStatsGlobal,
+  decodeVndbUlistEntryDetailRow,
+  decodeVndbUlistEntryRow,
+  decodeVndbUlistLabelsResponse,
+  decodeVndbUserLookup,
+  decodeVndbVaCreditListRow,
+  type VndbStaffCreditListRow,
+  type VndbVaCreditListRow,
+} from './vndb-client-shape';
+import type { CachePayloadDecoder } from './vndb-cache';
+import { decodeVndbRelease } from './vndb-release-shape';
+import { decodeVndbVnDetail } from './vndb-vn-shape';
+import { decodeVndbCoverRow, decodeVndbSearchRow } from './vndb-search-row-shape';
+import { decodeVndbQuote } from './vndb-quote-shape';
+import { decodeVndbProducer, decodeVndbStaff, decodeVndbTag, decodeVndbTrait } from './vndb-profile-row-shape';
+import { decodeVndbCharacter } from './vndb-character-row-shape';
+import type {
+  VndbRelease,
+  VndbReleaseImage,
+  VndbReleaseLanguage,
+  VndbReleaseProducer,
+  VndbReleaseVn,
+} from './vndb-types';
+
+export type {
+  VndbRelease,
+  VndbReleaseImage,
+  VndbReleaseLanguage,
+  VndbReleaseProducer,
+  VndbReleaseVn,
+} from './vndb-types';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 
@@ -197,30 +234,34 @@ function authHeaders(): Record<string, string> {
   return headers;
 }
 
-async function vndbPost<T>(path: string, body: unknown, ttlMs: number): Promise<T> {
-  const r = await cachedFetch<T>(`${VNDB_API}${path}`, {
+async function vndbPost<T>(
+  path: string,
+  body: unknown,
+  ttlMs: number,
+  decodeRow?: CachePayloadDecoder<T>,
+): Promise<VndbResponse<T>> {
+  const decode = decodeRow
+    ? createVndbResultsEnvelopeDecoder(decodeRow)
+    : decodeVndbResultsEnvelope<T>;
+  const r = await cachedFetch<VndbResponse<T>>(`${VNDB_API}${path}`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(body),
     __pathTag: `POST ${path}`,
-  }, { ttlMs });
+  }, { ttlMs, decode });
   return r.data;
 }
 
-async function vndbGet<T>(path: string, ttlMs: number): Promise<T> {
+async function vndbGet<T>(path: string, ttlMs: number, decode?: CachePayloadDecoder<T>): Promise<T> {
   const r = await cachedFetch<T>(`${VNDB_API}${path}`, {
     method: 'GET',
     headers: authHeaders(),
     __pathTag: `GET ${path}`,
-  }, { ttlMs });
+  }, { ttlMs, decode });
   return r.data;
 }
 
-interface VndbResponse<T> {
-  results: T[];
-  more: boolean;
-  count?: number;
-}
+type VndbResponse<T> = VndbResultsEnvelope<T>;
 
 // VN
 /**
@@ -240,7 +281,7 @@ export async function searchVn(
     sort: isId ? 'id' : 'searchrank',
     results,
     page,
-  }, isId ? TTL.vnDetail : TTL.vnSearch);
+  }, isId ? TTL.vnDetail : TTL.vnSearch, decodeVndbSearchRow);
 }
 
 export interface AdvancedSearchOptions {
@@ -313,7 +354,7 @@ export async function advancedSearchVn(
     reverse: opts.reverse ?? sort !== 'searchrank',
     results: Math.min(opts.results ?? 30, 100),
     page: opts.page ?? 1,
-  }, TTL.vnSearch);
+  }, TTL.vnSearch, decodeVndbSearchRow);
 }
 
 export interface VndbExtLink {
@@ -475,11 +516,11 @@ export interface VndbRelationEntry {
  * VNDB doesn't recognise the id (a missing-row response, not an error).
  */
 export async function getVn(id: string): Promise<VndbVn | null> {
-  const r = await vndbPost<VndbResponse<VndbVn>>('/vn', {
+  const r = await vndbPost<VndbVn>('/vn', {
     filters: ['id', '=', id],
     fields: VN_DETAIL_FIELDS,
     results: 1,
-  }, TTL.vnDetail);
+  }, TTL.vnDetail, decodeVndbVnDetail);
   return r.results[0] ?? null;
 }
 
@@ -518,11 +559,11 @@ export interface VndbProducer {
  * augment with VN credits (dev + pub). Returns `null` on unknown id.
  */
 export async function getProducer(id: string): Promise<VndbProducer | null> {
-  const r = await vndbPost<VndbResponse<VndbProducer>>('/producer', {
+  const r = await vndbPost<VndbProducer>('/producer', {
     filters: ['id', '=', id],
     fields: PRODUCER_FIELDS,
     results: 1,
-  }, TTL.producer);
+  }, TTL.producer, decodeVndbProducer);
   return r.results[0] ?? null;
 }
 
@@ -600,11 +641,11 @@ export interface VndbCharacterVn {
  */
 export async function getCharactersForVn(vnId: string, max = 30): Promise<VndbCharacter[]> {
   if (!vnId.startsWith('v')) return [];
-  const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
+  const r = await vndbPost<VndbCharacter>('/character', {
     filters: ['vn', '=', ['id', '=', vnId]],
     fields: CHARACTER_FIELDS,
     results: Math.min(max, 100),
-  }, TTL.characters);
+  }, TTL.characters, decodeVndbCharacter);
   return r.results;
 }
 
@@ -613,11 +654,11 @@ export async function getCharactersForVn(vnId: string, max = 30): Promise<VndbCh
  * Returns `null` when VNDB doesn't recognise the id.
  */
 export async function getCharacter(id: string): Promise<VndbCharacter | null> {
-  const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
+  const r = await vndbPost<VndbCharacter>('/character', {
     filters: ['id', '=', id],
     fields: CHARACTER_FIELDS,
     results: 1,
-  }, TTL.characterById);
+  }, TTL.characterById, decodeVndbCharacter);
   return r.results[0] ?? null;
 }
 
@@ -632,8 +673,33 @@ export function readCachedCharactersForVn(vnId: string, max = 30): VndbCharacter
     fields: CHARACTER_FIELDS,
     results: Math.min(max, 100),
   };
-  const cached = readCachedJson<VndbResponse<VndbCharacter>>('POST', 'POST /character', body);
+  const cached = readCachedJson('POST', 'POST /character', body, decodeVndbCharacterCacheResponse);
   return cached?.results ?? [];
+}
+
+/**
+ * Return previously fetched character lists for many VNs without network calls.
+ *
+ * @param vnIds VN identifiers whose cached character queries should be read.
+ * @param max Maximum characters requested per VN when the cache key was built.
+ * @returns Cached characters keyed by VN id. Missing cache rows are empty arrays.
+ */
+export function readCachedCharactersForVns(
+  vnIds: readonly string[],
+  max = 30,
+): Map<string, VndbCharacter[]> {
+  const reads = vnIds.map((vnId) => ({
+    id: vnId,
+    method: 'POST',
+    pathTag: 'POST /character',
+    body: {
+      filters: ['vn', '=', ['id', '=', vnId]],
+      fields: CHARACTER_FIELDS,
+      results: Math.min(max, 100),
+    },
+  }));
+  const cached = readCachedJsonMany(reads, decodeVndbCharacterCacheResponse);
+  return new Map(vnIds.map((vnId) => [vnId, cached.get(vnId)?.results ?? []]));
 }
 
 /**
@@ -699,12 +765,12 @@ export async function searchCharacters(
   const filters: unknown = hasFilters
     ? (filterParts.length === 2 ? filterParts[1] : filterParts)
     : undefined;
-  const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
+  const r = await vndbPost<VndbCharacter>('/character', {
     ...(filters !== undefined ? { filters } : {}),
     fields: CHARACTER_FIELDS,
     sort: trimmed && !isId ? 'searchrank' : 'id',
     results: Math.min(results, 100),
-  }, isId ? TTL.characterById : TTL.staff);
+  }, isId ? TTL.characterById : TTL.staff, decodeVndbCharacter);
   return r.results;
 }
 
@@ -754,12 +820,12 @@ export async function searchStaff(
   const filters: unknown = hasFilters
     ? (filterParts.length === 2 ? filterParts[1] : filterParts)
     : undefined;
-  const r = await vndbPost<VndbResponse<VndbStaff>>('/staff', {
+  const r = await vndbPost<VndbStaff>('/staff', {
     ...(filters !== undefined ? { filters } : {}),
     fields: STAFF_FIELDS,
     sort: trimmed && !isId ? 'searchrank' : 'id',
     results: Math.min(results, 100),
-  }, TTL.staff);
+  }, TTL.staff, decodeVndbStaff);
   return r.results;
 }
 
@@ -768,11 +834,11 @@ export async function searchStaff(
  * Returns `null` when VNDB doesn't recognise the id.
  */
 export async function getStaff(id: string): Promise<VndbStaff | null> {
-  const r = await vndbPost<VndbResponse<VndbStaff>>('/staff', {
+  const r = await vndbPost<VndbStaff>('/staff', {
     filters: ['and', ['id', '=', id], ['ismain', '=', 1]],
     fields: STAFF_FIELDS,
     results: 1,
-  }, TTL.staff);
+  }, TTL.staff, decodeVndbStaff);
   return r.results[0] ?? null;
 }
 
@@ -800,32 +866,6 @@ export interface StaffVaCredit {
   characters: { id: string; name: string; original: string | null; image_url: string | null; note: string | null }[];
 }
 
-interface VnStaffEntry { id: string; role: string; note: string | null }
-interface VnImage { url: string; thumbnail: string | null }
-interface VnVaEntry {
-  staff: { id: string };
-  note: string | null;
-  character: { id: string; name: string; original: string | null; image: { url: string } | null };
-}
-interface VnRowForStaff {
-  id: string;
-  title: string;
-  alttitle: string | null;
-  released: string | null;
-  rating: number | null;
-  image: VnImage | null;
-  staff: VnStaffEntry[];
-}
-interface VnRowForVa {
-  id: string;
-  title: string;
-  alttitle: string | null;
-  released: string | null;
-  rating: number | null;
-  image: VnImage | null;
-  va: VnVaEntry[];
-}
-
 /**
  * Every VN where this staff has a production credit. Paginated; stops when
  * VNDB reports `more=false`. Lightweight VN fields only (title, image,
@@ -835,14 +875,14 @@ interface VnRowForVa {
 export async function fetchStaffVnList(sid: string): Promise<StaffVnCredit[]> {
   const out: StaffVnCredit[] = [];
   for (let page = 1; page <= 50; page++) {
-    const r = await vndbPost<VndbResponse<VnRowForStaff>>('/vn', {
+    const r = await vndbPost<VndbStaffCreditListRow>('/vn', {
       filters: ['staff', '=', ['id', '=', sid]],
       fields: 'title, alttitle, released, rating, image.url, image.thumbnail, staff{id, role, note}',
       sort: 'released',
       reverse: true,
       results: 100,
       page,
-    }, TTL.staff);
+    }, TTL.staff, decodeVndbStaffCreditListRow);
     for (const v of r.results) {
       const roles = v.staff
         .filter((s) => s.id === sid)
@@ -876,14 +916,14 @@ export async function fetchStaffVnList(sid: string): Promise<StaffVnCredit[]> {
 export async function fetchVaVnList(sid: string): Promise<StaffVaCredit[]> {
   const out: StaffVaCredit[] = [];
   for (let page = 1; page <= 50; page++) {
-    const r = await vndbPost<VndbResponse<VnRowForVa>>('/vn', {
+    const r = await vndbPost<VndbVaCreditListRow>('/vn', {
       filters: ['character', '=', ['seiyuu', '=', ['id', '=', sid]]],
       fields: 'title, alttitle, released, rating, image.url, image.thumbnail, va{note, staff{id}, character{id, name, original, image.url}}',
       sort: 'released',
       reverse: true,
       results: 100,
       page,
-    }, TTL.staff);
+    }, TTL.staff, decodeVndbVaCreditListRow);
     for (const v of r.results) {
       const chars = v.va
         .filter((entry) => entry.staff?.id === sid && entry.character)
@@ -933,13 +973,13 @@ export async function searchTags(query: string, { results = 50, category }: { re
   }
   if (category) filters.push(['category', '=', category]);
   const final = filters.length > 1 ? filters : [];
-  const r = await vndbPost<VndbResponse<VndbTag>>('/tag', {
+  const r = await vndbPost<VndbTag>('/tag', {
     filters: final.length ? final : undefined,
     fields: TAG_FIELDS,
     sort: trimmed && !isId ? 'searchrank' : 'vn_count',
     reverse: !(trimmed && !isId),
     results: Math.min(results, 100),
-  }, TTL.tag);
+  }, TTL.tag, decodeVndbTag);
   return r.results;
 }
 
@@ -948,11 +988,11 @@ export async function searchTags(query: string, { results = 50, category }: { re
  * when VNDB doesn't recognise the id.
  */
 export async function getTag(id: string): Promise<VndbTag | null> {
-  const r = await vndbPost<VndbResponse<VndbTag>>('/tag', {
+  const r = await vndbPost<VndbTag>('/tag', {
     filters: ['id', '=', id],
     fields: TAG_FIELDS,
     results: 1,
-  }, TTL.tag);
+  }, TTL.tag, decodeVndbTag);
   return r.results[0] ?? null;
 }
 
@@ -983,7 +1023,7 @@ export async function fetchTopVnsByTag(
     reverse: true,
     results: Math.min(results, 100),
     page: Math.max(1, Math.floor(page)),
-  }, TTL.vnSearch);
+  }, TTL.vnSearch, decodeVndbSearchRow);
 }
 
 // Trait
@@ -1005,11 +1045,11 @@ export interface VndbTrait {
  * `null` when VNDB doesn't recognise the id.
  */
 export async function getTrait(id: string): Promise<VndbTrait | null> {
-  const r = await vndbPost<VndbResponse<VndbTrait>>('/trait', {
+  const r = await vndbPost<VndbTrait>('/trait', {
     filters: ['id', '=', id],
     fields: TRAIT_FIELDS,
     results: 1,
-  }, TTL.trait);
+  }, TTL.trait, decodeVndbTrait);
   return r.results[0] ?? null;
 }
 
@@ -1023,11 +1063,11 @@ export async function getCharactersForTrait(
 ): Promise<VndbCharacter[]> {
   // trait filter tuple order per KANA.md: [traitId, maxSpoiler] — 0 hides spoilers
   const filter = includeSpoiler ? ['trait', '=', traitId] : ['trait', '=', [traitId, 0]];
-  const r = await vndbPost<VndbResponse<VndbCharacter>>('/character', {
+  const r = await vndbPost<VndbCharacter>('/character', {
     filters: filter,
     fields: CHARACTER_FIELDS,
     results: Math.min(results, 100),
-  }, TTL.characters);
+  }, TTL.characters, decodeVndbCharacter);
   return r.results;
 }
 
@@ -1035,87 +1075,14 @@ export async function getCharactersForTrait(
 export async function searchTraits(query: string, { results = 50 } = {}): Promise<VndbTrait[]> {
   const trimmed = query.trim();
   const isId = /^i\d+$/i.test(trimmed);
-  const r = await vndbPost<VndbResponse<VndbTrait>>('/trait', {
+  const r = await vndbPost<VndbTrait>('/trait', {
     filters: trimmed ? (isId ? ['id', '=', trimmed.toLowerCase()] : ['search', '=', trimmed]) : undefined,
     fields: TRAIT_FIELDS,
     sort: trimmed && !isId ? 'searchrank' : 'char_count',
     reverse: !(trimmed && !isId),
     results: Math.min(results, 100),
-  }, TTL.trait);
+  }, TTL.trait, decodeVndbTrait);
   return r.results;
-}
-
-// Release
-export interface VndbReleaseLanguage {
-  lang: string;
-  title: string | null;
-  latin: string | null;
-  mtl: boolean;
-  main: boolean;
-}
-
-export interface VndbReleaseProducer {
-  id: string;
-  developer: boolean;
-  publisher: boolean;
-  name: string;
-  original?: string | null;
-  aliases?: string[];
-  lang?: string | null;
-  type?: 'co' | 'in' | 'ng' | string | null;
-  description?: string | null;
-  extlinks?: VndbExtLink[];
-}
-
-export interface VndbReleaseVn {
-  id: string;
-  rtype: 'trial' | 'partial' | 'complete';
-  title?: string;
-  alttitle?: string | null;
-  released?: string | null;
-  rating?: number | null;
-  image?: VndbImage | null;
-}
-
-export interface VndbRelease {
-  id: string;
-  title: string;
-  alttitle: string | null;
-  languages: VndbReleaseLanguage[];
-  platforms: string[];
-  media: { medium: string; qty: number }[];
-  released: string | null;
-  minage: number | null;
-  patch: boolean;
-  freeware: boolean;
-  uncensored: boolean | null;
-  official: boolean;
-  has_ero: boolean;
-  resolution: [number, number] | string | null;
-  engine: string | null;
-  voiced: number | null;
-  notes: string | null;
-  gtin: string | null;
-  catalog: string | null;
-  producers: VndbReleaseProducer[];
-  extlinks: VndbExtLink[];
-  vns: VndbReleaseVn[];
-  images: VndbReleaseImage[];
-}
-
-export interface VndbReleaseImage {
-  id: string;
-  url: string;
-  thumbnail?: string;
-  thumbnail_dims?: [number, number];
-  dims?: [number, number];
-  sexual?: number;
-  violence?: number;
-  votecount?: number;
-  type: 'pkgfront' | 'pkgback' | 'pkgcontent' | 'pkgside' | 'pkgmed' | 'dig';
-  languages?: string[] | null;
-  photo?: boolean;
-  vn?: string | null;
 }
 
 /**
@@ -1124,12 +1091,12 @@ export interface VndbReleaseImage {
  */
 export async function getReleasesForVn(vnId: string, max = 50): Promise<VndbRelease[]> {
   if (!vnId.startsWith('v')) return [];
-  const r = await vndbPost<VndbResponse<VndbRelease>>('/release', {
+  const r = await vndbPost<VndbRelease>('/release', {
     filters: ['vn', '=', ['id', '=', vnId]],
     fields: RELEASE_FIELDS,
     sort: 'released',
     results: Math.min(max, 100),
-  }, TTL.releases);
+  }, TTL.releases, decodeVndbRelease);
   return r.results;
 }
 
@@ -1138,11 +1105,11 @@ export async function getReleasesForVn(vnId: string, max = 50): Promise<VndbRele
  * `null` when VNDB doesn't recognise the id.
  */
 export async function getRelease(id: string): Promise<VndbRelease | null> {
-  const r = await vndbPost<VndbResponse<VndbRelease>>('/release', {
+  const r = await vndbPost<VndbRelease>('/release', {
     filters: ['id', '=', id],
     fields: RELEASE_FIELDS,
     results: 1,
-  }, TTL.releaseById);
+  }, TTL.releaseById, decodeVndbRelease);
   return r.results[0] ?? null;
 }
 
@@ -1173,10 +1140,10 @@ export interface VndbQuote {
  */
 export async function getRandomQuote(): Promise<VndbQuote | null> {
   // Bypass cache — random must vary on every call.
-  const r = await vndbPost<VndbResponse<VndbQuote>>('/quote', {
+  const r = await vndbPost<VndbQuote>('/quote', {
     filters: ['random', '=', 1],
     fields: QUOTE_FIELDS,
-  }, TTL.quotesRandom);
+  }, TTL.quotesRandom, decodeVndbQuote);
   return r.results[0] ?? null;
 }
 
@@ -1190,10 +1157,10 @@ export async function getRandomQuoteForVns(vnIds: string[]): Promise<VndbQuote |
   if (filtered.length === 0) return null;
   // Random-pick one VN and ask EGS-style: VNDB rejects huge `or` blocks otherwise.
   const pick = filtered[Math.floor(Math.random() * filtered.length)];
-  const r = await vndbPost<VndbResponse<VndbQuote>>('/quote', {
+  const r = await vndbPost<VndbQuote>('/quote', {
     filters: ['and', ['random', '=', 1], ['vn', '=', ['id', '=', pick]]],
     fields: QUOTE_FIELDS,
-  }, TTL.quotesRandom);
+  }, TTL.quotesRandom, decodeVndbQuote);
   return r.results[0] ?? null;
 }
 
@@ -1203,13 +1170,13 @@ export async function getRandomQuoteForVns(vnIds: string[]): Promise<VndbQuote |
  */
 export async function getQuotesForVn(vnId: string, { results = 20 } = {}): Promise<VndbQuote[]> {
   if (!vnId.startsWith('v')) return [];
-  const r = await vndbPost<VndbResponse<VndbQuote>>('/quote', {
+  const r = await vndbPost<VndbQuote>('/quote', {
     filters: ['vn', '=', ['id', '=', vnId]],
     fields: QUOTE_FIELDS,
     sort: 'score',
     reverse: true,
     results: Math.min(results, 100),
-  }, TTL.quotesByVn);
+  }, TTL.quotesByVn, decodeVndbQuote);
   return r.results;
 }
 
@@ -1226,7 +1193,7 @@ export interface VndbStatsGlobal {
 
 /** Fetch VNDB's global counters (vn / release / producer / character / staff totals). */
 export async function getGlobalStats(): Promise<VndbStatsGlobal> {
-  return vndbGet<VndbStatsGlobal>('/stats', TTL.stats);
+  return vndbGet<VndbStatsGlobal>('/stats', TTL.stats, decodeVndbStatsGlobal);
 }
 
 /**
@@ -1257,11 +1224,11 @@ export async function fetchVnCovers(ids: string[]): Promise<Map<string, VndbCove
     ? ['id', '=', cleaned[0]]
     : ['or', ...cleaned.map((id) => ['id', '=', id])];
   try {
-    const r = await vndbPost<VndbResponse<{ id: string; image: VndbImage | null }>>('/vn', {
+    const r = await vndbPost<{ id: string; image: VndbImage | null }>('/vn', {
       filters,
       fields: 'id,image.url,image.thumbnail,image.sexual',
       results: Math.min(cleaned.length, 100),
-    }, TTL.vnSearch);
+    }, TTL.vnSearch, decodeVndbCoverRow);
     for (const v of r.results) {
       if (!v.image?.url) continue;
       out.set(v.id, {
@@ -1290,7 +1257,7 @@ export async function getAuthInfo(): Promise<VndbAuthInfo | null> {
   const token = readVndbToken();
   if (!token) return null;
   try {
-    return await vndbGet<VndbAuthInfo>('/authinfo', TTL.authInfo);
+    return await vndbGet<VndbAuthInfo>('/authinfo', TTL.authInfo, decodeVndbAuthInfo);
   } catch {
     return null;
   }
@@ -1317,7 +1284,7 @@ export async function lookupUsers(qs: string[]): Promise<Record<string, VndbUser
   const params = new URLSearchParams();
   for (const q of qs) params.append('q', q);
   params.set('fields', 'lengthvotes,lengthvotes_sum');
-  return vndbGet<Record<string, VndbUserInfo | null>>(`/user?${params}`, TTL.user);
+  return vndbGet<Record<string, VndbUserInfo | null>>(`/user?${params}`, TTL.user, decodeVndbUserLookup);
 }
 
 // User list (ulist) — used for wishlist (label id 5) and similar reads.
@@ -1381,7 +1348,7 @@ export async function fetchUlistByLabel(
   labelId: number,
   { results = 100, page = 1 }: { results?: number; page?: number } = {},
 ): Promise<VndbResponse<VndbUlistEntry>> {
-  return vndbPost<VndbResponse<VndbUlistEntry>>(
+  return vndbPost<VndbUlistEntry>(
     '/ulist',
     {
       user: userId,
@@ -1393,6 +1360,7 @@ export async function fetchUlistByLabel(
       page,
     },
     TTL.user,
+    decodeVndbUlistEntryRow,
   );
 }
 
@@ -1490,7 +1458,7 @@ export interface VndbUlistLabel {
 export async function fetchUlistLabels(): Promise<VndbUlistLabel[] | { needsAuth: true }> {
   const token = readVndbToken();
   if (!token) return { needsAuth: true };
-  const r = await vndbGet<{ labels: VndbUlistLabel[] }>('/ulist_labels?fields=count', TTL.user);
+  const r = await vndbGet<{ labels: VndbUlistLabel[] }>('/ulist_labels?fields=count', TTL.user, decodeVndbUlistLabelsResponse);
   return r.labels;
 }
 
@@ -1511,7 +1479,7 @@ export async function fetchUlistEntry(vnId: string): Promise<VndbUlistEntryDetai
   const auth = await getAuthInfo();
   if (!auth) return { needsAuth: true };
   if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
-  const r = await vndbPost<{ results: VndbUlistEntryDetail[] }>(
+  const r = await vndbPost<VndbUlistEntryDetail>(
     '/ulist',
     {
       user: auth.id,
@@ -1521,6 +1489,7 @@ export async function fetchUlistEntry(vnId: string): Promise<VndbUlistEntryDetai
     },
     // 5-minute TTL — list state changes when the user mutates it elsewhere.
     5 * 60 * 1000,
+    decodeVndbUlistEntryDetailRow,
   );
   return r.results[0] ?? null;
 }

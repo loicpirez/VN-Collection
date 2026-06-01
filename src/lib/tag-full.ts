@@ -1,7 +1,9 @@
 import 'server-only';
 import { db, getAppSetting } from './db';
 import { getTag, type VndbTag } from './vndb';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
+import { asJsonRecord, parseJsonArray, parseJsonRecord } from './json-shape';
+import { decodeVndbTag } from './vndb-profile-row-shape';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 const KEY_PREFIX = 'tag_full:';
@@ -29,12 +31,9 @@ export function readTagFullCache(gid: string): TagFullPayload | null {
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
     .get(key(gid)) as { body: string; fetched_at: number } | undefined;
   if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.body) as TagFullPayload;
-    return { ...parsed, fetched_at: row.fetched_at };
-  } catch {
-    return null;
-  }
+  const parsed = parseJsonRecord(row.body);
+  const tag = decodeVndbTag(parsed?.tag);
+  return tag ? { tag, fetched_at: row.fetched_at } : null;
 }
 
 function writeTagFullCache(gid: string, payload: TagFullPayload): void {
@@ -70,13 +69,11 @@ export async function downloadFullTagsForVn(vnId: string, opts: { force?: boolea
   if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
   const row = db.prepare('SELECT tags FROM vn WHERE id = ?').get(vnId) as { tags: string | null } | undefined;
   if (!row?.tags) return { scanned: 0, downloaded: 0 };
-  let tags: { id: string }[] = [];
-  try {
-    tags = JSON.parse(row.tags);
-  } catch {
-    return { scanned: 0, downloaded: 0 };
-  }
-  const ids = Array.from(new Set(tags.map((t) => t.id).filter((s) => /^g\d+$/i.test(s))));
+  const ids = Array.from(new Set(
+    parseJsonArray(row.tags)
+      .map((value) => asJsonRecord(value)?.id)
+      .filter((id): id is string => typeof id === 'string' && /^g\d+$/i.test(id)),
+  ));
   const now = Date.now();
   const stale = ids.filter((gid) => {
     const cached = readTagFullCache(gid);
@@ -84,7 +81,7 @@ export async function downloadFullTagsForVn(vnId: string, opts: { force?: boolea
   });
   if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };
 
-  const job = startJob('vn-fetch', `Tags for ${vnId}`, stale.length, vnId);
+  const job = startJob('vn-fetch', jobLabel('tags_for_vn', `Tags for ${vnId}`, { vnId }), stale.length, vnId);
   let downloaded = 0;
   for (const gid of stale) {
     try {

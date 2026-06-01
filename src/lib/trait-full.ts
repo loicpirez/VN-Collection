@@ -1,7 +1,10 @@
 import 'server-only';
 import { db, getAppSetting } from './db';
 import { getTrait, type VndbTrait } from './vndb';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
+import { asJsonRecord, parseJsonRecord } from './json-shape';
+import { decodeCharacterFullPayload } from './character-full';
+import { decodeVndbTrait } from './vndb-profile-row-shape';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 const KEY_PREFIX = 'trait_full:';
@@ -30,12 +33,9 @@ export function readTraitFullCache(iid: string): TraitFullPayload | null {
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
     .get(key(iid)) as { body: string; fetched_at: number } | undefined;
   if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.body) as TraitFullPayload;
-    return { ...parsed, fetched_at: row.fetched_at };
-  } catch {
-    return null;
-  }
+  const parsed = parseJsonRecord(row.body);
+  const trait = decodeVndbTrait(parsed?.trait);
+  return trait ? { trait, fetched_at: row.fetched_at } : null;
 }
 
 function writeTraitFullCache(iid: string, payload: TraitFullPayload): void {
@@ -88,13 +88,10 @@ export async function downloadFullTraitsForVn(vnId: string, opts: { force?: bool
         .prepare(`SELECT body FROM vndb_cache WHERE cache_key IN (${placeholders})`)
         .all(...chunk) as { body: string }[];
       for (const r of rows) {
-        try {
-          const parsed = JSON.parse(r.body) as { profile?: { traits?: { id: string }[] } | null };
-          for (const t of parsed.profile?.traits ?? []) {
-            if (/^i\d+$/i.test(t.id)) ids.add(t.id);
-          }
-        } catch {
-          continue;
+        const parsed = decodeCharacterFullPayload(r.body, 0);
+        for (const value of parsed?.profile?.traits ?? []) {
+          const trait = asJsonRecord(value);
+          if (typeof trait?.id === 'string' && /^i\d+$/i.test(trait.id)) ids.add(trait.id);
         }
       }
     }
@@ -108,7 +105,7 @@ export async function downloadFullTraitsForVn(vnId: string, opts: { force?: bool
   });
   if (stale.length === 0) return { scanned: ids.size, downloaded: 0 };
 
-  const job = startJob('vn-fetch', `Traits for ${vnId}`, stale.length, vnId);
+  const job = startJob('vn-fetch', jobLabel('traits_for_vn', `Traits for ${vnId}`, { vnId }), stale.length, vnId);
   let downloaded = 0;
   for (const iid of stale) {
     try {

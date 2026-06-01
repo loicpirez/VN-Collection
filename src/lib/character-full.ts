@@ -1,7 +1,9 @@
 import 'server-only';
 import { db, getAppSetting } from './db';
 import { getCharacter, type VndbCharacter } from './vndb';
-import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
+import { finishJob, jobLabel, recordError, setJobCurrent, startJob, tickJob } from './download-status';
+import { parseJsonRecord } from './json-shape';
+import { decodeVndbCharacter } from './vndb-character-row-shape';
 
 function fanoutEnabled(): boolean {
   return getAppSetting('vndb_fanout') !== '0';
@@ -30,6 +32,21 @@ function key(cid: string): string {
 }
 
 /**
+ * Decode one stored character full-cache payload.
+ *
+ * @param raw Stored JSON text.
+ * @param fetchedAt Cache-row freshness timestamp.
+ * @returns A structurally usable payload, or `null` for malformed input.
+ */
+export function decodeCharacterFullPayload(raw: string | null | undefined, fetchedAt: number): CharacterFullPayload | null {
+  const parsed = parseJsonRecord(raw);
+  if (!parsed || !('profile' in parsed)) return null;
+  if (parsed.profile === null) return { profile: null, fetched_at: fetchedAt };
+  const profile = decodeVndbCharacter(parsed.profile);
+  return profile ? { profile, fetched_at: fetchedAt } : null;
+}
+
+/**
  * `null` on missing / unparseable rows so callers can decide between a cache
  * miss and an upstream re-fetch.
  */
@@ -38,12 +55,7 @@ export function readCharacterFullCache(cid: string): CharacterFullPayload | null
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
     .get(key(cid)) as { body: string; fetched_at: number } | undefined;
   if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.body) as CharacterFullPayload;
-    return { ...parsed, fetched_at: row.fetched_at };
-  } catch {
-    return null;
-  }
+  return decodeCharacterFullPayload(row.body, row.fetched_at);
 }
 
 function writeCharacterFullCache(cid: string, payload: CharacterFullPayload): void {
@@ -105,34 +117,11 @@ export async function downloadFullCharForVn(vnId: string, opts: { force?: boolea
   });
 
   if (stale.length === 0) return { scanned: cids.length, downloaded: 0 };
-  const job = startJob('characters', `Characters for ${vnId}`, stale.length, vnId);
-
-  // Pre-load character names from local cache so the progress bar shows
-  // "Character - サンプル (c95001)" instead of just "c95001".
-  // Chunked at 500 placeholders to stay under SQLITE_MAX_VARIABLE_NUMBER.
-  const nameMap = new Map<string, string>();
-  if (stale.length > 0) {
-    const CHUNK = 500;
-    for (let i = 0; i < stale.length; i += CHUNK) {
-      const chunk = stale.slice(i, i + CHUNK);
-      const placeholders = chunk.map(() => '?').join(',');
-      const nameRows = db
-        .prepare(`SELECT DISTINCT c_id, c_name FROM vn_va_credit WHERE c_id IN (${placeholders}) AND c_name IS NOT NULL`)
-        .all(...chunk) as { c_id: string; c_name: string }[];
-      for (const r of nameRows) {
-        if (!nameMap.has(r.c_id) && r.c_name && r.c_name.length >= 2) nameMap.set(r.c_id, r.c_name);
-      }
-    }
-  }
+  const job = startJob('characters', jobLabel('characters_for_vn', `Characters for ${vnId}`, { vnId }), stale.length, vnId);
 
   let downloaded = 0;
   for (const cid of stale) {
-    // Show which character is in flight so the user can correlate
-    // progress with the per-character VNDB calls. Label with name when
-    // available so the operator sees "Character - <name>" instead of
-    // a bare id.
-    const name = nameMap.get(cid);
-    setJobCurrent(job.id, name ? `Character — ${name} (${cid})` : `Character — ${cid}`);
+    setJobCurrent(job.id, cid);
     try {
       await downloadFullCharacterInfo(cid);
       downloaded += 1;

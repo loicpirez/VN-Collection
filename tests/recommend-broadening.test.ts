@@ -183,6 +183,36 @@ describe('recommendVns() — broadening + generic-tag penalty', () => {
     expect(on.results.map((x) => x.id)).toContain('v999W');
   });
 
+  it('skips malformed wishlist cache rows without discarding later valid rows', async () => {
+    seedVn('v990301', [{ id: 'gWishSafe', name: 'wish-safe-tag', rating: 2.0 }]);
+    db.prepare(
+      `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
+    ).run('POST /ulist|POST|aaa-malformed', JSON.stringify({ results: {} }), Date.now(), Date.now() + 60_000);
+    db.prepare(
+      `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
+    ).run('POST /ulist|POST|zzz-valid', JSON.stringify({ results: [{ id: 'v990301', labels: [5] }] }), Date.now(), Date.now() + 60_000);
+    POOL.set('gWishSafe', [{ id: 'v999WS', title: 'W', rating: 80, votecount: 300 }]);
+
+    const result = await recommendVns({ mode: 'because-you-liked', useWishlist: true });
+    expect(result.signalCounts!.wishlist).toBeGreaterThanOrEqual(1);
+    expect(result.seeds.map((seed) => seed.tagId)).toContain('gWishSafe');
+  });
+
+  it('skips malformed tag cache rows while recovering later custom-tag names', async () => {
+    db.prepare(
+      `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
+    ).run('POST /tag|POST|aaa-g990500', JSON.stringify({ results: {} }), Date.now(), Date.now() + 60_000);
+    db.prepare(
+      `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
+    ).run('POST /tag|POST|zzz-g990500', JSON.stringify({ results: [{ id: 'g990500', name: 'Recovered tag' }] }), Date.now(), Date.now() + 60_000);
+
+    const result = await recommendVns({ customTagIds: ['g990500'] });
+    expect(result.seeds).toContainEqual(expect.objectContaining({
+      tagId: 'g990500',
+      name: 'Recovered tag',
+    }));
+  });
+
   it('contributors field surfaces top-2 seed VNs per recommendation', async () => {
     seedVn('v990400', [{ id: 'gC1', name: 'c-tag-1', rating: 2.5 }]);
     seedVn('v990401', [{ id: 'gC1', name: 'c-tag-1', rating: 2.5 }]);

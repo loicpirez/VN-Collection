@@ -1,7 +1,10 @@
 import 'server-only';
 import { db, getAppSetting } from './db';
 import { fetchStaffVnList, fetchVaVnList, getStaff, type StaffVnCredit, type StaffVaCredit, type VndbStaff } from './vndb';
-import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
+import { finishJob, jobLabel, recordError, setJobCurrent, startJob, tickJob } from './download-status';
+import { asJsonRecord, parseJsonRecord } from './json-shape';
+import { decodeVndbStaff } from './vndb-profile-row-shape';
+import { isVndbVnId, normalizeVnId } from './vn-id-shape';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -37,6 +40,132 @@ function key(sid: string): string {
   return `${KEY_PREFIX}${sid.toLowerCase()}`;
 }
 
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isNullableFiniteNumber(value: unknown): value is number | null {
+  return value === null || (typeof value === 'number' && Number.isFinite(value));
+}
+
+function decodeArray<T>(value: unknown, decode: (item: unknown) => T | null): T[] | null {
+  if (!Array.isArray(value) || value.length > 5000) return null;
+  const out: T[] = [];
+  for (const item of value) {
+    const decoded = decode(item);
+    if (!decoded) return null;
+    out.push(decoded);
+  }
+  return out;
+}
+
+function decodeStaffProfile(value: unknown): VndbStaff | null | undefined {
+  if (value === null) return null;
+  return decodeVndbStaff(value) ?? undefined;
+}
+
+function decodeStaffVnCredit(value: unknown): StaffVnCredit | null {
+  const row = asJsonRecord(value);
+  const roles = decodeArray(row?.roles, (role) => {
+      const item = asJsonRecord(role);
+      return item && typeof item.role === 'string' && isNullableString(item.note)
+        ? { role: item.role, note: item.note }
+        : null;
+    });
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    !isVndbVnId(row.id) ||
+    typeof row.title !== 'string' ||
+    !isNullableString(row.alttitle) ||
+    !isNullableString(row.released) ||
+    !isNullableFiniteNumber(row.rating) ||
+    !isNullableString(row.image_url) ||
+    !isNullableString(row.image_thumb) ||
+    !roles
+  ) return null;
+  return {
+    id: normalizeVnId(row.id),
+    title: row.title,
+    alttitle: row.alttitle,
+    released: row.released,
+    rating: row.rating,
+    image_url: row.image_url,
+    image_thumb: row.image_thumb,
+    roles,
+  };
+}
+
+function decodeStaffVaCredit(value: unknown): StaffVaCredit | null {
+  const row = asJsonRecord(value);
+  const characters = decodeArray(row?.characters, (character) => {
+      const item = asJsonRecord(character);
+      return item &&
+        typeof item.id === 'string' &&
+        /^c\d+$/i.test(item.id) &&
+        typeof item.name === 'string' &&
+        isNullableString(item.original) &&
+        isNullableString(item.image_url) &&
+        isNullableString(item.note)
+        ? {
+            id: item.id.toLowerCase(),
+            name: item.name,
+            original: item.original,
+            image_url: item.image_url,
+            note: item.note,
+          }
+        : null;
+    });
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    !isVndbVnId(row.id) ||
+    typeof row.title !== 'string' ||
+    !isNullableString(row.alttitle) ||
+    !isNullableString(row.released) ||
+    !isNullableFiniteNumber(row.rating) ||
+    !isNullableString(row.image_url) ||
+    !isNullableString(row.image_thumb) ||
+    !characters
+  ) return null;
+  return {
+    id: normalizeVnId(row.id),
+    title: row.title,
+    alttitle: row.alttitle,
+    released: row.released,
+    rating: row.rating,
+    image_url: row.image_url,
+    image_thumb: row.image_thumb,
+    characters,
+  };
+}
+
+/**
+ * Decode a stored staff full-cache payload.
+ *
+ * @param raw Stored JSON text.
+ * @param fetchedAt Cache-row freshness timestamp.
+ * @returns A structurally usable payload, or `null` for malformed input.
+ */
+export function decodeStaffFullPayload(raw: string | null | undefined, fetchedAt: number): StaffFullPayload | null {
+  const parsed = parseJsonRecord(raw);
+  const profile = decodeStaffProfile(parsed?.profile);
+  const productionCredits = decodeArray(parsed?.productionCredits, decodeStaffVnCredit);
+  const vaCredits = decodeArray(parsed?.vaCredits, decodeStaffVaCredit);
+  if (
+    !parsed
+    || profile === undefined
+    || !productionCredits
+    || !vaCredits
+  ) return null;
+  return {
+    profile,
+    productionCredits,
+    vaCredits,
+    fetched_at: fetchedAt,
+  };
+}
+
 /**
  * `null` on miss or parse error so callers can decide between cache miss
  * and live re-fetch.
@@ -46,12 +175,7 @@ export function readStaffFullCache(sid: string): StaffFullPayload | null {
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
     .get(key(sid)) as { body: string; fetched_at: number } | undefined;
   if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.body) as StaffFullPayload;
-    return { ...parsed, fetched_at: row.fetched_at };
-  } catch {
-    return null;
-  }
+  return decodeStaffFullPayload(row.body, row.fetched_at);
 }
 
 function writeStaffFullCache(sid: string, payload: StaffFullPayload): void {
@@ -127,37 +251,14 @@ export async function downloadFullStaffForVn(vnId: string, opts: { force?: boole
   });
 
   if (stale.length === 0) return { scanned: sids.length, downloaded: 0 };
-  const job = startJob('staff', `Staff for ${vnId}`, stale.length, vnId);
-
-  // Pre-load staff names from local credit table so the progress bar can
-  // show "Staff — <name> (s95001)" instead of a bare id.
-  // Chunked at 500 placeholders to stay under SQLITE_MAX_VARIABLE_NUMBER.
-  const nameMap = new Map<string, string>();
-  if (stale.length > 0) {
-    const CHUNK = 500;
-    for (let i = 0; i < stale.length; i += CHUNK) {
-      const chunk = stale.slice(i, i + CHUNK);
-      const placeholders = chunk.map(() => '?').join(',');
-      const nameRows = db
-        .prepare(`SELECT DISTINCT sid, name FROM vn_staff_credit WHERE sid IN (${placeholders}) AND name IS NOT NULL`)
-        .all(...chunk) as { sid: string; name: string }[];
-      for (const r of nameRows) {
-        if (!nameMap.has(r.sid) && r.name && r.name.length >= 2) nameMap.set(r.sid, r.name);
-      }
-    }
-  }
+  const job = startJob('staff', jobLabel('staff_for_vn', `Staff for ${vnId}`, { vnId }), stale.length, vnId);
 
   let downloaded = 0;
   // Strictly sequential — the global vndb-throttle already caps everything
   // at 1 req/sec, so internal concurrency just bloats the in-flight queue
   // without speeding anything up.
   for (const sid of stale) {
-    // Surface the specific staff id in the DownloadStatusBar so the
-    // user sees what's actually downloading right now rather than only
-    // "Staff for v123 (3/12)". Label with name when available so the
-    // operator sees "Staff — <name>" instead of a bare id.
-    const name = nameMap.get(sid);
-    setJobCurrent(job.id, name ? `Staff — ${name} (${sid})` : `Staff — ${sid}`);
+    setJobCurrent(job.id, sid);
     try {
       await downloadFullStaffInfo(sid);
       downloaded += 1;

@@ -84,6 +84,12 @@ describe('walkSeriesRelations', () => {
     expect(() => walkSeriesRelations('v1')).not.toThrow();
     expect(walkSeriesRelations('v1')).toEqual([]);
   });
+
+  it('handles parseable non-array relations gracefully', () => {
+    db.prepare(`INSERT INTO vn (id, title, fetched_at, relations) VALUES ('v1', 'A', ?, '{"id":"v2"}')`)
+      .run(NOW);
+    expect(walkSeriesRelations('v1')).toEqual([]);
+  });
 });
 
 describe('detectSeriesForVn', () => {

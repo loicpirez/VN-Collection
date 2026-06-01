@@ -1,7 +1,9 @@
 import 'server-only';
 import { db, getAppSetting } from './db';
 import { getReleasesForVn, getRelease, type VndbRelease } from './vndb';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
+import { asJsonRecord, parseJsonRecord } from './json-shape';
+import { decodeVndbRelease } from './vndb-release-shape';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 const KEY_PREFIX = 'release_full:';
@@ -28,12 +30,9 @@ export function readReleaseFullCache(rid: string): ReleaseFullPayload | null {
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
     .get(key(rid)) as { body: string; fetched_at: number } | undefined;
   if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.body) as ReleaseFullPayload;
-    return { ...parsed, fetched_at: row.fetched_at };
-  } catch {
-    return null;
-  }
+  const parsed = parseJsonRecord(row.body);
+  const release = parsed ? decodeVndbRelease(parsed.release) : null;
+  return release ? { release, fetched_at: row.fetched_at } : null;
 }
 
 function writeReleaseFullCache(rid: string, payload: ReleaseFullPayload): void {
@@ -75,16 +74,11 @@ export async function downloadScreenshotReleasesForVn(
     .prepare('SELECT raw FROM vn WHERE id = ?')
     .get(vnId) as LocalVn;
   if (!row?.raw) return { scanned: 0, downloaded: 0 };
-  let parsed: { screenshots?: { release?: { id?: string } | null }[] };
-  try {
-    parsed = JSON.parse(row.raw) as { screenshots?: { release?: { id?: string } | null }[] };
-  } catch {
-    return { scanned: 0, downloaded: 0 };
-  }
+  const parsed = parseJsonRecord(row.raw);
   const ids = Array.from(new Set(
-    (parsed.screenshots ?? [])
-      .map((s) => s?.release?.id ?? null)
-      .filter((s): s is string => !!s && /^r\d+$/i.test(s)),
+    (Array.isArray(parsed?.screenshots) ? parsed.screenshots : [])
+      .map((value) => asJsonRecord(asJsonRecord(value)?.release)?.id)
+      .filter((id): id is string => typeof id === 'string' && /^r\d+$/i.test(id)),
   ));
   if (ids.length === 0) return { scanned: 0, downloaded: 0 };
 
@@ -95,7 +89,7 @@ export async function downloadScreenshotReleasesForVn(
   });
   if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };
 
-  const job = startJob('vn-fetch', `Screenshot releases for ${vnId}`, stale.length, vnId);
+  const job = startJob('vn-fetch', jobLabel('screenshot_releases_for_vn', `Screenshot releases for ${vnId}`, { vnId }), stale.length, vnId);
   let downloaded = 0;
   for (const rid of stale) {
     try {
@@ -133,7 +127,7 @@ export async function downloadFullReleasesForVn(vnId: string, opts: { force?: bo
   });
   if (stale.length === 0) return { scanned: releases.length, downloaded: 0 };
 
-  const job = startJob('vn-fetch', `Releases for ${vnId}`, stale.length, vnId);
+  const job = startJob('vn-fetch', jobLabel('releases_for_vn', `Releases for ${vnId}`, { vnId }), stale.length, vnId);
   let downloaded = 0;
   for (const r of stale) {
     try {

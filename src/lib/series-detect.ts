@@ -1,5 +1,6 @@
 import 'server-only';
 import { db } from './db';
+import { asJsonRecord, parseJsonArray } from './json-shape';
 
 export interface SeriesSuggestion {
   /** Existing series to join, when at least one related VN already belongs to one. */
@@ -50,14 +51,16 @@ export function walkSeriesRelations(seedVnId: string): { id: string; title: stri
     const current = queue.shift() as string;
     const row = stmt.get(current) as { relations: string | null } | undefined;
     if (!row?.relations) continue;
-    let rels: VnRelationRow[];
-    try {
-      rels = JSON.parse(row.relations) as VnRelationRow[];
-    } catch {
-      continue;
-    }
-    for (const rel of rels) {
-      if (!rel?.id || visited.has(rel.id) || !SERIES_RELATIONS.has(rel.relation)) continue;
+    for (const value of parseJsonArray(row.relations)) {
+      const rel = asJsonRecord(value);
+      if (
+        !rel ||
+        typeof rel.id !== 'string' ||
+        typeof rel.title !== 'string' ||
+        typeof rel.relation !== 'string' ||
+        visited.has(rel.id) ||
+        !SERIES_RELATIONS.has(rel.relation)
+      ) continue;
       visited.add(rel.id);
       out.push({ id: rel.id, title: rel.title, relation: rel.relation });
       if (out.length >= MAX_SERIES_WALK) break;
