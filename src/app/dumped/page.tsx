@@ -92,7 +92,7 @@ export default async function DumpedPage({
       acc[c] += 1;
       // `all` mirrors "every tracked VN" — the union of every
       // bucket except `none`.
-      if (c !== 'none') acc.all += 1;
+      if (c !== 'none' && c !== 'ignored') acc.all += 1;
       return acc;
     },
     { all: 0, complete: 0, missing: 0, none: 0, ignored: 0 },
@@ -104,7 +104,7 @@ export default async function DumpedPage({
   // tab (where the CTA invites the user to add an edition).
   const filtered = entries.filter((e) => {
     const c = classify(e);
-    if (tab === 'all') return c !== 'none';
+    if (tab === 'all') return c !== 'none' && c !== 'ignored';
     return c === tab;
   });
 
@@ -183,7 +183,7 @@ export default async function DumpedPage({
                   key={key}
                   href={key === 'all' ? '/dumped' : `/dumped?tab=${key}`}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors sm:min-h-0 ${
                     isActive
                       ? 'border-accent bg-accent/15 text-accent'
                       : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'

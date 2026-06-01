@@ -116,14 +116,14 @@ describe('responsive tap targets', () => {
     const assign = source('src/components/AssignProviderDialog.tsx');
     const batch = source('src/components/StockBatchClient.tsx');
     const placeCard = source('src/components/PlaceCard.tsx');
-    const kobe = source('src/components/AliceNetKobeClient.tsx');
+    const alicenet = source('src/components/AliceNetClient.tsx');
     expect(assign).toContain('className="input min-h-[44px] w-full pl-8 text-sm"');
     expect(assign).toContain('inline-flex min-h-[44px] shrink-0 items-center');
     expect(batch).toContain('className="tap-target rounded p-0.5');
     expect(batch).toContain('sm:min-h-[36px]');
     expect(batch).toContain('sm:min-h-0');
     expect(placeCard).toContain('sm:min-h-[32px]');
-    expect(kobe).toContain('sm:min-h-[32px]');
+    expect(alicenet).toContain('sm:min-h-[32px]');
   });
 
   it('keeps VN-detail secondary actions and shelf navigation touch-safe without inflating desktop rows', () => {
@@ -268,9 +268,9 @@ describe('responsive tap targets', () => {
     expect(bulk).toContain('sm:min-h-0');
   });
 
-  it('keeps AliceNet Kobe filters and remap controls touch-safe without inflating desktop rows', () => {
-    const client = source('src/components/AliceNetKobeClient.tsx');
-    const dialog = source('src/components/kobe/KobeLinkDialog.tsx');
+  it('keeps AliceNet filters and remap controls touch-safe without inflating desktop rows', () => {
+    const client = source('src/components/AliceNetClient.tsx');
+    const dialog = source('src/components/alicenet/AliceNetLinkDialog.tsx');
     expect(client).toContain('inline-flex min-h-[44px] items-center gap-1 rounded');
     expect(client).toContain('inline-flex min-h-[44px] items-center gap-1.5 rounded-md border');
     expect(client).toContain('btn btn-xs min-h-[44px] sm:min-h-0');

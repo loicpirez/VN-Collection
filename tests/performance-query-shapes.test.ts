@@ -129,7 +129,7 @@ describe('collection-scale placeholder lists', () => {
     'batchGetProducerNames',
     'batchGetStaffNames',
     'batchGetCharNames',
-    'upsertKobeStock',
+    'upsertAliceNetStock',
   ])('%s chunks collection-sized SQLite placeholder lists', (functionName) => {
     const body = source('src/lib/db.ts');
     const fn = body.split(`export function ${functionName}`)[1]?.split('\nexport function ')[0] ?? '';

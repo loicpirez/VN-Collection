@@ -60,7 +60,7 @@ function parseDevs(json: string | null): { id: string; name: string }[] {
   return parseNamedIdRows(json);
 }
 
-/** AliceKobe-identical VN browser for a single place's stock. */
+/** AliceNet-identical VN browser for a single place's stock. */
 export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: number; placeName: string }) {
   const t = useT();
   const locale = useLocale();
