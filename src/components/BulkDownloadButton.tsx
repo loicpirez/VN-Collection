@@ -7,6 +7,7 @@ import { Dialog } from './Dialog';
 import { ErrorAlert } from './ErrorAlert';
 import { SelectiveFullDownload, type SelectiveDownloadFilters } from './SelectiveFullDownload';
 import { CollapsibleSummary } from './CollapsibleSummary';
+import { fetchAllCollectionItems } from '@/lib/collection-api-client';
 
 /** URL params the selective-download modal forwards to /api/collection. */
 const FORWARDED_PARAMS = [
@@ -163,10 +164,10 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
         await runItems(itemsOverride, full);
         return;
       }
-      const r = await fetch('/api/collection?sort=title&order=asc', { cache: 'no-store' });
-      if (!r.ok) throw new Error(t.common.error);
-      const data = (await r.json()) as { items: { id: string; title: string }[] };
-      await runItems(data.items, full);
+      const items = await fetchAllCollectionItems<{ id: string; title: string }>(
+        new URLSearchParams({ sort: 'title', order: 'asc' }),
+      );
+      await runItems(items, full);
     } catch (e) {
       setError((e as Error).message);
       setRunning(false);
@@ -190,10 +191,10 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
         await runItems(subset, true);
         return;
       }
-      const r = await fetch('/api/collection?sort=title&order=asc', { cache: 'no-store' });
-      if (!r.ok) throw new Error(t.common.error);
-      const data = (await r.json()) as { items: { id: string; title: string }[] };
-      const subset = data.items.filter((it) => failedIds.has(it.id));
+      const items = await fetchAllCollectionItems<{ id: string; title: string }>(
+        new URLSearchParams({ sort: 'title', order: 'asc' }),
+      );
+      const subset = items.filter((it) => failedIds.has(it.id));
       if (subset.length === 0) return;
       setFailures([]);
       await runItems(subset, true);

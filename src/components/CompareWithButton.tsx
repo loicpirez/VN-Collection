@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/client';
 import { yearOnly } from '@/lib/locale-number';
 import { Dialog } from './Dialog';
 import { SkeletonBlock } from './Skeleton';
+import { fetchAllCollectionItems } from '@/lib/collection-api-client';
 
 interface CollectionRow {
   id: string;
@@ -37,11 +38,12 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
   const load = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
     try {
-      const r = await fetch('/api/collection?sort=released&order=desc', { cache: 'no-store', signal });
-      if (!r.ok) return;
-      const data = (await r.json()) as { items?: CollectionRow[] };
+      const data = await fetchAllCollectionItems<CollectionRow>(
+        new URLSearchParams({ sort: 'released', order: 'desc' }),
+        { signal },
+      );
       if (signal.aborted) return;
-      setRows((data.items ?? []).filter((it) => it.id !== currentVnId));
+      setRows(data.filter((it) => it.id !== currentVnId));
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') return;
     } finally {

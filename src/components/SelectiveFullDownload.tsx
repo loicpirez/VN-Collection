@@ -6,6 +6,7 @@ import { yearOnly } from '@/lib/locale-number';
 import { useToast } from './ToastProvider';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { fetchAllCollectionItems } from '@/lib/collection-api-client';
 interface CollectionRow {
   id: string;
   title: string;
@@ -121,10 +122,8 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
           if (v && typeof v === 'string') params.set(k, v);
         }
       }
-      const r = await fetch(`/api/collection?${params.toString()}`, { cache: 'no-store' });
-      if (!r.ok) throw new Error(await r.text());
-      const data = (await r.json()) as { items?: CollectionRow[] };
-      const list = (data.items ?? []).filter((it) => isVndbVnId(it.id));
+      const data = await fetchAllCollectionItems<CollectionRow>(params);
+      const list = data.filter((it) => isVndbVnId(it.id));
       setRows(list);
     } catch (e) {
       toast.error((e as Error).message || t.common.error);
