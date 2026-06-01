@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { readCachedCharactersForVn } from '@/lib/vndb';
+import { readCachedCharactersForVns } from '@/lib/vndb';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
@@ -26,10 +26,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.error('[collection/traits] db.prepare failed:', (e as Error).message);
     return NextResponse.json({ error: 'database error' }, { status: 500 });
   }
+  const cachedCharacters = readCachedCharactersForVns(vnIds);
   const map = new Map<string, Aggregate>();
   let withCache = 0;
   for (const vnId of vnIds) {
-    const chars = readCachedCharactersForVn(vnId);
+    const chars = cachedCharacters.get(vnId) ?? [];
     if (chars.length === 0) continue;
     withCache++;
     const seenInVn = new Set<string>();

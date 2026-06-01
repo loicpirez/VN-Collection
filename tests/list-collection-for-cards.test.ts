@@ -9,7 +9,7 @@
  *   - `description` / `aliases` / `staff` / `va` / `titles` /
  *     `editions` / `extlinks` / `screenshots` / `release_images`
  *     / `raw` / `languages` / `platforms` / `length` /
- *     `votecount` etc. come back empty / null even when the
+ *     `votecount` etc. are absent even when the
  *     underlying `vn` row has values, because the slim SELECT
  *     never fetches them.
  *   - The full path (`listCollection({})`) keeps returning the
@@ -119,7 +119,7 @@ describe('listCollectionForCards — R5-144 source shape', () => {
 });
 
 describe('listCollectionForCards — behaviour', () => {
-  it('returns rows with heavy JSON columns empty / null on the slim path', () => {
+  it('returns rows without heavy JSON columns on the slim path', () => {
     upsertVn({
       id: 'v9400',
       title: 'fixture-slim',
@@ -143,10 +143,10 @@ describe('listCollectionForCards — behaviour', () => {
     expect(slim.alttitle).toBe('Slim Fixture');
 
     // Slim path drops the heavy JSON columns.
-    expect(slim.description).toBeFalsy();
-    expect(slim.aliases).toEqual([]);
-    expect(slim.languages).toEqual([]);
-    expect(slim.platforms).toEqual([]);
+    expect(slim).not.toHaveProperty('description');
+    expect(slim).not.toHaveProperty('aliases');
+    expect(slim).not.toHaveProperty('languages');
+    expect(slim).not.toHaveProperty('platforms');
 
     // Full path keeps them.
     expect(full.description).toBe('this should never be sent to the card grid');

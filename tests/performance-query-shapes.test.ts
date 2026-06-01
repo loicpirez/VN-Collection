@@ -98,3 +98,66 @@ describe('collection enrichment query shape', () => {
     expect(fn).not.toContain('.all(...vnIds)');
   });
 });
+
+describe('collection-scale placeholder lists', () => {
+  it('chunks brand-overlap staff cache hydration', () => {
+    const body = source('src/lib/brand-overlap.ts');
+    expect(body).toContain('cacheKeys.slice(i, i + CHUNK)');
+    expect(body).toContain('.all(...chunk)');
+    expect(body).not.toContain('.all(...cacheKeys)');
+  });
+
+  it('chunks upcoming cover and collection-membership lookups', () => {
+    const body = source('src/app/upcoming/page.tsx');
+    expect(body).toContain('const chunk = ids.slice(i, i + CHUNK)');
+    expect(body).toContain('.all(...chunk)');
+    expect(body).not.toContain('.all(...ids)');
+  });
+
+  it('chunks Steam suggestion metadata lookups', () => {
+    const body = source('src/lib/steam.ts');
+    expect(body).toContain('const chunk = ids.slice(i, i + CHUNK)');
+    expect(body).toContain('.all(...chunk)');
+    expect(body).not.toContain('.all(...ids)');
+  });
+
+  it.each([
+    'getCharacterImages',
+    'materializeReleaseMetaForCollectionVns',
+    'materializeAspectForCollectionVns',
+    'batchGetVnTitles',
+    'batchGetProducerNames',
+    'batchGetStaffNames',
+    'batchGetCharNames',
+    'upsertKobeStock',
+  ])('%s chunks collection-sized SQLite placeholder lists', (functionName) => {
+    const body = source('src/lib/db.ts');
+    const fn = body.split(`export function ${functionName}`)[1]?.split('\nexport function ')[0] ?? '';
+    expect(fn).toContain('const CHUNK = 500');
+    expect(fn).toContain('.slice(i, i + CHUNK)');
+    expect(fn).not.toContain('.all(...ids)');
+    expect(fn).not.toContain('.all(...vnIds)');
+    expect(fn).not.toContain('.all(...charIds)');
+    expect(fn).not.toContain('.run(...vnIds)');
+    expect(fn).not.toContain('.run(...toDelete)');
+  });
+
+  it('caps sibling alias sets before constructing repeated placeholders', () => {
+    const body = source('src/lib/db.ts');
+    expect(body.match(/const nameList = Array\.from\(names\)\.slice\(0, 200\);/g)).toHaveLength(2);
+    expect(body).not.toContain('Array.from(names).map(() =>');
+  });
+
+  it('hydrates collection trait cache rows through one chunked batch helper', () => {
+    const dbBody = source('src/lib/db.ts');
+    const cacheBody = source('src/lib/vndb-cache.ts');
+    const routeBody = source('src/app/api/collection/traits/route.ts');
+    const helper = dbBody.split('export function getCacheRows')[1]?.split('/** Insert or replace one cache row. */')[0] ?? '';
+    expect(helper).toContain('const CHUNK = 500');
+    expect(helper).toContain('keys.slice(i, i + CHUNK)');
+    expect(helper).toContain('.all(...chunk)');
+    expect(cacheBody).toContain('getCacheRows(keys)');
+    expect(routeBody).toContain('readCachedCharactersForVns(vnIds)');
+    expect(routeBody).not.toContain('readCachedCharactersForVn(vnId)');
+  });
+});

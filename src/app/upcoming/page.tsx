@@ -330,20 +330,27 @@ function loadLocalCovers(rows: UpcomingRelease[]): Map<string, LocalVnCover> {
     new Set(rows.flatMap((r) => r.vns.map((v) => v.id)).filter((id) => isVndbVnId(id))),
   );
   if (ids.length === 0) return new Map();
-  const placeholders = ids.map(() => '?').join(',');
-  const localRows = db
-    .prepare(
-      `SELECT id, image_url, image_thumb, image_sexual, local_image, local_image_thumb
-       FROM vn WHERE id IN (${placeholders})`,
-    )
-    .all(...ids) as Array<{
+  const localRows: Array<{
       id: string;
       image_url: string | null;
       image_thumb: string | null;
       image_sexual: number | null;
       local_image: string | null;
       local_image_thumb: string | null;
-    }>;
+  }> = [];
+  const CHUNK = 500;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    localRows.push(
+      ...(db
+        .prepare(
+          `SELECT id, image_url, image_thumb, image_sexual, local_image, local_image_thumb
+           FROM vn WHERE id IN (${placeholders})`,
+        )
+        .all(...chunk) as typeof localRows),
+    );
+  }
   const map = new Map<string, LocalVnCover>();
   for (const r of localRows) {
     map.set(r.id, {
@@ -359,11 +366,17 @@ function loadLocalCovers(rows: UpcomingRelease[]): Map<string, LocalVnCover> {
 
 function loadCollectionMembership(ids: string[]): Set<string> {
   if (ids.length === 0) return new Set();
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = db
-    .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
-    .all(...ids) as Array<{ vn_id: string }>;
-  return new Set(rows.map((r) => r.vn_id));
+  const owned = new Set<string>();
+  const CHUNK = 500;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
+      .all(...chunk) as Array<{ vn_id: string }>;
+    for (const row of rows) owned.add(row.vn_id);
+  }
+  return owned;
 }
 
 function ReleasesSection({

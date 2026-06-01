@@ -2,7 +2,7 @@ import 'server-only';
 import { db } from './db';
 import { fetchProducerCompletion } from './producer-completion';
 import { getProducer } from './vndb';
-import type { StaffFullPayload } from './staff-full';
+import { decodeStaffFullPayload } from './staff-full';
 
 /**
  * For two brands (developers), surface every staff member / VA who has
@@ -100,19 +100,21 @@ export async function findBrandStaffOverlap(brandA: string, brandB: string): Pro
 
   const sidList = Array.from(candidateSids);
   const cacheKeys = sidList.map((s) => `staff_full:${s.toLowerCase()}`);
-  const placeholders = cacheKeys.map(() => '?').join(',');
-  const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key IN (${placeholders})`)
-    .all(...cacheKeys) as { body: string }[];
+  const rows: { body: string }[] = [];
+  for (let i = 0; i < cacheKeys.length; i += CHUNK) {
+    const chunk = cacheKeys.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    rows.push(
+      ...(db
+        .prepare(`SELECT body FROM vndb_cache WHERE cache_key IN (${placeholders})`)
+        .all(...chunk) as { body: string }[]),
+    );
+  }
 
   const entries: BrandOverlapEntry[] = [];
   for (const r of rows) {
-    let payload: StaffFullPayload;
-    try {
-      payload = JSON.parse(r.body) as StaffFullPayload;
-    } catch {
-      continue;
-    }
+    const payload = decodeStaffFullPayload(r.body, 0);
+    if (!payload) continue;
     if (!payload.profile) continue;
 
     const aProd: BrandOverlapEntry['aCredits'] = [];
