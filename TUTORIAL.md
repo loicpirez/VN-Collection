@@ -5,6 +5,10 @@ with the in-app guided tour (auto-opens on first visit; rerun anytime
 from `/data → Tour`). For the full feature catalogue see
 [FEATURES.md](FEATURES.md).
 
+The in-app tour is a 14-step pass over the primary routes. It keeps a
+compact, scrollable panel on narrow screens and moves keyboard focus to
+each new step so the current destination and action remain clear.
+
 The shortcut overview below is also reachable in-app via `?`.
 
 ---

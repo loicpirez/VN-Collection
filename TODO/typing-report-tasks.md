@@ -9,3 +9,4 @@
 | TYPEA-005 | MEDIUM | Several cache and settings helpers directly cast parsed JSON without a type guard. Replace direct casts with `safeJsonParse` validators. | `src/lib/db.ts`, `src/lib/cache.ts` | TODO |
 | TYPEA-006 | LOW | Card listing paths return the broad `CollectionItem` type even when only a projection is loaded. Introduce exact row DTOs for card and API projections. | `src/lib/db.ts`, `src/components/VnCard.tsx` | TODO |
 | TYPEA-007 | LOW | Core modules have grown into very large files, making typed boundaries harder to reason about. Extract coherent provider, query, and DTO modules without changing behavior. | `src/lib/db.ts`, `src/lib/stock.ts`, `src/components/StockPanel.tsx` | TODO |
+| TYPEA-008 | LOW | Leaflet icon initialization mutates a private prototype through an unsafe cast. Bundle assets and pass explicit `L.icon` configuration instead. | `src/components/MapCanvas.tsx`, `public/leaflet/` | DONE_WITH_DIFF |

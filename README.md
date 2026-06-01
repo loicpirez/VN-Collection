@@ -297,6 +297,7 @@ Refreshing metadata does not add an item to your collection. Collection membersh
 * [TUTORIAL.md](TUTORIAL.md) — user walkthrough
 * [PLAN.md](PLAN.md) — historical implementation notes
 * [CLAUDE.md](CLAUDE.md) — developer and agent guide
+* [TODO/README.md](TODO/README.md) - active audit backlog and verification status
 
 ---
 ## Data, media, and compliance
