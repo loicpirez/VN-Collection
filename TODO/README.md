@@ -115,11 +115,20 @@ top-level progress snapshots, keeps cancelled counters truthful, and reports unf
 jobs as interrupted after a server restart. The status popover distinguishes cancelled
 work from completed work.
 
+The GEO follow-up hardens online-store card parsing for current list markup, keeps
+physical-branch confirmation disabled, and replaces stale diagnostics that implied the
+entire provider parser was unfinished.
+
+The collection pagination follow-up limits public library pages to 240 rows by default
+and 500 rows at most, applies advanced predicates in SQLite before slicing, and adds
+localized previous/next navigation. Compare and bulk-download workflows drain bounded
+pages through one typed helper instead of requesting an oversized response.
+
 Current status:
 
-- `DONE_WITH_DIFF`: 63
+- `DONE_WITH_DIFF`: 66
 - `VERIFIED_EXISTING`: 2
-- `TODO`: 30
+- `TODO`: 27
 
 ## Working method
 

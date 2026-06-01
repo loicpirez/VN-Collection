@@ -2,7 +2,7 @@
 
 | ID | Severity | Finding and implementation direction | Location | Status |
 | --- | --- | --- | --- | --- |
-| FEA-001 | HIGH | The GEO stock provider remains an incomplete parser path and does not deliver the same structured stock guarantees as other providers. Finish parsing, fixtures, and diagnostics before presenting it as supported. | `src/lib/stock.ts`, `tests/stock.test.ts` | TODO |
+| FEA-001 | HIGH | The GEO stock provider remains an incomplete parser path and does not deliver the same structured stock guarantees as other providers. Finish parsing, fixtures, and diagnostics before presenting it as supported. | `src/lib/stock.ts`, `src/lib/i18n/dictionaries.ts`, `tests/stock-generic-parsers.test.ts`, `tests/stock-providers.test.ts`, `tests/stock-diagnostics.test.ts` | DONE_WITH_DIFF |
 | FEA-002 | HIGH | Owned-edition selection is capped at 100 releases without navigation, leaving large VN release histories incomplete. Add paginated or searchable release selection. | `src/components/OwnedEditionsSection.tsx`, `tests/long-list-pagination.test.ts` | DONE_WITH_DIFF |
 | FEA-003 | HIGH | Generic stock offer groups render long lists without pagination or bounded expansion. Add compact pagination with range state per provider group. | `src/components/StockPanel.tsx`, `tests/long-list-pagination.test.ts` | DONE_WITH_DIFF |
 | FEA-004 | MEDIUM | Bulk stock refresh state is process-memory only, so refresh progress disappears on restart and cannot be resumed reliably. Persist durable job state or explicitly constrain the feature to foreground operation. | `src/app/api/stock/batch/route.ts`, `src/lib/download-status.ts`, `src/lib/stock-batch-store.ts`, `src/lib/db.ts`, `tests/stock-batch-store.test.ts` | DONE_WITH_DIFF |
