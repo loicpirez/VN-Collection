@@ -1,9 +1,7 @@
 'use client';
-import type { VndbCharacter } from './vndb-types';
+import { readVnCharacterRows, type VnCharacterRow } from './vn-character-row';
 
-/** Shape of the /api/vn/[id]/characters response — VndbCharacter + the
- *  server-side `localImage` enrichment from `getCharacterImages`. */
-export type VnCharacterRow = VndbCharacter & { localImage: string | null };
+export type { VnCharacterRow } from './vn-character-row';
 
 /**
  * Per-page shared cache for `/api/vn/[id]/characters` responses.
@@ -49,9 +47,9 @@ export async function fetchVnCharacters(
         cache: 'no-store',
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const d = (await r.json()) as { characters: VnCharacterRow[] };
-      cache.set(vnId, { data: d.characters, fetchedAt: Date.now() });
-      return d.characters;
+      const characters = readVnCharacterRows(await r.json());
+      cache.set(vnId, { data: characters, fetchedAt: Date.now() });
+      return characters;
     } finally {
       inflight.delete(vnId);
     }

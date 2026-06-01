@@ -369,7 +369,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     const ctrl = new AbortController();
     fetchVnCharacters(vnId, ctrl.signal)
       .then((data) => {
-        if (!ctrl.signal.aborted) setCharacters(data as unknown as VndbCharacter[]);
+        if (!ctrl.signal.aborted) setCharacters(data);
       })
       .catch((e) => {
         if ((e as Error).name === 'AbortError') return;
