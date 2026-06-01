@@ -473,6 +473,66 @@ check('/?tag=g660 recently viewed section has nonzero top margin', async (page) 
   }
 });
 
+check('narrow tutorial panel stays inside viewport with touch-safe actions', async () => {
+  const tutorialContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const tutorialPage = await tutorialContext.newPage();
+  try {
+    tutorialPage.setDefaultTimeout(15000);
+    await gotoClean(tutorialPage, '/');
+    const panel = tutorialPage.locator('[role="dialog"][aria-modal="false"]').first();
+    await panel.waitFor({ state: 'visible', timeout: 5000 });
+    const geometry = await panel.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const buttonHeights = Array.from(el.querySelectorAll('button')).map(
+        (button) => button.getBoundingClientRect().height,
+      );
+      return {
+        x: box.x,
+        y: box.y,
+        right: box.right,
+        bottom: box.bottom,
+        minButtonHeight: Math.min(...buttonHeights),
+        overflowX: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    });
+    assert(geometry.x >= 0 && geometry.y >= 0, 'tutorial panel begins outside the narrow viewport');
+    assert(geometry.right <= 390 && geometry.bottom <= 844, 'tutorial panel exceeds the narrow viewport');
+    assert(geometry.minButtonHeight >= 44, `tutorial action is only ${geometry.minButtonHeight}px high`);
+    assert(geometry.overflowX <= 2, `tutorial creates ${geometry.overflowX}px horizontal overflow`);
+  } finally {
+    await tutorialContext.close();
+  }
+});
+
+check('narrow VN detail stays bounded with collapsed sections and touch-safe navigation', async (page) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  try {
+    await gotoClean(page, '/vn/v26180');
+    const result = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('nav a[href^="#section-"]'));
+      const sectionControls = Array.from(
+        document.querySelectorAll('section[id^="section-"] button[aria-expanded]'),
+      );
+      return {
+        scrollHeight: document.documentElement.scrollHeight,
+        overflowX: document.documentElement.scrollWidth - window.innerWidth,
+        sectionLinkCount: links.length,
+        minSectionLinkHeight: Math.min(...links.map((link) => link.getBoundingClientRect().height)),
+        collapsedSections: sectionControls.filter(
+          (control) => control.getAttribute('aria-expanded') === 'false',
+        ).length,
+      };
+    });
+    assert(result.overflowX <= 2, `VN detail creates ${result.overflowX}px horizontal overflow`);
+    assert(result.sectionLinkCount > 0, 'VN detail has no narrow-screen section navigation');
+    assert(result.minSectionLinkHeight >= 44, `VN section navigation target is only ${result.minSectionLinkHeight}px high`);
+    assert(result.collapsedSections > 0, 'VN detail does not collapse any secondary section by default');
+    assert(result.scrollHeight <= 844 * 16, `VN detail is still excessively tall (${result.scrollHeight}px)`);
+  } finally {
+    await page.setViewportSize({ width: 1280, height: 900 });
+  }
+});
+
 const browser = await launchBrowser();
 const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
 await context.addInitScript(() => {
