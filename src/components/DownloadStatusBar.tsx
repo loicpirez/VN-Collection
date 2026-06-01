@@ -3,50 +3,36 @@ import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, Cloud, CloudDownload, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import {
+  decodeDownloadStatusSnapshot,
+  type DownloadStatusJob as Job,
+  type DownloadStatusSnapshot as Snapshot,
+} from '@/lib/download-status-snapshot';
 
-interface JobError {
-  item: string;
-  message: string;
+function interpolate(template: string, params?: Record<string, string | number> | null): string {
+  if (!params) return template;
+  return Object.entries(params).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, String(value)),
+    template,
+  );
 }
 
-interface Job {
-  id: string;
-  // Mirrors lib/download-status.ts `JobKind`. Keep in sync.
-  kind:
-    | 'staff'
-    | 'characters'
-    | 'producers'
-    | 'vndb-pull'
-    | 'egs-sync'
-    | 'vn-fetch'
-    | 'cache-refresh'
-    | 'stock-batch';
-  vn_id: string | null;
-  /** Resolved from the local DB by the enrichment layer in the API route. */
-  vn_title?: string | null;
-  label: string;
-  total: number;
-  done: number;
-  current_item?: string | null;
-  /** Human-readable name for current_item resolved from the local DB. */
-  current_item_name?: string | null;
-  errors: JobError[];
-  started_at: number;
-  finished_at: number | null;
-  cancelled?: boolean;
-  interrupted?: boolean;
+function translatedJobLabel(t: ReturnType<typeof useT>, job: Job): string {
+  const templates = t.downloadStatus.jobLabels as Record<string, string | undefined>;
+  return interpolate((job.label_code ? templates[job.label_code] : null) ?? job.label, job.label_params);
 }
 
-interface Snapshot {
-  throttle: {
-    active: number;
-    queued: number;
-    recent429s?: number;
-    circuitOpen?: boolean;
-    /** Server-provided ms-until-resume from the most recent Retry-After. */
-    retryAfterMs?: number;
-  };
-  jobs: Job[];
+function translatedCurrentItem(t: ReturnType<typeof useT>, job: Job): string {
+  if (!job.current_item) return translatedJobLabel(t, job);
+  if (!job.current_item_code) return job.current_item_name ? `${job.current_item_name} (${job.current_item})` : job.current_item;
+  const templates = t.downloadStatus.currentItems as Record<string, string | undefined>;
+  return interpolate(templates[job.current_item_code] ?? job.current_item, job.current_item_params);
+}
+
+function CurrentItemText({ t, job }: { t: ReturnType<typeof useT>; job: Job }) {
+  if (!job.current_item) return null;
+  if (job.current_item_code) return <span>{translatedCurrentItem(t, job)}</span>;
+  return <EntityLink id={job.current_item} name={job.current_item_name} />;
 }
 
 /** Maps a VNDB entity id prefix to its local app route. */
@@ -156,28 +142,32 @@ export function DownloadStatusBar() {
     // so older browsers and odd proxy setups still get progress.
     let alive = true;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let pollAbort: AbortController | null = null;
     let es: EventSource | null = null;
     let useSse = typeof window !== 'undefined' && 'EventSource' in window;
 
     async function pollOnce() {
       if (!alive) return;
+      const controller = new AbortController();
+      pollAbort?.abort();
+      pollAbort = controller;
       let next: Snapshot | null = null;
       try {
-        const r = await fetch('/api/download-status', { cache: 'no-store' });
+        const r = await fetch('/api/download-status', { cache: 'no-store', signal: controller.signal });
         if (r.ok) {
-          next = (await r.json()) as Snapshot;
-          if (alive) setData(next);
+          next = decodeDownloadStatusSnapshot(await r.json());
+          if (alive && pollAbort === controller && !controller.signal.aborted && next) setData(next);
         }
       } catch {
         // Network blips are fine, retry on the next tick.
       }
-      if (!alive) return;
+      if (!alive || pollAbort !== controller || controller.signal.aborted) return;
       const active =
         (next?.jobs.some((j) => j.finished_at == null) ?? false) ||
         (next?.throttle.active ?? 0) > 0 ||
         (next?.throttle.queued ?? 0) > 0;
       // Slower cadence than the SSE event rate because polling is a
-      // pure fallback for clients that lost the stream — we still
+      // pure fallback for clients that lost the stream - we still
       // want updates, just not at high frequency.
       const delay = active ? 4_000 : 60_000;
       pollTimer = setTimeout(pollOnce, delay);
@@ -185,18 +175,24 @@ export function DownloadStatusBar() {
 
     function startPolling() {
       if (pollTimer) clearTimeout(pollTimer);
-      pollOnce();
+      pollTimer = null;
+      void pollOnce();
     }
 
     function startSse() {
       try {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = null;
+        pollAbort?.abort();
+        pollAbort = null;
         es = new EventSource('/api/download-status/stream');
         es.onmessage = (e) => {
           if (!alive) return;
           try {
-            setData(JSON.parse(e.data) as Snapshot);
+            const next = decodeDownloadStatusSnapshot(JSON.parse(e.data));
+            if (next) setData(next);
           } catch {
-            // Bad frame — ignore, the next one will be valid.
+            // Bad frame - ignore, the next one will be valid.
           }
         };
         es.onerror = () => {
@@ -239,6 +235,7 @@ export function DownloadStatusBar() {
     return () => {
       alive = false;
       if (pollTimer) clearTimeout(pollTimer);
+      pollAbort?.abort();
       if (es) es.close();
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', onVisible);
@@ -277,13 +274,12 @@ export function DownloadStatusBar() {
   const labelKind = (k: Job['kind']): string =>
     k in t.downloadStatus.kinds ? t.downloadStatus.kinds[k as keyof typeof t.downloadStatus.kinds] : k;
   const currentItemText = (j: Job): string => {
-    if (!j.current_item) return j.label;
-    return j.current_item_name ? `${j.current_item_name} (${j.current_item})` : j.current_item;
+    return translatedCurrentItem(t, j);
   };
 
   return (
     // Anchored bottom-right above the QuoteFooter (which lives at bottom-0
-    // and grows to ~112px on hover — `bottom-32` clears the expanded
+    // and grows to ~112px on hover - `bottom-32` clears the expanded
     // height). Popover opens upward so it stays inside the viewport.
     <div
       className="fixed bottom-5 right-2 z-40 flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 sm:right-4 sm:max-w-sm"
@@ -292,7 +288,7 @@ export function DownloadStatusBar() {
       {retryingNow && (
         <div className="rounded-md border border-status-on_hold/60 bg-status-on_hold/10 px-3 py-2 text-[11px] text-status-on_hold shadow-card">
           <div className="flex items-center gap-1.5 font-bold">
-            <AlertTriangle className="h-3 w-3" />
+            <AlertTriangle className="h-3 w-3" aria-hidden />
             {t.downloadStatus.retrying}
           </div>
           <div className="text-[10px] opacity-90">
@@ -319,18 +315,18 @@ export function DownloadStatusBar() {
         aria-label={t.downloadStatus.title}
         title={
           live.length === 1 && live[0].current_item
-            ? `${labelKind(live[0].kind)} · ${currentItemText(live[0])}`
+            ? `${labelKind(live[0].kind)} / ${currentItemText(live[0])}`
             : t.downloadStatus.title
         }
       >
         {retryingNow ? (
-          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
         ) : live.length > 0 ? (
-          <CloudDownload className="h-4 w-4 shrink-0 animate-pulse" />
+          <CloudDownload className="h-4 w-4 shrink-0 animate-pulse" aria-hidden />
         ) : totalErrors > 0 ? (
-          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
         ) : (
-          <Cloud className="h-4 w-4 shrink-0" />
+          <Cloud className="h-4 w-4 shrink-0" aria-hidden />
         )}
         {/*
           Collapsed state surfaces the source-specific task on the
@@ -338,7 +334,7 @@ export function DownloadStatusBar() {
           to know what's downloading. Falls back to the generic
           "{n} en cours" count when there are multiple in-flight
           jobs (the popover then disambiguates). The previous chip
-          only showed "1 en cours · 0/0" which manual QA flagged
+          only showed "1 en cours / 0/0" which manual QA flagged
           as opaque ("can't see what's downloading").
         */}
         <span
@@ -347,7 +343,7 @@ export function DownloadStatusBar() {
             retryingNow
               ? t.downloadStatus.waitingShort.replace('{s}', String(Math.ceil(localRetryMs / 1000)))
               : live.length === 1
-                ? (() => { const j = live[0]; return `${labelKind(j.kind)} · ${currentItemText(j)}`; })()
+                ? (() => { const j = live[0]; return `${labelKind(j.kind)} / ${currentItemText(j)}`; })()
                 : live.length > 1
                   ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
                   : totalErrors > 0
@@ -362,7 +358,7 @@ export function DownloadStatusBar() {
 	                  const j = live[0];
 	                  const head = labelKind(j.kind);
 	                  const tail = currentItemText(j);
-	                  return `${head} · ${tail}`;
+		                  return `${head} / ${tail}`;
 	                })()
               : live.length > 1
                 ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
@@ -377,7 +373,7 @@ export function DownloadStatusBar() {
         )}
         {(activeReq > 0 || queuedReq > 0) && (
           <span className="shrink-0 text-[10px] font-normal opacity-80">
-            · {activeReq}/{queuedReq}
+	            / {activeReq}/{queuedReq}
           </span>
         )}
       </button>
@@ -443,16 +439,16 @@ export function DownloadStatusBar() {
                         While the job is running, the CURRENT TASK is
                         the most informative thing on the bar (e.g.
                         "EGS top-ranked (top 100)" instead of generic
-                        "Caches · Global refresh"). Promote it to the
+                        "Caches / Global refresh"). Promote it to the
                         main line; fall back to the job label when no
                         current_item is set (queue tail / finished).
                       */}
                       {!finished && j.current_item ? (
-                        <>{labelKind(j.kind)} – <EntityLink id={j.current_item} name={j.current_item_name} /></>
+                        <>{labelKind(j.kind)} - <CurrentItemText t={t} job={j} /></>
                       ) : (
                         <span>
-                          {labelKind(j.kind)} ·{' '}
-                          <JobLabelText label={j.label} vnId={j.vn_id ?? null} vnTitle={j.vn_title} />
+                          {labelKind(j.kind)} /{' '}
+                          <JobLabelText label={translatedJobLabel(t, j)} vnId={j.vn_id ?? null} vnTitle={j.vn_title} />
                         </span>
                       )}
                     </span>
@@ -466,9 +462,9 @@ export function DownloadStatusBar() {
                     )}
                   </div>
                   {!finished && j.current_item && (
-                    <div className="mt-0.5 truncate text-[10px] text-muted/90" title={`${labelKind(j.kind)} · ${j.label}`}>
-                      {labelKind(j.kind)} ·{' '}
-                      <JobLabelText label={j.label} vnId={j.vn_id ?? null} vnTitle={j.vn_title} />
+                    <div className="mt-0.5 truncate text-[10px] text-muted/90" title={`${labelKind(j.kind)} / ${translatedJobLabel(t, j)}`}>
+                      {labelKind(j.kind)} /{' '}
+                      <JobLabelText label={translatedJobLabel(t, j)} vnId={j.vn_id ?? null} vnTitle={j.vn_title} />
                     </div>
                   )}
                   <div
@@ -476,7 +472,7 @@ export function DownloadStatusBar() {
                     aria-valuenow={j.done}
                     aria-valuemin={0}
                     aria-valuemax={j.total || 1}
-                    aria-label={`${labelKind(j.kind)} · ${j.label}`}
+                    aria-label={`${labelKind(j.kind)} / ${translatedJobLabel(t, j)}`}
                     className="mt-1 h-1.5 w-full overflow-hidden rounded bg-bg-elev"
                   >
                     <div
@@ -498,7 +494,7 @@ export function DownloadStatusBar() {
                       <ul className="mt-1.5 space-y-0.5 text-[10px] text-status-dropped">
                         {shownErrors.map((e, i) => (
                           <li key={`${j.id}-err-${i}`} className="truncate" title={`${e.item}: ${e.message}`}>
-                            <AlertTriangle className="mr-1 inline-block h-2.5 w-2.5" />
+                            <AlertTriangle className="mr-1 inline-block h-2.5 w-2.5" aria-hidden />
                             <span className="font-bold">
                               {idToHref(e.item) ? (
                                 <EntityLink id={e.item} />

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, Loader2, RefreshCw } from 'lucide-react';
 import { useT, useLocale } from '@/lib/i18n/client';
@@ -9,7 +9,7 @@ import { useToast } from './ToastProvider';
 import { readApiError } from '@/lib/api-error-read';
 
 /**
- * R5-058 / R5-106 / R5-215 — context-specific refresh button.
+ * R5-058 / R5-106 / R5-215 - context-specific refresh button.
  *
  * Where `<RefreshPageButton/>` blindly POSTs to `/api/refresh/global`
  * (which busts every page-level cache + re-fetches all of them),
@@ -49,12 +49,31 @@ export function RefreshScopeButton({
   const [now, setNow] = useState<number>(() => Date.now());
   const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
   const [, startTransition] = useTransition();
+  const identityKey = `${scope}|${JSON.stringify(params ?? {})}`;
+  const identityRef = useRef<string | null>(identityKey);
+  const inFlightRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setNow(Date.now());
     const tick = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(tick);
   }, []);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    identityRef.current = identityKey;
+    inFlightRef.current = false;
+    setBusy(false);
+    setRefreshedAt(null);
+    return () => {
+      identityRef.current = null;
+      inFlightRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [identityKey]);
 
   // Lookup the scope-specific labels. Falls back to the generic
   // refreshPage strings if the scope's labels are missing, so a
@@ -64,21 +83,34 @@ export function RefreshScopeButton({
   const titleText = scopeLabels?.title ?? t.refreshPage.title;
 
   async function run() {
+    if (inFlightRef.current) return;
+    const ownerIdentity = identityKey;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    inFlightRef.current = true;
     setBusy(true);
     try {
       const r = await fetch('/api/refresh/scope', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scope, params: params ?? {} }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerIdentity || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setRefreshedAt(Date.now());
       toast.success(t.refreshPage.done);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (identityRef.current !== ownerIdentity || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      if (identityRef.current === ownerIdentity && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        inFlightRef.current = false;
+        setBusy(false);
+      }
     }
   }
 
@@ -99,7 +131,7 @@ export function RefreshScopeButton({
         title={titleText}
         data-refresh-scope={scope}
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" />}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
         {ctaText}
       </button>
     </div>
@@ -123,7 +155,7 @@ function FreshnessChip({ lastUpdatedAt, now }: { lastUpdatedAt: number | null; n
       title={absolute || undefined}
       suppressHydrationWarning
     >
-      <Clock className="h-3 w-3 opacity-70" />
+      <Clock className="h-3 w-3 opacity-70" aria-hidden />
       <span className="opacity-70">{t.refreshPage.lastUpdatedLabel}</span>
       <span>{label}</span>
     </span>

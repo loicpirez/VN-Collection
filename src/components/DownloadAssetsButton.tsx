@@ -1,23 +1,22 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CloudDownload, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { ErrorAlert } from './ErrorAlert';
-
-type EgsWarningKind = 'network' | 'server' | 'throttled' | 'blocked';
+import { decodeAssetDownloadResult, type AssetDownloadWarning } from '@/lib/asset-download-shape';
 
 /**
  * Three possible data states for the VN. The button labels switch
  * based on this so the operator never sees "Tout re-télécharger" on
  * a VN that has never been downloaded.
  *
- *   - `none`     — no local cache row at all (or every key field is
+ *   - `none`     - no local cache row at all (or every key field is
  *                  empty). Primary CTA: "Télécharger les données".
- *   - `partial`  — vn row exists but `fetched_at` is stale (older
+ *   - `partial`  - vn row exists but `fetched_at` is stale (older
  *                  than ~24h) OR critical fields are empty. Primary
  *                  CTA: "Mettre à jour".
- *   - `complete` — vn row is fresh. Primary CTA stays the legacy
+ *   - `complete` - vn row is fresh. Primary CTA stays the legacy
  *                  "Tout re-télécharger" for a force-refresh.
  *
  * Callers (`VnDetailActionsBar`) compute the state server-side and
@@ -31,14 +30,14 @@ interface Props {
   /** Defaults to 'complete' so existing call sites keep the old label set. */
   dataState?: VnDataState;
   /**
-   * `'standalone'` (default) — renders side-by-side `btn` buttons suitable
+   * `'standalone'` (default) - renders side-by-side `btn` buttons suitable
    * for use outside a dropdown.
-   * `'menu'` — renders full-width menu-item rows, suitable inside a dropdown.
+   * `'menu'` - renders full-width menu-item rows, suitable inside a dropdown.
    */
   variant?: 'standalone' | 'menu';
 }
 
-const MENU_ITEM = 'inline-flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
+const MENU_ITEM = 'inline-flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0';
 
 export function DownloadAssetsButton({ vnId, dataState = 'complete', variant = 'standalone' }: Props) {
   const t = useT();
@@ -47,30 +46,60 @@ export function DownloadAssetsButton({ vnId, dataState = 'complete', variant = '
   const [mode, setMode] = useState<'missing' | 'full' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [egsWarning, setEgsWarning] = useState<{ kind: EgsWarningKind; status: number | null } | null>(null);
+  const [egsWarning, setEgsWarning] = useState<AssetDownloadWarning | null>(null);
+  const identityRef = useRef<string | null>(vnId);
+  const inFlightRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    identityRef.current = vnId;
+    inFlightRef.current = false;
+    setMode(null);
+    setError(null);
+    setInfo(null);
+    setEgsWarning(null);
+    return () => {
+      identityRef.current = null;
+      inFlightRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [vnId]);
 
   async function go(full: boolean) {
+    if (inFlightRef.current) return;
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    inFlightRef.current = true;
     setMode(full ? 'full' : 'missing');
     setError(null);
     setInfo(null);
     setEgsWarning(null);
     try {
-      const url = `/api/collection/${vnId}/assets${full ? '?refresh=true' : ''}`;
-      const res = await fetch(url, { method: 'POST' });
-      const body = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        egs_warning?: { kind: EgsWarningKind; status: number | null } | null;
-      };
+      const url = `/api/collection/${ownerVnId}/assets${full ? '?refresh=true' : ''}`;
+      const res = await fetch(url, { method: 'POST', signal: controller.signal });
+      const body = decodeAssetDownloadResult(await res.json().catch(() => null));
       if (!res.ok) {
-        throw new Error(body.error || t.assets.downloadError);
+        throw new Error(body?.error || t.assets.downloadError);
       }
+      if (!body?.ok) throw new Error(t.assets.downloadError);
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setInfo(full ? t.assets.downloadedFull : t.assets.downloadedMissing);
       if (body.egs_warning) setEgsWarning({ kind: body.egs_warning.kind, status: body.egs_warning.status });
       startTransition(() => router.refresh());
     } catch (e) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setError((e as Error).message);
     } finally {
-      setMode(null);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        inFlightRef.current = false;
+        setMode(null);
+      }
     }
   }
 

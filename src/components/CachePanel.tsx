@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2, RefreshCw, Database } from 'lucide-react';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { SkeletonBlock } from './Skeleton';
@@ -8,16 +8,7 @@ import { useT, useLocale } from '@/lib/i18n/client';
 import { fmtDate, fmtNum } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
 import { readApiError } from '@/lib/api-error-read';
-
-interface CacheStat {
-  total: number;
-  fresh: number;
-  stale: number;
-  bytes: number;
-  oldest: number | null;
-  newest: number | null;
-  by_path: { path: string; n: number }[];
-}
+import { decodeCacheStatsResponse, type CacheStat } from '@/lib/cache-client-shape';
 
 function bytes(n: number, locale: Locale): string {
   if (n < 1024) return `${n} B`;
@@ -26,7 +17,7 @@ function bytes(n: number, locale: Locale): string {
 }
 
 function fmtTime(ts: number | null, locale: Locale): string {
-  if (!ts) return '—';
+  if (!ts) return '-';
   return fmtDate(new Date(ts), locale);
 }
 
@@ -39,40 +30,70 @@ export function CachePanel() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const mountedRef = useRef(true);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const clearInFlightRef = useRef(false);
+  const clearAbortRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+    const { signal } = controller;
     try {
-      const r = await fetch('/api/vndb/cache', { cache: 'no-store' });
+      const r = await fetch('/api/vndb/cache', { cache: 'no-store', signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = await r.json();
-      setStats(d.stats);
+      const stats = decodeCacheStatsResponse(await r.json());
+      if (!stats) throw new Error(t.common.error);
+      if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
+      setStats(stats);
       setError(null);
     } catch (e) {
+      if (signal.aborted || (e as Error).name === 'AbortError') return;
+      if (!mountedRef.current || loadAbortRef.current !== controller) return;
       setError((e as Error).message);
     }
   }, [t.common.error]);
 
   useEffect(() => {
-    const ac = new AbortController();
-    fetch('/api/vndb/cache', { cache: 'no-store', signal: ac.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))))
-      .then((d: { stats: CacheStat }) => { setStats(d.stats); setError(null); })
-      .catch((e: unknown) => { if ((e as Error).name !== 'AbortError') setError((e as Error).message); });
-    return () => ac.abort();
-  }, []);
+    mountedRef.current = true;
+    void load();
+    return () => {
+      mountedRef.current = false;
+      clearInFlightRef.current = false;
+      loadAbortRef.current?.abort();
+      clearAbortRef.current?.abort();
+      clearAbortRef.current = null;
+    };
+  }, [load]);
 
-  async function clearAll(mode: 'all' | 'expired') {
-    setError(null);
-    setClearing(true);
+  async function clearAll(mode: 'all' | 'expired', needsConfirm = false) {
+    if (clearInFlightRef.current) return;
+    clearInFlightRef.current = true;
+    const controller = new AbortController();
+    clearAbortRef.current?.abort();
+    clearAbortRef.current = controller;
     try {
+      if (needsConfirm) {
+        const ok = await confirm({ message: t.cache.clearConfirm, tone: 'danger' });
+        if (!ok || !mountedRef.current || clearAbortRef.current !== controller || controller.signal.aborted) return;
+      }
+      setError(null);
+      setClearing(true);
       const url = mode === 'all' ? '/api/vndb/cache' : '/api/vndb/cache?mode=expired';
-      const r = await fetch(url, { method: 'DELETE' });
+      const r = await fetch(url, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!mountedRef.current || clearAbortRef.current !== controller || controller.signal.aborted) return;
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      if (mountedRef.current && clearAbortRef.current === controller && !controller.signal.aborted) setError((e as Error).message);
     } finally {
-      setClearing(false);
+      if (clearAbortRef.current === controller) {
+        clearAbortRef.current = null;
+        clearInFlightRef.current = false;
+        if (mountedRef.current) setClearing(false);
+      }
     }
   }
 
@@ -138,18 +159,15 @@ export function CachePanel() {
 
           <div className="mt-5 flex flex-wrap gap-2">
             <button type="button" className="btn" onClick={() => clearAll('expired')} disabled={clearing}>
-              <RefreshCw className="h-4 w-4" /> {t.cache.pruneExpired}
+              <RefreshCw className="h-4 w-4" aria-hidden /> {t.cache.pruneExpired}
             </button>
             <button
               type="button"
               className="btn btn-danger"
-              onClick={async () => {
-                const ok = await confirm({ message: t.cache.clearConfirm, tone: 'danger' });
-                if (ok) clearAll('all');
-              }}
+              onClick={() => clearAll('all', true)}
               disabled={clearing}
             >
-              <Trash2 className="h-4 w-4" /> {t.cache.clearAll}
+              <Trash2 className="h-4 w-4" aria-hidden /> {t.cache.clearAll}
             </button>
           </div>
         </>

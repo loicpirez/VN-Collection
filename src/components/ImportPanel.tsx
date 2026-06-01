@@ -1,27 +1,21 @@
 'use client';
-import { useId, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Database as DbIcon, Loader2, Upload } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
 import { CollapsibleSummary } from './CollapsibleSummary';
-
-interface JsonSummary {
-  vns_upserted: number;
-  collection_upserted: number;
-  series_created: number;
-  series_links: number;
-  errors: string[];
-}
-
-interface DbRestoreSummary {
-  tables: { name: string; rows_replaced: number }[];
-  skipped: { name: string; reason: string }[];
-}
+import { readApiError } from '@/lib/api-error-read';
+import {
+  decodeDbRestoreSummary,
+  decodeJsonImportSummary,
+  type DbRestoreSummary,
+  type JsonImportSummary,
+} from '@/lib/data-operations-client-shape';
 
 type Summary =
-  | { kind: 'json'; data: JsonSummary }
+  | { kind: 'json'; data: JsonImportSummary }
   | { kind: 'db'; data: DbRestoreSummary };
 
 const SQLITE_MAGIC = 'SQLite format 3\0';
@@ -38,12 +32,21 @@ export function ImportPanel() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadCtrlRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
   const errorId = useId();
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      uploadCtrlRef.current?.abort();
+    };
+  }, []);
 
   async function upload(file: File) {
     uploadCtrlRef.current?.abort();
@@ -54,34 +57,40 @@ export function ImportPanel() {
     setSummary(null);
     try {
       const kind = await detectKind(file);
+      if (ctrl.signal.aborted || !mountedRef.current || uploadCtrlRef.current !== ctrl) return;
       if (kind === 'db') {
         const ok = await confirm({
           message: t.dataMgmt.restoreConfirm,
           tone: 'danger',
           requireTyping: 'RESTORE',
         });
-        if (!ok) return;
+        if (!ok || ctrl.signal.aborted || !mountedRef.current || uploadCtrlRef.current !== ctrl) return;
       }
       const fd = new FormData();
       fd.append('file', file);
       const url = kind === 'db' ? '/api/backup/restore' : '/api/collection/import';
       const res = await fetch(url, { method: 'POST', body: fd, signal: ctrl.signal });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || t.dataMgmt.importError);
-      }
+      if (!res.ok) throw new Error(await readApiError(res, t.dataMgmt.importError));
       const data = await res.json();
+      if (ctrl.signal.aborted || !mountedRef.current || uploadCtrlRef.current !== ctrl) return;
       if (kind === 'db') {
-        setSummary({ kind: 'db', data: data.summary as DbRestoreSummary });
+        const summary = decodeDbRestoreSummary(data);
+        if (!summary) throw new Error(t.dataMgmt.importError);
+        setSummary({ kind: 'db', data: summary });
       } else {
-        setSummary({ kind: 'json', data: data.summary as JsonSummary });
+        const summary = decodeJsonImportSummary(data);
+        if (!summary) throw new Error(t.dataMgmt.importError);
+        setSummary({ kind: 'json', data: summary });
       }
       startTransition(() => router.refresh());
     } catch (e) {
-      if ((e as Error).name === 'AbortError') return;
+      if ((e as Error).name === 'AbortError' || !mountedRef.current || uploadCtrlRef.current !== ctrl) return;
       setError((e as Error).message);
     } finally {
-      if (!ctrl.signal.aborted) setBusy(false);
+      if (uploadCtrlRef.current === ctrl) {
+        uploadCtrlRef.current = null;
+        if (mountedRef.current) setBusy(false);
+      }
     }
   }
 
@@ -177,7 +186,7 @@ export function ImportPanel() {
               </summary>
               <ul className="mt-1 max-h-32 overflow-y-auto text-[10px]">
                 {summary.data.skipped.map((s) => (
-                  <li key={s.name}>{s.name} — {s.reason}</li>
+                  <li key={s.name}>{s.name}: {s.reason}</li>
                 ))}
               </ul>
             </details>

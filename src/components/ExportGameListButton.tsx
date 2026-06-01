@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FileText, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
@@ -16,13 +16,32 @@ export function ExportGameListButton() {
   const t = useT();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const mountedRef = useRef(true);
+  const exportAbortRef = useRef<AbortController | null>(null);
+  const exportInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      exportInFlightRef.current = false;
+      exportAbortRef.current?.abort();
+      exportAbortRef.current = null;
+    };
+  }, []);
 
   async function run() {
+    if (exportInFlightRef.current) return;
+    const controller = new AbortController();
+    exportAbortRef.current?.abort();
+    exportAbortRef.current = controller;
+    exportInFlightRef.current = true;
     setBusy(true);
     try {
-      const r = await fetch('/api/export/game-list', { cache: 'no-store' });
+      const r = await fetch('/api/export/game-list', { cache: 'no-store', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const blob = await r.blob();
+      if (!mountedRef.current || exportAbortRef.current !== controller || controller.signal.aborted) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -32,9 +51,14 @@ export function ExportGameListButton() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
+      if (!mountedRef.current || exportAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      if (exportAbortRef.current === controller) {
+        exportAbortRef.current = null;
+        exportInFlightRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
     }
   }
 

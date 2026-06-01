@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, CloudDownload, Loader2, Search } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { yearOnly } from '@/lib/locale-number';
@@ -7,21 +7,9 @@ import { useToast } from './ToastProvider';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { fetchAllCollectionItems } from '@/lib/collection-api-client';
-interface CollectionRow {
-  id: string;
-  title: string;
-  alttitle: string | null;
-  released: string | null;
-  status: string | null;
-  rating: number | null;
-  user_rating: number | null;
-  playtime_minutes: number | null;
-  added_at: number | null;
-  updated_at: number | null;
-  /** True when staff_full / char_full are cached for this VN's main contributors. */
-  full_downloaded?: boolean;
-}
-
+import { decodeCollectionSelectiveRow, type CollectionSelectiveRow } from '@/lib/collection-client-shape';
+import { readApiError } from '@/lib/api-error-read';
+import { decodeSelectiveDownloadQueuedCount } from '@/lib/operation-client-shape';
 type SortKey = 'title' | 'added_at' | 'updated_at' | 'released' | 'rating' | 'user_rating' | 'playtime' | 'status';
 type SortOrder = 'asc' | 'desc';
 
@@ -93,13 +81,17 @@ interface Props {
 export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmitDone }: Props = {}) {
   const t = useT();
   const toast = useToast();
-  const [rows, setRows] = useState<CollectionRow[]>([]);
+  const [rows, setRows] = useState<CollectionSelectiveRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(defaultSelected ?? []));
   const [filter, setFilter] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('title');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [submitting, setSubmitting] = useState(false);
+  const mountedRef = useRef(true);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const submitAbortRef = useRef<AbortController | null>(null);
+  const submitInFlightRef = useRef(false);
 
   // Stringify filters so the load callback only re-fires when the actual
   // values change, not on every parent re-render that recreates the
@@ -108,8 +100,17 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
     () => JSON.stringify(defaultFilters ?? {}),
     [defaultFilters],
   );
+  const defaultSelectedKey = useMemo(
+    () => JSON.stringify(Array.from(defaultSelected ?? []).sort()),
+    [defaultSelected],
+  );
 
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+    const ownerFiltersKey = filtersKey;
     setLoading(true);
     try {
       // Build query string from defaultFilters; /api/collection validates
@@ -122,13 +123,20 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
           if (v && typeof v === 'string') params.set(k, v);
         }
       }
-      const data = await fetchAllCollectionItems<CollectionRow>(params);
+      const data = await fetchAllCollectionItems(
+        params,
+        decodeCollectionSelectiveRow,
+        { signal: controller.signal },
+        t.common.error,
+      );
       const list = data.filter((it) => isVndbVnId(it.id));
+      if (controller.signal.aborted || !mountedRef.current || loadAbortRef.current !== controller || ownerFiltersKey !== filtersKey) return;
       setRows(list);
     } catch (e) {
+      if ((e as Error).name === 'AbortError' || !mountedRef.current || loadAbortRef.current !== controller) return;
       toast.error((e as Error).message || t.common.error);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted && mountedRef.current && loadAbortRef.current === controller) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersKey, t.common.error, toast]);
@@ -143,8 +151,20 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
   }
 
   useEffect(() => {
-    load();
+    mountedRef.current = true;
+    void load();
+    return () => {
+      mountedRef.current = false;
+      loadAbortRef.current?.abort();
+      submitAbortRef.current?.abort();
+      submitInFlightRef.current = false;
+    };
   }, [load]);
+
+  useEffect(() => {
+    setPicked(new Set(defaultSelected ?? []));
+    setFilter('');
+  }, [filtersKey, defaultSelectedKey, defaultSelected]);
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -164,7 +184,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
    */
   const sorted = useMemo(() => {
     const arr = [...filtered];
-    const numericKey = (r: CollectionRow): number | null => {
+    const numericKey = (r: CollectionSelectiveRow): number | null => {
       switch (sortKey) {
         case 'added_at': return r.added_at;
         case 'updated_at': return r.updated_at;
@@ -174,7 +194,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
         default: return null;
       }
     };
-    const stringKey = (r: CollectionRow): string => {
+    const stringKey = (r: CollectionSelectiveRow): string => {
       switch (sortKey) {
         case 'title': return (r.title ?? '').toLowerCase();
         case 'released': return r.released ?? '';
@@ -238,24 +258,36 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
   }
 
   async function submit() {
-    if (picked.size === 0) return;
+    if (picked.size === 0 || submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    const controller = new AbortController();
+    submitAbortRef.current = controller;
+    const selectedIds = Array.from(picked);
     setSubmitting(true);
     try {
       const r = await fetch('/api/collection/full-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vn_ids: Array.from(picked) }),
+        body: JSON.stringify({ vn_ids: selectedIds }),
+        signal: controller.signal,
       });
-      if (!r.ok) throw new Error(await r.text());
-      const data = (await r.json()) as { queued?: number };
-      const queued = data.queued ?? 0;
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      const queued = decodeSelectiveDownloadQueuedCount(await r.json());
+      if (queued === null) throw new Error(t.common.error);
+      if (controller.signal.aborted || !mountedRef.current || submitAbortRef.current !== controller) return;
       toast.success(t.selectiveFullDownload.queued.replace('{n}', String(queued)));
       setPicked(new Set());
       onSubmitDone?.(queued);
     } catch (e) {
-      toast.error((e as Error).message || t.common.error);
+      if ((e as Error).name !== 'AbortError' && mountedRef.current && submitAbortRef.current === controller) {
+        toast.error((e as Error).message || t.common.error);
+      }
     } finally {
-      setSubmitting(false);
+      if (submitAbortRef.current === controller) {
+        submitAbortRef.current = null;
+        submitInFlightRef.current = false;
+        if (mountedRef.current) setSubmitting(false);
+      }
     }
   }
 
@@ -338,7 +370,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
                   <button
                     type="button"
                     onClick={() => toggle(r.id)}
-                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs ${
+                    className={`flex min-h-[44px] w-full items-center gap-2 px-3 py-1.5 text-left text-xs sm:min-h-0 ${
                       isPicked ? 'bg-accent/10' : 'hover:bg-bg-elev/50'
                     }`}
                   >

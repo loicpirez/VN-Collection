@@ -24,8 +24,12 @@ export function DropImport() {
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const counter = useRef(0);
+  const mountedRef = useRef(true);
+  const uploadCtrlRef = useRef<AbortController | null>(null);
+  const uploadInFlightRef = useRef(false);
 
   useEffect(() => {
+    mountedRef.current = true;
     function onEnter(e: DragEvent) {
       if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
       counter.current += 1;
@@ -45,6 +49,7 @@ export function DropImport() {
       setOver(false);
       if (!e.dataTransfer?.files?.length) return;
       e.preventDefault();
+      if (uploadInFlightRef.current) return;
       const file = e.dataTransfer.files[0];
       if (!file) return;
       const lower = file.name.toLowerCase();
@@ -53,27 +58,38 @@ export function DropImport() {
         toast.error(t.dropImport.unsupported);
         return;
       }
-      if (isDb) {
-        const ok = await confirm({
-          message: t.dropImport.dbConfirm.replace('{name}', file.name),
-          tone: 'danger',
-          requireTyping: 'RESTORE',
-        });
-        if (!ok) return;
-      }
-      setBusy(true);
+      uploadInFlightRef.current = true;
+      uploadCtrlRef.current?.abort();
+      const ctrl = new AbortController();
+      uploadCtrlRef.current = ctrl;
       try {
+        if (isDb) {
+          const ok = await confirm({
+            message: t.dropImport.dbConfirm.replace('{name}', file.name),
+            tone: 'danger',
+            requireTyping: 'RESTORE',
+          });
+          if (!ok || ctrl.signal.aborted || !mountedRef.current || uploadCtrlRef.current !== ctrl) return;
+        }
+        setBusy(true);
         const fd = new FormData();
         fd.append('file', file);
         const url = isDb ? '/api/backup/restore' : '/api/collection/import';
-        const r = await fetch(url, { method: 'POST', body: fd });
+        const r = await fetch(url, { method: 'POST', body: fd, signal: ctrl.signal });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (ctrl.signal.aborted || !mountedRef.current || uploadCtrlRef.current !== ctrl) return;
         toast.success(t.dropImport.ok);
         router.refresh();
       } catch (e) {
-        toast.error((e as Error).message);
+        if ((e as Error).name !== 'AbortError' && mountedRef.current && uploadCtrlRef.current === ctrl) {
+          toast.error((e as Error).message);
+        }
       } finally {
-        setBusy(false);
+        if (uploadCtrlRef.current === ctrl) {
+          uploadCtrlRef.current = null;
+          uploadInFlightRef.current = false;
+          if (mountedRef.current) setBusy(false);
+        }
       }
     }
 
@@ -82,6 +98,9 @@ export function DropImport() {
     document.addEventListener('dragover', onOver);
     document.addEventListener('drop', onDrop);
     return () => {
+      mountedRef.current = false;
+      uploadInFlightRef.current = false;
+      uploadCtrlRef.current?.abort();
       document.removeEventListener('dragenter', onEnter);
       document.removeEventListener('dragleave', onLeave);
       document.removeEventListener('dragover', onOver);

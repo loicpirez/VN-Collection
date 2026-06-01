@@ -1,5 +1,5 @@
 'use client';
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { CheckSquare, CloudDownload, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -8,6 +8,8 @@ import { ErrorAlert } from './ErrorAlert';
 import { SelectiveFullDownload, type SelectiveDownloadFilters } from './SelectiveFullDownload';
 import { CollapsibleSummary } from './CollapsibleSummary';
 import { fetchAllCollectionItems } from '@/lib/collection-api-client';
+import { decodeCollectionBulkRow } from '@/lib/collection-client-shape';
+import { decodeAssetDownloadResult, type AssetDownloadWarning } from '@/lib/asset-download-shape';
 
 /** URL params the selective-download modal forwards to /api/collection. */
 const FORWARDED_PARAMS = [
@@ -29,7 +31,7 @@ interface Failure {
 }
 
 interface EgsWarning {
-  kind: 'network' | 'server' | 'throttled' | 'blocked';
+  kind: AssetDownloadWarning['kind'];
   count: number;
   lastStatus: number | null;
 }
@@ -61,6 +63,24 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
   const [activeMode, setActiveMode] = useState<'missing' | 'full'>('missing');
   const [selectiveOpen, setSelectiveOpen] = useState(false);
   const bulkAbortRef = useRef<(() => void) | null>(null);
+  const mountedRef = useRef(true);
+  const runTokenRef = useRef(0);
+  const runInFlightRef = useRef(false);
+  const stopRequestedRef = useRef(false);
+  const collectionAbortRef = useRef<AbortController | null>(null);
+  const activeRequestAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      runInFlightRef.current = false;
+      stopRequestedRef.current = true;
+      collectionAbortRef.current?.abort();
+      activeRequestAbortRef.current?.abort();
+      bulkAbortRef.current = null;
+    };
+  }, []);
 
   // Pull the user's current library URL filters so the modal pre-narrows
   // to what's visible on screen. Outside the library page the dropdown is
@@ -84,39 +104,70 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
    * metadata once the bulk pass finishes — no extra client roundtrip
    * needed. `full=true` adds `?refresh=true` to also re-fetch VNDB.
    */
-  async function runItems(items: { id: string; title: string }[], full: boolean) {
+  function ownsRun(token: number): boolean {
+    return mountedRef.current && runInFlightRef.current && runTokenRef.current === token;
+  }
+
+  function beginRun(): number | null {
+    if (runInFlightRef.current) return null;
+    runInFlightRef.current = true;
+    stopRequestedRef.current = false;
+    const token = runTokenRef.current + 1;
+    runTokenRef.current = token;
+    bulkAbortRef.current = () => {
+      stopRequestedRef.current = true;
+      collectionAbortRef.current?.abort();
+      activeRequestAbortRef.current?.abort();
+      if (ownsRun(token)) setAborted(true);
+    };
     setRunning(true);
     setFinished(false);
     setAborted(false);
     setError(null);
+    setFailures([]);
     setEgsWarnings([]);
     setDone(0);
-    setTotal(items.length);
+    setTotal(0);
     setCurrentTitle(null);
+    return token;
+  }
 
-    let abort = false;
-    const onClickStop = () => { abort = true; };
-    bulkAbortRef.current = onClickStop;
+  function finishRun(token: number) {
+    if (!ownsRun(token)) return;
+    runInFlightRef.current = false;
+    collectionAbortRef.current?.abort();
+    collectionAbortRef.current = null;
+    activeRequestAbortRef.current = null;
+    bulkAbortRef.current = null;
+    setRunning(false);
+    setCurrentTitle(null);
+  }
+
+  async function runItems(items: { id: string; title: string }[], full: boolean, token: number) {
+    if (!ownsRun(token)) return;
+    setTotal(items.length);
 
     const local: Failure[] = [];
     const egsAgg = new Map<EgsWarning['kind'], EgsWarning>();
     try {
       for (let i = 0; i < items.length; i++) {
-        if (abort) {
+        if (stopRequestedRef.current) {
           setAborted(true);
           break;
         }
         const it = items[i];
         setCurrentTitle(it.title);
+        const controller = new AbortController();
+        activeRequestAbortRef.current = controller;
         try {
           const url = `/api/collection/${it.id}/assets${full ? '?refresh=true' : ''}`;
-          const res = await fetch(url, { method: 'POST' });
-          const body = (await res.json().catch(() => ({}))) as {
-            error?: string;
-            egs_warning?: { kind: EgsWarning['kind']; status: number | null } | null;
-          };
+          const res = await fetch(url, { method: 'POST', signal: controller.signal });
+          const body = decodeAssetDownloadResult(await res.json().catch(() => null));
+          if (!ownsRun(token)) return;
           if (!res.ok) {
-            local.push({ id: it.id, message: body.error || `HTTP ${res.status}` });
+            local.push({ id: it.id, message: body?.error || `HTTP ${res.status}` });
+          } else if (!body?.ok) {
+            local.push({ id: it.id, message: `HTTP ${res.status}` });
           } else if (body.egs_warning) {
             const k = body.egs_warning.kind;
             const cur = egsAgg.get(k);
@@ -127,51 +178,79 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
             });
             setEgsWarnings(Array.from(egsAgg.values()));
             if (k === 'blocked' || k === 'throttled') {
-              abort = true;
+              stopRequestedRef.current = true;
             }
           }
         } catch (e) {
-          local.push({ id: it.id, message: (e as Error).message });
+          if ((e as Error).name !== 'AbortError' && ownsRun(token)) {
+            local.push({ id: it.id, message: (e as Error).message });
+          }
+        }
+        if (activeRequestAbortRef.current === controller) activeRequestAbortRef.current = null;
+        if (!ownsRun(token)) return;
+        if (stopRequestedRef.current) {
+          setAborted(true);
+          break;
         }
         setDone(i + 1);
         onItemDone?.();
       }
+      if (!ownsRun(token)) return;
       setFailures(local);
       setEgsWarnings(Array.from(egsAgg.values()));
       setFinished(true);
       router.refresh();
     } catch (e) {
-      setError((e as Error).message);
+      if (ownsRun(token)) setError((e as Error).message);
+    }
+  }
+
+  async function execute(
+    full: boolean,
+    loadItems: (signal: AbortSignal) => Promise<{ id: string; title: string }[]>,
+    refreshGlobal: boolean,
+  ) {
+    const token = beginRun();
+    if (token === null) return;
+    setActiveMode(full ? 'full' : 'missing');
+    setPickerOpen(false);
+    const controller = new AbortController();
+    collectionAbortRef.current = controller;
+    if (refreshGlobal) {
+      void fetch('/api/refresh/global', { method: 'POST', signal: controller.signal }).catch(() => undefined);
+    }
+    try {
+      const items = await loadItems(controller.signal);
+      if (!ownsRun(token) || stopRequestedRef.current) return;
+      await runItems(items, full, token);
+    } catch (e) {
+      if (ownsRun(token)) {
+        if ((e as Error).name === 'AbortError' || stopRequestedRef.current) {
+          setAborted(true);
+          setFinished(true);
+        } else {
+          setError((e as Error).message);
+        }
+      }
     } finally {
-      setRunning(false);
-      setCurrentTitle(null);
-      bulkAbortRef.current = null;
+      finishRun(token);
     }
   }
 
   async function start(full: boolean) {
-    setActiveMode(full ? 'full' : 'missing');
-    setPickerOpen(false);
-    setFailures([]);
-    // Kick a one-shot global refresh first — pulls EGS anticipated,
-    // VNDB stats / schema / authinfo, upcoming releases (collection +
-    // all-VNDB). These don't belong to any VN so they're not covered
-    // by the per-VN fan-out, and we want them fresh on a "Download
-    // all" pass. Fire-and-forget; failures show in the download panel.
-    void fetch('/api/refresh/global', { method: 'POST' }).catch((e: unknown) => { console.error('[BulkDownloadButton] global refresh failed:', e); });
-    try {
-      if (itemsOverride) {
-        await runItems(itemsOverride, full);
-        return;
-      }
-      const items = await fetchAllCollectionItems<{ id: string; title: string }>(
-        new URLSearchParams({ sort: 'title', order: 'asc' }),
-      );
-      await runItems(items, full);
-    } catch (e) {
-      setError((e as Error).message);
-      setRunning(false);
-    }
+    await execute(
+      full,
+      (signal) =>
+        itemsOverride
+          ? Promise.resolve(itemsOverride)
+          : fetchAllCollectionItems(
+              new URLSearchParams({ sort: 'title', order: 'asc' }),
+              decodeCollectionBulkRow,
+              { signal },
+              t.common.error,
+            ),
+      true,
+    );
   }
 
   /**
@@ -181,26 +260,23 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
    * a "missing-only" retry.
    */
   async function retryFailed() {
-    if (failures.length === 0) return;
+    if (failures.length === 0 || runInFlightRef.current) return;
     const failedIds = new Set(failures.map((f) => f.id));
-    try {
-      if (itemsOverride) {
-        const subset = itemsOverride.filter((it) => failedIds.has(it.id));
-        if (subset.length === 0) return;
-        setFailures([]);
-        await runItems(subset, true);
-        return;
-      }
-      const items = await fetchAllCollectionItems<{ id: string; title: string }>(
-        new URLSearchParams({ sort: 'title', order: 'asc' }),
-      );
-      const subset = items.filter((it) => failedIds.has(it.id));
-      if (subset.length === 0) return;
-      setFailures([]);
-      await runItems(subset, true);
-    } catch (e) {
-      setError((e as Error).message);
-    }
+    await execute(
+      true,
+      async (signal) => {
+        const items = itemsOverride
+          ? itemsOverride
+          : await fetchAllCollectionItems(
+              new URLSearchParams({ sort: 'title', order: 'asc' }),
+              decodeCollectionBulkRow,
+              { signal },
+              t.common.error,
+            );
+        return items.filter((it) => failedIds.has(it.id));
+      },
+      false,
+    );
   }
 
   function stop() {
@@ -244,7 +320,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
               type="button"
               role="menuitem"
               onClick={() => start(false)}
-              className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
+              className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev sm:min-h-0"
             >
               <span className="inline-flex items-center gap-1 font-bold">
                 <CloudDownload className="h-3.5 w-3.5 text-accent" />
@@ -256,7 +332,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
               type="button"
               role="menuitem"
               onClick={() => start(true)}
-              className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
+              className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev sm:min-h-0"
             >
               <span className="inline-flex items-center gap-1 font-bold">
                 <RefreshCw className="h-3.5 w-3.5 text-accent" />
@@ -272,7 +348,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
                   setPickerOpen(false);
                   setSelectiveOpen(true);
                 }}
-                className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev"
+                className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev sm:min-h-0"
               >
                 <span className="inline-flex items-center gap-1 font-bold">
                   <CheckSquare className="h-3.5 w-3.5 text-accent" />
@@ -330,7 +406,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
                 <button
                   type="button"
                   onClick={stop}
-                  className="rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
+                  className="min-h-[44px] rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-muted hover:border-status-dropped hover:text-status-dropped sm:min-h-0"
                 >
                   {t.bulk.stop}
                 </button>
@@ -378,7 +454,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
               <button
                 type="button"
                 onClick={retryFailed}
-                className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-bold text-accent hover:bg-accent/20"
+                className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-bold text-accent hover:bg-accent/20 sm:min-h-0"
               >
                 <RotateCcw className="h-3 w-3" />
                 {t.bulk.retryFailed.replace('{n}', String(failures.length))}
