@@ -6,54 +6,21 @@
  */
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { formatVndbDateString } from '@/lib/locale-number';
+import {
+  parseNamedIdRows,
+  parseVndbCandidateRows,
+  type VndbCandidateRow,
+} from '@/lib/client-persisted-shape';
+import type { KobeClientItem, KobeClientStats } from '@/lib/kobe-client-shape';
 
-export interface KobeCandidate {
-  id: string;
-  title: string;
-  alttitle: string | null;
-  released: string | null;
-}
+/** Candidate VNDB row persisted for AliceNet Kobe remapping. */
+export type KobeCandidate = VndbCandidateRow;
 
-export interface KobeItem {
-  code: string;
-  title: string;
-  jan: string | null;
-  release_date: string | null;
-  list_price: string | null;
-  sale_price: string | null;
-  vn_id: string | null;
-  vn_match_source: 'auto' | 'manual' | 'none' | null;
-  vn_candidates: string | null;
-  search_title: string | null;
-  egs_id: number | null;
-  egs_match_source: 'auto' | 'manual' | null;
-  egs_title: string | null;
-  egs_brand: string | null;
-  egs_release_date: string | null;
-  egs_image_url: string | null;
-  egs_vndb_raw: string | null;
-  in_collection: number;
-  in_wishlist: number;
-  last_matched_at: number | null;
-  fetched_at: number;
-  updated_at: number;
-  vn_image_url: string | null;
-  vn_local_image: string | null;
-  vn_image_sexual: number | null;
-  vn_developers: string | null;
-}
+/** AliceNet Kobe stock row rendered by card and list views. */
+export type KobeItem = KobeClientItem;
 
-export interface KobeStats {
-  total: number;
-  matched: number;
-  vndb_matched: number;
-  egs_only: number;
-  unmatched: number;
-  unprocessed: number;
-  none_found: number;
-  in_collection: number;
-  in_wishlist: number;
-}
+/** AliceNet Kobe header counters rendered by the browser. */
+export type KobeStats = KobeClientStats;
 
 export interface KobeSearchHit {
   id: string;
@@ -113,9 +80,14 @@ export function formatKobeDate(value: string | null, locale: Locale): string {
   return value;
 }
 
+/** Parse persisted developer rows used by AliceNet Kobe cards. */
 export function parseKobeDevs(json: string | null): { id: string; name: string }[] {
-  if (!json) return [];
-  try { return JSON.parse(json) as { id: string; name: string }[]; } catch { return []; }
+  return parseNamedIdRows(json);
+}
+
+/** Parse persisted VNDB candidates used by AliceNet Kobe remapping controls. */
+export function parseKobeCandidates(json: string | null): KobeCandidate[] {
+  return parseVndbCandidateRows(json);
 }
 
 export function kobeMatchKind(item: KobeItem): 'vndb' | 'egs' | 'unresolved' | 'new' {

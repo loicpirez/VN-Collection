@@ -6,12 +6,25 @@ import { useToast } from '../ToastProvider';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { readApiError } from '@/lib/api-error-read';
-import type { KobeItem, KobeSearchHit as SearchHit } from '../kobe-types';
+import { decodeVndbPickerResults, type VndbPickerHit } from '@/lib/search-client-shape';
+import type { KobeItem } from '../kobe-types';
 
 interface LinkDialogProps {
   item: KobeItem;
   onClose: () => void;
   onLinked: () => void;
+}
+
+function initialQuery(item: KobeItem): string {
+  return item.search_title ??
+    item.title
+      .replace(/[【〔\[（(][^\]】〕)）]*中古[^\]】〕)）]*[\]】〕)）]/g, '')
+      .replace(/中古品?/g, '')
+      .replace(/\s*(通常版|限定版|初回限定版|初回版|特典付き?|豪華版|スペシャル版|コレクターズ版|デラックス版|完全版)\s*/g, '')
+      .replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .replace(/　/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
 }
 
 /**
@@ -24,47 +37,83 @@ export function KobeLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
   const t = useT();
   const locale = useLocale();
   const toast = useToast();
-  const [query, setQuery] = useState(() =>
-    item.search_title ??
-    item.title
-      .replace(/[【〔\[（(][^\]】〕)）]*中古[^\]】〕)）]*[\]】〕)）]/g, '')
-      .replace(/中古品?/g, '')
-      .replace(/\s*(通常版|限定版|初回限定版|初回版|特典付き?|豪華版|スペシャル版|コレクターズ版|デラックス版|完全版)\s*/g, '')
-      .replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
-      .replace(/　/g, ' ')
-      .replace(/\s{2,}/g, ' ')
-      .trim(),
-  );
-  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [query, setQuery] = useState(() => initialQuery(item));
+  const [hits, setHits] = useState<VndbPickerHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
+  const itemCodeRef = useRef(item.code);
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
   useDialogA11y({ open: true, onClose, panelRef });
 
+  useEffect(() => {
+    mountedRef.current = true;
+    itemCodeRef.current = item.code;
+    searchAbortRef.current?.abort();
+    mutationAbortRef.current?.abort();
+    mutationInFlightRef.current = false;
+    setQuery(initialQuery(item));
+    setHits([]);
+    setSearching(false);
+    setBusy(null);
+    return () => {
+      mountedRef.current = false;
+      searchAbortRef.current?.abort();
+      mutationAbortRef.current?.abort();
+    };
+  }, [item]);
+
   const search = useCallback(async (q: string) => {
     const trimmed = q.trim();
     if (!trimmed) { setHits([]); return; }
+    const owner = itemCodeRef.current;
+    searchAbortRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
     setSearching(true);
     try {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store' });
-      if (!r.ok) return;
-      const d = (await r.json()) as { results?: SearchHit[] };
-      setHits((d.results ?? []).slice(0, 30));
+      const r = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store', signal: controller.signal });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (controller.signal.aborted || !mountedRef.current || itemCodeRef.current !== owner || searchAbortRef.current !== controller) return;
+      const results = decodeVndbPickerResults(await r.json());
+      if (!results) throw new Error(t.common.error);
+      if (controller.signal.aborted || !mountedRef.current || itemCodeRef.current !== owner || searchAbortRef.current !== controller) return;
+      setHits(results.slice(0, 30));
+    } catch (error) {
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        toast.error(error instanceof Error ? error.message : t.common.error);
+      }
     } finally {
-      setSearching(false);
+      if (mountedRef.current && itemCodeRef.current === owner && searchAbortRef.current === controller) {
+        searchAbortRef.current = null;
+        setSearching(false);
+      }
     }
-  }, []);
+  }, [t.common.error, toast]);
 
   useEffect(() => {
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => search(query), 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      searchAbortRef.current?.abort();
+    };
   }, [query, search]);
 
   async function link(vnId: string | null) {
+    if (mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
+    const owner = item.code;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
     const key = vnId ?? 'none';
     setBusy(key);
     try {
@@ -72,15 +121,22 @@ export function KobeLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: vnId }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (controller.signal.aborted || !mountedRef.current || itemCodeRef.current !== owner || mutationAbortRef.current !== controller) return;
       toast.success(t.mapEgs.savedToast);
       onLinked();
       onClose();
     } catch (e) {
+      if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(null);
+      if (mountedRef.current && itemCodeRef.current === owner && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setBusy(null);
+      }
     }
   }
 
@@ -115,7 +171,7 @@ export function KobeLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t.mapEgs.searchPlaceholder}
             aria-label={t.mapEgs.searchPlaceholder}
-            className="input w-full pl-7 text-xs"
+            className="input min-h-[44px] w-full pl-7 text-xs"
           />
           {searching && <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted" aria-hidden />}
         </div>
@@ -144,7 +200,7 @@ export function KobeLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
               >
                 <ExternalLink className="h-3 w-3" />
               </a>
-              <button type="button" onClick={() => link(h.id)} disabled={busy != null} className="btn btn-primary">
+              <button type="button" onClick={() => link(h.id)} disabled={busy != null} className="btn btn-primary min-h-[44px] sm:min-h-0">
                 {busy === h.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" />}
                 {t.mapEgs.useThis}
               </button>
@@ -153,7 +209,7 @@ export function KobeLinkDialog({ item, onClose, onLinked }: LinkDialogProps) {
         </ul>
 
         <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
-          <button type="button" onClick={() => link(null)} disabled={busy != null} className="btn btn-danger btn-xs">
+          <button type="button" onClick={() => link(null)} disabled={busy != null} className="btn btn-danger btn-xs min-h-[44px] sm:min-h-0">
             {busy === 'none' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2Off className="h-3 w-3" />}
             {t.kobe.kobeNoMatch}
           </button>

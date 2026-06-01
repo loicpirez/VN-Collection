@@ -3,6 +3,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { listKobeItemsForEgsResolve, countKobeDownloadPending, setKobeEgsLink } from '@/lib/db';
 import { resolveEgsForVn } from '@/lib/erogamescape';
+import { parseKobeBatch } from '@/lib/kobe-route-input';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,7 +23,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
 
   const body = (await readJsonObject(req)) as Record<string, unknown>;
-  const batch = typeof body.batch === 'number' ? Math.min(20, Math.max(1, Math.floor(body.batch))) : 5;
+  const parsedBatch = parseKobeBatch(body.batch, 5, 20);
+  if (!parsedBatch.ok) return NextResponse.json({ error: parsedBatch.error }, { status: 400 });
+  const batch = parsedBatch.value;
 
   const items = listKobeItemsForEgsResolve(batch);
   let processed = 0;

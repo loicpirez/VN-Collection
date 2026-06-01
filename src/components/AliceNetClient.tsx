@@ -31,7 +31,7 @@ import { SkeletonBlock } from './Skeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BCP47, formatVndbDateString } from '@/lib/locale-number';
+import { BCP47, formatCurrency, formatVndbDateString } from '@/lib/locale-number';
 import {
   calculateVirtualGridWindow,
   parseCssPixelValue,
@@ -60,10 +60,18 @@ import {
   comparableKobeDate as comparableDate,
   formatKobeDate,
   parseKobeDevs as parseDevs,
+  parseKobeCandidates,
   kobeMatchKind as matchKind,
   displayKobeTitle as displayTitle,
   displayKobeProducer as displayProducer,
 } from './kobe-types';
+import { parseClientPreferenceRecord } from '@/lib/client-persisted-shape';
+import {
+  decodeKobeClientSnapshot,
+  decodeKobeLoopResult,
+  decodeKobeStockSyncResult,
+  type KobePendingCounts,
+} from '@/lib/kobe-client-shape';
 
 /**
  * Format a raw kobe price string ("¥4,270", "4,270円") as locale-native
@@ -76,11 +84,7 @@ function formatPriceJpy(value: string | null, locale: Locale): string {
   if (!value) return '';
   const n = parsePrice(value);
   if (n == null) return value;
-  return new Intl.NumberFormat(BCP47[locale], {
-    style: 'currency',
-    currency: 'JPY',
-    maximumFractionDigits: 0,
-  }).format(n);
+  return formatCurrency(n, locale);
 }
 
 /**
@@ -121,23 +125,52 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
   const locale = useLocale();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  const codeRef = useRef(code);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    codeRef.current = code;
+    mutationInFlightRef.current = false;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    setBusy(null);
+    return () => {
+      mountedRef.current = false;
+      mutationAbortRef.current?.abort();
+    };
+  }, [code]);
 
   if (candidates.length === 0) return null;
 
   async function pick(vnId: string) {
+    if (mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
+    const owner = code;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
     setBusy(vnId);
     try {
       const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: vnId }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (controller.signal.aborted || !mountedRef.current || codeRef.current !== owner || mutationAbortRef.current !== controller) return;
       onRemapped();
     } catch (e) {
+      if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(null);
+      if (mountedRef.current && codeRef.current === owner && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setBusy(null);
+      }
     }
   }
 
@@ -153,7 +186,7 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
             onClick={() => pick(c.id)}
             disabled={busy != null || isActive}
             title={`${c.title}${c.alttitle ? ` / ${c.alttitle}` : ''}${c.released ? ` (${formatVndbDateString(c.released, locale)})` : ''}`}
-            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors ${
+            className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors sm:min-h-0 ${
               isActive
                 ? 'bg-accent/20 text-accent cursor-default'
                 : 'border border-border bg-bg-elev/30 text-muted hover:border-accent hover:text-white'
@@ -181,7 +214,6 @@ type ActiveOp =
   | 'resolve-egs'
   | 'download-all';
 
-interface PendingCounts { vndb_pending: number; egs_pending: number }
 interface RunTotals { processed: number; matched: number }
 
 /**
@@ -260,11 +292,14 @@ export function AliceNetKobeClient() {
     try {
       const raw = window.localStorage.getItem(KOBE_PREFS_KEY);
       if (!raw) return {};
-      const obj = JSON.parse(raw) as { sort?: unknown; group?: unknown; view?: unknown };
+      const obj = parseClientPreferenceRecord(raw);
+      const savedSort = typeof obj.sort === 'string' ? obj.sort : null;
+      const savedGroup = typeof obj.group === 'string' ? obj.group : null;
+      const savedView = typeof obj.view === 'string' ? obj.view : null;
       return {
-        sort: isKobeSort(obj.sort as string | null) ? (obj.sort as KobeSort) : undefined,
-        group: isKobeGroup(obj.group as string | null) ? (obj.group as KobeGroup) : undefined,
-        view: isKobeView(obj.view as string | null) ? (obj.view as KobeView) : undefined,
+        sort: isKobeSort(savedSort) ? savedSort : undefined,
+        group: isKobeGroup(savedGroup) ? savedGroup : undefined,
+        view: isKobeView(savedView) ? savedView : undefined,
       };
     } catch {
       return {};
@@ -272,7 +307,7 @@ export function AliceNetKobeClient() {
   }
   const [items, setItems] = useState<KobeItem[]>([]);
   const [stats, setStats] = useState<KobeStats>({ total: 0, matched: 0, vndb_matched: 0, egs_only: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
-  const [pending, setPending] = useState<PendingCounts>({ vndb_pending: 0, egs_pending: 0 });
+  const [pending, setPending] = useState<KobePendingCounts>({ vndb_pending: 0, egs_pending: 0 });
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeOp, setActiveOp] = useState<ActiveOp>('idle');
@@ -309,13 +344,30 @@ export function AliceNetKobeClient() {
   const commitSearch = useCallback((next: string) => setSearch(next), []);
   const [linkTarget, setLinkTarget] = useState<KobeItem | null>(null);
   const stopRef = useRef(false);
+  const mountedRef = useRef(true);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const opTokenRef = useRef(0);
+  const opInFlightRef = useRef(false);
+  const activeOpAbortRef = useRef<AbortController | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, current: '' });
   const bulkStopRef = useRef(false);
+  const bulkTokenRef = useRef(0);
+  const bulkInFlightRef = useRef(false);
+  const bulkAbortRef = useRef<AbortController | null>(null);
   const [resettingMatches, setResettingMatches] = useState(false);
+  const resetInFlightRef = useRef(false);
+  const resetAbortRef = useRef<AbortController | null>(null);
   const [clearingCode, setClearingCode] = useState<string | null>(null);
+  const clearInFlightRef = useRef(false);
+  const clearAbortRef = useRef<AbortController | null>(null);
+  const selectedRef = useRef(selected);
+
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   const toggleSelected = useCallback((code: string) => {
     setSelected((prev) => {
@@ -332,28 +384,50 @@ export function AliceNetKobeClient() {
   }, []);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+    const { signal } = controller;
+    if (mountedRef.current) setLoading(true);
     try {
-      const r = await fetch('/api/alicesoft-kobe', { cache: 'no-store' });
+      const r = await fetch('/api/alicesoft-kobe', { cache: 'no-store', signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as {
-        items: KobeItem[];
-        stats: KobeStats;
-        pending: PendingCounts;
-        last_fetch: number | null;
-      };
+      const d = decodeKobeClientSnapshot(await r.json());
+      if (!d) throw new Error(t.common.error);
+      if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
       setItems(d.items);
       setStats(d.stats);
       setPending(d.pending);
       setLastFetch(d.last_fetch);
-    } catch (e) {
-      toast.error((e as Error).message);
+    } catch (error) {
+      if (signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
+      toast.error(error instanceof Error ? error.message : t.common.error);
     } finally {
-      setLoading(false);
+      if (mountedRef.current && loadAbortRef.current === controller) {
+        loadAbortRef.current = null;
+        setLoading(false);
+      }
     }
   }, [t, toast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    mountedRef.current = true;
+    void load();
+    return () => {
+      mountedRef.current = false;
+      loadAbortRef.current?.abort();
+      activeOpAbortRef.current?.abort();
+      bulkAbortRef.current?.abort();
+      resetAbortRef.current?.abort();
+      clearAbortRef.current?.abort();
+      opTokenRef.current += 1;
+      bulkTokenRef.current += 1;
+      opInFlightRef.current = false;
+      bulkInFlightRef.current = false;
+      resetInFlightRef.current = false;
+      clearInFlightRef.current = false;
+    };
+  }, [load]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -392,10 +466,41 @@ export function AliceNetKobeClient() {
     }
   }, [filter, sort, group, view, search, producerFilter, yearMin, yearMax, priceMin, priceMax, showFilters, urlSearch, router]);
 
-  async function downloadStock() {
-    const r = await fetch('/api/alicesoft-kobe/fetch', { method: 'POST' });
+  function ownsOp(token: number): boolean {
+    return mountedRef.current && opInFlightRef.current && opTokenRef.current === token;
+  }
+
+  function beginOp(op: Exclude<ActiveOp, 'idle'>): number | null {
+    if (opInFlightRef.current) return null;
+    opInFlightRef.current = true;
+    stopRef.current = false;
+    const token = opTokenRef.current + 1;
+    opTokenRef.current = token;
+    setActiveOp(op);
+    return token;
+  }
+
+  function stopActiveOp() {
+    stopRef.current = true;
+    activeOpAbortRef.current?.abort();
+  }
+
+  function finishOp(token: number) {
+    if (opTokenRef.current !== token) return;
+    activeOpAbortRef.current = null;
+    opInFlightRef.current = false;
+    if (mountedRef.current) setActiveOp('idle');
+  }
+
+  async function downloadStock(token: number) {
+    const controller = new AbortController();
+    activeOpAbortRef.current = controller;
+    const r = await fetch('/api/alicesoft-kobe/fetch', { method: 'POST', signal: controller.signal });
     if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-    const d = (await r.json()) as { count: number; added: number; updated: number; removed: number };
+    const d = decodeKobeStockSyncResult(await r.json());
+    if (!d) throw new Error(t.common.error);
+    if (!ownsOp(token) || controller.signal.aborted) return;
+    if (activeOpAbortRef.current === controller) activeOpAbortRef.current = null;
     if (d.removed > 0) {
       toast.success(t.kobe.kobeStockRemoved.replace('{n}', String(d.removed)));
     }
@@ -406,23 +511,32 @@ export function AliceNetKobeClient() {
     body: Record<string, unknown>,
     label: string,
     getRemaining: (d: { processed: number; remaining: number }) => number,
+    token: number,
     initialTotal = 0,
     batchSize = 5,
   ): Promise<RunTotals> {
     let done = 0;
     let matched = 0;
     const runStartedAt = Date.now();
-    setOpDone(0);
-    setOpTotal(initialTotal);
-    setOpLabel(label);
-    while (!stopRef.current) {
+    if (ownsOp(token)) {
+      setOpDone(0);
+      setOpTotal(initialTotal);
+      setOpLabel(label);
+    }
+    while (ownsOp(token) && !stopRef.current) {
+      const controller = new AbortController();
+      activeOpAbortRef.current = controller;
       const r = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...body, batch: batchSize, run_started_at: runStartedAt }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { processed: number; matched?: number; remaining: number };
+      const d = decodeKobeLoopResult(await r.json());
+      if (!d) throw new Error(t.common.error);
+      if (!ownsOp(token) || controller.signal.aborted) return { processed: done, matched };
+      if (activeOpAbortRef.current === controller) activeOpAbortRef.current = null;
       done += d.processed;
       matched += d.matched ?? 0;
       setOpDone(done);
@@ -433,8 +547,8 @@ export function AliceNetKobeClient() {
   }
 
   async function runSingleOp(op: Exclude<ActiveOp, 'idle' | 'download-all'>) {
-    stopRef.current = false;
-    setActiveOp(op);
+    const token = beginOp(op);
+    if (token == null) return;
     let label = '';
     let totals: RunTotals = { processed: 0, matched: 0 };
     try {
@@ -443,105 +557,146 @@ export function AliceNetKobeClient() {
         setOpLabel(label);
         setOpDone(0);
         setOpTotal(0);
-        await downloadStock();
+        await downloadStock(token);
       } else if (op === 'matching') {
         label = t.kobe.kobeMatchVndbEgs;
-        totals = await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, label, (d) => d.remaining, stats.unprocessed, 5);
+        totals = await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, label, (d) => d.remaining, token, stats.unprocessed, 5);
       } else if (op === 'retrying') {
         label = t.kobe.kobeRetryNone;
-        totals = await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, label, (d) => d.remaining, stats.none_found, 4);
+        totals = await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, label, (d) => d.remaining, token, stats.none_found, 4);
       } else if (op === 'vndb-from-egs') {
         label = t.kobe.kobeMatchVndbFromEgs;
-        totals = await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, label, (d) => d.remaining, stats.egs_only, 10);
+        totals = await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, label, (d) => d.remaining, token, stats.egs_only, 10);
       } else if (op === 'retry-vndb-aggressive') {
         label = t.kobe.kobeRetryVndbAggressive;
-        totals = await runLoop('/api/alicesoft-kobe/retry-vndb-aggressive', {}, label, (d) => d.remaining, stats.none_found, 4);
+        totals = await runLoop('/api/alicesoft-kobe/retry-vndb-aggressive', {}, label, (d) => d.remaining, token, stats.none_found, 4);
       } else if (op === 'search-egs') {
         label = t.kobe.kobeSearchEgsForNoVndb;
-        totals = await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { aggressive: false }, label, (d) => d.remaining, stats.none_found, 10);
+        totals = await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { aggressive: false }, label, (d) => d.remaining, token, stats.none_found, 10);
       } else if (op === 'search-egs-aggressive') {
         label = t.kobe.kobeSearchEgsForNoVndbAggressive;
-        totals = await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { aggressive: true }, label, (d) => d.remaining, stats.none_found, 10);
+        totals = await runLoop('/api/alicesoft-kobe/search-egs-no-vndb', { aggressive: true }, label, (d) => d.remaining, token, stats.none_found, 10);
       } else if (op === 'download-vndb') {
         label = t.kobe.kobeDownloadVndb;
-        totals = await runLoop('/api/alicesoft-kobe/download-vndb', {}, label, (d) => d.remaining, pending.vndb_pending, 10);
+        totals = await runLoop('/api/alicesoft-kobe/download-vndb', {}, label, (d) => d.remaining, token, pending.vndb_pending, 10);
       } else if (op === 'resolve-egs') {
         label = t.kobe.kobeResolveEgs;
-        totals = await runLoop('/api/alicesoft-kobe/resolve-egs', {}, label, (d) => d.remaining, pending.egs_pending, 10);
+        totals = await runLoop('/api/alicesoft-kobe/resolve-egs', {}, label, (d) => d.remaining, token, pending.egs_pending, 10);
       }
+      if (!ownsOp(token) || stopRef.current) return;
       await load();
+      if (!ownsOp(token)) return;
       setLastRun({ label: label || op, ...totals });
     } catch (e) {
+      if (!ownsOp(token) || (e instanceof Error && e.name === 'AbortError')) return;
       const message = `${label || op}: ${(e as Error).message}`;
       setLastRun({ label: label || op, ...totals, error: (e as Error).message });
       toast.error(message, 0);
     } finally {
-      setActiveOp('idle');
+      finishOp(token);
     }
   }
 
   async function runDownloadAll() {
-    stopRef.current = false;
-    setActiveOp('download-all');
+    const token = beginOp('download-all');
+    if (token == null) return;
     let label = t.kobe.kobeDownloading;
     try {
       setOpLabel(label);
       setOpDone(0);
       setOpTotal(0);
-      await downloadStock();
-      if (stopRef.current) return;
+      await downloadStock(token);
+      if (!ownsOp(token) || stopRef.current) return;
       label = t.kobe.kobeMatchVndbEgs;
-      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, label, (d) => d.remaining, stats.unprocessed, 5);
-      if (stopRef.current) return;
+      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: false }, label, (d) => d.remaining, token, stats.unprocessed, 5);
+      if (!ownsOp(token) || stopRef.current) return;
       label = t.kobe.kobeRetryNone;
-      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, label, (d) => d.remaining, stats.none_found, 4);
-      if (stopRef.current) return;
+      await runLoop('/api/alicesoft-kobe/match-next', { retry_none: true }, label, (d) => d.remaining, token, stats.none_found, 4);
+      if (!ownsOp(token) || stopRef.current) return;
       label = t.kobe.kobeMatchVndbFromEgs;
-      await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, label, (d) => d.remaining, stats.egs_only, 10);
-      if (stopRef.current) return;
+      await runLoop('/api/alicesoft-kobe/match-vndb-from-egs', {}, label, (d) => d.remaining, token, stats.egs_only, 10);
+      if (!ownsOp(token) || stopRef.current) return;
       label = t.kobe.kobeDownloadVndb;
-      await runLoop('/api/alicesoft-kobe/download-vndb', {}, label, (d) => d.remaining, pending.vndb_pending, 10);
-      if (stopRef.current) return;
+      await runLoop('/api/alicesoft-kobe/download-vndb', {}, label, (d) => d.remaining, token, pending.vndb_pending, 10);
+      if (!ownsOp(token) || stopRef.current) return;
       label = t.kobe.kobeResolveEgs;
-      await runLoop('/api/alicesoft-kobe/resolve-egs', {}, label, (d) => d.remaining, pending.egs_pending, 10);
+      await runLoop('/api/alicesoft-kobe/resolve-egs', {}, label, (d) => d.remaining, token, pending.egs_pending, 10);
+      if (!ownsOp(token) || stopRef.current) return;
       await load();
     } catch (e) {
+      if (!ownsOp(token) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error(`${label}: ${(e as Error).message}`, 0);
     } finally {
-      setActiveOp('idle');
+      finishOp(token);
     }
   }
 
   async function resetAutoMatches() {
-    const ok = await confirm({ message: t.kobe.kobeResetConfirm, tone: 'danger' });
-    if (!ok) return;
+    if (resetInFlightRef.current) return;
+    resetInFlightRef.current = true;
+    const controller = new AbortController();
+    resetAbortRef.current?.abort();
+    resetAbortRef.current = controller;
     setResettingMatches(true);
+    const ok = await confirm({ message: t.kobe.kobeResetConfirm, tone: 'danger' });
+    if (!ok || controller.signal.aborted || !mountedRef.current || resetAbortRef.current !== controller) {
+      if (resetAbortRef.current === controller) {
+        resetAbortRef.current = null;
+        resetInFlightRef.current = false;
+        if (mountedRef.current) setResettingMatches(false);
+      }
+      return;
+    }
     try {
-      const r = await fetch('/api/alicesoft-kobe/reset-matches', { method: 'POST' });
+      const r = await fetch('/api/alicesoft-kobe/reset-matches', { method: 'POST', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (controller.signal.aborted || !mountedRef.current || resetAbortRef.current !== controller) return;
       await load();
     } catch (e) {
+      if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setResettingMatches(false);
+      if (resetAbortRef.current === controller) {
+        resetAbortRef.current = null;
+        resetInFlightRef.current = false;
+        if (mountedRef.current) setResettingMatches(false);
+      }
     }
   }
 
   async function clearLink(code: string) {
+    if (clearInFlightRef.current) return;
+    clearInFlightRef.current = true;
+    const controller = new AbortController();
+    clearAbortRef.current?.abort();
+    clearAbortRef.current = controller;
+    setClearingCode(code);
     const ok = await confirm({
       message: t.kobe.kobeClearMatchConfirm,
       tone: 'danger',
     });
-    if (!ok) return;
-    setClearingCode(code);
+    if (!ok || controller.signal.aborted || !mountedRef.current || clearAbortRef.current !== controller) {
+      if (clearAbortRef.current === controller) {
+        clearAbortRef.current = null;
+        clearInFlightRef.current = false;
+        if (mountedRef.current) setClearingCode(null);
+      }
+      return;
+    }
     try {
-      const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE' });
+      const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (controller.signal.aborted || !mountedRef.current || clearAbortRef.current !== controller) return;
       await load();
     } catch (e) {
+      if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setClearingCode(null);
+      if (clearAbortRef.current === controller) {
+        clearAbortRef.current = null;
+        clearInFlightRef.current = false;
+        if (mountedRef.current) setClearingCode(null);
+      }
     }
   }
 
@@ -733,37 +888,71 @@ export function AliceNetKobeClient() {
     setSelected(new Set(sorted.filter((i) => i.vn_id !== null).map((i) => i.code)));
   }
 
+  function ownsBulk(token: number): boolean {
+    return mountedRef.current && bulkInFlightRef.current && bulkTokenRef.current === token;
+  }
+
+  function stopBulkClear() {
+    bulkStopRef.current = true;
+    bulkAbortRef.current?.abort();
+  }
+
   async function bulkClearLinks() {
+    if (bulkInFlightRef.current) return;
     const codes = sorted.filter((i) => i.vn_id !== null && selected.has(i.code)).map((i) => i.code);
     if (codes.length === 0) return;
+    bulkInFlightRef.current = true;
+    const token = bulkTokenRef.current + 1;
+    bulkTokenRef.current = token;
+    const selectionKey = [...selected].sort().join('|');
     const ok = await confirm({
       message: t.kobe.kobeBulkClearLinkConfirm.replace('{n}', String(codes.length)),
       tone: 'danger',
       requireTyping: codes.length >= 5 ? 'DELETE' : undefined,
     });
-    if (!ok) return;
+    if (!ok || !ownsBulk(token) || [...selectedRef.current].sort().join('|') !== selectionKey) {
+      if (bulkTokenRef.current === token) bulkInFlightRef.current = false;
+      return;
+    }
     bulkStopRef.current = false;
     setBulkBusy(true);
     setBulkProgress({ done: 0, total: codes.length, current: '' });
     let done = 0;
     try {
       for (const code of codes) {
-        if (bulkStopRef.current) break;
+        if (!ownsBulk(token) || bulkStopRef.current) break;
         setBulkProgress({ done, total: codes.length, current: code });
-        const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE' });
-        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        const controller = new AbortController();
+        bulkAbortRef.current = controller;
+        try {
+          const r = await fetch(`/api/alicesoft-kobe/${encodeURIComponent(code)}/link`, { method: 'DELETE', signal: controller.signal });
+          if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        } catch (e) {
+          if (controller.signal.aborted && bulkStopRef.current) break;
+          throw e;
+        }
+        if (!ownsBulk(token) || controller.signal.aborted) break;
+        if (bulkAbortRef.current === controller) bulkAbortRef.current = null;
         done += 1;
         setBulkProgress({ done, total: codes.length, current: code });
       }
+      if (!ownsBulk(token)) return;
       if (bulkStopRef.current) toast.warning(t.bulk.abortedTitle);
       await load();
     } catch (e) {
+      if (!ownsBulk(token) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
       await load();
     } finally {
-      setBulkBusy(false);
-      setBulkProgress({ done: 0, total: 0, current: '' });
-      clearSelection();
+      if (bulkTokenRef.current === token) {
+        bulkAbortRef.current = null;
+        bulkInFlightRef.current = false;
+        if (mountedRef.current) {
+          setBulkBusy(false);
+          setBulkProgress({ done: 0, total: 0, current: '' });
+          clearSelection();
+        }
+      }
     }
   }
 
@@ -799,7 +988,7 @@ export function AliceNetKobeClient() {
         {item.vn_id && (
           <a
             href={`/vn/${item.vn_id}`}
-            className="inline-flex min-h-[32px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20 sm:min-h-[32px]"
           >
             <Link2 className="h-3 w-3" aria-hidden />
             {item.vn_id}
@@ -810,7 +999,7 @@ export function AliceNetKobeClient() {
             href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${item.egs_id}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[32px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-[32px]"
             title={`${t.kobe.kobeEgsId} ${item.egs_id}`}
           >
             <ExternalLink className="h-3 w-3" aria-hidden />
@@ -822,9 +1011,7 @@ export function AliceNetKobeClient() {
   }
 
   function renderKobeCard(item: KobeItem) {
-    const candidates = item.vn_candidates
-      ? (() => { try { return JSON.parse(item.vn_candidates) as KobeCandidate[]; } catch { return []; } })()
-      : [];
+    const candidates = parseKobeCandidates(item.vn_candidates);
     const producer = displayProducer(item);
     const image = item.vn_image_url || item.egs_image_url;
     const date = item.release_date || item.egs_release_date;
@@ -884,7 +1071,7 @@ export function AliceNetKobeClient() {
                 const id = item.vn_developers ? parseDevs(item.vn_developers)[0]?.id : null;
                 setProducerFilter(id || (item.egs_brand ? `egs:${item.egs_brand}` : ''));
               }}
-              className="inline-flex w-fit items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+              className="inline-flex min-h-[44px] w-fit items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
             >
               <Building2 className="h-3 w-3" aria-hidden />
               {producer}
@@ -900,7 +1087,7 @@ export function AliceNetKobeClient() {
             <CandidateChips candidates={candidates} currentId={item.vn_id} code={item.code} onRemapped={load} />
           )}
           <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
-            <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs">
+            <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs min-h-[44px] sm:min-h-0">
               <Search className="h-3 w-3" />
               {item.vn_id ? t.kobe.kobeRemap : t.kobe.kobeFindMatch}
             </button>
@@ -909,7 +1096,7 @@ export function AliceNetKobeClient() {
                 type="button"
                 onClick={() => clearLink(item.code)}
                 disabled={clearingCode === item.code}
-                className="btn btn-xs text-muted hover:text-status-dropped disabled:opacity-50"
+                className="btn btn-xs min-h-[44px] min-w-[44px] text-muted hover:text-status-dropped disabled:opacity-50 sm:min-h-0 sm:min-w-0"
                 title={t.kobe.kobeClearMatch}
               >
                 {clearingCode === item.code ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" />}
@@ -966,7 +1153,7 @@ export function AliceNetKobeClient() {
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {statusBadge(item)}
                 {quickLinks(item)}
-                <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs">
+                <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs min-h-[44px] sm:min-h-0">
                   <Search className="h-3 w-3" />
                   {item.vn_id ? t.kobe.kobeRemap : t.kobe.kobeFindMatch}
                 </button>
@@ -1052,7 +1239,7 @@ export function AliceNetKobeClient() {
           <div className="flex flex-wrap items-start gap-3">
             <button
               type="button"
-              onClick={() => { stopRef.current = true; }}
+              onClick={stopActiveOp}
               className="min-h-[44px] shrink-0 rounded-md border border-border px-3 py-1 text-[11px] font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
             >
               {t.kobe.kobeStopMatch}
@@ -1197,7 +1384,7 @@ export function AliceNetKobeClient() {
                 type="button"
                 onClick={() => setFilter(tab.id)}
                 aria-pressed={filter === tab.id}
-                className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors sm:min-h-[36px] ${
                   filter === tab.id
                     ? 'border-accent bg-accent/10 font-semibold text-accent'
                     : 'border-border bg-bg-elev/30 text-muted hover:border-accent hover:text-white'
@@ -1455,7 +1642,7 @@ export function AliceNetKobeClient() {
                 <button
                   type="button"
                   className="ml-auto inline-flex min-h-[44px] items-center justify-center rounded-md border border-border bg-bg-elev/40 px-3 py-1 text-xs font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
-                  onClick={() => { bulkStopRef.current = true; }}
+                  onClick={stopBulkClear}
                 >
                   {t.kobe.kobeStopMatch}
                 </button>
