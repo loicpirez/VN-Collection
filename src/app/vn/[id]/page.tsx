@@ -69,6 +69,7 @@ import { TitleLine } from '@/components/TitleLine';
 import { StockPanelBoundary } from '@/components/StockPanelBoundary';
 import { StockPricesSection } from '@/components/StockPricesSection';
 import { getStockForVn } from '@/lib/stock';
+import { decodeStoredExtras } from '@/lib/erogeprice-meta';
 import { EgsPanel } from '@/components/EgsPanel';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
 import { MatchBadges } from '@/components/MatchBadges';
@@ -952,15 +953,10 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         // provider returned a v1 extras blob; gate on that so a VN
         // without price history doesn't get an empty section frame.
         const hasErogePriceExtras = stockSnapshot.statuses.some((s) => {
-          if (s.provider !== 'eroge_price' || !s.extras_json) return false;
-          try {
-            return (JSON.parse(s.extras_json) as { schemaVersion?: number }).schemaVersion === 1;
-          } catch {
-            return false;
-          }
+          return s.provider === 'eroge_price' && decodeStoredExtras(s.extras_json) !== null;
         });
         if (hasErogePriceExtras) {
-          sectionNodes['stock-prices'] = <StockPricesSection vnId={vn.id} />;
+          sectionNodes['stock-prices'] = <StockPricesSection vnId={vn.id} initialSnapshot={stockSnapshot} />;
         }
         sectionNodes['egs-panel'] = (
           <EgsPanel

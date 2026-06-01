@@ -2,14 +2,15 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import type { ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
+import {
+  extrasFromStockSnapshot,
+  fetchStockPriceExtras,
+  type StockSnapshotForPrices,
+} from '@/lib/stock-prices';
 import { ErrorAlert } from './ErrorAlert';
 import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 
 const ErogePricePanel = dynamic(() => import('./ErogePricePanel').then((m) => m.ErogePricePanel), { ssr: false });
-
-interface StockSnapshot {
-  statuses?: Array<{ provider: string; extras_json?: string | null }>;
-}
 
 /**
  * Placeholder shaped like the resolved `<ErogePricePanel>` (bordered card
@@ -41,30 +42,24 @@ function StockPricesSkeleton() {
   );
 }
 
-export function StockPricesSection({ vnId }: { vnId: string }) {
-  const [extras, setExtras] = useState<ErogePriceExtrasV1 | null>(null);
+export function StockPricesSection({ vnId, initialSnapshot }: { vnId: string; initialSnapshot?: StockSnapshotForPrices }) {
+  const [extras, setExtras] = useState<ErogePriceExtrasV1 | null>(() => extrasFromStockSnapshot(initialSnapshot));
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialSnapshot);
 
   useEffect(() => {
-    const controller = new AbortController();
-    setExtras(null);
+    setExtras(extrasFromStockSnapshot(initialSnapshot));
     setError(null);
+    if (initialSnapshot) {
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
-      cache: 'no-store',
-      signal: controller.signal,
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((data: StockSnapshot | null) => {
+    fetchStockPriceExtras(vnId, controller.signal)
+      .then((data) => {
         if (controller.signal.aborted) return;
-        if (!data) return;
-        const row = (data.statuses ?? []).find((s) => s.provider === 'eroge_price');
-        if (!row?.extras_json) return;
-        try {
-          const parsed = JSON.parse(row.extras_json) as ErogePriceExtrasV1;
-          if (parsed.schemaVersion === 1) setExtras(parsed);
-        } catch {}
+        setExtras(data);
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
@@ -75,7 +70,7 @@ export function StockPricesSection({ vnId }: { vnId: string }) {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [vnId]);
+  }, [vnId, initialSnapshot]);
 
   if (loading) return <StockPricesSkeleton />;
   if (error) return <div className="p-4"><ErrorAlert title={error} /></div>;

@@ -17,11 +17,16 @@ describe('metadata title template composition', () => {
 });
 
 describe('stock-price navigation race', () => {
-  it('aborts stale requests and resets state when vnId changes', () => {
+  it('hydrates from the server snapshot and aborts stale fallback requests', () => {
     const body = source('src/components/StockPricesSection.tsx');
+    const page = source('src/app/vn/[id]/page.tsx');
+    expect(body).toContain('extrasFromStockSnapshot(initialSnapshot)');
+    expect(body).toContain('if (initialSnapshot)');
+    expect(body).toContain('setLoading(false)');
+    expect(page).toContain('<StockPricesSection vnId={vn.id} initialSnapshot={stockSnapshot} />');
     expect(body).toContain('const controller = new AbortController()');
-    expect(body).toContain('signal: controller.signal');
-    expect(body).toContain('setExtras(null)');
+    expect(body).toContain('fetchStockPriceExtras(vnId, controller.signal)');
+    expect(body).toContain('setExtras(data)');
     expect(body).toContain('setError(null)');
     expect(body).toContain('setLoading(true)');
     expect(body).toContain('return () => controller.abort()');
