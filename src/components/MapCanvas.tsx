@@ -28,6 +28,7 @@ interface Props {
   popupStockLabel: (n: number) => string;
   popupBranchesLabel: (n: number) => string;
   sizeClass?: string;
+  externalNetworkAllowed: boolean;
 }
 
 function buildPopup(
@@ -59,6 +60,7 @@ export function MapCanvas({
   popupStockLabel,
   popupBranchesLabel,
   sizeClass,
+  externalNetworkAllowed,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -67,7 +69,7 @@ export function MapCanvas({
   onMarkerFocusRef.current = onMarkerFocus;
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!externalNetworkAllowed || !containerRef.current || mapRef.current) return;
 
     const withCoords = places.filter(hasFiniteCoordinates);
     const focusPlace = focusId != null ? withCoords.find((p) => p.id === focusId) : null;
@@ -129,7 +131,7 @@ export function MapCanvas({
         mapRef.current = null;
       }
     };
-  }, []);
+  }, [externalNetworkAllowed]);
 
   useEffect(() => {
     const map = mapRef.current;

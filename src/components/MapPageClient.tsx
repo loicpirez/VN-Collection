@@ -1,15 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { MapPin, Plus, RotateCcw, Search, X } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import type { PlaceWithLinks } from '@/lib/db';
 import { clearSavedMapView } from '@/lib/map-view-storage';
+import { geocodingAcceptLanguage } from '@/lib/map-privacy';
 import { AddEditPlaceModal } from './AddEditPlaceModal';
 import { hasFiniteCoordinates } from '@/lib/place-coordinates';
 import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
+import { MapPrivacyControl } from './MapPrivacyControl';
 
 type MapSize = 'compact' | 'normal' | 'large' | 'tall';
 
@@ -62,6 +64,7 @@ interface Props {
 
 export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
   const t = useT();
+  const locale = useLocale();
   const router = useRouter();
 
   const [searchQ, setSearchQ] = useState('');
@@ -73,6 +76,15 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
   const [resetKey, setResetKey] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);
   const [mapSize, setMapSize] = useState<MapSize>(loadMapSize);
+  const [externalNetworkAllowed, setExternalNetworkAllowed] = useState(false);
+
+  const handleExternalNetworkChange = useCallback((enabled: boolean) => {
+    setExternalNetworkAllowed(enabled);
+    if (!enabled) {
+      setSearchResults([]);
+      setSearchError(null);
+    }
+  }, []);
 
   function changeSize(s: MapSize) {
     setMapSize(s);
@@ -88,13 +100,17 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
   async function doSearch() {
     const q = searchQ.trim();
     if (!q) return;
+    if (!externalNetworkAllowed) {
+      setSearchError(t.map.externalPrivacyRequired as string);
+      return;
+    }
     setSearching(true);
     setSearchResults([]);
     setSearchError(null);
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=5`,
-        { headers: { 'Accept-Language': 'ja,en' } },
+        { headers: { 'Accept-Language': geocodingAcceptLanguage(locale) } },
       );
       if (!res.ok) throw new Error(`${res.status}`);
       const data = (await res.json()) as NominatimResult[];
@@ -166,6 +182,10 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
         </div>
       </div>
 
+      <div className="mb-3">
+        <MapPrivacyControl onChange={handleExternalNetworkChange} />
+      </div>
+
       <div className="relative mb-2">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
@@ -178,6 +198,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && doSearch()}
+              disabled={!externalNetworkAllowed}
               placeholder={t.map.searchPlaceholder as string}
               aria-label={t.map.searchPlaceholder as string}
             />
@@ -195,7 +216,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
           <button
             type="button"
             onClick={doSearch}
-            disabled={searching || !searchQ.trim()}
+            disabled={searching || !searchQ.trim() || !externalNetworkAllowed}
             className="btn btn-sm bg-bg-elev text-muted hover:text-white"
           >
             {t.places.geocodeButton as string}
@@ -250,6 +271,10 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
 
       {withCoords.length === 0 ? (
         <p className="text-sm text-muted">{t.map.noPlaces as string}</p>
+      ) : !externalNetworkAllowed ? (
+        <div className={`flex w-full items-center justify-center rounded-xl border border-border bg-bg-card p-6 ${SIZE_CLASSES[mapSize]}`}>
+          <p className="max-w-md text-center text-sm text-muted">{t.map.externalMapDisabled as string}</p>
+        </div>
       ) : (
         <MapCanvas
           key={resetKey}
@@ -263,6 +288,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
           popupStockLabel={(n) => (t.map.popupStock as string).replace('{n}', String(n))}
           popupBranchesLabel={(n) => (t.map.popupBranches as string).replace('{n}', String(n))}
           sizeClass={SIZE_CLASSES[mapSize]}
+          externalNetworkAllowed={externalNetworkAllowed}
         />
       )}
 

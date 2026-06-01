@@ -3,10 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, X, Search } from 'lucide-react';
 import { useDialogA11y } from './Dialog';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
 import type { PlaceWithLinks } from '@/lib/db';
 import { hasFiniteCoordinates } from '@/lib/place-coordinates';
+import { geocodingAcceptLanguage } from '@/lib/map-privacy';
+import { MapPrivacyControl } from './MapPrivacyControl';
 
 type PlaceKind = 'shop' | 'chain' | 'storage';
 
@@ -25,6 +27,7 @@ interface NominatimResult {
 
 export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Props) {
   const t = useT();
+  const locale = useLocale();
   const { confirm } = useConfirm();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -53,6 +56,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
   const [geocodeResults, setGeocodeResults] = useState<NominatimResult[]>([]);
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const [externalNetworkAllowed, setExternalNetworkAllowed] = useState(false);
 
   const dirty =
     name !== initial.name ||
@@ -87,13 +91,17 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
 
   async function geocode() {
     if (!geocodeQ.trim()) return;
+    if (!externalNetworkAllowed) {
+      setGeocodeError(t.map.externalPrivacyRequired as string);
+      return;
+    }
     setGeocoding(true);
     setGeocodeResults([]);
     setGeocodeError(null);
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(geocodeQ)}&format=jsonv2&limit=5`,
-        { headers: { 'Accept-Language': 'ja,en' } },
+        { headers: { 'Accept-Language': geocodingAcceptLanguage(locale) } },
       );
       if (!res.ok) throw new Error(`${res.status}`);
       const data = (await res.json()) as NominatimResult[];
@@ -246,18 +254,20 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
 
           <div className="rounded-lg border border-border bg-bg-elev/40 p-3 space-y-2">
             <p className="text-[11px] font-semibold text-muted uppercase tracking-widest">{t.places.geocodeSearch as string}</p>
+            <MapPrivacyControl compact onChange={setExternalNetworkAllowed} />
             <div className="flex gap-2">
               <input
                 className="input flex-1 text-sm"
                 value={geocodeQ}
                 onChange={(e) => setGeocodeQ(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && geocode()}
+                disabled={!externalNetworkAllowed}
                 placeholder={t.places.addressPlaceholder as string}
               />
               <button
                 type="button"
                 onClick={geocode}
-                disabled={geocoding}
+                disabled={geocoding || !externalNetworkAllowed}
                 aria-label={t.places.geocodeButton as string}
                 className="btn btn-sm bg-bg-elev text-muted hover:text-white"
               >
