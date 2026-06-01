@@ -3,6 +3,8 @@ import {
   bumpStatus,
   cancelJob,
   finishJob,
+  jobCurrentItem,
+  jobLabel,
   listJobs,
   recordError,
   setJobCurrent,
@@ -111,6 +113,26 @@ describe('download-status pub/sub', () => {
       .toBeNull();
     finishJob(job.id);
     off();
+  });
+
+  it('keeps locale-independent label and current-item specs on the snapshot', () => {
+    const job = startJob('cache-refresh', jobLabel('global_refresh', 'Global refresh'), 2);
+    setJobCurrent(job.id, jobCurrentItem('refresh_egs_top_ranked', 'EGS top-ranked (top 100)', { count: 100 }));
+    const current = listJobs().find((entry) => entry.id === job.id);
+    expect(current).toMatchObject({
+      label: 'Global refresh',
+      label_code: 'global_refresh',
+      label_params: null,
+      current_item: 'EGS top-ranked (top 100)',
+      current_item_code: 'refresh_egs_top_ranked',
+      current_item_params: { count: 100 },
+    });
+    finishJob(job.id);
+    expect(listJobs().find((entry) => entry.id === job.id)).toMatchObject({
+      current_item: null,
+      current_item_code: null,
+      current_item_params: null,
+    });
   });
 
   it('evicts the oldest listener when the cap is exceeded', async () => {

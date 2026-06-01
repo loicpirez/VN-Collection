@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, materializeReleaseMetaForCollectionVns } from '@/lib/db';
-import { startJob, tickJob, finishJob, recordError, setJobCurrent } from '@/lib/download-status';
+import { jobCurrentItem, jobLabel, startJob, tickJob, finishJob, recordError, setJobCurrent, type JobCurrentItemCode, type JobTextParams } from '@/lib/download-status';
 import { sanitizeUnknownError } from '@/lib/error-sanitize';
 import { fetchEgsAnticipated, fetchEgsTopRanked } from '@/lib/erogamescape';
 import { getGlobalStats, getAuthInfo, getSchema, searchTags, searchTraits } from '@/lib/vndb';
@@ -110,27 +110,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .map((r) => r.vn_id)
     .filter((id) => isVndbVnId(id));
   // Each task has a stable `name` plus the existing run() closure.
-  const tasks: Array<{ name: string; run: () => Promise<unknown> }> = [
-    { name: 'Cache rows (bust)', run: async () => { bust.run(...BUST_PATTERNS); } },
+  const tasks: Array<{ name: string; code: JobCurrentItemCode; params?: JobTextParams; run: () => Promise<unknown> }> = [
+    { name: 'Cache rows (bust)', code: 'refresh_cache_rows', run: async () => { bust.run(...BUST_PATTERNS); } },
     {
       name: 'Release metadata cache (bust)',
+      code: 'refresh_release_metadata_cache',
       run: async () => { bustReleaseMeta.run(); },
     },
-    { name: 'EGS anticipated (top 100)', run: () => fetchEgsAnticipated(100) },
-    { name: 'EGS top-ranked (top 100)',  run: () => fetchEgsTopRanked(100) },
-    { name: 'VNDB top-ranked (top 100)', run: () => fetchVndbTopRanked(100) },
-    { name: 'VNDB stats',                run: () => getGlobalStats() },
-    { name: 'VNDB schema',                run: () => getSchema() },
-    { name: 'VNDB authinfo',              run: authInfoSafe },
-    { name: 'Upcoming · collection',      run: () => fetchUpcomingForCollection() },
-    { name: 'Upcoming · all VNDB (top 200)', run: () => fetchAllUpcomingFromVndb(200) },
+    { name: 'EGS anticipated (top 100)', code: 'refresh_egs_anticipated', params: { count: 100 }, run: () => fetchEgsAnticipated(100) },
+    { name: 'EGS top-ranked (top 100)', code: 'refresh_egs_top_ranked', params: { count: 100 }, run: () => fetchEgsTopRanked(100) },
+    { name: 'VNDB top-ranked (top 100)', code: 'refresh_vndb_top_ranked', params: { count: 100 }, run: () => fetchVndbTopRanked(100) },
+    { name: 'VNDB stats', code: 'refresh_vndb_stats', run: () => getGlobalStats() },
+    { name: 'VNDB schema', code: 'refresh_vndb_schema', run: () => getSchema() },
+    { name: 'VNDB authinfo', code: 'refresh_vndb_authinfo', run: authInfoSafe },
+    { name: 'Upcoming · collection', code: 'refresh_upcoming_collection', run: () => fetchUpcomingForCollection() },
+    { name: 'Upcoming · all VNDB (top 200)', code: 'refresh_upcoming_all', params: { count: 200 }, run: () => fetchAllUpcomingFromVndb(200) },
     // Re-populate the default tag/trait searches so the freshness chip
     // on /tags and /traits reads "just now" after a refresh instead of
     // hanging on the now-deleted older value.
-    { name: 'Tags · default search',      run: () => searchTags('', { results: 60 }) },
-    { name: 'Traits · default search',    run: () => searchTraits('', { results: 60 }) },
+    { name: 'Tags · default search', code: 'refresh_tags_default', run: () => searchTags('', { results: 60 }) },
+    { name: 'Traits · default search', code: 'refresh_traits_default', run: () => searchTraits('', { results: 60 }) },
     {
       name: 'Release metadata · all collection VNs',
+      code: 'refresh_release_metadata_collection',
       run: async () => { materializeReleaseMetaForCollectionVns(collectionVnIds); },
     },
   ];
@@ -139,12 +141,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // refreshes EGS / page-level caches — calling it a "VNDB Pull" was
   // confusing on /upcoming?tab=anticipated, where the user only sees EGS
   // data being updated.
-  const job = startJob('cache-refresh', 'Global refresh', tasks.length, null);
+  const job = startJob('cache-refresh', jobLabel('global_refresh', 'Global refresh'), tasks.length, null);
 
   let done = 0;
   let failed = 0;
   for (const t of tasks) {
-    setJobCurrent(job.id, t.name);
+    setJobCurrent(job.id, jobCurrentItem(t.code, t.name, t.params));
     try {
       await t.run();
       done++;

@@ -3,7 +3,7 @@ import type { Status } from './types';
 import { getCollectionItem, updateCollection } from './db';
 import { fetchUlistByLabel, getAuthInfo } from './vndb';
 import { throttledFetch } from './vndb-throttle';
-import { finishJob, recordError, setJobCurrent, startJob, tickJob } from './download-status';
+import { finishJob, jobCurrentItem, jobLabel, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
@@ -141,12 +141,13 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
     };
   }
 
-  const job = startJob('vndb-pull', `Pulling statuses for ${auth.username ?? auth.id}`, Object.values(VNDB_LABELS).length);
+  const account = auth.username ?? auth.id;
+  const job = startJob('vndb-pull', jobLabel('pull_statuses_for_account', `Pulling statuses for ${account}`, { account }), Object.values(VNDB_LABELS).length);
   // Accumulate status per vn id across all label queries, then resolve via
   // precedence at the end.
   const labels: Record<string, number[]> = {};
   for (const labelId of Object.values(VNDB_LABELS)) {
-    setJobCurrent(job.id, `label ${labelId}`);
+    setJobCurrent(job.id, jobCurrentItem('vndb_label', `label ${labelId}`, { labelId }));
     try {
       for (let page = 1; page <= 50; page++) {
         const r = await fetchUlistByLabel(auth.id, labelId, { results: 100, page });
@@ -201,4 +202,3 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
     unmatched,
   };
 }
-

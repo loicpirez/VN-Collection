@@ -130,8 +130,9 @@ function kindLabel(kind: RecentActivityEntry['kind'], t: Awaited<ReturnType<type
   }
 }
 
-function systemKindLabel(raw: string): string {
-  return raw
+function systemKindLabel(raw: string, t: Awaited<ReturnType<typeof getDict>>): string {
+  const translated = (t.userActivity.systemKinds as Record<string, string>)[raw];
+  return translated ?? raw
     .replace(/[._]/g, ' ')
     .replace(/^[a-z]/, (c) => c.toUpperCase());
 }
@@ -249,7 +250,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
             </span>
             <select name="kind" defaultValue={kind} className="input w-full">
               <option value="">{t.userActivity.allKinds}</option>
-              {kinds.map((k) => <option key={k} value={k}>{systemKindLabel(k)}</option>)}
+              {kinds.map((k) => <option key={k} value={k}>{systemKindLabel(k, t)}</option>)}
             </select>
           </label>
           <label className="sm:min-w-[160px] flex-1 text-xs text-muted">
@@ -316,7 +317,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                     <li key={row.id} className="rounded-xl border border-border bg-bg-card p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold" title={row.label || row.kind.replace(/_/g, ' ')}>{row.label || row.kind.replace(/_/g, ' ')}</p>
+                          <p className="truncate text-sm font-semibold" title={systemKindLabel(row.kind, t)}>{systemKindLabel(row.kind, t)}</p>
                           {(row.entity || row.entity_id) && (
                             <p className="mt-0.5 text-[11px] text-muted">
                               {href ? (

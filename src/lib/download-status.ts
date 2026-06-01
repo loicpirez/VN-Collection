@@ -25,11 +25,61 @@ export type JobKind =
   | 'cache-refresh'
   | 'stock-batch';
 
+export type JobLabelCode =
+  | 'staff_for_vn'
+  | 'characters_for_vn'
+  | 'developers_for_vn'
+  | 'tags_for_vn'
+  | 'traits_for_vn'
+  | 'relations_for_vn'
+  | 'tag_graph_for_vn'
+  | 'character_instances_for_vn'
+  | 'producer_relations_for_vn'
+  | 'screenshot_releases_for_vn'
+  | 'releases_for_vn'
+  | 'egs_updates'
+  | 'global_refresh'
+  | 'pull_statuses_for_account'
+  | 'stock_refresh'
+  | 'stock_providers_for_vn';
+
+export type JobCurrentItemCode =
+  | 'vndb_label'
+  | 'refresh_cache_rows'
+  | 'refresh_release_metadata_cache'
+  | 'refresh_egs_anticipated'
+  | 'refresh_egs_top_ranked'
+  | 'refresh_vndb_top_ranked'
+  | 'refresh_vndb_stats'
+  | 'refresh_vndb_schema'
+  | 'refresh_vndb_authinfo'
+  | 'refresh_upcoming_collection'
+  | 'refresh_upcoming_all'
+  | 'refresh_tags_default'
+  | 'refresh_traits_default'
+  | 'refresh_release_metadata_collection';
+
+export type JobTextParams = Record<string, string | number>;
+
+export interface JobLabelSpec {
+  code: JobLabelCode;
+  fallback: string;
+  params?: JobTextParams;
+}
+
+export interface JobCurrentItemSpec {
+  code: JobCurrentItemCode;
+  fallback: string;
+  params?: JobTextParams;
+}
+
 export interface DownloadJob {
   id: string;
   kind: JobKind;
   vn_id: string | null;
   label: string;
+  label_code?: JobLabelCode | null;
+  label_params?: JobTextParams | null;
   total: number;
   done: number;
   /**
@@ -40,11 +90,69 @@ export interface DownloadJob {
    * finishes.
    */
   current_item?: string | null;
+  current_item_code?: JobCurrentItemCode | null;
+  current_item_params?: JobTextParams | null;
   errors: { item: string; message: string }[];
   started_at: number;
   finished_at: number | null;
   cancelled?: boolean;
   interrupted?: boolean;
+}
+
+const JOB_LABEL_CODES: ReadonlySet<string> = new Set<JobLabelCode>([
+  'staff_for_vn',
+  'characters_for_vn',
+  'developers_for_vn',
+  'tags_for_vn',
+  'traits_for_vn',
+  'relations_for_vn',
+  'tag_graph_for_vn',
+  'character_instances_for_vn',
+  'producer_relations_for_vn',
+  'screenshot_releases_for_vn',
+  'releases_for_vn',
+  'egs_updates',
+  'global_refresh',
+  'pull_statuses_for_account',
+  'stock_refresh',
+  'stock_providers_for_vn',
+]);
+
+const JOB_CURRENT_ITEM_CODES: ReadonlySet<string> = new Set<JobCurrentItemCode>([
+  'vndb_label',
+  'refresh_cache_rows',
+  'refresh_release_metadata_cache',
+  'refresh_egs_anticipated',
+  'refresh_egs_top_ranked',
+  'refresh_vndb_top_ranked',
+  'refresh_vndb_stats',
+  'refresh_vndb_schema',
+  'refresh_vndb_authinfo',
+  'refresh_upcoming_collection',
+  'refresh_upcoming_all',
+  'refresh_tags_default',
+  'refresh_traits_default',
+  'refresh_release_metadata_collection',
+]);
+
+/** Return whether a persisted label code belongs to the supported job-label contract. */
+export function isJobLabelCode(value: string): value is JobLabelCode {
+  return JOB_LABEL_CODES.has(value);
+}
+
+/** Return whether a persisted current-item code belongs to the supported job-item contract. */
+export function isJobCurrentItemCode(value: string): value is JobCurrentItemCode {
+  return JOB_CURRENT_ITEM_CODES.has(value);
+}
+
+/** Build a locale-independent job-label spec with a legacy fallback. */
+export function jobLabel(code: JobLabelCode, fallback: string, params?: JobTextParams): JobLabelSpec {
+  return { code, fallback, params };
+}
+
+/** Build a locale-independent current-item spec with a legacy fallback. */
+export function jobCurrentItem(code: JobCurrentItemCode, fallback: string, params?: JobTextParams): JobCurrentItemSpec {
+  return { code, fallback, params };
 }
 
 const jobs = new Map<string, DownloadJob>();
@@ -147,14 +255,16 @@ function gc(): void {
  * @param vnId   Optional VN id to associate with the job for per-VN filtering.
  * @returns The newly created `DownloadJob` — pass `job.id` to `tickJob` / `finishJob`.
  */
-export function startJob(kind: JobKind, label: string, total: number, vnId: string | null = null): DownloadJob {
+export function startJob(kind: JobKind, label: string | JobLabelSpec, total: number, vnId: string | null = null): DownloadJob {
   gc();
   const id = `${kind}:${Date.now()}:${nextSeq++}`;
   const job: DownloadJob = {
     id,
     kind,
     vn_id: vnId,
-    label,
+    label: typeof label === 'string' ? label : label.fallback,
+    label_code: typeof label === 'string' ? null : label.code,
+    label_params: typeof label === 'string' ? null : (label.params ?? null),
     total,
     done: 0,
     current_item: null,
@@ -189,10 +299,12 @@ export function tickJob(jobId: string, by = 1): void {
  * (or human label) currently in flight, not just the per-VN summary.
  * Pass `null` to clear the hint without finishing the job.
  */
-export function setJobCurrent(jobId: string, item: string | null): void {
+export function setJobCurrent(jobId: string, item: string | JobCurrentItemSpec | null): void {
   const j = jobs.get(jobId);
   if (!j) return;
-  j.current_item = item;
+  j.current_item = typeof item === 'string' || item == null ? item : item.fallback;
+  j.current_item_code = typeof item === 'object' && item != null ? item.code : null;
+  j.current_item_params = typeof item === 'object' && item != null ? (item.params ?? null) : null;
   emit();
 }
 
@@ -227,6 +339,8 @@ export function finishJob(jobId: string, options: { complete?: boolean } = {}): 
   j.finished_at = Date.now();
   if (options.complete !== false && j.done < j.total) j.done = j.total;
   j.current_item = null;
+  j.current_item_code = null;
+  j.current_item_params = null;
   cancelledJobs.delete(jobId);
   emit();
 }
@@ -237,6 +351,8 @@ export function cancelJob(jobId: string): void {
   if (j) {
     j.finished_at = Date.now();
     j.current_item = null;
+    j.current_item_code = null;
+    j.current_item_params = null;
     j.cancelled = true;
     emit();
   }

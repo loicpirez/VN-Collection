@@ -6,6 +6,7 @@ vi.mock('@/lib/erogamescape', () => ({
 }));
 
 vi.mock('@/lib/download-status', () => ({
+  jobLabel: vi.fn((code: string, fallback: string, params?: Record<string, string | number>) => ({ code, fallback, params })),
   startJob: vi.fn(() => ({ id: 'job-1' })),
   tickJob: vi.fn(),
   recordError: vi.fn(),

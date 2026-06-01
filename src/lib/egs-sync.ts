@@ -1,7 +1,7 @@
 import 'server-only';
 import { db, getAppSetting, updateCollection, type CollectionPatch } from './db';
 import { fetchEgsUserReviews } from './erogamescape';
-import { finishJob, recordError, startJob, tickJob } from './download-status';
+import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
 
 /**
  * EGS → local sync. Symmetric to the Steam sync flow: pull the user's
@@ -128,7 +128,7 @@ export async function computeEgsSuggestions(): Promise<{
 export async function applyEgsSuggestions(picks: string[]): Promise<{ applied: number }> {
   const { suggestions } = await computeEgsSuggestions();
   const byVn = new Map(suggestions.map((s) => [s.vn_id, s]));
-  const job = startJob('egs-sync', `Applying ${picks.length} EGS update(s)`, picks.length);
+  const job = startJob('egs-sync', jobLabel('egs_updates', `Applying ${picks.length} EGS update(s)`, { count: picks.length }), picks.length);
   let applied = 0;
   for (const vnId of picks) {
     const s = byVn.get(vnId);
