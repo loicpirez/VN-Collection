@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 
 function parseSeriesId(s: string): number | null {
   const n = Number(s);
-  return Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : null;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string; vnId: string }> }): Promise<NextResponse> {
@@ -22,8 +22,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (sid == null) return NextResponse.json({ error: 'invalid series id' }, { status: 400 });
   if (!getSeries(sid)) return NextResponse.json({ error: 'series not found' }, { status: 404 });
   if (!isVndbVnId(vnId)) return NextResponse.json({ error: 'invalid vn id' }, { status: 400 });
-  if (!isInCollection(vnId)) return NextResponse.json({ error: 'add VN to collection first' }, { status: 400 });
-  const body = (await readJsonObject(req)) as { order_index?: number; expand?: boolean };
+  const normalizedVnId = vnId.toLowerCase();
+  if (!isInCollection(normalizedVnId)) return NextResponse.json({ error: 'add VN to collection first' }, { status: 400 });
+  const body = await readJsonObject(req);
+  if ('order_index' in body && (
+    typeof body.order_index !== 'number'
+    || !Number.isSafeInteger(body.order_index)
+    || body.order_index < 0
+  )) {
+    return NextResponse.json({ error: 'order_index must be a non-negative integer' }, { status: 400 });
+  }
+  if ('expand' in body && typeof body.expand !== 'boolean') {
+    return NextResponse.json({ error: 'expand must be boolean' }, { status: 400 });
+  }
   const baseIndex = typeof body.order_index === 'number' ? body.order_index : 0;
 
   // `expand` walks the seed's full series-relation graph and joins every
@@ -37,10 +48,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // path adds 0..N more rows atomically.
   const added: string[] = [];
   db.transaction(() => {
-    addVnToSeries(sid, vnId, baseIndex);
-    added.push(vnId);
-    if (body.expand) {
-      const related = walkSeriesRelations(vnId);
+    addVnToSeries(sid, normalizedVnId, baseIndex);
+    added.push(normalizedVnId);
+    if (body.expand === true) {
+      const related = walkSeriesRelations(normalizedVnId);
       const ownedRelatedSet = isInCollectionMany(related.map((r) => r.id));
       let idx = baseIndex + 1;
       for (const r of related) {
@@ -57,7 +68,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       entity: 'series',
       entityId: String(sid),
       label: 'Linked VN to series',
-      payload: { added_count: added.length, expanded: !!body.expand },
+      payload: { added_count: added.length, expanded: body.expand === true },
     });
   } catch (e) {
     console.error(`[series:${sid}] activity log failed:`, (e as Error).message);
@@ -71,14 +82,16 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { id, vnId } = await ctx.params;
   const sid = parseSeriesId(id);
   if (sid == null) return NextResponse.json({ error: 'invalid series id' }, { status: 400 });
-  removeVnFromSeries(sid, vnId);
+  if (!isVndbVnId(vnId)) return NextResponse.json({ error: 'invalid vn id' }, { status: 400 });
+  const normalizedVnId = vnId.toLowerCase();
+  removeVnFromSeries(sid, normalizedVnId);
   try {
     recordActivity({
       kind: 'series.unlink',
       entity: 'series',
       entityId: String(sid),
       label: 'Unlinked VN from series',
-      payload: { vn_id: vnId },
+      payload: { vn_id: normalizedVnId },
     });
   } catch (e) {
     console.error(`[series:${sid}] activity log failed:`, (e as Error).message);

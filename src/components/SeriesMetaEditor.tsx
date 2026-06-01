@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useTransition } from 'react';
+import { useEffect, useState, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Image as ImageIcon, Loader2, Save, Trash2, Upload, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
@@ -7,6 +7,7 @@ import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeSeriesImagePath } from '@/lib/organizer-client-shape';
 interface Props {
   seriesId: number;
   initialName: string;
@@ -39,7 +40,29 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
   const [uploadingKind, setUploadingKind] = useState<'cover' | 'banner' | null>(null);
   const coverRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
+  const identityRef = useRef<number | null>(seriesId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = seriesId;
+    setName(initialName);
+    setDescription(initialDescription ?? '');
+    setCoverPath(initialCoverPath);
+    setBannerPath(initialBannerPath);
+    setSaving(false);
+    setUploadingKind(null);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [seriesId, initialName, initialDescription, initialCoverPath, initialBannerPath]);
 
   const dirty =
     name.trim() !== initialName.trim() ||
@@ -47,28 +70,62 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
     coverPath !== initialCoverPath ||
     bannerPath !== initialBannerPath;
 
+  function startMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    mutationInFlightRef.current = true;
+    return controller;
+  }
+
+  function ownsMutation(ownerSeriesId: number, controller: AbortController): boolean {
+    return identityRef.current === ownerSeriesId
+      && mutationAbortRef.current === controller
+      && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerSeriesId: number, controller: AbortController) {
+    if (mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    if (identityRef.current === ownerSeriesId) {
+      setSaving(false);
+      setUploadingKind(null);
+    }
+  }
+
   async function onUpload(kind: 'cover' | 'banner', file: File) {
+    const ownerSeriesId = seriesId;
+    const controller = startMutation();
+    if (!controller) return;
     setUploadingKind(kind);
     try {
       const form = new FormData();
       form.append('file', file);
       form.append('kind', kind);
-      const r = await fetch(`/api/series/${seriesId}/image`, { method: 'POST', body: form });
+      const r = await fetch(`/api/series/${ownerSeriesId}/image`, { method: 'POST', body: form, signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const data = (await r.json()) as { path: string };
-      if (kind === 'cover') setCoverPath(data.path);
-      else setBannerPath(data.path);
+      const path = decodeSeriesImagePath(await r.json());
+      if (!path) throw new Error(t.common.error);
+      if (!ownsMutation(ownerSeriesId, controller)) return;
+      if (kind === 'cover') setCoverPath(path);
+      else setBannerPath(path);
     } catch (e) {
+      if (!ownsMutation(ownerSeriesId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setUploadingKind(null);
+      finishMutation(ownerSeriesId, controller);
     }
   }
 
   async function onSave() {
+    const ownerSeriesId = seriesId;
+    const controller = startMutation();
+    if (!controller) return;
     setSaving(true);
     try {
-      const r = await fetch(`/api/series/${seriesId}`, {
+      const r = await fetch(`/api/series/${ownerSeriesId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -77,14 +134,17 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
           cover_path: coverPath,
           banner_path: bannerPath,
         }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerSeriesId, controller)) return;
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerSeriesId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setSaving(false);
+      finishMutation(ownerSeriesId, controller);
     }
   }
 
@@ -127,19 +187,20 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
               type="button"
               className="btn flex-1"
               onClick={() => coverRef.current?.click()}
-              disabled={uploadingKind !== null}
+              disabled={saving || uploadingKind !== null}
             >
-              <Upload className="h-3 w-3" /> {t.series.upload}
+              <Upload className="h-3 w-3" aria-hidden /> {t.series.upload}
             </button>
             {coverPath && (
               <button
                 type="button"
                 className="btn"
                 onClick={() => setCoverPath(null)}
+                disabled={saving || uploadingKind !== null}
                 aria-label={t.common.cancel}
                 title={t.common.cancel}
               >
-                <Trash2 className="h-3 w-3" />
+                <Trash2 className="h-3 w-3" aria-hidden />
               </button>
             )}
           </div>
@@ -194,19 +255,20 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
                 type="button"
                 className="btn"
                 onClick={() => bannerRef.current?.click()}
-                disabled={uploadingKind !== null}
+                disabled={saving || uploadingKind !== null}
               >
-                <Upload className="h-3 w-3" /> {t.series.upload}
+                <Upload className="h-3 w-3" aria-hidden /> {t.series.upload}
               </button>
               {bannerPath && (
                 <button
                   type="button"
                   className="btn"
                   onClick={() => setBannerPath(null)}
+                  disabled={saving || uploadingKind !== null}
                   aria-label={t.common.cancel}
                   title={t.common.cancel}
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-3 w-3" aria-hidden />
                 </button>
               )}
             </div>
@@ -223,18 +285,19 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
               setCoverPath(initialCoverPath);
               setBannerPath(initialBannerPath);
             }}
+            disabled={saving || uploadingKind !== null}
             className="btn"
           >
-            <X className="h-3 w-3" /> {t.common.cancel}
+            <X className="h-3 w-3" aria-hidden /> {t.common.cancel}
           </button>
         )}
         <button
           type="button"
           onClick={onSave}
-          disabled={!dirty || saving || !name.trim()}
+          disabled={!dirty || saving || uploadingKind !== null || !name.trim()}
           className="btn btn-primary"
         >
-          {saving ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Save className="h-3 w-3" />}
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Save className="h-3 w-3" aria-hidden />}
           {t.common.save}
         </button>
       </div>

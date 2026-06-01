@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Bookmark, Plus, Trash2 } from 'lucide-react';
@@ -8,6 +8,7 @@ import { useConfirm } from './ConfirmDialog';
 import { ErrorAlert } from './ErrorAlert';
 import { readApiError } from '@/lib/api-error-read';
 import type { SeriesRow } from '@/lib/types';
+import { decodeCreatedSeriesRow } from '@/lib/organizer-client-shape';
 
 export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
   const t = useT();
@@ -18,42 +19,93 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [busy, setBusy] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  const busyRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => setItems(initial), [initial]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      busyRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, []);
 
   async function create() {
+    if (busyRef.current) return;
     setError(null);
     const trimmed = name.trim();
     if (!trimmed) return;
+    busyRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    setBusy('create');
     try {
       const res = await fetch('/api/series', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed, description: description.trim() || null }),
+        signal: controller.signal,
       });
       if (!res.ok) {
         throw new Error(await readApiError(res, t.common.error));
       }
-      const data = await res.json();
-      setItems((s) => [...s, data.series].sort((a, b) => a.name.localeCompare(b.name)));
+      const series = decodeCreatedSeriesRow(await res.json());
+      if (!series) throw new Error(t.common.error);
+      if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      setItems((s) => [...s, series].sort((a, b) => a.name.localeCompare(b.name)));
       setName('');
       setDescription('');
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setError((e as Error).message);
+    } finally {
+      if (mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(null);
+      }
     }
   }
 
   async function remove(id: number) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    setBusy(`remove-${id}`);
     const ok = await confirm({ message: t.series.deleteConfirm, tone: 'danger' });
-    if (!ok) return;
-    const res = await fetch(`/api/series/${id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      setError(await readApiError(res, t.common.error));
+    if (!ok || !mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) {
+      if (mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(null);
+      }
       return;
     }
-    setItems((s) => s.filter((x) => x.id !== id));
-    startTransition(() => router.refresh());
+    try {
+      const res = await fetch(`/api/series/${id}`, { method: 'DELETE', signal: controller.signal });
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      setItems((s) => s.filter((x) => x.id !== id));
+      startTransition(() => router.refresh());
+    } catch (e) {
+      if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      setError((e as Error).message);
+    } finally {
+      if (mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(null);
+      }
+    }
   }
 
   return (
@@ -70,6 +122,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
             placeholder={t.series.newName}
             aria-label={t.series.newName}
             value={name}
+            disabled={busy !== null}
             onChange={(e) => setName(e.target.value)}
           />
           <input
@@ -77,10 +130,11 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
             placeholder={t.series.newDescription}
             aria-label={t.series.newDescription}
             value={description}
+            disabled={busy !== null}
             onChange={(e) => setDescription(e.target.value)}
           />
-          <button type="button" className="btn btn-primary" onClick={create} disabled={!name.trim() || pending}>
-            <Plus className="h-4 w-4" /> {t.series.create}
+          <button type="button" className="btn btn-primary" onClick={create} disabled={!name.trim() || pending || busy !== null}>
+            <Plus className="h-4 w-4" aria-hidden /> {t.series.create}
           </button>
         </div>
         {error && (
@@ -111,8 +165,9 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
                 className="btn btn-danger transition-opacity can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                 onClick={() => remove(s.id)}
                 aria-label={t.series.delete}
+                disabled={busy !== null}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4" aria-hidden />
               </button>
             </div>
           ))}

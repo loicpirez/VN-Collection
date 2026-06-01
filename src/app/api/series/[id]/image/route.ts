@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (tooLarge) return tooLarge;
   const { id } = await ctx.params;
   const sid = Number(id);
-  if (!Number.isInteger(sid) || sid <= 0) {
+  if (!Number.isSafeInteger(sid) || sid <= 0) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   if (!getSeries(sid)) {

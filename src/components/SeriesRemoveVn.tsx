@@ -1,7 +1,7 @@
 'use client';
-import { useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
@@ -13,6 +13,25 @@ export function SeriesRemoveVn({ seriesId, vnId }: { seriesId: number; vnId: str
   const { confirm } = useConfirm();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
+  const [busy, setBusy] = useState(false);
+  const ownerKey = `${seriesId}|${vnId}`;
+  const identityRef = useRef<string | null>(ownerKey);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    inFlightRef.current = false;
+    identityRef.current = ownerKey;
+    setBusy(false);
+    return () => {
+      identityRef.current = null;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      inFlightRef.current = false;
+    };
+  }, [ownerKey]);
 
   return (
     <button
@@ -22,22 +41,44 @@ export function SeriesRemoveVn({ seriesId, vnId }: { seriesId: number; vnId: str
       onClick={async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (inFlightRef.current) return;
+        const owner = ownerKey;
+        inFlightRef.current = true;
+        const controller = new AbortController();
+        mutationAbortRef.current?.abort();
+        mutationAbortRef.current = controller;
+        setBusy(true);
         const ok = await confirm({
           message: t.series.removeFromSeriesConfirm,
           tone: 'danger',
         });
-        if (!ok) return;
+        if (!ok || identityRef.current !== owner || mutationAbortRef.current !== controller || controller.signal.aborted) {
+          if (identityRef.current === owner && mutationAbortRef.current === controller) {
+            mutationAbortRef.current = null;
+            inFlightRef.current = false;
+            setBusy(false);
+          }
+          return;
+        }
         try {
-          const r = await fetch(`/api/series/${seriesId}/vn/${vnId}`, { method: 'DELETE' });
+          const r = await fetch(`/api/series/${seriesId}/vn/${vnId}`, { method: 'DELETE', signal: controller.signal });
           if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+          if (identityRef.current !== owner || mutationAbortRef.current !== controller || controller.signal.aborted) return;
           startTransition(() => router.refresh());
         } catch (err) {
+          if (identityRef.current !== owner || mutationAbortRef.current !== controller || controller.signal.aborted) return;
           toast.error((err as Error).message);
+        } finally {
+          if (identityRef.current === owner && mutationAbortRef.current === controller) {
+            mutationAbortRef.current = null;
+            inFlightRef.current = false;
+            setBusy(false);
+          }
         }
       }}
-      disabled={pending}
+      disabled={pending || busy}
     >
-      <X className="h-3.5 w-3.5" />
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" aria-hidden />}
     </button>
   );
 }

@@ -1,11 +1,12 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { ErrorAlert } from './ErrorAlert';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { readApiError } from '@/lib/api-error-read';
 export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
   const t = useT();
   const router = useRouter();
@@ -13,27 +14,55 @@ export function SeriesAddVnForm({ seriesId }: { seriesId: number }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
+  const identityRef = useRef<number | null>(seriesId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    inFlightRef.current = false;
+    identityRef.current = seriesId;
+    setVnId('');
+    setError(null);
+    setBusy(false);
+    return () => {
+      identityRef.current = null;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      inFlightRef.current = false;
+    };
+  }, [seriesId]);
 
   async function add() {
+    if (inFlightRef.current) return;
+    const ownerSeriesId = seriesId;
     setError(null);
     const id = vnId.trim().toLowerCase();
     if (!isVndbVnId(id)) {
       setError(t.series.invalidVnId);
       return;
     }
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    inFlightRef.current = true;
     setBusy(true);
     try {
-      const res = await fetch(`/api/series/${seriesId}/vn/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || t.common.error);
-      }
+      const res = await fetch(`/api/series/${ownerSeriesId}/vn/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal: controller.signal });
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (identityRef.current !== ownerSeriesId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setVnId('');
       startTransition(() => router.refresh());
     } catch (e) {
+      if (identityRef.current !== ownerSeriesId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      if (identityRef.current === ownerSeriesId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        inFlightRef.current = false;
+        setBusy(false);
+      }
     }
   }
 
