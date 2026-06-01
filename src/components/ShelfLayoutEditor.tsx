@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -46,6 +46,7 @@ import { SkeletonBlock } from '@/components/Skeleton';
 import { EditionInfoTrigger, type EditionInfoPopoverData } from '@/components/EditionInfoPopover';
 import type { ShelfDisplaySlotEntry, ShelfEntry, ShelfSlotEntry, ShelfUnitWithCount } from '@/lib/db';
 import { parseDisplayCellId, parseDragId, parseCellId, type DragSource } from '@/lib/drag-id';
+import { useDialogA11y } from '@/components/Dialog';
 
 interface Props {
   initialShelves: ShelfUnitWithCount[];
@@ -106,8 +107,13 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   const [newName, setNewName] = useState('');
   const [showFrontDisplay, setShowFrontDisplay] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
+  const fullscreenTitleId = useId();
+  const fullscreenPanelRef = useRef<HTMLDivElement | null>(null);
   const createInputRef = useRef<HTMLInputElement | null>(null);
   const refreshAbortRef = useRef<AbortController | null>(null);
+  const closeFullscreen = useCallback(() => setFullscreen(false), []);
+
+  useDialogA11y({ open: fullscreen, onClose: closeFullscreen, panelRef: fullscreenPanelRef });
 
   // Load the active shelf's slots on first selection. Subsequent
   // selections re-use the cached entry until a mutation invalidates it.
@@ -793,12 +799,18 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       onDragCancel={() => setDraggingFrom(null)}
     >
       <div
+        ref={fullscreenPanelRef}
+        role={fullscreen ? 'dialog' : undefined}
+        aria-modal={fullscreen ? 'true' : undefined}
+        aria-labelledby={fullscreen ? fullscreenTitleId : undefined}
+        tabIndex={fullscreen ? -1 : undefined}
         className={
           fullscreen
             ? 'fixed inset-0 z-50 overflow-auto bg-bg p-3 sm:p-6'
             : ''
         }
       >
+        {fullscreen && <h2 id={fullscreenTitleId} className="sr-only">{t.shelfLayout.exitFullscreen}</h2>}
         <div className={fullscreen ? 'mx-auto max-w-[1600px]' : undefined}>
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         {/* Shelf tabs + toolbar — left/right paginators flank the tab
@@ -873,7 +885,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             <button
               type="button"
               onClick={() => setShowCreate((v) => !v)}
-              className="btn btn-xs"
+              className="btn btn-xs min-h-[44px] sm:min-h-0"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden /> {t.shelfLayout.newShelf}
             </button>
@@ -886,7 +898,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               <button
                 type="button"
                 onClick={() => setFullscreen((v) => !v)}
-                className="btn btn-xs"
+                className="btn btn-xs min-h-[44px] sm:min-h-0"
               >
                 {fullscreen ? (
                   <Minimize2 className="h-3 w-3" aria-hidden />
@@ -898,7 +910,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               <button
                 type="button"
                 onClick={() => setShowFrontDisplay((v) => !v)}
-                className={`btn btn-xs ${showFrontDisplay ? 'border-accent/50 bg-accent/10 text-accent' : ''}`}
+                className={`btn btn-xs min-h-[44px] sm:min-h-0 ${showFrontDisplay ? 'border-accent/50 bg-accent/10 text-accent' : ''}`}
               >
                 <Layers className="h-3 w-3" aria-hidden /> {t.shelfLayout.frontDisplay}
               </button>
@@ -922,7 +934,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                 type="button"
                 onClick={handleRename}
                 disabled={busy}
-                className="btn btn-xs"
+                className="btn btn-xs min-h-[44px] sm:min-h-0"
               >
                 <Edit3 className="h-3 w-3" aria-hidden /> {t.shelfLayout.rename}
               </button>
@@ -930,7 +942,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                 type="button"
                 onClick={handleDelete}
                 disabled={busy}
-                className="btn btn-danger btn-xs"
+                className="btn btn-danger btn-xs min-h-[44px] sm:min-h-0"
               >
                 <Trash2 className="h-3 w-3" aria-hidden /> {t.shelfLayout.delete}
               </button>
@@ -1600,7 +1612,7 @@ function ResizeButton({
   disabled: boolean;
 }) {
   return (
-    <span className="inline-flex items-center gap-0.5 rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-muted">
+    <span className="inline-flex min-h-[44px] items-center gap-0.5 rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-muted sm:min-h-0">
       <span className="px-1 text-[10px] font-bold uppercase tracking-wider">{label}</span>
       <button
         type="button"

@@ -173,7 +173,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
         !inCollection ? (
           <button
             type="button"
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-xs font-semibold text-bg transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-xs font-semibold text-bg transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={addToCollection}
             disabled={busy !== null}
           >
@@ -183,7 +183,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
         ) : (
           <button
             type="button"
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-status-dropped transition-colors hover:border-status-dropped hover:bg-status-dropped/10 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-status-dropped transition-colors hover:border-status-dropped hover:bg-status-dropped/10 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={removeFromCollection}
             disabled={busy !== null}
             title={t.coverActions.removeFromCollection}
@@ -196,7 +196,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
       {showWishlist && wishlistSupported && (wishlist.loading || wishlist.available) && (
         <button
           type="button"
-          className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+          className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
             wishlist.onWishlist
               ? 'border-accent bg-accent text-bg hover:bg-accent/90'
               : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'

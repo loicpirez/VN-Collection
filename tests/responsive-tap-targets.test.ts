@@ -18,6 +18,8 @@ describe('responsive tap targets', () => {
     expect(source('src/components/MediaGallery.tsx')).toContain('min-h-[44px]');
     expect(source('src/components/CoverRotationButtons.tsx')).toContain('min-h-[44px]');
     expect(source('src/components/AspectOverrideControl.tsx')).toContain('min-h-[44px]');
+    expect(source('src/components/CoverQuickActions.tsx')).toContain('min-h-[44px]');
+    expect(source('src/components/HeroBanner.tsx')).toContain('sm:min-h-0');
   });
 
   it('keeps floating and input chip controls touch-safe', () => {
@@ -45,5 +47,23 @@ describe('responsive tap targets', () => {
     expect(src).toContain('overflow-x-auto');
     expect(src).toContain('shrink-0');
     expect(src).toContain('min-h-[44px]');
+  });
+
+  it('keeps shelf fullscreen and editor controls touch-safe without inflating desktop density', () => {
+    const fullscreen = source('src/components/ShelfSpatialFullscreen.tsx');
+    const editor = source('src/components/ShelfLayoutEditor.tsx');
+    expect(fullscreen).toContain('min-h-[44px]');
+    expect(fullscreen).toContain('sm:min-h-0');
+    expect(editor).toContain('min-h-[44px]');
+    expect(editor).toContain('sm:min-h-0');
+  });
+
+  it('keeps stock refresh actions visible and query controls touch-safe on narrow screens', () => {
+    const stock = source('src/components/StockPanel.tsx');
+    expect(stock).toContain('aria-busy={isRefreshingThis}');
+    expect(stock).toContain('className="absolute right-1.5 top-1.5 inline-flex h-11 w-11');
+    expect(stock).not.toContain('top-1.5 hidden h-6 w-6');
+    expect(stock).toContain('min-h-[44px] flex-1 rounded-md');
+    expect(stock).toContain('sm:min-h-[36px]');
   });
 });

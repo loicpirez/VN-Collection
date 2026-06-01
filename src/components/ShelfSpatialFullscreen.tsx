@@ -1,7 +1,8 @@
 'use client';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Maximize2, Minimize2 } from 'lucide-react';
+import { useDialogA11y } from './Dialog';
 
 interface FullscreenLabels {
   enterFullscreen: string;
@@ -49,37 +50,11 @@ export function ShelfSpatialFullscreen({
 }) {
   const [fullscreen, setFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const fullscreenTitleId = useId();
   const router = useRouter();
+  const closeFullscreen = useCallback(() => setFullscreen(false), []);
 
-  // Body-scroll lock + scroll-position restore.
-  useEffect(() => {
-    if (!fullscreen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [fullscreen]);
-
-  // Escape exits + focus returns to the trigger button.
-  useEffect(() => {
-    if (!fullscreen) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setFullscreen(false);
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [fullscreen]);
-
-  useEffect(() => {
-    if (!fullscreen && triggerRef.current) {
-      triggerRef.current.focus();
-    }
-  }, [fullscreen]);
+  useDialogA11y({ open: fullscreen, onClose: closeFullscreen, panelRef: containerRef });
 
   // Keyboard arrow nav: route to the prev/next shelf URL. The page
   // re-renders with the new active shelf (URL-driven state). Both
@@ -114,17 +89,24 @@ export function ShelfSpatialFullscreen({
     : 'relative';
 
   return (
-    <div ref={containerRef} className={shellClass} tabIndex={-1}>
+    <div
+      ref={containerRef}
+      role={fullscreen ? 'dialog' : undefined}
+      aria-modal={fullscreen ? 'true' : undefined}
+      aria-labelledby={fullscreen ? fullscreenTitleId : undefined}
+      className={shellClass}
+      tabIndex={-1}
+    >
+      {fullscreen && <h2 id={fullscreenTitleId} className="sr-only">{labels.exitFullscreen}</h2>}
       <div className="mb-2 flex items-center justify-end gap-2">
         {fullscreen && controlsSlot}
         <button
-          ref={triggerRef}
           type="button"
           onClick={() => setFullscreen((v) => !v)}
           aria-pressed={fullscreen}
           aria-label={fullscreen ? labels.exitFullscreen : labels.enterFullscreen}
           title={fullscreen ? labels.exitFullscreen : labels.enterFullscreen}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
         >
           {fullscreen ? (
             <Minimize2 className="h-3 w-3" aria-hidden />

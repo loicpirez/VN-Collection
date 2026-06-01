@@ -280,7 +280,8 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
       .replace('{x}', String(Math.round(xPct)))
       .replace('{y}', String(Math.round(yPct)));
   }, [xPct, yPct, t.banner.focalPointPosition]);
-  const rotatedStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null);
+  const coverRotatedStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null, 'cover');
+  const containRotatedStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null, 'contain');
 
   if (settings.hideImages && !editing) {
     return (
@@ -288,7 +289,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/60 to-transparent" />
         {liveSrc && (
           <div
-            className="absolute right-3 top-3 z-10 flex items-center gap-1.5 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+            className="absolute right-3 top-3 z-10 flex flex-wrap items-center justify-end gap-1.5 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -296,7 +297,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
               <button
                 type="button"
                 onClick={() => { setDraftPosition(position); setEditing(true); }}
-                className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg sm:min-h-0"
                 title={t.banner.adjust}
                 aria-label={t.banner.adjust}
               >
@@ -383,7 +384,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
               // the className above adds. `buildRotationStyle` returns
               // `{}` when rotation is 0 so the existing blur classes
               // keep working unchanged.
-              ...rotatedStyle,
+              ...coverRotatedStyle,
             }}
             onLoad={() => setBannerLoaded(true)}
           />
@@ -395,7 +396,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
               aria-hidden
               draggable={false}
               className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain object-center opacity-95 drop-shadow-[0_16px_32px_rgba(0,0,0,0.45)]"
-              style={rotatedStyle}
+              style={containRotatedStyle}
             />
           )}
         </>
@@ -469,7 +470,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                     setDraftPosition(position);
                     setEditing(true);
                   }}
-                  className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg sm:min-h-0"
                   title={t.banner.adjust}
                   aria-label={t.banner.adjust}
                 >
@@ -482,7 +483,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                     type="button"
                     onClick={() => rotateBy(-90)}
                     disabled={busy}
-                    className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
+                    className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50 sm:min-h-0 sm:min-w-0 sm:h-7 sm:w-7"
                     title={t.coverActions.rotateLeft}
                     aria-label={t.coverActions.rotateLeft}
                   >
@@ -492,7 +493,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                     type="button"
                     onClick={() => rotateBy(90)}
                     disabled={busy}
-                    className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50"
+                    className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50 sm:min-h-0 sm:min-w-0 sm:h-7 sm:w-7"
                     title={t.coverActions.rotateRight}
                     aria-label={t.coverActions.rotateRight}
                   >
@@ -512,7 +513,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                     type="button"
                     onClick={save}
                     disabled={busy || pending}
-                    className="tap-target inline-flex h-7 items-center gap-1 rounded-md bg-accent px-3 text-[11px] font-bold text-bg shadow-card transition-colors hover:bg-accent/90 disabled:opacity-50"
+                    className="tap-target inline-flex min-h-[44px] items-center gap-1 rounded-md bg-accent px-3 text-[11px] font-bold text-bg shadow-card transition-colors hover:bg-accent/90 disabled:opacity-50 sm:min-h-0 sm:h-7"
                   >
                     {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Check className="h-3 w-3" aria-hidden />}
                     {t.common.save}
@@ -521,7 +522,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                     type="button"
                     onClick={reset}
                     disabled={busy || pending}
-                    className="tap-target inline-flex h-7 items-center gap-1 rounded-md bg-bg-card/90 px-2 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:text-white"
+                    className="tap-target inline-flex min-h-[44px] items-center gap-1 rounded-md bg-bg-card/90 px-2 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:text-white sm:min-h-0 sm:h-7"
                     title={t.banner.resetPosition}
                     aria-label={t.banner.resetPosition}
                   >
@@ -539,7 +540,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                   setDraftPosition(position);
                   setEditing(false);
                 }}
-                className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white"
+                className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white sm:min-h-0 sm:min-w-0 sm:h-7 sm:w-7"
                 title={t.common.cancel}
                 aria-label={t.common.cancel}
               >

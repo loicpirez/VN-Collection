@@ -5,9 +5,8 @@ import { join } from 'node:path';
 
 /**
  * Pin the pure-CSS rotation-style helper that powers
- * `<SafeImage rotation={…}>`. Uses min(W/H, H/W) so the rotated image
- * fits entirely within the container (no cropping) rather than
- * filling/zooming it.
+ * `<SafeImage rotation={…}>`. Cover mode fills the container while
+ * contain mode preserves the complete image.
  */
 describe('buildRotationStyle', () => {
   it('returns no transform for rotation 0', () => {
@@ -18,18 +17,14 @@ describe('buildRotationStyle', () => {
     expect(buildRotationStyle(180, 100, 200)).toEqual({ transform: 'rotate(180deg)' });
   });
 
-  it('scales by min(W/H, H/W) for 90 inside a portrait container', () => {
-    // Portrait container: 100w x 200h. min(0.5, 2) = 0.5.
-    // Fit mode: the rotated (landscape) image scales DOWN to 0.5 so
-    // the full width is visible, letterboxed vertically.
+  it('scales by max(W/H, H/W) in cover mode', () => {
     expect(buildRotationStyle(90, 100, 200)).toEqual({
-      transform: 'rotate(90deg) scale(0.5)',
+      transform: 'rotate(90deg) scale(2)',
     });
   });
 
-  it('scales by min(W/H, H/W) for 270 inside a landscape container', () => {
-    // Landscape: 200w x 100h. min(2, 0.5) = 0.5.
-    expect(buildRotationStyle(270, 200, 100)).toEqual({
+  it('scales by min(W/H, H/W) in contain mode', () => {
+    expect(buildRotationStyle(270, 200, 100, 'contain')).toEqual({
       transform: 'rotate(270deg) scale(0.5)',
     });
   });
@@ -70,5 +65,16 @@ describe('SafeImage loading skeleton', () => {
   it('resets loaded state when recycled virtualized cells receive a new URL', () => {
     expect(source).toContain('setLoaded(false)');
     expect(source).toContain('setInView(!!priority)');
+  });
+});
+
+describe('HeroBanner rotation layers', () => {
+  const source = readFileSync(join(__dirname, '..', 'src/components/HeroBanner.tsx'), 'utf8');
+
+  it('uses fill scaling for the background and fit scaling for the foreground', () => {
+    expect(source).toContain("buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null, 'cover')");
+    expect(source).toContain("buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null, 'contain')");
+    expect(source).toContain('...coverRotatedStyle');
+    expect(source).toContain('style={containRotatedStyle}');
   });
 });

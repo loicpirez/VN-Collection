@@ -22,11 +22,8 @@ export interface SafeImageProps {
   /**
    * Rotation in degrees clockwise. Only 0/90/180/270 are honoured —
    * other values fall back to 0. For 90/270 rotations the image is
-   * rotated AND scaled by the container's aspect ratio so the rotated
-   * landscape still fills a portrait container without leaving black
-   * bars. The parent container is already `overflow-hidden` per the
-   * existing `relative overflow-hidden` wrapper, so the rotated image
-   * is safely clipped on the long axis.
+   * rotated AND scaled by the container's aspect ratio. Cover mode fills
+   * and clips on the long axis; contain mode keeps the complete image.
    */
   rotation?: 0 | 90 | 180 | 270;
 }
@@ -56,10 +53,10 @@ function publicLocal(rel: string | null | undefined): string | null {
  * the React component. The CSS contract:
  *
  *   - 0 / 180     → plain `rotate(<deg>)`; container aspect unchanged.
- *   - 90 / 270    → `rotate(<deg>)` plus a `scale(W/H)` to swap the
- *     effective aspect inside a fixed-aspect container. The scale is
- *     applied to the larger dimension so a 90deg-rotated landscape
- *     fills a portrait wrapper. When width/height aren't available
+ *   - 90 / 270    → `rotate(<deg>)` plus an aspect-ratio scale to swap
+ *     the effective aspect inside a fixed-aspect container. Cover mode
+ *     fills the wrapper; contain mode preserves the complete image.
+ *     When width/height aren't available
  *     yet (SSR / first paint) we skip the scale; the user sees the
  *     rotated image with a brief letterbox until the container is
  *     measured, which the layout shifts away on the first
@@ -69,19 +66,15 @@ export function buildRotationStyle(
   rotation: number,
   width: number | null,
   height: number | null,
+  fit: 'cover' | 'contain' = 'cover',
 ): CSSProperties {
   const r = rotation % 360;
   if (r === 0) return {};
   if (r === 180) return { transform: 'rotate(180deg)' };
   if (r !== 90 && r !== 270) return {};
   if (!width || !height) return { transform: `rotate(${r}deg)` };
-  // When the image is rotated 90/270 inside a CSS box, the rotated
-  // image's "effective width" becomes the container's HEIGHT (and
-  // vice versa). To cover the container we need to scale the rotated
-  // image by max(W/H, H/W). The image's native object-fit handles
-  // the rest.
-  // min = fit (show the full rotated image); max would fill/crop.
-  const scale = Math.min(width / height, height / width);
+  const ratios = [width / height, height / width];
+  const scale = fit === 'contain' ? Math.min(...ratios) : Math.max(...ratios);
   return { transform: `rotate(${r}deg) scale(${scale})` };
 }
 
@@ -205,7 +198,7 @@ export function SafeImage({
     );
   }
 
-  const rotationStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null);
+  const rotationStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null, fit);
   const loadingSkeleton = !loaded ? (
     <div
       data-safe-image-skeleton
