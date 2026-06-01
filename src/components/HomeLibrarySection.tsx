@@ -16,13 +16,10 @@ import type { HomeSectionState } from '@/lib/home-section-layout';
  * derive from useSearchParams — changing a filter in the controls
  * section immediately updates the grid section.
  *
- * Acceptable cost: the two sections each mount `<LibraryClient>` in
- * a different mode, so the data-fetch effect inside LibraryClient
- * runs twice. Both calls hit the same `/api/collection?…` URL with
- * identical params and benefit from the browser's HTTP cache; the
- * extra round-trip on first paint is ~50ms locally and is the price
- * for splitting state-free between the two sections without a
- * shared Provider refactor.
+ * The two LibraryClient instances coalesce identical collection
+ * requests while they are in flight. This keeps the split sections
+ * independently configurable without duplicating the no-store API
+ * request on first paint.
  */
 export function HomeLibraryControlsSection({
   initialState,

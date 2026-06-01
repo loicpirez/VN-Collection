@@ -87,6 +87,68 @@ const GROUP_SORT_KEYS: GroupSortKey[] = ['count', 'name', 'released'];
 
 const Q_DEBOUNCE_MS = 300;
 
+interface CollectionResponse {
+  items: CollectionItem[];
+  stats: Stats;
+}
+
+interface PendingCollectionRequest {
+  controller: AbortController;
+  consumers: number;
+  promise: Promise<CollectionResponse>;
+}
+
+const pendingCollectionRequests = new Map<string, PendingCollectionRequest>();
+
+function requestCollection(url: string, fallbackError: string): {
+  promise: Promise<CollectionResponse>;
+  release: () => void;
+} {
+  let request = pendingCollectionRequests.get(url);
+  if (!request) {
+    const controller = new AbortController();
+    const promise = fetch(url, { signal: controller.signal, cache: 'no-store' }).then(
+      async (response) => {
+        if (!response.ok) throw new Error(await readApiError(response, fallbackError));
+        return response.json() as Promise<CollectionResponse>;
+      },
+    );
+    request = { controller, consumers: 0, promise };
+    pendingCollectionRequests.set(url, request);
+    const activeRequest = request;
+    void promise.then(
+      () => {
+        if (pendingCollectionRequests.get(url) === activeRequest) {
+          pendingCollectionRequests.delete(url);
+        }
+      },
+      () => {
+        if (pendingCollectionRequests.get(url) === activeRequest) {
+          pendingCollectionRequests.delete(url);
+        }
+      },
+    );
+  }
+  const activeRequest = request;
+  activeRequest.consumers += 1;
+  let released = false;
+  return {
+    promise: activeRequest.promise,
+    release: () => {
+      if (released) return;
+      released = true;
+      activeRequest.consumers -= 1;
+      if (
+        activeRequest.consumers === 0 &&
+        pendingCollectionRequests.get(url) === activeRequest
+      ) {
+        activeRequest.controller.abort();
+        pendingCollectionRequests.delete(url);
+      }
+    },
+  };
+}
+
 function filterScore(it: CollectionItem): number | null {
   const values = [it.user_rating, it.rating, it.egs?.median].filter(
     (value): value is number => typeof value === 'number' && Number.isFinite(value),
@@ -402,10 +464,6 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   }, [urlTag, toast, t.common.error]);
 
   useEffect(() => {
-    // AbortController so rapid filter/sort/q changes cancel the
-    // in-flight request — better-sqlite3 is synchronous and N JSON
-    // parses per item make stacked requests genuinely expensive.
-    const ctrl = new AbortController();
     let alive = true;
     setLoading(true);
     setError(null);
@@ -424,11 +482,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     if (urlQ) params.set('q', urlQ);
     params.set('sort', sort);
     params.set('order', order);
-    fetch(`/api/collection?${params}`, { signal: ctrl.signal, cache: 'no-store' })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-        return r.json();
-      })
+    const request = requestCollection(`/api/collection?${params}`, t.common.error);
+    request.promise
       .then((data) => {
         if (!alive) return;
         setItems(data.items);
@@ -443,7 +498,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
-      ctrl.abort();
+      request.release();
     };
     // join the multi-select aspect set for a stable string identity
     // so changing 4:3 ↔ 16:9 re-fetches.
