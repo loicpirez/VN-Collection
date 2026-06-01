@@ -28,7 +28,7 @@ No cloud account. No telemetry. No bundled games. No bundled copyrighted media.
 - Export, import, and back up the local SQLite database.
 - Print QR label sheets for physical editions via `/labels`.
 - Check per-VN shop stock and prices across Eroge Price, Sofmap, Suruga-ya, Mandarake, Melonbooks, Unoya, Trader, WonderGOO, and other linked retailers.
-- Browse and match second-hand stock from AliceSoft Kobe against VNDB/EGS (optional, env-gated).
+- Browse and match second-hand stock from AliceNet Kobe against VNDB/EGS (optional, env-gated).
 
 ---
 
@@ -42,6 +42,12 @@ VN Collection can read metadata from:
 Source data is cached locally to reduce repeated requests and improve offline browsing. The app includes rate limiting, cache expiry, stale-while-error behavior, and source links so entries can be traced back to their origin.
 
 VNDB and ErogameScape are independent third-party projects. Their data, site content, images, ratings, names, and metadata remain subject to their own terms, licenses, and rights holders. VN Collection does not grant redistribution rights for third-party data.
+
+The optional shop map is private by default. It does not mount the external
+tile layer or enable address search until you allow external map services in
+the map UI. Enabling it loads tiles from CARTO. Address searches send the
+entered query to Nominatim (OpenStreetMap); saved collection rows are not sent
+as a bulk payload.
 
 ---
 
@@ -100,11 +106,11 @@ VNDB and ErogameScape are independent third-party projects. Their data, site con
 - Top-ranked pages with vote thresholds and weighted ranking.
 - Upcoming and anticipated releases with cache freshness indicators.
 
-### Alice Kobe stock browser (optional)
+### AliceNet Kobe stock browser (optional)
 
 Set `ALICESOFT_KOBE_ENABLED=true` in `.env.local` to enable the `/alicesoft_kobe` page.
 
-- Download the current second-hand stock from [Alice Kobe](https://www.alice-kobe.com/) on demand (never auto-fetched).
+- Download the current second-hand stock from [AliceNet Kobe](https://www.alice-kobe.com/) on demand (never auto-fetched).
 - Full sync: items no longer listed (sold) are deleted from the local DB.
 - Auto-match stock entries against VNDB and ErogameScape with rate-limited batch processing.
 - Top-3 VNDB candidates stored per item for quick remapping without re-searching.
@@ -120,6 +126,7 @@ Set `ALICESOFT_KOBE_ENABLED=true` in `.env.local` to enable the `/alicesoft_kobe
 - Stores per-provider snapshots locally, including price, availability, condition, edition label, shop location, and fetch errors.
 - Supported provider families include Eroge Price, Sofmap, Suruga-ya, PC Shop Unoya, Melonbooks, Mandarake, WonderGOO, Trader, Animate, ebten, Getchu, Gamers, GAMECITY, Asakusa Mach, Amazon JP, AmiAmi, Otakarasouko, GEO, Joshin, Neowing, Yodobashi, and Bikkuri Takarajima.
 - The VN page shows available count, best price, last check time, selectable provider groups, per-provider diagnostics, and direct shop links.
+- Provider tiles distinguish structured prices, structured offers, cached inventory, and search-link-only integrations. JAN-capable shops and constrained integrations are labeled explicitly.
 
 ### Stats and maintenance
 
@@ -209,7 +216,7 @@ If you configure an EGS user id, the app can also help sync user-specific public
 
 ## Proxy configuration
 
-Some outbound requests (ErogameScape, VNDB mirror, Alice Kobe) can be routed through a SOCKS5 or HTTP proxy. Set env vars or configure per-provider in Settings → Integrations.
+Some outbound requests (ErogameScape, VNDB mirror, AliceNet Kobe) can be routed through a SOCKS5 or HTTP proxy. Set env vars or configure per-provider in Settings → Integrations.
 
 ```env
 EGS_PROXY_ENABLED=true
@@ -223,6 +230,11 @@ EGS_PROXY_PASSWORD=pass
 Same pattern for `ALICESOFT_KOBE_` and `VNDBMIRROR_` prefixes. The proxy is applied **only** to the configured provider — all other traffic uses a direct connection.
 
 Proxy passwords are never logged or echoed by the settings API.
+
+`AliceNet Kobe` is the canonical user-facing label. The `/alicesoft_kobe`
+route, `/api/alicesoft-kobe/*` routes, `alicesoft_kobe_*` SQLite identifiers,
+`ALICESOFT_KOBE_ENABLED`, and legacy `ALICE_KOBE_PROXY_*` prefix remain stable
+compatibility identifiers.
 
 ---
 

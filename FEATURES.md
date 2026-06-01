@@ -714,6 +714,26 @@ reading-log is unaffected.
 
 ## AliceNet Kobe stock browser
 
+`AliceNet Kobe` is the canonical user-facing label. Existing internal
+identifiers remain stable for compatibility: `/alicesoft_kobe`,
+`/api/alicesoft-kobe/*`, `alicesoft_kobe_*`, `ALICESOFT_KOBE_ENABLED`, and the
+legacy `ALICE_KOBE_PROXY_*` environment prefix.
+
+## Shop map privacy
+
+The `/map` page keeps third-party network access disabled until the operator
+allows it from the map privacy control. Without consent, `MapCanvas` is not
+mounted and address geocoding controls stay disabled. With consent:
+
+- Leaflet loads dark tiles from CARTO.
+- Address search sends only the entered query to Nominatim (OpenStreetMap).
+- Nominatim receives an `Accept-Language` header derived from the active
+  application locale.
+
+The choice is stored locally under `vncoll.map.external-network.v1` and can be
+revoked from the same control. Saved collection places are never uploaded as a
+bulk payload.
+
 ## Generic VN stock and price lookup
 
 `/stock` and the Stock section on `/vn/[id]` share the same local stock cache.
@@ -744,6 +764,23 @@ search), Yahoo Shopping / Asakusa Mach, Otakarasouko, and Bikkuri
 Takarajima. Dynamic or protected shops such as AmiAmi, Neowing,
 GAMECITY, and blocked Suruga-ya responses remain visible as provider
 diagnostics instead of creating fake offers from generic page titles.
+
+`StockProviderMeta` in `src/lib/stock.ts` is the machine-readable provider
+capability contract used by the VN stock UI. It keeps result shape separate
+from physical-store confidence:
+
+| Result capability | Providers | Current behavior |
+| --- | --- | --- |
+| `structured_prices` | Eroge Price | Parsed aggregate price bundles and retailer links |
+| `structured_offers` | Sofmap, Suruga-ya, PC Shop Unoya, Melonbooks, Mandarake, WonderGOO, Trader, Animate, ebten, Getchu, Gamers, Yahoo Shopping, Amazon JP, Otakarasouko, GEO, Joshin, Yodobashi, Bikkuri Takarajima | Parsed offer rows with shop URL, availability, and price when present |
+| `search_leads` | GAMECITY, AmiAmi, Neowing | Search or direct links are known, but the current integration does not claim structured offer parsing |
+| `cached_offers` | AliceNet Kobe | Parsed inventory mirrored by the dedicated on-demand stock browser |
+
+Lookup metadata separately records `aggregate_price`, `direct_link`,
+`jan_lookup`, `title_search`, and `cached_inventory`. Provider tiles show the
+result shape, JAN support, and any `limited` or `manual_only` qualifier. A
+provider can expose structured online offers while still lacking confirmed
+per-branch physical stock.
 
 Provider diagnostics are normalised through `src/lib/stock-diagnostics.ts`
 so the UI never shows raw `HTTP 4xx/5xx` or `fetch failed` text in the

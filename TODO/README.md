@@ -124,11 +124,36 @@ and 500 rows at most, applies advanced predicates in SQLite before slicing, and 
 localized previous/next navigation. Compare and bulk-download workflows drain bounded
 pages through one typed helper instead of requesting an oversized response.
 
+The VN-detail UX follow-up adds a touch-safe horizontal section navigator on narrow
+screens, starts secondary sections collapsed for new layouts, and moves provider tiles
+behind a persisted stock-configuration disclosure. Browser verification at 390 px
+confirmed no horizontal overflow and kept the stock summary and refresh action visible.
+
+The architecture-documentation follow-up adds source-derived inventories for all 116 API
+route files and all 50 bootstrap SQLite tables. A regression test now fails when route
+methods, route files, or tables drift from `CLAUDE.md`; stale scoped-refresh and private
+media descriptions were corrected at the same time.
+
+The stock-provider capability follow-up introduces a typed lookup, result, and support
+contract for every configured shop. Provider tiles now distinguish structured prices,
+structured offers, search leads, cached inventory, JAN lookup, limited support, and
+manual-link-only integrations. The canonical docs describe the same matrix.
+
+The AliceNet Kobe naming follow-up standardizes the visible brand across navigation,
+dictionary text, docs, errors, and component labels. Route, API, SQLite, feature-gate,
+and legacy proxy identifiers remain documented compatibility contracts.
+
+The map-privacy follow-up blocks CARTO tiles and Nominatim geocoding by default behind
+one local opt-in control shared by the map page and place modal. Browser QA at 390 px
+confirmed blocked first paint, enabled shared state, immediate revocation, disabled
+geocoding after revocation, and no horizontal overflow. Nominatim language preferences
+now derive from the active locale.
+
 Current status:
 
-- `DONE_WITH_DIFF`: 66
+- `DONE_WITH_DIFF`: 77
 - `VERIFIED_EXISTING`: 2
-- `TODO`: 27
+- `TODO`: 16
 
 ## Working method
 

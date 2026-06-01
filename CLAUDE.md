@@ -289,29 +289,29 @@ vndb-collection/
 
 ## API surface
 
-Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cache.
+Routes prefixed `/api/`. The table below highlights the main contracts. The
+generated inventory beneath it is the exhaustive source-of-truth list.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| GET | `/api/collection` | List + stats (filters: status, **producer** (developer side), **publisher** (publisher side), series, tag, q, sort, order). Sort accepts `producer` / `publisher`; group accepts `producer` / `publisher`. |
+| GET | `/api/collection` | Paginated list + stats. Defaults to 240 rows, caps pages at 500 rows, and applies advanced filters before slicing. Sort accepts `producer` / `publisher`; group accepts `producer` / `publisher`. |
+| GET | `/api/collection/[id]` | Read one collection row |
 | POST | `/api/collection/[id]` | **First add: triggers `ensureLocalImagesForVn`** synchronously |
 | PATCH | `/api/collection/[id]` | Update tracking fields |
 | DELETE | `/api/collection/[id]` | Remove from collection |
-| POST | `/api/collection/[id]/cover` | Upload custom cover (multipart) |
-| DELETE | `/api/collection/[id]/cover` | Reset cover |
-| POST | `/api/collection/[id]/banner` | Set banner (multipart upload OR `{ source, value }` JSON) |
-| DELETE | `/api/collection/[id]/banner` | Reset banner |
+| POST/PATCH/DELETE | `/api/collection/[id]/cover` | Upload, rotate, or reset custom cover |
+| POST/PATCH/DELETE | `/api/collection/[id]/banner` | Set, rotate, or reset banner |
 | POST | `/api/collection/[id]/assets?refresh=true` | Force VNDB metadata refresh + redownload images |
 | GET | `/api/collection/export` | JSON dump (file download) |
 | POST | `/api/collection/import` | Restore from JSON (raw or multipart) |
 | GET | `/api/backup` | Stream the `.db` file (after WAL checkpoint) |
-| GET | `/api/files/[...path]` | Serve any file under `data/storage/` (with Cache-Control immutable) |
+| GET | `/api/files/[...path]` | Serve private mirrored/uploaded media under `data/storage/`; requires localhost or admin token and sends private cache directives |
 | GET | `/api/search?q=` | Quick VN search |
 | POST | `/api/search/advanced` | Multi-filter VN search (langs, platforms, length, year, rating, has_*) |
 | GET | `/api/vn/[id]` | VN detail (cache 24 h via DB) |
 | GET | `/api/vn/[id]/characters` | Characters of a VN |
 | GET | `/api/vn/[id]/releases` | Releases of a VN |
-| GET/POST | `/api/vn/[id]/stock` | Read cached shop stock offers or explicitly refresh provider snapshots for one VN. |
+| GET/POST/DELETE | `/api/vn/[id]/stock` | Read cached shop stock offers, explicitly refresh provider snapshots, or clear one VN's stock cache. |
 | GET | `/api/vn/[id]/quotes` | Quotes of a VN |
 | GET | `/api/character/[id]` | Character detail |
 | GET | `/api/release/[id]` | Single release |
@@ -333,7 +333,7 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | DELETE | `/api/vndb/cache` (`?mode=expired|prefix&prefix=…`) | Invalidate cache |
 | GET/PATCH | `/api/settings` | Read / update app settings. SAFE_KEYS include `vndb_token`, `random_quote_source`, `default_sort`, `default_order`, `default_group`, `home_section_layout_v1`, `vn_detail_section_layout_v1`, `vndb_writeback`, `vndb_backup_url`, `vndb_backup_enabled`, `steam_api_key`, `steam_id`, `egs_username`, `vndb_fanout`. Sensitive keys (token / Steam key / backup URL) leave a tail in `app_setting_audit`. |
 | GET | `/api/wishlist` | Authenticated wishlist (ulist label 5) + in_collection + EGS hint |
-| DELETE | `/api/wishlist/[id]` | Remove a VN from VNDB wishlist (PATCH labels_unset=[5]) |
+| POST/DELETE | `/api/wishlist/[id]` | Add or remove a VN from the VNDB wishlist label |
 | GET/POST/PATCH/DELETE | `/api/collection/[id]/owned-releases` | Per-edition inventory (location, edition_label, condition, price, dumped, aspect override…) |
 | GET/POST/PATCH/DELETE | `/api/collection/[id]/game-log` | Per-VN free-form timestamped notes (`vn_game_log`) |
 | GET/PATCH | `/api/collection/[id]/source-pref` | Per-VN / per-field source preference JSON |
@@ -352,13 +352,13 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | POST / DELETE | `/api/lists/[id]/items` | Add / remove / reorder list members |
 | POST | `/api/refresh/global` | Bust EGS cover cache + re-fetch page-level caches. Gated behind `requireLocalhostOrToken`. |
 | GET | `/api/download-status` | Polling snapshot of every in-flight fan-out job + throttle stats. Fallback for clients without `EventSource`. |
-| GET | `/api/collection/[id]/activity` | Per-VN audit-trail entries (status / playtime / rating changes + manual notes) |
+| GET/POST/DELETE | `/api/collection/[id]/activity` | Read, append, or remove per-VN audit-trail entries |
 | GET | `/api/activity` | Global app-wide audit feed (all entity types) |
 | GET | `/api/activity/kinds` | Distinct activity kind values for the filter dropdown |
-| GET/POST | `/api/collection/[id]/custom-description` | Per-VN user-authored synopsis override |
+| PATCH/POST/DELETE | `/api/collection/[id]/custom-description` | Save or remove a per-VN user-authored synopsis override |
 | GET | `/api/collection/find?q=` | Fuzzy in-collection title search (used by the Steam linker) |
 | POST | `/api/collection/full-download` | Selective bulk fan-out for a subset of VNs |
-| POST | `/api/collection/order` | Custom-sort drag order writeback |
+| PATCH/DELETE | `/api/collection/order` | Save or reset custom-sort drag order |
 | GET | `/api/collection/tags`, `/api/collection/traits` | Aggregated tag / trait usage across the collection |
 | GET | `/api/export/csv` / `/api/export/ics` / `/api/export/raw` | CSV / iCal / raw-cache exports |
 | POST | `/api/backup/restore` | DB / JSON import (multipart) |
@@ -369,8 +369,8 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | GET/POST/PATCH/DELETE | `/api/saved-filters` | Pinned URL-param presets above the library filters. DELETE uses `?id=N`, PATCH reorders via `{ ids: number[] }`. No `/[id]` subroute exists. |
 | GET | `/api/egs/sync` | Suggestions table for the EGS reviews fan-out (paired with POST below) |
 | POST | `/api/egs/sync` | Apply EGS reviews / playtime sync for confirmed rows |
-| GET | `/api/series/[id]/image` | Series cover / banner asset |
-| POST | `/api/search/textual` | Server-side filtered text search |
+| POST | `/api/series/[id]/image` | Upload a series cover or banner asset |
+| GET | `/api/search/textual` | Server-side filtered text search |
 | POST | `/api/staff/[id]/download` | Trigger full VNDB credit-list fan-out for a staff profile |
 | GET | `/api/steam/library` / `POST /api/steam/link` / `POST /api/steam/sync` | Steam integration endpoints |
 | POST | `/api/vn/[id]/link-vndb` | Promote an `egs_NNN` synthetic VN to a real `v\d+` once VNDB knows it |
@@ -390,9 +390,135 @@ Routes prefixed `/api/`. All are dynamic, runtime `nodejs`, `force-dynamic` cach
 | POST | `/api/alicesoft-kobe/reset-matches` | Clear all auto-matched VN links (`vn_match_source = 'auto'`). Returns `{ cleared }`. Manual links are preserved. |
 | POST | `/api/alicesoft-kobe/download-vndb` | Download VNDB metadata for matched items not yet in the local `vn` table. Body: `{ batch? }`. Returns `{ processed, remaining }`. |
 | POST | `/api/alicesoft-kobe/resolve-egs` | Resolve EGS links for kobe items with `vn_id` but no `egs_id`, via `resolveEgsForVn`. Body: `{ batch? }`. Returns `{ processed, remaining }`. |
-| POST | `/api/alicesoft-kobe/[code]/link` | Manually set VN and/or EGS link for a kobe item. Body: `{ vn_id?, egs_id? }`. Writes `source = 'manual'`. |
-| GET | `/api/refresh/scope` | Scoped cache invalidation. Body: `{ scope: string }`. Returns `{ ok, deleted, patterns, scope }`. Scope validated against `REFRESH_SCOPES` registry. Used by per-page refresh buttons on `/upcoming`, `/top-ranked`, `/tag/[id]`, etc. |
+| POST/DELETE | `/api/alicesoft-kobe/[code]/link` | Manually set VN and/or EGS link for a Kobe item, or clear a manual link. |
+| POST | `/api/refresh/scope` | Scoped cache invalidation. Body: `{ scope: string, params?: Record<string, string> }`. Returns `{ ok, deleted, patterns, scope }`. Scope and template params are validated against `REFRESH_SCOPES`. |
 | POST | `/api/proxy/test` | Test a proxy configuration against the provider's canonical URL. Body: `{ provider, … }`. Returns reachability result. |
+
+### Exhaustive route inventory
+
+Generated from `src/app/api/**/route.ts`. Keep this list synchronized when a
+route file or exported HTTP method changes.
+
+<!-- API_ROUTE_INVENTORY_START -->
+| Route | Methods |
+| --- | --- |
+| /api/activity/kinds | GET |
+| /api/activity | GET |
+| /api/alicesoft-kobe/[code]/link | POST, DELETE |
+| /api/alicesoft-kobe/download-vndb | POST |
+| /api/alicesoft-kobe/fetch | POST |
+| /api/alicesoft-kobe/match-next | POST |
+| /api/alicesoft-kobe/match-vndb-from-egs | POST |
+| /api/alicesoft-kobe/reset-matches | POST |
+| /api/alicesoft-kobe/resolve-egs | POST |
+| /api/alicesoft-kobe/retry-vndb-aggressive | POST |
+| /api/alicesoft-kobe | GET |
+| /api/alicesoft-kobe/search-egs-no-vndb | POST |
+| /api/backup/restore | POST |
+| /api/backup | GET |
+| /api/character/[id] | GET |
+| /api/collection/[id]/activity | GET, POST, DELETE |
+| /api/collection/[id]/assets | POST |
+| /api/collection/[id]/banner | POST, PATCH, DELETE |
+| /api/collection/[id]/cover | POST, DELETE, PATCH |
+| /api/collection/[id]/custom-description | PATCH, POST, DELETE |
+| /api/collection/[id]/game-log | GET, POST, PATCH, DELETE |
+| /api/collection/[id]/owned-releases | GET, POST, PATCH, DELETE |
+| /api/collection/[id] | GET, POST, PATCH, DELETE |
+| /api/collection/[id]/routes | GET, POST, PATCH |
+| /api/collection/[id]/source-pref | GET, PATCH |
+| /api/collection/characters | GET |
+| /api/collection/export | GET |
+| /api/collection/find | GET |
+| /api/collection/full-download | POST |
+| /api/collection/import | POST |
+| /api/collection/order | PATCH, DELETE |
+| /api/collection | GET |
+| /api/collection/tags | GET |
+| /api/collection/traits | GET |
+| /api/download-status | GET |
+| /api/download-status/stream | GET |
+| /api/egs-cover/[id]/candidates | GET |
+| /api/egs-cover/[id] | GET |
+| /api/egs/[id]/add | POST |
+| /api/egs/[id]/vndb | GET, POST, DELETE |
+| /api/egs/search | GET |
+| /api/egs/sync | GET, POST |
+| /api/export/csv | GET |
+| /api/export/game-list | GET |
+| /api/export/ics | GET |
+| /api/export/raw | GET |
+| /api/files/[...path] | GET |
+| /api/lists/[id]/items | POST, DELETE |
+| /api/lists/[id] | GET, PATCH, DELETE |
+| /api/lists | GET, POST |
+| /api/maintenance/duplicates | GET |
+| /api/maintenance/stale | GET |
+| /api/places/[id]/link | POST, DELETE |
+| /api/places/[id]/other-branches | GET |
+| /api/places/[id] | GET, PATCH, DELETE |
+| /api/places/[id]/stock | GET |
+| /api/places/provider-map | GET |
+| /api/places | GET, POST |
+| /api/places/unassigned | GET |
+| /api/producer/[id]/logo | POST, DELETE |
+| /api/producer/[id]/refresh | POST |
+| /api/producer/[id] | GET |
+| /api/producers | GET |
+| /api/proxy/test | POST |
+| /api/reading-goal | GET, POST |
+| /api/reading-queue | GET, POST, DELETE, PATCH |
+| /api/refresh/global | POST |
+| /api/refresh/scope | POST |
+| /api/release/[id] | GET |
+| /api/route/[routeId] | GET, PATCH, DELETE |
+| /api/saved-filters | GET, POST, DELETE, PATCH |
+| /api/search/advanced | POST |
+| /api/search | GET |
+| /api/search/textual | GET |
+| /api/series/[id]/image | POST |
+| /api/series/[id] | GET, PATCH, DELETE |
+| /api/series/[id]/vn/[vnId] | POST, DELETE |
+| /api/series | GET, POST |
+| /api/settings | GET, PATCH |
+| /api/shelves/[id]/displays | POST, DELETE |
+| /api/shelves/[id] | GET, PATCH, DELETE |
+| /api/shelves/[id]/slots | POST, DELETE |
+| /api/shelves | GET, POST, PATCH |
+| /api/staff/[id]/download | POST |
+| /api/staff | GET |
+| /api/steam/library | GET |
+| /api/steam/link | GET, POST, DELETE |
+| /api/steam/sync | GET, POST |
+| /api/stock/batch | POST, DELETE |
+| /api/stock/queue | GET |
+| /api/stock/recent | GET |
+| /api/stock/resolve-titles | GET |
+| /api/stock/summary | GET, POST |
+| /api/tags | GET |
+| /api/tags/web-tree | GET |
+| /api/traits | GET |
+| /api/vn/[id]/aspect | GET, PATCH, DELETE |
+| /api/vn/[id]/characters | GET |
+| /api/vn/[id]/erogamescape | GET, POST, DELETE |
+| /api/vn/[id]/link-vndb | POST |
+| /api/vn/[id]/lists | GET |
+| /api/vn/[id]/quotes | GET |
+| /api/vn/[id]/releases | GET |
+| /api/vn/[id] | GET |
+| /api/vn/[id]/stock/aliases | GET, POST |
+| /api/vn/[id]/stock/eroge-price | PATCH, POST, DELETE |
+| /api/vn/[id]/stock | GET, POST, DELETE |
+| /api/vn/[id]/stock/sources | GET, POST, DELETE |
+| /api/vn/[id]/vndb-status | GET, PATCH, DELETE |
+| /api/vndb/auth | GET |
+| /api/vndb/cache | GET, DELETE |
+| /api/vndb/pull-statuses | POST |
+| /api/vndb/quote/random | GET |
+| /api/vndb/stats | GET |
+| /api/wishlist/[id] | POST, DELETE |
+| /api/wishlist | GET |
+<!-- API_ROUTE_INVENTORY_END -->
 
 ---
 
@@ -402,6 +528,67 @@ All managed via raw SQL in `lib/db.ts`. We never run a migration tool — the
 `ensureColumn(db, table, column, ddl)` helper at startup `ALTER TABLE` if the
 column is missing. **Always use `ensureColumn` for new fields** so existing
 DBs upgrade transparently.
+
+### Bootstrap table inventory
+
+Generated from `CREATE TABLE IF NOT EXISTS` declarations in `lib/db.ts`.
+The detailed notes below expand the most important tables; this inventory is
+the exhaustive check against schema drift.
+
+<!-- DB_TABLE_INVENTORY_START -->
+| Table | Purpose |
+| --- | --- |
+| alicesoft_kobe_stock | AliceNet Kobe mirrored inventory and match state |
+| app_setting | Application key/value settings |
+| app_setting_audit | Redacted sensitive-setting change history |
+| character_image | Mirrored character image paths |
+| character_vn_index | Character-to-VN cache index |
+| collection | Per-VN tracking state |
+| collection_place_index | Materialized collection physical-location index |
+| egs_game | Resolved ErogameScape metadata |
+| egs_vn_link | Manual EGS-to-VNDB mapping overrides |
+| owned_release | Owned edition inventory |
+| owned_release_aspect_override | Per-edition aspect-ratio overrides |
+| place_provider_link | Physical place to provider-label mappings |
+| place_registry | Structured physical shop registry |
+| producer | VNDB producer metadata |
+| reading_goal | Per-year reading target |
+| reading_queue | Ordered play-next queue |
+| release_meta_cache | Release-specific metadata for edition UI |
+| release_resolution_cache | Release aspect-ratio cache |
+| saved_filter | Saved library filter presets |
+| series | User-managed series metadata |
+| series_vn | Ordered VN memberships for series |
+| shelf_display_slot | Face-out shelf placements |
+| shelf_slot | Regular shelf-grid placements |
+| shelf_unit | Shelf-grid definitions |
+| staff_credit_index | Staff cache index for aggregate lookups |
+| steam_link | VN-to-Steam app links |
+| stock_batch_job | Durable bulk-stock refresh snapshots |
+| user_activity | Global user-action audit trail |
+| user_list | User-managed VN lists |
+| user_list_vn | Ordered VN memberships for user lists |
+| vn | Local VN metadata cache |
+| vn_activity | Per-VN tracking activity |
+| vn_aspect_override | VN-level aspect-ratio overrides |
+| vn_developer_index | Materialized VN developer index |
+| vn_egs_link | Manual VNDB-to-EGS mapping overrides |
+| vn_game_log | Per-VN reading journal |
+| vn_language_index | Materialized VN language index |
+| vn_platform_index | Materialized VN platform index |
+| vn_publisher_index | Materialized VN publisher index |
+| vn_quote | VN quote cache |
+| vn_route | Per-VN route tracking |
+| vn_staff_credit | Materialized VN staff credits |
+| vn_stock_alias | Per-VN stock search aliases |
+| vn_stock_offer | Structured provider stock offers |
+| vn_stock_provider_status | Per-provider stock refresh diagnostics |
+| vn_stock_source | User-added exact stock source URLs |
+| vn_tag_index | Materialized VN tag index |
+| vn_title_resolve_cache | Stock title-to-VN resolution cache |
+| vn_va_credit | Materialized voice-actor credits |
+| vndb_cache | Shared outbound-response cache |
+<!-- DB_TABLE_INVENTORY_END -->
 
 ```
 vn               PK id           — VNDB id (v123)
@@ -691,6 +878,11 @@ Settings → Integrations → a `ProxySettingsSection` per provider (EGS, VNDB m
 
 ## AliceNet Kobe stock browser (src/lib/alicesoft-kobe.ts)
 
+`AliceNet Kobe` is the canonical user-facing label. Keep the existing
+`/alicesoft_kobe`, `/api/alicesoft-kobe/*`, `alicesoft_kobe_*`,
+`ALICESOFT_KOBE_ENABLED`, and legacy `ALICE_KOBE_PROXY_*` identifiers stable
+for compatibility.
+
 Gated behind `ALICESOFT_KOBE_ENABLED=true` in `.env.local`. The `/alicesoft_kobe` page
 renders `<KobeClient>` which is a pure client component (SSE-like polling
 for op progress, no streaming).
@@ -725,7 +917,7 @@ as `search_title` for the UI's "Searched as: …" subtitle.
 
 - VNDB: handled by the shared `vndb-throttle.ts` queue (≤ 1 req/s).
 - EGS: `MATCH_INTER_ITEM_DELAY_MS = 1500` ms inter-item sleep.
-- Alice Kobe: manual-only trigger, never auto-fetched.
+- AliceNet Kobe: manual-only trigger, never auto-fetched.
 - Max batch size: 20 items per call (clamped in `matchNextKobeItems`).
 
 ### Candidate remap
@@ -745,6 +937,45 @@ export interface KobeCandidate {
   released: string | null;
 }
 ```
+
+---
+
+## Generic stock provider capability contract
+
+`StockProviderMeta` in `src/lib/stock.ts` is the source of truth for the
+generic per-VN stock tiles. Keep these dimensions separate:
+
+- `lookupCapabilities`: `aggregate_price`, `direct_link`, `jan_lookup`,
+  `title_search`, or `cached_inventory`.
+- `resultCapability`: `structured_prices`, `structured_offers`,
+  `search_leads`, or `cached_offers`.
+- `supportLevel`: `supported`, `limited`, or `manual_only`.
+- `physicalStockMode`, `branchParserImplemented`, and
+  `confirmedPhysicalUsable`: physical-store evidence only.
+
+Do not infer parser support from `kind`, `physical`, or the existence of a
+search URL. The VN stock provider tiles render this contract directly.
+GAMECITY, AmiAmi, and Neowing intentionally remain `search_leads` with
+`manual_only` support until their page shapes have structured parsers.
+
+---
+
+## Shop map privacy boundary
+
+`MapPrivacyControl` is the required opt-in boundary for third-party map
+requests. Consent is local-only under `vncoll.map.external-network.v1`.
+`MapPageClient` does not mount `MapCanvas` until consent is enabled, and
+`AddEditPlaceModal` disables Nominatim search until the same consent exists.
+
+When enabled:
+- `MapCanvas` loads CARTO tiles.
+- Map and place-modal address search sends the entered query to Nominatim
+  (OpenStreetMap).
+- `geocodingAcceptLanguage(locale)` derives the Nominatim `Accept-Language`
+  header from the current application locale.
+
+Do not add a new map tile provider or geocoder without updating the UI privacy
+copy and canonical docs. Never upload saved place rows as a bulk payload.
 
 ---
 
