@@ -220,7 +220,7 @@ vndb-collection/
 │   │   ├── character/[id]/page.tsx     # Character detail with "appears in" gallery
 │   │   ├── vn/[id]/page.tsx            # The big VN detail page
 │   │   ├── stock/page.tsx              # Generic per-VN stock / price lookup
-│   │   ├── alicesoft_kobe/page.tsx      # AliceNet Kobe stock browser (KobeClient, gated)
+│   │   ├── alicenet/page.tsx      # AliceNet stock browser (AliceNetClient, gated)
 │   │   ├── not-found.tsx
 │   │   └── api/                        # see "API surface" below
 │   ├── components/
@@ -255,7 +255,7 @@ vndb-collection/
 │       ├── stock-provider-capabilities.ts # Canonical shop capability catalogue
 │       ├── stock-query.ts              # Bounded title-query generation
 │       ├── stock-api-types.ts          # Client-safe stock response DTOs
-│       ├── alicesoft-kobe.ts           # AliceNet Kobe fetch/parse/match/refresh (server-only)
+│       ├── alicenet.ts           # AliceNet fetch/parse/match/refresh (server-only)
 │       ├── proxy-config.ts             # Per-provider proxy configuration + credential masking
 │       ├── proxy-fetch.ts              # providerFetch() — routes through SOCKS5/HTTP agent
 │       ├── source-resolve.ts           # resolveField helper (VNDB-first auto-fallback)
@@ -387,13 +387,13 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | POST | `/api/shelves/[id]/slots` | Place an owned edition at `(row, col)` — atomic swap if both ends are slots |
 | DELETE | `/api/shelves/[id]/slots` | Return an edition to the unplaced pool |
 | GET | `/api/download-status/stream` | SSE stream of the download-status snapshot (pub/sub driven, with keep-alive comments every 25 s) |
-| GET | `/api/alicesoft-kobe` | Stats snapshot: `{ total, matched, unmatched, none_found, in_wishlist, pending: { vndb_pending, egs_pending } }`. Reads only from SQLite — never touches the AliceNet Kobe website. |
-| POST | `/api/alicesoft-kobe/fetch` | Download the AliceNet Kobe stock page (EUC-JP decoded), parse, full-sync the DB (`added / updated / removed`), return `{ count, added, updated, removed, fetched_at }`. |
-| POST | `/api/alicesoft-kobe/match-next` | Match the next batch against VNDB + EGS. Body: `{ batch?: number (1–20), retry_none?: boolean }`. Returns `{ processed, remaining }`. |
-| POST | `/api/alicesoft-kobe/reset-matches` | Clear all auto-matched VN links (`vn_match_source = 'auto'`). Returns `{ cleared }`. Manual links are preserved. |
-| POST | `/api/alicesoft-kobe/download-vndb` | Download VNDB metadata for matched items not yet in the local `vn` table. Body: `{ batch? }`. Returns `{ processed, remaining }`. |
-| POST | `/api/alicesoft-kobe/resolve-egs` | Resolve EGS links for kobe items with `vn_id` but no `egs_id`, via `resolveEgsForVn`. Body: `{ batch? }`. Returns `{ processed, remaining }`. |
-| POST/DELETE | `/api/alicesoft-kobe/[code]/link` | Manually set VN and/or EGS link for a Kobe item, or clear a manual link. |
+| GET | `/api/alicenet` | Stats snapshot: `{ total, matched, unmatched, none_found, in_wishlist, pending: { vndb_pending, egs_pending } }`. Reads only from SQLite — never touches the AliceNet website. |
+| POST | `/api/alicenet/fetch` | Download the AliceNet stock page (EUC-JP decoded), parse, full-sync the DB (`added / updated / removed`), return `{ count, added, updated, removed, fetched_at }`. |
+| POST | `/api/alicenet/match-next` | Match the next batch against VNDB + EGS. Body: `{ batch?: number (1–20), retry_none?: boolean }`. Returns `{ processed, remaining }`. |
+| POST | `/api/alicenet/reset-matches` | Clear all auto-matched VN links (`vn_match_source = 'auto'`). Returns `{ cleared }`. Manual links are preserved. |
+| POST | `/api/alicenet/download-vndb` | Download VNDB metadata for matched items not yet in the local `vn` table. Body: `{ batch? }`. Returns `{ processed, remaining }`. |
+| POST | `/api/alicenet/resolve-egs` | Resolve EGS links for alicenet items with `vn_id` but no `egs_id`, via `resolveEgsForVn`. Body: `{ batch? }`. Returns `{ processed, remaining }`. |
+| POST/DELETE | `/api/alicenet/[code]/link` | Manually set VN and/or EGS link for a AliceNet item, or clear a manual link. |
 | POST | `/api/refresh/scope` | Scoped cache invalidation. Body: `{ scope: string, params?: Record<string, string> }`. Returns `{ ok, deleted, patterns, scope }`. Scope and template params are validated against `REFRESH_SCOPES`. |
 | POST | `/api/proxy/test` | Test a proxy configuration against the provider's canonical URL. Body: `{ provider, … }`. Returns reachability result. |
 
@@ -407,16 +407,16 @@ route file or exported HTTP method changes.
 | --- | --- |
 | /api/activity/kinds | GET |
 | /api/activity | GET |
-| /api/alicesoft-kobe/[code]/link | POST, DELETE |
-| /api/alicesoft-kobe/download-vndb | POST |
-| /api/alicesoft-kobe/fetch | POST |
-| /api/alicesoft-kobe/match-next | POST |
-| /api/alicesoft-kobe/match-vndb-from-egs | POST |
-| /api/alicesoft-kobe/reset-matches | POST |
-| /api/alicesoft-kobe/resolve-egs | POST |
-| /api/alicesoft-kobe/retry-vndb-aggressive | POST |
-| /api/alicesoft-kobe | GET |
-| /api/alicesoft-kobe/search-egs-no-vndb | POST |
+| /api/alicenet/[code]/link | POST, DELETE |
+| /api/alicenet/download-vndb | POST |
+| /api/alicenet/fetch | POST |
+| /api/alicenet/match-next | POST |
+| /api/alicenet/match-vndb-from-egs | POST |
+| /api/alicenet/reset-matches | POST |
+| /api/alicenet/resolve-egs | POST |
+| /api/alicenet/retry-vndb-aggressive | POST |
+| /api/alicenet | GET |
+| /api/alicenet/search-egs-no-vndb | POST |
 | /api/backup/restore | POST |
 | /api/backup | GET |
 | /api/character/[id] | GET |
@@ -541,7 +541,7 @@ the exhaustive check against schema drift.
 <!-- DB_TABLE_INVENTORY_START -->
 | Table | Purpose |
 | --- | --- |
-| alicesoft_kobe_stock | AliceNet Kobe mirrored inventory and match state |
+| alicenet_stock | AliceNet mirrored inventory and match state |
 | app_setting | Application key/value settings |
 | app_setting_audit | Redacted sensitive-setting change history |
 | character_image | Mirrored character image paths |
@@ -647,7 +647,7 @@ app_setting      PK key
                   character_detail_section_layout_v1, staff_detail_section_layout_v1,
                   producer_detail_section_layout_v1, series_detail_section_layout_v1,
                   shelf_view_prefs_v1,
-                  {provider}_proxy_config (JSON per provider: vndb, vndbmirror, egs, alicesoft_kobe),
+                  {provider}_proxy_config (JSON per provider: vndb, vndbmirror, egs, alicenet),
                   migration_* keys (one-shot migration idempotency guards)
 
 vn (additions)   egs_only INT — synthetic entries from /api/egs/[id]/add use
@@ -759,17 +759,17 @@ vndb_cache       PK cache_key
                   Also hosts EGS cover resolver entries under
                   "egs:cover-resolved:<egs_id>" with shorter neg-TTL.
 
-alicesoft_kobe_stock PK code (format "###-######-###")
+alicenet_stock PK code (format "###-######-###")
                   title, jan, release_date, list_price, sale_price,
                   vn_id (FK-ish → vn, nullable), vn_match_source ('auto'|'manual'|'none'),
-                  vn_candidates TEXT (JSON KobeCandidate[] top-3, for quick-pick remapping),
+                  vn_candidates TEXT (JSON AliceNetCandidate[] top-3, for quick-pick remapping),
                   search_title TEXT (normalized query sent to VNDB/EGS; filled at match time),
                   last_matched_at INTEGER,
                   egs_id INTEGER, egs_match_source,
                   fetched_at, updated_at
-                  — AliceNet Kobe second-hand stock mirror. Full-sync on every download:
+                  — AliceNet second-hand stock mirror. Full-sync on every download:
                   items absent from the new snapshot are DELETED (sold). Route:
-                  POST /api/alicesoft-kobe/fetch. Gated behind ALICESOFT_KOBE_ENABLED=true.
+                  POST /api/alicenet/fetch. Gated behind ALICENET_ENABLED=true.
 ```
 
 ---
@@ -836,7 +836,7 @@ response (CSV) in the shared `vndb_cache` table.
 
 ## Per-provider proxy infrastructure (lib/proxy-config.ts + lib/proxy-fetch.ts)
 
-Providers: `vndb` | `vndbmirror` | `egs` | `alicesoft_kobe`.
+Providers: `vndb` | `vndbmirror` | `egs` | `alicenet`.
 
 ### Resolution order
 
@@ -850,7 +850,7 @@ Env vars take priority over DB settings for every provider.
 | `<PREFIX>_PROXY_PORT` | 1–65535 |
 | `<PREFIX>_PROXY_USERNAME` / `_PASSWORD` | optional auth |
 
-Prefixes: `VNDB`, `VNDBMIRROR`, `EGS`, `ALICESOFT_KOBE`.
+Prefixes: `VNDB`, `VNDBMIRROR`, `EGS`, `ALICENET`.
 
 `resolveProxyConfig(provider)` returns `ProxyConfig | null`. When null, all
 calls fall back to native `fetch()` (no global proxy).
@@ -865,45 +865,45 @@ use raw `fetch()` for any URL that should be proxied.
 - `buildProxyUrl()` result is **never logged, never returned to client, never included in error messages**.
 - `getProxyConfigForDisplay()` returns `{ enabled, protocol, host, port, username, hasPassword }` — raw password never echoed.
 - Saving proxy settings preserves the stored password when the submitted value is `''` or `PROXY_PASSWORD_MASK = '••••••••'`.
-- Proxy is NEVER applied globally to all outbound requests. Only the routes that explicitly call `providerFetch(..., 'egs')` / `providerFetch(..., 'alicesoft_kobe')` etc. use it.
+- Proxy is NEVER applied globally to all outbound requests. Only the routes that explicitly call `providerFetch(..., 'egs')` / `providerFetch(..., 'alicenet')` etc. use it.
 - `add 'server-only'` to any file importing proxy-config.ts.
 
 ### DB storage
 
 Stored per provider in `app_setting`:
-- `egs_proxy_config` / `vndbmirror_proxy_config` / `alicesoft_kobe_proxy_config` (no VNDB key — VNDB proxy is env-only for now).
+- `egs_proxy_config` / `vndbmirror_proxy_config` / `alicenet_proxy_config` (no VNDB key — VNDB proxy is env-only for now).
 
 ### UI
 
-Settings → Integrations → a `ProxySettingsSection` per provider (EGS, VNDB mirror, AliceNet Kobe). Fields: enabled toggle, protocol select, host, port, username, password (write-only input, existing value shown as `••••••••`). Test button fires `POST /api/proxy/test { provider }`.
+Settings → Integrations → a `ProxySettingsSection` per provider (EGS, VNDB mirror, AliceNet). Fields: enabled toggle, protocol select, host, port, username, password (write-only input, existing value shown as `••••••••`). Test button fires `POST /api/proxy/test { provider }`.
 
 ---
 
-## AliceNet Kobe stock browser (src/lib/alicesoft-kobe.ts)
+## AliceNet stock browser (src/lib/alicenet.ts)
 
-`AliceNet Kobe` is the canonical user-facing label. Keep the existing
-`/alicesoft_kobe`, `/api/alicesoft-kobe/*`, `alicesoft_kobe_*`,
-`ALICESOFT_KOBE_ENABLED`, and legacy `ALICE_KOBE_PROXY_*` identifiers stable
-for compatibility.
+`AliceNet` is the canonical label and identifier prefix: `/alicenet`,
+`/api/alicenet/*`, `alicenet_*`, and `ALICENET_ENABLED`. The SQLite bootstrap
+migrates databases created before this rename forward on first open; keep
+those migration inputs isolated to the migration block in `src/lib/db.ts`.
 
-Gated behind `ALICESOFT_KOBE_ENABLED=true` in `.env.local`. The `/alicesoft_kobe` page
-renders `<KobeClient>` which is a pure client component (SSE-like polling
+Gated behind `ALICENET_ENABLED=true` in `.env.local`. The `/alicenet` page
+renders `<AliceNetClient>` which is a pure client component (SSE-like polling
 for op progress, no streaming).
 
 ### Fetch
 
-`fetchAliceKobeHtml()` calls `providerFetch(ALICESOFT_KOBE_URL, …, 'alicesoft_kobe')`.
+`fetchAliceNetHtml()` calls `providerFetch(ALICENET_URL, …, 'alicenet')`.
 The page is EUC-JP; the response buffer is decoded via `new TextDecoder('euc-jp')`.
 
 ### Parse
 
-`parseAliceKobeHtml(html)` uses three stateful regexes (row, cell, tag-strip).
+`parseAliceNetHtml(html)` uses three stateful regexes (row, cell, tag-strip).
 Skips the header row and any row with a code that doesn't match `^\d{3}-\d{6}-\d{3}$`.
-Returns `Pick<KobeStockRow, 'code'|'title'|'jan'|'release_date'|'list_price'|'sale_price'>[]`.
+Returns `Pick<AliceNetStockRow, 'code'|'title'|'jan'|'release_date'|'list_price'|'sale_price'>[]`.
 
 ### Full sync
 
-`upsertKobeStock(rows)` runs a single transaction that:
+`upsertAliceNetStock(rows)` runs a single transaction that:
 1. Reads all existing codes.
 2. Upserts incoming rows (`INSERT … ON CONFLICT DO UPDATE`).
 3. Deletes rows whose code is absent from the incoming set (sold items).
@@ -920,20 +920,20 @@ as `search_title` for the UI's "Searched as: …" subtitle.
 
 - VNDB: handled by the shared `vndb-throttle.ts` queue (≤ 1 req/s).
 - EGS: `MATCH_INTER_ITEM_DELAY_MS = 1500` ms inter-item sleep.
-- AliceNet Kobe: manual-only trigger, never auto-fetched.
-- Max batch size: 20 items per call (clamped in `matchNextKobeItems`).
+- AliceNet: manual-only trigger, never auto-fetched.
+- Max batch size: 20 items per call (clamped in `matchNextAliceNetItems`).
 
 ### Candidate remap
 
-Top-3 VNDB results are stored as `vn_candidates` JSON (`KobeCandidate[]` with
+Top-3 VNDB results are stored as `vn_candidates` JSON (`AliceNetCandidate[]` with
 `{ id, title, alttitle, released }`). The first is auto-selected as `vn_id`.
-`CandidateChips` in `KobeClient` renders them as clickable chips for remap
+`CandidateChips` in `AliceNetClient` renders them as clickable chips for remap
 without re-searching. Manual link dialog pre-fills from `search_title`.
 
-### `KobeCandidate` interface
+### `AliceNetCandidate` interface
 
 ```ts
-export interface KobeCandidate {
+export interface AliceNetCandidate {
   id: string;
   title: string;
   alttitle: string | null;
@@ -1130,7 +1130,7 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 ## Conventions
 
 ### Feature flags
-- `ALICESOFT_KOBE_ENABLED=true` — enables the `/alicesoft_kobe` page and all `/api/alicesoft-kobe/*` routes.
+- `ALICENET_ENABLED=true` — enables the `/alicenet` page and all `/api/alicenet/*` routes.
 - `VNCOLL_DISABLE_ACTIVITY=true` — skips writes to the global `user_activity` audit table. Per-VN `vn_activity` (reading log) is unaffected.
 
 ### i18n
@@ -1841,7 +1841,7 @@ After non-trivial changes, walk through these in the browser
     VN-page / Account / Integrations / Automation, including
     the deep-link from /data's "Manage in Settings →
     Integrations" button.
-  - `/alicesoft_kobe` (when `ALICESOFT_KOBE_ENABLED=true`): stats bar, all five
+  - `/alicenet` (when `ALICENET_ENABLED=true`): stats bar, all five
     filter tabs, Download Stock, Find VNDB & EGS Matches, Reset,
     candidate chips, manual link dialog.
   - Mobile (≤ 640px): navbar is a Menu sheet, density slider
@@ -2096,7 +2096,7 @@ New DB tables introduced by recent batches:
 | `shelf_unit` / `shelf_slot` / `shelf_display_slot` | Drag-and-drop shelf layout | `shelf_unit` is the grid metadata; `shelf_slot` is regular cells; `shelf_display_slot` is face-out rows between shelves. Both placement tables enforce UNIQUE `(vn_id, release_id)` through helpers so one edition is placed once. |
 | `release_resolution_cache` / `owned_release_aspect_override` | Aspect-ratio filtering | VNDB release resolutions are normalized to buckets; manual per-edition overrides take precedence for library filters/groups. |
 | `vn_stock_offer` / `vn_stock_provider_status` | Generic stock lookup | Per-VN shop snapshots from VNDB release extlinks, JAN/GTIN title search, EGS price pages, and known official retailer links. Providers include Sofmap, Suruga-ya, Eroge Price, Unoya, Melonbooks, Mandarake, WonderGOO, Trader, Animate, ebten, Getchu, Gamers, GAMECITY, Asakusa Mach, Amazon JP, AmiAmi, Otakarasouko, GEO, Joshin, Neowing, Yodobashi, and Bikkuri Takarajima. |
-| `alicesoft_kobe_stock` | AliceNet Kobe stock browser | Second-hand shop inventory with full-sync delete, VNDB/EGS match columns, candidate remap JSON, search_title. Gated behind `ALICESOFT_KOBE_ENABLED=true`. |
+| `alicenet_stock` | AliceNet stock browser | Second-hand shop inventory with full-sync delete, VNDB/EGS match columns, candidate remap JSON, search_title. Gated behind `ALICENET_ENABLED=true`. |
 
 ## Backlog cleared (2026-05-15 batch H)
 

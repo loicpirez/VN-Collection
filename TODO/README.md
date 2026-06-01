@@ -139,9 +139,10 @@ contract for every configured shop. Provider tiles now distinguish structured pr
 structured offers, search leads, cached inventory, JAN lookup, limited support, and
 manual-link-only integrations. The canonical docs describe the same matrix.
 
-The AliceNet Kobe naming follow-up standardizes the visible brand across navigation,
-dictionary text, docs, errors, and component labels. Route, API, SQLite, feature-gate,
-and legacy proxy identifiers remain documented compatibility contracts.
+The AliceNet naming follow-up standardizes navigation, dictionary text, docs, routes,
+APIs, SQLite identifiers, feature gates, errors, and component labels. The bootstrap
+migrates prior local identifiers forward while the real upstream hostname remains
+isolated to fetch and allowlist code.
 
 The map-privacy follow-up blocks CARTO tiles and Nominatim geocoding by default behind
 one local opt-in control shared by the map page and place modal. Browser QA at 390 px
@@ -158,7 +159,7 @@ during development hot reload.
 
 The stock-localization follow-up centralizes JPY formatting, uses the shared locale-aware
 date helper for provider timestamps, and stores app-authored stock conditions, editions,
-marketplace availability, and AliceNet Kobe availability as stable slugs. Existing
+marketplace availability, and AliceNet availability as stable slugs. Existing
 English rows retain render-time compatibility maps. Browser QA at 390 px also found and
 fixed stock disclosure hydration mismatches caused by reading local storage during the
 first client render; a fresh reload now has no console errors or horizontal overflow.
