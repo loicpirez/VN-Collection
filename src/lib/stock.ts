@@ -40,10 +40,37 @@ export type PhysicalStockMode =
   | 'exact_online_browser_required'
   | 'exact_cached';
 
+/** Input strategies that can produce a target for one stock provider. */
+export type StockLookupCapability =
+  | 'aggregate_price'
+  | 'direct_link'
+  | 'jan_lookup'
+  | 'title_search'
+  | 'cached_inventory';
+
+/** Shape of the result that the current provider integration can return. */
+export type StockResultCapability =
+  | 'structured_prices'
+  | 'structured_offers'
+  | 'search_leads'
+  | 'cached_offers';
+
+/** Current confidence level of the implemented provider integration. */
+export type StockSupportLevel =
+  | 'supported'
+  | 'limited'
+  | 'manual_only';
+
 export interface StockProviderMeta {
   id: StockProviderId | 'alicesoft_kobe';
   label: string;
   kind: 'direct' | 'aggregate' | 'cached';
+  /** Input strategies supported by the current provider integration. */
+  lookupCapabilities: readonly StockLookupCapability[];
+  /** Result shape returned by the current provider integration. */
+  resultCapability: StockResultCapability;
+  /** Whether the integration is complete, constrained, or manual-link only. */
+  supportLevel: StockSupportLevel;
   /** True when this provider can help with physical buying. Not necessarily confirmed exact stock. */
   physical: boolean;
   /** Describes what kind of physical stock evidence the provider can produce. */
@@ -136,29 +163,29 @@ export const USELESS_FOR_CONFIRMED_PHYSICAL_STOCK: ReadonlyArray<StockProviderId
 ] as const;
 
 const PROVIDERS: StockProviderMeta[] = [
-  { id: 'eroge_price',        label: 'Eroge Price',        kind: 'aggregate', physical: false, physicalStockMode: 'none',                                   cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'sofmap',             label: 'Sofmap / Recole',    kind: 'direct',    physical: true,  physicalStockMode: 'exact_online',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
-  { id: 'surugaya',           label: 'Suruga-ya',          kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_browser_required',          cloudflare: true,  branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'hgame1',             label: 'PC Shop Unoya',      kind: 'direct',    physical: true,  physicalStockMode: 'single_shop',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: true  },
-  { id: 'melonbooks',         label: 'Melonbooks',         kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'mandarake',          label: 'Mandarake',          kind: 'direct',    physical: true,  physicalStockMode: 'store_name_online',                      cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'wondergoo',          label: 'WonderGOO',          kind: 'direct',    physical: true,  physicalStockMode: 'store_locator_only',                     cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'trader',             label: 'Trader / 秋葉原トレーダー通販', kind: 'direct', physical: false, physicalStockMode: 'online_only', cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'animate',            label: 'Animate',            kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'ebten',              label: 'ebten',              kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'getchu',             label: 'Getchu',             kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'gamers',             label: 'Gamers',             kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'gamecity',           label: 'GAMECITY',           kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'asakusa_mach',       label: 'Yahoo Shopping',     kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'amazon_jp',          label: 'Amazon JP',          kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'amiami',             label: 'AmiAmi',             kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'otakarasouko',       label: 'Otakarasouko',       kind: 'direct',    physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'geo',                label: 'GEO',                kind: 'direct',    physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'joshin',             label: 'Joshin',             kind: 'direct',    physical: true,  physicalStockMode: 'phone_only',                             cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'neowing',            label: 'Neowing',            kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'yodobashi',          label: 'Yodobashi',          kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'bikkuri_takarajima', label: 'Bikkuri Takarajima', kind: 'direct',    physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'alicesoft_kobe',     label: 'AliceNet Kobe',      kind: 'cached',    physical: true,  physicalStockMode: 'exact_cached',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
+  { id: 'eroge_price',        label: 'Eroge Price',        kind: 'aggregate', lookupCapabilities: ['aggregate_price', 'title_search'],                resultCapability: 'structured_prices', supportLevel: 'supported',   physical: false, physicalStockMode: 'none',                                   cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'sofmap',             label: 'Sofmap / Recole',    kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_online',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
+  { id: 'surugaya',           label: 'Suruga-ya',          kind: 'direct',    lookupCapabilities: ['title_search'],                                      resultCapability: 'structured_offers', supportLevel: 'limited',     physical: true,  physicalStockMode: 'exact_online_browser_required',          cloudflare: true,  branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'hgame1',             label: 'PC Shop Unoya',      kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'single_shop',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: true  },
+  { id: 'melonbooks',         label: 'Melonbooks',         kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'mandarake',          label: 'Mandarake',          kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'store_name_online',                      cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'wondergoo',          label: 'WonderGOO',          kind: 'direct',    lookupCapabilities: ['direct_link'],                                      resultCapability: 'structured_offers', supportLevel: 'limited',     physical: true,  physicalStockMode: 'store_locator_only',                     cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'trader',             label: 'Trader / 秋葉原トレーダー通販', kind: 'direct', lookupCapabilities: ['title_search'],                               resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'animate',            label: 'Animate',            kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'ebten',              label: 'ebten',              kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'getchu',             label: 'Getchu',             kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'gamers',             label: 'Gamers',             kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'gamecity',           label: 'GAMECITY',           kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'search_leads',      supportLevel: 'manual_only', physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'asakusa_mach',       label: 'Yahoo Shopping',     kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'amazon_jp',          label: 'Amazon JP',          kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'amiami',             label: 'AmiAmi',             kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'search_leads',      supportLevel: 'manual_only', physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'otakarasouko',       label: 'Otakarasouko',       kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'geo',                label: 'GEO',                kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'joshin',             label: 'Joshin',             kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'phone_only',                             cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'neowing',            label: 'Neowing',            kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'search_leads',      supportLevel: 'manual_only', physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'yodobashi',          label: 'Yodobashi',          kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'bikkuri_takarajima', label: 'Bikkuri Takarajima', kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'alicesoft_kobe',     label: 'AliceNet Kobe',      kind: 'cached',    lookupCapabilities: ['cached_inventory'],                                  resultCapability: 'cached_offers',     supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_cached',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
 ];
 
 const PROVIDER_LABELS = new Map(PROVIDERS.map((p) => [p.id, p.label]));

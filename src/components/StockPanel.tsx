@@ -94,6 +94,9 @@ interface StockProvider {
   id: string;
   label: string;
   kind: 'direct' | 'aggregate' | 'cached';
+  lookupCapabilities: ReadonlyArray<'aggregate_price' | 'direct_link' | 'jan_lookup' | 'title_search' | 'cached_inventory'>;
+  resultCapability: 'structured_prices' | 'structured_offers' | 'search_leads' | 'cached_offers';
+  supportLevel: 'supported' | 'limited' | 'manual_only';
   physical: boolean;
   physicalStockMode: string;
   cloudflare: boolean;
@@ -1351,6 +1354,14 @@ function providerHostMatches(providerId: string, host: string): boolean {
   return entry ? entry[1].test(host) : false;
 }
 
+function providerCapabilityText(t: TDict, provider: StockProvider): string {
+  const labels: string[] = [t.stock.providerCapabilities[provider.resultCapability]];
+  if (provider.lookupCapabilities.includes('jan_lookup')) labels.push(t.stock.providerCapabilities.janLookup);
+  if (provider.supportLevel === 'limited') labels.push(t.stock.providerCapabilities.limited);
+  if (provider.supportLevel === 'manual_only') labels.push(t.stock.providerCapabilities.manualOnly);
+  return labels.join(' / ');
+}
+
 const ProviderTile = memo(function ProviderTile({
   provider,
   status,
@@ -1379,9 +1390,10 @@ const ProviderTile = memo(function ProviderTile({
   onRefreshOnly: (id: string) => void;
 }) {
   const badgeLabel = diagnostic ? providerDiagnosticText(t, diagnostic.badgeKey) : null;
+  const capabilityLabel = providerCapabilityText(t, provider);
   const lastChecked = status?.fetched_at ? timeAgo(status.fetched_at, t) : null;
   const lastCheckedFull = status?.fetched_at ? new Date(status.fetched_at).toLocaleString(locale) : null;
-  const ariaLabel = `${provider.label} — ${badgeLabel ?? (selectable ? t.stock.providerNotChecked : t.stock.providerCached)}${count > 0 ? ` (${count})` : ''}`;
+  const ariaLabel = `${provider.label}: ${capabilityLabel}. ${badgeLabel ?? (selectable ? t.stock.providerNotChecked : t.stock.providerCached)}${count > 0 ? ` (${count})` : ''}`;
   const diagnosticMessage = diagnostic ? providerDiagnosticText(t, diagnostic.messageKey) : null;
   const tooltipParts: string[] = [];
   if (diagnosticMessage && diagnostic?.kind !== 'ok') tooltipParts.push(diagnosticMessage);
@@ -1411,15 +1423,7 @@ const ProviderTile = memo(function ProviderTile({
           <span className="min-w-0">
             <span className="block truncate text-xs font-bold">{provider.label}</span>
             <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-muted">
-              {provider.kind === 'cached'
-                ? t.stock.providerCached
-                : provider.kind === 'aggregate'
-                  ? t.stock.providersAggregate
-                  : provider.confirmedPhysicalUsable
-                    ? t.stock.groupPhysical
-                    : provider.physical
-                      ? t.stock.physicalCapable
-                      : t.stock.providersDirect}
+              {capabilityLabel}
             </span>
             {lastChecked && (
               <span className="mt-0.5 block text-[10px] text-muted/70">
