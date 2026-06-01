@@ -42,8 +42,9 @@ describe('stock provider capability contract', () => {
     const panel = source('src/components/StockPanel.tsx');
     expect(panel).toContain('function providerCapabilityText');
     expect(panel).toContain('provider.resultCapability');
-    expect(panel).toContain("provider.lookupCapabilities.includes('jan_lookup')");
+    expect(panel).toContain("provider.lookupCapabilities?.includes('jan_lookup')");
     expect(panel).toContain("provider.supportLevel === 'manual_only'");
+    expect(panel).toContain('?? fallback');
     expect(panel).toContain('{capabilityLabel}');
   });
 
@@ -54,6 +55,10 @@ describe('stock provider capability contract', () => {
     expect(readme).toContain('Provider tiles distinguish structured prices, structured offers, cached inventory, and search-link-only integrations.');
     expect(features).toContain('| `search_leads` | GAMECITY, AmiAmi, Neowing |');
     expect(claude).toContain('## Generic stock provider capability contract');
+    expect(features).toContain('src/lib/stock-provider-capabilities.ts');
+    expect(claude).toContain('src/lib/stock-provider-capabilities.ts');
+    expect(features).not.toContain('`StockProviderMeta` in `src/lib/stock.ts`');
+    expect(claude).not.toContain('`StockProviderMeta` in `src/lib/stock.ts`');
     expect(claude).toContain('GAMECITY, AmiAmi, and Neowing intentionally remain `search_leads`');
   });
 });

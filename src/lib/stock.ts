@@ -8,6 +8,7 @@ import { stockProviderFetch, runStockFetchDirect } from './proxy-fetch';
 import { isStockProviderProxied } from './proxy-config';
 import type { CollectionItem } from './types';
 import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
+import { amazonSearchTerms, titleQueries, titleQueriesForProvider } from './stock-query';
 import {
   buildErogePriceQueries,
   searchAndFetchAll,
@@ -25,65 +26,30 @@ import {
   STOCK_PROVIDER_LABELS,
   type StockProviderId,
 } from './stock-provider-constants';
+import {
+  STOCK_PROVIDERS,
+  getProviderMeta,
+  type StockProviderMeta,
+} from './stock-provider-capabilities';
 export { ONLINE_STOCK_SENTINEL, STOCK_PROVIDER_IDS, STOCK_PROVIDER_LABELS };
 export type { StockProviderId };
-
-export type PhysicalStockMode =
-  | 'none'
-  | 'online_only'
-  | 'single_shop'
-  | 'store_locator_only'
-  | 'phone_only'
-  | 'store_name_online'
-  | 'exact_online'
-  | 'exact_online_possible_not_implemented'
-  | 'exact_online_browser_required'
-  | 'exact_cached';
-
-/** Input strategies that can produce a target for one stock provider. */
-export type StockLookupCapability =
-  | 'aggregate_price'
-  | 'direct_link'
-  | 'jan_lookup'
-  | 'title_search'
-  | 'cached_inventory';
-
-/** Shape of the result that the current provider integration can return. */
-export type StockResultCapability =
-  | 'structured_prices'
-  | 'structured_offers'
-  | 'search_leads'
-  | 'cached_offers';
-
-/** Current confidence level of the implemented provider integration. */
-export type StockSupportLevel =
-  | 'supported'
-  | 'limited'
-  | 'manual_only';
-
-export interface StockProviderMeta {
-  id: StockProviderId | 'alicesoft_kobe';
-  label: string;
-  kind: 'direct' | 'aggregate' | 'cached';
-  /** Input strategies supported by the current provider integration. */
-  lookupCapabilities: readonly StockLookupCapability[];
-  /** Result shape returned by the current provider integration. */
-  resultCapability: StockResultCapability;
-  /** Whether the integration is complete, constrained, or manual-link only. */
-  supportLevel: StockSupportLevel;
-  /** True when this provider can help with physical buying. Not necessarily confirmed exact stock. */
-  physical: boolean;
-  /** Describes what kind of physical stock evidence the provider can produce. */
-  physicalStockMode: PhysicalStockMode;
-  /** True when normal server-side fetch is likely blocked or unreliable. */
-  cloudflare: boolean;
-  /** Whether the current parser actually extracts branch/store-level stock. */
-  branchParserImplemented: boolean;
-  /** Whether this provider should appear in confirmed-physical-location results right now. */
-  confirmedPhysicalUsable: boolean;
-  /** True when the operator has disabled this provider in settings. Absent means enabled. */
-  disabled?: boolean;
-}
+export {
+  PHYSICAL_CAPABLE_PROVIDER_IDS,
+  CONFIRMED_PHYSICAL_PROVIDER_IDS,
+  USELESS_FOR_CONFIRMED_PHYSICAL_STOCK,
+  canProduceConfirmedPhysicalStock,
+  canProducePotentialPhysicalLead,
+  getProviderMeta,
+  shouldShowAsPhysicalLead,
+  shouldShowInConfirmedPhysicalResults,
+} from './stock-provider-capabilities';
+export type {
+  PhysicalStockMode,
+  StockLookupCapability,
+  StockProviderMeta,
+  StockResultCapability,
+  StockSupportLevel,
+} from './stock-provider-capabilities';
 
 export interface StockOffer extends VnStockOfferRow {
   provider_label: string;
@@ -142,104 +108,6 @@ interface ParsedOffer {
   store_code?: string | null;
   product_id?: string | null;
   page_kind?: string | null;
-}
-
-/** All providers with physical presence (capable). Not all produce confirmed stock data yet. */
-export const PHYSICAL_CAPABLE_PROVIDER_IDS: ReadonlyArray<StockProviderId> = [
-  'sofmap', 'surugaya', 'hgame1', 'mandarake', 'wondergoo',
-  'animate', 'otakarasouko', 'geo', 'joshin', 'yodobashi', 'bikkuri_takarajima',
-] as const;
-
-/** Providers whose parsers currently return confirmed per-branch stock. */
-export const CONFIRMED_PHYSICAL_PROVIDER_IDS: ReadonlyArray<StockProviderId> = [
-  'sofmap', 'hgame1',
-] as const;
-
-/** Providers that cannot produce confirmed physical stock information right now. */
-export const USELESS_FOR_CONFIRMED_PHYSICAL_STOCK: ReadonlyArray<StockProviderId> = [
-  'wondergoo', 'otakarasouko', 'bikkuri_takarajima', 'joshin',
-  'melonbooks', 'ebten', 'getchu', 'gamers', 'gamecity',
-  'asakusa_mach', 'amazon_jp', 'amiami', 'neowing',
-] as const;
-
-const PROVIDERS: StockProviderMeta[] = [
-  { id: 'eroge_price',        label: 'Eroge Price',        kind: 'aggregate', lookupCapabilities: ['aggregate_price', 'title_search'],                resultCapability: 'structured_prices', supportLevel: 'supported',   physical: false, physicalStockMode: 'none',                                   cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'sofmap',             label: 'Sofmap / Recole',    kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_online',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
-  { id: 'surugaya',           label: 'Suruga-ya',          kind: 'direct',    lookupCapabilities: ['title_search'],                                      resultCapability: 'structured_offers', supportLevel: 'limited',     physical: true,  physicalStockMode: 'exact_online_browser_required',          cloudflare: true,  branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'hgame1',             label: 'PC Shop Unoya',      kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'single_shop',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: true  },
-  { id: 'melonbooks',         label: 'Melonbooks',         kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'mandarake',          label: 'Mandarake',          kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'store_name_online',                      cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'wondergoo',          label: 'WonderGOO',          kind: 'direct',    lookupCapabilities: ['direct_link'],                                      resultCapability: 'structured_offers', supportLevel: 'limited',     physical: true,  physicalStockMode: 'store_locator_only',                     cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'trader',             label: 'Trader / 秋葉原トレーダー通販', kind: 'direct', lookupCapabilities: ['title_search'],                               resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'animate',            label: 'Animate',            kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'ebten',              label: 'ebten',              kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'getchu',             label: 'Getchu',             kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'gamers',             label: 'Gamers',             kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'gamecity',           label: 'GAMECITY',           kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'search_leads',      supportLevel: 'manual_only', physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'asakusa_mach',       label: 'Yahoo Shopping',     kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'amazon_jp',          label: 'Amazon JP',          kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'amiami',             label: 'AmiAmi',             kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'search_leads',      supportLevel: 'manual_only', physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'otakarasouko',       label: 'Otakarasouko',       kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'geo',                label: 'GEO',                kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'joshin',             label: 'Joshin',             kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'phone_only',                             cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'neowing',            label: 'Neowing',            kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'search_leads',      supportLevel: 'manual_only', physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'yodobashi',          label: 'Yodobashi',          kind: 'direct',    lookupCapabilities: ['direct_link', 'jan_lookup', 'title_search'],          resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'bikkuri_takarajima', label: 'Bikkuri Takarajima', kind: 'direct',    lookupCapabilities: ['direct_link', 'title_search'],                       resultCapability: 'structured_offers', supportLevel: 'supported',   physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'alicesoft_kobe',     label: 'AliceNet Kobe',      kind: 'cached',    lookupCapabilities: ['cached_inventory'],                                  resultCapability: 'cached_offers',     supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_cached',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
-];
-
-const PROVIDER_LABELS = new Map(PROVIDERS.map((p) => [p.id, p.label]));
-
-/** Look up a stock provider's metadata row. Returns `undefined` for unknown ids. */
-export function getProviderMeta(id: StockProviderId | 'alicesoft_kobe'): StockProviderMeta | undefined {
-  return PROVIDERS.find((p) => p.id === id);
-}
-
-/** Does the provider's data carry enough signal to show a confirmed physical SKU? */
-export function canProduceConfirmedPhysicalStock(id: StockProviderId | 'alicesoft_kobe'): boolean {
-  return !!getProviderMeta(id)?.confirmedPhysicalUsable;
-}
-
-/**
- * Does the provider count as a "potential physical lead" — i.e. its
- * listings hint at a physical SKU even when not stock-confirmed (single-
- * shop sites, exact-online retailers, phone-only check, cached snapshots).
- */
-export function canProducePotentialPhysicalLead(id: StockProviderId | 'alicesoft_kobe'): boolean {
-  const meta = getProviderMeta(id);
-  if (!meta?.physical) return false;
-  const potentialModes: ReadonlyArray<PhysicalStockMode> = [
-    'single_shop', 'store_locator_only', 'phone_only', 'store_name_online',
-    'exact_online', 'exact_online_possible_not_implemented',
-    'exact_online_browser_required', 'exact_cached',
-  ];
-  return potentialModes.includes(meta.physicalStockMode);
-}
-
-/**
- * Apply the confirmed-physical filter to one offer: provider must be on
- * the confirmed list, availability must be in-stock-ish, and the offer
- * must carry a real branch label (not the synthetic ONLINE_STOCK_SENTINEL
- * marker — see I-027).
- */
-export function shouldShowInConfirmedPhysicalResults(
-  offer: Pick<VnStockOfferRow, 'provider' | 'availability' | 'location_label'>,
-): boolean {
-  if (!canProduceConfirmedPhysicalStock(offer.provider as StockProviderId | 'alicesoft_kobe')) return false;
-  if (offer.availability !== 'in_stock' && offer.availability !== 'limited') return false;
-  return !!offer.location_label && offer.location_label !== ONLINE_STOCK_SENTINEL;
-}
-
-/**
- * Apply the "potential physical lead" filter to one offer: the provider
- * must carry physical inventory and the offer must not be out-of-stock.
- */
-export function shouldShowAsPhysicalLead(
-  offer: Pick<VnStockOfferRow, 'provider' | 'availability'>,
-): boolean {
-  const meta = getProviderMeta(offer.provider as StockProviderId | 'alicesoft_kobe');
-  if (!meta?.physical) return false;
-  return offer.availability !== 'out_of_stock';
 }
 
 /**
@@ -404,7 +272,7 @@ const TITLE_SEARCH_URLS: Partial<Record<StockProviderId, (query: string) => stri
 };
 
 function providerLabel(provider: string): string {
-  return PROVIDER_LABELS.get(provider as StockProviderId) ?? provider;
+  return getProviderMeta(provider as StockProviderId)?.label ?? provider;
 }
 
 function decodeEntities(value: string): string {
@@ -570,50 +438,6 @@ function uniqTargets(targets: StockTarget[]): StockTarget[] {
     out.push(target);
   }
   return out;
-}
-
-function titleQueries(vn: CollectionItem, extraTerms: string[] = []): string[] {
-  const values = [
-    vn.title,
-    vn.alttitle,
-    ...extraTerms,
-    ...((vn.titles ?? []).flatMap((title) => [title.title, title.latin]) ?? []),
-  ];
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const value of values) {
-    const q = value?.trim();
-    if (!q || q.length < 2) continue;
-    const key = q.toLocaleLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(q);
-    if (out.length >= 5) break;
-  }
-  return out;
-}
-
-function hasJapanese(value: string): boolean {
-  return /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(value);
-}
-
-function titleQueriesForProvider(vn: CollectionItem, provider: StockProviderId, extraTerms: string[] = []): string[] {
-  const queries = titleQueries(vn, extraTerms);
-  if (provider !== 'amazon_jp') return queries;
-  const japanese = queries.filter(hasJapanese);
-  return (japanese.length > 0 ? japanese : queries).slice(0, 3);
-}
-
-function amazonSearchTerms(query: string): string[] {
-  // The bare title is the highest-recall query: appending "PCゲーム" /
-  // "Windows" forces an AND match that Amazon's listing titles often miss,
-  // returning zero rows. Keep one qualified variant to favour the game
-  // edition when the bare title is too broad.
-  const terms = [
-    query,
-    `${query} PCゲーム`,
-  ];
-  return [...new Set(terms)];
 }
 
 function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProviderId, vn?: CollectionItem | null, extraTerms: string[] = []): StockTarget[] {
@@ -869,7 +693,7 @@ export function parseSofmapList(html: string, target: StockTarget): ParsedOffer[
       price: parsePriceYen(priceBlock),
       availability,
       availability_label: stockText || null,
-      condition: /中古/.test(block) ? 'Used' : null,
+      condition: /中古/.test(block) ? 'used' : null,
       edition_label: null,
       location_label: location ?? ONLINE_STOCK_SENTINEL,
       location_branch: location ?? null,
@@ -895,7 +719,7 @@ export function parseSofmapDetail(html: string, url: string, target: StockTarget
     price: parsePriceYen(priceBlock),
     availability: availabilityFromText(stockBlock),
     availability_label: stockText || null,
-    condition: /中古/.test(html) ? 'Used' : null,
+    condition: /中古/.test(html) ? 'used' : null,
     edition_label: null,
     location_label: stockText || null,
     source_release_id: target.releaseId,
@@ -1167,7 +991,7 @@ export function parseMandarakeDetail(html: string, url: string, target: StockTar
     price: parsePriceYen(html),
     availability: availabilityFromText(html),
     availability_label: null,
-    condition: /中古|開封|傷み|まんだらけ/i.test(html) ? 'Used' : null,
+    condition: /中古|開封|傷み|まんだらけ/i.test(html) ? 'used' : null,
     edition_label: null,
     location_label: 'Mandarake',
     source_release_id: target.releaseId,
@@ -1223,7 +1047,7 @@ export function parseWondergooDetail(html: string, url: string, target: StockTar
     availability: 'unknown',
     availability_label: null,
     condition: null,
-    edition_label: /特典|限定|limited|set|box/i.test(title + html.slice(0, 2000)) ? 'Store bonus' : null,
+    edition_label: /特典|限定|limited|set|box/i.test(title + html.slice(0, 2000)) ? 'store_bonus' : null,
     location_label: 'WonderGOO',
     source_release_id: target.releaseId,
     jan: target.jan,
@@ -1249,12 +1073,12 @@ async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: Colle
 }
 
 function traderEditionLabel(title: string): string | null {
-  if (/グッズ|タペストリー|抱き枕|特典|単品/.test(title)) return 'Bonus item';
-  if (/初回限定版|初回版/.test(title)) return 'First press';
-  if (/完全生産限定版|完全限定版/.test(title)) return 'Complete limited';
-  if (/限定版/.test(title)) return 'Limited edition';
-  if (/豪華版|デラックス/.test(title)) return 'Deluxe edition';
-  if (/パック|セット/.test(title)) return 'Bundle';
+  if (/グッズ|タペストリー|抱き枕|特典|単品/.test(title)) return 'bonus_item';
+  if (/初回限定版|初回版/.test(title)) return 'first_press';
+  if (/完全生産限定版|完全限定版/.test(title)) return 'complete_limited';
+  if (/限定版/.test(title)) return 'limited_edition';
+  if (/豪華版|デラックス/.test(title)) return 'deluxe_edition';
+  if (/パック|セット/.test(title)) return 'bundle';
   return null;
 }
 
@@ -1331,7 +1155,7 @@ export function parseTraderChukoSmartphoneList(
       price: isSoldOut ? null : price,
       availability,
       availability_label: isSoldOut ? '売り切れ' : price !== null ? '販売中' : null,
-      condition: 'Used',
+      condition: 'used',
       edition_label: traderEditionLabel(title),
       location_label: 'Trader Online / 秋葉原トレーダー通販',
       location_branch: null,
@@ -1424,7 +1248,7 @@ export function parseTraderChukoDetail(
     price: isSoldOut ? null : price,
     availability,
     availability_label,
-    condition: fallback?.condition ?? 'Used',
+    condition: fallback?.condition ?? 'used',
     edition_label: fallback?.edition_label ?? traderEditionLabel(title),
     location_label: 'Trader Online / 秋葉原トレーダー通販',
     location_branch: null,
@@ -1584,7 +1408,7 @@ function offerFromListBlock(
     availability: availabilityFromText(stockBlock || priceBlock) === 'unknown' && priceBlock ? 'in_stock' : availabilityFromText(stockBlock || priceBlock),
     availability_label: stockText || null,
     condition: options.condition ?? null,
-    edition_label: options.edition ?? (/特典|限定|初回|DX|BOX/i.test(title) ? 'Edition / bonus' : null),
+    edition_label: options.edition ?? (/特典|限定|初回|DX|BOX/i.test(title) ? 'edition_bonus' : null),
     location_label: options.location ?? providerLabel(provider),
     source_release_id: target.releaseId,
     jan: target.jan,
@@ -1743,7 +1567,7 @@ export function parseAmazonDetail(html: string, url: string, target: StockTarget
     price: parsePriceYen(price || html),
     availability: availabilityFromText(availabilityBlock),
     availability_label: stripTags(availabilityBlock).slice(0, 120) || null,
-    condition: /中古|used/i.test(html) ? 'Used' : null,
+    condition: /中古|used/i.test(html) ? 'used' : null,
     edition_label: null,
     location_label: 'Amazon JP',
     source_release_id: target.releaseId,
@@ -1828,7 +1652,7 @@ export function parseGenericProviderPage(provider: StockProviderId, html: string
         availability: availabilityFromText(m[0] ?? '') === 'out_of_stock' ? 'out_of_stock' : availabilityFromText(m[0] ?? '') === 'unknown' ? 'unknown' : 'in_stock',
         availability_label: null,
         condition: null,
-        edition_label: /特典|限定|初回|DX|BOX/i.test(title) ? 'Edition / bonus' : null,
+        edition_label: /特典|限定|初回|DX|BOX/i.test(title) ? 'edition_bonus' : null,
         location_label: providerLabel(provider),
         source_release_id: target.releaseId,
         jan: target.jan,
@@ -2451,9 +2275,9 @@ export function parseSurugayaSearch(html: string): SurugayaSearchResult {
     else if (/在庫あり|入荷中/.test(ctx)) officialAvailability = 'in_stock';
 
     let condition: string | null = null;
-    if (/ランクB/.test(ctx)) condition = 'Used (Rank B)';
-    else if (/中古/.test(ctx)) condition = 'Used';
-    else if (/新品/.test(ctx)) condition = 'New';
+    if (/ランクB/.test(ctx)) condition = 'used_rank_b';
+    else if (/中古/.test(ctx)) condition = 'used';
+    else if (/新品/.test(ctx)) condition = 'new';
 
     const imgMatch = /https?:\/\/shinaban[^\s"'<>]+\.(?:jpg|jpeg|png|webp)/i.exec(ctx);
     const imageUrl = imgMatch ? imgMatch[0] : null;
@@ -2498,7 +2322,7 @@ function surugayaCardToOffer(card: SurugayaSearchCard, classifyTarget: ClassifyT
 
   let availLabel: string | null = null;
   if (card.officialAvailability === 'out_of_stock' && card.marketplacePrice !== null) {
-    availLabel = `Marketplace: ¥${card.marketplacePrice.toLocaleString('ja-JP')}`;
+    availLabel = `marketplace:${card.marketplacePrice}`;
   }
 
   const cl = classifyOffer(card.title, card.category, classifyTarget, {
@@ -2853,8 +2677,8 @@ export function getStockForVn(vnId: string): StockSnapshot {
     price: parsePriceYen(row.sale_price ?? row.list_price ?? ''),
     currency: 'JPY',
     availability: 'in_stock' as VnStockAvailability,
-    availability_label: 'AliceNet Kobe stock',
-    condition: 'Used',
+    availability_label: 'alicesoft_kobe_stock',
+    condition: 'used',
     edition_label: null,
     location_label: 'AliceNet Kobe',
     location_branch: 'AliceNet Kobe',
@@ -2887,7 +2711,7 @@ export function getStockForVn(vnId: string): StockSnapshot {
   });
   const statuses = listVnStockProviderStatuses(vnId);
   const disabledSet = getDisabledStockProviders();
-  const providersWithDisabled = PROVIDERS.map((p) => ({
+  const providersWithDisabled = STOCK_PROVIDERS.map((p) => ({
     ...p,
     disabled: disabledSet.has(p.id),
   }));

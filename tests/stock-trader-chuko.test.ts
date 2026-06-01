@@ -128,8 +128,8 @@ describe('parseTraderChukoSmartphoneList — in_stock item', () => {
     expect(result[0].location_branch).toBeNull();
   });
 
-  it('sets condition to Used', () => {
-    expect(result[0].condition).toBe('Used');
+  it('sets condition to a stable used slug', () => {
+    expect(result[0].condition).toBe('used');
   });
 
   it('builds an absolute detail URL', () => {
@@ -162,22 +162,22 @@ describe('parseTraderChukoSmartphoneList — title filter', () => {
 });
 
 describe('parseTraderChukoSmartphoneList — edition labels', () => {
-  it('labels 初回版 as First press', () => {
+  it('labels 初回版 with a stable first-press slug', () => {
     const html = makeListHtml(listItem({ id: '1', title: '架空ゲーム 初回版', price: 4000 }));
     const result = parseTraderChukoSmartphoneList(html, BASE_URL, BLANK_TARGET);
-    expect(result[0].edition_label).toBe('First press');
+    expect(result[0].edition_label).toBe('first_press');
   });
 
-  it('labels 特典タペストリー as Bonus item', () => {
+  it('labels 特典タペストリー with a stable bonus-item slug', () => {
     const html = makeListHtml(listItem({ id: '2', title: '架空ゲーム 特典タペストリー', price: 1000 }));
     const result = parseTraderChukoSmartphoneList(html, BASE_URL, BLANK_TARGET);
-    expect(result[0].edition_label).toBe('Bonus item');
+    expect(result[0].edition_label).toBe('bonus_item');
   });
 
-  it('labels 限定版 as Limited edition', () => {
+  it('labels 限定版 with a stable limited-edition slug', () => {
     const html = makeListHtml(listItem({ id: '3', title: '架空ゲーム 限定版', price: 9800 }));
     const result = parseTraderChukoSmartphoneList(html, BASE_URL, BLANK_TARGET);
-    expect(result[0].edition_label).toBe('Limited edition');
+    expect(result[0].edition_label).toBe('limited_edition');
   });
 
   it('returns null edition label for standard titles', () => {

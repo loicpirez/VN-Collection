@@ -110,7 +110,7 @@ describe('stock provider parsers', () => {
       title: '〔中古品〕 Sample VN【PCゲームソフト】',
       price: 2980,
       availability: 'in_stock',
-      condition: 'Used',
+      condition: 'used',
       location_label: 'AKIBA アミューズメント館',
       location_branch: 'AKIBA アミューズメント館',
     });
@@ -263,7 +263,7 @@ describe('stock provider parsers', () => {
       'https://www.wonder.co.jp/benefit/game/detail/?id=90001',
       target,
     );
-    expect(offer).toMatchObject({ availability: 'unknown', edition_label: 'Store bonus' });
+    expect(offer).toMatchObject({ availability: 'unknown', edition_label: 'store_bonus' });
   });
 
   it('parseMandarakeDetail returns offer from a typical product page', () => {
@@ -280,7 +280,7 @@ describe('stock provider parsers', () => {
       provider_offer_id: '1099012345',
       price: 4800,
       availability: 'in_stock',
-      condition: 'Used',
+      condition: 'used',
       location_label: 'Mandarake',
     });
   });
