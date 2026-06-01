@@ -64,7 +64,7 @@ stale file references introduced by earlier component renames.
 Fresh gates passed:
 
 - `yarn typecheck`
-- `yarn test`: 2562 passed, 3 skipped
+- `yarn test`: 2574 passed, 3 skipped
 - `yarn build`
 - `yarn qa`: 24 passed, 0 failed
 
@@ -78,11 +78,48 @@ helper import during SSR. Leaflet viewport persistence now lives in a safe helpe
 module, marker icons are served locally, and explicit icon configuration replaces
 private prototype mutation.
 
+The stock follow-up removed the owned-edition hard cap and bounded provider-offer
+rendering with localized pagination. Mobile browser verification at 390 px confirmed
+one primary landmark, no horizontal overflow, visible 44 px provider refresh targets,
+and 44 px stock setup inputs.
+
+The stock backend follow-up runs providers in deterministic four-shop waves with a
+provider-level deadline. Batch refresh now caps concurrent background jobs, rejects
+overflow explicitly, and aborts in-flight provider work when cancelled.
+
+The collection query follow-up coalesces the home page's duplicate no-store collection
+requests while preserving independent section controls. Producer and publisher ordering
+now joins pre-aggregated names instead of executing scalar subqueries per result row.
+
+The collection enrichment follow-up chunks place and aspect lookups into 500-VN queries
+to stay below SQLite placeholder limits. VN detail price history now hydrates from the
+server stock snapshot instead of issuing an immediate duplicate request.
+
+The stock-price test follow-up extracts a typed request boundary and proves with delayed
+responses that an aborted stale VN request cannot overwrite the active VN payload.
+
+The character-route typing follow-up validates and normalizes local API rows before
+client caching. Route suggestions now consume the adapter output directly without a
+double cast.
+
+The stock-extras typing follow-up validates `eroge_price` envelopes at the SQLite write
+boundary, normalizes nested payloads through the canonical decoder, removes the raw
+generic reader, and pins every UI consumer to the validated path.
+
+The asset-access security follow-up treats mirrored and uploaded files as private media.
+`/api/files/*` now requires localhost or an admin token before storage lookup and sends
+private cache directives.
+
+The stock-batch durability follow-up processes VNs in bounded two-item waves, persists
+top-level progress snapshots, keeps cancelled counters truthful, and reports unfinished
+jobs as interrupted after a server restart. The status popover distinguishes cancelled
+work from completed work.
+
 Current status:
 
-- `DONE_WITH_DIFF`: 42
+- `DONE_WITH_DIFF`: 63
 - `VERIFIED_EXISTING`: 2
-- `TODO`: 51
+- `TODO`: 30
 
 ## Working method
 
